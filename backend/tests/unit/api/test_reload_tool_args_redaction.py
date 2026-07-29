@@ -1,7 +1,7 @@
 """Persisted tool args are redacted at serve time (round-3 S3 residual).
 
 #1046 redacted the live SSE ``tool_start`` preview but rows persisted by
-``_persist_assistant_message`` keep raw args, and both message-serving
+``persist_assistant_message`` keep raw args, and both message-serving
 funnels (agent ``get_thread_messages`` and threads ``_format_message_response``)
 returned ``msg.tool_executions`` verbatim — so a page reload re-leaked the
 PII the live stream had redacted. Serve-time redaction also covers rows

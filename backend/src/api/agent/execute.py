@@ -6,7 +6,7 @@ concerns lives in the service layer (audit B1/B5):
 - src/services/agent/tools_impl.py    — _tool_* functions, execute_tool, AGENT_TOOLS
 - src/services/agent/tool_helpers.py  — _resolve_document_id, _verify_project_ownership, etc.
 - src/services/agent/agent_execution_service.py — job store access,
-  _run_agent_graph/_resume_agent_graph, thread resolution, message persistence
+  run_agent_graph/resume_agent_graph, thread resolution, message persistence
 - src/services/agent/schemas.py       — execute/response wire models (re-exported here)
 - streaming.py (sibling)              — SSE event generators for /stream and /stream/confirm
 """
@@ -47,24 +47,19 @@ from src.models.workspace import Workspace
 from src.services.agent import stream_buffer as _stream_buffer
 from src.services.agent._pii_redact import redact_tool_executions
 from src.services.agent._sanitize import _sanitize_prompt_field
-from src.services.agent.agent_execution_service import (  # noqa: F401
-    MAX_JOBS,
-    _actor_fields,
-    _cleanup_jobs,
-    _get_job,
-    _get_latest_user_content,
-    _jobs,
-    _jobs_lock,
-    _page_context_to_dict,
-    _resume_agent_graph,
-    _run_agent_graph,
-    _set_job,
+from src.services.agent.agent_execution_service import (
+    actor_fields,
+    get_job,
+    resume_agent_graph,
+    run_agent_graph,
+    set_job,
+    update_cached_job_status,
 )
 
 # Wire models moved to the service layer (audit B5) so the graph runner can
 # build them without importing src.api. Re-exported here so every existing
 # `from src.api.agent.execute import <schema>` keeps resolving.
-from src.services.agent.schemas import (  # noqa: F401
+from src.services.agent.schemas import (
     SUPPORTED_MODELS,
     AgentExecuteRequest,
     AgentExecuteResponse,
@@ -73,40 +68,16 @@ from src.services.agent.schemas import (  # noqa: F401
     RetrievedContextResponse,
     ToolExecutionResponse,
 )
-from src.services.agent.tool_helpers import (  # noqa: F401
+
+# Ownership/resolution guards actually used by the endpoints below.
+# Deliberate exception to the no-private-cross-boundary rule: these two are
+# the canonical tenant-scope guards (see CLAUDE.md) and are referenced by
+# name across the service layer; renaming them is out of scope here.
+from src.services.agent.tool_helpers import (
     _resolve_document_id,
-    _resolve_project_id,
-    _sanitize_metadata,
     _verify_project_ownership,
 )
-
-# Re-export from the canonical service modules so existing imports keep
-# working. Every `from src.api.agent.execute import <name>` must resolve.
-from src.services.agent.tools_impl import (  # noqa: F401
-    AGENT_TOOLS,
-    _tool_add_document_to_project,
-    _tool_compare_documents,
-    _tool_create_draft,
-    _tool_create_project,
-    _tool_create_project_note,
-    _tool_do_kb_retrieve,
-    _tool_execute_code,
-    _tool_explore_entity_neighborhood,
-    _tool_export_bibliography,
-    _tool_extract_entities,
-    _tool_find_entity_paths,
-    _tool_get_graph_stats,
-    _tool_ingest_arxiv,
-    _tool_list_external_databases,
-    _tool_list_project_documents,
-    _tool_list_projects,
-    _tool_search_arxiv,
-    _tool_search_documents,
-    _tool_search_external_database,
-    _tool_search_knowledge_graph,
-    _tool_summarize_document,
-    execute_tool,
-)
+from src.services.agent.tools_impl import AGENT_TOOLS, execute_tool
 from src.shared.enums import TERMINAL_STREAM_EVENTS, AgentStreamEvent, JobStatus
 
 from .streaming import (  # noqa: F401
@@ -351,7 +322,7 @@ async def _celery_dispatch(
         return "fallback", job_id
 
     # 2. Job record for pollers (L1 + Redis + projection).
-    _set_job(job_id, job_payload)
+    set_job(job_id, job_payload)
 
     # 3. Enqueue LAST — the external call happens only after all state is
     #    durable, so the worker's execution claim always finds its row.
@@ -368,21 +339,21 @@ async def _celery_dispatch(
             "celery dispatch: enqueue failed for job %s — marking failed", job_id
         )
         error = "Agent dispatch failed (task queue unavailable). Please retry."
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": JobStatus.FAILED,
                 "error": error,
                 "tool_executions": [],
-                **_actor_fields(current_user),
+                **actor_fields(current_user),
             },
         )
         # Durable projection write (await — the fire-and-forget projection
-        # scheduled by _set_job is best-effort; this one must land so the
+        # scheduled by set_job is best-effort; this one must land so the
         # sweeper never resurrects the orphan as "stale running").
         await agent_run_service.record_job_status(
             job_id,
-            {"status": JobStatus.FAILED, "error": error, **_actor_fields(current_user)},
+            {"status": JobStatus.FAILED, "error": error, **actor_fields(current_user)},
         )
         return "failed", job_id
 
@@ -431,7 +402,7 @@ async def execute_agent(
     job_payload = {
         "status": JobStatus.RUNNING,
         "tool_executions": [],
-        **_actor_fields(current_user),
+        **actor_fields(current_user),
         "request": request.model_dump(),
     }
 
@@ -444,10 +415,10 @@ async def execute_agent(
         # "fallback": nothing was enqueued and no job record written — safe
         # to run in-process below, exactly as if the flag were "background".
 
-    _set_job(job_id, job_payload)
+    set_job(job_id, job_payload)
 
     background_tasks.add_task(
-        _run_agent_graph,
+        run_agent_graph,
         job_id,
         request,
         current_user,
@@ -487,7 +458,7 @@ async def get_job_status(
     # poller would see "running" until the 1h TTL. get_job_fresh degrades to
     # the L1 read when Redis is unavailable, so single-process behavior (and
     # Redis-less tests) are unchanged.
-    job = _get_job(job_id)
+    job = get_job(job_id)
     if job is None or not _normalized_job_status(job.get("status")).is_terminal:
         from src.services.agent.job_store import get_job_fresh as _get_job_fresh
 
@@ -562,13 +533,10 @@ async def confirm_agent_action(
         raise HTTPException(status_code=409, detail="Job is not awaiting confirmation")
 
     # Winner: keep the local L1 view consistent, then resume.
-    with _jobs_lock:
-        cached = _jobs.get(job_id)
-        if cached is not None:
-            cached["status"] = JobStatus.RUNNING
+    update_cached_job_status(job_id, JobStatus.RUNNING)
 
     background_tasks.add_task(
-        _resume_agent_graph,
+        resume_agent_graph,
         job_id,
         request.confirmed,
         current_user,

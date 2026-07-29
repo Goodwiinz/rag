@@ -3,7 +3,7 @@
 Covers the pieces that don't need a live Postgres:
 - the AGENT_CANONICAL_PERSISTENCE flag parsing,
 - the deterministic assistant client_message_id derivation contract,
-- _persist_assistant_message_safe forwarding the new kwargs
+- persist_assistant_message_safe forwarding the new kwargs
   (latency_ms / stopped / client_message_id) and returning the id.
 """
 
@@ -65,13 +65,13 @@ class TestPersistSafeForwarding:
             return "msg-123"
 
         with (
-            patch.object(jobs, "_persist_assistant_message", side_effect=_fake_persist),
+            patch.object(jobs, "persist_assistant_message", side_effect=_fake_persist),
             patch.object(jobs, "AsyncSessionLocal") as session_factory,
         ):
             session_factory.return_value.__aenter__ = AsyncMock(return_value=object())
             session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await jobs._persist_assistant_message_safe(
+            result = await jobs.persist_assistant_message_safe(
                 thread_id="t-1",
                 content="partial answer",
                 model_name="gpt-5-mini",
@@ -94,7 +94,7 @@ class TestPersistSafeForwarding:
         with (
             patch.object(
                 jobs,
-                "_persist_assistant_message",
+                "persist_assistant_message",
                 side_effect=RuntimeError("db down"),
             ),
             patch.object(jobs, "AsyncSessionLocal") as session_factory,
@@ -102,7 +102,7 @@ class TestPersistSafeForwarding:
             session_factory.return_value.__aenter__ = AsyncMock(return_value=object())
             session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await jobs._persist_assistant_message_safe(
+            result = await jobs.persist_assistant_message_safe(
                 thread_id="t-1",
                 content="x",
                 model_name=None,

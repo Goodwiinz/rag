@@ -81,7 +81,7 @@ class TestSearchIngestAddWorkflow:
 
     async def test_full_search_ingest_add_flow(self):
         """Papers found by search should be ingestable and addable to a project."""
-        from src.api.agent.execute import (
+        from src.services.agent.tools_impl import (
             _tool_add_document_to_project,
             _tool_ingest_arxiv,
             _tool_search_arxiv,
@@ -215,7 +215,7 @@ class TestAddWithoutIngestFails:
 
     async def test_add_non_ingested_paper_returns_helpful_error(self):
         """add_document_to_project should fail with guidance when doc doesn't exist."""
-        from src.api.agent.execute import _tool_add_document_to_project
+        from src.services.agent.tools_impl import _tool_add_document_to_project
 
         user = _mock_user()
         fake_doc_id = "1803.10916v1"  # arXiv ID, not a UUID
@@ -237,7 +237,7 @@ class TestAddWithoutIngestFails:
 
     async def test_add_with_fabricated_uuid_returns_error(self):
         """Even a valid-looking UUID should fail if the document doesn't exist."""
-        from src.api.agent.execute import _tool_add_document_to_project
+        from src.services.agent.tools_impl import _tool_add_document_to_project
 
         user = _mock_user()
         fake_uuid = str(uuid4())
@@ -339,7 +339,7 @@ class TestIngestReturnsUsableUUIDs:
         """Ingest should return UUID strings, not arXiv IDs."""
         from uuid import UUID
 
-        from src.api.agent.execute import _tool_ingest_arxiv
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
 
         user = _mock_user()
         ingested_doc = _make_ingested_doc("Test Paper")
@@ -403,7 +403,7 @@ class TestSharedSessionNeverUsedForWrites:
 
     async def test_ingest_does_not_write_to_shared_session(self):
         """_tool_ingest_arxiv must not call add/commit on the passed-in db."""
-        from src.api.agent.execute import _tool_ingest_arxiv
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
 
         user = _mock_user()
         shared_db = AsyncMock()
@@ -443,7 +443,7 @@ class TestSharedSessionNeverUsedForWrites:
     async def test_add_doc_writes_via_tool_call_session(self):
         """_tool_add_document_to_project writes to the per-call session it
         is handed (audit B8) — no ad-hoc AsyncSessionLocal of its own."""
-        from src.api.agent.execute import _tool_add_document_to_project
+        from src.services.agent.tools_impl import _tool_add_document_to_project
 
         user = _mock_user()
 

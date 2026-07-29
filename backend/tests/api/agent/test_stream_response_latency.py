@@ -4,7 +4,7 @@ Task 5 of ``docs/plans/2026-05-13-agent-persist-perf.md``.
 
 Direct-invokes ``stream_event_generator`` with a fake graph that yields
 nothing (so the stream proceeds straight to the post-stream finalize),
-a stubbed ``_persist_assistant_message_safe`` that sleeps 300 ms, and a
+a stubbed ``persist_assistant_message_safe`` that sleeps 300 ms, and a
 ``MockBackgroundTasks`` that captures ``add_task`` calls. The behavior
 under test: scheduling the assistant write through ``BackgroundTasks``
 means the stream's ``done`` event is yielded immediately, without
@@ -86,7 +86,7 @@ async def test_done_event_does_not_wait_on_commit(
     with (
         patch.object(streaming_mod, "AsyncSessionLocal", TestSessionLocal),
         patch.object(jobs_mod, "AsyncSessionLocal", TestSessionLocal),
-        patch.object(jobs_mod, "_persist_assistant_message_safe", slow_persist),
+        patch.object(jobs_mod, "persist_assistant_message_safe", slow_persist),
         patch(
             "src.services.agent.observability.configure_langsmith",
             new=lambda: None,

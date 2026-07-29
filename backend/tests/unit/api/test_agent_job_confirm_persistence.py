@@ -1,6 +1,6 @@
 """Regression test for the HITL JOB confirm-path persistence fix (S2).
 
-The job/poll confirm path (``_resume_agent_graph``) used to call the
+The job/poll confirm path (``resume_agent_graph``) used to call the
 deprecated ``_persist_thread_messages`` shim, which re-inserted a bare user
 row on every confirm (no client_message_id -> no dedup -> inflated
 message_count) and wrote the assistant row with no idempotency key / plan /
@@ -40,8 +40,8 @@ class _FakeGraph:
 
 @pytest.mark.asyncio
 async def test_job_confirm_persists_assistant_only_with_checkpoint_cmid():
-    from src.api.agent.execute import AgentExecuteRequest, _set_job
-    from src.services.agent.agent_execution_service import _resume_agent_graph
+    from src.api.agent.execute import AgentExecuteRequest, set_job
+    from src.services.agent.agent_execution_service import resume_agent_graph
 
     user = Mock()
     user.id = "user-confirm-1"
@@ -51,7 +51,7 @@ async def test_job_confirm_persists_assistant_only_with_checkpoint_cmid():
     conversation_id = str(uuid4())
     job_id = str(uuid4())
 
-    _set_job(
+    set_job(
         job_id,
         {
             "status": "awaiting_confirmation",
@@ -118,11 +118,11 @@ async def test_job_confirm_persists_assistant_only_with_checkpoint_cmid():
             return_value=_session_cm(),
         ),
         patch(
-            "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+            "src.services.agent.agent_execution_service.persist_assistant_message_safe",
             new=persist_assistant,
         ),
         patch(
-            "src.services.agent.agent_execution_service._persist_user_message",
+            "src.services.agent.agent_execution_service.persist_user_message",
             new=persist_user,
         ),
         patch(
@@ -130,7 +130,7 @@ async def test_job_confirm_persists_assistant_only_with_checkpoint_cmid():
             new=Mock(),
         ),
     ):
-        await _resume_agent_graph(job_id, True, user)
+        await resume_agent_graph(job_id, True, user)
 
     # (a) The user row is NEVER re-persisted on the confirm path — it was
     #     already written up-front by the initial /execute run.

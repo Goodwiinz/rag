@@ -2,7 +2,7 @@
 
 Covers the two halves of the guard added to ``src.services.agent.agent_execution_service``:
 
-1. ``_persist_user_message_guarded`` — the user-turn INSERT is retried once and,
+1. ``persist_user_message_guarded`` — the user-turn INSERT is retried once and,
    if it still fails, emits a structured WARN (thread_id + client_message_id) and
    bumps ``agent_dualstore_user_turn_persist_failures_total`` instead of failing
    silently. It must never raise (the turn continues either way).
@@ -132,7 +132,7 @@ def _user():
 
 
 # --------------------------------------------------------------------------- #
-# 1. _persist_user_message_guarded — retry + observable marker
+# 1. persist_user_message_guarded — retry + observable marker
 # --------------------------------------------------------------------------- #
 
 
@@ -144,11 +144,11 @@ async def test_guarded_success_passes_result_through(monkeypatch):
         return True
 
     ctr = _FakeCounter()
-    monkeypatch.setattr(jobs, "_persist_user_message", fake_persist)
+    monkeypatch.setattr(jobs, "persist_user_message", fake_persist)
     monkeypatch.setattr(obs, "agent_dualstore_user_turn_persist_failures_total", ctr)
 
     db = _RollbackDB()
-    result = await jobs._persist_user_message_guarded(db, _user(), _req_obj())
+    result = await jobs.persist_user_message_guarded(db, _user(), _req_obj())
 
     assert result is True
     assert len(calls) == 1  # no retry on success
@@ -164,11 +164,11 @@ async def test_guarded_dedup_false_is_not_a_failure(monkeypatch):
         return False
 
     ctr = _FakeCounter()
-    monkeypatch.setattr(jobs, "_persist_user_message", fake_persist)
+    monkeypatch.setattr(jobs, "persist_user_message", fake_persist)
     monkeypatch.setattr(obs, "agent_dualstore_user_turn_persist_failures_total", ctr)
 
     db = _RollbackDB()
-    result = await jobs._persist_user_message_guarded(db, _user(), _req_obj())
+    result = await jobs.persist_user_message_guarded(db, _user(), _req_obj())
 
     assert result is False
     assert db.rollbacks == 0
@@ -185,12 +185,12 @@ async def test_guarded_retries_once_then_succeeds(monkeypatch, caplog):
         return True
 
     ctr = _FakeCounter()
-    monkeypatch.setattr(jobs, "_persist_user_message", flaky)
+    monkeypatch.setattr(jobs, "persist_user_message", flaky)
     monkeypatch.setattr(obs, "agent_dualstore_user_turn_persist_failures_total", ctr)
 
     db = _RollbackDB()
     caplog.set_level(logging.WARNING, logger=JOBS_LOGGER)
-    result = await jobs._persist_user_message_guarded(db, _user(), _req_obj())
+    result = await jobs.persist_user_message_guarded(db, _user(), _req_obj())
 
     assert result is True
     assert attempts["n"] == 2  # first failed, retry succeeded
@@ -204,7 +204,7 @@ async def test_guarded_both_fail_marks_and_does_not_raise(monkeypatch, caplog):
         raise RuntimeError("db down")
 
     ctr = _FakeCounter()
-    monkeypatch.setattr(jobs, "_persist_user_message", always_fail)
+    monkeypatch.setattr(jobs, "persist_user_message", always_fail)
     monkeypatch.setattr(obs, "agent_dualstore_user_turn_persist_failures_total", ctr)
 
     db = _RollbackDB()
@@ -212,7 +212,7 @@ async def test_guarded_both_fail_marks_and_does_not_raise(monkeypatch, caplog):
 
     req = _req_obj(thread_id="t-abc", cmid="cmid-9")
     # Must NOT raise — a durable-persist failure can't abort a streamable turn.
-    result = await jobs._persist_user_message_guarded(db, _user(), req)
+    result = await jobs.persist_user_message_guarded(db, _user(), req)
 
     assert result is False
     assert db.rollbacks == 2  # both attempts rolled back
@@ -235,14 +235,12 @@ async def test_guarded_marker_survives_missing_metric(monkeypatch):
         def inc(self, *a, **k):
             raise RuntimeError("registry gone")
 
-    monkeypatch.setattr(jobs, "_persist_user_message", always_fail)
+    monkeypatch.setattr(jobs, "persist_user_message", always_fail)
     monkeypatch.setattr(
         obs, "agent_dualstore_user_turn_persist_failures_total", _BoomCounter()
     )
 
-    result = await jobs._persist_user_message_guarded(
-        _RollbackDB(), _user(), _req_obj()
-    )
+    result = await jobs.persist_user_message_guarded(_RollbackDB(), _user(), _req_obj())
     assert result is False  # swallowed, still returns
 
 

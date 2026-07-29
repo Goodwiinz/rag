@@ -85,21 +85,21 @@ async def test_done_frame_carries_tool_executions():
             return_value=AsyncMock(),
         ),
         patch(
-            "src.api.agent.streaming._resolve_thread",
+            "src.api.agent.streaming.resolve_thread",
             new=AsyncMock(
                 return_value=(SimpleNamespace(id="thread-resolved-1"), "conv-1")
             ),
         ),
         patch(
-            "src.api.agent.streaming._persist_user_message_guarded",
+            "src.api.agent.streaming.persist_user_message_guarded",
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "src.api.agent.streaming._resolve_and_bind_project",
+            "src.api.agent.streaming.resolve_and_bind_project",
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+            "src.services.agent.agent_execution_service.persist_assistant_message_safe",
             new=AsyncMock(return_value="assistant-msg-1"),
         ),
     ):

@@ -7,8 +7,8 @@ lifecycle for agent execution:
 - Job creation/retrieval/cleanup (L1 + Redis via ``job_store``)
 - Thread resolution / project binding / message persistence
 - Server-side history seeding (Option B) + dual-store divergence guard
-- Background graph invocation via ``_run_agent_graph``
-- Graph resume after human-in-the-loop confirmation via ``_resume_agent_graph``
+- Background graph invocation via ``run_agent_graph``
+- Graph resume after human-in-the-loop confirmation via ``resume_agent_graph``
 
 ``src.api.agent.jobs`` remains as a thin re-export seam for legacy import
 paths; new code must import from this module directly. The ``agent_runs``
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 # ``with _jobs_lock: _jobs.get(job_id)`` pattern keeps working without
 # changes.  ``_jobs_lock`` is a compatibility alias for the same lock.
 # All writes go through ``job_store.set_job()`` (async) or the
-# ``_set_job`` sync wrapper which sprays to both L1 and Redis.
+# ``set_job`` sync wrapper which sprays to both L1 and Redis.
 
 from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent.job_store import _l1 as _jobs
@@ -104,17 +104,20 @@ def _sum_message_usage(messages: list) -> tuple[int, int]:
 _background_tasks: set = set()
 
 
-def _cleanup_jobs():
-    """No-op — Redis TTL handles expiry; L1 cleanup is in job_store."""
-    pass
+def update_cached_job_status(job_id: str, status: str) -> None:
+    """L1-only status update (confirm-endpoint CAS-winner path).
+
+    Public accessor so the API layer never touches the module-private
+    ``_jobs`` dict / lock directly. Redis stays authoritative; this only
+    refreshes the in-process cache copy.
+    """
+    with _jobs_lock:
+        cached = _jobs.get(job_id)
+        if cached is not None:
+            cached["status"] = status
 
 
-def _maybe_cleanup_jobs():
-    """No-op — L1 cleanup is in job_store."""
-    pass
-
-
-def _set_job(job_id: str, data: dict):
+def set_job(job_id: str, data: dict):
     """Persist a job — writes L1 immediately, then Redis via fire-and-forget.
 
     The fire-and-forget task uses ``_write_to_redis_only`` so it never
@@ -170,7 +173,7 @@ def _on_redis_write_done(task) -> None:
         logger.exception("Background Redis write task failed for a job")
 
 
-def _actor_fields(current_user: User) -> dict:
+def actor_fields(current_user: User) -> dict:
     """Owner + tenancy stamps for a job payload.
 
     ``user_id`` drives the poll ownership check (fails closed when missing);
@@ -184,7 +187,7 @@ def _actor_fields(current_user: User) -> dict:
     }
 
 
-def _get_job(job_id: str) -> dict | None:
+def get_job(job_id: str) -> dict | None:
     """Retrieve a job from the shared L1 cache.
 
     The confirm endpoint's synchronous ``with _jobs_lock`` pattern only
@@ -247,7 +250,7 @@ def _get_schemas():
 # ---------------------------------------------------------------------------
 
 
-def _page_context_to_dict(
+def page_context_to_dict(
     page_context: Any,
 ) -> Dict[str, Any]:
     """Normalize page context so every execution path forwards the same shape."""
@@ -265,7 +268,7 @@ def _page_context_to_dict(
     }
 
 
-def _get_latest_user_content(messages: List[Any]) -> Optional[str]:
+def get_latest_user_content(messages: List[Any]) -> Optional[str]:
     """Return the latest user or human message content from graph state."""
     for message in reversed(messages):
         msg_type = getattr(message, "type", None)
@@ -626,7 +629,7 @@ def build_user_history_messages(messages: List[Any], thread_id: str) -> List[Any
     return out
 
 
-async def _clear_stale_pending_confirmation(
+async def clear_stale_pending_confirmation(
     graph: Any, config: Dict[str, Any]
 ) -> Optional[List[str]]:
     """Wipe a stale HITL interrupt from the checkpoint before a fresh turn.
@@ -701,7 +704,7 @@ async def _clear_stale_pending_confirmation(
 # ---------------------------------------------------------------------------
 
 
-async def _resolve_project_for_thread(
+async def resolve_project_for_thread(
     db: AsyncSession,
     thread_obj: Any,
 ) -> tuple[Optional[str], Optional[str]]:
@@ -732,7 +735,7 @@ async def _resolve_project_for_thread(
             )
         ).first()
         # Filtering only the *name* would still return the soft-deleted id,
-        # which _resolve_and_bind_project writes into page_context and every
+        # which resolve_and_bind_project writes into page_context and every
         # write tool then resolves — rejected as "Project not found or access
         # denied". Return nothing so the caller falls through to the live-link
         # fallback and, failing that, runs unscoped rather than bound to a
@@ -761,7 +764,7 @@ async def _resolve_project_for_thread(
     return None, None
 
 
-async def _resolve_and_bind_project(
+async def resolve_and_bind_project(
     db: AsyncSession,
     current_user: User,
     thread_obj: Any,
@@ -830,7 +833,7 @@ async def _resolve_and_bind_project(
 
     # Path 2: the agent thread's own link.
     if project_id is None and thread_obj is not None:
-        project_id, project_name = await _resolve_project_for_thread(db, thread_obj)
+        project_id, project_name = await resolve_project_for_thread(db, thread_obj)
 
     # Path 3: the workspace thread the chat UI actually binds projects to.
     if project_id is None and thread_obj is not None:
@@ -856,7 +859,7 @@ async def _resolve_and_bind_project(
                     )
                 ).scalar_one_or_none()
                 if ws_thread is not None:
-                    project_id, project_name = await _resolve_project_for_thread(
+                    project_id, project_name = await resolve_project_for_thread(
                         db, ws_thread
                     )
 
@@ -900,7 +903,7 @@ async def _resolve_and_bind_project(
                 pass
 
 
-async def _resolve_thread(
+async def resolve_thread(
     db: AsyncSession,
     current_user: User,
     request: Any,  # AgentExecuteRequest
@@ -1002,7 +1005,7 @@ async def _resolve_thread(
     return thread, conversation_id
 
 
-async def _persist_user_message(
+async def persist_user_message(
     db: AsyncSession,
     current_user: User,
     request: Any,  # AgentExecuteRequest
@@ -1019,7 +1022,7 @@ async def _persist_user_message(
     was silently dropped or there is nothing to insert (no user message
     in the request or no ``request.thread_id``).
 
-    Commits independently of ``_persist_assistant_message``; callers that
+    Commits independently of ``persist_assistant_message``; callers that
     rely on a single all-or-nothing commit must adapt — a partial commit
     (user row durable, assistant row missing) is possible if the
     assistant write later fails.
@@ -1069,7 +1072,7 @@ async def _persist_user_message(
     return inserted
 
 
-async def _persist_user_message_guarded(
+async def persist_user_message_guarded(
     db: AsyncSession,
     current_user: User,
     request: Any,  # AgentExecuteRequest
@@ -1094,7 +1097,7 @@ async def _persist_user_message_guarded(
     last_exc: Optional[Exception] = None
     for attempt in (1, 2):
         try:
-            return await _persist_user_message(db, current_user, request)
+            return await persist_user_message(db, current_user, request)
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
             # Roll the failed INSERT back so the retry (and the rest of the
@@ -1143,7 +1146,7 @@ async def _persist_user_message_guarded(
     return False
 
 
-async def _latest_user_client_message_id(
+async def latest_user_client_message_id(
     db: AsyncSession,
     thread_id: str,
 ) -> Optional[str]:
@@ -1182,7 +1185,7 @@ async def _latest_user_client_message_id(
     return str(cmid) if cmid is not None else None
 
 
-async def _persist_assistant_message(
+async def persist_assistant_message(
     db: AsyncSession,
     *,
     thread_id: str,
@@ -1203,7 +1206,7 @@ async def _persist_assistant_message(
     JSONB so a page reload can rehydrate them; pass ``None`` when the turn
     produced neither (they stay NULL, not empty containers).
 
-    Commits independently of ``_persist_user_message``. A failure here
+    Commits independently of ``persist_user_message``. A failure here
     after a successful user-row commit leaves the user message durable
     without its assistant counterpart — callers that depend on the old
     single-commit behavior must handle this.
@@ -1329,7 +1332,7 @@ async def _persist_assistant_message(
     return str(msg_id)
 
 
-async def _persist_assistant_message_safe(
+async def persist_assistant_message_safe(
     *,
     thread_id: str,
     content: str,
@@ -1342,7 +1345,7 @@ async def _persist_assistant_message_safe(
     plan: Optional[list] = None,
     token_usage: Optional[dict] = None,
 ) -> Optional[str]:
-    """Background-task-safe wrapper around ``_persist_assistant_message``.
+    """Background-task-safe wrapper around ``persist_assistant_message``.
 
     Opens its own ``AsyncSessionLocal()`` so it doesn't depend on the
     request session being alive — by the time FastAPI runs background
@@ -1354,7 +1357,7 @@ async def _persist_assistant_message_safe(
     """
     try:
         async with AsyncSessionLocal() as db:
-            return await _persist_assistant_message(
+            return await persist_assistant_message(
                 db,
                 thread_id=thread_id,
                 content=content,
@@ -1413,7 +1416,7 @@ def _extract_pending_interrupt(snapshot: Any) -> Optional[Dict[str, Any]]:
     return None
 
 
-async def _run_agent_graph(
+async def run_agent_graph(
     job_id: str,
     request: Any,  # AgentExecuteRequest
     current_user: User,
@@ -1440,7 +1443,7 @@ async def _run_agent_graph(
             resolved_thread_id: Optional[str] = None
             thread_obj = None
             try:
-                thread_obj, _conversation_id = await _resolve_thread(
+                thread_obj, _conversation_id = await resolve_thread(
                     db, current_user, request
                 )
                 if thread_obj is not None:
@@ -1449,7 +1452,7 @@ async def _run_agent_graph(
                         request.thread_id = resolved_thread_id
                     # Retry-once + observable-on-failure so a swallowed persist
                     # can't silently diverge the two stores (audit D3 / P2.6).
-                    await _persist_user_message_guarded(db, current_user, request)
+                    await persist_user_message_guarded(db, current_user, request)
             except Exception:
                 logger.warning(
                     "Failed to persist user turn before agent graph run",
@@ -1479,7 +1482,7 @@ async def _run_agent_graph(
                 # turn that works today is never aborted by the opt-in path.
                 try:
                     # Seed only from the ownership-verified thread id (set by
-                    # _resolve_thread); never the raw client-supplied thread_id.
+                    # resolve_thread); never the raw client-supplied thread_id.
                     messages = await build_graph_input_messages(
                         db,
                         graph,
@@ -1500,8 +1503,8 @@ async def _run_agent_graph(
                     request.messages, request.thread_id or job_id
                 )
 
-            page_context = _page_context_to_dict(request.page_context)
-            await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
+            page_context = page_context_to_dict(request.page_context)
+            await resolve_and_bind_project(db, current_user, thread_obj, page_context)
 
             # Project-scoped memory: durable facts the user saved for this
             # project, recalled across every thread. Best-effort; never blocks
@@ -1592,7 +1595,7 @@ async def _run_agent_graph(
                 # the user abandoned (e.g. /new in the CLI). A fresh
                 # HumanMessage cannot resume an interrupt, so re-firing the
                 # old one would block this turn forever.
-                await _clear_stale_pending_confirmation(graph, config)
+                await clear_stale_pending_confirmation(graph, config)
 
                 async with asyncio.timeout(360):
                     final_state = await graph.ainvoke(initial_state, config=config)
@@ -1610,7 +1613,7 @@ async def _run_agent_graph(
                             "status": JobStatus.AWAITING_CONFIRMATION,
                             "confirmation": confirmation_details,
                             "tool_executions": [],
-                            **_actor_fields(current_user),
+                            **actor_fields(current_user),
                             "request": request.model_dump(),
                         },
                     )
@@ -1624,7 +1627,7 @@ async def _run_agent_graph(
                         "status": JobStatus.AWAITING_CONFIRMATION,
                         "confirmation": confirmation_details,
                         "tool_executions": [],
-                        **_actor_fields(current_user),
+                        **actor_fields(current_user),
                         "request": request.model_dump(),
                     },
                 )
@@ -1649,7 +1652,7 @@ async def _run_agent_graph(
                 if resolved_thread_id is not None:
                     thread_id = resolved_thread_id
                     # Re-fetch conversation_id for the response payload. The
-                    # _resolve_thread call already returned it but the local
+                    # resolve_thread call already returned it but the local
                     # variable was scoped to the up-front block; fetch from
                     # the thread row to avoid threading an extra variable.
                     from uuid import UUID as _UUID
@@ -1667,7 +1670,7 @@ async def _run_agent_graph(
                     _job_in_tok, _job_out_tok = _sum_message_usage(
                         final_state.get("messages")
                     )
-                    await _persist_assistant_message_safe(
+                    await persist_assistant_message_safe(
                         thread_id=thread_id,
                         content=assistant_content,
                         model_name=request.model,
@@ -1726,7 +1729,7 @@ async def _run_agent_graph(
                     "status": JobStatus.COMPLETED,
                     "result": result.model_dump(),
                     "tool_executions": list(final_state.get("tool_executions", [])),
-                    **_actor_fields(current_user),
+                    **actor_fields(current_user),
                 },
             )
         except asyncio.CancelledError:
@@ -1741,7 +1744,7 @@ async def _run_agent_graph(
                     {
                         "status": JobStatus.CANCELLED,
                         "error": "execution cancelled",
-                        **_actor_fields(current_user),
+                        **actor_fields(current_user),
                     },
                 )
             except Exception:
@@ -1754,7 +1757,7 @@ async def _run_agent_graph(
                 {
                     "status": JobStatus.FAILED,
                     "error": "Agent execution timed out after 360s",
-                    **_actor_fields(current_user),
+                    **actor_fields(current_user),
                 },
             )
         except Exception as e:
@@ -1764,12 +1767,12 @@ async def _run_agent_graph(
                 {
                     "status": JobStatus.FAILED,
                     "error": client_safe_error(e),
-                    **_actor_fields(current_user),
+                    **actor_fields(current_user),
                 },
             )
 
 
-async def _resume_agent_graph(
+async def resume_agent_graph(
     job_id: str,
     confirmed: bool,
     current_user: User,
@@ -1798,7 +1801,7 @@ async def _resume_agent_graph(
             # pod that dispatched, so the request payload only exists in
             # Redis. Without it the resume falls back to thread_id=job_id and
             # can never find the interrupt.
-            job = _get_job(job_id) or await _get_job_async(job_id)
+            job = get_job(job_id) or await _get_job_async(job_id)
             original_request = None
             if job and job.get("request"):
                 original_request = AgentExecuteRequest(**job["request"])
@@ -1811,7 +1814,7 @@ async def _resume_agent_graph(
 
             config = {
                 "recursion_limit": RECURSION_LIMIT,
-                # Ids only (audit B8) — see _run_agent_graph's run config.
+                # Ids only (audit B8) — see run_agent_graph's run config.
                 "configurable": {
                     "thread_id": resume_thread_id,
                     "user_id": str(current_user.id),
@@ -1819,7 +1822,7 @@ async def _resume_agent_graph(
                         getattr(current_user, "organization_id", "") or ""
                     ),
                     "page_context": (
-                        _page_context_to_dict(original_request.page_context)
+                        page_context_to_dict(original_request.page_context)
                         if original_request
                         else {}
                     ),
@@ -1866,7 +1869,7 @@ async def _resume_agent_graph(
                         {
                             "status": JobStatus.FAILED,
                             "error": "Thread not found",
-                            **_actor_fields(current_user),
+                            **actor_fields(current_user),
                         },
                     )
                     return
@@ -1899,7 +1902,7 @@ async def _resume_agent_graph(
                             # Collapsed from the legacy "error" status (C7).
                             "status": JobStatus.FAILED,
                             "error": "Interrupt already consumed",
-                            **_actor_fields(current_user),
+                            **actor_fields(current_user),
                         },
                     )
                     return
@@ -1910,7 +1913,7 @@ async def _resume_agent_graph(
                     config=config,
                 )
 
-            # Primary interrupt detection (mirrors _run_agent_graph and the
+            # Primary interrupt detection (mirrors run_agent_graph and the
             # pre-resume check above) — a multi-step destructive flow can
             # re-fire interrupt() during resume without raising GraphInterrupt.
             confirmation_details = _extract_pending_interrupt(
@@ -1923,7 +1926,7 @@ async def _resume_agent_graph(
                         "status": JobStatus.AWAITING_CONFIRMATION,
                         "confirmation": confirmation_details,
                         "tool_executions": list(final_state.get("tool_executions", [])),
-                        **_actor_fields(current_user),
+                        **actor_fields(current_user),
                         "request": (
                             original_request.model_dump() if original_request else None
                         ),
@@ -1945,7 +1948,7 @@ async def _resume_agent_graph(
 
             # Persist ONLY the assistant row for the resumed turn. The user row
             # that started this turn was already written up-front by the
-            # original /execute run (_run_agent_graph -> _persist_user_message),
+            # original /execute run (run_agent_graph -> persist_user_message),
             # exactly like the SSE confirm path; re-persisting it here would
             # insert a second bare user row (no client_message_id -> no dedup)
             # and inflate thread.message_count.
@@ -1989,7 +1992,7 @@ async def _resume_agent_graph(
                             if resume_ckpt_id
                             else None
                         )
-                        await _persist_assistant_message_safe(
+                        await persist_assistant_message_safe(
                             thread_id=thread_id,
                             content=assistant_content,
                             model_name=original_request.model,
@@ -2044,7 +2047,7 @@ async def _resume_agent_graph(
                     "status": JobStatus.COMPLETED,
                     "result": result.model_dump(),
                     "tool_executions": list(final_state.get("tool_executions", [])),
-                    **_actor_fields(current_user),
+                    **actor_fields(current_user),
                 },
             )
         except GraphInterrupt as exc:
@@ -2053,7 +2056,7 @@ async def _resume_agent_graph(
             # Without this handler the second interrupt bubbles into the generic
             # ``except Exception`` below and the job is wrongly marked "failed"
             # via client_safe_error, losing the second confirmation and breaking
-            # HITL on the job/poll path. Mirror _run_agent_graph: re-park the job
+            # HITL on the job/poll path. Mirror run_agent_graph: re-park the job
             # as awaiting_confirmation. Uses original_request (the resume path's
             # request), not ``request``.
             confirmation_details = extract_interrupt_confirmation(exc)
@@ -2063,9 +2066,9 @@ async def _resume_agent_graph(
                     "status": JobStatus.AWAITING_CONFIRMATION,
                     "confirmation": confirmation_details,
                     # ainvoke raised before returning, so no final_state exists —
-                    # match _run_agent_graph and reset the per-turn executions.
+                    # match run_agent_graph and reset the per-turn executions.
                     "tool_executions": [],
-                    **_actor_fields(current_user),
+                    **actor_fields(current_user),
                     "request": (
                         original_request.model_dump() if original_request else None
                     ),
@@ -2073,7 +2076,7 @@ async def _resume_agent_graph(
             )
             return
         except asyncio.CancelledError:
-            # See parallel handler in _run_agent_graph above — CancelledError
+            # See parallel handler in run_agent_graph above — CancelledError
             # is a BaseException, so the ``except Exception`` below misses it.
             logger.warning("Agent graph resume cancelled", extra={"job_id": job_id})
             try:
@@ -2082,7 +2085,7 @@ async def _resume_agent_graph(
                     {
                         "status": JobStatus.CANCELLED,
                         "error": "resume cancelled",
-                        **_actor_fields(current_user),
+                        **actor_fields(current_user),
                     },
                 )
             except Exception:
@@ -2095,7 +2098,7 @@ async def _resume_agent_graph(
                 {
                     "status": JobStatus.FAILED,
                     "error": "Agent execution timed out after 360s",
-                    **_actor_fields(current_user),
+                    **actor_fields(current_user),
                 },
             )
         except Exception as e:
@@ -2105,6 +2108,6 @@ async def _resume_agent_graph(
                 {
                     "status": JobStatus.FAILED,
                     "error": client_safe_error(e),
-                    **_actor_fields(current_user),
+                    **actor_fields(current_user),
                 },
             )

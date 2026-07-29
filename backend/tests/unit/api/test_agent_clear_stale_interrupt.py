@@ -1,4 +1,4 @@
-"""Unit tests for ``_clear_stale_pending_confirmation`` in jobs.py.
+"""Unit tests for ``clear_stale_pending_confirmation`` in jobs.py.
 
 When the CLI's ``/new`` (or any abandoned interrupt) leaves a thread with a
 populated ``pending_confirmation`` in the LangGraph checkpoint, the next
@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.services.agent.agent_execution_service import _clear_stale_pending_confirmation
+from src.services.agent.agent_execution_service import clear_stale_pending_confirmation
 
 
 def _make_graph(
@@ -60,7 +60,7 @@ class TestClearStalePendingConfirmation:
         graph = _make_graph({"pending_tools": ["create_project_note"]})
         config = {"configurable": {"thread_id": "abandoned-thread"}}
 
-        cleared = await _clear_stale_pending_confirmation(graph, config)
+        cleared = await clear_stale_pending_confirmation(graph, config)
 
         # Returns a non-empty list (truthy) — wipe happened.
         assert cleared  # truthy: list with at least one entry
@@ -79,7 +79,7 @@ class TestClearStalePendingConfirmation:
         graph = _make_graph({})
         config = {"configurable": {"thread_id": "fresh-thread"}}
 
-        cleared = await _clear_stale_pending_confirmation(graph, config)
+        cleared = await clear_stale_pending_confirmation(graph, config)
 
         assert cleared is None
         graph.aupdate_state.assert_not_called()
@@ -91,7 +91,7 @@ class TestClearStalePendingConfirmation:
         graph.aget_state = AsyncMock(return_value=empty_snapshot)
         graph.aupdate_state = AsyncMock()
 
-        cleared = await _clear_stale_pending_confirmation(
+        cleared = await clear_stale_pending_confirmation(
             graph, {"configurable": {"thread_id": "new"}}
         )
 
@@ -103,7 +103,7 @@ class TestClearStalePendingConfirmation:
         graph.aget_state = AsyncMock(return_value=None)
         graph.aupdate_state = AsyncMock()
 
-        cleared = await _clear_stale_pending_confirmation(
+        cleared = await clear_stale_pending_confirmation(
             graph, {"configurable": {"thread_id": "new"}}
         )
 
@@ -113,7 +113,7 @@ class TestClearStalePendingConfirmation:
     async def test_swallows_aget_state_errors(self) -> None:
         graph = _make_graph({"x": 1}, raise_on_get=True)
 
-        cleared = await _clear_stale_pending_confirmation(
+        cleared = await clear_stale_pending_confirmation(
             graph, {"configurable": {"thread_id": "broken"}}
         )
 
@@ -123,7 +123,7 @@ class TestClearStalePendingConfirmation:
     async def test_swallows_aupdate_state_errors(self) -> None:
         graph = _make_graph({"x": 1}, raise_on_update=True)
 
-        cleared = await _clear_stale_pending_confirmation(
+        cleared = await clear_stale_pending_confirmation(
             graph, {"configurable": {"thread_id": "broken"}}
         )
 
@@ -145,8 +145,10 @@ class TestClearStalePendingConfirmation:
 
         import logging
 
-        with caplog.at_level(logging.WARNING, logger="src.services.agent.agent_execution_service"):
-            result = await _clear_stale_pending_confirmation(graph, config)
+        with caplog.at_level(
+            logging.WARNING, logger="src.services.agent.agent_execution_service"
+        ):
+            result = await clear_stale_pending_confirmation(graph, config)
 
         # Returned list contains the tool name.
         assert result == ["create_project"]
@@ -166,7 +168,7 @@ class TestClearStalePendingConfirmation:
         graph = _make_graph(None)  # empty tasks
         config = {"configurable": {"thread_id": "t-clean-001"}}
 
-        result = await _clear_stale_pending_confirmation(graph, config)
+        result = await clear_stale_pending_confirmation(graph, config)
 
         assert result is None
         graph.aupdate_state.assert_not_called()

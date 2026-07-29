@@ -1,5 +1,5 @@
 """
-Unit tests for jobs._resolve_and_bind_project.
+Unit tests for jobs.resolve_and_bind_project.
 
 The chat UI binds projects to its workspace thread while agent runs execute
 on a separate agent thread; this resolver bridges the two and durably adopts
@@ -7,13 +7,13 @@ the binding onto the agent thread. See the helper docstring for the three
 resolution paths under test here.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.services.agent.agent_execution_service import _resolve_and_bind_project
+from src.services.agent.agent_execution_service import resolve_and_bind_project
 
 
 @pytest.fixture
@@ -62,7 +62,7 @@ async def test_owned_client_project_fills_context_and_binds_thread(
         "src.services.research.project_thread_service.attach_thread_to_project",
         new=AsyncMock(),
     ) as attach:
-        await _resolve_and_bind_project(mock_db, mock_user, agent_thread, page_context)
+        await resolve_and_bind_project(mock_db, mock_user, agent_thread, page_context)
 
     assert page_context["project_id"] == str(project_id)
     assert page_context["project_name"] == "My Project"
@@ -81,14 +81,17 @@ async def test_unowned_client_project_is_dropped(mock_user, agent_thread, mock_d
     # workspace bridge (path 3) find nothing either.
     mock_db.execute.return_value = _result(first=None)
 
-    with patch(
-        "src.services.agent.agent_execution_service._resolve_project_for_thread",
-        new=AsyncMock(return_value=(None, None)),
-    ), patch(
-        "src.services.research.project_thread_service.attach_thread_to_project",
-        new=AsyncMock(),
-    ) as attach:
-        await _resolve_and_bind_project(mock_db, mock_user, agent_thread, page_context)
+    with (
+        patch(
+            "src.services.agent.agent_execution_service.resolve_project_for_thread",
+            new=AsyncMock(return_value=(None, None)),
+        ),
+        patch(
+            "src.services.research.project_thread_service.attach_thread_to_project",
+            new=AsyncMock(),
+        ) as attach,
+    ):
+        await resolve_and_bind_project(mock_db, mock_user, agent_thread, page_context)
 
     assert page_context["project_id"] is None
     attach.assert_not_awaited()
@@ -103,14 +106,17 @@ async def test_already_linked_thread_resolves_without_reattach(
     agent_thread.source_project_id = project_id
     page_context = {"type": "chat"}
 
-    with patch(
-        "src.services.agent.agent_execution_service._resolve_project_for_thread",
-        new=AsyncMock(return_value=(str(project_id), "Linked Project")),
-    ), patch(
-        "src.services.research.project_thread_service.attach_thread_to_project",
-        new=AsyncMock(),
-    ) as attach:
-        await _resolve_and_bind_project(mock_db, mock_user, agent_thread, page_context)
+    with (
+        patch(
+            "src.services.agent.agent_execution_service.resolve_project_for_thread",
+            new=AsyncMock(return_value=(str(project_id), "Linked Project")),
+        ),
+        patch(
+            "src.services.research.project_thread_service.attach_thread_to_project",
+            new=AsyncMock(),
+        ) as attach,
+    ):
+        await resolve_and_bind_project(mock_db, mock_user, agent_thread, page_context)
 
     assert page_context["project_id"] == str(project_id)
     assert page_context["project_name"] == "Linked Project"
@@ -135,7 +141,7 @@ async def test_workspace_thread_bridge_resolves_and_binds_agent_thread(
     }
 
     # The only direct db.execute here is the owner-checked workspace thread
-    # lookup; _resolve_project_for_thread is patched per-thread.
+    # lookup; resolve_project_for_thread is patched per-thread.
     mock_db.execute.return_value = _result(scalar=ws_thread)
 
     async def resolve(db, thread):
@@ -143,14 +149,17 @@ async def test_workspace_thread_bridge_resolves_and_binds_agent_thread(
             return str(project_id), "Bound Project"
         return None, None
 
-    with patch(
-        "src.services.agent.agent_execution_service._resolve_project_for_thread",
-        new=AsyncMock(side_effect=resolve),
-    ), patch(
-        "src.services.research.project_thread_service.attach_thread_to_project",
-        new=AsyncMock(),
-    ) as attach:
-        await _resolve_and_bind_project(mock_db, mock_user, agent_thread, page_context)
+    with (
+        patch(
+            "src.services.agent.agent_execution_service.resolve_project_for_thread",
+            new=AsyncMock(side_effect=resolve),
+        ),
+        patch(
+            "src.services.research.project_thread_service.attach_thread_to_project",
+            new=AsyncMock(),
+        ) as attach,
+    ):
+        await resolve_and_bind_project(mock_db, mock_user, agent_thread, page_context)
 
     assert page_context["project_id"] == str(project_id)
     assert page_context["project_name"] == "Bound Project"
@@ -172,7 +181,7 @@ async def test_attach_failure_never_blocks_the_turn(mock_user, agent_thread, moc
         "src.services.research.project_thread_service.attach_thread_to_project",
         new=AsyncMock(side_effect=RuntimeError("db down")),
     ):
-        await _resolve_and_bind_project(mock_db, mock_user, agent_thread, page_context)
+        await resolve_and_bind_project(mock_db, mock_user, agent_thread, page_context)
 
     assert page_context["project_id"] == str(project_id)
     mock_db.rollback.assert_awaited()

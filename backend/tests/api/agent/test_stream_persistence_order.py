@@ -170,7 +170,7 @@ async def test_connected_client_error_persists_partial_assistant_row(
 
     with (
         patch.object(streaming_mod, "AsyncSessionLocal", TestSessionLocal),
-        # The assistant partial persists via _persist_assistant_message_safe,
+        # The assistant partial persists via persist_assistant_message_safe,
         # which opens its OWN jobs.AsyncSessionLocal — bind it to the test engine
         # too or the row lands in a DB this test can't see.
         patch.object(jobs_mod, "AsyncSessionLocal", TestSessionLocal),

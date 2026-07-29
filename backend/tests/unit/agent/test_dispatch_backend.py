@@ -108,7 +108,7 @@ def _patched(session_factory, delay=None):
     task.delay = delay if delay is not None else MagicMock()
     return (
         patch("src.core.database.AsyncSessionLocal", session_factory),
-        patch("src.api.agent.execute._set_job"),
+        patch("src.api.agent.execute.set_job"),
         patch("src.tasks.agent_run_tasks.run_agent_job", task),
         task,
     )
@@ -215,7 +215,7 @@ async def test_row_write_failure_falls_back_in_process(session_factory):
     task = MagicMock()
     with (
         patch("src.core.database.AsyncSessionLocal", _boom),
-        patch("src.api.agent.execute._set_job") as set_job_mock,
+        patch("src.api.agent.execute.set_job") as set_job_mock,
         patch("src.tasks.agent_run_tasks.run_agent_job", task),
     ):
         outcome, _ = await _celery_dispatch(
@@ -250,7 +250,7 @@ class TestExecuteEndpointRouting:
                 return_value=backend,
             ),
             patch("src.api.agent.execute._celery_dispatch", celery_dispatch),
-            patch("src.api.agent.execute._set_job") as set_job_mock,
+            patch("src.api.agent.execute.set_job") as set_job_mock,
             patch(
                 "src.api.agent.execute._agent_rate_limiter.check_rate_limit",
                 new=AsyncMock(return_value=(True, 0)),

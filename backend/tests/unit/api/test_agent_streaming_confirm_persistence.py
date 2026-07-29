@@ -107,11 +107,11 @@ async def test_confirm_persists_only_assistant_row_not_user_row():
             return_value=fake_db,
         ),
         patch(
-            "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+            "src.services.agent.agent_execution_service.persist_assistant_message_safe",
             new=persist_mock,
         ),
         patch(
-            "src.api.agent.streaming._latest_user_client_message_id",
+            "src.api.agent.streaming.latest_user_client_message_id",
             new=AsyncMock(return_value=None),
         ),
     ):
@@ -122,7 +122,7 @@ async def test_confirm_persists_only_assistant_row_not_user_row():
     kwargs = persist_mock.await_args.kwargs
     # Must NOT have hit the user-row path at all — only the assistant row.
     assert persist_mock.await_count == 1
-    # The role is implicit (always assistant inside _persist_assistant_message),
+    # The role is implicit (always assistant inside persist_assistant_message),
     # but the call must carry the resumed turn's content + plan + token_usage.
     assert kwargs["thread_id"] == body.thread_id
     assert kwargs["content"] == "Done — confirmed action."
@@ -187,11 +187,11 @@ async def test_confirm_derives_idempotent_assistant_cmid_from_user_row():
             return_value=fake_db,
         ),
         patch(
-            "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+            "src.services.agent.agent_execution_service.persist_assistant_message_safe",
             new=persist_mock,
         ),
         patch(
-            "src.api.agent.streaming._latest_user_client_message_id",
+            "src.api.agent.streaming.latest_user_client_message_id",
             new=AsyncMock(return_value=user_cmid),
         ),
     ):
@@ -252,11 +252,11 @@ async def test_confirm_done_carries_assistant_message_id_in_canonical_mode():
             return_value=fake_db,
         ),
         patch(
-            "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+            "src.services.agent.agent_execution_service.persist_assistant_message_safe",
             new=AsyncMock(return_value="assistant-msg-1"),
         ),
         patch(
-            "src.api.agent.streaming._latest_user_client_message_id",
+            "src.api.agent.streaming.latest_user_client_message_id",
             new=AsyncMock(return_value=None),
         ),
         patch(

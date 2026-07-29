@@ -9,7 +9,6 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
-
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 pytestmark = pytest.mark.asyncio
@@ -28,7 +27,10 @@ class TestClassifierRoutesCorrectly:
         "query, expected_intent",
         [
             # "search the knowledge graph" should be knowledge_graph, NOT research
-            ("search the knowledge graph for relationships between concepts", "knowledge_graph"),
+            (
+                "search the knowledge graph for relationships between concepts",
+                "knowledge_graph",
+            ),
             # "write about papers I found" should be writing, NOT research
             ("write a summary of the papers I found", "writing"),
             # "create note" (exact keyword match) should be writing
@@ -48,9 +50,9 @@ class TestClassifierRoutesCorrectly:
         from src.services.agent.classifier import classify_intent_keywords
 
         result = classify_intent_keywords(query)
-        assert result.intent == expected_intent, (
-            f"Query '{query}' classified as '{result.intent}' instead of '{expected_intent}'"
-        )
+        assert (
+            result.intent == expected_intent
+        ), f"Query '{query}' classified as '{result.intent}' instead of '{expected_intent}'"
         assert result.source == "keyword"
 
     async def test_llm_fallback_on_low_confidence(self):
@@ -170,7 +172,9 @@ class TestReflectionCatchesBadResponse:
         """When reflection finds major issues, the route function returns 'revise'."""
         from src.services.agent.reflection import ReflectionResult, make_reflection_gate
 
-        _, reflection_route = make_reflection_gate(intent_filter={"research", "writing"})
+        _, reflection_route = make_reflection_gate(
+            intent_filter={"research", "writing"}
+        )
 
         state = {
             "intent": "writing",
@@ -351,7 +355,10 @@ class TestPlannerGeneratesForComplexQuery:
                     step=3,
                     description="Add papers to project",
                     tool="add_document_to_project",
-                    args_hint={"document_id": "from step 2", "project_id": "current project"},
+                    args_hint={
+                        "document_id": "from step 2",
+                        "project_id": "current project",
+                    },
                     depends_on=[2],
                 ),
             ],
@@ -369,7 +376,11 @@ class TestPlannerGeneratesForComplexQuery:
         ):
             result = await generate_plan(
                 query="Find recent papers on transformers, ingest them, and add them to my project",
-                tool_names=["search_arxiv", "ingest_arxiv_papers", "add_document_to_project"],
+                tool_names=[
+                    "search_arxiv",
+                    "ingest_arxiv_papers",
+                    "add_document_to_project",
+                ],
                 page_context={"type": "project", "project_id": "proj-123"},
             )
 
@@ -443,8 +454,8 @@ class TestStateV2FieldsInInitialState:
         assert "last_error_info" in fields
 
     def test_initial_state_has_correct_defaults(self):
-        """The initial state dict built in _run_agent_graph should have v2 fields."""
-        # Construct the same initial state as _run_agent_graph
+        """The initial state dict built in run_agent_graph should have v2 fields."""
+        # Construct the same initial state as run_agent_graph
         initial_state = {
             "messages": [HumanMessage(content="test")],
             "page_context": {"type": "unknown"},

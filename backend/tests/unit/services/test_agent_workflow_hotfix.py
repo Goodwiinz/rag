@@ -30,7 +30,7 @@ class TestThreadOwnership:
 
     async def test_foreign_thread_id_is_not_resolved(self):
         from src.api.agent.execute import AgentExecuteRequest
-        from src.services.agent.agent_execution_service import _resolve_thread
+        from src.services.agent.agent_execution_service import resolve_thread
 
         user = _make_user()
         foreign_thread_id = str(uuid4())
@@ -49,7 +49,7 @@ class TestThreadOwnership:
 
         # A thread id the user does not own resolves to None (ownership filter),
         # so the confirm/resume path creates/commits nothing.
-        thread, conversation_id = await _resolve_thread(
+        thread, conversation_id = await resolve_thread(
             db, user, request, create_if_missing=False
         )
 
@@ -62,14 +62,14 @@ class TestHitlCheckpointOwnership:
     """HITL resume must fail closed when checkpoint ownership is missing."""
 
     async def test_resume_rejects_legacy_checkpoint_when_thread_not_owned(self):
-        from src.api.agent.execute import AgentExecuteRequest, _get_job, _set_job
-        from src.services.agent.agent_execution_service import _resume_agent_graph
+        from src.api.agent.execute import AgentExecuteRequest, get_job, set_job
+        from src.services.agent.agent_execution_service import resume_agent_graph
 
         job_id = str(uuid4())
         current_user = _make_user()
         foreign_thread_id = str(uuid4())
 
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "awaiting_confirmation",
@@ -118,10 +118,10 @@ class TestHitlCheckpointOwnership:
                 return_value=_session_cm(db),
             ),
         ):
-            await _resume_agent_graph(job_id, True, current_user)
+            await resume_agent_graph(job_id, True, current_user)
 
         mock_graph.ainvoke.assert_not_called()
-        job = _get_job(job_id)
+        job = get_job(job_id)
         assert job is not None
         assert job["status"] == "failed"  # legacy "error" collapsed (audit C7)
         assert job["error"] == "Thread not found"
@@ -178,12 +178,12 @@ class TestStreamingGraphInterrupt:
                 return_value=mock_db,
             ),
             patch(
-                "src.api.agent.streaming._resolve_thread",
+                "src.api.agent.streaming.resolve_thread",
                 new_callable=AsyncMock,
                 return_value=(None, ""),
             ),
             patch(
-                "src.api.agent.streaming._clear_stale_pending_confirmation",
+                "src.api.agent.streaming.clear_stale_pending_confirmation",
                 new_callable=AsyncMock,
                 return_value=False,
             ),
@@ -203,14 +203,14 @@ class TestBackgroundTimeout:
     """Bug 5 — background graph.ainvoke must time out after 360s."""
 
     async def test_run_agent_graph_marks_failed_on_timeout(self):
-        from src.api.agent.execute import AgentExecuteRequest, _get_job, _set_job
-        from src.services.agent.agent_execution_service import _run_agent_graph
+        from src.api.agent.execute import AgentExecuteRequest, get_job, set_job
+        from src.services.agent.agent_execution_service import run_agent_graph
 
         job_id = str(uuid4())
         user = _make_user()
         db = AsyncMock()
 
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "running",
@@ -251,7 +251,7 @@ class TestBackgroundTimeout:
                 return_value=_session_cm(db),
             ),
             patch(
-                "src.services.agent.agent_execution_service._resolve_thread",
+                "src.services.agent.agent_execution_service.resolve_thread",
                 new_callable=AsyncMock,
                 return_value=(None, ""),
             ),
@@ -263,9 +263,9 @@ class TestBackgroundTimeout:
                 side_effect=asyncio.TimeoutError()
             )
             mock_timeout.return_value.__aexit__ = AsyncMock(return_value=False)
-            await _run_agent_graph(job_id, request, user)
+            await run_agent_graph(job_id, request, user)
 
-        job = _get_job(job_id)
+        job = get_job(job_id)
         assert job is not None
         assert job["status"] == "failed"
         assert "timed out" in job["error"].lower()

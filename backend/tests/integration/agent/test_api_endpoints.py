@@ -8,7 +8,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.api.agent.execute import router, _set_job, _get_job
+from src.api.agent.execute import get_job, router, set_job
 
 pytestmark = pytest.mark.integration  # NOT asyncio -- TestClient is sync
 
@@ -90,9 +90,9 @@ class TestExecuteCreatesJob:
     """POST /execute should create a job and return a job_id."""
 
     def test_execute_creates_job(self, client):
-        """POST /execute returns 200 with a job_id (patch _run_agent_graph as no-op)."""
+        """POST /execute returns 200 with a job_id (patch run_agent_graph as no-op)."""
         with patch(
-            "src.api.agent.execute._run_agent_graph",
+            "src.api.agent.execute.run_agent_graph",
             new_callable=AsyncMock,
         ):
             response = client.post(
@@ -126,9 +126,9 @@ class TestGetJobStatus:
     """GET /jobs/{id} should return the pre-set job."""
 
     def test_get_job_status(self, client, mock_user):
-        """Pre-set a job via _set_job, GET /jobs/{id} returns 200."""
+        """Pre-set a job via set_job, GET /jobs/{id} returns 200."""
         job_id = str(uuid4())
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "completed",
@@ -162,7 +162,7 @@ class TestGetJobOwnership:
     def test_other_users_job_returns_404(self, client):
         """A job owned by another user is invisible to the caller."""
         job_id = str(uuid4())
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "completed",
@@ -183,7 +183,7 @@ class TestGetJobOwnership:
         then let ANY authenticated user read the result.
         """
         job_id = str(uuid4())
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "completed",
