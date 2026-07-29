@@ -34,6 +34,8 @@ describe('useAuthStore signOut', () => {
       isLoading: false,
       error: 'stale error',
       pendingEmailConfirmation: true,
+      pendingConfirmationEmail: 'ada@example.com',
+      pendingSignupPossiblyExisting: true,
     });
 
     useAuthStore.getState().signOut();
@@ -47,6 +49,45 @@ describe('useAuthStore signOut', () => {
         isAuthenticated: false,
         error: null,
         pendingEmailConfirmation: false,
+      })
+    );
+  });
+
+  it('clears the pending confirmation email when signing out', async () => {
+    // A shared machine must never show the previous visitor's address.
+    const mockBrowserSignOut = vi.fn().mockResolvedValue(undefined);
+
+    vi.doMock('@/lib/supabase/client', () => ({
+      createClient: () => ({
+        auth: {
+          onAuthStateChange: vi.fn(),
+          signOut: mockBrowserSignOut,
+        },
+      }),
+    }));
+
+    vi.doMock('@/services/workspaceService', () => ({
+      clearWorkspaceServiceCache: vi.fn(),
+    }));
+
+    const { useAuthStore } =
+      await vi.importActual<typeof import('@/stores/authStore')>(
+        '@/stores/authStore'
+      );
+
+    useAuthStore.setState({
+      pendingEmailConfirmation: true,
+      pendingConfirmationEmail: 'ada@example.com',
+      pendingSignupPossiblyExisting: true,
+    });
+
+    useAuthStore.getState().signOut();
+
+    expect(useAuthStore.getState()).toEqual(
+      expect.objectContaining({
+        pendingEmailConfirmation: false,
+        pendingConfirmationEmail: null,
+        pendingSignupPossiblyExisting: false,
       })
     );
   });

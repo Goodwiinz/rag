@@ -27,6 +27,7 @@ vi.mock('@/services/apiClient', () => ({
 }));
 
 import { useAuthStore } from '@/stores/authStore';
+import type { RegisterResult } from '@/types';
 
 describe('useAuthStore signUp', () => {
   beforeEach(() => {
@@ -38,12 +39,23 @@ describe('useAuthStore signUp', () => {
       isLoading: false,
       error: null,
       pendingEmailConfirmation: false,
+      pendingConfirmationEmail: null,
+      pendingSignupPossiblyExisting: false,
     });
     mockSignUp.mockResolvedValue({
-      data: { session: null },
+      data: { session: null, user: { identities: [{ id: 'identity-1' }] } },
       error: null,
     });
   });
+
+  const signUpAda = (): Promise<RegisterResult> =>
+    useAuthStore.getState().signUp({
+      email: 'ada@example.com',
+      password: 'SecurePass123!',
+      first_name: 'Ada',
+      last_name: 'Lovelace',
+      organization_name: 'Analytical Engine',
+    });
 
   it('routes email confirmation through the callback endpoint', async () => {
     const result = await useAuthStore.getState().signUp({
@@ -68,5 +80,67 @@ describe('useAuthStore signUp', () => {
       },
     });
     expect(result).toEqual({ requiresEmailConfirmation: true });
+  });
+
+  it('stores the signup email alongside the pending flag', async () => {
+    await signUpAda();
+
+    expect(useAuthStore.getState().pendingEmailConfirmation).toBe(true);
+    expect(useAuthStore.getState().pendingConfirmationEmail).toBe(
+      'ada@example.com'
+    );
+  });
+
+  it('clearPendingEmailConfirmation resets both flag and email', async () => {
+    await signUpAda();
+
+    useAuthStore.getState().clearPendingEmailConfirmation();
+
+    expect(useAuthStore.getState()).toEqual(
+      expect.objectContaining({
+        pendingEmailConfirmation: false,
+        pendingConfirmationEmail: null,
+        pendingSignupPossiblyExisting: false,
+      })
+    );
+  });
+
+  it('flags an empty-identities user as possibly existing', async () => {
+    // GoTrue's enumeration protection: already-registered address comes back
+    // as a success with an obfuscated user carrying no identities.
+    mockSignUp.mockResolvedValue({
+      data: { session: null, user: { identities: [] } },
+      error: null,
+    });
+
+    const result = await signUpAda();
+
+    expect(result).toEqual({ requiresEmailConfirmation: true });
+    expect(useAuthStore.getState().pendingEmailConfirmation).toBe(true);
+    expect(useAuthStore.getState().pendingSignupPossiblyExisting).toBe(true);
+  });
+
+  it('treats a signup with populated identities as a normal pending confirmation', async () => {
+    mockSignUp.mockResolvedValue({
+      data: { session: null, user: { identities: [{ id: 'identity-1' }] } },
+      error: null,
+    });
+
+    await signUpAda();
+
+    expect(useAuthStore.getState().pendingEmailConfirmation).toBe(true);
+    expect(useAuthStore.getState().pendingSignupPossiblyExisting).toBe(false);
+  });
+
+  it('treats a missing identities field as a normal pending confirmation', async () => {
+    // Guards the `Array.isArray` predicate: absent must not read as empty.
+    mockSignUp.mockResolvedValue({
+      data: { session: null, user: {} },
+      error: null,
+    });
+
+    await signUpAda();
+
+    expect(useAuthStore.getState().pendingSignupPossiblyExisting).toBe(false);
   });
 });

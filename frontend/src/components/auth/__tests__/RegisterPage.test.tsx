@@ -10,11 +10,16 @@ type RegisterResult = {
 const mockPush = vi.fn();
 const mockRegister = vi.fn<Promise<RegisterResult>, [unknown]>();
 
+const mockClearPendingEmailConfirmation = vi.fn();
+
 const mockedAuth = {
   register: mockRegister,
   isAuthenticated: false,
   isLoading: false,
   pendingEmailConfirmation: false,
+  pendingConfirmationEmail: null as string | null,
+  pendingSignupPossiblyExisting: false,
+  clearPendingEmailConfirmation: mockClearPendingEmailConfirmation,
 };
 
 vi.mock('@/hooks/useAuth', () => ({
@@ -31,6 +36,8 @@ describe('RegisterPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedAuth.pendingEmailConfirmation = false;
+    mockedAuth.pendingConfirmationEmail = null;
+    mockedAuth.pendingSignupPossiblyExisting = false;
   });
 
   it('does not redirect when registration requires email confirmation', async () => {
@@ -69,5 +76,46 @@ describe('RegisterPage', () => {
     expect(
       await screen.findByRole('heading', { name: /verify your identity/i })
     ).toBeInTheDocument();
+  });
+
+  it('renders the pending screen with the store email after a remount', async () => {
+    // Remount = pristine form state; only the store still knows the address.
+    mockedAuth.pendingEmailConfirmation = true;
+    mockedAuth.pendingConfirmationEmail = 'ada@example.com';
+
+    render(<RegisterPage />);
+
+    expect(await screen.findByText('ada@example.com')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /resend verification/i })
+    ).toBeEnabled();
+  });
+
+  it('clears the pending confirmation through the store action on reset', async () => {
+    mockedAuth.pendingEmailConfirmation = true;
+    mockedAuth.pendingConfirmationEmail = 'ada@example.com';
+
+    render(<RegisterPage />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /wrong email\? try again/i })
+    );
+
+    expect(mockClearPendingEmailConfirmation).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows neutral existing-account guidance when the signup may hit a known address', async () => {
+    mockedAuth.pendingEmailConfirmation = true;
+    mockedAuth.pendingConfirmationEmail = 'ada@example.com';
+    mockedAuth.pendingSignupPossiblyExisting = true;
+
+    render(<RegisterPage />);
+
+    expect(
+      await screen.findByRole('link', { name: /sign in/i })
+    ).toHaveAttribute('href', '/login');
+    expect(
+      screen.queryByRole('button', { name: /resend verification/i })
+    ).not.toBeInTheDocument();
   });
 });
