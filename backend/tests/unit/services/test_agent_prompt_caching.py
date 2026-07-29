@@ -9,9 +9,9 @@ prefix and bust the cache.
 
 import pytest
 
-from src.services.agent.graph import (
-    SHARED_AGENT_RULES,
+from src.services.agent._prompts import (
     _LLM_NODE_STATIC_PROMPT,
+    SHARED_AGENT_RULES,
     _build_page_context_line,
 )
 
@@ -54,9 +54,9 @@ class TestStaticPromptPrefix:
             "create_project",
             "list_projects",
         ):
-            assert tool in _LLM_NODE_STATIC_PROMPT, (
-                f"Tool {tool} missing from static prefix"
-            )
+            assert (
+                tool in _LLM_NODE_STATIC_PROMPT
+            ), f"Tool {tool} missing from static prefix"
 
     def test_long_enough_for_provider_caching(self) -> None:
         # Azure gpt-4o requires ≥1024 tokens for the auto cache to engage.
@@ -125,7 +125,5 @@ class TestBuildPageContextLine:
 
     def test_project_page_without_id_falls_through(self) -> None:
         # type="project" but no project_id → treated as non-project page.
-        line = _build_page_context_line(
-            {"type": "project", "label": "Projects"}
-        )
+        line = _build_page_context_line({"type": "project", "label": "Projects"})
         assert line == "The user is on the Projects page."

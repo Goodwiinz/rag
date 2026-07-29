@@ -3,6 +3,7 @@
 Skips the entire eval module if LangSmith credentials are missing so the
 suite stays optional in local/CI environments without API keys.
 """
+
 from __future__ import annotations
 
 import os
@@ -75,9 +76,9 @@ def _golden_replay(monkeypatch, request):
     fake = GoldenReplayLLM(load_cassette(case.name))
 
     from src.services.agent import (
+        _nodes_tools,
         classifier,
         compactor,
-        graph,
         llm_factory,
         planner,
         reflection,
@@ -86,7 +87,7 @@ def _golden_replay(monkeypatch, request):
     # Clear all build + result caches so the fake is actually constructed
     # (4.2 in the design — otherwise a previously-built real client leaks).
     llm_factory.reset_llm_caches()
-    graph._LLM_CACHE.clear()
+    llm_factory._LLM_CACHE.clear()
     monkeypatch.setattr(classifier, "_CLASSIFIER_LLM", None, raising=False)
     monkeypatch.setattr(reflection, "_REFLECTION_LLM", None, raising=False)
     monkeypatch.setattr(compactor, "_COMPACTOR_LLM", None, raising=False)
@@ -96,7 +97,7 @@ def _golden_replay(monkeypatch, request):
     for module, attr in (
         (llm_factory, "build_lightweight_llm"),
         (llm_factory, "build_synthesis_llm"),
-        (graph, "_build_llm"),
+        (llm_factory, "_build_llm"),
         (reflection, "build_lightweight_llm"),
         (planner, "build_lightweight_llm"),
         (compactor, "build_lightweight_llm"),
@@ -107,14 +108,14 @@ def _golden_replay(monkeypatch, request):
     # arXiv). Golden cases assert tool-call names + intent, not tool results.
     from tests.eval._replay_llm import stub_tool_executor
 
-    monkeypatch.setattr(graph, "_get_execute_tool", lambda: stub_tool_executor, raising=False)
+    monkeypatch.setattr(
+        _nodes_tools, "_get_execute_tool", lambda: stub_tool_executor, raising=False
+    )
 
 
 @pytest.fixture(scope="session")
 def langsmith_dataset_name() -> str:
-    return os.environ.get(
-        "AGENT_EVAL_DATASET_NAME", "agent-accuracy-benchmark"
-    )
+    return os.environ.get("AGENT_EVAL_DATASET_NAME", "agent-accuracy-benchmark")
 
 
 @pytest.fixture(scope="session")

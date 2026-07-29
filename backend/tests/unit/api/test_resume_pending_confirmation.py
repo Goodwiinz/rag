@@ -48,8 +48,8 @@ class _Graph:
 
 def _patch_graph(monkeypatch: pytest.MonkeyPatch, snapshot: Any) -> None:
     """Point the helper's lazy imports at a stub graph."""
+    from src.services.agent import _builders as graph_mod
     from src.services.agent import checkpointer as ckpt_mod
-    from src.services.agent import graph as graph_mod
     from src.services.agent import memory as memory_mod
 
     async def _fake_checkpointer() -> object:

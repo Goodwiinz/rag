@@ -102,7 +102,9 @@ EVAL_EXAMPLES: list[dict[str, Any]] = [
         "expected": {"intent": "knowledge_graph", "tool": "extract_entities"},
     },
     {
-        "input": {"question": "Search the knowledge graph for relationships between concepts"},
+        "input": {
+            "question": "Search the knowledge graph for relationships between concepts"
+        },
         "expected": {"intent": "knowledge_graph", "tool": "search_knowledge_graph"},
     },
     # General - no tools expected
@@ -177,21 +179,25 @@ def _mock_infra():
     """Mock heavy infrastructure (RAG, memory, tools) while leaving the LLM real."""
     with (
         patch(
-            "src.services.agent.graph.rag_node",
+            "src.services.agent._nodes_classify.rag_node",
             new=AsyncMock(return_value={"retrieved_contexts": []}),
         ),
         patch(
-            "src.services.agent.graph.memory_retrieval_node",
+            "src.services.agent._nodes_classify.memory_retrieval_node",
             new=AsyncMock(return_value={"user_memories": []}),
         ),
         patch(
-            "src.services.agent.graph.memory_save_node",
+            "src.services.agent._builders.memory_save_node",
             new=AsyncMock(return_value={}),
         ),
         patch(
             "src.services.agent.tools_impl.execute_tool",
             new=AsyncMock(
-                return_value={"results": [], "total": 0, "message": "Mocked tool result"}
+                return_value={
+                    "results": [],
+                    "total": 0,
+                    "message": "Mocked tool result",
+                }
             ),
         ),
     ):
@@ -210,7 +216,7 @@ async def run_graph(inputs: dict) -> dict:
     graph with mocked infrastructure, and returns structured outputs
     for the evaluators to score.
     """
-    from src.services.agent.graph import compile_agent_graph
+    from src.services.agent._builders import compile_agent_graph
 
     question = inputs["question"]
 
@@ -299,7 +305,7 @@ async def answer_groundedness(inputs: dict, outputs: dict) -> bool:
     If no tools were used there is nothing to ground against, so the
     evaluator returns True by default.
     """
-    from src.services.agent.graph import _build_llm
+    from src.services.agent.llm_factory import _build_llm
 
     response_text = outputs.get("response", "")
     tool_calls = outputs.get("tool_calls", [])
@@ -409,12 +415,12 @@ async def test_agent_accuracy_benchmark():
     tool_accuracy = df["feedback.correct_tool"].mean()
     response_rate = df["feedback.has_response"].mean()
 
-    assert intent_accuracy >= 0.8, (
-        f"Intent accuracy {intent_accuracy:.0%} below 80% threshold"
-    )
-    assert tool_accuracy >= 0.5, (
-        f"Tool accuracy {tool_accuracy:.0%} below 50% threshold"
-    )
-    assert response_rate >= 0.9, (
-        f"Response rate {response_rate:.0%} below 90% threshold"
-    )
+    assert (
+        intent_accuracy >= 0.8
+    ), f"Intent accuracy {intent_accuracy:.0%} below 80% threshold"
+    assert (
+        tool_accuracy >= 0.5
+    ), f"Tool accuracy {tool_accuracy:.0%} below 50% threshold"
+    assert (
+        response_rate >= 0.9
+    ), f"Response rate {response_rate:.0%} below 90% threshold"

@@ -6,19 +6,19 @@ import pytest
 @pytest.mark.unit
 class TestIsRetrievalQuery:
     def test_empty_string(self):
-        from src.services.agent.graph import _is_retrieval_query
+        from src.services.agent._nodes_rag import _is_retrieval_query
 
         assert _is_retrieval_query("") is False
         assert _is_retrieval_query("   ") is False
 
     def test_short_conversational_returns_false(self):
-        from src.services.agent.graph import _is_retrieval_query
+        from src.services.agent._nodes_rag import _is_retrieval_query
 
         for q in ("hi", "thanks!", "yes", "ok cool", "sure"):
             assert _is_retrieval_query(q) is False, q
 
     def test_retrieval_verb_short_query_returns_true(self):
-        from src.services.agent.graph import _is_retrieval_query
+        from src.services.agent._nodes_rag import _is_retrieval_query
 
         for q in (
             "find papers",
@@ -32,14 +32,14 @@ class TestIsRetrievalQuery:
             assert _is_retrieval_query(q) is True, q
 
     def test_long_query_without_verb_still_routes_to_retrieval(self):
-        from src.services.agent.graph import _is_retrieval_query
+        from src.services.agent._nodes_rag import _is_retrieval_query
 
         q = "the conference deadline next quarter is going to be very tight"
         assert len(q.split()) >= 8
         assert _is_retrieval_query(q) is True
 
     def test_tool_name_prefix_returns_true(self):
-        from src.services.agent.graph import _is_retrieval_query
+        from src.services.agent._nodes_rag import _is_retrieval_query
 
         for q in (
             "list_projects",
@@ -59,7 +59,7 @@ class TestRagNodeFastPath:
 
         from langchain_core.messages import HumanMessage
 
-        from src.services.agent.graph import rag_node
+        from src.services.agent._nodes_rag import rag_node
 
         state = {
             "messages": [HumanMessage(content="hi")],
@@ -80,7 +80,7 @@ class TestRagNodeFastPath:
 
         from langchain_core.messages import HumanMessage
 
-        from src.services.agent.graph import rag_node
+        from src.services.agent._nodes_rag import rag_node
 
         state = {
             "messages": [HumanMessage(content="find papers about transformers")],

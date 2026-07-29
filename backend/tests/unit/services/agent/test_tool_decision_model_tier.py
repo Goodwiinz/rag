@@ -39,7 +39,6 @@ def _install_spies(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
     """Count which builder each node reaches for."""
     calls = {"lightweight": 0, "synthesis": 0, "main": 0}
 
-    from src.services.agent import graph as graph_mod
     from src.services.agent import llm_factory
 
     def _lightweight(*_a: Any, **_k: Any) -> _FakeLLM:
@@ -56,7 +55,7 @@ def _install_spies(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
 
     monkeypatch.setattr(llm_factory, "build_lightweight_llm", _lightweight)
     monkeypatch.setattr(llm_factory, "build_synthesis_llm", _synthesis)
-    monkeypatch.setattr(graph_mod, "_build_llm", _main)
+    monkeypatch.setattr(llm_factory, "_build_llm", _main)
     return calls
 
 

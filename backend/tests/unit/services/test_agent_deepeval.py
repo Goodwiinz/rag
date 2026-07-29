@@ -18,10 +18,11 @@ the simplest path is to set OPENAI_API_KEY for the judge model.
 """
 
 import os
-import pytest
 from contextlib import contextmanager
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
+
+import pytest
 
 # ---------------------------------------------------------------------------
 # Conditional imports — skip gracefully if deepeval is not installed
@@ -31,7 +32,11 @@ from uuid import uuid4
 # placeholder "your-openai-key-here" during initialization, so we must
 # check the value, not just its presence.
 _raw_openai_key = os.environ.get("OPENAI_API_KEY", "")
-_HAS_OPENAI_JUDGE = bool(_raw_openai_key) and _raw_openai_key != "your-openai-key-here" and not _raw_openai_key.startswith("your-")
+_HAS_OPENAI_JUDGE = (
+    bool(_raw_openai_key)
+    and _raw_openai_key != "your-openai-key-here"
+    and not _raw_openai_key.startswith("your-")
+)
 
 _HAS_LLM = bool(
     os.environ.get("AZURE_OPENAI_CHAT_API_KEY")
@@ -40,13 +45,13 @@ _HAS_LLM = bool(
 
 try:
     from deepeval import assert_test
-    from deepeval.test_case import LLMTestCase, ToolCall
     from deepeval.metrics import (
         AnswerRelevancyMetric,
         FaithfulnessMetric,
         HallucinationMetric,
         ToolCorrectnessMetric,
     )
+    from deepeval.test_case import LLMTestCase, ToolCall
 
     _HAS_DEEPEVAL = True
 except ImportError:
@@ -114,15 +119,15 @@ def _mock_infra():
     leaving the LLM real so DeepEval can evaluate actual model output."""
     with (
         patch(
-            "src.services.agent.graph.rag_node",
+            "src.services.agent._nodes_classify.rag_node",
             new=AsyncMock(return_value={"retrieved_contexts": []}),
         ),
         patch(
-            "src.services.agent.graph.memory_retrieval_node",
+            "src.services.agent._nodes_classify.memory_retrieval_node",
             new=AsyncMock(return_value={"user_memories": []}),
         ),
         patch(
-            "src.services.agent.graph.memory_save_node",
+            "src.services.agent._builders.memory_save_node",
             new=AsyncMock(return_value={}),
         ),
         patch(
@@ -186,7 +191,7 @@ async def _run_agent(query: str) -> dict:
     """
     from langgraph.checkpoint.memory import MemorySaver
 
-    from src.services.agent.graph import compile_agent_graph
+    from src.services.agent._builders import compile_agent_graph
 
     with _mock_infra():
         graph = compile_agent_graph(checkpointer=MemorySaver())
@@ -205,7 +210,9 @@ async def _run_agent(query: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(not _HAS_OPENAI_JUDGE, reason="Requires real OPENAI_API_KEY for DeepEval LLM judge")
+@pytest.mark.skipif(
+    not _HAS_OPENAI_JUDGE, reason="Requires real OPENAI_API_KEY for DeepEval LLM judge"
+)
 class TestAgentAnswerRelevancy:
     """Test that agent answers are relevant to the user query.
 
@@ -264,7 +271,9 @@ class TestAgentAnswerRelevancy:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(not _HAS_OPENAI_JUDGE, reason="Requires real OPENAI_API_KEY for DeepEval LLM judge")
+@pytest.mark.skipif(
+    not _HAS_OPENAI_JUDGE, reason="Requires real OPENAI_API_KEY for DeepEval LLM judge"
+)
 class TestAgentHallucination:
     """Test that agent does not hallucinate beyond tool/context data.
 
@@ -324,7 +333,9 @@ class TestAgentHallucination:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(not _HAS_OPENAI_JUDGE, reason="Requires real OPENAI_API_KEY for DeepEval LLM judge")
+@pytest.mark.skipif(
+    not _HAS_OPENAI_JUDGE, reason="Requires real OPENAI_API_KEY for DeepEval LLM judge"
+)
 class TestAgentFaithfulness:
     """Test that agent responses are faithful to retrieved context.
 

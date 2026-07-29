@@ -5,7 +5,7 @@ Extracted from ``graph.py`` so the orchestration module stays under the
 LangGraph entry point in ``langgraph.json`` (``create_graph``) and all
 existing callers (``compile_agent_graph``, ``build_agent_graph``,
 ``should_continue``, ``after_interrupt``, ``MAX_ERRORS``,
-``MAX_TOOL_LOOPS``) keep resolving from ``src.services.agent.graph``
+``MAX_TOOL_LOOPS``) resolve from this module
 without churn.
 
 What lives here:

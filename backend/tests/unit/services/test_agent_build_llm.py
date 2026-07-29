@@ -22,9 +22,9 @@ def _make_langchain_openai_mock():
 
 def _set_chat_settings(monkeypatch, **overrides):
     """Set the Azure chat-related settings on the shared settings instance."""
-    from src.services.agent import graph as graph_module
+    from src.core.config import get_settings
 
-    settings = graph_module.get_settings()
+    settings = get_settings()
     defaults = {
         "AZURE_OPENAI_ENDPOINT": None,
         "AZURE_OPENAI_API_KEY": None,
@@ -42,13 +42,14 @@ def _set_chat_settings(monkeypatch, **overrides):
 
 def _clear_llm_cache():
     """Clear the module-level LLM cache so each test builds a fresh client."""
-    from src.services.agent import graph as graph_module
-    graph_module._LLM_CACHE.clear()
+    from src.services.agent import llm_factory
+
+    llm_factory._LLM_CACHE.clear()
 
 
 def test_build_llm_uses_configured_deployment_when_no_override(monkeypatch):
     """No override → falls back to the configured deployment."""
-    from src.services.agent.graph import _build_llm
+    from src.services.agent.llm_factory import _build_llm
 
     _clear_llm_cache()
     _set_chat_settings(monkeypatch)
@@ -63,7 +64,7 @@ def test_build_llm_uses_configured_deployment_when_no_override(monkeypatch):
 
 def test_build_llm_override_wins_over_settings(monkeypatch):
     """A per-request override deployment is what reaches ChatOpenAI."""
-    from src.services.agent.graph import _build_llm
+    from src.services.agent.llm_factory import _build_llm
 
     _clear_llm_cache()
     _set_chat_settings(monkeypatch)
@@ -78,7 +79,7 @@ def test_build_llm_override_wins_over_settings(monkeypatch):
 
 def test_build_llm_empty_override_falls_back_to_settings(monkeypatch):
     """An empty-string override is treated as no override (server default wins)."""
-    from src.services.agent.graph import _build_llm
+    from src.services.agent.llm_factory import _build_llm
 
     _clear_llm_cache()
     _set_chat_settings(monkeypatch)
@@ -94,7 +95,7 @@ def test_build_llm_empty_override_falls_back_to_settings(monkeypatch):
 def test_build_llm_override_threads_through_azure_client(monkeypatch):
     """When the endpoint is plain Azure (not openai-compatible), override
     still wins — threaded through as ``azure_deployment``."""
-    from src.services.agent.graph import _build_llm
+    from src.services.agent.llm_factory import _build_llm
 
     _clear_llm_cache()
     _set_chat_settings(

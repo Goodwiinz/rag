@@ -52,9 +52,7 @@ async def test_main_done_carries_ids_in_canonical_mode():
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     body = SimpleNamespace(
         messages=[
-            SimpleNamespace(
-                role="user", content="hi", client_message_id="cmid-user-1"
-            )
+            SimpleNamespace(role="user", content="hi", client_message_id="cmid-user-1")
         ],
         page_context={"type": "general"},
         thread_id="thread-req-1",
@@ -76,7 +74,7 @@ async def test_main_done_carries_ids_in_canonical_mode():
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=_FakeGraph(),
         ),
         patch(

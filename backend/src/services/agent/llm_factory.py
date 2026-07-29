@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def _main_chat_deployment() -> str:
-    """The configured chat deployment — same chain ``graph._build_llm`` uses."""
+    """The configured chat deployment — same chain ``_build_llm`` below uses."""
     settings = get_settings()
     return (
         settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
@@ -258,3 +258,113 @@ def validate_llm_config() -> bool:
     endpoint = s.AZURE_OPENAI_CHAT_ENDPOINT or s.AZURE_OPENAI_ENDPOINT or ""
     api_key = s.AZURE_OPENAI_CHAT_API_KEY or s.AZURE_OPENAI_API_KEY or ""
     return bool(endpoint and api_key)
+
+
+# ---------------------------------------------------------------------------
+# Main chat LLM construction (moved from graph.py)
+# ---------------------------------------------------------------------------
+
+_LLM_CACHE: dict[tuple[str, str], BaseChatModel] = {}
+
+
+def _build_llm(model_override: str | None = None):
+    """Build a LangChain chat model from the existing Azure/OpenAI config.
+
+    ``model_override`` lets a per-request deployment name win over the configured
+    default — used to make the agent honor ``request.model`` from the API.
+
+    Clients are cached by ``(endpoint_type, deployment)`` to avoid rebuilding
+    the HTTP client on every ``llm_node`` invocation (~30-50 ms each).
+    """
+    settings = get_settings()
+
+    endpoint = (
+        settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT or ""
+    )
+    api_key = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
+    api_version = (
+        settings.AZURE_OPENAI_CHAT_API_VERSION or settings.AZURE_OPENAI_API_VERSION
+    )
+    deployment = (
+        model_override
+        or settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+        or settings.AZURE_OPENAI_DEPLOYMENT_NAME
+    )
+
+    if not endpoint or not api_key:
+        raise RuntimeError(
+            "Azure/OpenAI chat endpoint and API key must be configured. "
+            "Set AZURE_OPENAI_CHAT_ENDPOINT + AZURE_OPENAI_CHAT_API_KEY "
+            "(or the non-CHAT variants)."
+        )
+
+    if not deployment:
+        raise RuntimeError(
+            "Chat deployment name must be configured. Set "
+            "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME (or AZURE_OPENAI_DEPLOYMENT_NAME)."
+        )
+
+    endpoint_type = classify_openai_endpoint(endpoint)
+    cache_key = (endpoint_type, deployment)
+    if cache_key in _LLM_CACHE:
+        return _LLM_CACHE[cache_key]
+
+    # All gpt-5 family deployments (gpt-5, gpt-5-mini, gpt-5-nano, etc.)
+    # reject custom temperature — Azure returns 400. Drop it for the whole
+    # family rather than per-deployment allowlist.
+    temperature = None if deployment.startswith("gpt-5") else 0.7
+
+    # gpt-5 family supports reasoning_effort to trade reasoning depth for
+    # latency. Defaults to "low" for fast agent loops; raise via settings
+    # for harder reasoning tasks. Non-gpt-5 deployments ignore this kwarg.
+    reasoning_effort = settings.AGENT_MAIN_REASONING_EFFORT
+    is_gpt5_family = deployment.startswith("gpt-5") if deployment else False
+
+    # Force Chat Completions API. langchain-openai auto-routes gpt-5 family
+    # with reasoning_effort to the Azure Responses API, which currently rejects
+    # the agent's tool_call message history with "Unsupported data type". The
+    # Chat Completions path handles tool_calls reliably and supports
+    # reasoning_effort on gpt-5 deployments via api-version 2024-10-21+.
+    # Bound LLM call wall-clock + cap retries. Prevents the model-router hang
+    # observed in LangSmith (traces with end_time=null blocking root 70s+).
+    request_timeout = settings.AGENT_LLM_REQUEST_TIMEOUT
+    max_retries = settings.AGENT_LLM_MAX_RETRIES
+
+    if endpoint_type == "openai_compatible":
+        from langchain_openai import ChatOpenAI
+
+        kwargs: dict = dict(
+            model=deployment,
+            api_key=api_key,
+            base_url=endpoint,
+            max_tokens=4096,
+            use_responses_api=False,
+            request_timeout=request_timeout,
+            max_retries=max_retries,
+        )
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        if is_gpt5_family and reasoning_effort:
+            kwargs["reasoning_effort"] = reasoning_effort
+        llm = ChatOpenAI(**kwargs)
+    else:
+        from langchain_openai import AzureChatOpenAI
+
+        kwargs = dict(
+            azure_deployment=deployment,
+            azure_endpoint=endpoint,
+            api_key=api_key,
+            api_version=api_version,
+            max_tokens=4096,
+            use_responses_api=False,
+            request_timeout=request_timeout,
+            max_retries=max_retries,
+        )
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        if is_gpt5_family and reasoning_effort:
+            kwargs["reasoning_effort"] = reasoning_effort
+        llm = AzureChatOpenAI(**kwargs)
+
+    _LLM_CACHE[cache_key] = llm
+    return llm

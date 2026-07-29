@@ -222,7 +222,8 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     # Lazy import — graph.py owns the canonical LLM builder + the message
     # sanitiser, but importing them at module load would create a cycle
     # (graph.py re-exports llm_node from here).
-    from src.services.agent.graph import _build_llm, _sanitize_messages
+    from src.services.agent._sanitize import _sanitize_messages
+    from src.services.agent.llm_factory import _build_llm
 
     page_context = state.get("page_context", {})
     retrieved = state.get("retrieved_contexts", [])
@@ -437,7 +438,7 @@ async def force_synthesis_node(state: AgentState, config: RunnableConfig) -> dic
     stray tool_calls (defective model).
     """
     from src.services.agent._builders import MAX_TOOL_LOOPS
-    from src.services.agent.graph import _sanitize_messages
+    from src.services.agent._sanitize import _sanitize_messages
     from src.services.agent.llm_factory import build_synthesis_llm
 
     # Degraded-answer signal: reaching this node means the tool-loop ceiling

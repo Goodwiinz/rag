@@ -101,7 +101,7 @@ async def test_confirm_retries_on_first_aget_state_miss():
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             side_effect=fake_compile,
         ),
         # Confirm path now persists the assistant row directly via the safe
@@ -116,9 +116,7 @@ async def test_confirm_retries_on_first_aget_state_miss():
         ),
     ):
         events = []
-        async for event in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
     # Should have called get_checkpointer twice (initial + retry)
@@ -157,14 +155,12 @@ async def test_confirm_returns_thread_not_found_after_both_attempts_fail():
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             side_effect=fake_compile,
         ),
     ):
         events = []
-        async for event in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
     # Should contain "Thread not found" error
@@ -228,7 +224,7 @@ async def test_confirm_rejects_legacy_checkpoint_without_owned_thread():
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=fake_graph,
         ),
         patch(
@@ -237,9 +233,7 @@ async def test_confirm_rejects_legacy_checkpoint_without_owned_thread():
         ),
     ):
         events = []
-        async for event in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
     error_events = [e for e in events if "Thread not found" in e]

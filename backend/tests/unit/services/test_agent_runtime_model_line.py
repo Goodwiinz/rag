@@ -8,9 +8,9 @@ from __future__ import annotations
 
 
 def _set_chat_settings(monkeypatch, **overrides):
-    from src.services.agent import graph as graph_module
+    from src.core.config import get_settings
 
-    settings = graph_module.get_settings()
+    settings = get_settings()
     defaults = {
         "AZURE_OPENAI_DEPLOYMENT_NAME": None,
         "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME": "model-router",
@@ -21,7 +21,7 @@ def _set_chat_settings(monkeypatch, **overrides):
 
 
 def test_runtime_model_line_for_model_router_explains_per_request_routing(monkeypatch):
-    from src.services.agent.graph import _runtime_model_line
+    from src.services.agent._prompts import _runtime_model_line
 
     _set_chat_settings(monkeypatch, AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="model-router")
     line = _runtime_model_line(None)
@@ -32,7 +32,7 @@ def test_runtime_model_line_for_model_router_explains_per_request_routing(monkey
 
 
 def test_runtime_model_line_for_specific_deployment_names_it(monkeypatch):
-    from src.services.agent.graph import _runtime_model_line
+    from src.services.agent._prompts import _runtime_model_line
 
     _set_chat_settings(monkeypatch, AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="gpt-5-chat")
     line = _runtime_model_line(None)
@@ -41,7 +41,7 @@ def test_runtime_model_line_for_specific_deployment_names_it(monkeypatch):
 
 
 def test_runtime_model_line_honors_request_override(monkeypatch):
-    from src.services.agent.graph import _runtime_model_line
+    from src.services.agent._prompts import _runtime_model_line
 
     _set_chat_settings(monkeypatch, AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="some-default")
     line = _runtime_model_line("model-router")
@@ -51,7 +51,7 @@ def test_runtime_model_line_honors_request_override(monkeypatch):
 
 
 def test_runtime_model_line_returns_empty_when_nothing_configured(monkeypatch):
-    from src.services.agent.graph import _runtime_model_line
+    from src.services.agent._prompts import _runtime_model_line
 
     _set_chat_settings(
         monkeypatch,

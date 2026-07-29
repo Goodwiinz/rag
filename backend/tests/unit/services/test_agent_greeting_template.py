@@ -45,7 +45,10 @@ class TestGreetingReply:
     def test_none_for_non_greeting(self):
         from src.services.agent._nodes_llm import _greeting_reply
 
-        assert _greeting_reply("find papers", {}, [HumanMessage(content="find papers")]) is None
+        assert (
+            _greeting_reply("find papers", {}, [HumanMessage(content="find papers")])
+            is None
+        )
         assert _greeting_reply("yes", {}, [HumanMessage(content="yes")]) is None
 
     def test_project_aware(self):
@@ -63,14 +66,13 @@ class TestGreetingReply:
 @pytest.mark.asyncio
 class TestLlmNodeGreetingShortCircuit:
     async def test_greeting_returns_template_without_calling_llm(self, monkeypatch):
-        import src.services.agent.graph as graphmod
         import src.services.agent.llm_factory as factory
         from src.services.agent._nodes_llm import llm_node
 
         def _boom(*a, **k):
             raise AssertionError("LLM must not be built for a greeting")
 
-        monkeypatch.setattr(graphmod, "_build_llm", _boom, raising=False)
+        monkeypatch.setattr(factory, "_build_llm", _boom, raising=False)
         monkeypatch.setattr(factory, "build_synthesis_llm", _boom, raising=False)
 
         state = {
@@ -85,7 +87,7 @@ class TestLlmNodeGreetingShortCircuit:
         assert result["messages"][0].tool_calls == []
 
     async def test_real_query_still_reaches_llm(self, monkeypatch):
-        import src.services.agent.graph as graphmod
+        import src.services.agent.llm_factory as factory
         from src.services.agent._nodes_llm import llm_node
 
         called = {"built": False}
@@ -94,9 +96,7 @@ class TestLlmNodeGreetingShortCircuit:
             called["built"] = True
             raise RuntimeError("stop after build")
 
-        monkeypatch.setattr(graphmod, "_build_llm", _spy, raising=False)
-        import src.services.agent.llm_factory as factory
-
+        monkeypatch.setattr(factory, "_build_llm", _spy, raising=False)
         monkeypatch.setattr(factory, "build_synthesis_llm", _spy, raising=False)
 
         state = {

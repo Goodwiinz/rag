@@ -23,7 +23,6 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-
 pytestmark = pytest.mark.integration
 
 
@@ -71,24 +70,18 @@ async def test_done_event_does_not_wait_on_commit(
     from src.api.agent.execute import AgentExecuteRequest, AgentMessage
 
     body = AgentExecuteRequest(
-        messages=[
-            AgentMessage(
-                role="user", content="ping", client_message_id=uuid4()
-            )
-        ],
+        messages=[AgentMessage(role="user", content="ping", client_message_id=uuid4())],
         thread_id=str(thread.id),
     )
 
-    fastapi_request = SimpleNamespace(
-        is_disconnected=AsyncMock(return_value=False)
-    )
+    fastapi_request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
 
     TestSessionLocal = async_sessionmaker(_engine, expire_on_commit=False)
 
     bg = _MockBackgroundTasks()
 
-    from src.services.agent import agent_execution_service as jobs_mod
     from src.api.agent import streaming as streaming_mod
+    from src.services.agent import agent_execution_service as jobs_mod
 
     with (
         patch.object(streaming_mod, "AsyncSessionLocal", TestSessionLocal),
@@ -107,7 +100,7 @@ async def test_done_event_does_not_wait_on_commit(
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             new=lambda **_kwargs: _FakeGraph(),
         ),
     ):

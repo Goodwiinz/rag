@@ -812,7 +812,7 @@ class TestExtractProjectIdFromText:
     """Tests for _extract_project_id_from_text used in rag_node."""
 
     async def test_project_url_returns_uuid(self):
-        from src.services.agent.graph import _extract_project_id_from_text
+        from src.services.agent._uuid import _extract_project_id_from_text
 
         text = "look at https://dev-app.gen-text.app/projects/fd68b324-5a89-47a4-a8ff-38d29f4fa496"
         assert (
@@ -821,7 +821,7 @@ class TestExtractProjectIdFromText:
         )
 
     async def test_bare_uuid_returns_uuid(self):
-        from src.services.agent.graph import _extract_project_id_from_text
+        from src.services.agent._uuid import _extract_project_id_from_text
 
         text = "use project fd68b324-5a89-47a4-a8ff-38d29f4fa496 please"
         assert (
@@ -830,7 +830,7 @@ class TestExtractProjectIdFromText:
         )
 
     async def test_uppercase_is_normalised(self):
-        from src.services.agent.graph import _extract_project_id_from_text
+        from src.services.agent._uuid import _extract_project_id_from_text
 
         text = "/projects/FD68B324-5A89-47A4-A8FF-38D29F4FA496"
         assert (
@@ -839,7 +839,7 @@ class TestExtractProjectIdFromText:
         )
 
     async def test_no_uuid_returns_none(self):
-        from src.services.agent.graph import _extract_project_id_from_text
+        from src.services.agent._uuid import _extract_project_id_from_text
 
         assert _extract_project_id_from_text("nothing to see here") is None
         assert _extract_project_id_from_text("") is None
@@ -847,7 +847,7 @@ class TestExtractProjectIdFromText:
     async def test_prefers_project_url_over_bare_uuid(self):
         """When both a /projects/<uuid> URL and an unrelated UUID appear,
         the URL-scoped UUID wins."""
-        from src.services.agent.graph import _extract_project_id_from_text
+        from src.services.agent._uuid import _extract_project_id_from_text
 
         text = (
             "doc 11111111-1111-1111-1111-111111111111 "

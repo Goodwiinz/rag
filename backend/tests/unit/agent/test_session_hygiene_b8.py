@@ -322,7 +322,7 @@ async def test_execute_single_tool_passes_ids_only():
             "thread_id": "t-1",
         }
     }
-    with patch("src.services.agent.graph._get_execute_tool", return_value=executor):
+    with patch("src.services.agent._nodes_tools._get_execute_tool", return_value=executor):
         out = await _execute_single_tool(
             {"name": "search_documents", "args": {"query": "x"}, "id": "tc1"},
             config,

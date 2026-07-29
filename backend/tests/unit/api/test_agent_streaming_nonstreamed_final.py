@@ -64,7 +64,7 @@ async def test_stream_emits_nonstreamed_final_answer_as_token():
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=_FakeGraphNoStream(),
         ),
         patch(

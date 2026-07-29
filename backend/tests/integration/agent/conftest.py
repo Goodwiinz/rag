@@ -161,7 +161,9 @@ def compile_graph_with_mocks(mock_llm_instance, mock_tool_fn):
     from langgraph.checkpoint.memory import MemorySaver
 
     patchers = [
-        patch("src.services.agent.graph._build_llm", return_value=mock_llm_instance),
+        patch(
+            "src.services.agent.llm_factory._build_llm", return_value=mock_llm_instance
+        ),
         patch(
             "src.services.agent.llm_factory.build_synthesis_llm",
             return_value=mock_llm_instance,
@@ -170,18 +172,21 @@ def compile_graph_with_mocks(mock_llm_instance, mock_tool_fn):
             "src.services.agent.llm_factory.build_lightweight_llm",
             return_value=mock_llm_instance,
         ),
-        patch("src.services.agent.graph.execute_tool", new=mock_tool_fn),
-        patch("src.services.agent.graph._get_execute_tool", return_value=mock_tool_fn),
+        patch("src.services.agent._nodes_tools.execute_tool", new=mock_tool_fn),
         patch(
-            "src.services.agent.graph.memory_retrieval_node",
+            "src.services.agent._nodes_tools._get_execute_tool",
+            return_value=mock_tool_fn,
+        ),
+        patch(
+            "src.services.agent._nodes_classify.memory_retrieval_node",
             new=AsyncMock(return_value={"user_memories": []}),
         ),
         patch(
-            "src.services.agent.graph.memory_save_node",
+            "src.services.agent._builders.memory_save_node",
             new=AsyncMock(return_value={}),
         ),
         patch(
-            "src.services.agent.graph.rag_node",
+            "src.services.agent._nodes_classify.rag_node",
             new=AsyncMock(return_value={"retrieved_contexts": []}),
         ),
     ]
@@ -189,7 +194,7 @@ def compile_graph_with_mocks(mock_llm_instance, mock_tool_fn):
         p.start()
         _active_graph_patchers.append(p)
 
-    from src.services.agent.graph import compile_agent_graph
+    from src.services.agent._builders import compile_agent_graph
 
     return compile_agent_graph(checkpointer=MemorySaver())
 

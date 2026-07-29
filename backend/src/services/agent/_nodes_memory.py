@@ -1,8 +1,7 @@
 """Memory recall + save nodes for the agent graph.
 
-Extracted from ``graph.py`` so the orchestration module stays under the
-800-line house rule. ``graph.py`` re-exports both functions for legacy
-imports (``from src.services.agent.graph import memory_save_node``).
+Extracted from the old ``graph.py`` so the orchestration module stays
+under the 800-line house rule; both functions import from here directly.
 
 Both nodes share two contracts:
 - They never raise. Memory is a best-effort enrichment; an outage here
