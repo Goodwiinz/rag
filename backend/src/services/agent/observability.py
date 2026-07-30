@@ -239,6 +239,39 @@ try:
         ["model", "type"],
     )
 
+    AGENT_STREAM_ACCEPTED_DURATION = _get_or_create_histogram(
+        "agent_stream_accepted_duration_seconds",
+        "Time from request handling start to the accepted SSE event",
+        [],
+        [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2],
+    )
+
+    AGENT_STREAM_FIRST_TOKEN_DURATION = _get_or_create_histogram(
+        "agent_stream_first_token_duration_seconds",
+        "Time from request handling start to the first user-facing token",
+        ["route"],
+        [0.1, 0.25, 0.5, 1, 2, 3, 5, 8, 10, 20, 30],
+    )
+
+    AGENT_STREAM_COMPLETION_DURATION = _get_or_create_histogram(
+        "agent_stream_completion_duration_seconds",
+        "Time from request handling start to the first terminal SSE event",
+        ["route"],
+        [0.25, 0.5, 1, 2, 3, 5, 8, 10, 20, 30, 60, 120, 300],
+    )
+
+    AGENT_STREAM_TURNS = _get_or_create_counter(
+        "agent_stream_turns_total",
+        "Terminal agent SSE turns by bounded route and outcome",
+        ["route", "status"],
+    )
+
+    AGENT_STREAM_ROUTES = _get_or_create_counter(
+        "agent_stream_routes_total",
+        "Agent SSE turns assigned to each bounded execution route",
+        ["route"],
+    )
+
     AGENT_ERRORS = _get_or_create_counter(
         "agent_error_total",
         "Total number of agent errors",
@@ -367,10 +400,88 @@ try:
     _METRICS_AVAILABLE = True
 except ImportError:
     _METRICS_AVAILABLE = False
+    AGENT_STREAM_ACCEPTED_DURATION = None
+    AGENT_STREAM_FIRST_TOKEN_DURATION = None
+    AGENT_STREAM_COMPLETION_DURATION = None
+    AGENT_STREAM_TURNS = None
+    AGENT_STREAM_ROUTES = None
     PROJECT_SKILL_EVENTS = None
     PROJECT_SKILL_LOADED_SKILLS = None
     PROJECT_SKILL_LOADED_TOKENS = None
     logger.debug("prometheus_client not available, metrics disabled")
+
+
+class AgentStreamSLOTracker:
+    """Record one low-cardinality SLI lifecycle for an SSE turn.
+
+    The tracker deliberately accepts only four route values. It never records
+    tenant, user, thread, prompt, model, tool, or error text as metric labels.
+    Duplicate token and terminal frames are ignored so retries/error cleanup
+    cannot inflate observations.
+    """
+
+    _ROUTES = frozenset({"pending", "luna", "graph", "unknown"})
+    _TERMINAL_EVENTS = frozenset({"done", "error", "confirmation"})
+
+    def __init__(self, *, clock: Callable[[], float] = time.monotonic) -> None:
+        self._clock = clock
+        self._started_at = clock()
+        self.route = "pending"
+        self._accepted_recorded = False
+        self._first_token_recorded = False
+        self._terminal_recorded = False
+        self._route_recorded = False
+
+    def _elapsed(self) -> float:
+        return max(0.0, self._clock() - self._started_at)
+
+    def _record_route(self) -> None:
+        if (
+            self._route_recorded
+            or not _METRICS_AVAILABLE
+            or AGENT_STREAM_ROUTES is None
+        ):
+            return
+        AGENT_STREAM_ROUTES.labels(route=self.route).inc()
+        self._route_recorded = True
+
+    def set_route(self, route: str) -> None:
+        self.route = route if route in self._ROUTES else "unknown"
+        self._record_route()
+
+    def record(self, event_type: object, data: Dict[str, Any]) -> None:
+        if not _METRICS_AVAILABLE:
+            return
+        event = getattr(event_type, "value", str(event_type))
+        if (
+            event == "status"
+            and data.get("phase") == "accepted"
+            and not self._accepted_recorded
+            and AGENT_STREAM_ACCEPTED_DURATION is not None
+        ):
+            AGENT_STREAM_ACCEPTED_DURATION.observe(self._elapsed())
+            self._accepted_recorded = True
+            return
+        if (
+            event == "token"
+            and not self._first_token_recorded
+            and AGENT_STREAM_FIRST_TOKEN_DURATION is not None
+        ):
+            AGENT_STREAM_FIRST_TOKEN_DURATION.labels(route=self.route).observe(
+                self._elapsed()
+            )
+            self._first_token_recorded = True
+            return
+        if event not in self._TERMINAL_EVENTS or self._terminal_recorded:
+            return
+        self._record_route()
+        if AGENT_STREAM_COMPLETION_DURATION is not None:
+            AGENT_STREAM_COMPLETION_DURATION.labels(route=self.route).observe(
+                self._elapsed()
+            )
+        if AGENT_STREAM_TURNS is not None:
+            AGENT_STREAM_TURNS.labels(route=self.route, status=event).inc()
+        self._terminal_recorded = True
 
 
 def record_project_skill_event(

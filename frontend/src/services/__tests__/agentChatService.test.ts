@@ -23,7 +23,10 @@ vi.mock('@/lib/supabase/client', () => ({
 
 import { agentChatService } from '../agentChatService';
 
-function makeReader(chunks: string[]) {
+function makeReader(chunks: string[]): {
+  read(): Promise<ReadableStreamReadResult<Uint8Array>>;
+  releaseLock(): void;
+} {
   const encoder = new TextEncoder();
   const queue = chunks.map((c) => encoder.encode(c));
   let i = 0;
@@ -237,8 +240,9 @@ describe('agentChatService.resumeStream', () => {
     expect(seqs).toEqual([3, 4, 5]);
     expect(onDone).toHaveBeenCalledTimes(1);
     // GET with the after cursor in the query string
-    const url = vi.mocked(global.fetch).mock.calls[0][0] as string;
+    const [url, options] = vi.mocked(global.fetch).mock.calls[0];
     expect(url).toContain('/agent/stream/resume/thread-1?after=2');
+    expect(new Headers(options?.headers).get('Last-Event-ID')).toBe('2');
   });
 
   it('reports seqs on the live streamMessage path too', async () => {

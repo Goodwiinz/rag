@@ -10,6 +10,7 @@ import json as _json
 import logging
 import time
 import uuid as _uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from langgraph.errors import GraphInterrupt
@@ -34,12 +35,31 @@ from src.services.agent.agent_execution_service import (
     _resolve_and_bind_project,
     _resolve_thread,
 )
-from src.services.agent.observability import record_token_usage
+from src.services.agent.observability import AgentStreamSLOTracker, record_token_usage
 from src.shared.enums import AgentStreamEvent
 
 from .trace_context import build_trace_payload
 
 logger = logging.getLogger(__name__)
+
+AGENT_STREAM_SCHEMA_VERSION = "1.0"
+_STREAM_ROUTES = frozenset({"pending", "luna", "graph", "unknown"})
+
+
+def _request_trace_id(request: Any) -> str:
+    """Return a safe per-turn correlation id.
+
+    Reuse the request id installed by middleware when available so HTTP logs,
+    SSE frames, LangSmith metadata, and Prometheus exemplars can be correlated.
+    Unit generators and middleware-free callers get a UUID fallback.
+    """
+    state = getattr(request, "state", None)
+    request_id = getattr(state, "request_id", None)
+    if not request_id:
+        headers = getattr(request, "headers", {})
+        request_id = headers.get("x-request-id") if headers else None
+    value = str(request_id or _uuid.uuid4())
+    return value[:128]
 
 
 def _assistant_client_message_id(request_body: Any) -> Optional[str]:
@@ -454,13 +474,30 @@ class _SeqEmitter:
     Redis down degrades to plain live streaming, never a failed turn.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        trace_id: Optional[str] = None,
+        slo_tracker: Optional[AgentStreamSLOTracker] = None,
+    ) -> None:
         self.seq = 0
         self.sid: Optional[str] = None
         self.thread_id: Optional[str] = None
+        self.trace_id = trace_id or str(_uuid.uuid4())
+        self.route = "pending"
+        self.slo_tracker = slo_tracker or AgentStreamSLOTracker()
+
+    def set_context(
+        self, *, thread_id: Optional[str] = None, route: Optional[str] = None
+    ) -> None:
+        if thread_id is not None:
+            self.thread_id = thread_id
+        if route is not None:
+            self.route = route if route in _STREAM_ROUTES else "unknown"
+            self.slo_tracker.set_route(self.route)
 
     async def start(self, thread_id: str) -> None:
-        self.thread_id = thread_id
+        self.set_context(thread_id=thread_id)
         try:
             self.sid = await _stream_buffer.start_stream(thread_id)
         except Exception:
@@ -470,7 +507,20 @@ class _SeqEmitter:
         self, event_type: str, data: Dict[str, Any], *, buffer: bool = True
     ) -> str:
         self.seq += 1
-        frame = _format_sse_event(event_type, data, seq=self.seq)
+        self.slo_tracker.record(event_type, data)
+        envelope = {
+            **data,
+            "schema_version": AGENT_STREAM_SCHEMA_VERSION,
+            "sequence": self.seq,
+            "event_id": f"{self.trace_id}:{self.seq}",
+            "occurred_at": datetime.now(timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "trace_id": self.trace_id,
+            "thread_id": self.thread_id,
+            "route": self.route,
+        }
+        frame = _format_sse_event(event_type, envelope, seq=self.seq)
         if buffer and self.sid is not None:
             try:
                 await _stream_buffer.append(self.sid, self.seq, frame)
@@ -600,7 +650,7 @@ async def stream_event_generator(
     graph = None  # type: ignore[assignment]
     resolved_thread_id: Optional[str] = None
     stream_started_at = time.monotonic()
-    emitter = _SeqEmitter()
+    emitter = _SeqEmitter(trace_id=_request_trace_id(request))
     client_disconnected = False
     # Set once an assistant row for this turn has been persisted/scheduled —
     # the error-path partial persist must never double-write the turn.
@@ -610,9 +660,10 @@ async def stream_event_generator(
         # First server-sourced progress signal. It is intentionally unbuffered
         # and carries no thread id: the client-supplied id has not passed the
         # ownership check yet, so it must not touch the resumable Redis pointer.
-        yield _format_sse_event(
+        yield await emitter.emit(
             AgentStreamEvent.STATUS,
             {"phase": "accepted", "detail": "Request accepted"},
+            buffer=False,
         )
 
         # Resolve the thread and verify ownership before choosing either route.
@@ -650,6 +701,7 @@ async def stream_event_generator(
             and fast_decision.eligible
             and resolved_thread_id is not None
         ):
+            emitter.set_context(route="luna")
             async for frame in _stream_luna_fast_path(
                 request_body=request_body,
                 request=request,
@@ -776,6 +828,7 @@ async def stream_event_generator(
             },
         }
 
+        emitter.set_context(route="graph")
         await emitter.start(stream_thread_id)
 
         yield await emitter.emit(
@@ -1316,7 +1369,7 @@ async def stream_confirm_event_generator(
     )
 
     db = AsyncSessionLocal()
-    emitter = _SeqEmitter()
+    emitter = _SeqEmitter(trace_id=_request_trace_id(request))
     client_disconnected = False
     # Set once an assistant row for this turn has been persisted/scheduled —
     # the error-path partial persist must never double-write the turn.
@@ -1487,6 +1540,7 @@ async def stream_confirm_event_generator(
 
         resume_input = Command(resume={"confirmed": request_body.confirmed})
 
+        emitter.set_context(route="graph")
         await emitter.start(request_body.thread_id)
 
         yield await emitter.emit(

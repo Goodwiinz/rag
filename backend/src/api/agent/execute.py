@@ -22,6 +22,7 @@ from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
+    Header,
     HTTPException,
     Path,
     Query,
@@ -755,11 +756,25 @@ async def _pending_confirmation_frame(
 async def resume_stream(
     request: Request,
     thread_id: str = Path(pattern=r"^[0-9a-fA-F-]{36}$"),
-    after: int = Query(0),
+    after: int = Query(0, ge=0),
+    last_event_id: Optional[str] = Header(default=None, alias="Last-Event-ID"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Replay buffered SSE frames (seq > after) for the thread's active run."""
+    if last_event_id is not None:
+        try:
+            after = int(last_event_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail="Last-Event-ID must be a non-negative integer sequence",
+            ) from exc
+        if after < 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Last-Event-ID must be a non-negative integer sequence",
+            )
     try:
         thread_uuid = _uuid.UUID(thread_id)
     except ValueError:

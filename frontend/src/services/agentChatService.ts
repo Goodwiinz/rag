@@ -482,7 +482,8 @@ class AgentChatService {
     const url = `${base}/agent/stream/resume/${encodeURIComponent(
       threadId
     )}?after=${afterSeq}`;
-    const headers = await getStreamAuthHeaders();
+    const headers = new Headers(await getStreamAuthHeaders());
+    headers.set('Last-Event-ID', String(afterSeq));
 
     let response: Response;
     try {

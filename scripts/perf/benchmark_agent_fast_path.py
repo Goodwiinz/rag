@@ -94,6 +94,73 @@ def summarize(results: list[RunResult]) -> dict[str, Any]:
     }
 
 
+def evaluate_release_gate(
+    summary: dict[str, Any],
+    *,
+    accepted_p95_ms: float,
+    first_token_p95_ms: float,
+    completion_p95_ms: float,
+    minimum_samples: int,
+    required_route: str,
+) -> dict[str, Any]:
+    """Evaluate every P0 release criterion without short-circuiting.
+
+    Returning all checks in one machine-readable object makes CI and humans
+    see the complete failure set from a benchmark run instead of fixing one
+    hidden threshold per rerun.
+    """
+    samples = int(summary["samples"])
+    failures = int(summary["failures"])
+    latency = summary["latency_ms"]
+    routes = summary["routes"]
+
+    def latency_check(name: str, phase: str, limit: float) -> dict[str, Any]:
+        actual = latency[phase]["p95"]
+        return {
+            "name": name,
+            "actual": actual,
+            "limit": limit,
+            "passed": actual is not None and float(actual) <= limit,
+        }
+
+    checks = [
+        {
+            "name": "minimum_samples",
+            "actual": samples,
+            "limit": minimum_samples,
+            "passed": samples >= minimum_samples,
+        },
+        {
+            "name": "zero_failures",
+            "actual": failures,
+            "limit": 0,
+            "passed": failures == 0,
+        },
+        {
+            "name": "accepted_event_per_sample",
+            "actual": latency["accepted"]["count"],
+            "limit": samples,
+            "passed": latency["accepted"]["count"] == samples,
+        },
+        latency_check("accepted_p95_ms", "accepted", accepted_p95_ms),
+        {
+            "name": "first_token_per_sample",
+            "actual": latency["first_token"]["count"],
+            "limit": samples,
+            "passed": latency["first_token"]["count"] == samples,
+        },
+        latency_check("first_token_p95_ms", "first_token", first_token_p95_ms),
+        latency_check("completion_p95_ms", "completion", completion_p95_ms),
+        {
+            "name": "required_route",
+            "actual": routes,
+            "limit": {required_route: samples},
+            "passed": routes == {required_route: samples},
+        },
+    ]
+    return {"passed": all(check["passed"] for check in checks), "checks": checks}
+
+
 async def _run_sample(
     client: httpx.AsyncClient,
     *,
@@ -224,7 +291,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--warmups", type=int, default=2)
     parser.add_argument("--concurrency", type=int, default=1)
     parser.add_argument("--timeout", type=float, default=45.0)
-    parser.add_argument("--target-p95-ms", type=float, default=5_000.0)
+    parser.add_argument(
+        "--target-p95-ms",
+        type=float,
+        default=None,
+        help="compatibility alias: applies to first-token and completion p95",
+    )
+    parser.add_argument("--target-accepted-p95-ms", type=float, default=250.0)
+    parser.add_argument("--target-first-token-p95-ms", type=float, default=5_000.0)
+    parser.add_argument("--target-completion-p95-ms", type=float, default=5_000.0)
+    parser.add_argument("--minimum-samples", type=int, default=20)
+    parser.add_argument("--required-route", default="luna")
     parser.add_argument("--prompt", action="append")
     return parser.parse_args()
 
@@ -248,15 +325,24 @@ def main() -> int:
 
     results = asyncio.run(run_benchmark(args))
     summary = summarize(results)
-    first_token_p95 = summary["latency_ms"]["first_token"]["p95"]
-    summary["target"] = {
-        "first_token_p95_ms": args.target_p95_ms,
-        "passed": (
-            summary["failures"] == 0
-            and first_token_p95 is not None
-            and first_token_p95 <= args.target_p95_ms
-        ),
-    }
+    first_token_target = (
+        args.target_p95_ms
+        if args.target_p95_ms is not None
+        else args.target_first_token_p95_ms
+    )
+    completion_target = (
+        args.target_p95_ms
+        if args.target_p95_ms is not None
+        else args.target_completion_p95_ms
+    )
+    summary["target"] = evaluate_release_gate(
+        summary,
+        accepted_p95_ms=args.target_accepted_p95_ms,
+        first_token_p95_ms=first_token_target,
+        completion_p95_ms=completion_target,
+        minimum_samples=args.minimum_samples,
+        required_route=args.required_route,
+    )
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0 if summary["target"]["passed"] else 1
 
