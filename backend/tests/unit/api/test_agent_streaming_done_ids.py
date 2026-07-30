@@ -9,11 +9,12 @@ untested — this closes that gap. Canonical mode is enabled in the dev cluster
 (AGENT_CANONICAL_PERSISTENCE=true), so this is the live path.
 """
 
-import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+
+from tests.utils.agent_stream import frames_of_type, make_stream_request, sse_data
 
 
 class _FakeGraph:
@@ -40,9 +41,12 @@ class _FakeGraph:
 
 
 def _parse_done(events):
-    frame = next(e for e in events if "event: done\n" in e)
-    data_line = next(ln for ln in frame.splitlines() if ln.startswith("data: "))
-    return json.loads(data_line[len("data: ") :])
+    # assert-then-index, never a bare next(): inside an async test a
+    # StopIteration surfaces as "RuntimeError: coroutine raised StopIteration"
+    # and hides which frame was actually missing.
+    done_frames = frames_of_type(events, "done")
+    assert done_frames, f"no done frame in: {events}"
+    return sse_data(done_frames[0])
 
 
 @pytest.mark.asyncio
@@ -50,15 +54,15 @@ async def test_main_done_carries_ids_in_canonical_mode():
     from src.api.agent.streaming import stream_event_generator
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = SimpleNamespace(
+    body = make_stream_request(
         messages=[
-            SimpleNamespace(
-                role="user", content="hi", client_message_id="cmid-user-1"
-            )
+            {
+                "role": "user",
+                "content": "hi",
+                "client_message_id": "11111111-1111-1111-1111-111111111111",
+            }
         ],
-        page_context={"type": "general"},
         thread_id="thread-req-1",
-        model=None,
     )
     current_user = Mock(id="user-1", organization_id="org-1")
 

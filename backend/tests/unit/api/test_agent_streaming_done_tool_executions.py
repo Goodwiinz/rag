@@ -8,11 +8,12 @@ until a refresh re-read the persisted row. The confirm stream already carried
 tools in its done payload — this pins the same for the main stream.
 """
 
-import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+
+from tests.utils.agent_stream import frames_of_type, make_stream_request, sse_data
 
 
 class _FakeGraphWithTool:
@@ -49,11 +50,12 @@ class _FakeGraphWithTool:
 
 
 def _parse_done(events):
-    frame = next(e for e in events if "event: done\n" in e)
-    data_line = next(
-        ln for ln in frame.splitlines() if ln.startswith("data: ")
-    )
-    return json.loads(data_line[len("data: ") :])
+    # assert-then-index, never a bare next(): inside an async test a
+    # StopIteration surfaces as "RuntimeError: coroutine raised StopIteration"
+    # and hides which frame was actually missing.
+    done_frames = frames_of_type(events, "done")
+    assert done_frames, f"no done frame in: {events}"
+    return sse_data(done_frames[0])
 
 
 @pytest.mark.asyncio
@@ -61,12 +63,7 @@ async def test_done_frame_carries_tool_executions():
     from src.api.agent.streaming import stream_event_generator
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = SimpleNamespace(
-        messages=[SimpleNamespace(role="user", content="hi")],
-        page_context={"type": "general"},
-        thread_id="thread-123",
-        model=None,
-    )
+    body = make_stream_request(thread_id="thread-123")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
