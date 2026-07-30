@@ -63,6 +63,7 @@ interface ChatTranscriptStateProps {
   storeIsRetrievingRag: boolean;
   onPromptSelect: (prompt: string) => void;
   onRegenerate: (assistantMessageIndex: number) => void;
+  onEditUserMessage: (userMessageIndex: number, newContent: string) => void;
   onCitationClick: (
     citations: Citation[],
     clickedCitation: Citation,
@@ -108,6 +109,7 @@ export function ChatTranscriptState({
   storeIsRetrievingRag,
   onPromptSelect,
   onRegenerate,
+  onEditUserMessage,
   onCitationClick,
   onCommandItemAction,
   onLoadOlder,
@@ -212,6 +214,7 @@ export function ChatTranscriptState({
       storeIsStreaming={isStreamingThisThread}
       storeStreamingContent={isStreamingThisThread ? storeStreamingContent : ''}
       onRegenerate={onRegenerate}
+      onEditUserMessage={onEditUserMessage}
       onCitationClick={onCitationClick}
       commandOutputs={commandOutputs}
       onCommandItemAction={onCommandItemAction}

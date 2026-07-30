@@ -535,6 +535,43 @@ export class APIClient {
   }
 
   /**
+   * Authenticated POST that streams a blob back and triggers a browser save.
+   * Mirrors {@link download} but for POST endpoints (the thread-export route
+   * is POST with format/options carried as query params). An optional JSON
+   * `body` is sent when provided; otherwise the request body is empty.
+   */
+  async downloadPost(
+    url: string,
+    filename?: string,
+    body?: unknown
+  ): Promise<void> {
+    await this.ensureAuth();
+
+    const response = await fetch(
+      url.startsWith('http') ? url : `${this.baseURL}${url}`,
+      {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      }
+    );
+
+    if (!response.ok) {
+      throw await this.handleErrorResponse(response);
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename || this.extractFilename(response) || 'download';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  /**
    * Fetch a file as an authenticated blob and return an object URL for inline
    * rendering (e.g. a PDF/image preview). Unlike download(), this does not
    * trigger a save dialog. Follows the backend's 302 redirect to a signed

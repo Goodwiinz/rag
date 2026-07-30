@@ -31,6 +31,8 @@ export interface ChatMessageListProps {
   storeIsStreaming: boolean;
   storeStreamingContent: string;
   onRegenerate: (index: number) => void;
+  /** Edit-and-resend a user message at the given index. */
+  onEditUserMessage?: (index: number, newContent: string) => void;
   onCitationClick: (
     citations: Citation[],
     clickedCitation: Citation,
@@ -56,6 +58,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   storeIsStreaming,
   storeStreamingContent,
   onRegenerate,
+  onEditUserMessage,
   onCitationClick,
   commandOutputs,
   onCommandItemAction,
@@ -276,6 +279,11 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                     ? () => onRegenerate(index)
                     : undefined
                 }
+                onEdit={
+                  message.role === 'user' && onEditUserMessage
+                    ? (content) => onEditUserMessage(index, content)
+                    : undefined
+                }
                 onCitationClick={onCitationClick}
               />
             )}
@@ -318,6 +326,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       activeThreadId,
       isLoading,
       onRegenerate,
+      onEditUserMessage,
       onCitationClick,
       thinkingLabel,
     ]
@@ -374,6 +383,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 isLoading={isLoading}
                 storeIsStreaming={storeIsStreaming}
                 onRegenerate={onRegenerate}
+                onEditUserMessage={onEditUserMessage}
                 onCitationClick={onCitationClick}
                 isRetrievingRag={isRetrievingRag}
                 onLoadOlder={onLoadOlder}

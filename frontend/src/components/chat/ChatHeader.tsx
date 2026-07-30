@@ -7,12 +7,18 @@ import {
   exportAsMarkdown,
 } from '@/components/chat/shared/exportConversation';
 import {
+  exportThread,
+  type ExportFormat,
+} from '@/services/export-service';
+import {
   ClipboardCopy,
   Download,
   FileJson,
   FileText,
+  Loader2,
   Menu,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { memo, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -25,6 +31,10 @@ interface ExportableMessage {
 interface ChatHeaderProps {
   messages?: ExportableMessage[];
   chatTitle?: string;
+  /** Active thread id — when present, exports use the rich backend
+   * thread-export endpoint (with citations + provenance). Absent for a brand-
+   * new chat, where the local in-memory fallback is used instead. */
+  threadId?: string | null;
   onCopyAll?: () => void;
   onMobileSidebarToggle?: () => void;
 }
@@ -32,10 +42,12 @@ interface ChatHeaderProps {
 export const ChatHeader = memo(function ChatHeader({
   messages = [],
   chatTitle = 'Chat',
+  threadId,
   onCopyAll,
   onMobileSidebarToggle,
 }: ChatHeaderProps) {
   const [exportOpen, setExportOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,22 +63,40 @@ export const ChatHeader = memo(function ChatHeader({
 
   const slug = chatTitle.toLowerCase().replace(/\s+/g, '-').slice(0, 40);
 
-  const handleExportMarkdown = () => {
-    downloadFile(
-      `${slug}.md`,
-      'text/markdown',
-      exportAsMarkdown(chatTitle, messages)
-    );
+  // When a thread is persisted, delegate to the backend export — it carries
+  // citations, tool executions, token usage and provenance the local
+  // serializer drops. The endpoint is POST with format/options as Query params.
+  // For a new chat with no thread yet, fall back to the local in-memory export.
+  const runExport = async (format: ExportFormat) => {
     setExportOpen(false);
-  };
-
-  const handleExportJson = () => {
-    downloadFile(
-      `${slug}.json`,
-      'application/json',
-      exportAsJson(chatTitle, messages)
-    );
-    setExportOpen(false);
+    if (threadId) {
+      setIsExporting(true);
+      try {
+        await exportThread(threadId, format, {
+          includeCitations: true,
+          includeMetadata: true,
+        });
+      } catch {
+        toast.error('Export failed. Please try again.');
+      } finally {
+        setIsExporting(false);
+      }
+      return;
+    }
+    if (format === 'pdf' || format === 'html') return; // local fallback: MD/JSON only
+    if (format === 'json') {
+      downloadFile(
+        `${slug}.json`,
+        'application/json',
+        exportAsJson(chatTitle, messages)
+      );
+    } else {
+      downloadFile(
+        `${slug}.md`,
+        'text/markdown',
+        exportAsMarkdown(chatTitle, messages)
+      );
+    }
   };
 
   return (
@@ -111,10 +141,19 @@ export const ChatHeader = memo(function ChatHeader({
           <div className="relative" ref={exportRef}>
             <IconButton
               label="Export chat"
-              icon={<Download className="w-4 h-4" />}
+              icon={
+                isExporting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )
+              }
               className="p-1.5 text-(--nous-fg-3) hover:text-(--nous-fg-1) hover:bg-(--nous-sol)/8 rounded-lg transition-colors"
               onClick={() => setExportOpen((v) => !v)}
             />
+            <span className="sr-only" role="status" aria-live="polite">
+              {isExporting ? 'Preparing export…' : ''}
+            </span>
             <AnimatePresence>
               {exportOpen && (
                 <motion.div
@@ -126,15 +165,25 @@ export const ChatHeader = memo(function ChatHeader({
                   style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   <button
-                    onClick={handleExportMarkdown}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-(--nous-fg-2) hover:bg-(--nous-sol)/8 hover:text-(--nous-fg-1) focus-visible:bg-(--nous-sol)/8 focus-visible:outline-hidden rounded-lg transition-colors"
+                    onClick={() => runExport('markdown')}
+                    disabled={isExporting}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-(--nous-fg-2) hover:bg-(--nous-sol)/8 hover:text-(--nous-fg-1) focus-visible:bg-(--nous-sol)/8 focus-visible:outline-hidden rounded-lg transition-colors disabled:opacity-50"
                   >
                     <FileText className="w-3.5 h-3.5 text-(--nous-fg-3)" />
                     Export as Markdown
                   </button>
                   <button
-                    onClick={handleExportJson}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-(--nous-fg-2) hover:bg-(--nous-sol)/8 hover:text-(--nous-fg-1) focus-visible:bg-(--nous-sol)/8 focus-visible:outline-hidden rounded-lg transition-colors"
+                    onClick={() => runExport('pdf')}
+                    disabled={isExporting || !threadId}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-(--nous-fg-2) hover:bg-(--nous-sol)/8 hover:text-(--nous-fg-1) focus-visible:bg-(--nous-sol)/8 focus-visible:outline-hidden rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-(--nous-fg-3)" />
+                    Export as PDF
+                  </button>
+                  <button
+                    onClick={() => runExport('json')}
+                    disabled={isExporting}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-(--nous-fg-2) hover:bg-(--nous-sol)/8 hover:text-(--nous-fg-1) focus-visible:bg-(--nous-sol)/8 focus-visible:outline-hidden rounded-lg transition-colors disabled:opacity-50"
                   >
                     <FileJson className="w-3.5 h-3.5 text-(--nous-fg-3)" />
                     Export as JSON
