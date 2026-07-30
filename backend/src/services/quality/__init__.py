@@ -44,15 +44,27 @@ __all__ = [
 
 _EXPORTS: Dict[str, Tuple[str, str]] = {
     # Quality metrics
-    "QualityMetricsService": ("src.services.quality.quality_metrics_service", "QualityMetricsService"),
-    "MetricCalculation": ("src.services.quality.quality_metrics_service", "MetricCalculation"),
+    "QualityMetricsService": (
+        "src.services.quality.quality_metrics_service",
+        "QualityMetricsService",
+    ),
+    "MetricCalculation": (
+        "src.services.quality.quality_metrics_service",
+        "MetricCalculation",
+    ),
     # Quality recommendations
     "QualityRecommendationsService": (
         "src.services.quality.quality_recommendations_service",
         "QualityRecommendationsService",
     ),
-    "QualityRecommendation": ("src.services.quality.quality_recommendations_service", "QualityRecommendation"),
-    "QualityInsight": ("src.services.quality.quality_recommendations_service", "QualityInsight"),
+    "QualityRecommendation": (
+        "src.services.quality.quality_recommendations_service",
+        "QualityRecommendation",
+    ),
+    "QualityInsight": (
+        "src.services.quality.quality_recommendations_service",
+        "QualityInsight",
+    ),
     "RecommendationCategory": (
         "src.services.quality.quality_recommendations_service",
         "RecommendationCategory",
@@ -66,21 +78,48 @@ _EXPORTS: Dict[str, Tuple[str, str]] = {
         "RecommendationStatus",
     ),
     # Realtime metrics
-    "RealTimeQualityMetricsService": ("src.services.quality.realtime_quality_metrics", "RealTimeQualityMetricsService"),
-    "RealTimeQualityMetrics": ("src.services.quality.realtime_quality_metrics", "RealTimeQualityMetrics"),
+    "RealTimeQualityMetricsService": (
+        "src.services.quality.realtime_quality_metrics",
+        "RealTimeQualityMetricsService",
+    ),
+    "RealTimeQualityMetrics": (
+        "src.services.quality.realtime_quality_metrics",
+        "RealTimeQualityMetrics",
+    ),
     # User behavior
-    "UserBehaviorService": ("src.services.quality.user_behavior_service", "UserBehaviorService"),
-    "UserBehaviorMetrics": ("src.services.quality.user_behavior_service", "UserBehaviorMetrics"),
-    "SessionAnalysis": ("src.services.quality.user_behavior_service", "SessionAnalysis"),
-    "BehaviorPattern": ("src.services.quality.user_behavior_service", "BehaviorPattern"),
+    "UserBehaviorService": (
+        "src.services.quality.user_behavior_service",
+        "UserBehaviorService",
+    ),
+    "UserBehaviorMetrics": (
+        "src.services.quality.user_behavior_service",
+        "UserBehaviorMetrics",
+    ),
+    "SessionAnalysis": (
+        "src.services.quality.user_behavior_service",
+        "SessionAnalysis",
+    ),
+    "BehaviorPattern": (
+        "src.services.quality.user_behavior_service",
+        "BehaviorPattern",
+    ),
     # Performance dashboard
     "PerformanceDashboardService": (
         "src.services.quality.performance_dashboard_service",
         "PerformanceDashboardService",
     ),
-    "SystemMonitor": ("src.services.quality.performance_dashboard_service", "SystemMonitor"),
-    "DashboardMetric": ("src.services.quality.performance_dashboard_service", "DashboardMetric"),
-    "DashboardWidget": ("src.services.quality.performance_dashboard_service", "DashboardWidget"),
+    "SystemMonitor": (
+        "src.services.quality.performance_dashboard_service",
+        "SystemMonitor",
+    ),
+    "DashboardMetric": (
+        "src.services.quality.performance_dashboard_service",
+        "DashboardMetric",
+    ),
+    "DashboardWidget": (
+        "src.services.quality.performance_dashboard_service",
+        "DashboardWidget",
+    ),
     "SystemHealthMetrics": (
         "src.services.quality.performance_dashboard_service",
         "SystemHealthMetrics",
@@ -97,14 +136,20 @@ _EXPORTS: Dict[str, Tuple[str, str]] = {
         "src.services.quality.performance_dashboard_service",
         "UserEngagementMetrics",
     ),
-    "MetricTimeRange": ("src.services.quality.performance_dashboard_service", "MetricTimeRange"),
+    "MetricTimeRange": (
+        "src.services.quality.performance_dashboard_service",
+        "MetricTimeRange",
+    ),
     "DashboardWidgetType": (
         "src.services.quality.performance_dashboard_service",
         "DashboardWidgetType",
     ),
     "AlertLevel": ("src.services.quality.performance_dashboard_service", "AlertLevel"),
     # Performance optimizer
-    "PerformanceOptimizer": ("src.services.quality.performance_optimizer", "PerformanceOptimizer"),
+    "PerformanceOptimizer": (
+        "src.services.quality.performance_optimizer",
+        "PerformanceOptimizer",
+    ),
 }
 
 

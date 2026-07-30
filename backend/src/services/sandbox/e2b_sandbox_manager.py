@@ -100,9 +100,7 @@ class SandboxManager:
             if self._cleanup_task is None or self._cleanup_task.done():
                 self._cleanup_task = asyncio.create_task(self._cleanup_loop())
 
-            logger.info(
-                f"Sandbox created for thread {thread_id}: {sandbox.sandbox_id}"
-            )
+            logger.info(f"Sandbox created for thread {thread_id}: {sandbox.sandbox_id}")
             return sandbox
 
     async def execute(
@@ -186,7 +184,9 @@ class SandboxManager:
         self, thread_id: str, packages: List[str]
     ) -> ExecutionResult:
         """Install additional packages in the thread's sandbox."""
-        safe_packages = [p for p in packages if p.replace("-", "").replace("_", "").isalnum()]
+        safe_packages = [
+            p for p in packages if p.replace("-", "").replace("_", "").isalnum()
+        ]
         if not safe_packages:
             return ExecutionResult(
                 stdout="",

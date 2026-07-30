@@ -83,7 +83,12 @@ class ToneOption(str, Enum):
 class RewriteRequest(BaseModel):
     """Request to rewrite text with a specific tone."""
 
-    text: str = Field(..., min_length=20, max_length=50_000, description="Text to rewrite (min 20, max 50000 chars)")
+    text: str = Field(
+        ...,
+        min_length=20,
+        max_length=50_000,
+        description="Text to rewrite (min 20, max 50000 chars)",
+    )
     tone: ToneOption
     preserve_citations: bool = Field(True, description="Maintain citation markers")
     model: Optional[str] = Field(None, description="LLM model override")

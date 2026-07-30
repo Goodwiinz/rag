@@ -417,7 +417,9 @@ class RedisBackedConnectionManager:
             try:
                 message_type = MessageType(message_type_str)
             except ValueError:
-                logger.error(f"Invalid message type {message_type_str!r} from {connection_id}")
+                logger.error(
+                    f"Invalid message type {message_type_str!r} from {connection_id}"
+                )
                 return
 
             # Create message object
@@ -570,14 +572,18 @@ class RedisBackedConnectionManager:
                         last_activity_str = conn_data.get("last_activity")
                         if last_activity_str:
                             try:
-                                last_activity = datetime.fromisoformat(last_activity_str)
+                                last_activity = datetime.fromisoformat(
+                                    last_activity_str
+                                )
                                 if last_activity < stale_threshold:
                                     await self.disconnect(conn_id, "Stale connection")
                             except (ValueError, TypeError):
                                 logger.warning(
                                     f"Invalid activity timestamp for {conn_id}, disconnecting as stale"
                                 )
-                                await self.disconnect(conn_id, "Invalid activity timestamp")
+                                await self.disconnect(
+                                    conn_id, "Invalid activity timestamp"
+                                )
 
             except asyncio.CancelledError:
                 break

@@ -19,8 +19,8 @@ from src.core.database import get_db
 from src.core.dependencies import get_current_user, require_admin
 from src.models.user import User, UserRole
 from src.services.security.auth_service import (
-    AuthService,
     AuthenticationError,
+    AuthService,
     RegistrationError,
     get_auth_service,
 )
@@ -91,7 +91,7 @@ async def update_profile(
         logger.error(f"Error in update_profile: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while processing the request"
+            detail="An error occurred while processing the request",
         )
 
 
@@ -165,7 +165,7 @@ async def update_user_role(
         logger.error(f"Error in update_user_role: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while processing the request"
+            detail="An error occurred while processing the request",
         )
 
 
@@ -203,7 +203,7 @@ async def deactivate_user(
         logger.error(f"Error in deactivate_user: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while processing the request"
+            detail="An error occurred while processing the request",
         )
 
 
@@ -244,5 +244,5 @@ async def cleanup_inactive_users(
         logger.error(f"Error in cleanup_inactive_users: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while processing the request"
+            detail="An error occurred while processing the request",
         )
