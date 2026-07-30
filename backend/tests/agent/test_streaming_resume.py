@@ -1,6 +1,7 @@
 """Resumable-stream plumbing: sequence-numbered SSE frames teed into the
 Redis stream buffer, with finish_stream after the terminal frame."""
 
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -20,6 +21,11 @@ def test_format_sse_event_with_seq_prepends_id_line():
 def test_format_sse_event_without_seq_is_legacy_format():
     frame = _format_sse_event("token", {"content": "hi"})
     assert frame == 'event: token\ndata: {"content": "hi"}\n\n'
+
+
+def _frame_data(frame: str) -> dict:
+    data_line = next(line for line in frame.splitlines() if line.startswith("data: "))
+    return json.loads(data_line.removeprefix("data: "))
 
 
 class _RecordingBuffer:
@@ -75,8 +81,10 @@ async def test_stream_frames_carry_ids_and_are_buffered(monkeypatch):
         page_context={"type": "general"},
         thread_id="thread-123",
         model=None,
+        use_rag=False,
     )
     current_user = Mock(id="user-1", organization_id="org-1")
+    thread_obj = SimpleNamespace(id="thread-123")
 
     with (
         patch(
@@ -95,6 +103,22 @@ async def test_stream_frames_carry_ids_and_are_buffered(monkeypatch):
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(thread_obj, None)),
+        ),
+        patch(
+            "src.api.agent.streaming._persist_user_message_guarded",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.api.agent.streaming._resolve_and_bind_project",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.api.agent.streaming._jobs_mod._persist_assistant_message_safe",
+            new=AsyncMock(return_value="assistant-row-1"),
+        ),
     ):
         events = []
         async for event in streaming.stream_event_generator(
@@ -107,12 +131,27 @@ async def test_stream_frames_carry_ids_and_are_buffered(monkeypatch):
     assert all(e.startswith("id: ") for e in events), events
     assert ids == sorted(ids) and len(set(ids)) == len(ids)
 
-    # Every frame was appended to the buffer (no heartbeats in this run),
-    # with matching seq numbers.
+    # The initial accepted frame is deliberately unbuffered because the raw
+    # client thread id has not passed ownership verification. Every subsequent
+    # frame is buffered with its matching sequence number.
     assert [(seq, frame) for _, seq, frame in buf.appends] == list(
-        zip(ids, events)
+        zip(ids[1:], events[1:])
     )
     assert buf.appends[0][0] == "sid-thread-123"
+
+    payloads = [_frame_data(frame) for frame in events]
+    trace_ids = {payload["trace_id"] for payload in payloads}
+    assert len(trace_ids) == 1
+    for seq, payload in zip(ids, payloads):
+        assert payload["schema_version"] == "1.0"
+        assert payload["sequence"] == seq
+        assert payload["event_id"] == f"{payload['trace_id']}:{seq}"
+        assert payload["occurred_at"].endswith("Z")
+        assert payload["route"] in {"pending", "graph"}
+    assert payloads[0]["thread_id"] is None
+    assert payloads[0]["route"] == "pending"
+    assert all(payload["thread_id"] == "thread-123" for payload in payloads[1:])
+    assert all(payload["route"] == "graph" for payload in payloads[1:])
 
     # done is the terminal frame and finish_stream was called after it.
     assert "event: done\n" in events[-1]
@@ -152,6 +191,7 @@ async def test_drain_timeout_after_disconnect_persists_partial(monkeypatch):
         page_context={"type": "general"},
         thread_id="thread-timeout",
         model=None,
+        use_rag=False,
     )
     current_user = Mock(id="user-1", organization_id="org-1")
     persist = AsyncMock(return_value="row-1")
@@ -246,7 +286,7 @@ def _frames():
     return [
         BufferedFrame(seq=1, frame='id: 1\nevent: token\ndata: {"c": "a"}\n\n'),
         BufferedFrame(seq=2, frame='id: 2\nevent: token\ndata: {"c": "b"}\n\n'),
-        BufferedFrame(seq=3, frame='id: 3\nevent: done\ndata: {}\n\n'),
+        BufferedFrame(seq=3, frame="id: 3\nevent: done\ndata: {}\n\n"),
     ]
 
 
@@ -297,6 +337,47 @@ def test_resume_excludes_frames_at_or_below_after(monkeypatch):
     assert "event: done" in resp.text
 
 
+def test_resume_uses_last_event_id_header_as_cursor(monkeypatch):
+    monkeypatch.setattr(
+        execute_mod._stream_buffer, "active_stream_id", AsyncMock(return_value="sid-1")
+    )
+    cursors: list[int] = []
+
+    async def read_after(sid, after_seq):
+        cursors.append(after_seq)
+        return [f for f in _frames() if f.seq > after_seq]
+
+    monkeypatch.setattr(execute_mod._stream_buffer, "read_after", read_after)
+    resp = _client().get(
+        f"/api/v1/agent/stream/resume/{THREAD_ID}?after=1",
+        headers={"Last-Event-ID": "2"},
+    )
+
+    assert resp.status_code == 200
+    assert cursors[0] == 2
+    assert "id: 1" not in resp.text and "id: 2\n" not in resp.text
+    assert "event: done" in resp.text
+
+
+def test_resume_rejects_invalid_last_event_id(monkeypatch):
+    monkeypatch.setattr(
+        execute_mod._stream_buffer, "active_stream_id", AsyncMock(return_value="sid-1")
+    )
+    resp = _client().get(
+        f"/api/v1/agent/stream/resume/{THREAD_ID}",
+        headers={"Last-Event-ID": "not-a-sequence"},
+    )
+    assert resp.status_code == 400
+    assert "Last-Event-ID" in resp.json()["detail"]
+
+
+def test_resume_rejects_negative_legacy_query_cursor():
+    resp = _client().get(
+        f"/api/v1/agent/stream/resume/{THREAD_ID}?after=-1",
+    )
+    assert resp.status_code == 422
+
+
 def test_resume_token_containing_terminal_text_does_not_stop_replay(monkeypatch):
     # LLM token text is unconstrained: a token frame whose data contains the
     # literal string "event: done" must not terminate the replay early.
@@ -309,7 +390,7 @@ def test_resume_token_containing_terminal_text_does_not_stop_replay(monkeypatch)
             frame='id: 1\nevent: token\ndata: {"c": "the SSE frame is event: done"}\n\n',
         ),
         BufferedFrame(seq=2, frame='id: 2\nevent: token\ndata: {"c": "more"}\n\n'),
-        BufferedFrame(seq=3, frame='id: 3\nevent: done\ndata: {}\n\n'),
+        BufferedFrame(seq=3, frame="id: 3\nevent: done\ndata: {}\n\n"),
     ]
 
     async def read_after(sid, after_seq):

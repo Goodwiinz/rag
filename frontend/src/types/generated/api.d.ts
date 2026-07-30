@@ -176,7 +176,7 @@ export interface paths {
          *
          *     SSE event types are the ``AgentStreamEvent`` wire vocabulary
          *     (``src/shared/enums.py`` — the single source of truth): token, tool_start,
-         *     tool_end, rag_context, plan, reflection, trace, usage, heartbeat,
+         *     tool_end, rag_context, plan, reflection, trace, usage, heartbeat, status,
          *     confirmation, done, error. ``heartbeat`` is a payload-less keepalive; the
          *     terminal frames are ``TERMINAL_STREAM_EVENTS`` (done, error, confirmation).
          */
@@ -15766,7 +15766,9 @@ export interface operations {
             query?: {
                 after?: number;
             };
-            header?: never;
+            header?: {
+                "Last-Event-ID"?: string | null;
+            };
             path: {
                 thread_id: string;
             };

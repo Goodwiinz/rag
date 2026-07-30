@@ -66,6 +66,11 @@ def test_collect_reports_llen_per_queue():
     assert samples["graph_processing"] == 0.0
 
 
+def test_default_queues_include_durable_agent_runs():
+    """The queue used by POST /execute must be visible to backlog alerting."""
+    assert "agent_runs" in CELERY_QUEUE_NAMES
+
+
 def test_collect_metric_name_and_type():
     collector = CeleryQueueDepthCollector("redis://localhost:6379/0")
     collector._client = _StubRedis({})
