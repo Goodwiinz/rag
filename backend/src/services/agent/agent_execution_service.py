@@ -1026,6 +1026,7 @@ async def _persist_user_message(
     """
     from uuid import UUID
 
+    from sqlalchemy import text
     from sqlalchemy.dialects.postgresql import insert
 
     from src.models.chat_message import ChatMessage, MessageRole
@@ -1052,10 +1053,10 @@ async def _persist_user_message(
         )
         .on_conflict_do_nothing(
             index_elements=["thread_id", "client_message_id"],
-            index_where=(
-                ChatMessage.client_message_id.isnot(None)
-                & (ChatMessage.role == MessageRole.USER)
-            ),
+            # Keep the enum value literal. A SQLAlchemy enum comparison becomes
+            # a bind parameter under asyncpg, and PostgreSQL cannot infer a
+            # partial unique index from ``role = $n``.
+            index_where=text("client_message_id IS NOT NULL AND role = 'user'"),
         )
     )
     result = await db.execute(stmt)
@@ -1219,7 +1220,7 @@ async def _persist_assistant_message(
     """
     from uuid import UUID
 
-    from sqlalchemy import select
+    from sqlalchemy import select, text
     from sqlalchemy.dialects.postgresql import insert
 
     from src.models.chat_message import ChatMessage, MessageRole
@@ -1261,9 +1262,10 @@ async def _persist_assistant_message(
             .values(**values)
             .on_conflict_do_nothing(
                 index_elements=["thread_id", "client_message_id"],
-                index_where=(
-                    ChatMessage.client_message_id.isnot(None)
-                    & (ChatMessage.role == MessageRole.ASSISTANT)
+                # See the user-row upsert above: this must compile as a literal
+                # predicate for PostgreSQL partial-index inference.
+                index_where=text(
+                    "client_message_id IS NOT NULL AND role = 'assistant'"
                 ),
             )
             .returning(ChatMessage.id)
