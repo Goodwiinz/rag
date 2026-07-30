@@ -137,8 +137,19 @@
   (10 dependency-gated skips), 1,553 frontend tests passed (8 skips),
   TypeScript passed, the changed-file ESLint ratchet passed, Helm rendered,
   and the production Dockerfile build check reported no warnings.
+- The authenticated dev benchmark completed 20 fresh detached-chat samples
+  with zero failures: first-token p95 was 2,858 ms and completion p95 was
+  4,525 ms, passing the 5,000 ms target.
+- Live verification found and repaired a PostgreSQL partial-index inference
+  bug in both user and assistant idempotency upserts. The regression test
+  proves the old parameterized predicates fail and the literal predicates
+  compile correctly.
+- Dev is deployed on image `3a436b2-r1`; ArgoCD is synced and healthy at
+  revision `b69cd7710e0fc95b8522e85e49e0bacfc5a8ac3c`. A post-rollout browser
+  smoke response completed in 3.6 seconds, both chat rows persisted with the
+  Luna model attribution, and the thread's LangGraph checkpoint was present.
 
-Run the bounded dev benchmark after the new image is healthy:
+To repeat the bounded dev benchmark:
 
 ```sh
 NOUS_BENCHMARK_TOKEN='<short-lived token>' \
@@ -147,5 +158,4 @@ NOUS_BENCHMARK_TOKEN='<short-lived token>' \
   --samples 20 --warmups 2 --concurrency 1 --target-p95-ms 5000
 ```
 
-Do not record the p95 target as passed until that deployed run succeeds with
-zero failures.
+Keep the same zero-failure and p95 gate for subsequent image changes.
