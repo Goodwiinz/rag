@@ -1555,6 +1555,7 @@ async def _run_agent_graph(
                 "last_error_info": {},
                 "user_id": str(current_user.id),
                 "model": request.model,
+                "use_rag": request.use_rag,
                 **runtime_state_fields(
                     runtime_snapshot, page_context.get("project_id")
                 ),

@@ -41,6 +41,7 @@ const EXPECTED_WIRE_VALUES = [
   'trace',
   'usage',
   'heartbeat',
+  'status',
   'confirmation',
   'done',
   'error',

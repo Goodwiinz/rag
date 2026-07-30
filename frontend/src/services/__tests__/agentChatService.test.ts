@@ -143,6 +143,18 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     expect(onHeartbeat).toHaveBeenCalledWith(0);
   });
 
+  it('forwards phase-aware status updates', async () => {
+    global.fetch = fetchWith([
+      'event: status\ndata: {"phase":"routing","detail":"Choosing the fastest safe path"}\n\n',
+    ]);
+    const onStatus = vi.fn();
+    await agentChatService.streamMessage(request, { onStatus });
+    expect(onStatus).toHaveBeenCalledWith(
+      'routing',
+      'Choosing the fastest safe path'
+    );
+  });
+
   it('defaults missing token counts to zero on the usage event', async () => {
     global.fetch = fetchWith(['event: usage\ndata: {}\n\n']);
     const onUsage = vi.fn();

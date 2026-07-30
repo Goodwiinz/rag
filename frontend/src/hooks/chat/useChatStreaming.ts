@@ -497,6 +497,7 @@ export function useChatStreaming(
           isRetrievingRag: enableRAG,
           // Fresh turn — drop the previous turn's heartbeat reading.
           streamingElapsedMs: null,
+          streamingPhase: 'accepted',
           streamingThreadId: turnThreadId,
         });
 
@@ -548,6 +549,9 @@ export function useChatStreaming(
               // The only progress signal during a long silent planner/LLM
               // phase — rendered on the thinking pill.
               useChatStore.setState({ streamingElapsedMs: elapsedMs });
+            },
+            onStatus: (phase) => {
+              useChatStore.setState({ streamingPhase: phase });
             },
             onSeq: (seq) => {
               if (!currentThreadId) return;
@@ -1358,6 +1362,7 @@ export function useChatStreaming(
         streamingSteps: [...confirmSteps],
         streamingCitations: carriedCitations,
         streamingElapsedMs: null,
+        streamingPhase: 'accepted',
         streamingThreadId: pendingConfirmation.workspaceThreadId || null,
       });
 
@@ -1444,6 +1449,9 @@ export function useChatStreaming(
             },
             onHeartbeat: (elapsedMs) => {
               useChatStore.setState({ streamingElapsedMs: elapsedMs });
+            },
+            onStatus: (phase) => {
+              useChatStore.setState({ streamingPhase: phase });
             },
             onToolStart: (tool, args) => {
               useAgentActivityStore

@@ -40,6 +40,7 @@ class AgentState(TypedDict):
     # (extracted from URLs, inherited from page_context,
     # or carried forward across turns via checkpoint)
     model: str  # Per-request Azure deployment override; "" ⇒ server default
+    use_rag: bool  # Request-level retrieval contract; False skips rag_node reads
     runtime_snapshot_id: str  # Durable frozen skill/tool metadata for this turn
     project_skill_catalog: list  # Compact model-safe skill metadata only
     loaded_skill_versions: list  # Snapshot-audited versions loaded this turn

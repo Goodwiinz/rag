@@ -81,6 +81,18 @@ class TestResolveLightweightDeployment:
         assert _resolve_synthesis_deployment() != "model-router"
 
 
+def test_fast_path_deployment_defaults_to_luna(monkeypatch):
+    from src.core.config import get_settings
+    from src.services.agent.llm_factory import _resolve_fast_path_deployment
+
+    settings = get_settings()
+    monkeypatch.setattr(
+        settings, "AGENT_FAST_PATH_DEPLOYMENT", "gpt-5.6-luna", raising=False
+    )
+
+    assert _resolve_fast_path_deployment() == "gpt-5.6-luna"
+
+
 @pytest.mark.unit
 class TestBuilderCaching:
     """build_synthesis_llm / build_lightweight_llm cache one instance per args."""

@@ -587,6 +587,13 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     existing_project_id = state.get("current_project_id") or page_context.get(
         "project_id"
     )
+    if state.get("use_rag", True) is False:
+        logger.debug("rag_node: retrieval disabled by request")
+        state_update: Dict[str, Any] = {"retrieved_contexts": []}
+        if existing_project_id:
+            state_update["current_project_id"] = existing_project_id
+        return state_update
+
     if last_user_msg and not _is_retrieval_query(last_user_msg):
         logger.debug(
             "rag_node: skipping retrieval for conversational query: %r",

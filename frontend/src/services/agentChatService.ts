@@ -2,7 +2,10 @@ import { api } from '@/services/api-client';
 import { createClient } from '@/lib/supabase/client';
 import { getPublicApiBaseUrl } from '@/utils/publicEndpoints';
 import { parseErrorBody } from '@/utils/parseErrorBody';
-import type { AgentStreamEvent } from '@/services/agentStreamEvents';
+import type {
+  AgentStreamEvent,
+  AgentStreamPhase,
+} from '@/services/agentStreamEvents';
 
 // Re-export the wire-event union so consumers can import it alongside the
 // service. The event names live in agentStreamEvents.ts (the single frontend
@@ -61,6 +64,7 @@ export interface AgentStreamCallbacks {
    * carrying how long the run has been going. Drives the live elapsed-time
    * readout on the pre-first-token thinking pill. */
   onHeartbeat?: (elapsedMs: number) => void;
+  onStatus?: (phase: AgentStreamPhase, detail?: string) => void;
   onUsage?: (inputTokens: number, outputTokens: number) => void;
   /** Fires for every frame carrying an `id: <seq>` line — the resumable-SSE
    * cursor. Persist the latest value to resume after a disconnect. */
@@ -119,6 +123,7 @@ export const HANDLED_STREAM_EVENTS: ReadonlySet<AgentStreamEvent> = new Set([
   'trace',
   'reflection',
   'heartbeat',
+  'status',
   'confirmation',
   'usage',
   'done',
@@ -165,6 +170,12 @@ async function consumeSse(
           break;
         case 'heartbeat':
           callbacks.onHeartbeat?.(Number(data.elapsed_ms) || 0);
+          break;
+        case 'status':
+          callbacks.onStatus?.(
+            data.phase as AgentStreamPhase,
+            typeof data.detail === 'string' ? data.detail : undefined
+          );
           break;
         case 'reflection':
           callbacks.onReflection?.(

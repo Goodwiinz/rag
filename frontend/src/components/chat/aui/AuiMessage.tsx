@@ -229,7 +229,9 @@ export function AuiUserMessage(): ReactElement {
 
 /** Elapsed run time for the pill: "47s", "2m 05s". Sub-second readings are
  * noise while the first token is still plausibly imminent. */
-export function formatStreamingElapsed(elapsedMs: number | null): string | null {
+export function formatStreamingElapsed(
+  elapsedMs: number | null
+): string | null {
   if (elapsedMs === null || !Number.isFinite(elapsedMs) || elapsedMs < 1000) {
     return null;
   }
@@ -291,9 +293,21 @@ function AuiStreamingBody(): ReactElement {
   const steps = useChatStore((s) => s.streamingSteps);
   const isRetrievingRag = useChatStore((s) => s.isRetrievingRag);
   const elapsedMs = useChatStore((s) => s.streamingElapsedMs);
+  const streamingPhase = useChatStore((s) => s.streamingPhase);
   const streamingCitations = useChatStore((s) => s.streamingCitations);
   const threadId = useAgentActivityStore((s) => s.currentThreadId);
-  const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Reflecting';
+  const phaseLabel = streamingPhase
+    ? {
+        accepted: 'Starting',
+        routing: 'Choosing approach',
+        retrieving: 'Reading sources',
+        planning: 'Planning',
+        writing: 'Writing',
+        finalizing: 'Saving response',
+      }[streamingPhase]
+    : undefined;
+  const thinkingLabel =
+    phaseLabel ?? (isRetrievingRag ? 'Reading sources' : 'Reflecting');
 
   return (
     <>

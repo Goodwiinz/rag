@@ -20,6 +20,7 @@ export const AGENT_STREAM_EVENTS = [
   'trace',
   'usage',
   'heartbeat',
+  'status',
   'confirmation',
   'done',
   'error',
@@ -27,6 +28,17 @@ export const AGENT_STREAM_EVENTS = [
 
 /** Union of every agent SSE event name (mirror of backend `AgentStreamEvent`). */
 export type AgentStreamEvent = (typeof AGENT_STREAM_EVENTS)[number];
+
+export const AGENT_STREAM_PHASES = [
+  'accepted',
+  'routing',
+  'retrieving',
+  'planning',
+  'writing',
+  'finalizing',
+] as const;
+
+export type AgentStreamPhase = (typeof AGENT_STREAM_PHASES)[number];
 
 /**
  * `heartbeat` is the keepalive the backend emits during silent planner/LLM

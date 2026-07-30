@@ -17,7 +17,12 @@ vi.mock('@/components/chat/shared/InlineAgentSummary', () => ({
 
 function renderStreamingTurn(): RenderResult {
   const messages = [
-    makeChatPageMessage({ id: 'u1', role: 'user', content: 'go', timestamp: 1 }),
+    makeChatPageMessage({
+      id: 'u1',
+      role: 'user',
+      content: 'go',
+      timestamp: 1,
+    }),
     makeChatPageMessage({
       runtimeId: 'a1',
       role: 'assistant',
@@ -46,6 +51,7 @@ describe('streaming thinking pill elapsed time', () => {
       streamingCitations: [],
       isRetrievingRag: false,
       streamingElapsedMs: null,
+      streamingPhase: 'accepted',
     });
   });
 
@@ -53,15 +59,26 @@ describe('streaming thinking pill elapsed time', () => {
     useChatStore.setState({ streamingElapsedMs: 47_000 });
     renderStreamingTurn();
 
-    expect(screen.getByText('Reflecting')).toBeInTheDocument();
+    expect(screen.getByText('Starting')).toBeInTheDocument();
     expect(screen.getByText('· 47s')).toBeInTheDocument();
   });
 
   it('shows no reading before the first heartbeat', () => {
     renderStreamingTurn();
 
-    expect(screen.getByText('Reflecting')).toBeInTheDocument();
+    expect(screen.getByText('Starting')).toBeInTheDocument();
     expect(screen.queryByText(/·\s*\d/)).not.toBeInTheDocument();
+  });
+
+  it('renders the server-reported phase instead of guessing from the RAG toggle', () => {
+    useChatStore.setState({
+      isRetrievingRag: true,
+      streamingPhase: 'routing',
+    });
+    renderStreamingTurn();
+
+    expect(screen.getByText('Choosing approach')).toBeInTheDocument();
+    expect(screen.queryByText('Reading sources')).not.toBeInTheDocument();
   });
 
   it('keeps the ticking counter out of the pill’s live announcements', () => {

@@ -53,7 +53,9 @@ class PageContextRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
-SUPPORTED_MODELS: frozenset[str] = frozenset({"", "model-router", "gpt-5-mini"})
+SUPPORTED_MODELS: frozenset[str] = frozenset(
+    {"", "model-router", "gpt-5-mini", "gpt-5.6-luna"}
+)
 
 
 class AgentExecuteRequest(BaseModel):

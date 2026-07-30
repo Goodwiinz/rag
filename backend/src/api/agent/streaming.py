@@ -42,6 +42,257 @@ from .trace_context import build_trace_payload
 logger = logging.getLogger(__name__)
 
 
+def _assistant_client_message_id(request_body: Any) -> Optional[str]:
+    last_user = next(
+        (
+            message
+            for message in reversed(request_body.messages)
+            if message.role == "user"
+        ),
+        None,
+    )
+    user_cmid = getattr(last_user, "client_message_id", None)
+    if user_cmid is None:
+        return None
+    return str(_uuid.uuid5(_uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}"))
+
+
+def _chunk_text(chunk: Any) -> str:
+    content = getattr(chunk, "content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            str(item.get("text", ""))
+            for item in content
+            if isinstance(item, dict) and item.get("type") == "text"
+        )
+    return ""
+
+
+async def _stream_luna_fast_path(
+    *,
+    request_body: Any,
+    request: Any,
+    current_user: User,
+    db: Any,
+    resolved_thread_id: str,
+    emitter: Any,
+    stream_started_at: float,
+):
+    """Run one evidence-independent turn without entering LangGraph execution."""
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    from src.core.config import get_settings
+    from src.services.agent.checkpointer import get_checkpointer
+    from src.services.agent.fast_path import (
+        build_fast_path_messages,
+        stream_fast_path_chunks,
+    )
+    from src.services.agent.graph import compile_agent_graph
+    from src.services.agent.llm_factory import (
+        _resolve_fast_path_deployment,
+        build_fast_path_llm,
+    )
+    from src.services.agent.memory import get_memory_store
+
+    settings = get_settings()
+    deployment = _resolve_fast_path_deployment()
+    stream_thread_id = resolved_thread_id
+    assistant_cmid = _assistant_client_message_id(request_body)
+    last_user = next(
+        (
+            message
+            for message in reversed(request_body.messages)
+            if message.role == "user"
+        ),
+        None,
+    )
+    if last_user is None:
+        raise ValueError("Fast path requires a user message")
+    user_message_id = str(
+        getattr(last_user, "client_message_id", None)
+        or _uuid.uuid5(
+            _uuid.NAMESPACE_URL,
+            f"{stream_thread_id}:fast-user:{last_user.content}",
+        )
+    )
+    assistant_message_id = assistant_cmid or str(
+        _uuid.uuid5(_uuid.NAMESPACE_URL, f"{user_message_id}:fast-assistant")
+    )
+
+    await emitter.start(stream_thread_id)
+    yield await emitter.emit(
+        AgentStreamEvent.STATUS,
+        {"phase": "routing", "detail": "Using the direct Luna path"},
+    )
+    yield await emitter.emit(
+        AgentStreamEvent.TRACE,
+        build_trace_payload(
+            thread_id=stream_thread_id,
+            cli_session_id="",
+            langsmith_run_id="",
+        ),
+    )
+
+    prompt = build_fast_path_messages(
+        request_body.messages,
+        max_input_chars=settings.AGENT_FAST_PATH_MAX_INPUT_CHARS,
+    )
+    llm = build_fast_path_llm()
+    parts: list[str] = []
+    input_tokens = 0
+    output_tokens = 0
+    client_disconnected = False
+    assistant_saved = False
+
+    async def persist_user() -> bool:
+        return await _persist_user_message_guarded(db, current_user, request_body)
+
+    async def persist_partial() -> None:
+        if assistant_saved:
+            return
+        partial = "".join(parts)
+        if not partial:
+            return
+        await _jobs_mod._persist_assistant_message_safe(
+            thread_id=resolved_thread_id,
+            content=partial,
+            model_name=deployment,
+            tool_executions_out=None,
+            retrieved_contexts=None,
+            latency_ms=int((time.monotonic() - stream_started_at) * 1000),
+            stopped=True,
+            client_message_id=assistant_cmid,
+        )
+
+    try:
+        async with asyncio.timeout(settings.AGENT_FAST_PATH_REQUEST_TIMEOUT):
+            writing_emitted = False
+            async for chunk in stream_fast_path_chunks(
+                llm=llm,
+                messages=prompt,
+                persist_user=persist_user,
+            ):
+                text = _chunk_text(chunk)
+                usage = getattr(chunk, "usage_metadata", None)
+                if isinstance(usage, dict):
+                    input_tokens = max(
+                        input_tokens, int(usage.get("input_tokens", 0) or 0)
+                    )
+                    output_tokens = max(
+                        output_tokens, int(usage.get("output_tokens", 0) or 0)
+                    )
+                if not text:
+                    continue
+                if not writing_emitted:
+                    yield await emitter.emit(
+                        AgentStreamEvent.STATUS,
+                        {"phase": "writing", "detail": "Luna is responding"},
+                    )
+                    writing_emitted = True
+                parts.append(text)
+                frame = await emitter.emit(
+                    AgentStreamEvent.TOKEN,
+                    {"content": text},
+                )
+                if not client_disconnected:
+                    yield frame
+                if await request.is_disconnected():
+                    client_disconnected = True
+
+        assistant_content = "".join(parts)
+        if not assistant_content:
+            raise RuntimeError("Luna completed without response content")
+
+        yield await emitter.emit(
+            AgentStreamEvent.STATUS,
+            {"phase": "finalizing", "detail": "Saving the response"},
+        )
+
+        persisted_assistant_id = await _jobs_mod._persist_assistant_message_safe(
+            thread_id=resolved_thread_id,
+            content=assistant_content,
+            model_name=deployment,
+            tool_executions_out=None,
+            retrieved_contexts=None,
+            latency_ms=int((time.monotonic() - stream_started_at) * 1000),
+            stopped=False,
+            client_message_id=assistant_cmid,
+            token_usage=(
+                {"input_tokens": input_tokens, "output_tokens": output_tokens}
+                if input_tokens or output_tokens
+                else None
+            ),
+        )
+        assistant_saved = True
+
+        # Keep the graph checkpoint authoritative for a later grounded/tool turn.
+        checkpointer, store = await asyncio.gather(
+            get_checkpointer(),
+            get_memory_store(),
+        )
+        graph = compile_agent_graph(checkpointer=checkpointer, store=store)
+        checkpoint_config = {
+            "configurable": {
+                "thread_id": stream_thread_id,
+                "user_id": str(current_user.id),
+                "organization_id": str(
+                    getattr(current_user, "organization_id", "") or ""
+                ),
+            }
+        }
+        await graph.aupdate_state(
+            checkpoint_config,
+            {
+                "messages": [
+                    HumanMessage(content=last_user.content, id=user_message_id),
+                    AIMessage(content=assistant_content, id=assistant_message_id),
+                ]
+            },
+            as_node="memory_save_node",
+        )
+
+        if input_tokens or output_tokens:
+            record_token_usage(deployment, input_tokens, output_tokens)
+            yield await emitter.emit(
+                AgentStreamEvent.USAGE,
+                {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                },
+            )
+
+        done_payload: Dict[str, Any] = {
+            "status": "complete",
+            "tool_executions": [],
+        }
+        if _canonical_persistence_enabled():
+            done_payload.update(
+                {
+                    "thread_id": resolved_thread_id,
+                    "assistant_message_id": persisted_assistant_id,
+                    "client_message_id": assistant_cmid,
+                }
+            )
+        yield await emitter.emit(AgentStreamEvent.DONE, done_payload)
+        await emitter.finish()
+    except asyncio.CancelledError:
+        with contextlib.suppress(Exception):
+            await asyncio.shield(persist_partial())
+        with contextlib.suppress(Exception):
+            await asyncio.shield(emitter.finish())
+        raise
+    except Exception as exc:
+        logger.error("Luna fast-path stream failed", exc_info=exc)
+        await persist_partial()
+        yield await emitter.emit(
+            AgentStreamEvent.ERROR,
+            {"error": client_safe_error(exc)},
+        )
+        await emitter.finish()
+
+
 def _canonical_persistence_enabled() -> bool:
     """Server-canonical persistence rollout flag (PR 1 of the
     dual-persistence consolidation). When on, the assistant row is
@@ -356,10 +607,18 @@ async def stream_event_generator(
     assistant_persisted = False
     persist_partial_stop = None  # bound inside try once its inputs exist
     try:
-        # Persist the user turn BEFORE the LLM call so a mid-stream client
-        # disconnect (or any failure inside ``astream_events``) still leaves
-        # the user row durable. The assistant row is written after the
-        # stream completes — Task 4 of docs/plans/2026-05-13-agent-persist-perf.md.
+        # First server-sourced progress signal. It is intentionally unbuffered
+        # and carries no thread id: the client-supplied id has not passed the
+        # ownership check yet, so it must not touch the resumable Redis pointer.
+        yield _format_sse_event(
+            AgentStreamEvent.STATUS,
+            {"phase": "accepted", "detail": "Request accepted"},
+        )
+
+        # Resolve the thread and verify ownership before choosing either route.
+        # The graph path persists immediately afterward; the Luna path starts
+        # persistence and model I/O together, but buffers model chunks until
+        # persistence settles.
         thread_obj = None
         try:
             thread_obj, _conversation_id = await _resolve_thread(
@@ -369,21 +628,48 @@ async def stream_event_generator(
                 resolved_thread_id = str(thread_obj.id)
                 if request_body.thread_id != resolved_thread_id:
                     request_body.thread_id = resolved_thread_id
-                # Retry-once + observable-on-failure so a swallowed persist
-                # can't silently diverge the two stores (audit D3 / P2.6).
-                await _persist_user_message_guarded(db, current_user, request_body)
         except Exception:
             logger.warning(
-                "Failed to persist user turn before LLM call",
+                "Failed to resolve agent thread before routing",
                 exc_info=True,
             )
+
+        from src.core.config import get_settings
+        from src.services.agent.fast_path import classify_fast_path_turn
+
+        settings = get_settings()
+        page_context = _page_context_to_dict(request_body.page_context)
+        fast_decision = classify_fast_path_turn(
+            messages=request_body.messages,
+            page_context=page_context,
+            use_rag=request_body.use_rag,
+            max_input_chars=settings.AGENT_FAST_PATH_MAX_INPUT_CHARS,
+        )
+        if (
+            settings.AGENT_FAST_PATH_ENABLED
+            and fast_decision.eligible
+            and resolved_thread_id is not None
+        ):
+            async for frame in _stream_luna_fast_path(
+                request_body=request_body,
+                request=request,
+                current_user=current_user,
+                db=db,
+                resolved_thread_id=resolved_thread_id,
+                emitter=emitter,
+                stream_started_at=stream_started_at,
+            ):
+                yield frame
+            return
+
+        if thread_obj is not None:
+            # Graph route preserves the existing durable-before-LLM guarantee.
+            await _persist_user_message_guarded(db, current_user, request_body)
 
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
         store = await get_memory_store()
         graph = compile_agent_graph(checkpointer=checkpointer, store=store)
-
-        from src.core.config import get_settings
 
         messages = None
         if get_settings().AGENT_SERVER_SIDE_HISTORY:
@@ -411,7 +697,6 @@ async def stream_event_generator(
                 request_body.messages, request_body.thread_id or ""
             )
 
-        page_context = _page_context_to_dict(request_body.page_context)
         await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
 
         # Project-scoped memory recall (best-effort; never blocks a turn).
@@ -461,6 +746,7 @@ async def stream_event_generator(
             "last_error_info": {},
             "user_id": str(current_user.id),
             "model": request_body.model,
+            "use_rag": request_body.use_rag,
             **runtime_state_fields(runtime_snapshot, page_context.get("project_id")),
         }
 
@@ -491,6 +777,11 @@ async def stream_event_generator(
         }
 
         await emitter.start(stream_thread_id)
+
+        yield await emitter.emit(
+            AgentStreamEvent.STATUS,
+            {"phase": "routing", "detail": "Choosing the safest response path"},
+        )
 
         yield await emitter.emit(
             AgentStreamEvent.TRACE,

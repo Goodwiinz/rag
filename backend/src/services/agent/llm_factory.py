@@ -36,6 +36,7 @@ def _main_chat_deployment() -> str:
 # classifier / compactor / reflection single-instance caches already rely on.
 _LIGHTWEIGHT_LLM_CACHE: dict[tuple, BaseChatModel] = {}
 _SYNTHESIS_LLM_CACHE: dict[tuple, BaseChatModel] = {}
+_FAST_PATH_LLM_CACHE: dict[tuple, BaseChatModel] = {}
 
 
 def reset_llm_caches() -> None:
@@ -45,6 +46,7 @@ def reset_llm_caches() -> None:
     """
     _LIGHTWEIGHT_LLM_CACHE.clear()
     _SYNTHESIS_LLM_CACHE.clear()
+    _FAST_PATH_LLM_CACHE.clear()
 
 
 def _resolve_lightweight_deployment() -> str:
@@ -70,6 +72,33 @@ def _resolve_synthesis_deployment() -> str:
         or settings.AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT
         or _main_chat_deployment()
     )
+
+
+def _resolve_fast_path_deployment() -> str:
+    """Dedicated deployment for evidence-independent direct streaming."""
+    return get_settings().AGENT_FAST_PATH_DEPLOYMENT or "gpt-5.6-luna"
+
+
+def build_fast_path_llm() -> BaseChatModel:
+    """Return the cached direct-streaming model for evidence-independent turns."""
+    settings = get_settings()
+    deployment = _resolve_fast_path_deployment()
+    cache_key = (
+        deployment,
+        settings.AGENT_FAST_PATH_MAX_OUTPUT_TOKENS,
+        settings.AGENT_FAST_PATH_REQUEST_TIMEOUT,
+    )
+    if cache_key not in _FAST_PATH_LLM_CACHE:
+        _FAST_PATH_LLM_CACHE[cache_key] = _build_chat_llm(
+            deployment,
+            role_label="Fast-path",
+            max_tokens=settings.AGENT_FAST_PATH_MAX_OUTPUT_TOKENS,
+            streaming=True,
+            request_timeout=settings.AGENT_FAST_PATH_REQUEST_TIMEOUT,
+            reasoning_effort="none",
+            max_retries=1,
+        )
+    return _FAST_PATH_LLM_CACHE[cache_key]
 
 
 def _build_chat_llm(

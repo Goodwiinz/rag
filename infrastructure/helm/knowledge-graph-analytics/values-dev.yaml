@@ -63,9 +63,9 @@ backend:
       memory: 2Gi
     requests:
       cpu: 250m
-      # Bumped from 512Mi: real RSS observed ~1.3Gi (gunicorn 2 forks + model
-      # load). Under-requesting caused kubelet eviction (exit 137) under node
-      # memory pressure on 6.5Gi-allocatable nodes.
+      # Bumped from 512Mi: real RSS reached ~1.3Gi under the former two-fork
+      # image. One worker now avoids duplicating the graph/model, while this
+      # request keeps headroom against kubelet eviction (exit 137).
       memory: 1500Mi
   autoscaling:
     enabled: false
@@ -93,6 +93,16 @@ backend:
   env:
     - name: ENVIRONMENT
       value: "dev"
+    # Luna direct lane for evidence-independent turns. One-command rollback:
+    # set this value to "false" and re-apply/sync the dev values.
+    - name: AGENT_FAST_PATH_ENABLED
+      value: "true"
+    - name: AGENT_FAST_PATH_DEPLOYMENT
+      value: "gpt-5.6-luna"
+    # One process per pod avoids duplicating the model/tool graph in the 2Gi
+    # container. Rollback: raise this value without rebuilding the image.
+    - name: GUNICORN_WORKERS
+      value: "1"
     # Durable agent state (audit X3): ENVIRONMENT=dev is a SHARED deployed
     # environment, so the LangGraph checkpointer/memory store hard-fail on
     # Postgres init failure instead of silently degrading to in-memory

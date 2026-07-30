@@ -42,6 +42,7 @@ _EXPECTED_WIRE_VALUES = [
     "trace",
     "usage",
     "heartbeat",
+    "status",
     "confirmation",
     "done",
     "error",
@@ -118,7 +119,9 @@ def test_every_emit_site_uses_the_enum_vocabulary(_streaming_emit_events) -> Non
     """emit ⊆ AgentStreamEvent: no emit site may introduce a name outside the
     enum. A new raw literal or a typo'd ``AgentStreamEvent.FOO`` fails here."""
     _values, offenders = _streaming_emit_events
-    assert not offenders, "streaming.py emits event names outside AgentStreamEvent:\n" + "\n".join(
+    assert (
+        not offenders
+    ), "streaming.py emits event names outside AgentStreamEvent:\n" + "\n".join(
         offenders
     )
 
@@ -138,7 +141,11 @@ def test_every_enum_member_is_actually_emitted(_streaming_emit_events) -> None:
 @pytest.mark.unit
 def test_terminal_events_are_a_subset_of_the_enum() -> None:
     assert TERMINAL_STREAM_EVENTS <= set(AgentStreamEvent)
-    assert {e.value for e in TERMINAL_STREAM_EVENTS} == {"done", "error", "confirmation"}
+    assert {e.value for e in TERMINAL_STREAM_EVENTS} == {
+        "done",
+        "error",
+        "confirmation",
+    }
 
 
 @pytest.mark.unit
@@ -147,9 +154,9 @@ def test_resume_path_uses_terminal_stream_events_not_a_literal_set() -> None:
     terminal frames via TERMINAL_STREAM_EVENTS, never a re-hand-listed set of
     ``"event: done"`` string literals."""
     execute_src = _EXECUTE_PY.read_text()
-    assert "TERMINAL_STREAM_EVENTS" in execute_src, (
-        "resume path should reference TERMINAL_STREAM_EVENTS"
-    )
+    assert (
+        "TERMINAL_STREAM_EVENTS" in execute_src
+    ), "resume path should reference TERMINAL_STREAM_EVENTS"
     # The deleted hand-listed set uniquely contained these two literals; the
     # surviving ``"event: done"`` occurrence is an explanatory comment, so we
     # key the guard off the members that only ever lived inside the set.
