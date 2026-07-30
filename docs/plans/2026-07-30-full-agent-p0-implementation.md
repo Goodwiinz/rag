@@ -1,13 +1,22 @@
 # Full Agent P0 Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to
-> implement this plan task-by-task.
+> **REFERENCE ONLY — DO NOT EXECUTE FROM THIS DOCUMENT.**
 >
-> **OpenCode handoff:** Follow the same task-by-task execution contract. Work
-> only in the isolated worktree
-> `/Users/goodwiinz/development/RAG_system/.worktrees/local-gitops-196ee0b` on
-> branch `codex/local-gitops-196ee0b`. Do not push, deploy, or mark P0 complete
-> until every exit gate in Task 16 passes.
+> The P0/P1/P2 PR plans govern execution:
+>
+> - `docs/plans/2026-07-30-agent-audit-master-pr-roadmap.md`
+> - `docs/plans/2026-07-30-agent-audit-p0-pr-plan.md`
+> - `docs/plans/2026-07-30-agent-audit-p1-pr-plan.md`
+> - `docs/plans/2026-07-30-agent-audit-p2-pr-plan.md`
+>
+> Task numbers below are **cited** from here (each PR section in the P0 plan
+> names the tasks it covers); tasks are **not executed** from here. Where this
+> document and a PR plan disagree on scope, sequencing, or gates, the PR plan
+> wins. The authoritative audit is `docs/system-design-audit-2026-07-30.md`.
+>
+> Branch per the repository's normal workflow: a feature branch from
+> `origin/develop`, one PR per PR-plan row. No specific worktree path or branch
+> name is required, and none is pinned here.
 
 **Goal:** Deliver the complete P0 contract for versioned and recoverable agent
 streaming, durable execution, route-specific SLOs, unified privacy-safe
@@ -31,9 +40,31 @@ ArgoCD.
 
 ## Starting state and non-negotiable decisions
 
-Start from local commit `fd851051` but treat its SSE envelope, metrics, and
-20-sample benchmark as provisional. Amend them rather than preserving an
-incorrect compatibility contract: the commit has not been pushed.
+Start from commit `fd851051` and treat its SSE envelope, metrics, and
+20-sample benchmark as **provisional** — they may be changed, including
+incompatibly, until P0-A freezes the contract. Do not preserve an incorrect
+compatibility contract for its own sake.
+
+`fd851051` **is pushed**: it is part of PR #1312, together with `b4d3bd4` and
+`ddd3bf8`. Do not amend, rebase, or otherwise rewrite that history. Change the
+baseline forward, in a new commit on a new branch. The known defects in that
+baseline are enumerated in
+`docs/plans/2026-07-30-agent-audit-p0-pr-plan.md` ("Baseline: what PR #1312
+already shipped").
+
+**Command conventions.** Every shell block below is repo-relative and assumes
+the repository's backend virtualenv is on `PATH`, exactly like
+`scripts/ci/run_local_ci.sh` (which invokes `ruff`, `black`, `isort`, `mypy`,
+and `pytest` by bare name):
+
+```sh
+source backend/.venv/bin/activate   # or: export PATH="$PWD/backend/.venv/bin:$PATH"
+```
+
+Without an activated environment, prefix the tools with the interpreter that
+owns them (`python -m pytest`, `python -m black`, `python -m isort`). No
+absolute machine-specific path is assumed anywhere in this document; paths are
+relative to the repository root unless a block says otherwise.
 
 Reuse these existing foundations:
 
@@ -134,7 +165,7 @@ one migration window; never write it.
 
 ```bash
 cd backend
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/pytest \
+pytest \
   tests/contract/test_sse_event_vocabulary.py \
   tests/unit/services/agent/test_run_event_types.py \
   tests/unit/agent/test_job_status_enum.py -q
@@ -239,7 +270,7 @@ an `x-sse-event-schemas` map from each `event:` name to its component `$ref`.
 
 ```bash
 cd backend
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/pytest \
+pytest \
   tests/contract/test_agent_stream_openapi.py -q
 ```
 
@@ -253,7 +284,7 @@ the OpenAPI generator hook.
 
 ```bash
 cd ..
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/python \
+python \
   scripts/ci/generate_openapi.py
 cd frontend
 corepack pnpm@10.18.2 run generate:api-types
@@ -335,7 +366,7 @@ Never commit inside these primitives; the caller owns the transaction.
 
 ```bash
 cd backend
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/pytest \
+pytest \
   tests/unit/services/agent/test_run_event_store.py \
   tests/unit/test_agent_terminal_contract_migration.py -q
 ```
@@ -396,11 +427,11 @@ contain secrets.
 
 ```bash
 cd backend
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/pytest \
+pytest \
   tests/unit/services/agent/test_agent_outbox_service.py \
   tests/unit/test_agent_outbox_migration.py -q
 cd ..
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/python \
+python \
   scripts/ci/check_alembic.py
 ```
 
@@ -530,7 +561,7 @@ The API process must not execute model/tool work.
 
 ```bash
 cd backend
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/pytest \
+pytest \
   tests/unit/tasks/test_agent_outbox_tasks.py \
   tests/api/agent/test_no_process_local_dispatch.py -q
 cd ..
@@ -681,7 +712,7 @@ terminal. Reconcile only on `done`, `stopped`, or `error`.
 
 ```bash
 cd backend
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/pytest \
+pytest \
   tests/agent/test_streaming_resume.py \
   tests/contract/test_sse_sequence_contract.py -q
 cd ../frontend
@@ -911,7 +942,7 @@ Panels:
 
 ```bash
 cd backend
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/pytest \
+pytest \
   tests/unit/services/agent/test_stream_slo_metrics.py \
   tests/unit/tasks/test_agent_sli_rollup_tasks.py \
   tests/unit/observability/test_agent_metric_cardinality.py -q
@@ -999,7 +1030,7 @@ zero-tolerance assertion.
 ```bash
 cd backend
 AGENT_GOLDEN_REPLAY=1 \
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/pytest \
+pytest \
   tests/eval/test_p0_dataset_contract.py \
   tests/eval/test_agent_regression.py -m golden -q
 ```
@@ -1058,7 +1089,7 @@ normal CI must never rewrite it.
 
 ```bash
 cd backend
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/pytest \
+pytest \
   tests/eval/test_p0_release_gate.py -q
 ```
 
@@ -1123,7 +1154,7 @@ Both routes require recovery >=99%, accepted loss 0, and duplicates 0.
 
 ```bash
 cd backend
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/pytest \
+pytest \
   tests/perf/test_agent_luna_fast_path.py \
   tests/perf/test_agent_p0_benchmark.py -q
 ```
@@ -1185,7 +1216,7 @@ confirmation/reconnect.
 ```bash
 docker-compose -f docker-compose.development.yml up -d postgres redis backend celery-worker
 cd backend
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/pytest \
+pytest \
   tests/integration/agent/test_durable_stream_recovery.py \
   tests/integration/agent/test_terminal_exactly_once.py -q
 cd ../frontend
@@ -1258,9 +1289,9 @@ serving already-created durable run events.
 
 ```bash
 cd backend
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/black --check src tests
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/isort --check-only src tests
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/pytest \
+black --check src tests
+isort --check-only src tests
+pytest \
   tests/contract \
   tests/agent \
   tests/api/agent \
@@ -1275,9 +1306,9 @@ corepack pnpm@10.18.2 run lint
 corepack pnpm@10.18.2 run type-check
 corepack pnpm@10.18.2 run test
 cd ..
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/python \
+python \
   scripts/ci/generate_openapi.py --check
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/python \
+python \
   scripts/ci/check_alembic.py
 helm template nous-dev infrastructure/helm/knowledge-graph-analytics \
   -f infrastructure/helm/knowledge-graph-analytics/values-dev.yaml >/dev/null
@@ -1292,7 +1323,7 @@ the required local services.
 
 ```bash
 NOUS_BENCHMARK_TOKEN='<short-lived-dev-token>' \
-/Users/goodwiinz/development/RAG_system/backend/.venv/bin/python \
+python \
   scripts/perf/benchmark_agent_p0.py \
   --base-url https://dev-api.gen-text.app \
   --dataset backend/tests/eval/datasets/agent_p0_v1.jsonl \

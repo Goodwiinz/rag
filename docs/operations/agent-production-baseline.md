@@ -15,7 +15,13 @@ image is promoted.
   `schema_version`, `sequence`, `event_id`, `occurred_at`, `trace_id`,
   `thread_id`, and `route`.
 
-Version `1.0` is additive and backward compatible. The initial `accepted`
+Version `1.0` is **provisional**, not frozen. It describes what the current
+implementation emits, and it stays changeable — including in
+backward-incompatible ways — until P0-A's contract tests
+(`docs/plans/2026-07-30-agent-audit-p0-pr-plan.md`) land. **P0-A is the freeze
+event.** After P0-A, any breaking change to the envelope, event vocabulary, or
+terminal semantics bumps `schema_version`; until then, do not describe `1.0` as
+a compatibility guarantee to clients. The initial `accepted`
 event has `thread_id: null` and `route: pending`: a client-supplied thread id
 must not be echoed or buffered until ownership has been verified. Later frames
 use only the ownership-resolved thread id and one of `luna`, `graph`, or

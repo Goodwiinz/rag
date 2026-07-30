@@ -28,24 +28,56 @@ ArgoCD.
 
 ## Source of truth
 
-- Audit baseline: `docs/system-design-audit-2026-07-10.md`.
-- Existing P0 implementation detail:
+- **Audit baseline: `docs/system-design-audit-2026-07-30.md`** ("NOUS Agent
+  Production Baseline v1 — full audit and recommendations"). This is the
+  document this program implements; every P0/P1/P2 finding traces back to it.
+- Historical background: `docs/system-design-audit-2026-07-10.md`. Retained for
+  provenance only; where the two disagree, the 2026-07-30 audit wins.
+- P0 implementation detail (reference only, not an execution track):
   `docs/plans/2026-07-30-full-agent-p0-implementation.md`.
 - P0 PR split: `docs/plans/2026-07-30-agent-audit-p0-pr-plan.md`.
 - P1 PR split: `docs/plans/2026-07-30-agent-audit-p1-pr-plan.md`.
 - P2 PR split: `docs/plans/2026-07-30-agent-audit-p2-pr-plan.md`.
 
-The 2026-07-10 audit is historical evidence, not current truth. Before changing
-code, re-run each plan's preflight against the current `origin/develop` and
-record the finding as `closed`, `partial`, `open`, or `regressed`.
+Neither audit is current truth about the code. Before changing code, re-run
+each plan's preflight against the current `origin/develop` and record the
+finding as `closed`, `partial`, `open`, or `regressed`.
 
 ## Priority definition
 
 | Tier | Meaning                                                                              | Merge/deploy rule                                     |
 | ---- | ------------------------------------------------------------------------------------ | ----------------------------------------------------- |
-| P0   | Accepted work, tenant isolation, stream integrity, or release safety can be violated | Blocks agent production promotion                     |
-| P1   | Recovery, scaling, observability, or cross-store convergence is incomplete           | Must finish before sustained production traffic       |
+| P0   | Accepted work, tenant isolation, stream integrity, or release safety can be violated | Blocks declaring the agent baseline met on `dev`      |
+| P1   | Recovery, scaling, observability, or cross-store convergence is incomplete           | Must finish before sustained real user traffic on `dev` |
 | P2   | Maintainability and platform consistency debt increases future failure rate          | Schedule after P0/P1; adopt incrementally where noted |
+
+### Deployment reality
+
+`dev` is the only live environment. The `staging` and `production` ArgoCD apps
+were retired in PR #442, so there is no promotion pipeline to gate: "promotion"
+in this program means merging to `develop` and letting ArgoCD auto-sync
+`rag-dev`. The `values-staging.yaml` / `values-production.yaml` files still
+exist and the gitops workflow still bumps a staging tag nothing consumes; keep
+them consistent, but do not treat them as deploy targets or exit criteria.
+
+### Enforceable gate while GitHub Actions is down
+
+The repository's GitHub Actions runners are unavailable (account
+billing/spending-limit); every job dies within seconds with `steps: []` and
+404 logs, including on `develop`. **A red or missing check is therefore not
+evidence of a broken PR, and a green check is not available as a gate.** Until
+Actions is restored, the enforceable gate for every PR in this program is:
+
+```sh
+scripts/ci/run_local_ci.sh --base origin/develop
+```
+
+Run it from the repo root with the backend virtualenv's pinned tools on PATH,
+add `--frontend` when the PR touches `frontend/`, and paste its summary in the
+PR body. It runs the blocking CI gates (full-tree ruff, directory-docs lint,
+changed-file ruff/black/isort, mypy on added files, the alembic head check, and
+the unit suite); it cannot run CodeQL or the service-backed
+integration/E2E/golden-replay jobs, so those stay manual.
 
 ## Revalidated starting state
 
@@ -96,11 +128,16 @@ flowchart TD
 | P1-C | KEDA burn-in, NetworkPolicy, dependency budgets                   | P1-A       | Load/deny tests pass with rollback evidence        |
 | P1-D | Semantic OpenAPI and Alembic execution gates                      | P1-B       | Breaking API/schema changes fail CI                |
 | P1-E | Realtime transport and document-progress convergence              | P1-C       | One supported client/router path per concern       |
-| P2-A | Agent/tool/message service boundaries                             | P1-D       | Routes are adapters; services own use cases        |
+| P2-A | Agent/tool/message service boundaries (see note)                  | P1-D       | Routes are adapters; services own use cases        |
 | P2-B | Unit-of-work and session ownership                                | P2-A       | Leaf services flush; use-case boundary commits     |
 | P2-C | Route/version/pagination/status consolidation                     | P2-A       | One canonical contract per domain                  |
 | P2-D | Dead code/search generation/legacy transport removal              | P2-C       | Import and route inventory contains no losers      |
 | P2-E | Neo4j DR/HA decision and derived-data proof                       | P1-B       | Restore/rebuild drill meets documented RTO/RPO     |
+
+**P2-A note:** PR #1296 (subgraph factory, self-described as "PR 1 of 6") is a
+standalone refactor that merges independently of this roadmap; its five
+remaining sibling PRs are subordinated to P2-A sequencing and must not land
+ahead of the P0/P1 dependencies above.
 
 ## Program rules
 
@@ -115,9 +152,13 @@ flowchart TD
 6. Metrics use bounded server-owned labels only. Organization, user, thread,
    message, prompt, document, trace ID, tool arguments, and exception messages
    are forbidden metric labels.
-7. Deploy each change to dev through ArgoCD, observe one full synthetic/load
-   window, then promote. Do not manually mutate live workloads except an
-   explicitly documented emergency rollback.
+7. Merge to `develop`, let ArgoCD auto-sync `rag-dev`, and observe one full
+   synthetic/load window before starting the next dependent PR. There is no
+   staging or production app to promote to (retired in #442). Do not manually
+   mutate live workloads except an explicitly documented emergency rollback.
+8. Every PR records the output of `scripts/ci/run_local_ci.sh --base
+   origin/develop` in its body. GitHub Actions results are not a gate while the
+   runners are down.
 
 ## Full-program acceptance
 
