@@ -733,9 +733,11 @@ class AnalyticsJobProcessor:
             # For now, we'll use the existing job_type field as a string
 
             job = ProcessingJob(
-                job_type=JobType(config.job_type.value)
-                if hasattr(JobType, config.job_type.value)
-                else JobType.BATCH_PROCESSING,
+                job_type=(
+                    JobType(config.job_type.value)
+                    if hasattr(JobType, config.job_type.value)
+                    else JobType.BATCH_PROCESSING
+                ),
                 status=JobStatus.PENDING,
                 priority=config.priority,
                 organization_id=config.organization_id,

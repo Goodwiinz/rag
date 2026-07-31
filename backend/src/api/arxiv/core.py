@@ -20,7 +20,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
 from src.core.database import get_db
-
 from src.core.dependencies import get_current_user
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.services.arxiv.arxiv_service import ArXivIngestionService

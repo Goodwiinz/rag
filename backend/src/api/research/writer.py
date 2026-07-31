@@ -3,9 +3,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from structlog import get_logger
 
+from src.core.dependencies import get_current_user
 from src.models.user import User
 from src.services.research.writer_service import WriterService
-from src.core.dependencies import get_current_user
 from src.shared.scispace_schemas import (
     OutlineRequest,
     OutlineResponse,
@@ -31,7 +31,9 @@ async def write_text(
             cursor_context=request.cursor_context,
             section_type=request.section_type.value if request.section_type else None,
             style=request.style.value,
-            document_ids=[str(d) for d in request.document_ids] if request.document_ids else None,
+            document_ids=(
+                [str(d) for d in request.document_ids] if request.document_ids else None
+            ),
         )
         return WriteResponse(**result)
     except ValueError as e:
@@ -54,8 +56,14 @@ async def generate_outline(
         result = await _service.generate_outline(
             research_question=request.research_question,
             style=request.style.value,
-            document_ids=[str(d) for d in request.document_ids] if request.document_ids else None,
-            section_types=[s.value for s in request.section_types] if request.section_types else None,
+            document_ids=(
+                [str(d) for d in request.document_ids] if request.document_ids else None
+            ),
+            section_types=(
+                [s.value for s in request.section_types]
+                if request.section_types
+                else None
+            ),
         )
         return OutlineResponse(**result)
     except ValueError as e:

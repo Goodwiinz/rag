@@ -427,9 +427,9 @@ class KnowledgeEntity(BaseModel):
             {
                 "entity_type": self.entity_type.value if self.entity_type else None,
                 "source": self.source.value if self.source else None,
-                "confidence_level": self.confidence_level.value
-                if self.confidence_level
-                else None,
+                "confidence_level": (
+                    self.confidence_level.value if self.confidence_level else None
+                ),
             }
         )
 
@@ -632,16 +632,18 @@ class EntityRelationship(BaseModel):
         # Convert enum values
         data.update(
             {
-                "relationship_type": self.relationship_type.value
-                if self.relationship_type
-                else None,
-                "confidence_level": self.confidence_level.value
-                if self.confidence_level
-                else None,
+                "relationship_type": (
+                    self.relationship_type.value if self.relationship_type else None
+                ),
+                "confidence_level": (
+                    self.confidence_level.value if self.confidence_level else None
+                ),
                 "source": self.source.value if self.source else None,
-                "inverse_relationship_type": self.inverse_relationship_type.value
-                if self.inverse_relationship_type
-                else None,
+                "inverse_relationship_type": (
+                    self.inverse_relationship_type.value
+                    if self.inverse_relationship_type
+                    else None
+                ),
             }
         )
 

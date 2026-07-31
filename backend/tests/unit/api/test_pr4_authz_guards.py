@@ -106,9 +106,10 @@ async def test_pipeline_update_and_reset_enforce_access_before_service():
 
     db = _db_scalar(None)  # caller owns no matching project
     body = mod.UpdatePipelineRequest()
-    with patch.object(mod.PipelineService, "update_pipeline", AsyncMock()) as up, patch.object(
-        mod.PipelineService, "reset_pipeline", AsyncMock()
-    ) as rp:
+    with (
+        patch.object(mod.PipelineService, "update_pipeline", AsyncMock()) as up,
+        patch.object(mod.PipelineService, "reset_pipeline", AsyncMock()) as rp,
+    ):
         with pytest.raises(HTTPException) as e1:
             await mod.update_pipeline(uuid4(), body=body, current_user=_user(), db=db)
         with pytest.raises(HTTPException) as e2:
@@ -140,12 +141,17 @@ def test_metrics_source_gates_mutations_with_require_admin():
     on the source instead: the 4 mutations depend on require_admin, not
     get_current_user."""
     import pathlib
+    import re
 
     backend = pathlib.Path(__file__).parents[3]
     src = (backend / "src/api/analytics/metrics.py").read_text()
     # 4 mutation endpoints carry require_admin.
     assert src.count("Depends(require_admin)") >= 4
-    assert "from src.core.dependencies import require_admin" in src
+    # isort may merge this into a combined import line; assert the binding,
+    # not the exact formatting.
+    assert re.search(
+        r"from src\.core\.dependencies import [^\n]*\brequire_admin\b", src
+    )
 
 
 def test_require_admin_rejects_non_admin():

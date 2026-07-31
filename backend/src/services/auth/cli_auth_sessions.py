@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime, timedelta
 import json
 import secrets
 import string
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 import redis as redis_lib
-
 
 CLIAuthSessionStatus = Literal["pending", "approved", "denied", "expired"]
 
@@ -53,9 +52,7 @@ class InMemoryCLIAuthSessionStore:
 
     def _evict_expired(self) -> None:
         now = _utc_now()
-        expired_ids = [
-            sid for sid, s in self._sessions.items() if now >= s.expires_at
-        ]
+        expired_ids = [sid for sid, s in self._sessions.items() if now >= s.expires_at]
         for sid in expired_ids:
             del self._sessions[sid]
             self._approve_attempts.pop(sid, None)
@@ -176,19 +173,21 @@ class RedisCLIAuthSessionStore:
         def _iso(v: datetime | None) -> str | None:
             return v.isoformat() if v else None
 
-        return json.dumps({
-            "session_id": session.session_id,
-            "poll_token": session.poll_token,
-            "verification_code": session.verification_code,
-            "created_at": session.created_at.isoformat(),
-            "expires_at": session.expires_at.isoformat(),
-            "status": session.status,
-            "user_id": session.user_id,
-            "credential_payload": session.credential_payload,
-            "approved_at": _iso(session.approved_at),
-            "denied_at": _iso(session.denied_at),
-            "expired_at": _iso(session.expired_at),
-        })
+        return json.dumps(
+            {
+                "session_id": session.session_id,
+                "poll_token": session.poll_token,
+                "verification_code": session.verification_code,
+                "created_at": session.created_at.isoformat(),
+                "expires_at": session.expires_at.isoformat(),
+                "status": session.status,
+                "user_id": session.user_id,
+                "credential_payload": session.credential_payload,
+                "approved_at": _iso(session.approved_at),
+                "denied_at": _iso(session.denied_at),
+                "expired_at": _iso(session.expired_at),
+            }
+        )
 
     def _load(self, raw: bytes | str) -> CLIAuthSession:
         d = json.loads(raw)
@@ -213,7 +212,9 @@ class RedisCLIAuthSessionStore:
     def _save(self, session: CLIAuthSession) -> None:
         remaining = max(int((session.expires_at - _utc_now()).total_seconds()), 0)
         # Keep for at least 2 minutes after session expiry so the CLI can poll for the result.
-        self._r.setex(self._key(session.session_id), remaining + 120, self._dump(session))
+        self._r.setex(
+            self._key(session.session_id), remaining + 120, self._dump(session)
+        )
 
     # ------------------------------------------------------------------
     # Public interface (mirrors InMemoryCLIAuthSessionStore)

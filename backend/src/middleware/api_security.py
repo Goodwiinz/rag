@@ -684,9 +684,9 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
 
         # HSTS (only in production with HTTPS)
         if settings.ENVIRONMENT == "production":
-            response.headers[
-                "Strict-Transport-Security"
-            ] = "max-age=31536000; includeSubDomains"
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
 
         # Permissions Policy
         permissions_policy = (

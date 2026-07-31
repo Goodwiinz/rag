@@ -139,9 +139,7 @@ class WebSocketAuthenticator:
                 except Exception:
                     pass
 
-                raise WebSocketAuthError(
-                    "Invalid authentication token.", code=4003
-                )
+                raise WebSocketAuthError("Invalid authentication token.", code=4003)
 
             if hasattr(token_data, "model_dump"):
                 payload = token_data.model_dump(exclude_none=True)

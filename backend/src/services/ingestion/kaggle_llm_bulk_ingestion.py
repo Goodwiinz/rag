@@ -633,7 +633,7 @@ Response (JSON array only):"""
             "llm_calls": self.stats["llm_calls"],
             "estimated_cost_usd": self.stats["llm_cost_estimate"],
             "elapsed_seconds": elapsed_time,
-            "papers_per_second": total_stats["processed"] / elapsed_time
-            if elapsed_time > 0
-            else 0,
+            "papers_per_second": (
+                total_stats["processed"] / elapsed_time if elapsed_time > 0 else 0
+            ),
         }

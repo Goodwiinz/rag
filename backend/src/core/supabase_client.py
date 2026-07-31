@@ -6,9 +6,9 @@ from contextlib import contextmanager
 from typing import Optional
 
 import structlog
-from supabase import Client, create_client
 
 from src.core.config import settings
+from supabase import Client, create_client
 
 logger = structlog.get_logger(__name__)
 

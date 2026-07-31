@@ -72,7 +72,9 @@ class Thread(BaseModel):
     token_count = Column(Integer, default=0, nullable=False)
 
     # Creator tracking
-    created_by_id = Column(GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_by_id = Column(
+        GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Project integration (optional)
     source_project_id = Column(
@@ -90,8 +92,8 @@ class Thread(BaseModel):
 
     # Database indexes for performance optimization
     __table_args__ = (
-        Index('idx_thread_conversation_status', 'conversation_id', 'status'),
-        Index('idx_thread_conversation_created', 'conversation_id', 'created_at'),
+        Index("idx_thread_conversation_status", "conversation_id", "status"),
+        Index("idx_thread_conversation_created", "conversation_id", "created_at"),
     )
 
     # Relationships
@@ -171,9 +173,7 @@ class Thread(BaseModel):
         from sqlalchemy import inspect as sa_inspect
 
         if "messages" not in sa_inspect(self).unloaded and self.messages:
-            from ..services.threads.thread_title_generator import (
-                generate_title_sync,
-            )
+            from ..services.threads.thread_title_generator import generate_title_sync
             from .chat_message import MessageRole
 
             for msg in self.messages:

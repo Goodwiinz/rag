@@ -128,9 +128,7 @@ class CitationCreate(BaseModel):
     rerank_score: Optional[float] = None
 
     # Scholarly metadata
-    authors: Optional[List[str]] = Field(
-        default=None, description="List of authors"
-    )
+    authors: Optional[List[str]] = Field(default=None, description="List of authors")
     year: Optional[int] = Field(None, ge=1900, le=2100, description="Publication year")
     venue: Optional[str] = Field(None, description="Journal or conference name")
     doi: Optional[str] = Field(None, description="Digital Object Identifier")
@@ -171,9 +169,7 @@ class CitationResponse(BaseModel):
     rerankScore: Optional[float] = Field(None, alias="rerank_score")
 
     # Scholarly metadata
-    authors: Optional[List[str]] = Field(
-        default=None, description="List of authors"
-    )
+    authors: Optional[List[str]] = Field(default=None, description="List of authors")
     year: Optional[int] = Field(None, ge=1900, le=2100, description="Publication year")
     venue: Optional[str] = Field(None, description="Journal or conference name")
     doi: Optional[str] = Field(None, description="Digital Object Identifier")
@@ -232,9 +228,7 @@ class CitationWithMetadata(BaseModel):
     rerank_score: Optional[float] = None
 
     # Scholarly metadata
-    authors: Optional[List[str]] = Field(
-        default=None, description="List of authors"
-    )
+    authors: Optional[List[str]] = Field(default=None, description="List of authors")
     year: Optional[int] = Field(None, ge=1900, le=2100, description="Publication year")
     venue: Optional[str] = Field(None, description="Journal or conference name")
     doi: Optional[str] = Field(None, description="Digital Object Identifier")

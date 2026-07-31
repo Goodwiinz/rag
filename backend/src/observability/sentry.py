@@ -14,10 +14,10 @@ from typing import Any
 import sentry_sdk
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.httpx import HttpxIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-from sentry_sdk.integrations.httpx import HttpxIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,9 @@ def _float_env(name: str, default: float) -> float:
     try:
         return float(raw)
     except ValueError:
-        logger.warning("Invalid float for %s=%r, falling back to %s", name, raw, default)
+        logger.warning(
+            "Invalid float for %s=%r, falling back to %s", name, raw, default
+        )
         return default
 
 
@@ -43,7 +45,12 @@ def _scrub_sensitive(event: dict[str, Any], _hint: dict[str, Any]) -> dict[str, 
     request = event.get("request") or {}
     headers = request.get("headers") or {}
     for key in list(headers.keys()):
-        if key.lower() in {"authorization", "cookie", "x-api-key", "proxy-authorization"}:
+        if key.lower() in {
+            "authorization",
+            "cookie",
+            "x-api-key",
+            "proxy-authorization",
+        }:
             headers[key] = "[Filtered]"
     if "cookies" in request:
         request["cookies"] = "[Filtered]"
