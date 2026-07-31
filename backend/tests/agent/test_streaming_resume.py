@@ -129,12 +129,13 @@ async def test_stream_frames_carry_ids_and_are_buffered(monkeypatch):
     # One documented exception to "every frame is sequenced and buffered": the
     # leading status/accepted frame is emitted BEFORE the client-supplied
     # thread id has passed the ownership check, so it must not touch the
-    # thread's Redis pointer. It is therefore id-less and unbuffered, and a
-    # resuming client loses nothing by missing it (the run is, by definition,
-    # already accepted). Pinned here so it can only ever be that one frame.
+    # thread's Redis pointer. It consumes seq 1 but is deliberately UNBUFFERED:
+    # the buffer legitimately starts at seq 2, so `after=1` replays 2..N and a
+    # resuming client loses nothing. Pinned here so it can only ever be that
+    # one frame.
     assert sse_event_name(events[0]) == "status"
     assert sse_data(events[0])["phase"] == "accepted"
-    assert sse_seq(events[0]) is None
+    assert sse_seq(events[0]) == 1
 
     # Every frame after it carries a strictly increasing id: line.
     sequenced = events[1:]
@@ -150,7 +151,8 @@ async def test_stream_frames_carry_ids_and_are_buffered(monkeypatch):
     payloads = [_frame_data(frame) for frame in events]
     trace_ids = {payload["trace_id"] for payload in payloads}
     assert len(trace_ids) == 1
-    for seq, payload in zip(ids, payloads):
+    for frame, payload in zip(events, payloads):
+        seq = sse_seq(frame)
         assert payload["schema_version"] == "1.0"
         assert payload["sequence"] == seq
         assert payload["event_id"] == f"{payload['trace_id']}:{seq}"
