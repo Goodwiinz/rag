@@ -510,9 +510,10 @@ async def list_documents(
         )
 
     except Exception as e:
+        logger.error(f"Failed to list documents: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list documents: {str(e)}",
+            detail="Failed to list documents",
         )
 
 
@@ -686,9 +687,10 @@ async def delete_document(
 
     except Exception as e:
         await db.rollback()
+        logger.error(f"Failed to delete document: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete document: {str(e)}",
+            detail="Failed to delete document",
         )
 
 
@@ -789,9 +791,10 @@ async def get_document_entities(
         # Deliberate 4xx (e.g. unknown entity_type) — don't rewrap as a 500.
         raise
     except Exception as e:
+        logger.error(f"Failed to get document entities: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get document entities: {str(e)}",
+            detail="Failed to get document entities",
         )
 
 
@@ -1126,9 +1129,10 @@ async def search_documents(
         )
 
     except Exception as e:
+        logger.error(f"Document search failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Document search failed: {str(e)}",
+            detail="Document search failed",
         )
 
 
@@ -1207,18 +1211,20 @@ async def bulk_delete_documents(
             )
     except Exception as e:
         await db.rollback()
+        logger.error(f"Failed to bulk delete documents: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to bulk delete documents: {str(e)}",
+            detail="Failed to bulk delete documents",
         )
 
     try:
         await db.commit()
     except Exception as e:
         await db.rollback()
+        logger.error(f"Failed to commit bulk delete: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to commit bulk delete: {str(e)}",
+            detail="Failed to commit bulk delete",
         )
 
     # Best-effort physical deletes AFTER the commit (see delete_document): only
@@ -1376,7 +1382,8 @@ async def reprocess_document(
 
     except Exception as e:
         await db.rollback()
+        logger.error(f"Failed to queue document for reprocessing: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to queue document for reprocessing: {str(e)}",
+            detail="Failed to queue document for reprocessing",
         )
