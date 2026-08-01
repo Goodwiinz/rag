@@ -85,7 +85,8 @@ def test_setup_step_runs_only_on_pull_requests() -> None:
 
 def test_setup_step_materializes_base_spec_via_git_show_with_env_indirection() -> None:
     """The setup step must materialize the PR base's committed spec via git show
-    against the base sha, passed by env indirection (never interpolated into the
+    against the live base branch (github.base_ref — not the creation-time-frozen
+    base.sha, see #1321), passed by env indirection (never interpolated into the
     run block — repo security convention)."""
     step = _setup_step()
     assert step is not None
@@ -98,11 +99,12 @@ def test_setup_step_materializes_base_spec_via_git_show_with_env_indirection() -
 
     env_values = " ".join(str(v) for v in (step.get("env") or {}).values())
     assert (
-        "github.event.pull_request.base.sha" in env_values
-    ), "base sha must be passed via env indirection, not interpolated in run:"
+        "github.base_ref" in env_values
+    ), "base ref must be passed via env indirection, not interpolated in run:"
     assert (
-        "${{ github.event" not in run
-    ), "run block must not interpolate github.event.* directly"
+        "github.event.pull_request.base.sha" not in env_values
+    ), "must diff against the live base branch, not the creation-time base.sha (#1321)"
+    assert "${{ github." not in run, "run block must not interpolate github.* directly"
 
 
 def test_setup_step_pins_oasdiff_release_and_verifies_checksum() -> None:
