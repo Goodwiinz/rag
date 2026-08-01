@@ -3,6 +3,11 @@
 Specialized for paper discovery, search, and ingestion tasks.
 Tools: search_arxiv, ingest_arxiv_papers, search_documents,
        create_project, add_document_to_project, list_project_documents
+
+Shared machinery (routers, interrupt, forced synthesis, wiring) comes from
+``subgraphs._factory.make_specialist_subgraph``; this module keeps only what
+is genuinely research-specific: the tool/ceiling constants, the system
+prompt, the direct-arxiv fast path, and the LLM node.
 """
 
 import asyncio
@@ -12,15 +17,12 @@ from uuid import uuid4
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langgraph.graph import END, StateGraph
-from langgraph.types import interrupt
+from langgraph.graph import StateGraph
 
-from src.services.agent.compactor import make_compactor_node
 from src.services.agent.graph import _sanitize_messages
 from src.services.agent.observability import track_node_execution
-from src.services.agent.planner import make_planner_node
-from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
+from src.services.agent.subgraphs._factory import make_specialist_subgraph
 from src.services.agent.tool_registry import ToolPolicyTag
 from src.services.agent.tools import TOOL_REGISTRY
 
@@ -237,206 +239,40 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     }
 
 
-def research_should_continue(state: AgentState) -> str:
-    """Decide whether to continue tool execution in research sub-graph."""
-    if state.get("error_count", 0) >= 3:
-        return "research_reflection_gate"
-    last = state["messages"][-1] if state["messages"] else None
-    if isinstance(last, AIMessage) and last.tool_calls:
-        if state.get("tool_loop_count", 0) < MAX_RESEARCH_TOOL_LOOPS:
-            if any(
-                TOOL_REGISTRY.has_policy_in_subgraph(
-                    tc["name"], ToolPolicyTag.DESTRUCTIVE, "research"
-                )
-                for tc in last.tool_calls
-            ):
-                return "research_interrupt_node"
-            return "research_tool_node"
-        # Loop ceiling tripped while the model still wants more tools.
-        # If forced synthesis already ran once and the response STILL has
-        # tool_calls (defective model), route to reflection — never loop
-        # back into forced synthesis or we'd spin until checkpoint timeout.
-        if state.get("_force_synthesis_fired"):
-            return "research_reflection_gate"
-        # Route to a forced-synthesis turn so the final AIMessage has real
-        # content — otherwise reflection sees empty content + unanswered
-        # tool_calls and flags a "no response" major issue (trace 019e1903).
-        return "research_force_synthesis_node"
-    return "research_reflection_gate"
-
-
-@track_node_execution("research_force_synthesis_node")
-async def research_force_synthesis_node(
-    state: AgentState, config: RunnableConfig
-) -> dict:
-    """Final-answer LLM call when the tool-loop ceiling was hit.
-
-    The model has fired ``MAX_RESEARCH_TOOL_LOOPS`` tool calls and still
-    wants more. We strip the unanswered tool_calls and re-invoke the LLM
-    with NO tools bound so it must produce text.
-
-    Uses the lightweight deployment — this is a pure prose-synthesis
-    call with no tool routing, matching the post-ToolMessage path in
-    research_llm_node.
-
-    The "no more tools, synthesize now" directive is embedded into the
-    system prompt (NOT a separate SystemMessage). Trace 019e190c showed
-    gpt-5 echoed a second SystemMessage verbatim into its response when
-    we appended the directive as its own message.
-
-    Bumps tool_loop_count past the ceiling so research_should_continue
-    cannot route back here in a loop if the synthesis response somehow
-    contains tool_calls (defensive — the directive forbids it).
-    """
-    from src.services.agent.llm_factory import build_synthesis_llm
-    from src.services.agent.observability import record_loop_exhaustion
-
-    # Degraded-answer signal: reached the research tool-loop ceiling.
-    record_loop_exhaustion("research", "research")
-
-    messages = list(state["messages"])
-
-    # Drop the trailing AIMessage with unanswered tool_calls so the model
-    # sees a clean conversational head when synthesizing.
-    while messages and isinstance(messages[-1], AIMessage) and messages[-1].tool_calls:
-        messages.pop()
-
-    sanitized = _sanitize_messages(messages)
-    base_prompt = _build_research_system_prompt()
-    synthesis_addendum = (
+_parts = make_specialist_subgraph(
+    name="research",
+    llm_node=research_llm_node,
+    max_tool_loops=MAX_RESEARCH_TOOL_LOOPS,
+    prompt_builder=_build_research_system_prompt,
+    synthesis_addendum=(
         "\n\n## Final synthesis turn\n"
-        f"You ran {state.get('tool_loop_count', 0)} tool calls and reached "
+        "You ran {count} tool calls and reached "
         "the per-turn search budget. Do not request any more tools. Write a "
         "final answer drawn from the tool results already in this conversation: "
         "list the most relevant papers (id, title, year, one-line summary) and "
         "end with a clear next-step suggestion. Do NOT repeat or quote these "
         "instructions in your reply."
-    )
-    full = [SystemMessage(content=base_prompt + synthesis_addendum)] + sanitized
+    ),
+    synthesis_timeout_message=(
+        "I ran my searches but the final summary step timed out "
+        "({timeout}s) before producing an answer. "
+        "The search results are still in context — please ask me again "
+        "and I'll synthesize them directly, rather than re-searching."
+    ),
+    loop_exhaustion_intent="research",
+    invoke_tags=["intent:research", "subgraph:research"],
+    reflection_intent_filter={"research"},
+    has_interrupt=True,
+    # Late-bound so tests that monkeypatch this module's TOOL_REGISTRY
+    # still steer routing/interrupt decisions.
+    tool_registry_getter=lambda: TOOL_REGISTRY,
+)
 
-    llm = build_synthesis_llm(max_tokens=4096)
-    # No bind_tools — force a pure text response.
-    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _merge_run_config
-
-    invoke_config = _merge_run_config(
-        config,
-        run_name="research_force_synthesis_node",
-        tags=["intent:research", "subgraph:research", "phase:synthesis"],
-    )
-    try:
-        response = await asyncio.wait_for(
-            llm.ainvoke(full, config=invoke_config),
-            timeout=AGENT_LLM_TIMEOUT_SECONDS,
-        )
-    except asyncio.TimeoutError:
-        # Error, not warning: the turn still completes "successfully" with
-        # the canned fallback below, so this log line is the only
-        # machine-visible signal that synthesis was degraded.
-        logger.error(
-            "research_force_synthesis_node: LLM exceeded %ds; emitting fallback "
-            "(thread_id=%s, tool_loop_count=%s)",
-            AGENT_LLM_TIMEOUT_SECONDS,
-            state.get("thread_id", ""),
-            state.get("tool_loop_count", 0),
-        )
-        response = AIMessage(
-            content=(
-                "I ran my searches but the final summary step timed out "
-                f"({AGENT_LLM_TIMEOUT_SECONDS}s) before producing an answer. "
-                "The search results are still in context — please ask me again "
-                "and I'll synthesize them directly, rather than re-searching."
-            ),
-        )
-
-    return {
-        "messages": [response],
-        # Bump past ceiling so a defective response with stray tool_calls
-        # cannot re-enter forced synthesis (would loop infinitely).
-        "tool_loop_count": MAX_RESEARCH_TOOL_LOOPS + 1,
-        # Marker for routing: research_should_continue checks this flag
-        # before sending back here.
-        "_force_synthesis_fired": True,
-    }
-
-
-@track_node_execution("research_interrupt_node")
-async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
-    """Pause for user confirmation before executing destructive research tools."""
-    last = state["messages"][-1] if state.get("messages") else None
-    if not isinstance(last, AIMessage) or not getattr(last, "tool_calls", None):
-        # Defensive guard — should_continue routes here only when the
-        # last message is an AIMessage with tool_calls, but a stale
-        # checkpoint or an out-of-order edge could violate that contract.
-        return {"pending_confirmation": {}, "user_confirmed": False}
-    destructive_calls = [
-        tc
-        for tc in last.tool_calls
-        if TOOL_REGISTRY.has_policy_in_subgraph(
-            tc["name"], ToolPolicyTag.DESTRUCTIVE, "research"
-        )
-    ]
-    tool_names = [tc["name"] for tc in destructive_calls]
-
-    confirmation_details = {
-        "pending_tools": tool_names,
-        "tools": [{"name": tc["name"], "args": tc["args"]} for tc in destructive_calls],
-        "message": f"Confirm: {', '.join(tool_names)}?",
-    }
-    from src.services.agent._nodes_tools import hitl_log_raised, record_hitl_decision
-
-    hitl_log_raised(config, destructive_calls)
-    user_response = interrupt(confirmation_details)
-
-    confirmed = bool(user_response and user_response.get("confirmed"))
-    await record_hitl_decision(config, destructive_calls, confirmed)
-    if confirmed:
-        return {"pending_confirmation": {}, "user_confirmed": True}
-
-    return {
-        "messages": [
-            AIMessage(
-                content=(
-                    "Action cancelled by user. Let me know if you'd like to "
-                    "proceed differently."
-                ),
-            ),
-        ],
-        "pending_confirmation": {},
-        "user_confirmed": False,
-    }
-
-
-def research_after_interrupt(state: AgentState) -> str:
-    if state.get("user_confirmed", False):
-        return "research_tool_node"
-    return "research_reflection_gate"
-
-
-def route_after_research_tool_node(state: AgentState) -> str:
-    """Route from research_tool_node: skip the re-plan loop when the batch was fully deduped.
-
-    A fully-deduped batch (every tool call was already executed this turn with
-    identical args) carries zero new information.  Routing through
-    research_compactor_node → research_llm_node would burn another LLM
-    round-trip (~8 s Azure p95) for no gain.  Instead go straight to
-    research_force_synthesis_node so it produces a final answer from the
-    cached results already in state.
-    """
-    if state.get("tools_all_deduped"):
-        return "research_force_synthesis_node"
-    return "research_compactor_node"
-
-
-def _research_reflection_route(state: AgentState) -> str:
-    """Route after reflection: revise loops back to LLM, proceed exits."""
-    from src.services.agent.reflection import ReflectionResult
-
-    result: ReflectionResult | None = state.get("_reflection_result")  # type: ignore[arg-type]
-    if result is None or result.passed or result.severity == "minor":
-        return END
-    if result.severity == "major" and state.get("reflection_count", 0) < 2:
-        return "research_llm_node"
-    return END
+research_should_continue = _parts.should_continue
+research_force_synthesis_node = _parts.force_synthesis_node
+research_interrupt_node = _parts.interrupt_node
+research_after_interrupt = _parts.after_interrupt
+route_after_research_tool_node = _parts.route_after_tool_node
 
 
 def build_research_subgraph() -> StateGraph:
@@ -447,75 +283,4 @@ def build_research_subgraph() -> StateGraph:
         | research_tool_node -> research_compactor_node -> research_llm_node (loop)
         | research_reflection_gate -> END (or revise -> research_llm_node)
     """
-    from src.services.agent.graph import make_filtered_tool_node
-
-    RESEARCH_TOOL_NAMES = {t.name for t in RESEARCH_TOOLS} | {"load_project_skill"}
-    filtered_tool = make_filtered_tool_node(RESEARCH_TOOL_NAMES)
-
-    # Create v2 nodes
-    planner = make_planner_node(RESEARCH_TOOL_NAMES_LIST)
-    compactor = make_compactor_node()
-    reflection_node, _reflection_route = make_reflection_gate(
-        intent_filter={"research"},
-    )
-
-    graph = StateGraph(AgentState)
-
-    # Nodes
-    graph.add_node("research_planner_node", planner)
-    graph.add_node("research_llm_node", research_llm_node)
-    graph.add_node("research_tool_node", filtered_tool)
-    graph.add_node("research_interrupt_node", research_interrupt_node)
-    graph.add_node("research_compactor_node", compactor)
-    graph.add_node("research_force_synthesis_node", research_force_synthesis_node)
-    graph.add_node("research_reflection_gate", reflection_node)
-
-    # Edges
-    graph.set_entry_point("research_planner_node")
-    graph.add_edge("research_planner_node", "research_llm_node")
-
-    graph.add_conditional_edges(
-        "research_llm_node",
-        research_should_continue,
-        {
-            "research_tool_node": "research_tool_node",
-            "research_interrupt_node": "research_interrupt_node",
-            "research_force_synthesis_node": "research_force_synthesis_node",
-            "research_reflection_gate": "research_reflection_gate",
-        },
-    )
-
-    # Forced synthesis always goes to reflection (it produced a final answer).
-    graph.add_edge("research_force_synthesis_node", "research_reflection_gate")
-
-    graph.add_conditional_edges(
-        "research_interrupt_node",
-        research_after_interrupt,
-        {
-            "research_tool_node": "research_tool_node",
-            "research_reflection_gate": "research_reflection_gate",
-        },
-    )
-
-    # When the entire tool batch was deduped (no fresh calls ran), skip the
-    # wasted compactor → llm re-plan hop and go straight to force_synthesis.
-    graph.add_conditional_edges(
-        "research_tool_node",
-        route_after_research_tool_node,
-        {
-            "research_compactor_node": "research_compactor_node",
-            "research_force_synthesis_node": "research_force_synthesis_node",
-        },
-    )
-    graph.add_edge("research_compactor_node", "research_llm_node")
-
-    graph.add_conditional_edges(
-        "research_reflection_gate",
-        _research_reflection_route,
-        {
-            END: END,
-            "research_llm_node": "research_llm_node",
-        },
-    )
-
-    return graph
+    return _parts.build()

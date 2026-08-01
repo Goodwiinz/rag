@@ -3,6 +3,12 @@
 Specialized for entity extraction, knowledge graph exploration, and data analysis.
 Tools: extract_entities, search_knowledge_graph, search_documents,
        list_project_documents
+
+Shared machinery (routers, forced synthesis, wiring) comes from
+``subgraphs._factory.make_specialist_subgraph``; this module keeps only what
+is genuinely data-specific: the tool/ceiling constants, the system prompt,
+and the LLM node. Data has no interrupt node — no destructive tools — and
+its nodes are historically undecorated (``tracked=False``).
 """
 
 import asyncio
@@ -10,13 +16,11 @@ import logging
 
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langgraph.graph import END, StateGraph
+from langgraph.graph import StateGraph
 
-from src.services.agent.compactor import make_compactor_node
 from src.services.agent.graph import _sanitize_messages
-from src.services.agent.planner import make_planner_node
-from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
+from src.services.agent.subgraphs._factory import make_specialist_subgraph
 from src.services.agent.tools import TOOL_REGISTRY
 
 logger = logging.getLogger(__name__)
@@ -147,127 +151,37 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     }
 
 
-def data_should_continue(state: AgentState) -> str:
-    """Decide whether to continue tool execution in data sub-graph."""
-    if state.get("error_count", 0) >= 3:
-        return "data_reflection_gate"
-    last = state["messages"][-1] if state["messages"] else None
-    if isinstance(last, AIMessage) and last.tool_calls:
-        if state.get("tool_loop_count", 0) < MAX_DATA_TOOL_LOOPS:
-            return "data_tool_node"
-        # Loop ceiling tripped while the model still wants more tools.
-        # Without forced synthesis the subgraph would exit with an AIMessage
-        # whose tool_calls have no ToolMessages — see
-        # research_should_continue (trace 019e1903) for the failure mode.
-        if state.get("_force_synthesis_fired"):
-            return "data_reflection_gate"
-        return "data_force_synthesis_node"
-    return "data_reflection_gate"
-
-
-async def data_force_synthesis_node(state: AgentState, config: RunnableConfig) -> dict:
-    """Final-answer LLM call when the tool-loop ceiling was hit.
-
-    Mirrors ``research_force_synthesis_node``: strip the trailing AIMessage
-    with unanswered tool_calls and re-invoke the LLM with NO tools bound so
-    it must produce text. See that node's docstring for the prompt-embedding
-    and loop-guard rationale.
-    """
-    from src.services.agent.llm_factory import build_synthesis_llm
-    from src.services.agent.observability import record_loop_exhaustion
-
-    # Degraded-answer signal: reached the data/KG tool-loop ceiling.
-    record_loop_exhaustion("knowledge_graph", "data")
-
-    messages = list(state["messages"])
-    while messages and isinstance(messages[-1], AIMessage) and messages[-1].tool_calls:
-        messages.pop()
-
-    sanitized = _sanitize_messages(messages)
-    base_prompt = _build_data_system_prompt()
-    synthesis_addendum = (
+# intent_filter excludes knowledge_graph — KG queries are deterministic
+# lookups, so the reflection node passes through for them.
+_parts = make_specialist_subgraph(
+    name="data",
+    llm_node=data_llm_node,
+    max_tool_loops=MAX_DATA_TOOL_LOOPS,
+    prompt_builder=_build_data_system_prompt,
+    synthesis_addendum=(
         "\n\n## Final synthesis turn\n"
-        f"You ran {state.get('tool_loop_count', 0)} tool calls and reached "
+        "You ran {count} tool calls and reached "
         "the per-turn tool budget. Do not request any more tools. Write a "
         "final answer drawn from the tool results already in this "
         "conversation: present the entities, relationships, or graph "
         "findings gathered so far in a structured format, and state plainly "
         "any query you could not complete. Do NOT repeat or quote these "
         "instructions in your reply."
-    )
-    full = [SystemMessage(content=base_prompt + synthesis_addendum)] + sanitized
+    ),
+    synthesis_timeout_message=(
+        "I gathered results but ran out of time composing a final "
+        "summary. Please ask me to summarize the findings above."
+    ),
+    loop_exhaustion_intent="knowledge_graph",
+    invoke_tags=["intent:knowledge_graph", "subgraph:data"],
+    reflection_intent_filter={"research", "writing"},
+    has_interrupt=False,
+    tracked=False,
+)
 
-    llm = build_synthesis_llm(max_tokens=4096)
-    # No bind_tools — force a pure text response.
-    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _merge_run_config
-
-    invoke_config = _merge_run_config(
-        config,
-        run_name="data_force_synthesis_node",
-        tags=["intent:knowledge_graph", "subgraph:data", "phase:synthesis"],
-    )
-    try:
-        response = await asyncio.wait_for(
-            llm.ainvoke(full, config=invoke_config),
-            timeout=AGENT_LLM_TIMEOUT_SECONDS,
-        )
-    except asyncio.TimeoutError:
-        # Error, not warning: the turn still completes "successfully" with
-        # the canned fallback below, so this log line is the only
-        # machine-visible signal that synthesis was degraded.
-        logger.error(
-            "data_force_synthesis_node: LLM exceeded %ds; emitting fallback "
-            "(thread_id=%s, tool_loop_count=%s)",
-            AGENT_LLM_TIMEOUT_SECONDS,
-            state.get("thread_id", ""),
-            state.get("tool_loop_count", 0),
-        )
-        response = AIMessage(
-            content=(
-                "I gathered results but ran out of time composing a final "
-                "summary. Please ask me to summarize the findings above."
-            ),
-        )
-
-    return {
-        "messages": [response],
-        # Bump past ceiling so a defective response with stray tool_calls
-        # cannot re-enter forced synthesis (would loop infinitely).
-        "tool_loop_count": MAX_DATA_TOOL_LOOPS + 1,
-        "_force_synthesis_fired": True,
-    }
-
-
-def route_after_data_tool_node(state: AgentState) -> str:
-    """Route from data_tool_node: skip the re-plan loop when the batch was fully deduped.
-
-    A fully-deduped batch (every tool call was already executed this turn with
-    identical args) carries zero new information.  Routing through
-    data_compactor_node → data_llm_node would burn another LLM
-    round-trip (~8 s Azure p95) for no gain.  Instead go straight to
-    data_force_synthesis_node so it produces a final answer from the
-    cached results already in state.
-    """
-    if state.get("tools_all_deduped"):
-        return "data_force_synthesis_node"
-    return "data_compactor_node"
-
-
-def _data_reflection_route(state: AgentState) -> str:
-    """Route after reflection: revise loops back to LLM, proceed exits.
-
-    The data subgraph uses ``intent_filter={"research", "writing"}`` which
-    means knowledge_graph intent is *excluded* from reflection evaluation
-    (the reflection node passes through for KG queries).
-    """
-    from src.services.agent.reflection import ReflectionResult
-
-    result: ReflectionResult | None = state.get("_reflection_result")  # type: ignore[arg-type]
-    if result is None or result.passed or result.severity == "minor":
-        return END
-    if result.severity == "major" and state.get("reflection_count", 0) < 2:
-        return "data_llm_node"
-    return END
+data_should_continue = _parts.should_continue
+data_force_synthesis_node = _parts.force_synthesis_node
+route_after_data_tool_node = _parts.route_after_tool_node
 
 
 def build_data_subgraph() -> StateGraph:
@@ -281,65 +195,4 @@ def build_data_subgraph() -> StateGraph:
     Note: Reflection gate skips for knowledge_graph intent (excluded from
     intent_filter) since KG queries are deterministic lookups.
     """
-    from src.services.agent.graph import make_filtered_tool_node
-
-    DATA_TOOL_NAMES = {t.name for t in DATA_TOOLS} | {"load_project_skill"}
-    filtered_tool = make_filtered_tool_node(DATA_TOOL_NAMES)
-
-    # Create v2 nodes
-    planner = make_planner_node(DATA_TOOL_NAMES_LIST)
-    compactor = make_compactor_node()
-    # Exclude knowledge_graph from reflection — KG queries are deterministic
-    reflection_node, _reflection_route = make_reflection_gate(
-        intent_filter={"research", "writing"},
-    )
-
-    graph = StateGraph(AgentState)
-
-    # Nodes
-    graph.add_node("data_planner_node", planner)
-    graph.add_node("data_llm_node", data_llm_node)
-    graph.add_node("data_tool_node", filtered_tool)
-    graph.add_node("data_compactor_node", compactor)
-    graph.add_node("data_force_synthesis_node", data_force_synthesis_node)
-    graph.add_node("data_reflection_gate", reflection_node)
-
-    # Edges
-    graph.set_entry_point("data_planner_node")
-    graph.add_edge("data_planner_node", "data_llm_node")
-
-    graph.add_conditional_edges(
-        "data_llm_node",
-        data_should_continue,
-        {
-            "data_tool_node": "data_tool_node",
-            "data_force_synthesis_node": "data_force_synthesis_node",
-            "data_reflection_gate": "data_reflection_gate",
-        },
-    )
-
-    # Forced synthesis always goes to reflection (it produced a final answer).
-    graph.add_edge("data_force_synthesis_node", "data_reflection_gate")
-
-    # When the entire tool batch was deduped (no fresh calls ran), skip the
-    # wasted compactor → llm re-plan hop and go straight to force_synthesis.
-    graph.add_conditional_edges(
-        "data_tool_node",
-        route_after_data_tool_node,
-        {
-            "data_compactor_node": "data_compactor_node",
-            "data_force_synthesis_node": "data_force_synthesis_node",
-        },
-    )
-    graph.add_edge("data_compactor_node", "data_llm_node")
-
-    graph.add_conditional_edges(
-        "data_reflection_gate",
-        _data_reflection_route,
-        {
-            END: END,
-            "data_llm_node": "data_llm_node",
-        },
-    )
-
-    return graph
+    return _parts.build()
