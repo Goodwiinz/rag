@@ -98,9 +98,7 @@ async def test_happy_path_creates_org_and_user_with_org_id():
         flush_side_effects=[None, None],  # org flush ok, user flush ok
     )
 
-    user = await ensure_user_and_org(
-        db, _token(organization_id="org-42")
-    )
+    user = await ensure_user_and_org(db, _token(organization_id="org-42"))
 
     assert isinstance(user, User)
     assert user.id == "user-1"
