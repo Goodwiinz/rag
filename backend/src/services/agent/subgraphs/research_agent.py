@@ -273,7 +273,6 @@ research_force_synthesis_node = _parts.force_synthesis_node
 research_interrupt_node = _parts.interrupt_node
 research_after_interrupt = _parts.after_interrupt
 route_after_research_tool_node = _parts.route_after_tool_node
-_research_reflection_route = _parts.reflection_route
 
 
 def build_research_subgraph() -> StateGraph:

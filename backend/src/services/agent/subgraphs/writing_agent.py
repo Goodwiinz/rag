@@ -224,7 +224,6 @@ writing_force_synthesis_node = _parts.force_synthesis_node
 writing_interrupt_node = _parts.interrupt_node
 writing_after_interrupt = _parts.after_interrupt
 route_after_writing_tool_node = _parts.route_after_tool_node
-_writing_reflection_route = _parts.reflection_route
 
 
 def build_writing_subgraph() -> StateGraph:

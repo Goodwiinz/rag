@@ -182,7 +182,6 @@ _parts = make_specialist_subgraph(
 data_should_continue = _parts.should_continue
 data_force_synthesis_node = _parts.force_synthesis_node
 route_after_data_tool_node = _parts.route_after_tool_node
-_data_reflection_route = _parts.reflection_route
 
 
 def build_data_subgraph() -> StateGraph:
