@@ -349,10 +349,10 @@ def make_specialist_subgraph(
             "_reflection_result"
         )  # type: ignore[arg-type]
         if result is None or result.passed or result.severity == "minor":
-            return END
+            return cast(str, END)
         if result.severity == "major" and state.get("reflection_count", 0) < 2:
             return llm
-        return END
+        return cast(str, END)
 
     _rename(reflection_route, f"_{name}_reflection_route")
 

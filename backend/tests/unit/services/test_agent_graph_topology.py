@@ -12,13 +12,15 @@ embeds unstable ids. If a topology change is *intentional*, re-record the
 literals below and say so in the PR description.
 """
 
+from typing import Any
+
 from src.services.agent._builders import build_agent_graph
 from src.services.agent.subgraphs.data_agent import build_data_subgraph
 from src.services.agent.subgraphs.research_agent import build_research_subgraph
 from src.services.agent.subgraphs.writing_agent import build_writing_subgraph
 
 
-def _snapshot(compiled):
+def _snapshot(compiled: Any) -> tuple[list[str], list[tuple[str, str, bool]]]:
     """Return (sorted node names, sorted (source, target, conditional) edges)."""
     graph = compiled.get_graph(xray=1)
     nodes = sorted(graph.nodes.keys())
@@ -324,25 +326,25 @@ MAIN_EDGES = [
 ]
 
 
-def test_research_subgraph_topology():
+def test_research_subgraph_topology() -> None:
     nodes, edges = _snapshot(build_research_subgraph().compile())
     assert nodes == RESEARCH_NODES
     assert edges == RESEARCH_EDGES
 
 
-def test_writing_subgraph_topology():
+def test_writing_subgraph_topology() -> None:
     nodes, edges = _snapshot(build_writing_subgraph().compile())
     assert nodes == WRITING_NODES
     assert edges == WRITING_EDGES
 
 
-def test_data_subgraph_topology():
+def test_data_subgraph_topology() -> None:
     nodes, edges = _snapshot(build_data_subgraph().compile())
     assert nodes == DATA_NODES
     assert edges == DATA_EDGES
 
 
-def test_main_graph_topology():
+def test_main_graph_topology() -> None:
     nodes, edges = _snapshot(build_agent_graph().compile())
     assert nodes == MAIN_NODES
     assert edges == MAIN_EDGES
