@@ -189,9 +189,11 @@ class DataAnonymizer:
                 anonymized[key] = DataAnonymizer.anonymize_session_data(value)
             elif isinstance(value, list):
                 anonymized[key] = [
-                    DataAnonymizer.anonymize_session_data(item)
-                    if isinstance(item, dict)
-                    else item
+                    (
+                        DataAnonymizer.anonymize_session_data(item)
+                        if isinstance(item, dict)
+                        else item
+                    )
                     for item in value
                 ]
 

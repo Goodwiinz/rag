@@ -12,9 +12,7 @@ class ResearchPipeline(BaseModel):
     """Tracks pipeline state for a research project's wizard workflow."""
 
     __tablename__ = "research_pipelines"
-    __table_args__ = (
-        UniqueConstraint("project_id", name="uq_pipeline_project"),
-    )
+    __table_args__ = (UniqueConstraint("project_id", name="uq_pipeline_project"),)
 
     project_id = Column(
         GUID(),

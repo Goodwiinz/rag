@@ -38,9 +38,7 @@ from src.models.graph import (
     ExtractionMethod,
     RelationshipType,
 )
-from src.services.knowledge_graph.knowledge_graph_service import (
-    knowledge_graph_service,
-)
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
 
 logger = logging.getLogger(__name__)
 

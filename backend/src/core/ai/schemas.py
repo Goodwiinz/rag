@@ -6,7 +6,7 @@ outputs conform to expected formats.
 
 Usage:
     from src.core.ai.schemas import JudgeScoreSchema
-    
+
     # Validate AI response
     score = JudgeScoreSchema.model_validate({
         "score": 0.85,

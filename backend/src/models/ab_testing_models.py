@@ -240,16 +240,16 @@ class Experiment(BaseModel):
 
     def should_include_user(self, user_context: Dict[str, Any]) -> bool:
         """Check if user should be included in experiment based on targeting
-        
+
         Evaluates user_context against target_segments and exclude_segments.
         A user is included if they match at least one target segment (or no targets are defined)
         AND do not match any exclude segment.
-        
+
         Args:
             user_context: Dictionary containing user attributes for matching.
-                         Example: {"user_id": "123", "account_age_days": 30, 
+                         Example: {"user_id": "123", "account_age_days": 30,
                                    "queries_per_day": 15, "plan": "enterprise"}
-        
+
         Returns:
             True if user should be included in the experiment, False otherwise.
         """
@@ -274,7 +274,7 @@ class Experiment(BaseModel):
         self, user_context: Dict[str, Any], criteria: Dict[str, Any]
     ) -> bool:
         """Check if user_context matches the given segment criteria
-        
+
         Supports operators:
             - min: value >= threshold (inclusive)
             - max: value <= threshold (inclusive)
@@ -287,55 +287,55 @@ class Experiment(BaseModel):
             - exists: field exists (and is truthy if True, or missing/falsy if False)
             - regex: value matches regex pattern
             - range: value is within [min, max] range (inclusive)
-        
+
         Args:
             user_context: User attributes dictionary
             criteria: Segment criteria dictionary with field -> conditions mapping
-        
+
         Returns:
             True if all criteria match, False otherwise
         """
         import re
-        
+
         for field, conditions in criteria.items():
             user_value = user_context.get(field)
-            
+
             # Handle simple equality (criteria value is not a dict)
             if not isinstance(conditions, dict):
                 if user_value != conditions:
                     return False
                 continue
-            
+
             # Handle operators
             for operator, expected in conditions.items():
                 if operator == "min":
                     if user_value is None or user_value < expected:
                         return False
-                        
+
                 elif operator == "max":
                     if user_value is None or user_value > expected:
                         return False
-                        
+
                 elif operator == "eq":
                     if user_value != expected:
                         return False
-                        
+
                 elif operator == "neq":
                     if user_value == expected:
                         return False
-                        
+
                 elif operator == "in":
                     if not isinstance(expected, (list, tuple, set)):
                         expected = [expected]
                     if user_value not in expected:
                         return False
-                        
+
                 elif operator == "not_in":
                     if not isinstance(expected, (list, tuple, set)):
                         expected = [expected]
                     if user_value in expected:
                         return False
-                        
+
                 elif operator == "contains":
                     if user_value is None:
                         return False
@@ -347,21 +347,26 @@ class Experiment(BaseModel):
                             return False
                     else:
                         return False
-                        
+
                 elif operator == "not_contains":
                     if user_value is not None:
                         if isinstance(user_value, str) and expected in user_value:
                             return False
-                        elif isinstance(user_value, (list, tuple, set)) and expected in user_value:
+                        elif (
+                            isinstance(user_value, (list, tuple, set))
+                            and expected in user_value
+                        ):
                             return False
-                            
+
                 elif operator == "exists":
-                    field_exists = field in user_context and user_context[field] is not None
+                    field_exists = (
+                        field in user_context and user_context[field] is not None
+                    )
                     if expected and not field_exists:
                         return False
                     if not expected and field_exists:
                         return False
-                        
+
                 elif operator == "regex":
                     if user_value is None:
                         return False
@@ -370,7 +375,7 @@ class Experiment(BaseModel):
                             return False
                     except re.error:
                         return False
-                        
+
                 elif operator == "range":
                     if user_value is None:
                         return False
@@ -385,7 +390,7 @@ class Experiment(BaseModel):
                             return False
                         if range_max is not None and user_value > range_max:
                             return False
-        
+
         return True
 
     def get_remaining_days(self) -> int:
@@ -402,9 +407,9 @@ class Experiment(BaseModel):
         data.update(
             {
                 "is_active": self.is_active,
-                "control_variant_id": self.control_variant.id
-                if self.control_variant
-                else None,
+                "control_variant_id": (
+                    self.control_variant.id if self.control_variant else None
+                ),
                 "treatment_variant_count": len(self.treatment_variants),
                 "remaining_days": self.get_remaining_days(),
             }
@@ -554,16 +559,16 @@ class UserSegment(BaseModel):
 
     def matches_user(self, user_context: Dict[str, Any]) -> bool:
         """Check if user matches segment criteria
-        
+
         Evaluates user_context against this segment's criteria to determine
         if the user belongs to this segment.
-        
+
         The criteria field is a JSON object where keys are field names from
         user_context and values are either:
         - A direct value for equality matching
         - A dict with operators: min, max, eq, neq, in, not_in, contains,
           not_contains, exists, regex, range
-        
+
         Example criteria:
             {
                 "queries_per_day": {"min": 10},
@@ -572,60 +577,60 @@ class UserSegment(BaseModel):
                 "plan": {"in": ["enterprise", "premium"]},
                 "region": "US"
             }
-        
+
         Args:
             user_context: Dictionary containing user attributes for matching.
-                         Example: {"user_id": "123", "account_age_days": 30, 
+                         Example: {"user_id": "123", "account_age_days": 30,
                                    "queries_per_day": 15, "plan": "enterprise",
                                    "region": "US"}
-        
+
         Returns:
             True if user matches all segment criteria, False otherwise.
         """
         import re
-        
+
         if not self.criteria:
             return True
-        
+
         for field, conditions in self.criteria.items():
             user_value = user_context.get(field)
-            
+
             # Handle simple equality (criteria value is not a dict)
             if not isinstance(conditions, dict):
                 if user_value != conditions:
                     return False
                 continue
-            
+
             # Handle operators
             for operator, expected in conditions.items():
                 if operator == "min":
                     if user_value is None or user_value < expected:
                         return False
-                        
+
                 elif operator == "max":
                     if user_value is None or user_value > expected:
                         return False
-                        
+
                 elif operator == "eq":
                     if user_value != expected:
                         return False
-                        
+
                 elif operator == "neq":
                     if user_value == expected:
                         return False
-                        
+
                 elif operator == "in":
                     if not isinstance(expected, (list, tuple, set)):
                         expected = [expected]
                     if user_value not in expected:
                         return False
-                        
+
                 elif operator == "not_in":
                     if not isinstance(expected, (list, tuple, set)):
                         expected = [expected]
                     if user_value in expected:
                         return False
-                        
+
                 elif operator == "contains":
                     if user_value is None:
                         return False
@@ -637,21 +642,26 @@ class UserSegment(BaseModel):
                             return False
                     else:
                         return False
-                        
+
                 elif operator == "not_contains":
                     if user_value is not None:
                         if isinstance(user_value, str) and expected in user_value:
                             return False
-                        elif isinstance(user_value, (list, tuple, set)) and expected in user_value:
+                        elif (
+                            isinstance(user_value, (list, tuple, set))
+                            and expected in user_value
+                        ):
                             return False
-                            
+
                 elif operator == "exists":
-                    field_exists = field in user_context and user_context[field] is not None
+                    field_exists = (
+                        field in user_context and user_context[field] is not None
+                    )
                     if expected and not field_exists:
                         return False
                     if not expected and field_exists:
                         return False
-                        
+
                 elif operator == "regex":
                     if user_value is None:
                         return False
@@ -660,7 +670,7 @@ class UserSegment(BaseModel):
                             return False
                     except re.error:
                         return False
-                        
+
                 elif operator == "range":
                     if user_value is None:
                         return False
@@ -675,7 +685,7 @@ class UserSegment(BaseModel):
                             return False
                         if range_max is not None and user_value > range_max:
                             return False
-        
+
         return True
 
     def to_dict(self) -> Dict[str, Any]:
@@ -960,9 +970,9 @@ class ABQualityMetric(BaseModel):
         data = super().to_dict()
         data.update(
             {
-                "evaluation_method": self.evaluation_method.value
-                if self.evaluation_method
-                else None,
+                "evaluation_method": (
+                    self.evaluation_method.value if self.evaluation_method else None
+                ),
                 "rag_triad_score": self.rag_triad_score,
                 "passes_thresholds": self.passes_thresholds,
             }
@@ -1072,9 +1082,9 @@ class StatisticalAnalysis(BaseModel):
         data = super().to_dict()
         data.update(
             {
-                "statistical_test": self.statistical_test.value
-                if self.statistical_test
-                else None,
+                "statistical_test": (
+                    self.statistical_test.value if self.statistical_test else None
+                ),
                 "is_conclusive": self.is_conclusive,
                 "business_impact": self.business_impact,
                 "effect_size_calculated": self.calculate_effect_size(),

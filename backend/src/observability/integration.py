@@ -119,9 +119,9 @@ class ObservabilityManager:
             # Check SLO monitoring
             health_status["components"]["slo_monitoring"] = {
                 "status": "healthy" if self.slo_monitor else "uninitialized",
-                "slos_configured": len(self.slo_monitor.slos)
-                if self.slo_monitor
-                else 0,
+                "slos_configured": (
+                    len(self.slo_monitor.slos) if self.slo_monitor else 0
+                ),
             }
 
         except Exception as e:
@@ -409,9 +409,9 @@ def check_slo_compliance(slo_name: str) -> Dict[str, Any]:
         "slo_name": slo_name,
         "status": status.status.value,
         "current_values": status.current_values,
-        "last_evaluation": status.last_evaluation.isoformat()
-        if status.last_evaluation
-        else None,
+        "last_evaluation": (
+            status.last_evaluation.isoformat() if status.last_evaluation else None
+        ),
         "compliant": status.status.value in ["compliant", "warning"],
     }
 
@@ -425,9 +425,9 @@ def get_all_slo_status() -> Dict[str, Any]:
         slo_name: {
             "status": slo.status.value,
             "current_values": slo.current_values,
-            "last_evaluation": slo.last_evaluation.isoformat()
-            if slo.last_evaluation
-            else None,
+            "last_evaluation": (
+                slo.last_evaluation.isoformat() if slo.last_evaluation else None
+            ),
             "compliant": slo.status.value in ["compliant", "warning"],
         }
         for slo_name, slo in all_slos.items()

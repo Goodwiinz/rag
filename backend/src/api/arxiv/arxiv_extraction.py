@@ -125,7 +125,9 @@ async def extract_paper_features(
                 entity_service = EntityExtractionService()
             except Exception as entity_error:
                 entity_service_error = str(entity_error)
-                logger.error(f"Failed to initialize entity extraction service: {entity_error}")
+                logger.error(
+                    f"Failed to initialize entity extraction service: {entity_error}"
+                )
 
         # Initialize services
         async with ArXivIngestionService() as arxiv_service:
@@ -186,8 +188,8 @@ async def extract_paper_features(
                                 entities = entity_service.extract_entities_from_text(
                                     document=document_stub, text=text_content
                                 )
-                                extraction_result["features"]["entities"] = _serialize_entities(
-                                    entities
+                                extraction_result["features"]["entities"] = (
+                                    _serialize_entities(entities)
                                 )
                             except Exception as e:
                                 logger.error(
@@ -213,9 +215,7 @@ async def extract_paper_features(
                                     "topics": [],
                                 }
                         except Exception as e:
-                            logger.error(
-                                f"Topic extraction failed for {paper_id}: {e}"
-                            )
+                            logger.error(f"Topic extraction failed for {paper_id}: {e}")
                             extraction_result["features"]["topics"] = {"error": str(e)}
 
                     # Extract key phrases
@@ -600,9 +600,7 @@ async def _update_knowledge_graph_with_extractions(
                     entities_payload = features.get("entities")
                     if isinstance(entities_payload, dict):
                         for entity in entities_payload.get("entities", []):
-                            raw_entity_type = str(
-                                entity.get("type") or "OTHER"
-                            ).upper()
+                            raw_entity_type = str(entity.get("type") or "OTHER").upper()
                             if raw_entity_type == "CUSTOM":
                                 raw_entity_type = "OTHER"
                             mapped_entity_type = EntityType.__members__.get(
@@ -663,8 +661,12 @@ async def _update_knowledge_graph_with_extractions(
                         relationships = entities_payload.get("relationships", [])
 
                     for rel in relationships:
-                        source_name = rel.get("source") or rel.get("source_entity") or ""
-                        target_name = rel.get("target") or rel.get("target_entity") or ""
+                        source_name = (
+                            rel.get("source") or rel.get("source_entity") or ""
+                        )
+                        target_name = (
+                            rel.get("target") or rel.get("target_entity") or ""
+                        )
 
                         if not source_name or not target_name:
                             continue

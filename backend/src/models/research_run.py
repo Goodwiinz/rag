@@ -26,9 +26,7 @@ class ResearchRun(BaseModel):
 
     __tablename__ = "research_runs"
 
-    blueprint_id = Column(
-        GUID(), ForeignKey("research_blueprints.id"), nullable=False
-    )
+    blueprint_id = Column(GUID(), ForeignKey("research_blueprints.id"), nullable=False)
     blueprint_version = Column(Integer, nullable=False)
     status = Column(String(50), nullable=False, default="pending")
     started_at = Column(DateTime(timezone=True), nullable=True)

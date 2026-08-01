@@ -27,7 +27,9 @@ class IntegrityDetectionService:
 
             logger.info("loading_integrity_model", model=self.MODEL_NAME)
             self._tokenizer = AutoTokenizer.from_pretrained(self.MODEL_NAME)
-            self._model = AutoModelForSequenceClassification.from_pretrained(self.MODEL_NAME)
+            self._model = AutoModelForSequenceClassification.from_pretrained(
+                self.MODEL_NAME
+            )
             self._model.requires_grad_(False)
 
     def _split_into_segments(self, text: str, max_words: int = 380) -> List[str]:

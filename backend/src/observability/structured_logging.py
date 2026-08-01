@@ -434,9 +434,9 @@ class StructuredLogger:
             },
             performance_metrics={
                 "duration_ms": duration_ms,
-                "throughput_requests_per_second": 1 / (duration_ms / 1000)
-                if duration_ms > 0
-                else 0,
+                "throughput_requests_per_second": (
+                    1 / (duration_ms / 1000) if duration_ms > 0 else 0
+                ),
             },
             tags=[f"status_{status_code}", f"method_{method}"],
             request_id=request_id,
@@ -569,9 +569,9 @@ class StructuredLogger:
             },
             performance_metrics={
                 "duration_ms": duration_ms,
-                "results_per_second": results_count / (duration_ms / 1000)
-                if duration_ms > 0
-                else 0,
+                "results_per_second": (
+                    results_count / (duration_ms / 1000) if duration_ms > 0 else 0
+                ),
             },
             user_id=user_id,
             tags=[f"type_{search_type}"],
@@ -619,9 +619,7 @@ class StructuredLogger:
         level = (
             LogLevel.WARNING
             if severity == "low"
-            else LogLevel.ERROR
-            if severity == "medium"
-            else LogLevel.CRITICAL
+            else LogLevel.ERROR if severity == "medium" else LogLevel.CRITICAL
         )
 
         self.log(
