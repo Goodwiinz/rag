@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from src.shared.enums import AgentStreamEvent, TERMINAL_STREAM_EVENTS
+from src.shared.enums import TERMINAL_STREAM_EVENTS, AgentStreamEvent
 
 # backend/tests/contract/<this file> -> parents[2] == backend/
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
