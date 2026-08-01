@@ -42,9 +42,7 @@ def _build_memory_index_config() -> dict | None:
     back to the un-indexed store rather than crashing on startup.
     """
     try:
-        from src.services.embedding.cohere_embed_service import (
-            cohere_embed_service,
-        )
+        from src.services.embedding.cohere_embed_service import cohere_embed_service
     except Exception as exc:  # noqa: BLE001 - import failure must not crash
         logger.warning("Cohere import failed; memory index disabled: %s", exc)
         return None

@@ -20,6 +20,7 @@ export const AGENT_STREAM_EVENTS = [
   'trace',
   'usage',
   'heartbeat',
+  'status',
   'confirmation',
   'done',
   'error',
@@ -28,9 +29,21 @@ export const AGENT_STREAM_EVENTS = [
 /** Union of every agent SSE event name (mirror of backend `AgentStreamEvent`). */
 export type AgentStreamEvent = (typeof AGENT_STREAM_EVENTS)[number];
 
+export const AGENT_STREAM_PHASES = [
+  'accepted',
+  'routing',
+  'retrieving',
+  'planning',
+  'writing',
+  'finalizing',
+] as const;
+
+export type AgentStreamPhase = (typeof AGENT_STREAM_PHASES)[number];
+
 /**
- * `heartbeat` is a payload-less keepalive; the SSE consumer intentionally
- * drops it (no callback / no switch case). Every OTHER event must be handled.
+ * `heartbeat` is the keepalive the backend emits during silent planner/LLM
+ * phases. It carries `elapsed_ms`, which the consumer surfaces as live
+ * progress on the thinking pill — like every other event, it is handled.
  */
 export const HEARTBEAT_STREAM_EVENT = 'heartbeat' satisfies AgentStreamEvent;
 

@@ -47,7 +47,9 @@ class ResilientKnowledgeGraphService:
                 # worker thread. Calling func(...) inline ran it on the event
                 # loop despite the async signature, stalling every concurrent
                 # request for the duration of the query.
-                result = await asyncio.to_thread(func, self._kg_service, *args, **kwargs)
+                result = await asyncio.to_thread(
+                    func, self._kg_service, *args, **kwargs
+                )
                 return result
 
             except Exception as e:
@@ -71,7 +73,9 @@ class ResilientKnowledgeGraphService:
 
     async def create_relationship(self, request):
         """Create relationship with retry"""
-        return await self._execute_with_retry(lambda kg: kg.create_relationship(request))
+        return await self._execute_with_retry(
+            lambda kg: kg.create_relationship(request)
+        )
 
     async def search_entities(self, query="", entity_types=None, limit=100):
         """Search entities with retry"""

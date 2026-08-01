@@ -9,10 +9,9 @@ StreamService.stream_response().
 """
 
 import logging
+from functools import partial
 from typing import Optional, Set
 from uuid import UUID
-
-from functools import partial
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse

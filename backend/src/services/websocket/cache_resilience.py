@@ -273,9 +273,11 @@ class WebSocketCache:
 
             # Store in Redis (compressed or uncompressed)
             redis_data = {
-                "message_data": compressed_json
-                if compressed_json
-                else json.dumps(message_data, separators=(",", ":")),
+                "message_data": (
+                    compressed_json
+                    if compressed_json
+                    else json.dumps(message_data, separators=(",", ":"))
+                ),
                 "message_type": message_type,
                 "priority": priority.value,
                 "created_at": str(cached_msg.created_at),

@@ -26,12 +26,7 @@ from ...services.evidence import (
     EvidenceCacheService,
     StanceClassifier,
 )
-from .schemas import (
-    EvidenceBreakdown,
-    EvidenceMeter,
-    Stance,
-    StanceBreakdownItem,
-)
+from .schemas import EvidenceBreakdown, EvidenceMeter, Stance, StanceBreakdownItem
 
 logger = logging.getLogger(__name__)
 

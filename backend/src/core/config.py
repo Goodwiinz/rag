@@ -447,6 +447,14 @@ class Settings(BaseSettings):
     # on nano. Cheap tier for routing, mid tier for final-answer quality.
     AZURE_OPENAI_SYNTHESIS_DEPLOYMENT: Optional[str] = None
 
+    # Dedicated evidence-independent chat lane. Kept separate from the main
+    # deployment so rollout/rollback never changes tool-calling behavior.
+    AGENT_FAST_PATH_ENABLED: bool = False
+    AGENT_FAST_PATH_DEPLOYMENT: str = "gpt-5.6-luna"
+    AGENT_FAST_PATH_MAX_INPUT_CHARS: int = 8_000
+    AGENT_FAST_PATH_MAX_OUTPUT_TOKENS: int = 768
+    AGENT_FAST_PATH_REQUEST_TIMEOUT: float = 20.0
+
     # gpt-5 reasoning_effort knobs. Lower = faster.
     # Accepted values: "minimal" | "low" | "medium" | "high"
     # Defaults tuned for fast responses; raise to "medium" for tougher tasks.

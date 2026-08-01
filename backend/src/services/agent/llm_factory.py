@@ -36,6 +36,7 @@ def _main_chat_deployment() -> str:
 # classifier / compactor / reflection single-instance caches already rely on.
 _LIGHTWEIGHT_LLM_CACHE: dict[tuple, BaseChatModel] = {}
 _SYNTHESIS_LLM_CACHE: dict[tuple, BaseChatModel] = {}
+_FAST_PATH_LLM_CACHE: dict[tuple, BaseChatModel] = {}
 
 
 def reset_llm_caches() -> None:
@@ -45,6 +46,7 @@ def reset_llm_caches() -> None:
     """
     _LIGHTWEIGHT_LLM_CACHE.clear()
     _SYNTHESIS_LLM_CACHE.clear()
+    _FAST_PATH_LLM_CACHE.clear()
 
 
 def _resolve_lightweight_deployment() -> str:
@@ -72,12 +74,40 @@ def _resolve_synthesis_deployment() -> str:
     )
 
 
+def _resolve_fast_path_deployment() -> str:
+    """Dedicated deployment for evidence-independent direct streaming."""
+    return get_settings().AGENT_FAST_PATH_DEPLOYMENT or "gpt-5.6-luna"
+
+
+def build_fast_path_llm() -> BaseChatModel:
+    """Return the cached direct-streaming model for evidence-independent turns."""
+    settings = get_settings()
+    deployment = _resolve_fast_path_deployment()
+    cache_key = (
+        deployment,
+        settings.AGENT_FAST_PATH_MAX_OUTPUT_TOKENS,
+        settings.AGENT_FAST_PATH_REQUEST_TIMEOUT,
+    )
+    if cache_key not in _FAST_PATH_LLM_CACHE:
+        _FAST_PATH_LLM_CACHE[cache_key] = _build_chat_llm(
+            deployment,
+            role_label="Fast-path",
+            max_tokens=settings.AGENT_FAST_PATH_MAX_OUTPUT_TOKENS,
+            streaming=True,
+            request_timeout=settings.AGENT_FAST_PATH_REQUEST_TIMEOUT,
+            reasoning_effort="none",
+            max_retries=1,
+        )
+    return _FAST_PATH_LLM_CACHE[cache_key]
+
+
 def _build_chat_llm(
     deployment: str,
     *,
     role_label: str,
     temperature: float = 0,
     max_tokens: int = 512,
+    streaming: bool = False,
     request_timeout: float | None = None,
     use_responses_api: bool | None = None,
     reasoning_effort: str | None = None,
@@ -122,6 +152,7 @@ def _build_chat_llm(
     extra: dict[str, Any] = {
         "request_timeout": request_timeout,
         "max_retries": max_retries,
+        "streaming": streaming,
     }
     if _accepts_temperature:
         extra["temperature"] = temperature
@@ -185,6 +216,7 @@ def build_lightweight_llm(
         role_label="Lightweight",
         temperature=temperature,
         max_tokens=max_tokens,
+        streaming=False,
         request_timeout=request_timeout,
         use_responses_api=use_responses_api,
         reasoning_effort=settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT or None,
@@ -225,6 +257,7 @@ def build_synthesis_llm(
         role_label="Synthesis",
         temperature=temperature,
         max_tokens=max_tokens,
+        streaming=True,
         request_timeout=resolved_timeout,
         use_responses_api=use_responses_api,
         # Shares AGENT_LIGHTWEIGHT_REASONING_EFFORT ("minimal") with the

@@ -23,10 +23,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from src.core.security import TokenData
+from src.core.security import TokenData, _extract_supabase_token_data
 from src.core.user_provisioning import ensure_user_and_org
 from src.models.organization import Organization
-from src.models.user import User
+from src.models.user import User, UserRole
 
 
 def _result(value):
@@ -58,9 +58,9 @@ def _session(*, execute_results, flush_side_effects):
     return db
 
 
-def _token(user_id="user-1", email="user@example.com", organization_id=None):
+def _token(user_id="user-1", email="user@example.com", organization_id=None, **extra):
     return TokenData(
-        user_id=user_id, email=email, organization_id=organization_id
+        user_id=user_id, email=email, organization_id=organization_id, **extra
     )
 
 
@@ -98,9 +98,7 @@ async def test_happy_path_creates_org_and_user_with_org_id():
         flush_side_effects=[None, None],  # org flush ok, user flush ok
     )
 
-    user = await ensure_user_and_org(
-        db, _token(organization_id="org-42")
-    )
+    user = await ensure_user_and_org(db, _token(organization_id="org-42"))
 
     assert isinstance(user, User)
     assert user.id == "user-1"
@@ -163,11 +161,17 @@ def _fake_db_with_org_table():
     async def _flush():
         obj = added[-1]
         if isinstance(obj, Organization) and getattr(obj, "id", None) is None:
+            # Organization.name is UNIQUE — model the constraint, otherwise a
+            # test can't tell "created its own org" from "silently overwrote
+            # somebody else's row".
+            if obj.name in orgs_by_name:
+                raise _integrity_error()
             obj.id = uuid.uuid4()
             orgs_by_name[obj.name] = obj
 
     db.execute = AsyncMock(side_effect=_execute)
     db.flush = AsyncMock(side_effect=_flush)
+    db.orgs_by_name = orgs_by_name
     return db
 
 
@@ -343,3 +347,209 @@ async def test_simultaneous_provisioning_converges_on_one_user():
     assert loser.id == winner_user_id  # loser converged on the winner's row
     loser_db.rollback.assert_awaited_once()
     winner_db.rollback.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Sign-up metadata (Supabase ``user_metadata``)
+#
+# The frontend sends {first_name, last_name, organization_name} through
+# ``supabase.auth.signUp({options: {data}})``; GoTrue echoes it back in the
+# JWT's ``user_metadata`` claim. Provisioning must use it for DISPLAY fields
+# only — it is client-controlled, so it may never reach role / permissions /
+# org membership / tenant scope.
+# ---------------------------------------------------------------------------
+
+
+def _supabase_payload(**user_metadata):
+    return {
+        "sub": "user-1",
+        "email": "a.two@example.com",
+        "app_metadata": {"role": "USER"},
+        "user_metadata": user_metadata,
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_signup_metadata_names_and_org_name_persisted():
+    """The names and organization the user typed at sign-up are what gets
+    written — not a guess off the email local-part and a UUID-blob org name."""
+    db = _session(
+        execute_results=[None, None],  # user missing, per-user org missing
+        flush_side_effects=[None, None],
+    )
+
+    user = await ensure_user_and_org(
+        db,
+        _token(
+            email="a.two@example.com",
+            signup_first_name="Abdelghafour",
+            signup_last_name="Two",
+            signup_organization_name="Acme Inc.",
+        ),
+    )
+
+    assert isinstance(user, User)
+    assert user.first_name == "Abdelghafour"
+    assert user.last_name == "Two"
+    added_org = db.add.call_args_list[0].args[0]
+    assert isinstance(added_org, Organization)
+    assert added_org.name == "Acme Inc."
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_blank_signup_metadata_keeps_derived_fallbacks():
+    """Absent/blank metadata leaves today's behavior untouched: names derived
+    from the email local-part, deterministic per-user org name."""
+    db = _session(
+        execute_results=[None, None],
+        flush_side_effects=[None, None],
+    )
+
+    user = await ensure_user_and_org(db, _token(email="a.two@example.com"))
+
+    assert user.first_name == "A"
+    assert user.last_name == "Two"
+    added_org = db.add.call_args_list[0].args[0]
+    assert added_org.name == "user-user-1 Organization"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_org_claim_ignores_signup_organization_name():
+    """A token carrying an org claim is authoritative: the org the user typed
+    must not rename (or redirect them away from) the claimed tenant."""
+    db = _session(
+        execute_results=[None, None],  # user missing, claimed org missing
+        flush_side_effects=[None, None],
+    )
+
+    user = await ensure_user_and_org(
+        db,
+        _token(
+            organization_id="org-42",
+            signup_organization_name="Acme Inc.",
+        ),
+    )
+
+    added_org = db.add.call_args_list[0].args[0]
+    assert added_org.name == "org-org-42"  # derived from the claimed org id
+    assert added_org.name != "Acme Inc."
+    assert user.organization_id == "org-42"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_signup_org_name_never_joins_another_tenants_org():
+    """SECURITY lock: typing an existing organization's name at sign-up must
+    NOT place the user in that organization. They get their own org (under the
+    deterministic fallback name) instead."""
+    db = _fake_db_with_org_table()
+
+    victim = await ensure_user_and_org(
+        db, _token(user_id="victim", signup_organization_name="Acme Inc.")
+    )
+    attacker = await ensure_user_and_org(
+        db, _token(user_id="attacker", signup_organization_name="Acme Inc.")
+    )
+
+    assert str(db.orgs_by_name["Acme Inc."].id) == victim.organization_id
+    assert attacker.organization_id is not None
+    assert attacker.organization_id != victim.organization_id
+    assert str(db.orgs_by_name["user-attacker Organization"].id) == (
+        attacker.organization_id
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_signup_org_name_cannot_squat_reserved_fallback_name():
+    """SECURITY lock: the per-user fallback name is a LOOKUP KEY, so a sign-up
+    name shaped like one must be refused — otherwise the squatter's org is
+    handed to the victim when the victim provisions later."""
+    db = _fake_db_with_org_table()
+
+    squatter = await ensure_user_and_org(
+        db,
+        _token(
+            user_id="squatter",
+            signup_organization_name="user-victim Organization",
+        ),
+    )
+    victim = await ensure_user_and_org(db, _token(user_id="victim"))
+
+    assert "user-victim Organization" not in [
+        name
+        for name, org in db.orgs_by_name.items()
+        if org.id == squatter.organization_id
+    ]
+    assert victim.organization_id != squatter.organization_id
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_hostile_signup_metadata_does_not_break_provisioning():
+    """Oversized / wrong-typed / privilege-shaped metadata must not 401 the
+    user, must not exceed the column widths, and must not set any
+    authorization field."""
+    token_data = _extract_supabase_token_data(
+        _supabase_payload(
+            first_name="A" * 500,
+            last_name={"nested": "dict"},
+            organization_name=["Acme", "Inc"],
+            role="ADMIN",
+            organization_id="org-victim",
+            is_admin=True,
+        )
+    )
+
+    assert token_data is not None
+    assert len(token_data.signup_first_name) == 100  # users.first_name limit
+    assert token_data.signup_last_name is None  # non-string dropped
+    assert token_data.signup_organization_name is None  # non-string dropped
+    assert token_data.role == "USER"  # from app_metadata, NOT user_metadata
+    assert token_data.organization_id is None  # never from user_metadata
+
+    db = _session(execute_results=[None, None], flush_side_effects=[None, None])
+    user = await ensure_user_and_org(db, token_data)
+
+    assert isinstance(user, User)
+    assert user.first_name == "A" * 100
+    assert user.last_name == "Two"  # derived fallback, dict was dropped
+    assert user.role is UserRole.USER
+    added_org = db.add.call_args_list[0].args[0]
+    assert added_org.name == "user-user-1 Organization"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_non_dict_user_metadata_claim_is_ignored():
+    """``user_metadata`` itself may be any JSON value; a string/list must not
+    raise on extraction."""
+    payload = _supabase_payload()
+    payload["user_metadata"] = "not-a-dict"
+
+    token_data = _extract_supabase_token_data(payload)
+
+    assert token_data is not None
+    assert token_data.signup_first_name is None
+    assert token_data.signup_organization_name is None
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_blank_and_whitespace_metadata_falls_back():
+    token_data = _extract_supabase_token_data(
+        _supabase_payload(first_name="   ", last_name="", organization_name="  ")
+    )
+
+    assert token_data.signup_first_name is None
+    assert token_data.signup_last_name is None
+    assert token_data.signup_organization_name is None
+
+    db = _session(execute_results=[None, None], flush_side_effects=[None, None])
+    user = await ensure_user_and_org(db, token_data)
+
+    assert user.first_name == "A"  # derived from a.two@example.com
+    assert user.last_name == "Two"

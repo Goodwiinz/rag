@@ -81,6 +81,18 @@ class TestResolveLightweightDeployment:
         assert _resolve_synthesis_deployment() != "model-router"
 
 
+def test_fast_path_deployment_defaults_to_luna(monkeypatch):
+    from src.core.config import get_settings
+    from src.services.agent.llm_factory import _resolve_fast_path_deployment
+
+    settings = get_settings()
+    monkeypatch.setattr(
+        settings, "AGENT_FAST_PATH_DEPLOYMENT", "gpt-5.6-luna", raising=False
+    )
+
+    assert _resolve_fast_path_deployment() == "gpt-5.6-luna"
+
+
 @pytest.mark.unit
 class TestBuilderCaching:
     """build_synthesis_llm / build_lightweight_llm cache one instance per args."""
@@ -125,3 +137,21 @@ class TestBuilderCaching:
         z = llm_factory.build_lightweight_llm(max_tokens=2048)
         assert x is y and x is not z
         assert calls["n"] == 2  # built once per distinct key
+
+    def test_only_user_facing_synthesis_enables_streaming(self, monkeypatch):
+        """Auxiliary JSON must stay buffered; final prose should emit chunks."""
+        from src.services.agent import llm_factory
+
+        calls = []
+
+        def _fake(*args, **kwargs):
+            calls.append(kwargs)
+            return object()
+
+        monkeypatch.setattr(llm_factory, "_build_chat_llm", _fake)
+
+        llm_factory.build_lightweight_llm()
+        llm_factory.build_synthesis_llm()
+
+        assert calls[0]["streaming"] is False
+        assert calls[1]["streaming"] is True

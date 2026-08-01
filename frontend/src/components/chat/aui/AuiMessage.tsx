@@ -227,9 +227,32 @@ export function AuiUserMessage(): ReactElement {
   );
 }
 
+/** Elapsed run time for the pill: "47s", "2m 05s". Sub-second readings are
+ * noise while the first token is still plausibly imminent. */
+export function formatStreamingElapsed(
+  elapsedMs: number | null
+): string | null {
+  if (elapsedMs === null || !Number.isFinite(elapsedMs) || elapsedMs < 1000) {
+    return null;
+  }
+  const totalSeconds = Math.floor(elapsedMs / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+}
+
 /** Pre-first-token status pill (mirrors the legacy ChatBubble ThinkingPill). */
-function StreamingThinkingPill({ label }: { label: string }): ReactElement {
+function StreamingThinkingPill({
+  label,
+  elapsedMs,
+}: {
+  label: string;
+  /** Last `heartbeat` reading for this turn (ms), or null before the first. */
+  elapsedMs?: number | null;
+}): ReactElement {
   const reduce = useReducedMotion();
+  const elapsed = formatStreamingElapsed(elapsedMs ?? null);
   return (
     <motion.div
       className="nous-streaming-pill"
@@ -247,6 +270,13 @@ function StreamingThinkingPill({ label }: { label: string }): ReactElement {
         }}
       />
       <span>{label}</span>
+      {elapsed && (
+        // aria-live off: the pill's own polite region announces the phase
+        // label; a per-tick reading of the counter would just interrupt.
+        <span aria-live="off" style={{ color: 'var(--nous-fg-2)' }}>
+          · {elapsed}
+        </span>
+      )}
     </motion.div>
   );
 }
@@ -262,9 +292,22 @@ function AuiStreamingBody(): ReactElement {
   const content = useChatStore((s) => s.streamingContent);
   const steps = useChatStore((s) => s.streamingSteps);
   const isRetrievingRag = useChatStore((s) => s.isRetrievingRag);
+  const elapsedMs = useChatStore((s) => s.streamingElapsedMs);
+  const streamingPhase = useChatStore((s) => s.streamingPhase);
   const streamingCitations = useChatStore((s) => s.streamingCitations);
   const threadId = useAgentActivityStore((s) => s.currentThreadId);
-  const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Reflecting';
+  const phaseLabel = streamingPhase
+    ? {
+        accepted: 'Starting',
+        routing: 'Choosing approach',
+        retrieving: 'Reading sources',
+        planning: 'Planning',
+        writing: 'Writing',
+        finalizing: 'Saving response',
+      }[streamingPhase]
+    : undefined;
+  const thinkingLabel =
+    phaseLabel ?? (isRetrievingRag ? 'Reading sources' : 'Reflecting');
 
   return (
     <>
@@ -292,7 +335,7 @@ function AuiStreamingBody(): ReactElement {
         <AuiToolParts messageId="streaming" steps={steps} isStreaming />
       )}
       {!content ? (
-        <StreamingThinkingPill label={thinkingLabel} />
+        <StreamingThinkingPill label={thinkingLabel} elapsedMs={elapsedMs} />
       ) : (
         <div className="nous-chat-body">
           <CitationRenderer

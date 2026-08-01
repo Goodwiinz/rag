@@ -354,9 +354,7 @@ class WebSocketAuthenticator:
 
             async with get_db_session() as session:
                 result = await session.execute(
-                    select(User).where(
-                        User.id == user_id, User.is_deleted == False
-                    )
+                    select(User).where(User.id == user_id, User.is_deleted == False)
                 )
                 return result.scalars().first()
 

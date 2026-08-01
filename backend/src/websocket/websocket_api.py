@@ -446,9 +446,11 @@ async def create_system_announcement(
                 "message": announcement.message,
                 "severity": announcement.severity,
                 "target_roles": announcement.target_roles,
-                "expires_at": announcement.expires_at.isoformat()
-                if announcement.expires_at
-                else None,
+                "expires_at": (
+                    announcement.expires_at.isoformat()
+                    if announcement.expires_at
+                    else None
+                ),
                 "action_url": announcement.action_url,
                 "action_required": bool(announcement.action_url),
             },

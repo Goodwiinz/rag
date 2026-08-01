@@ -62,7 +62,9 @@ class WriterService:
             )
             confidence = 0.80
 
-        citations_used = ["[1]", "[2]"] if action == "complete" else ["[1]", "[2]", "[3]", "[4]"]
+        citations_used = (
+            ["[1]", "[2]"] if action == "complete" else ["[1]", "[2]", "[3]", "[4]"]
+        )
 
         return {
             "generated": generated,

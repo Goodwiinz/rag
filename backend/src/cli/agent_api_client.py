@@ -66,7 +66,9 @@ class AgentAPIClient:
         if self._owns_client:
             await self._client.aclose()
 
-    async def stream_message(self, request_body: Mapping[str, Any]) -> AsyncIterator[CLIEvent]:
+    async def stream_message(
+        self, request_body: Mapping[str, Any]
+    ) -> AsyncIterator[CLIEvent]:
         async for event in self._stream_events("/api/v1/agent/stream", request_body):
             yield event
 

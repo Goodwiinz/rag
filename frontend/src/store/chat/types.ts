@@ -20,6 +20,7 @@ import {
   ChatMessageUpdate,
 } from '@/types/workspace';
 import type { ActivityStep } from '@/components/chat/shared/cloudMessageView';
+import type { AgentStreamPhase } from '@/services/agentStreamEvents';
 
 export interface ChatState {
   // Current selections
@@ -88,6 +89,12 @@ export interface ChatState {
   isRetrievingRag: boolean;
   /** Tool executions accumulated during the current streaming turn. */
   streamingSteps: ActivityStep[];
+  /** Elapsed time of the current turn as last reported by a `heartbeat`
+   * frame (ms). null until the first heartbeat — a silent planner/LLM phase
+   * is otherwise indistinguishable from a stalled run. */
+  streamingElapsedMs: number | null;
+  /** Truthful server-reported phase for the pre-first-token status pill. */
+  streamingPhase: AgentStreamPhase | null;
   // CX5: the workspace thread id that owns the CURRENT live stream (both the
   // main runStreamTurn path and the separate HITL confirm-resume path stamp
   // this). isStreaming etc. above stay global — single-flight streaming is

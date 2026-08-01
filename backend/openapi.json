@@ -7337,24 +7337,6 @@
         "title": "PaginationInfo",
         "type": "object"
       },
-      "PasswordChange": {
-        "properties": {
-          "current_password": {
-            "title": "Current Password",
-            "type": "string"
-          },
-          "new_password": {
-            "title": "New Password",
-            "type": "string"
-          }
-        },
-        "required": [
-          "current_password",
-          "new_password"
-        ],
-        "title": "PasswordChange",
-        "type": "object"
-      },
       "PermissionCategoryResponse": {
         "description": "Response model for permission category",
         "properties": {
@@ -15478,7 +15460,7 @@
     },
     "/api/v1/agent/stream": {
       "post": {
-        "description": "Stream agent responses via Server-Sent Events.\n\nSSE event types are the ``AgentStreamEvent`` wire vocabulary\n(``src/shared/enums.py`` — the single source of truth): token, tool_start,\ntool_end, rag_context, plan, reflection, trace, usage, heartbeat,\nconfirmation, done, error. ``heartbeat`` is a payload-less keepalive; the\nterminal frames are ``TERMINAL_STREAM_EVENTS`` (done, error, confirmation).",
+        "description": "Stream agent responses via Server-Sent Events.\n\nSSE event types are the ``AgentStreamEvent`` wire vocabulary\n(``src/shared/enums.py`` — the single source of truth): token, tool_start,\ntool_end, rag_context, plan, reflection, trace, usage, heartbeat, status,\nconfirmation, done, error. ``heartbeat`` is a payload-less keepalive; the\nterminal frames are ``TERMINAL_STREAM_EVENTS`` (done, error, confirmation).",
         "operationId": "stream_agent_api_v1_agent_stream_post",
         "requestBody": {
           "content": {
@@ -20107,51 +20089,6 @@
           }
         ],
         "summary": "Track Category Changes"
-      }
-    },
-    "/api/v1/auth/change-password": {
-      "post": {
-        "description": "Change user password",
-        "operationId": "change_password_api_v1_auth_change_password_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PasswordChange"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Change Password",
-        "tags": [
-          "authentication"
-        ]
       }
     },
     "/api/v1/auth/cleanup": {

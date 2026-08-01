@@ -118,6 +118,31 @@ Only `dev` deploys via ArgoCD (staging/prod apps retired in #442, values scaffol
 - Feature branches from `develop`
 - PRs target `develop`
 
+## Working Agreement (Claude Code)
+
+Calibrated for Opus 5, which narrates, verifies, and delegates more than earlier
+models unless told otherwise.
+
+- **Answer first.** Lead with what happened or what you found; supporting detail
+  after. One sentence before the first tool call, then updates only on a real
+  finding or a change of direction.
+- **Scope.** Deliver what was asked, at the scope intended. Make routine
+  judgment calls yourself; check in only when different readings lead to
+  materially different work. If the request looks mistaken, say so in a sentence
+  and continue as asked rather than quietly narrowing or widening it.
+- **Verification is the commands in Development Workflow**, not extra passes.
+  `pnpm validate`, `pytest`, `scripts/ci/run_local_ci.sh` are the gate — don't
+  add self-review rounds or verifier subagents on top of them.
+- **Delegation** is for wide, genuinely independent sweeps (multi-file audits,
+  parallel bug hunts). One subagent beats three. Don't delegate what takes a
+  handful of tool calls, and don't spawn agents to check your own work.
+- **Written deliverables** (audit docs, PR bodies, `docs/`) cover the substance
+  without filler sections, redundant summaries, or boilerplate. Length follows
+  content — a two-line finding is a two-line finding.
+- **Corrections:** flag an earlier statement only when the error changes code,
+  conclusions, or decisions. Otherwise fix it and move on.
+- Keep responses and caveats short; most of the response goes to the answer.
+
 ## Design Context
 
 `PRODUCT.md` (strategic) + `DESIGN.md` (visual) at project root are the source of truth for the impeccable design skill. Register default: `product` (landing+auth are `brand` per-task).

@@ -6,22 +6,22 @@ threads_router MUST be included BEFORE workspaces_standalone_router in main.py
 because threads_router has /bulk/* routes that need higher priority.
 """
 
-from .workspaces import router as workspaces_router
-from .workspaces import standalone_router as workspaces_standalone_router
-from .threads import router as threads_router
-from .threads import (
-    check_bulk_rate_limit,
-    check_bulk_resolve_rate_limit,
-    check_bulk_archive_rate_limit,
-    check_bulk_summarize_rate_limit,
-    check_bulk_delete_rate_limit,
-    get_chat_service,
-    get_current_user,
-    thread_event_service,
-)
+from .conversations import router as conversations_router
 from .stream import router as stream_router
 from .thread_search import router as thread_search_router
-from .conversations import router as conversations_router
+from .threads import (
+    check_bulk_archive_rate_limit,
+    check_bulk_delete_rate_limit,
+    check_bulk_rate_limit,
+    check_bulk_resolve_rate_limit,
+    check_bulk_summarize_rate_limit,
+    get_chat_service,
+    get_current_user,
+)
+from .threads import router as threads_router
+from .threads import thread_event_service
+from .workspaces import router as workspaces_router
+from .workspaces import standalone_router as workspaces_standalone_router
 
 __all__ = [
     "workspaces_router",

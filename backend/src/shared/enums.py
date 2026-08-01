@@ -280,6 +280,7 @@ class AgentStreamEvent(StrEnum):
     # Keepalive with no payload; the frontend intentionally drops it (see
     # agentStreamEvents.ts). Every OTHER member must be handled by the consumer.
     HEARTBEAT = "heartbeat"
+    STATUS = "status"
     CONFIRMATION = "confirmation"
     DONE = "done"
     ERROR = "error"

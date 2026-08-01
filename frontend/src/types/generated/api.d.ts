@@ -176,7 +176,7 @@ export interface paths {
          *
          *     SSE event types are the ``AgentStreamEvent`` wire vocabulary
          *     (``src/shared/enums.py`` — the single source of truth): token, tool_start,
-         *     tool_end, rag_context, plan, reflection, trace, usage, heartbeat,
+         *     tool_end, rag_context, plan, reflection, trace, usage, heartbeat, status,
          *     confirmation, done, error. ``heartbeat`` is a payload-less keepalive; the
          *     terminal frames are ``TERMINAL_STREAM_EVENTS`` (done, error, confirmation).
          */
@@ -2150,26 +2150,6 @@ export interface paths {
          *     the database and knowledge graph with the changes.
          */
         post: operations["track_category_changes_api_v1_arxiv_tracking_track_categories_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/change-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Change Password
-         * @description Change user password
-         */
-        post: operations["change_password_api_v1_auth_change_password_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -12086,13 +12066,6 @@ export interface components {
             /** Total Pages */
             total_pages: number;
         };
-        /** PasswordChange */
-        PasswordChange: {
-            /** Current Password */
-            current_password: string;
-            /** New Password */
-            new_password: string;
-        };
         /**
          * PermissionCategoryResponse
          * @description Response model for permission category
@@ -18611,39 +18584,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CategoryTrackingRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    change_password_api_v1_auth_change_password_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PasswordChange"];
             };
         };
         responses: {

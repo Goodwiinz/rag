@@ -59,7 +59,9 @@ class BottleneckReport:
 
     trace_id: str
     findings: List[Finding] = field(default_factory=list)
-    stage_health: Dict[str, str] = field(default_factory=dict)  # stage -> green/yellow/red
+    stage_health: Dict[str, str] = field(
+        default_factory=dict
+    )  # stage -> green/yellow/red
     overall_health: str = "green"
 
     def to_dict(self) -> Dict[str, Any]:

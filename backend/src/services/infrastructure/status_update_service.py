@@ -205,12 +205,16 @@ class StatusUpdateService(BaseService):
                     "filename": document.filename,
                     "document_type": document.document_type.value,
                     "processing_status": status.value,
-                    "processing_started_at": document.processing_started_at.isoformat()
-                    if document.processing_started_at
-                    else None,
-                    "processing_completed_at": document.processing_completed_at.isoformat()
-                    if document.processing_completed_at
-                    else None,
+                    "processing_started_at": (
+                        document.processing_started_at.isoformat()
+                        if document.processing_started_at
+                        else None
+                    ),
+                    "processing_completed_at": (
+                        document.processing_completed_at.isoformat()
+                        if document.processing_completed_at
+                        else None
+                    ),
                     "processing_error": error or document.processing_error,
                     "processing_retry_count": document.processing_retry_count,
                     "updated_at": datetime.now(dt_timezone.utc).isoformat(),
@@ -238,9 +242,7 @@ class StatusUpdateService(BaseService):
                 # missing (skip the channel fan-out) rather than treat None as
                 # "broadcast to everyone".
                 target_org = (
-                    str(document.organization_id)
-                    if document.organization_id
-                    else None
+                    str(document.organization_id) if document.organization_id else None
                 )
                 message = WebSocketMessage(
                     type=MessageType.DOCUMENT_PROCESSING,
@@ -322,12 +324,12 @@ class StatusUpdateService(BaseService):
                     "current_step": job.current_step,
                     "total_steps": job.total_steps,
                     "completed_steps": job.completed_steps,
-                    "started_at": job.started_at.isoformat()
-                    if job.started_at
-                    else None,
-                    "completed_at": job.completed_at.isoformat()
-                    if job.completed_at
-                    else None,
+                    "started_at": (
+                        job.started_at.isoformat() if job.started_at else None
+                    ),
+                    "completed_at": (
+                        job.completed_at.isoformat() if job.completed_at else None
+                    ),
                     "duration_seconds": job.duration_seconds,
                     "error_message": error or job.error_message,
                     "retry_count": job.retry_count,
@@ -346,9 +348,7 @@ class StatusUpdateService(BaseService):
                 # target_organization scopes the shared-channel broadcast to
                 # the owning tenant. Fail CLOSED on a missing org (see the
                 # document path above for rationale).
-                target_org = (
-                    str(job.organization_id) if job.organization_id else None
-                )
+                target_org = str(job.organization_id) if job.organization_id else None
                 message = WebSocketMessage(
                     type=MessageType.JOB_STATUS,
                     data=update_data,
@@ -419,9 +419,11 @@ class StatusUpdateService(BaseService):
                 type=MessageType.SYSTEM_NOTIFICATION,
                 data=notification_data,
                 timestamp=datetime.now(dt_timezone.utc),
-                priority=Priority.HIGH
-                if notification_type in ["error", "warning"]
-                else Priority.NORMAL,
+                priority=(
+                    Priority.HIGH
+                    if notification_type in ["error", "warning"]
+                    else Priority.NORMAL
+                ),
                 target_channels=[Channel.USER_NOTIFICATIONS.value],
             )
 

@@ -3,9 +3,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from structlog import get_logger
 
+from src.core.dependencies import get_current_user
 from src.models.user import User
 from src.services.research.tone_engine_service import ToneEngineService
-from src.core.dependencies import get_current_user
 from src.shared.scispace_schemas import RewriteRequest, RewriteResponse
 
 logger = get_logger()

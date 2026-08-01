@@ -574,15 +574,15 @@ class EnhancedDocument(BaseModel):
         # Convert enum values
         data.update(
             {
-                "primary_modality": self.primary_modality.value
-                if self.primary_modality
-                else None,
-                "processing_status": self.processing_status.value
-                if self.processing_status
-                else None,
-                "quality_level": self.quality_level.value
-                if self.quality_level
-                else None,
+                "primary_modality": (
+                    self.primary_modality.value if self.primary_modality else None
+                ),
+                "processing_status": (
+                    self.processing_status.value if self.processing_status else None
+                ),
+                "quality_level": (
+                    self.quality_level.value if self.quality_level else None
+                ),
             }
         )
 

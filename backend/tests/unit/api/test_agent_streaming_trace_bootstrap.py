@@ -3,6 +3,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from tests.utils.agent_stream import make_stream_request
+
 
 class _FakeGraph:
     def __init__(self, snapshot=None):
@@ -34,7 +36,7 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
     # generator must emit `done`. Disconnect now cancels early without a `done`
     # — covered by test_stream_event_generator_cancels_on_disconnect below.
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = SimpleNamespace(messages=[], page_context={"type": "general"}, thread_id="", model=None)
+    body = make_stream_request(messages=[], thread_id="")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
@@ -80,9 +82,7 @@ async def test_stream_event_generator_cancels_on_disconnect():
 
     # Client is gone before the first graph event is read.
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
-    body = SimpleNamespace(
-        messages=[], page_context={"type": "general"}, thread_id="", model=None
-    )
+    body = make_stream_request(messages=[], thread_id="")
     current_user = Mock(id="user-1", organization_id="org-1")
     persist = AsyncMock(return_value=None)
 
@@ -175,9 +175,7 @@ async def test_stream_confirm_event_generator_bootstraps_langsmith_before_compil
         ),
     ):
         events = []
-        async for event in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
     assert configured is True

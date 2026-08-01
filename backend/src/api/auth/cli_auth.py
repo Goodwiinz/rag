@@ -1,14 +1,12 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
+import redis as redis_lib
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
-
-import logging
-
-import redis as redis_lib
 
 from src.core.config import settings
 from src.core.dependencies import get_current_user
@@ -24,6 +22,7 @@ router = APIRouter(prefix="/cli-auth", tags=["cli-auth"])
 
 _POLL_INTERVAL_SECONDS = 2
 
+
 # Prefer Redis-backed store so sessions survive across Gunicorn workers.
 # Falls back to in-memory if Redis is unavailable (e.g. local dev without Redis).
 def _build_session_store() -> RedisCLIAuthSessionStore | InMemoryCLIAuthSessionStore:
@@ -33,8 +32,11 @@ def _build_session_store() -> RedisCLIAuthSessionStore | InMemoryCLIAuthSessionS
         logger.info("cli-auth: using Redis session store")
         return RedisCLIAuthSessionStore(r)
     except Exception as exc:
-        logger.warning("cli-auth: Redis unavailable (%s), falling back to in-memory store", exc)
+        logger.warning(
+            "cli-auth: Redis unavailable (%s), falling back to in-memory store", exc
+        )
         return InMemoryCLIAuthSessionStore()
+
 
 _session_store = _build_session_store()
 
@@ -44,7 +46,9 @@ class CLIAuthApproveRequest(BaseModel):
     verification_code: str
 
 
-def get_cli_auth_session_store() -> RedisCLIAuthSessionStore | InMemoryCLIAuthSessionStore:
+def get_cli_auth_session_store() -> (
+    RedisCLIAuthSessionStore | InMemoryCLIAuthSessionStore
+):
     return _session_store
 
 
@@ -129,7 +133,11 @@ async def approve_cli_auth(
         user_id=str(current_user.id),
         email=str(current_user.email),
         organization_id=organization_id,
-        role=str(role.value) if hasattr(role, "value") else (str(role) if role else "USER"),
+        role=(
+            str(role.value)
+            if hasattr(role, "value")
+            else (str(role) if role else "USER")
+        ),
     )
 
     credential_payload = {

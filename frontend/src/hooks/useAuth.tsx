@@ -18,6 +18,9 @@ interface AuthContextType {
   isLoading: boolean;
   error: string | null;
   pendingEmailConfirmation: boolean;
+  pendingConfirmationEmail: string | null;
+  pendingSignupPossiblyExisting: boolean;
+  clearPendingEmailConfirmation: () => void;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (userData: RegisterRequest) => Promise<RegisterResult>;
   signOut: () => Promise<void>;
@@ -27,7 +30,10 @@ interface AuthContextType {
   // Legacy aliases for backward compatibility
   login: (email: string, password: string) => Promise<void>;
   register: (userData: RegisterRequest) => Promise<RegisterResult>;
-  logout: () => void;
+  // signOut is async; it resolves even when server-side revocation fails (the
+  // local session is destroyed either way), so bare `logout()` call sites can
+  // never produce an unhandled rejection.
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -59,6 +65,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       isLoading: store.isLoading,
       error: store.error,
       pendingEmailConfirmation: store.pendingEmailConfirmation,
+      pendingConfirmationEmail: store.pendingConfirmationEmail,
+      pendingSignupPossiblyExisting: store.pendingSignupPossiblyExisting,
+      clearPendingEmailConfirmation: store.clearPendingEmailConfirmation,
       signIn: store.signIn,
       signUp: store.signUp,
       signOut: store.signOut,
@@ -79,6 +88,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       store.isLoading,
       store.error,
       store.pendingEmailConfirmation,
+      store.pendingConfirmationEmail,
+      store.pendingSignupPossiblyExisting,
       handleAuthError,
     ]
   );
