@@ -332,7 +332,9 @@ class DataRetentionManager:
 
                 if not dry_run and report.records_processed > 0:
                     # Move records to archive table
-                    archive_query = text(f"INSERT INTO {archive_table} SELECT * FROM {policy.table_name} WHERE created_at < :cutoff_date")  # nosec: B608
+                    archive_query = text(
+                        f"INSERT INTO {archive_table} SELECT * FROM {policy.table_name} WHERE created_at < :cutoff_date"
+                    )  # nosec: B608
                     db.execute(archive_query, {"cutoff_date": cutoff_date})
 
                     # Delete from main table
