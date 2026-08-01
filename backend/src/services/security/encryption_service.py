@@ -557,9 +557,11 @@ class EncryptionService:
                 "active_key_id": active_key.key_id if active_key else None,
                 "key_algorithm": active_key.algorithm if active_key else None,
                 "created_at": active_key.created_at.isoformat() if active_key else None,
-                "expires_at": active_key.expires_at.isoformat()
-                if active_key and active_key.expires_at
-                else None,
+                "expires_at": (
+                    active_key.expires_at.isoformat()
+                    if active_key and active_key.expires_at
+                    else None
+                ),
                 "is_expired": active_key.is_expired() if active_key else False,
             }
 

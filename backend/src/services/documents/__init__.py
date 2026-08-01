@@ -35,29 +35,68 @@ __all__ = [
 _EXPORTS: Dict[str, Tuple[str, str]] = {
     # File service
     "FileService": ("src.services.documents.file_service", "FileService"),
-    "FileValidationError": ("src.services.documents.file_service", "FileValidationError"),
+    "FileValidationError": (
+        "src.services.documents.file_service",
+        "FileValidationError",
+    ),
     "FileStorageErrorBase": ("src.services.documents.file_service", "FileStorageError"),
     # Enhanced file service
-    "EnhancedFileService": ("src.services.documents.enhanced_file_service", "EnhancedFileService"),
+    "EnhancedFileService": (
+        "src.services.documents.enhanced_file_service",
+        "EnhancedFileService",
+    ),
     "EnhancedFileValidationError": (
         "src.services.documents.enhanced_file_service",
         "EnhancedFileValidationError",
     ),
-    "SecurityScanError": ("src.services.documents.enhanced_file_service", "SecurityScanError"),
-    "EnhancedFileStorageError": ("src.services.documents.enhanced_file_service", "FileStorageError"),
-    "FileIntegrityError": ("src.services.documents.enhanced_file_service", "FileIntegrityError"),
-    "SecurityThreat": ("src.services.documents.enhanced_file_service", "SecurityThreat"),
+    "SecurityScanError": (
+        "src.services.documents.enhanced_file_service",
+        "SecurityScanError",
+    ),
+    "EnhancedFileStorageError": (
+        "src.services.documents.enhanced_file_service",
+        "FileStorageError",
+    ),
+    "FileIntegrityError": (
+        "src.services.documents.enhanced_file_service",
+        "FileIntegrityError",
+    ),
+    "SecurityThreat": (
+        "src.services.documents.enhanced_file_service",
+        "SecurityThreat",
+    ),
     # Document management
-    "DocumentUploadRequest": ("src.services.documents.document_management", "DocumentUploadRequest"),
-    "DocumentUpdateRequest": ("src.services.documents.document_management", "DocumentUpdateRequest"),
-    "DocumentListRequest": ("src.services.documents.document_management", "DocumentListRequest"),
+    "DocumentUploadRequest": (
+        "src.services.documents.document_management",
+        "DocumentUploadRequest",
+    ),
+    "DocumentUpdateRequest": (
+        "src.services.documents.document_management",
+        "DocumentUpdateRequest",
+    ),
+    "DocumentListRequest": (
+        "src.services.documents.document_management",
+        "DocumentListRequest",
+    ),
     # Document quality
-    "DocumentQualityService": ("src.services.documents.document_quality_service", "DocumentQualityService"),
+    "DocumentQualityService": (
+        "src.services.documents.document_quality_service",
+        "DocumentQualityService",
+    ),
     "QualityIssue": ("src.services.documents.document_quality_service", "QualityIssue"),
     # Document realtime
-    "DocumentRealtimeService": ("src.services.documents.document_realtime_service", "DocumentRealtimeService"),
-    "ProcessingEventType": ("src.services.documents.document_realtime_service", "ProcessingEventType"),
-    "ProcessingEvent": ("src.services.documents.document_realtime_service", "ProcessingEvent"),
+    "DocumentRealtimeService": (
+        "src.services.documents.document_realtime_service",
+        "DocumentRealtimeService",
+    ),
+    "ProcessingEventType": (
+        "src.services.documents.document_realtime_service",
+        "ProcessingEventType",
+    ),
+    "ProcessingEvent": (
+        "src.services.documents.document_realtime_service",
+        "ProcessingEvent",
+    ),
 }
 
 

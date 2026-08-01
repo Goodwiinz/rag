@@ -72,9 +72,9 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                     "http.host": request.url.hostname,
                     "http.target": request.url.path,
                     "http.user_agent": request.headers.get("user-agent", ""),
-                    "http.client_ip": request.client.host
-                    if request.client
-                    else "unknown",
+                    "http.client_ip": (
+                        request.client.host if request.client else "unknown"
+                    ),
                     "http.referer": request.headers.get("referer", ""),
                 },
             ) as span:
@@ -471,7 +471,9 @@ def trace_async_business_operation(
             if business_id:
                 attributes["business.id"] = business_id
 
-            async with async_trace_span(f"business.{operation_name}", attributes=attributes):
+            async with async_trace_span(
+                f"business.{operation_name}", attributes=attributes
+            ):
                 with track_performance(f"business_{operation_name}"):
                     try:
                         start_time = time.time()

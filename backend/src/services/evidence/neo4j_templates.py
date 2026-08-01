@@ -4,12 +4,12 @@ Neo4j Cypher templates for Evidence Agreement Meter
 Contains templates for creating Claim nodes and TAKES_STANCE relationships
 """
 
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 
 class Neo4jTemplates:
     """Collection of Cypher templates for evidence meter Neo4j operations"""
-    
+
     # Create or merge a Claim node
     CREATE_CLAIM_NODE = """
     MERGE (c:Claim {hash: $claim_hash})
@@ -22,7 +22,7 @@ class Neo4jTemplates:
         c.updated_at = datetime()
     RETURN c
     """
-    
+
     # Create TAKES_STANCE relationship between Source and Claim
     CREATE_TAKES_STANCE = """
     MATCH (s:Source {id: $source_id})
@@ -48,7 +48,7 @@ class Neo4jTemplates:
         r.classified_at = datetime()
     RETURN r
     """
-    
+
     # Get all sources that take a stance on a claim
     GET_CLAIM_STANCES = """
     MATCH (c:Claim {hash: $claim_hash})<-[r:TAKES_STANCE]-(s:Source)
@@ -59,7 +59,7 @@ class Neo4jTemplates:
            r.classified_at as classified_at
     ORDER BY r.confidence DESC
     """
-    
+
     # Get stances for specific sources and claim
     GET_SOURCES_STANCES = """
     MATCH (c:Claim {hash: $claim_hash})<-[r:TAKES_STANCE]-(s:Source)
@@ -70,7 +70,7 @@ class Neo4jTemplates:
            r.classified_at as classified_at
     ORDER BY r.confidence DESC
     """
-    
+
     # Find similar claims (for potential reuse)
     FIND_SIMILAR_CLAIMS = """
     MATCH (c:Claim)
@@ -78,7 +78,7 @@ class Neo4jTemplates:
     RETURN c.hash as claim_hash, c.text as claim_text, c.normalized as normalized_text
     LIMIT 10
     """
-    
+
     # Get consensus statistics for a claim
     GET_CONSENSUS_STATS = """
     MATCH (c:Claim {hash: $claim_hash})<-[r:TAKES_STANCE]-(s:Source)
@@ -92,7 +92,7 @@ class Neo4jTemplates:
         count(r) as total
     RETURN supporting, opposing, neutral, not_addressed, avg_confidence, total
     """
-    
+
     # Get temporal analysis (evolution of consensus over time)
     GET_TEMPORAL_CONSENSUS = """
     MATCH (c:Claim {hash: $claim_hash})<-[r:TAKES_STANCE]-(s:Source)
@@ -107,14 +107,14 @@ class Neo4jTemplates:
     RETURN year, supporting, opposing, neutral, total
     ORDER BY year
     """
-    
+
     # Delete stances for outdated model versions
     DELETE_OUTDATED_STANCES = """
     MATCH ()-[r:TAKES_STANCE]->()
     WHERE r.model_version <> $current_model_version
     DELETE r
     """
-    
+
     # Get retracted sources that have stances on a claim
     GET_RETRACTED_SOURCES_FOR_CLAIM = """
     MATCH (c:Claim {hash: $claim_hash})<-[r:TAKES_STANCE]-(s:Source)
@@ -124,38 +124,46 @@ class Neo4jTemplates:
     """
 
     @classmethod
-    def build_create_claim_params(cls, claim_hash: str, claim_text: str, normalized_text: str) -> Dict[str, Any]:
+    def build_create_claim_params(
+        cls, claim_hash: str, claim_text: str, normalized_text: str
+    ) -> Dict[str, Any]:
         """Build parameters for CREATE_CLAIM_NODE template"""
         return {
-            'claim_hash': claim_hash,
-            'claim_text': claim_text,
-            'normalized_text': normalized_text
+            "claim_hash": claim_hash,
+            "claim_text": claim_text,
+            "normalized_text": normalized_text,
         }
-    
+
     @classmethod
-    def build_stance_params(cls, source_id: str, claim_hash: str, claim_text: str, 
-                           normalized_text: str, stance: str, confidence: float,
-                           justification_excerpt: str, model_version: str) -> Dict[str, Any]:
+    def build_stance_params(
+        cls,
+        source_id: str,
+        claim_hash: str,
+        claim_text: str,
+        normalized_text: str,
+        stance: str,
+        confidence: float,
+        justification_excerpt: str,
+        model_version: str,
+    ) -> Dict[str, Any]:
         """Build parameters for CREATE_TAKES_STANCE template"""
         return {
-            'source_id': source_id,
-            'claim_hash': claim_hash,
-            'claim_text': claim_text,
-            'normalized_text': normalized_text,
-            'stance': stance,
-            'confidence': confidence,
-            'justification_excerpt': justification_excerpt,
-            'model_version': model_version
+            "source_id": source_id,
+            "claim_hash": claim_hash,
+            "claim_text": claim_text,
+            "normalized_text": normalized_text,
+            "stance": stance,
+            "confidence": confidence,
+            "justification_excerpt": justification_excerpt,
+            "model_version": model_version,
         }
-    
+
     @classmethod
-    def build_query_params(cls, claim_hash: str, model_version: str, 
-                          source_ids: List[str] = None) -> Dict[str, Any]:
+    def build_query_params(
+        cls, claim_hash: str, model_version: str, source_ids: List[str] = None
+    ) -> Dict[str, Any]:
         """Build parameters for query templates"""
-        params = {
-            'claim_hash': claim_hash,
-            'model_version': model_version
-        }
+        params = {"claim_hash": claim_hash, "model_version": model_version}
         if source_ids:
-            params['source_ids'] = source_ids
+            params["source_ids"] = source_ids
         return params

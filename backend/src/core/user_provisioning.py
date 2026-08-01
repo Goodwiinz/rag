@@ -52,9 +52,7 @@ async def _resolve_or_create_org(
     org_id = token_data.organization_id
 
     if org_id:
-        result = await db.execute(
-            select(Organization).where(Organization.id == org_id)
-        )
+        result = await db.execute(select(Organization).where(Organization.id == org_id))
         org = result.scalars().first()
         if org:
             return org
@@ -177,9 +175,7 @@ async def _create_user(
         )
     except IntegrityError:
         await db.rollback()
-        result = await db.execute(
-            select(User).where(User.id == token_data.user_id)
-        )
+        result = await db.execute(select(User).where(User.id == token_data.user_id))
         user = result.scalars().first()
 
     return user

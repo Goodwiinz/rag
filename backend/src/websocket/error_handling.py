@@ -248,9 +248,11 @@ class WebSocketErrorHandler:
             "errors_by_category": dict(self.error_metrics.errors_by_category),
             "errors_by_severity": dict(self.error_metrics.errors_by_severity),
             "recent_errors_count": len(self.error_metrics.recent_errors),
-            "last_error_time": self.error_metrics.last_error_time.isoformat()
-            if self.error_metrics.last_error_time
-            else None,
+            "last_error_time": (
+                self.error_metrics.last_error_time.isoformat()
+                if self.error_metrics.last_error_time
+                else None
+            ),
             "consecutive_errors": self.error_metrics.consecutive_errors,
             "active_circuit_breakers": len(
                 [
@@ -603,9 +605,9 @@ async def websocket_error_context(
         yield
     except Exception as e:
         should_retry, error_response = await error_handler.handle_websocket_error(
-            connection_id=context.get("connection_id", "unknown")
-            if context
-            else "unknown",
+            connection_id=(
+                context.get("connection_id", "unknown") if context else "unknown"
+            ),
             error=e,
             context=context,
         )

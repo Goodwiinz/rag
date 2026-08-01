@@ -117,14 +117,20 @@ class ProcessingJob(BaseModel):
     metrics = Column(JSON, nullable=True)  # Performance metrics
 
     # Relationships
-    document_id = Column(GUID(), ForeignKey("documents.id", ondelete="CASCADE"), nullable=True)
-    organization_id = Column(GUID(), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-    created_by_user_id = Column(GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    document_id = Column(
+        GUID(), ForeignKey("documents.id", ondelete="CASCADE"), nullable=True
+    )
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    created_by_user_id = Column(
+        GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Database indexes for performance optimization
     __table_args__ = (
-        Index('idx_job_status_created', 'status', 'created_at'),
-        Index('idx_job_type_org', 'job_type', 'organization_id'),
+        Index("idx_job_status_created", "status", "created_at"),
+        Index("idx_job_type_org", "job_type", "organization_id"),
     )
 
     # Relationships

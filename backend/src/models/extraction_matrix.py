@@ -1,6 +1,14 @@
 """ExtractionMatrix and ExtractionCell models for Literature Review Matrix."""
 
-from sqlalchemy import CheckConstraint, Column, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    Float,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -36,7 +44,9 @@ class ExtractionCell(BaseModel):
     __tablename__ = "extraction_cells"
     __table_args__ = (
         UniqueConstraint(
-            "matrix_id", "document_id", "column_name",
+            "matrix_id",
+            "document_id",
+            "column_name",
             name="uq_cell_matrix_doc_col",
         ),
         CheckConstraint(

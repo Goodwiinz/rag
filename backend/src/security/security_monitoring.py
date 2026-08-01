@@ -7,17 +7,6 @@ import asyncio
 import json
 import logging
 import smtplib
-import httpx
-from typing import Dict, List, Any, Optional, Callable
-from datetime import datetime, timedelta
-from dataclasses import dataclass, asdict
-from enum import Enum
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-import redis
-import psycopg2
-from psycopg2 import sql
-from collections import defaultdict, deque
 import threading
 import time
 from collections import defaultdict, deque
@@ -28,6 +17,7 @@ from email.mime.text import MIMEText
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
+import httpx
 import psycopg2
 import redis
 import requests
@@ -546,11 +536,9 @@ class SecurityAlertManager:
             if alert_data:
                 alerts.append(
                     {
-                        k.decode()
-                        if isinstance(k, bytes)
-                        else k: v.decode()
-                        if isinstance(v, bytes)
-                        else v
+                        k.decode() if isinstance(k, bytes) else k: (
+                            v.decode() if isinstance(v, bytes) else v
+                        )
                         for k, v in alert_data.items()
                     }
                 )
@@ -627,8 +615,7 @@ class EmailNotifier(NotificationChannel):
             msg["Subject"] = f"[SECURITY ALERT] {alert.title}"
 
             # Create email body
-            template = Template(
-                """
+            template = Template("""
             Security Alert: {{ alert.title }}
             Severity: {{ alert.severity.value.upper() }}
             Time: {{ alert.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}
@@ -642,8 +629,7 @@ class EmailNotifier(NotificationChannel):
             {% endfor %}
 
             Immediate action required.
-            """
-            )
+            """)
 
             body = template.render(alert=alert)
             msg.attach(MIMEText(body, "plain"))
@@ -743,9 +729,11 @@ class PagerDutyNotifier(NotificationChannel):
                 "payload": {
                     "summary": alert.title,
                     "source": "RAG Security System",
-                    "severity": "critical"
-                    if alert.severity == AlertSeverity.CRITICAL
-                    else "error",
+                    "severity": (
+                        "critical"
+                        if alert.severity == AlertSeverity.CRITICAL
+                        else "error"
+                    ),
                     "timestamp": alert.created_at.isoformat(),
                     "component": "Security Monitoring",
                     "group": "Security Alerts",
@@ -762,7 +750,7 @@ class PagerDutyNotifier(NotificationChannel):
                 response = await client.post(
                     "https://events.pagerduty.com/v2/enqueue",
                     json=payload,
-                    headers={"Content-Type": "application/json"}
+                    headers={"Content-Type": "application/json"},
                 )
                 response.raise_for_status()
 
@@ -834,7 +822,9 @@ class SecurityMonitoringService:
                     # so asyncio.run() is normally safe. Guard against nested loops.
                     try:
                         loop = asyncio.get_running_loop()
-                        loop.create_task(self.alert_manager.process_security_event(event))
+                        loop.create_task(
+                            self.alert_manager.process_security_event(event)
+                        )
                     except RuntimeError:
                         asyncio.run(self.alert_manager.process_security_event(event))
 

@@ -235,9 +235,11 @@ class AnalyticsEvent(BaseModel):
             },
             value=value,
             unit=unit,
-            severity=EventSeverity.WARNING
-            if value > kwargs.get("threshold", 1000)
-            else EventSeverity.INFO,
+            severity=(
+                EventSeverity.WARNING
+                if value > kwargs.get("threshold", 1000)
+                else EventSeverity.INFO
+            ),
             **kwargs,
         )
 
@@ -258,9 +260,9 @@ class AnalyticsEvent(BaseModel):
                 "stack_trace": kwargs.get("stack_trace"),
                 "component": kwargs.get("component", "unknown"),
             },
-            severity=EventSeverity.CRITICAL
-            if error_code >= 500
-            else EventSeverity.ERROR,
+            severity=(
+                EventSeverity.CRITICAL if error_code >= 500 else EventSeverity.ERROR
+            ),
             **kwargs,
         )
 
@@ -317,9 +319,9 @@ class AnalyticsEvent(BaseModel):
             "user_id": str(self.user_id) if self.user_id else None,
             "session_id": self.session_id,
             "organization_id": str(self.organization_id),
-            "event_timestamp": self.event_timestamp.isoformat()
-            if self.event_timestamp
-            else None,
+            "event_timestamp": (
+                self.event_timestamp.isoformat() if self.event_timestamp else None
+            ),
             "tags": self.tags,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

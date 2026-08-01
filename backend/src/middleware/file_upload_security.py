@@ -675,9 +675,11 @@ class FileUploadSecurityService:
                         extra={
                             "pattern": pattern_name,
                             "match_count": len(matches),
-                            "severity": "high"
-                            if pattern_name in ["ssn", "credit_card", "private_key"]
-                            else "medium",
+                            "severity": (
+                                "high"
+                                if pattern_name in ["ssn", "credit_card", "private_key"]
+                                else "medium"
+                            ),
                         },
                     )
 
@@ -780,7 +782,9 @@ class FileUploadSecurityService:
                     try:
                         os.unlink(temp_file_path)
                     except Exception:
-                        logger.warning("Failed to clean up temporary file", exc_info=True)
+                        logger.warning(
+                            "Failed to clean up temporary file", exc_info=True
+                        )
 
             elif mime_type == "application/pdf":
                 # PDF metadata extraction would go here

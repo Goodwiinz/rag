@@ -8,6 +8,12 @@ import pytest
 
 from src.api.agent import streaming
 from src.api.agent.streaming import _format_sse_event
+from tests.utils.agent_stream import (
+    make_stream_request,
+    sse_data,
+    sse_event_name,
+    sse_seq,
+)
 
 
 def test_format_sse_event_with_seq_prepends_id_line():
@@ -70,12 +76,7 @@ async def test_stream_frames_carry_ids_and_are_buffered(monkeypatch):
     buf.install(monkeypatch)
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = SimpleNamespace(
-        messages=[SimpleNamespace(role="user", content="hi")],
-        page_context={"type": "general"},
-        thread_id="thread-123",
-        model=None,
-    )
+    body = make_stream_request(thread_id="thread-123")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
@@ -102,16 +103,25 @@ async def test_stream_frames_carry_ids_and_are_buffered(monkeypatch):
         ):
             events.append(event)
 
-    # Every yielded frame carries a strictly increasing id: line.
-    ids = [int(e.split("\n", 1)[0].removeprefix("id: ")) for e in events]
-    assert all(e.startswith("id: ") for e in events), events
+    # One documented exception to "every frame is sequenced and buffered": the
+    # leading status/accepted frame is emitted BEFORE the client-supplied
+    # thread id has passed the ownership check, so it must not touch the
+    # thread's Redis pointer. It is therefore id-less and unbuffered, and a
+    # resuming client loses nothing by missing it (the run is, by definition,
+    # already accepted). Pinned here so it can only ever be that one frame.
+    assert sse_event_name(events[0]) == "status"
+    assert sse_data(events[0])["phase"] == "accepted"
+    assert sse_seq(events[0]) is None
+
+    # Every frame after it carries a strictly increasing id: line.
+    sequenced = events[1:]
+    ids = [sse_seq(e) for e in sequenced]
+    assert all(seq is not None for seq in ids), sequenced
     assert ids == sorted(ids) and len(set(ids)) == len(ids)
 
-    # Every frame was appended to the buffer (no heartbeats in this run),
-    # with matching seq numbers.
-    assert [(seq, frame) for _, seq, frame in buf.appends] == list(
-        zip(ids, events)
-    )
+    # And each was appended to the buffer (no heartbeats in this run), with
+    # matching seq numbers — the resume replay is lossless from here on.
+    assert [(seq, frame) for _, seq, frame in buf.appends] == list(zip(ids, sequenced))
     assert buf.appends[0][0] == "sid-thread-123"
 
     # done is the terminal frame and finish_stream was called after it.
@@ -147,12 +157,7 @@ async def test_drain_timeout_after_disconnect_persists_partial(monkeypatch):
     request = SimpleNamespace(
         is_disconnected=AsyncMock(side_effect=[False, True, True, True])
     )
-    body = SimpleNamespace(
-        messages=[SimpleNamespace(role="user", content="hi")],
-        page_context={"type": "general"},
-        thread_id="thread-timeout",
-        model=None,
-    )
+    body = make_stream_request(thread_id="thread-timeout")
     current_user = Mock(id="user-1", organization_id="org-1")
     persist = AsyncMock(return_value="row-1")
     thread_obj = SimpleNamespace(id="thread-timeout")
@@ -246,7 +251,7 @@ def _frames():
     return [
         BufferedFrame(seq=1, frame='id: 1\nevent: token\ndata: {"c": "a"}\n\n'),
         BufferedFrame(seq=2, frame='id: 2\nevent: token\ndata: {"c": "b"}\n\n'),
-        BufferedFrame(seq=3, frame='id: 3\nevent: done\ndata: {}\n\n'),
+        BufferedFrame(seq=3, frame="id: 3\nevent: done\ndata: {}\n\n"),
     ]
 
 
@@ -309,7 +314,7 @@ def test_resume_token_containing_terminal_text_does_not_stop_replay(monkeypatch)
             frame='id: 1\nevent: token\ndata: {"c": "the SSE frame is event: done"}\n\n',
         ),
         BufferedFrame(seq=2, frame='id: 2\nevent: token\ndata: {"c": "more"}\n\n'),
-        BufferedFrame(seq=3, frame='id: 3\nevent: done\ndata: {}\n\n'),
+        BufferedFrame(seq=3, frame="id: 3\nevent: done\ndata: {}\n\n"),
     ]
 
     async def read_after(sid, after_seq):
