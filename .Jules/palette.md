@@ -13,3 +13,6 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+## 2025-05-25 - Sidebar Accessibility Fixes
+**Learning:** Multiple `<nav>` elements require unique `aria-label`s to satisfy the `landmark-unique` rule. Also, links that collapse to icons rely on Tooltips for names which Axe test runners in JSDOM cannot detect, resulting in `link-name` violations unless an explicit `aria-label` is applied to the collapsed link.
+**Action:** Apply unique accessible names like "Main navigation" and "Utility navigation" to distinct nav elements on a page. Provide direct `aria-label` attributes on collapsed icon-only interactive elements even if visual tooltips are used.
