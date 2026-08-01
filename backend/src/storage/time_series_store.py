@@ -32,7 +32,7 @@ except ImportError:
     PSYCOPG2_AVAILABLE = False
     psycopg2 = None
 
-from sqlalchemy import and_, func, or_, text
+from sqlalchemy import and_, func, or_, text, select, delete, table as sa_table, column as sa_column
 from sqlalchemy.orm import Session
 
 from src.config.analytics_config import get_analytics_config
@@ -650,10 +650,9 @@ class PostgreSQLTimeSeriesStore:
                     continue
 
                 # Get row count
-                count_sql = "SELECT COUNT(*) as count FROM {}".format(
-                    table
-                )  # nosec: B608 - table validated against whitelist
-                count_result = db.execute(text(count_sql)).first()
+                count_query = select(func.count()).select_from(table(table))
+                count_result = db.execute(count_query).first()
+                count_result = type('obj', (object,), {'count': count_result[0] if count_result else 0})
 
                 # Get table size (approximate) - use parameterized query
                 size_sql = """
@@ -698,10 +697,9 @@ class PostgreSQLTimeSeriesStore:
                 ]:
                     continue
 
-                delete_sql = "DELETE FROM {} WHERE timestamp < :cutoff_date".format(
-                    table
-                )  # nosec: B608 - table validated against whitelist
-                result = db.execute(text(delete_sql), {"cutoff_date": cutoff_date})
+                target_table = sa_table(table, sa_column("timestamp"))
+                delete_query = delete(target_table).where(target_table.c.timestamp < cutoff_date)
+                result = db.execute(delete_query)
                 deleted_count += result.rowcount
 
             db.commit()

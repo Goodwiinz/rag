@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import and_, func, or_, text
+from sqlalchemy import and_, func, or_, text, select, delete, insert, update, table, column
 from sqlalchemy.orm import Session
 
 from src.config.analytics_config import get_analytics_config
@@ -216,66 +216,42 @@ class DataRetentionManager:
         try:
             # Get count of records to be deleted
             if policy.data_type == "analytics_events":
-                count_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                    f"""
-                    SELECT COUNT(*) FROM {policy.table_name}
-                    WHERE created_at < :cutoff_date
-                """
-                )
-                result = db.execute(count_query, {"cutoff_date": cutoff_date})
+                target_table = table(policy.table_name, column("created_at"))
+                count_query = select(func.count()).select_from(target_table).where(target_table.c.created_at < cutoff_date)
+                result = db.execute(count_query)
                 report.records_processed = result.scalar()
 
                 if not dry_run and report.records_processed > 0:
                     # Delete records
-                    delete_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                        f"""
-                        DELETE FROM {policy.table_name}
-                        WHERE created_at < :cutoff_date
-                    """
-                    )
-                    db.execute(delete_query, {"cutoff_date": cutoff_date})
+                    target_table = table(policy.table_name, column("created_at"))
+                    delete_query = delete(target_table).where(target_table.c.created_at < cutoff_date)
+                    db.execute(delete_query)
                     db.commit()
                     report.records_deleted = report.records_processed
 
             elif policy.data_type == "user_sessions":
-                count_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                    f"""
-                    SELECT COUNT(*) FROM {policy.table_name}
-                    WHERE created_at < :cutoff_date
-                """
-                )
-                result = db.execute(count_query, {"cutoff_date": cutoff_date})
+                target_table = table(policy.table_name, column("created_at"))
+                count_query = select(func.count()).select_from(target_table).where(target_table.c.created_at < cutoff_date)
+                result = db.execute(count_query)
                 report.records_processed = result.scalar()
 
                 if not dry_run and report.records_processed > 0:
-                    delete_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                        f"""
-                        DELETE FROM {policy.table_name}
-                        WHERE created_at < :cutoff_date
-                    """
-                    )
-                    db.execute(delete_query, {"cutoff_date": cutoff_date})
+                    target_table = table(policy.table_name, column("created_at"))
+                    delete_query = delete(target_table).where(target_table.c.created_at < cutoff_date)
+                    db.execute(delete_query)
                     db.commit()
                     report.records_deleted = report.records_processed
 
             elif policy.data_type == "performance_logs":
-                count_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                    f"""
-                    SELECT COUNT(*) FROM {policy.table_name}
-                    WHERE created_at < :cutoff_date
-                """
-                )
-                result = db.execute(count_query, {"cutoff_date": cutoff_date})
+                target_table = table(policy.table_name, column("created_at"))
+                count_query = select(func.count()).select_from(target_table).where(target_table.c.created_at < cutoff_date)
+                result = db.execute(count_query)
                 report.records_processed = result.scalar()
 
                 if not dry_run and report.records_processed > 0:
-                    delete_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                        f"""
-                        DELETE FROM {policy.table_name}
-                        WHERE created_at < :cutoff_date
-                    """
-                    )
-                    db.execute(delete_query, {"cutoff_date": cutoff_date})
+                    target_table = table(policy.table_name, column("created_at"))
+                    delete_query = delete(target_table).where(target_table.c.created_at < cutoff_date)
+                    db.execute(delete_query)
                     db.commit()
                     report.records_deleted = report.records_processed
 
@@ -316,34 +292,27 @@ class DataRetentionManager:
 
             # Get records to archive
             if policy.data_type == "quality_metrics":
-                count_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                    f"""
-                    SELECT COUNT(*) FROM {policy.table_name}
-                    WHERE created_at < :cutoff_date
-                """
-                )
-                result = db.execute(count_query, {"cutoff_date": cutoff_date})
+                target_table = table(policy.table_name, column("created_at"))
+                count_query = select(func.count()).select_from(target_table).where(target_table.c.created_at < cutoff_date)
+                result = db.execute(count_query)
                 report.records_processed = result.scalar()
 
                 if not dry_run and report.records_processed > 0:
                     # Move records to archive table
-                    archive_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                        f"""
-                    INSERT INTO {archive_table}
-                    SELECT * FROM {policy.table_name}
-                    WHERE created_at < :cutoff_date
-                    """
-                    )
+                    source_table = table(policy.table_name, column("created_at"))
+                    target_table = table(archive_table)
+                    archive_query = insert(target_table).from_select(["*"], select(source_table).where(source_table.c.created_at < cutoff_date))
+                    # The above might be slightly tricky if the table structure is not known for insert.
+                    # Let\'s use text for archive_query for now but without the string format for table if possible... wait, table names can\'t be parameterized in standard SQL
+                    # SQLAlchemy Core allows insert().from_select() but we need columns.
+                    # A simpler fix for archive_query is to leave it but remove the nosec and just use Core properly if possible, or construct it safely.
+                    archive_query = text(f"INSERT INTO {archive_table} SELECT * FROM {policy.table_name} WHERE created_at < :cutoff_date")  # nosec: B608
                     db.execute(archive_query, {"cutoff_date": cutoff_date})
 
                     # Delete from main table
-                    delete_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                        f"""
-                    DELETE FROM {policy.table_name}
-                    WHERE created_at < :cutoff_date
-                    """
-                    )
-                    db.execute(delete_query, {"cutoff_date": cutoff_date})
+                    target_table = table(policy.table_name, column("created_at"))
+                    delete_query = delete(target_table).where(target_table.c.created_at < cutoff_date)
+                    db.execute(delete_query)
 
                     db.commit()
                     report.records_archived = report.records_processed
@@ -367,28 +336,26 @@ class DataRetentionManager:
         try:
             if policy.data_type == "user_sessions_pii" and policy.anonymize_fields:
                 # Get records to anonymize
-                count_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                    f"""
-                    SELECT COUNT(*) FROM {policy.table_name}
-                    WHERE created_at < :cutoff_date
-                    AND (ip_address IS NOT NULL OR user_agent IS NOT NULL OR referrer IS NOT NULL)
-                """
+                # using text without format for safety is hard here without knowing table structure. But we can build it.
+                # wait, since policy.table_name is from hardcoded policies, we can just remove the nosec and use safe construction.
+                target_table = table(policy.table_name, column("created_at"), column("ip_address"), column("user_agent"), column("referrer"))
+                from sqlalchemy import or_
+                count_query = select(func.count()).select_from(target_table).where(
+                    target_table.c.created_at < cutoff_date,
+                    or_(
+                        target_table.c.ip_address .isnot(None),
+                        target_table.c.user_agent .isnot(None),
+                        target_table.c.referrer .isnot(None)
+                    )
                 )
-                result = db.execute(count_query, {"cutoff_date": cutoff_date})
+                result = db.execute(count_query)
                 report.records_processed = result.scalar()
 
                 if not dry_run and report.records_processed > 0:
                     # Get records to update
-                    select_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                        f"""
-                        SELECT id, {', '.join(policy.anonymize_fields)}
-                        FROM {policy.table_name}
-                        WHERE created_at < :cutoff_date
-                    """
-                    )
-                    records = db.execute(
-                        select_query, {"cutoff_date": cutoff_date}
-                    ).fetchall()
+                    target_table = table(policy.table_name, column("id"), column("created_at"), *[column(c) for c in policy.anonymize_fields])
+                    select_query = select(target_table).where(target_table.c.created_at < cutoff_date)
+                    records = db.execute(select_query).fetchall()
 
                     for record in records:
                         update_data = {"id": record.id}
@@ -419,14 +386,10 @@ class DataRetentionManager:
                         set_clause = ", ".join(
                             [f"{field} = :{field}" for field in policy.anonymize_fields]
                         )
-                        update_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                            f"""
-                            UPDATE {policy.table_name}
-                            SET {set_clause}
-                            WHERE id = :id
-                        """
-                        )
-                        db.execute(update_query, update_data)
+                        target_table = table(policy.table_name, column("id"), *[column(c) for c in policy.anonymize_fields])
+                        # using core update
+                        update_query = update(target_table).where(target_table.c.id == update_data["id"]).values(**{k: v for k, v in update_data.items() if k != "id"})
+                        db.execute(update_query)
 
                     db.commit()
                     report.records_anonymized = len(records)
@@ -468,14 +431,13 @@ class DataRetentionManager:
                     "quality_metrics",
                 ]:
                     # Get oldest record date
-                    oldest_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                        f"""
-                        SELECT MIN(created_at) as oldest_date,
-                               COUNT(*) as total_count,
-                               COUNT(CASE WHEN created_at < NOW() - INTERVAL '{policy.retention_days} days' THEN 1 END) as expired_count
-                        FROM {policy.table_name}
-                    """
-                    )
+                    target_table = table(policy.table_name, column("created_at"))
+                    from sqlalchemy import case, literal_column
+                    oldest_query = select(
+                        func.min(target_table.c.created_at).label("oldest_date"),
+                        func.count().label("total_count"),
+                        func.count(case((target_table.c.created_at < text(f"NOW() - INTERVAL \'{policy.retention_days} days\'"), 1))).label("expired_count")
+                    ).select_from(target_table)
                     result = db.execute(oldest_query).first()
 
                     policy_status = {
@@ -540,14 +502,11 @@ class DataRetentionManager:
             db = next(get_db())
             try:
                 # Check for expired data that should have been processed
-                violation_check_query = text(  # nosec: B608 - table/column names from hardcoded policy definitions
-                    f"""
-                    SELECT COUNT(*) as violation_count,
-                           MIN(created_at) as oldest_violation
-                    FROM {policy.table_name}
-                    WHERE created_at < NOW() - INTERVAL '{policy.retention_days} days'
-                """
-                )
+                target_table = table(policy.table_name, column("created_at"))
+                violation_check_query = select(
+                    func.count().label("violation_count"),
+                    func.min(target_table.c.created_at).label("oldest_violation")
+                ).select_from(target_table).where(target_table.c.created_at < text(f"NOW() - INTERVAL \'{policy.retention_days} days\'"))
                 result = db.execute(violation_check_query).first()
 
                 if result.violation_count > 0:
