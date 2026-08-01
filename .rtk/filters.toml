@@ -1,0 +1,122 @@
+# Project-local RTK filters for NOUS.
+# Covers the dev commands rtk has no built-in filter for. pytest, mypy, ruff,
+# pnpm, kubectl, psql, docker and gh already have built-ins — don't duplicate them.
+# Filters here override user-global and built-in filters.
+# Docs: https://github.com/rtk-ai/rtk#custom-filters
+schema_version = 1
+
+# Alembic prints two boilerplate INFO lines before every command and repeats the
+# structlog-style prefix on the one line that carries information.
+[filters.alembic]
+description = "Drop alembic migration boilerplate, keep upgrade/downgrade steps"
+match_command = "^alembic\\b"
+strip_ansi = true
+max_lines = 60
+on_empty = "alembic: no output"
+strip_lines_matching = [
+    "^Context impl ",
+    "^Will assume ",
+    "^\\s*$",
+]
+
+[[filters.alembic.replace]]
+pattern = "^INFO  \\[alembic\\.runtime\\.migration\\] "
+replacement = ""
+
+# isort reports every skipped file plus a trailing count; only the fixes matter.
+[filters.isort]
+description = "Keep isort fixes and errors, drop skip chatter"
+match_command = "^isort\\b"
+strip_ansi = true
+max_lines = 60
+on_empty = "isort: clean"
+strip_lines_matching = [
+    "^Skipped \\d+ files?$",
+    "^Skipping ",
+    "^\\s*$",
+]
+
+# The clean case is a line of emoji plus an "N files left unchanged" count, for
+# zero information. Strip both — anything black actually did (reformatted /
+# would reformat / errors) is on other lines and survives.
+#
+# NOTE: do not use match_output here. It reports Lossiness::Whole, and main.rs
+# falls back to printing the RAW output when a lossy filter can't produce a tee
+# hint — which is every successful run under the default [tee] mode = "failures".
+# Line-level strip + on_empty is Lossiness::None, so it always applies.
+[filters.black]
+description = "Collapse a clean black run, keep reformats and errors"
+match_command = "^black\\b"
+strip_ansi = true
+filter_stderr = true
+max_lines = 60
+on_empty = "black: clean"
+strip_lines_matching = [
+    "^All done!",
+    "^Oh no!",
+    "^\\d+ files? (would be )?left unchanged\\.$",
+    "^\\s*$",
+]
+
+# --- inline tests (run by `rtk verify`) ---------------------------------------
+
+[[tests.alembic]]
+name = "strips context boilerplate, keeps upgrade step"
+input = """
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade a1b2c3 -> d4e5f6, add threads table
+"""
+expected = "Running upgrade a1b2c3 -> d4e5f6, add threads table"
+
+[[tests.alembic]]
+name = "keeps errors verbatim"
+input = """
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+FAILED: Can't locate revision identified by 'deadbeef'
+"""
+expected = "FAILED: Can't locate revision identified by 'deadbeef'"
+
+[[tests.isort]]
+name = "drops skip count, keeps fixes"
+input = """
+Fixing /home/clawdbot/rag-clean/backend/src/main.py
+
+Skipped 3 files
+"""
+expected = "Fixing /home/clawdbot/rag-clean/backend/src/main.py"
+
+[[tests.isort]]
+name = "collapses an all-skipped run"
+input = """
+Skipped 12 files
+"""
+expected = "isort: clean"
+
+[[tests.black]]
+name = "collapses a clean run"
+input = """
+All done! ✨ 🍰 ✨
+1 file would be left unchanged.
+"""
+expected = "black: clean"
+
+[[tests.black]]
+name = "keeps reformat detail and the count line"
+input = """
+reformatted backend/src/agent/graph.py
+All done! ✨ 🍰 ✨
+1 file reformatted, 2 files left unchanged.
+"""
+expected = """reformatted backend/src/agent/graph.py
+1 file reformatted, 2 files left unchanged."""
+
+[[tests.black]]
+name = "keeps parse errors"
+input = """
+error: cannot format backend/src/broken.py: Cannot parse: 12:0: EOF in multi-line statement
+Oh no! 💥 💔 💥
+1 file failed to reformat.
+"""
+expected = """error: cannot format backend/src/broken.py: Cannot parse: 12:0: EOF in multi-line statement
+1 file failed to reformat."""
