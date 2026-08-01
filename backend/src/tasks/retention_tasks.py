@@ -47,10 +47,11 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, MetaData, Table
+from sqlalchemy import Column, DateTime, MetaData, Table, column, delete
+from sqlalchemy import func
 from sqlalchemy import func as sa_func
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy import select, text, delete, func, table, column
+from sqlalchemy import select, table, text
 
 from src.core.config import get_settings
 from src.core.database import SessionLocal
@@ -138,7 +139,9 @@ def _count_checkpoint_rows(db, thread_id: str) -> int:
             continue
         target_table = table(tbl, column("thread_id"))
         row = db.execute(
-            select(func.count()).select_from(target_table).where(target_table.c.thread_id == thread_id)
+            select(func.count())
+            .select_from(target_table)
+            .where(target_table.c.thread_id == thread_id)
         ).scalar()
         total += int(row or 0)
     return total
