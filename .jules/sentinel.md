@@ -26,3 +26,6 @@
 **Vulnerability:** HTTP 500 error handlers in the `backend/src/api/research/export.py` module were returning the raw exception string to the client (`raise HTTPException(status_code=500, detail=f"Export failed: {e}")`). This leaks internal implementation specifics such as file paths, database constraints, or third-party service errors.
 **Learning:** Over-informative HTTP exception messages provide debugging convenience at the cost of security, allowing attackers to infer backend structure or state from the client side.
 **Prevention:** Rely on secure server-side logging for detailed exceptions (`logger.error(e)`) and return generic, non-descriptive messages like "Export failed" in the `detail` parameter of 500 error responses sent to the client.
+## 2025-05-25 - Fix CI Error TOUCHED-BUT-EXCLUDED
+**Learning:** If you modify a file that is in `tsconfig.json`'s `exclude` list, you must remove it from `tsconfig.json`'s `exclude` list AND from `frontend/quality-baseline.json`'s `tsconfigProductionExclusions` list to fix its types and not introduce new type-check debt.
+**Action:** Always check `tsconfig.json` and `quality-baseline.json` when modifying components.

@@ -83,7 +83,6 @@
     "playwright.config.ts",
     "src/components/layout/AppLayout.tsx",
     "src/components/layout/Header.tsx",
-    "src/components/layout/Sidebar.tsx",
     "src/components/optimized/OptimizedDocumentList.tsx",
     "src/components/realtime/DocumentProcessingCard.tsx",
     "src/components/realtime/DocumentProcessingDashboard.tsx",

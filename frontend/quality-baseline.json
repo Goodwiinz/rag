@@ -6,7 +6,6 @@
     "src/components/graph/ResponsiveGraphLayout.tsx",
     "src/components/layout/AppLayout.tsx",
     "src/components/layout/Header.tsx",
-    "src/components/layout/Sidebar.tsx",
     "src/components/monitoring/PerformanceMetricsDashboard.tsx",
     "src/components/monitoring/SystemOverviewDashboard.tsx",
     "src/components/optimized/OptimizedDocumentList.tsx",
