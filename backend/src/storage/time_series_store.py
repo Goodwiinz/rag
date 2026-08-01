@@ -32,20 +32,11 @@ except ImportError:
     PSYCOPG2_AVAILABLE = False
     psycopg2 = None
 
-from sqlalchemy import (
-    and_,
-)
+from sqlalchemy import and_
 from sqlalchemy import column as sa_column
-from sqlalchemy import (
-    delete,
-    func,
-    or_,
-    select,
-)
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy import table as sa_table
-from sqlalchemy import (
-    text,
-)
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.config.analytics_config import get_analytics_config
