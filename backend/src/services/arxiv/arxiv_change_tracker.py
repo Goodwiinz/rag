@@ -236,9 +236,9 @@ class ArXivChangeTracker:
                 old_hash = org_state[paper["id"]]["hash"]
 
                 # Always update last_seen
-                org_state[paper["id"]]["last_seen"] = (
-                    datetime.now(timezone.utc).isoformat()
-                )
+                org_state[paper["id"]]["last_seen"] = datetime.now(
+                    timezone.utc
+                ).isoformat()
 
                 if new_hash != old_hash:
                     # Determine what changed
@@ -481,9 +481,7 @@ class ArXivChangeTracker:
     ):
         """Ingest a new paper into the database (tenant-scoped)."""
         # Check if paper already exists for this organization
-        result = await db.execute(
-            self._paper_lookup_stmt(paper["id"], organization_id)
-        )
+        result = await db.execute(self._paper_lookup_stmt(paper["id"], organization_id))
         existing = result.scalar_one_or_none()
 
         if not existing:
@@ -533,9 +531,7 @@ class ArXivChangeTracker:
         organization_id: Any,
     ):
         """Update an existing paper in the database (tenant-scoped)."""
-        result = await db.execute(
-            self._paper_lookup_stmt(paper["id"], organization_id)
-        )
+        result = await db.execute(self._paper_lookup_stmt(paper["id"], organization_id))
         doc = result.scalar_one_or_none()
 
         if doc:
@@ -579,9 +575,7 @@ class ArXivChangeTracker:
         There is no "deleted" ProcessingStatus — record the soft-delete via a
         metadata flag and leave processing_status untouched.
         """
-        result = await db.execute(
-            self._paper_lookup_stmt(paper_id, organization_id)
-        )
+        result = await db.execute(self._paper_lookup_stmt(paper_id, organization_id))
         doc = result.scalar_one_or_none()
 
         if doc:

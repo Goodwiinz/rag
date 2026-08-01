@@ -112,12 +112,12 @@ jobs:
             printf 'Type-checking %d added Python file(s)\n' "${#ADDED[@]}"
             mypy --ignore-missing-imports --follow-imports=silent "${ADDED[@]}"
           fi
-      - name: Advisory full-tree Black (formatting check)
+      # Debt reached zero (full-tree reformat PR) — these two are now blocking
+      # so it can't regrow. MyPy below stays advisory (type debt is not zero).
+      - name: Full-tree Black (formatting check)
         run: black --check backend/src
-        continue-on-error: true # Advisory until full-tree debt reaches zero
-      - name: Advisory full-tree isort (import sorting)
+      - name: Full-tree isort (import sorting)
         run: isort --check-only backend/src
-        continue-on-error: true # Advisory until full-tree debt reaches zero
       - name: Advisory full-tree MyPy (type checking)
         run: mypy backend/src --ignore-missing-imports
         continue-on-error: true # Advisory until full-tree debt reaches zero

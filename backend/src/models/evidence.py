@@ -7,18 +7,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import (
-    Boolean,
-    CheckConstraint,
-    Column,
-    DateTime,
-    Float,
-    ForeignKey,
-    String,
-    Text,
-    UniqueConstraint,
-)
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime
 from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
 

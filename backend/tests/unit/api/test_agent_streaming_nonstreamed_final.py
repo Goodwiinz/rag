@@ -11,6 +11,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from tests.utils.agent_stream import frames_of_type, make_stream_request
+
 
 class _FakeGraphNoStream:
     """Graph that emits NO on_chat_model_stream events (e.g. greeting fast-path)
@@ -118,12 +120,7 @@ async def test_stream_emits_nonstreamed_final_answer_as_token():
     from src.api.agent.streaming import stream_event_generator
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = SimpleNamespace(
-        messages=[SimpleNamespace(role="user", content="hi")],
-        page_context={"type": "general"},
-        thread_id="thread-123",
-        model=None,
-    )
+    body = make_stream_request(thread_id="thread-123")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
@@ -149,7 +146,7 @@ async def test_stream_emits_nonstreamed_final_answer_as_token():
             events.append(event)
 
     # Exactly one token event, carrying the non-streamed final answer.
-    token_events = [e for e in events if "event: token\n" in e]
+    token_events = frames_of_type(events, "token")
     assert len(token_events) == 1, f"expected one fallback token, got {events}"
     assert "how can I help with your research today" in token_events[0]
     # And it must come before `done`.
@@ -165,11 +162,8 @@ async def test_completed_stream_reuses_root_output_without_final_checkpoint_read
 
     graph = _FakeGraphWithRootFinal()
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = SimpleNamespace(
-        messages=[SimpleNamespace(role="user", content="hello")],
-        page_context={"type": "general"},
-        thread_id="thread-123",
-        model=None,
+    body = make_stream_request(
+        messages=[{"role": "user", "content": "hello"}], thread_id="thread-123"
     )
     current_user = Mock(id="user-1", organization_id="org-1")
 
@@ -208,11 +202,9 @@ async def test_interrupted_root_still_reads_checkpoint_for_pending_tasks():
 
     graph = _FakeGraphWithInterruptedRoot()
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = SimpleNamespace(
-        messages=[SimpleNamespace(role="user", content="create a project")],
-        page_context={"type": "general"},
+    body = make_stream_request(
+        messages=[{"role": "user", "content": "create a project"}],
         thread_id="thread-123",
-        model=None,
     )
     current_user = Mock(id="user-1", organization_id="org-1")
 

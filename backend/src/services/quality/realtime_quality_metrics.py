@@ -8,7 +8,7 @@ import logging
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Any, Dict, Optional, Set, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional, Set
 
 from src.core.database import get_db
 from src.models.document import Document
@@ -186,6 +186,7 @@ class RealTimeQualityMetricsService:
                         RAGEvaluationInput,
                         rag_evaluation_service,
                     )
+
                     db = next(get_db())
                     try:
                         # Lazy import to avoid circular dependency
@@ -193,6 +194,7 @@ class RealTimeQualityMetricsService:
                             RAGEvaluationInput,
                             rag_evaluation_service,
                         )
+
                         evaluation_input = RAGEvaluationInput(
                             query=query,
                             generated_answer=generated_answer,

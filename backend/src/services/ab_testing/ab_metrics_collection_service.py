@@ -296,9 +296,11 @@ class MetricsCollectionService:
                     session_id=context.get("session_id"),
                     query_id=context.get("query_id"),
                     metric_metadata={
-                        "search_type": search_response.search_type.value
-                        if search_response.search_type
-                        else "unknown",
+                        "search_type": (
+                            search_response.search_type.value
+                            if search_response.search_type
+                            else "unknown"
+                        ),
                         "total_results": len(search_response.results),
                         "search_time_ms": search_response.search_time_ms,
                     },

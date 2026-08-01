@@ -22,7 +22,6 @@ from fastapi import (
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
 from sqlalchemy import select
 
 from ..core.config import settings

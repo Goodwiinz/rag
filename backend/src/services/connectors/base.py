@@ -111,5 +111,6 @@ class ExternalDBConnector(abc.ABC):
         if not self.info.requires_api_key:
             return True
         import os
+
         env_var = self.info.api_key_env_var or ""
         return bool(os.environ.get(env_var))

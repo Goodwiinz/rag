@@ -319,9 +319,9 @@ async def get_realtime_document_status(
                     status=job.status.value,
                     progress=job.progress_percentage,
                     started_at=job.started_at.isoformat() if job.started_at else None,
-                    completed_at=job.completed_at.isoformat()
-                    if job.completed_at
-                    else None,
+                    completed_at=(
+                        job.completed_at.isoformat() if job.completed_at else None
+                    ),
                     duration_seconds=job.duration_seconds,
                     error=job.error_message,
                     metadata={
@@ -378,12 +378,16 @@ async def get_realtime_document_status(
             current_stage=current_stage,
             stages=stages,
             upload_progress=100.0,  # Assume upload is complete for processing status
-            processing_started_at=document.processing_started_at.isoformat()
-            if document.processing_started_at
-            else None,
-            processing_completed_at=document.processing_completed_at.isoformat()
-            if document.processing_completed_at
-            else None,
+            processing_started_at=(
+                document.processing_started_at.isoformat()
+                if document.processing_started_at
+                else None
+            ),
+            processing_completed_at=(
+                document.processing_completed_at.isoformat()
+                if document.processing_completed_at
+                else None
+            ),
             estimated_completion_time=estimated_completion,
             processing_error=document.processing_error,
             retry_count=document.processing_retry_count,
@@ -405,9 +409,9 @@ async def get_realtime_document_status(
             created_at=document.created_at.isoformat(),
             updated_at=document.updated_at.isoformat(),
             websocket_subscribers=active_subscribers,
-            last_status_update=latest_update.created_at.isoformat()
-            if latest_update
-            else None,
+            last_status_update=(
+                latest_update.created_at.isoformat() if latest_update else None
+            ),
             update_frequency="realtime" if active_subscribers > 0 else None,
             is_realtime_enabled=active_subscribers > 0,
         )
@@ -463,12 +467,16 @@ async def get_bulk_realtime_status(
                 "title": document.title,
                 "document_type": document.document_type.value,
                 "processing_status": document.processing_status.value,
-                "processing_started_at": document.processing_started_at.isoformat()
-                if document.processing_started_at
-                else None,
-                "processing_completed_at": document.processing_completed_at.isoformat()
-                if document.processing_completed_at
-                else None,
+                "processing_started_at": (
+                    document.processing_started_at.isoformat()
+                    if document.processing_started_at
+                    else None
+                ),
+                "processing_completed_at": (
+                    document.processing_completed_at.isoformat()
+                    if document.processing_completed_at
+                    else None
+                ),
                 "processing_error": document.processing_error,
                 "retry_count": document.processing_retry_count,
                 "updated_at": document.updated_at.isoformat(),

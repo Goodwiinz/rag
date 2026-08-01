@@ -79,35 +79,39 @@ class ExportService:
         # Build steps section
         steps_data = []
         for step in sorted(run.steps, key=lambda s: s.step_index):
-            steps_data.append({
-                "id": str(step.id),
-                "step_index": step.step_index,
-                "step_type": step.step_type,
-                "mode": step.mode,
-                "model_id": step.model_id,
-                "temperature": step.temperature,
-                "seed": step.seed,
-                "inputs_hash": step.inputs_hash,
-                "outputs_hash": step.outputs_hash,
-                "output": step.output,
-                "quality_marks": step.quality_marks,
-                "token_count": step.token_count,
-                "evidence": evidence_by_step.get(step.id, []),
-            })
+            steps_data.append(
+                {
+                    "id": str(step.id),
+                    "step_index": step.step_index,
+                    "step_type": step.step_type,
+                    "mode": step.mode,
+                    "model_id": step.model_id,
+                    "temperature": step.temperature,
+                    "seed": step.seed,
+                    "inputs_hash": step.inputs_hash,
+                    "outputs_hash": step.outputs_hash,
+                    "output": step.output,
+                    "quality_marks": step.quality_marks,
+                    "token_count": step.token_count,
+                    "evidence": evidence_by_step.get(step.id, []),
+                }
+            )
 
         # Build sources section
         sources_data = []
         for source in run.sources:
-            sources_data.append({
-                "id": str(source.id),
-                "connector_type": source.connector_type,
-                "external_id": source.external_id,
-                "title": source.title,
-                "authors": source.authors,
-                "abstract": source.abstract,
-                "url": source.url,
-                "content_hash": source.content_hash,
-            })
+            sources_data.append(
+                {
+                    "id": str(source.id),
+                    "connector_type": source.connector_type,
+                    "external_id": source.external_id,
+                    "title": source.title,
+                    "authors": source.authors,
+                    "abstract": source.abstract,
+                    "url": source.url,
+                    "content_hash": source.content_hash,
+                }
+            )
 
         # Build the report
         blueprint = run.blueprint
@@ -151,8 +155,6 @@ class ExportService:
             raise ValueError(f"Research run {run_id} not found")
 
         if run.reproducibility_manifest is None:
-            raise ValueError(
-                f"Research run {run_id} has no reproducibility manifest"
-            )
+            raise ValueError(f"Research run {run_id} has no reproducibility manifest")
 
         return run.reproducibility_manifest
