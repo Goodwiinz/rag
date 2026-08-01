@@ -128,6 +128,13 @@ export interface ChatPageMessage {
     /** Per-turn LLM token usage (persisted in chat_messages.token_usage). */
     tokenUsage?: { input: number; output: number };
   };
+  /** Recoverable-failure marker on an assistant turn (network error, empty
+   * response, stream exception). Renders an error block with a Retry button
+   * instead of an ambiguous blank bubble. Local-only; never persisted. */
+  error?: { message: string; category?: string };
+  /** Persisted per-response feedback (chat_messages.feedback_rating /
+   * feedback_text). Present on canonical rows the user has rated. */
+  feedback?: { rating: number | null; comment: string | null };
 }
 
 /**
@@ -143,6 +150,8 @@ export function mapDbMessageToChatPageMessage(
   dbMsg: ChatMessage
 ): ChatPageMessage {
   const hasMetadata = dbMsg.latency_ms || dbMsg.stopped || dbMsg.token_usage;
+  const hasFeedback =
+    dbMsg.feedback_rating != null || !!dbMsg.feedback_text;
   return {
     id: dbMsg.id,
     runtimeId: dbMsg.client_message_id ?? dbMsg.id,
@@ -157,6 +166,14 @@ export function mapDbMessageToChatPageMessage(
     attachments: dbMsg.attachments,
     toolExecutions: mapDbToolExecutions(dbMsg.tool_executions),
     ...(dbMsg.plan && dbMsg.plan.length > 0 ? { plan: dbMsg.plan } : {}),
+    ...(hasFeedback
+      ? {
+          feedback: {
+            rating: dbMsg.feedback_rating ?? null,
+            comment: dbMsg.feedback_text ?? null,
+          },
+        }
+      : {}),
     metadata: hasMetadata
       ? {
           ...(dbMsg.latency_ms ? { responseTimeMs: dbMsg.latency_ms } : {}),

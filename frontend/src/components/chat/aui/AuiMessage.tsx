@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, type ReactElement, type ReactNode } from 'react';
+import React, { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import {
   ActionBarPrimitive,
   ErrorPrimitive,
@@ -9,7 +9,16 @@ import {
   ThreadPrimitive,
   useThread,
 } from '@assistant-ui/react';
-import { Copy, FileText, Image as ImageIcon, RotateCcw } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  FileText,
+  Image as ImageIcon,
+  Pencil,
+  RotateCcw,
+  X,
+} from 'lucide-react';
 
 import { motion, useReducedMotion } from 'framer-motion';
 
@@ -18,6 +27,7 @@ import { CitationRenderer } from '@/components/chat/CitationRenderer';
 import { ChatInlinePlan } from '@/components/chat/shared/ChatInlinePlan';
 import { CitationChips } from '@/components/chat/shared/CitationChips';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
+import { MessageFeedback } from '@/components/chat/shared/MessageFeedback';
 import { AuiToolParts } from '@/components/chat/aui/AuiToolParts';
 import {
   ToolStrip,
@@ -164,9 +174,12 @@ function MessageError() {
 function MessageActions({
   assistant,
   onRetry,
+  onEdit,
 }: {
   assistant?: boolean;
   onRetry?: () => void;
+  /** Enter edit-and-resend mode for a user message (user messages only). */
+  onEdit?: () => void;
 }) {
   return (
     <ActionBarPrimitive.Root
@@ -184,6 +197,17 @@ function MessageActions({
       >
         <Copy className="h-3.5 w-3.5" />
       </ActionBarPrimitive.Copy>
+      {!assistant && onEdit ? (
+        <button
+          type="button"
+          onClick={onEdit}
+          className="nous-msg-action"
+          aria-label="Edit and resend"
+          title="Edit and resend"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
       {assistant && onRetry ? (
         <button
           type="button"
@@ -207,21 +231,94 @@ function MessageActions({
   );
 }
 
-export function AuiUserMessage(): ReactElement {
+export function AuiUserMessage({
+  message,
+  onEdit,
+}: {
+  /** Source ChatPageMessage — needed to seed the editor with the original
+   * text and to gate the edit affordance off while a turn is streaming. */
+  message?: ChatPageMessage;
+  /** Edit-and-resend handler. When omitted (e.g. plain AuiMessages usage) the
+   * edit affordance is hidden. */
+  onEdit?: (newContent: string) => void;
+}): ReactElement {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const canEdit =
+    !!onEdit && !!message?.content && !message?.isStreaming && !editing;
+
+  const startEdit = () => {
+    setDraft(message?.content ?? '');
+    setEditing(true);
+  };
+
+  const cancelEdit = () => setEditing(false);
+
+  const saveEdit = () => {
+    const next = draft.trim();
+    if (!next) return;
+    setEditing(false);
+    onEdit?.(next);
+  };
+
   return (
     <MessagePrimitive.Root
       data-role="user"
       className="group relative mb-7 flex justify-end sm:mb-8"
     >
       <div className="min-w-0 text-right">
-        <div className="nous-bubble-user relative inline-block max-w-[92%] px-4 py-2.5 text-left transition-shadow hover:shadow-md sm:max-w-[540px]">
-          <MessageAttachments />
-          <div className="nous-chat-body">
-            <MessageParts />
+        {editing ? (
+          <div className="nous-bubble-user relative inline-block w-full max-w-[92%] px-4 py-2.5 text-left sm:max-w-[540px]">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  saveEdit();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  cancelEdit();
+                }
+              }}
+              aria-label="Edit your message"
+              rows={Math.min(8, Math.max(2, draft.split('\n').length))}
+              autoFocus
+              className="w-full resize-none rounded-md border border-(--nous-border-1) bg-(--nous-bg-1) px-2 py-1 text-[14px] leading-relaxed text-(--nous-fg-1) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
+            />
+            <div className="mt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="inline-flex items-center gap-1 rounded-md border border-(--nous-border-1) px-2.5 py-1 text-[11px] font-medium text-(--nous-fg-2) hover:bg-(--nous-bg-2)"
+              >
+                <X className="h-3 w-3" />
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveEdit}
+                disabled={!draft.trim()}
+                className="inline-flex items-center gap-1 rounded-md bg-(--nous-sol) px-2.5 py-1 text-[11px] font-semibold text-(--nous-erebus) hover:opacity-90 disabled:opacity-50"
+              >
+                <Check className="h-3 w-3" />
+                Save &amp; resend
+              </button>
+            </div>
           </div>
-          <MessageError />
-        </div>
-        <MessageActions />
+        ) : (
+          <>
+            <div className="nous-bubble-user relative inline-block max-w-[92%] px-4 py-2.5 text-left transition-shadow hover:shadow-md sm:max-w-[540px]">
+              <MessageAttachments />
+              <div className="nous-chat-body">
+                <MessageParts />
+              </div>
+              <MessageError />
+            </div>
+            <MessageActions onEdit={canEdit ? startEdit : undefined} />
+          </>
+        )}
       </div>
     </MessagePrimitive.Root>
   );
@@ -414,6 +511,47 @@ export function AuiAssistantMessage({
     );
   }
 
+  // Recoverable failure (network error / empty response / stream exception):
+  // render an error block with a prominent Retry button instead of an
+  // ambiguous blank bubble. onRetry re-sends the prior user turn.
+  if (message?.error) {
+    return (
+      <MessagePrimitive.Root
+        data-role="assistant"
+        className="group relative mb-7 flex justify-start sm:mb-8"
+      >
+        <div className="min-w-0 flex-1 text-left">
+          <div
+            role="alert"
+            className="inline-flex max-w-[92%] items-start gap-2 rounded-xl border border-(--nous-mars)/30 bg-(--nous-mars)/5 px-4 py-3 sm:max-w-[540px]"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-(--nous-mars)" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-(--nous-fg-1)">
+                {message.error.message}
+              </p>
+              {message.content ? (
+                <p className="mt-1 text-[12px] text-(--nous-fg-3)">
+                  {message.content}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-(--nous-border-1) bg-(--nous-bg-2) px-3 py-1.5 text-[12px] font-medium text-(--nous-fg-1) transition-colors hover:border-(--nous-sol)/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Retry
+            </button>
+          </div>
+        </div>
+      </MessagePrimitive.Root>
+    );
+  }
+
   return (
     <MessagePrimitive.Root
       data-role="assistant"
@@ -445,6 +583,11 @@ export function AuiAssistantMessage({
           />
         )}
         <MessageActions assistant onRetry={onRetry} />
+        {/* Per-response feedback — only for persisted (server-canonical)
+         * assistant turns; optimistic/local-only rows have no id to PATCH. */}
+        {message?.id ? (
+          <MessageFeedback messageId={message.id} feedback={message.feedback} />
+        ) : null}
       </div>
     </MessagePrimitive.Root>
   );
@@ -508,6 +651,7 @@ export function AuiMessageByIndex({
   index,
   message,
   onRetry,
+  onEdit,
   onCitationClick,
 }: {
   index: number;
@@ -515,6 +659,8 @@ export function AuiMessageByIndex({
    * renderer can show plan/strip/citations from the committed data. */
   message?: ChatPageMessage;
   onRetry?: () => void;
+  /** Edit-and-resend handler for user messages at this index. */
+  onEdit?: (newContent: string) => void;
   onCitationClick?: OnCitationClick;
 }): ReactElement | null {
   // The external-store runtime syncs in a useEffect (post-commit), so on
@@ -530,7 +676,14 @@ export function AuiMessageByIndex({
   // tool-card state, re-parsing markdown) instead of updating it.
   const components = useMemo(
     () => ({
-      UserMessage: AuiUserMessage,
+      UserMessage: function BoundUserMessage(): ReactElement {
+        return (
+          <AuiUserMessage
+            message={message}
+            onEdit={message?.role === 'user' ? onEdit : undefined}
+          />
+        );
+      },
       AssistantMessage: function BoundAssistantMessage(): ReactElement {
         return (
           <AuiAssistantMessage
@@ -541,7 +694,7 @@ export function AuiMessageByIndex({
         );
       },
     }),
-    [message, onRetry, onCitationClick]
+    [message, onRetry, onEdit, onCitationClick]
   );
 
   if (index >= runtimeMessageCount) return null;

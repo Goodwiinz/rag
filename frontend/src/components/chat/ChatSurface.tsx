@@ -124,7 +124,8 @@ export function ChatSurface({
     handleCiteSource,
   } = citationPanel;
 
-  const { handleAttach, handleRegenerate } = composerActions;
+  const { handleAttach, handleRegenerate, handleEditUserMessage } =
+    composerActions;
 
   const {
     commandOutputs,
@@ -277,6 +278,7 @@ export function ChatSurface({
         >
           <ChatHeader
             messages={displayedMessages}
+            threadId={activeThreadId}
             chatTitle={
               conversations.find((c) => c.id === activeThreadId)?.title ||
               'Chat'
@@ -305,6 +307,9 @@ export function ChatSurface({
             onPromptSelect={setInput}
             onRegenerate={(index) => {
               if (isSessionInteractive) handleRegenerate(index);
+            }}
+            onEditUserMessage={(index, content) => {
+              if (isSessionInteractive) handleEditUserMessage(index, content);
             }}
             onCitationClick={handleCitationClick}
             onCommandItemAction={handleCommandItemAction}

@@ -60,8 +60,10 @@ export async function exportThread(
   });
 
   const filename = `thread_export.${format === 'markdown' ? 'md' : format}`;
-  // api.download handles auth, blob fetch, and triggers browser download
-  await api.download(
+  // The backend export endpoint is POST (format/options are Query params even
+  // on POST). downloadPost sends an authenticated POST and saves the blob;
+  // api.download would issue a GET and 405.
+  await api.downloadPost(
     `/api/v1/export/thread/${threadId}?${params.toString()}`,
     filename
   );

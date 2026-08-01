@@ -88,6 +88,64 @@ describe('useChatComposerActions', () => {
     expect(handleSubmit).toHaveBeenCalledWith('first turn', []);
   });
 
+  describe('handleEditUserMessage', () => {
+    function setupFour() {
+      return setup({
+        displayedMessages: [
+          makeChatPageMessage({ id: 'u1', role: 'user', content: 'first', timestamp: 1 }),
+          makeChatPageMessage({ id: 'a1', role: 'assistant', content: 'reply 1', timestamp: 2 }),
+          makeChatPageMessage({ id: 'u2', role: 'user', content: 'second', timestamp: 3 }),
+          makeChatPageMessage({ id: 'a2', role: 'assistant', content: 'reply 2', timestamp: 4 }),
+        ],
+      });
+    }
+
+    it('is a no-op while a turn is streaming', () => {
+      const { result, handleSubmit } = setup({
+        storeIsStreaming: true,
+        displayedMessages: [
+          makeChatPageMessage({ id: 'u1', role: 'user', content: 'first', timestamp: 1 }),
+          makeChatPageMessage({ id: 'a1', role: 'assistant', content: 'reply 1', timestamp: 2 }),
+          makeChatPageMessage({ id: 'u2', role: 'user', content: 'second', timestamp: 3 }),
+          makeChatPageMessage({ id: 'a2', role: 'assistant', content: 'reply 2', timestamp: 4 }),
+        ],
+      });
+      act(() => {
+        result.current.handleEditUserMessage(2, 'edited');
+      });
+      expect(handleSubmit).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op when the new content is blank', () => {
+      const { result, handleSubmit } = setupFour();
+      act(() => {
+        result.current.handleEditUserMessage(2, '   ');
+      });
+      expect(handleSubmit).not.toHaveBeenCalled();
+    });
+
+    it('re-sends the edited text with history truncated before the edited message', async () => {
+      const { result, handleSubmit, setInput } = setupFour();
+
+      act(() => {
+        result.current.handleEditUserMessage(2, 'edited second turn');
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(setInput).toHaveBeenCalledWith('edited second turn');
+      // History passed to handleSubmit is everything BEFORE index 2 (u1, a1).
+      expect(handleSubmit).toHaveBeenCalledTimes(1);
+      const [, historyOverride] = handleSubmit.mock.calls[0];
+      expect(historyOverride).toHaveLength(2);
+      expect(historyOverride.map((m: { content: string }) => m.content)).toEqual([
+        'first',
+        'reply 1',
+      ]);
+    });
+  });
+
   it('submit forwards to handleSubmit without arguments', () => {
     const { result, handleSubmit } = setup();
 

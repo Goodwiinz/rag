@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 vi.mock('@/components/ui/sidebar', () => ({
   SidebarTrigger: ({ className }: { className?: string }) => (
@@ -7,6 +8,16 @@ vi.mock('@/components/ui/sidebar', () => ({
       Toggle
     </button>
   ),
+}));
+
+const exportThreadMock = vi.fn();
+vi.mock('@/services/export-service', () => ({
+  exportThread: (...args: unknown[]) => exportThreadMock(...args),
+}));
+
+const toastErrorMock = vi.fn();
+vi.mock('react-hot-toast', () => ({
+  default: { error: (...args: unknown[]) => toastErrorMock(...args) },
 }));
 
 import { ChatHeader } from '../ChatHeader';
@@ -69,5 +80,78 @@ describe('ChatHeader', () => {
     );
     expect(screen.getByLabelText('Copy all messages')).toBeInTheDocument();
     expect(screen.getByLabelText('Export chat')).toBeInTheDocument();
+  });
+
+  describe('export wiring', () => {
+    const messages = [
+      { role: 'user', content: 'hi', timestamp: 1 },
+    ];
+
+    beforeEach(() => {
+      // userEvent awaits internal timers; the file-level fake timers hang it.
+      exportThreadMock.mockReset();
+      exportThreadMock.mockResolvedValue(undefined);
+      vi.useRealTimers();
+      // downloadFile (the no-thread local fallback) touches URL.createObjectURL.
+      (
+        URL as unknown as { createObjectURL: () => string }
+      ).createObjectURL = () => 'blob:mock';
+      (
+        URL as unknown as { revokeObjectURL: () => void }
+      ).revokeObjectURL = () => {};
+    });
+
+    it('uses the backend export (with citations+metadata) when a thread is persisted', async () => {
+      const user = userEvent.setup();
+      render(<ChatHeader messages={messages} threadId="thread-123" />);
+
+      await user.click(screen.getByLabelText('Export chat'));
+      await user.click(screen.getByText('Export as Markdown'));
+
+      expect(exportThreadMock).toHaveBeenCalledTimes(1);
+      expect(exportThreadMock).toHaveBeenCalledWith(
+        'thread-123',
+        'markdown',
+        { includeCitations: true, includeMetadata: true }
+      );
+    });
+
+    it('does not call the backend export for a brand-new chat (no thread)', async () => {
+      const user = userEvent.setup();
+      render(<ChatHeader messages={messages} threadId={null} />);
+
+      await user.click(screen.getByLabelText('Export chat'));
+      await user.click(screen.getByText('Export as Markdown'));
+
+      expect(exportThreadMock).not.toHaveBeenCalled();
+    });
+
+    it('disables PDF export when no thread is persisted', async () => {
+      const user = userEvent.setup();
+      render(<ChatHeader messages={messages} threadId={null} />);
+
+      await user.click(screen.getByLabelText('Export chat'));
+      const pdfButton = screen.getByText('Export as PDF').closest('button');
+      expect(pdfButton).toBeDisabled();
+    });
+
+    it('surfaces a toast on export failure', async () => {
+      exportThreadMock.mockReset();
+      exportThreadMock.mockRejectedValue(new Error('boom'));
+
+      const user = userEvent.setup();
+      render(<ChatHeader messages={messages} threadId="thread-123" />);
+      await user.click(screen.getByLabelText('Export chat'));
+      await user.click(screen.getByText('Export as Markdown'));
+
+      await vi.waitFor(() => {
+        expect(exportThreadMock).toHaveBeenCalled();
+      });
+      await vi.waitFor(() => {
+        expect(toastErrorMock).toHaveBeenCalledWith(
+          'Export failed. Please try again.'
+        );
+      });
+    });
   });
 });

@@ -686,6 +686,11 @@ export function useChatStreaming(
                 role: 'assistant',
                 content: `Stream error: ${error}`,
                 timestamp: Date.now(),
+                error: {
+                  message:
+                    'This response failed to generate. Please try again.',
+                  category: 'stream-error',
+                },
               };
               if (isTurnDisplayed()) setMessages([...newMessages, errorMsg]);
             },
@@ -743,9 +748,13 @@ export function useChatStreaming(
               runtimeId: crypto.randomUUID(),
               source: 'local-only',
               role: 'assistant',
-              content:
-                '⚠ No response received from the agent. The stream completed without any tokens — check backend logs.',
+              content: '',
               timestamp: Date.now(),
+              error: {
+                message:
+                  'No response was received. Please try again.',
+                category: 'empty-response',
+              },
             };
             if (isTurnDisplayed())
               setMessages([...newMessages, emptyResponseMessage]);
@@ -879,9 +888,6 @@ export function useChatStreaming(
         // swallows AbortError, but guard here too in case the abort surfaces.)
         if (!stoppedByUserRef.current) {
           console.error('Failed to send message:', err);
-          const errorMessage =
-            'Error: ' +
-            (err instanceof Error ? err.message : 'Failed to get response');
 
           if (isTurnDisplayed())
             setMessages([
@@ -890,8 +896,13 @@ export function useChatStreaming(
                 runtimeId: crypto.randomUUID(),
                 source: 'local-only',
                 role: 'assistant',
-                content: errorMessage,
+                content: '',
                 timestamp: Date.now(),
+                error: {
+                  message:
+                    'Something went wrong sending your message. Please try again.',
+                  category: 'exception',
+                },
               },
             ]);
         }

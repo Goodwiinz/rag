@@ -24,6 +24,14 @@ export interface UseChatComposerActionsParams {
 export interface UseChatComposerActionsReturn {
   handleAttach: (files: FileList) => Promise<void>;
   handleRegenerate: (assistantMessageIndex: number) => void;
+  /** Edit a prior user message in place and re-send. Truncates the transcript
+   * to just before the edited message (dropping its old answer + any
+   * local-only error bubbles) and re-submits with the new text — the same
+   * slice-and-resend contract as {@link handleRegenerate}. */
+  handleEditUserMessage: (
+    userMessageIndex: number,
+    newContent: string
+  ) => void;
   retryLast: () => void;
   /** Bare submit — clears nothing, just forwards to the streaming path.
    * Callers that need to clear ephemeral output first (useSlashCommands)
@@ -121,6 +129,26 @@ export function useChatComposerActions({
     [displayedMessages, handleSubmit, isLoading, storeIsStreaming, setInput]
   );
 
+  // Edit a prior user message in place and re-send it. The history is
+  // truncated to just before the edited message — identical to regenerate — so
+  // the edited turn replaces the old answer (and any local-only error bubble).
+  // handleSubmit drops non-optimistic overlays from newMessages automatically.
+  const handleEditUserMessage = useCallback(
+    (userMessageIndex: number, newContent: string) => {
+      if (isLoading || storeIsStreaming) return;
+      const content = newContent.trim();
+      if (!content) return;
+      const edited = displayedMessages[userMessageIndex];
+      if (!edited || edited.role !== 'user') return;
+      const editedHistory = displayedMessages.slice(0, userMessageIndex);
+      setInput(content);
+      // Pass content explicitly — setInput only schedules an update, and the
+      // deferred handleSubmit would otherwise read the stale input value.
+      setTimeout(() => handleSubmit(content, editedHistory), 0);
+    },
+    [displayedMessages, handleSubmit, isLoading, storeIsStreaming, setInput]
+  );
+
   // Regenerate the most recent assistant response (the /retry command).
   const retryLast = useCallback(() => {
     const lastAssistantIdx = [...displayedMessages]
@@ -137,6 +165,7 @@ export function useChatComposerActions({
   return {
     handleAttach,
     handleRegenerate,
+    handleEditUserMessage,
     retryLast,
     submit,
   };

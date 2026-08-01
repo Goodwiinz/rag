@@ -41,6 +41,7 @@ interface VirtualizedMessageListProps {
   isLoading: boolean;
   storeIsStreaming: boolean;
   onRegenerate: (index: number) => void;
+  onEditUserMessage?: (index: number, newContent: string) => void;
   onCitationClick: (
     citations: Citation[],
     clickedCitation: Citation,
@@ -60,6 +61,7 @@ interface RowData {
   storeIsStreaming: boolean;
   isLoading: boolean;
   onRegenerate: (index: number) => void;
+  onEditUserMessage?: (index: number, newContent: string) => void;
   onCitationClick: (
     citations: Citation[],
     clickedCitation: Citation,
@@ -87,6 +89,7 @@ const MessageRow = memo(function MessageRow({ index, style, data }: RowProps) {
     storeIsStreaming,
     isLoading,
     onRegenerate,
+    onEditUserMessage,
     onCitationClick,
     thinkingLabel,
     setRowHeight,
@@ -141,6 +144,11 @@ const MessageRow = memo(function MessageRow({ index, style, data }: RowProps) {
           onRetry={
             message.role === 'assistant' ? () => onRegenerate(index) : undefined
           }
+          onEdit={
+            message.role === 'user' && onEditUserMessage
+              ? (content) => onEditUserMessage(index, content)
+              : undefined
+          }
           onCitationClick={onCitationClick}
         />
       )}
@@ -177,6 +185,7 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
   isLoading,
   storeIsStreaming,
   onRegenerate,
+  onEditUserMessage,
   onCitationClick,
   isRetrievingRag,
   onLoadOlder,
@@ -305,6 +314,7 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
       storeIsStreaming,
       isLoading,
       onRegenerate,
+      onEditUserMessage,
       onCitationClick,
       thinkingLabel,
       setRowHeight,
@@ -317,6 +327,7 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
       storeIsStreaming,
       isLoading,
       onRegenerate,
+      onEditUserMessage,
       onCitationClick,
       thinkingLabel,
       setRowHeight,
