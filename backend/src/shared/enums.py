@@ -60,6 +60,25 @@ TERMINAL_JOB_STATUSES: frozenset[JobStatus] = frozenset(
 )
 
 
+class AgentOutboxStatus(StrEnum):
+    """Lifecycle of a transactional-outbox dispatch record (``agent_outbox``).
+
+    ``PENDING`` is written inside the accept transaction — it means "the system
+    has durably promised to dispatch this run", not "dispatch has happened".
+    ``DISPATCHED`` is stamped once the dispatch actually occurred (today: the
+    in-process graph iterator opened on the ``/stream`` path). ``FAILED`` marks
+    a record a future relay gave up on; nothing writes it yet.
+
+    Members ARE the stored strings (``StrEnum``), and the set is rendered into
+    the table's CHECK constraint, so the column domain cannot drift from this
+    enum without a migration.
+    """
+
+    PENDING = "pending"
+    DISPATCHED = "dispatched"
+    FAILED = "failed"
+
+
 class DocumentSortField(str, Enum):
     """
     Allowed sort fields for document queries.

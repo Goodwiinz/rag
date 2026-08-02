@@ -1,0 +1,660 @@
+"""Atomic acceptance of an agent submission (P0-C).
+
+Until this module existed, ``POST /api/v1/agent/stream`` emitted its
+``accepted`` SSE frame as the first line of the generator — before a single
+row was written. A crash anywhere after that frame left the client holding an
+acknowledgment for a run the system had no record of: the repo's dominant
+"fake-success" bug shape, at the protocol level.
+
+``accept_submission`` closes that gap. Everything the acknowledgment implies is
+written in ONE transaction and the caller may only emit ``accepted`` after it
+commits:
+
+1. the user's message row (``chat_messages``),
+2. the run row (``agent_runs``) the accepted frame's ``run_id`` names,
+3. ``run.created`` — seq 1 of the run's ledger, via the P0-B
+   ``run_event_store`` (this is its first producer),
+4. an ``agent_outbox`` dispatch-intent record.
+
+Anything that fails before the commit rolls the whole thing back: no
+``accepted``, an ``error`` frame instead, and no half-written turn.
+
+**The outbox row is a record, not a queue.** Dispatch still happens exactly as
+before — the stream runs the graph in-process immediately after the commit and
+``mark_submission_dispatched`` stamps the row. No relay/poller reads
+``status='pending'``; building one is a later work order, and whatever does it
+must re-dispatch idempotently keyed on ``run_id``.
+
+Design notes
+------------
+
+**Transaction ownership.** ``accept_submission`` owns exactly one transaction
+on the session it is handed: it commits on success and rolls back on any
+failure. The per-write helpers below never commit, so the fault-injection
+tests can break the chain at any statement boundary and assert nothing
+survives. ``run_event_store`` was built to the same rule (it never commits),
+which is what lets its append join this transaction.
+
+**Idempotency.** The key is derived from the newest user turn's
+``client_message_id`` — the field ``/execute`` already uses for the same
+purpose — under a distinct ``agent-stream:`` prefix so a turn sent to both
+endpoints does not collapse into one run. A resubmission of the same key by
+the same user resolves to the existing run instead of creating a second one;
+the ``uq_agent_runs_user_idempotency_key`` partial unique index closes the
+race, and the loser re-reads the winner.
+
+**Superseding.** ``uq_agent_runs_active_thread`` makes "one non-terminal run
+per thread" a database invariant, so a new submission must close the previous
+run for that thread or its own INSERT is rejected. That is done inside the
+accept transaction and mirrors what the turn already does to the graph state
+(``_clear_stale_pending_confirmation`` drops an abandoned HITL interrupt), plus
+what migration d5e6f7a8b9c0 did to pre-existing duplicates.
+
+**Tenancy.** ``organization_id`` is nullable (org-less users exist), compared
+null-safely, and NEVER stringified — ``str(None) == "None"`` has merged tenants
+in this codebase before. The one query keyed by thread rather than org
+(``_supersede_active_runs``) is scoped by construction: its ``thread_id`` comes
+from ``_resolve_thread``, which joins ``Workspace.owner_id == current_user.id``,
+so the thread — and therefore every run correlated to it — is already
+ownership-verified. Same reasoning as ``run_event_store.has_terminal_event``,
+which is keyed only by a server-generated run id.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any, Optional, cast
+from uuid import UUID, uuid4
+
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.models.agent_outbox import AgentOutbox
+from src.models.agent_run import AgentRun
+from src.models.chat_message import ChatMessage, MessageRole
+from src.models.thread import Thread
+from src.services.agent.run_event_store import RunAlreadyTerminalError, append_event
+from src.services.agent.run_event_types import RunEventType
+from src.shared.enums import TERMINAL_JOB_STATUSES, AgentOutboxStatus, JobStatus
+
+logger = logging.getLogger(__name__)
+
+# Dispatch kind for a turn executed in-process by the SSE stream generator.
+# Free-form by design (see the model docstring): a relay dispatching to another
+# backend must be addable without a migration.
+DISPATCH_KIND_STREAM = "agent.stream.execute"
+
+# Prefix keeps /stream and /execute idempotency namespaces disjoint: the same
+# client_message_id sent to both endpoints is two different submissions.
+_IDEMPOTENCY_PREFIX = "agent-stream"
+
+_ACTIVE_RUN_STATUSES: frozenset[str] = frozenset(
+    status.value for status in JobStatus if status not in TERMINAL_JOB_STATUSES
+)
+_TERMINAL_RUN_STATUSES: frozenset[str] = frozenset(
+    status.value for status in TERMINAL_JOB_STATUSES
+)
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _coerce_uuid(value: Any) -> Optional[UUID]:
+    """Best-effort UUID coercion — callers carry ids as strings or UUIDs.
+
+    Never ``str()``: an unparseable or missing value must become ``None``
+    (which filters ``IS NULL``), not the literal string ``"None"``.
+    """
+    if value is None or isinstance(value, UUID):
+        return value
+    try:
+        return UUID(str(value))
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+@dataclass(frozen=True)
+class AcceptedSubmission:
+    """What the caller needs after the accept transaction has committed."""
+
+    run_id: str
+    thread_id: str
+    user_message_id: Optional[str]
+    outbox_id: Optional[str]
+    idempotency_key: Optional[str]
+    # True when an idempotency key resolved to a run accepted by an earlier
+    # request: nothing was written, and the caller must not dispatch again.
+    replayed: bool = False
+
+
+def stream_idempotency_key(request: Any, current_user: Any) -> Optional[str]:
+    """Idempotency key for a ``/stream`` submission, or ``None``.
+
+    Derived from the newest user turn's ``client_message_id`` and scoped by
+    user id so the per-user partial unique index cannot collide across
+    tenants. ``None`` for legacy clients that send no id — those submissions
+    are accepted unconditionally, exactly as before.
+    """
+    last = next(
+        (
+            m
+            for m in reversed(getattr(request, "messages", []) or [])
+            if m.role == "user"
+        ),
+        None,
+    )
+    cmid = getattr(last, "client_message_id", None) if last is not None else None
+    if cmid is None:
+        return None
+    return f"{_IDEMPOTENCY_PREFIX}:{current_user.id}:{cmid}"
+
+
+async def _find_by_idempotency_key(
+    db: AsyncSession,
+    key: str,
+    *,
+    organization_id: Any,
+    user_id: Any,
+) -> Optional[AgentRun]:
+    """Tenant-scoped lookup of the run a key already created.
+
+    Mandatory null-safe org + user filter: a key collision across tenants
+    resolves to nothing rather than another tenant's run.
+    """
+    stmt = select(AgentRun).where(
+        AgentRun.idempotency_key == key,
+        AgentRun.organization_id == _coerce_uuid(organization_id),
+        AgentRun.user_id == _coerce_uuid(user_id),
+    )
+    # Explicit cast: CI's Lint Backend job installs only the linters, so
+    # SQLAlchemy is unresolvable there and ``scalar_one_or_none()`` degrades to
+    # ``Any`` — which trips ``warn_return_any`` in CI while passing locally.
+    return cast(Optional[AgentRun], (await db.execute(stmt)).scalar_one_or_none())
+
+
+async def _existing_outbox_id(db: AsyncSession, run_id: str) -> Optional[str]:
+    """The dispatch record for *run_id* (keyed by a server-generated id)."""
+    stmt = select(AgentOutbox.id).where(AgentOutbox.run_id == run_id).limit(1)
+    found = (await db.execute(stmt)).scalar_one_or_none()
+    return str(found) if found is not None else None
+
+
+async def _existing_user_message_id(
+    db: AsyncSession, *, thread_id: UUID, client_message_id: Optional[UUID]
+) -> Optional[str]:
+    """The already-durable user row for this turn, if the insert deduped."""
+    if client_message_id is None:
+        return None
+    stmt = (
+        select(ChatMessage.id)
+        .where(
+            ChatMessage.thread_id == thread_id,
+            ChatMessage.client_message_id == client_message_id,
+            ChatMessage.role == MessageRole.USER,
+        )
+        .limit(1)
+    )
+    found = (await db.execute(stmt)).scalar_one_or_none()
+    return str(found) if found is not None else None
+
+
+async def _insert_user_message(
+    db: AsyncSession,
+    *,
+    thread_id: UUID,
+    user_id: Any,
+    content: str,
+    client_message_id: Optional[UUID],
+) -> Optional[str]:
+    """Insert the turn's user row idempotently. Does NOT commit.
+
+    ``_persist_user_message`` (the pre-P0-C writer) used PostgreSQL's
+    ``INSERT ... ON CONFLICT DO NOTHING`` against the partial unique index
+    ``uq_chat_messages_thread_client_msg_user``. Here the insert runs inside a
+    SAVEPOINT and a duplicate is caught as ``IntegrityError`` instead, for two
+    reasons: the same unique index still decides the outcome, but this form
+    yields the row id (``ON CONFLICT DO NOTHING ... RETURNING`` returns nothing
+    on conflict, and ``agent_runs.user_message_id`` needs that id), and it is
+    dialect-agnostic, so the fault-injection suite can exercise the real
+    transaction on SQLite.
+    """
+    message = ChatMessage(
+        thread_id=thread_id,
+        user_id=user_id,
+        role=MessageRole.USER,
+        content=content,
+        client_message_id=client_message_id,
+    )
+    try:
+        # SAVEPOINT: a duplicate must roll back only this insert, leaving the
+        # accept transaction usable for the run/event/outbox writes below.
+        async with db.begin_nested():
+            db.add(message)
+            await db.flush()
+    except IntegrityError:
+        logger.debug(
+            "accept_submission: user row already durable for thread %s", thread_id
+        )
+        return await _existing_user_message_id(
+            db, thread_id=thread_id, client_message_id=client_message_id
+        )
+
+    # Thread counters follow the insert, never the dedupe — a retried turn must
+    # not inflate message_count. Expressed as SQL rather than a read-modify-write
+    # so concurrent turns on one thread cannot lose an increment.
+    await db.execute(
+        update(Thread)
+        .where(Thread.id == thread_id)
+        .values(
+            message_count=func.coalesce(Thread.message_count, 0) + 1,
+            last_message_at=_utcnow(),
+        )
+        .execution_options(synchronize_session=False)
+    )
+    return str(message.id)
+
+
+async def _supersede_active_runs(db: AsyncSession, *, thread_id: UUID) -> list[str]:
+    """Close any non-terminal run still holding this thread. Does NOT commit.
+
+    ``uq_agent_runs_active_thread`` permits exactly one non-terminal run per
+    thread, so without this the second turn of every conversation would be
+    rejected by the index. Superseding is also the correct semantics: the turn
+    already discards an abandoned HITL interrupt from the graph state
+    (``_clear_stale_pending_confirmation``), and migration d5e6f7a8b9c0
+    terminalized pre-existing duplicates with the same reasoning.
+
+    Tenant scope: see the module docstring — ``thread_id`` comes from an
+    ownership-verified thread, so every run correlated to it belongs to the
+    submitting user by construction.
+    """
+    stmt = select(AgentRun.job_id, AgentRun.organization_id).where(
+        AgentRun.thread_id == thread_id,
+        AgentRun.status.in_(_ACTIVE_RUN_STATUSES),
+    )
+    victims = (await db.execute(stmt)).all()
+    if not victims:
+        return []
+
+    now = _utcnow()
+    superseded: list[str] = []
+    for job_id, org_id in victims:
+        await db.execute(
+            update(AgentRun)
+            .where(AgentRun.job_id == job_id)
+            .values(
+                status=JobStatus.CANCELLED.value,
+                error_code="superseded",
+                error="Superseded by a newer submission on this thread.",
+                completed_at=now,
+                updated_at=now,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        try:
+            await append_event(
+                db,
+                run_id=str(job_id),
+                event_type=RunEventType.RUN_CANCELLED,
+                payload={"reason": "superseded"},
+                organization_id=org_id,
+            )
+        except RunAlreadyTerminalError:
+            # Ledger already closed (status and ledger can diverge if a writer
+            # died between them). The status update above still stands.
+            logger.debug(
+                "accept_submission: ledger already terminal for superseded run %s",
+                job_id,
+            )
+        superseded.append(str(job_id))
+    await db.flush()
+    return superseded
+
+
+async def _insert_run(
+    db: AsyncSession,
+    *,
+    job_id: str,
+    organization_id: Any,
+    user_id: Any,
+    thread_id: UUID,
+    conversation_id: Any,
+    user_message_id: Optional[str],
+    client_message_id: Optional[UUID],
+    idempotency_key: Optional[str],
+) -> AgentRun:
+    """Create the run row the accepted frame names. Does NOT commit.
+
+    Flushed (not committed) so the ledger append and the outbox insert below
+    can reference ``job_id`` through their foreign keys inside this same
+    transaction.
+
+    Status is ``QUEUED`` — accepted, dispatch not yet started. The caller moves
+    it to ``RUNNING`` once the graph is actually running
+    (``mark_submission_dispatched``).
+    """
+    run = AgentRun(
+        job_id=job_id,
+        organization_id=_coerce_uuid(organization_id),
+        user_id=_coerce_uuid(user_id),
+        thread_id=thread_id,
+        conversation_id=_coerce_uuid(conversation_id),
+        user_message_id=_coerce_uuid(user_message_id),
+        status=JobStatus.QUEUED.value,
+        client_message_id=str(client_message_id) if client_message_id else None,
+        idempotency_key=idempotency_key,
+    )
+    db.add(run)
+    await db.flush()
+    return run
+
+
+async def _insert_outbox(
+    db: AsyncSession,
+    *,
+    run_id: str,
+    organization_id: Any,
+    kind: str,
+    payload: dict[str, Any],
+) -> AgentOutbox:
+    """Write the dispatch-intent record. Does NOT commit.
+
+    A record, not a queue (see the module docstring): nothing polls ``pending``
+    today, and the actual dispatch is unchanged.
+    """
+    record = AgentOutbox(
+        run_id=run_id,
+        organization_id=_coerce_uuid(organization_id),
+        kind=kind,
+        payload=payload,
+        status=AgentOutboxStatus.PENDING.value,
+    )
+    db.add(record)
+    await db.flush()
+    return record
+
+
+async def accept_submission(
+    db: AsyncSession,
+    *,
+    current_user: Any,
+    request: Any,  # AgentExecuteRequest
+    thread: Any,  # models.thread.Thread — ownership-verified by _resolve_thread
+    kind: str = DISPATCH_KIND_STREAM,
+) -> AcceptedSubmission:
+    """Accept a submission atomically; the caller may then emit ``accepted``.
+
+    Commits ONE transaction containing the user message, the run row, the
+    run's ``run.created`` event and the outbox dispatch record. Raises on any
+    failure with the transaction rolled back — the caller must emit an
+    ``error`` frame and must NOT claim acceptance.
+
+    A resubmitted idempotency key short-circuits to the existing run
+    (``replayed=True``) without writing anything, so a retried turn can never
+    produce a second run, a second user row, or a second dispatch record.
+    """
+    thread_uuid = _coerce_uuid(getattr(thread, "id", None))
+    if thread_uuid is None:
+        raise ValueError("accept_submission requires an ownership-verified thread")
+
+    organization_id = getattr(current_user, "organization_id", None)
+    idempotency_key = stream_idempotency_key(request, current_user)
+
+    last_user = next(
+        (m for m in reversed(request.messages) if m.role == "user"),
+        None,
+    )
+    if last_user is None:
+        raise ValueError("accept_submission requires a user message")
+    client_message_id = _coerce_uuid(getattr(last_user, "client_message_id", None))
+
+    if idempotency_key is not None:
+        existing = await _find_by_idempotency_key(
+            db,
+            idempotency_key,
+            organization_id=organization_id,
+            user_id=current_user.id,
+        )
+        if existing is not None:
+            return AcceptedSubmission(
+                run_id=str(existing.job_id),
+                thread_id=str(thread_uuid),
+                user_message_id=(
+                    str(existing.user_message_id)
+                    if existing.user_message_id is not None
+                    else None
+                ),
+                outbox_id=await _existing_outbox_id(db, str(existing.job_id)),
+                idempotency_key=idempotency_key,
+                replayed=True,
+            )
+
+    job_id = str(uuid4())
+    try:
+        await _supersede_active_runs(db, thread_id=thread_uuid)
+        user_message_id = await _insert_user_message(
+            db,
+            thread_id=thread_uuid,
+            user_id=current_user.id,
+            content=last_user.content,
+            client_message_id=client_message_id,
+        )
+        run = await _insert_run(
+            db,
+            job_id=job_id,
+            organization_id=organization_id,
+            user_id=current_user.id,
+            thread_id=thread_uuid,
+            conversation_id=getattr(thread, "conversation_id", None),
+            user_message_id=user_message_id,
+            client_message_id=client_message_id,
+            idempotency_key=idempotency_key,
+        )
+        await append_event(
+            db,
+            run_id=job_id,
+            event_type=RunEventType.RUN_CREATED,
+            payload={},
+            organization_id=organization_id,
+        )
+        outbox = await _insert_outbox(
+            db,
+            run_id=job_id,
+            organization_id=organization_id,
+            kind=kind,
+            payload={
+                "thread_id": str(thread_uuid),
+                "user_id": str(current_user.id),
+                "model": getattr(request, "model", "") or "",
+                "use_rag": bool(getattr(request, "use_rag", True)),
+            },
+        )
+        outbox_id = str(outbox.id)
+        await db.commit()
+    except IntegrityError:
+        # The idempotency index is the expected loser here: a concurrent
+        # submission with the same key committed first. Re-read the winner and
+        # attach to it instead of failing the turn.
+        await db.rollback()
+        if idempotency_key is not None:
+            winner = await _find_by_idempotency_key(
+                db,
+                idempotency_key,
+                organization_id=organization_id,
+                user_id=current_user.id,
+            )
+            if winner is not None:
+                logger.info(
+                    "accept_submission: idempotency race lost — attaching to run %s",
+                    winner.job_id,
+                )
+                return AcceptedSubmission(
+                    run_id=str(winner.job_id),
+                    thread_id=str(thread_uuid),
+                    user_message_id=(
+                        str(winner.user_message_id)
+                        if winner.user_message_id is not None
+                        else None
+                    ),
+                    outbox_id=await _existing_outbox_id(db, str(winner.job_id)),
+                    idempotency_key=idempotency_key,
+                    replayed=True,
+                )
+        raise
+    except Exception:
+        # Nothing partial may survive: no run row without its event, no user
+        # row without a run, no acknowledgment without any of them.
+        await db.rollback()
+        raise
+
+    return AcceptedSubmission(
+        run_id=str(run.job_id),
+        thread_id=str(thread_uuid),
+        user_message_id=user_message_id,
+        outbox_id=outbox_id,
+        idempotency_key=idempotency_key,
+    )
+
+
+async def mark_submission_dispatched(
+    db: AsyncSession,
+    *,
+    run_id: str,
+    outbox_id: Optional[str],
+    organization_id: Any,
+) -> None:
+    """Record that the accepted run actually started. Commits; never raises.
+
+    Closes the outbox record (``pending`` → ``dispatched``) and moves the run
+    ``queued`` → ``running`` with a ``run.started`` event. Best-effort by
+    design: dispatch already happened, and a bookkeeping failure must not kill
+    a live turn. Without the stamp every row would sit ``pending`` forever and
+    a future relay would re-dispatch finished runs.
+    """
+    now = _utcnow()
+    try:
+        if outbox_id is not None:
+            await db.execute(
+                update(AgentOutbox)
+                .where(
+                    AgentOutbox.id == _coerce_uuid(outbox_id),
+                    AgentOutbox.status == AgentOutboxStatus.PENDING.value,
+                )
+                .values(
+                    status=AgentOutboxStatus.DISPATCHED.value,
+                    dispatched_at=now,
+                    updated_at=now,
+                )
+                .execution_options(synchronize_session=False)
+            )
+        await db.execute(
+            update(AgentRun)
+            .where(AgentRun.job_id == run_id, AgentRun.status == JobStatus.QUEUED.value)
+            .values(status=JobStatus.RUNNING.value, started_at=now, updated_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        try:
+            await append_event(
+                db,
+                run_id=run_id,
+                event_type=RunEventType.RUN_STARTED,
+                payload={},
+                organization_id=organization_id,
+            )
+        except RunAlreadyTerminalError:
+            # A supersede won the race and closed the ledger before dispatch
+            # got here; the status/outbox updates above still stand.
+            logger.debug(
+                "mark_submission_dispatched: ledger already terminal for run %s",
+                run_id,
+            )
+        await db.commit()
+    except Exception:
+        logger.warning(
+            "mark_submission_dispatched failed for run %s", run_id, exc_info=True
+        )
+        try:
+            await db.rollback()
+        except Exception:
+            logger.debug("rollback after dispatch stamp failure failed", exc_info=True)
+
+
+async def finalize_submission(
+    db: AsyncSession,
+    *,
+    run_id: str,
+    status: JobStatus,
+    organization_id: Any,
+    event_type: Optional[RunEventType] = None,
+    payload: Optional[dict[str, Any]] = None,
+    error_code: Optional[str] = None,
+    error: Optional[str] = None,
+) -> None:
+    """Move the run to *status* at the end of the turn. Commits; never raises.
+
+    The run row must reach a terminal status or ``uq_agent_runs_active_thread``
+    would leave a phantom active run on the thread (superseded by the next
+    turn) and the stale-run sweeper would eventually mark a perfectly
+    successful turn ``failed``.
+
+    ``event_type`` is optional because not every exit is terminal: a turn
+    parked on a HITL confirmation moves to ``awaiting_confirmation`` and its
+    ledger must stay OPEN — the run genuinely continues on ``/stream/confirm``.
+
+    Best-effort: the frames the client cares about have already been emitted by
+    the time this runs, so a bookkeeping failure is logged, never raised.
+    """
+    now = _utcnow()
+    values: dict[str, Any] = {
+        "status": status.value,
+        "error_code": error_code,
+        "error": error,
+        "updated_at": now,
+    }
+    if status in TERMINAL_JOB_STATUSES:
+        values["completed_at"] = now
+    try:
+        await db.execute(
+            update(AgentRun)
+            .where(
+                AgentRun.job_id == run_id,
+                AgentRun.status.notin_(_TERMINAL_RUN_STATUSES),
+            )
+            .values(**values)
+            .execution_options(synchronize_session=False)
+        )
+        if event_type is not None:
+            try:
+                await append_event(
+                    db,
+                    run_id=run_id,
+                    event_type=event_type,
+                    payload=payload or {},
+                    organization_id=organization_id,
+                )
+            except RunAlreadyTerminalError:
+                # Absorbing terminal ledger — another writer closed it first.
+                logger.debug(
+                    "finalize_submission: ledger already closed for %s", run_id
+                )
+        await db.commit()
+    except Exception:
+        logger.warning("finalize_submission failed for run %s", run_id, exc_info=True)
+        try:
+            await db.rollback()
+        except Exception:
+            logger.debug("rollback after finalize failure failed", exc_info=True)
+
+
+__all__ = [
+    "DISPATCH_KIND_STREAM",
+    "AcceptedSubmission",
+    "accept_submission",
+    "finalize_submission",
+    "mark_submission_dispatched",
+    "stream_idempotency_key",
+]

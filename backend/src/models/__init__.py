@@ -13,6 +13,7 @@ from .ab_testing import (
     Variant,
 )
 from .agent_hitl_audit import AgentHitlAudit
+from .agent_outbox import AgentOutbox
 from .agent_run import AgentRun
 from .agent_run_event import AgentRunEvent
 from .agent_runtime_snapshot import AgentRuntimeSnapshot
@@ -137,6 +138,7 @@ __all__ = [
     # Base classes
     "Base",
     "AgentHitlAudit",
+    "AgentOutbox",
     "AgentRun",
     "AgentRunEvent",
     "AgentRuntimeSnapshot",
