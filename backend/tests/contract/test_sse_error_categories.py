@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Set, Tuple
 
 import pytest
 
@@ -50,9 +50,37 @@ _EXPECTED_CATEGORY_VALUES = [
 ]
 
 
-def _is_error_event_arg(arg: ast.expr) -> bool:
-    """True when *arg* names the ``error`` SSE event (enum member or literal)."""
+def _error_event_aliases(tree: ast.AST) -> Set[str]:
+    """Names bound to the ``error`` event anywhere in *tree*.
+
+    Without this, ``event = AgentStreamEvent.ERROR`` followed by
+    ``emitter.emit(event, {...})`` would slip past the guard entirely — the
+    emit would not even be *counted* as an error emit, so a category-less,
+    message-leaking frame could ship with the contract suite still green.
+    """
+    aliases: Set[str] = set()
+    for node in ast.walk(tree):
+        targets: List[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets = [node.target]
+        else:
+            continue
+        value = node.value
+        if value is None or not _is_error_event_arg(value):
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                aliases.add(target.id)
+    return aliases
+
+
+def _is_error_event_arg(arg: ast.expr, aliases: Set[str] = frozenset()) -> bool:
+    """True when *arg* names the ``error`` SSE event (enum member, literal or alias)."""
     if isinstance(arg, ast.Constant) and arg.value == "error":
+        return True
+    if isinstance(arg, ast.Name) and arg.id in aliases:
         return True
     return (
         isinstance(arg, ast.Attribute)
@@ -87,6 +115,7 @@ def _collect_error_emit_offenders(source: str) -> Tuple[int, List[str]]:
     ``AgentErrorCategory`` member (the explicit-category escape hatch).
     """
     tree = ast.parse(source)
+    aliases = _error_event_aliases(tree)
     offenders: List[str] = []
     count = 0
 
@@ -95,15 +124,21 @@ def _collect_error_emit_offenders(source: str) -> Tuple[int, List[str]]:
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr == "emit"
-            and node.args
-            and _is_error_event_arg(node.args[0])
         ):
             continue
+        kwargs = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+        event_arg = node.args[0] if node.args else kwargs.get("event_type")
+        if event_arg is None or not _is_error_event_arg(event_arg, aliases):
+            continue
         count += 1
-        if len(node.args) < 2:
+        payload = (
+            node.args[1]
+            if len(node.args) > 1
+            else kwargs.get("data") or kwargs.get("payload")
+        )
+        if payload is None:
             offenders.append(f"L{node.lineno}: error emit with no payload argument")
             continue
-        payload = node.args[1]
         if (
             isinstance(payload, ast.Call)
             and isinstance(payload.func, ast.Name)
@@ -207,3 +242,32 @@ def test_confirm_not_found_branches_cannot_oracle_thread_existence() -> None:
     )
     assert source.count("_CONFIRM_NOT_FOUND_CATEGORY") == 3
     assert '"Thread not found"' in source
+
+
+def test_guard_catches_an_aliased_event_variable() -> None:
+    """An alias must not let a bare payload through.
+
+    ``event = AgentStreamEvent.ERROR`` then ``emit(event, {...})`` was
+    previously invisible to the walker: the emit was never counted, so a
+    category-less frame shipped with the suite green.
+    """
+    source = (
+        "event = AgentStreamEvent.ERROR\n"
+        'await emitter.emit(event, {"error": str(exc)})\n'
+    )
+    count, offenders = _collect_error_emit_offenders(source)
+    assert count == 1, "aliased error emit must still be counted"
+    assert offenders, "aliased emit with a bare dict payload must be an offender"
+
+
+def test_guard_catches_keyword_arguments() -> None:
+    """Keyword-form emits are held to the same contract as positional ones."""
+    source = (
+        "await emitter.emit(\n"
+        "    event_type=AgentStreamEvent.ERROR,\n"
+        '    data={"error": str(exc)},\n'
+        ")\n"
+    )
+    count, offenders = _collect_error_emit_offenders(source)
+    assert count == 1, "keyword error emit must still be counted"
+    assert offenders, "keyword emit with a bare dict payload must be an offender"

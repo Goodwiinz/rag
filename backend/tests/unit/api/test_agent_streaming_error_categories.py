@@ -9,7 +9,9 @@ STRING (adding ``category`` must not turn ``error`` into an object).
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -27,18 +29,20 @@ class _RaisingGraph:
     def __init__(self, exc: BaseException) -> None:
         self._exc = exc
 
-    async def astream_events(self, *args, **kwargs):
+    async def astream_events(
+        self, *args: Any, **kwargs: Any
+    ) -> AsyncIterator[dict[str, Any]]:
         raise self._exc
         yield  # pragma: no cover - makes this an async generator
 
-    async def aget_state(self, config):
+    async def aget_state(self, config: Any) -> Any:
         return SimpleNamespace(values={"user_id": "user-1"}, tasks=())
 
 
 class _ConfirmGraph:
     """Confirm-path graph with a controllable snapshot."""
 
-    def __init__(self, snapshot) -> None:
+    def __init__(self, snapshot: Any) -> None:
         self._snapshot = snapshot
 
     async def astream_events(self, *args, **kwargs):
@@ -47,7 +51,7 @@ class _ConfirmGraph:
     async def aget_state(self, config):
         return self._snapshot
 
-    async def aclose(self):
+    async def aclose(self) -> None:
         pass
 
 
@@ -58,7 +62,7 @@ def _rate_limit_error() -> RateLimitError:
     )
 
 
-async def _run_stream(graph) -> list[str]:
+async def _run_stream(graph: Any) -> list[str]:
     from src.api.agent.streaming import stream_event_generator
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
@@ -81,7 +85,7 @@ async def _run_stream(graph) -> list[str]:
         ]
 
 
-async def _run_confirm(graph) -> list[str]:
+async def _run_confirm(graph: Any) -> list[str]:
     from src.api.agent.streaming import stream_confirm_event_generator
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
@@ -115,7 +119,7 @@ async def _run_confirm(graph) -> list[str]:
         ]
 
 
-def _error_payload(frames: list[str]) -> dict:
+def _error_payload(frames: list[str]) -> dict[str, Any]:
     errors = frames_of_type(frames, "error")
     assert errors, f"no error frame emitted; got {[f[:60] for f in frames]}"
     return sse_data(errors[-1])
@@ -210,10 +214,12 @@ async def test_confirm_claim_contention_is_conflict() -> None:
     )
 
     class _AlwaysClaimedRedis:
-        async def set(self, key, value, nx=False, ex=None):
+        async def set(
+            self, key: Any, value: Any, nx: bool = False, ex: Any = None
+        ) -> Any:
             return None if nx else True
 
-        async def delete(self, key):
+        async def delete(self, key: Any) -> Any:
             return None
 
     with (
