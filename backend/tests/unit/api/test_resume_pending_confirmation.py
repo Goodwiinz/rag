@@ -24,6 +24,8 @@ from uuid import uuid4
 
 import pytest
 
+from tests.utils.agent_stream import sse_event_name, sse_seq
+
 pytestmark = pytest.mark.unit
 
 
@@ -86,7 +88,10 @@ async def test_pending_interrupt_is_redelivered_as_a_confirmation_frame(
     frame = await _pending_confirmation_frame(thread_id, _user())
 
     assert frame is not None, "a parked interrupt must be recoverable after resume"
-    assert frame.startswith("event: confirmation\n")
+    # Anchored to the event line, not the first byte: the frame leads with the
+    # envelope's ``id:`` line (Last-Event-ID cursor).
+    assert sse_event_name(frame) == "confirmation"
+    assert sse_seq(frame) is not None
     assert "create_project" in frame
     assert thread_id in frame
     assert frame.endswith("\n\n"), "SSE frames terminate with a blank line"

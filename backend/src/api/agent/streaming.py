@@ -468,6 +468,61 @@ def _format_sse_event(
     return f"{prefix}event: {event_type}\ndata: {_json.dumps(data)}\n\n"
 
 
+def build_stream_envelope(
+    data: Dict[str, Any],
+    *,
+    seq: int,
+    trace_id: str,
+    thread_id: Optional[str] = None,
+    route: str = "pending",
+) -> Dict[str, Any]:
+    """Wrap an SSE payload in the agent stream envelope.
+
+    Single source of the envelope shape (schema_version, sequence, event_id,
+    occurred_at, trace_id, thread_id, route). ``_SeqEmitter.emit`` is the main
+    caller; anything else that has to put a frame on the wire outside a live
+    stream (see ``_pending_confirmation_frame`` on the resume path) goes
+    through here rather than hand-rolling a payload that drifts.
+    """
+    return {
+        **data,
+        "schema_version": AGENT_STREAM_SCHEMA_VERSION,
+        "sequence": seq,
+        "event_id": f"{trace_id}:{seq}",
+        "occurred_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "trace_id": trace_id,
+        "thread_id": thread_id,
+        "route": route,
+    }
+
+
+def format_stream_envelope_frame(
+    event_type: Any,
+    data: Dict[str, Any],
+    *,
+    seq: int,
+    trace_id: Optional[str] = None,
+    thread_id: Optional[str] = None,
+    route: str = "pending",
+) -> str:
+    """Serialize one enveloped SSE frame, ``id:`` line included.
+
+    The ``id:`` line is what EventSource turns into Last-Event-ID, so a frame
+    emitted without it silently freezes the client's resume cursor.
+    """
+    return _format_sse_event(
+        event_type,
+        build_stream_envelope(
+            data,
+            seq=seq,
+            trace_id=trace_id or str(_uuid.uuid4()),
+            thread_id=thread_id,
+            route=route,
+        ),
+        seq=seq,
+    )
+
+
 class _SeqEmitter:
     """Sequence-numbered SSE frames, teed into the resumable-stream Redis
     buffer (``src.services.agent.stream_buffer``). Buffering is best-effort:
@@ -514,19 +569,14 @@ class _SeqEmitter:
     ) -> str:
         self.seq += 1
         self.slo_tracker.record(event_type, data)
-        envelope = {
-            **data,
-            "schema_version": AGENT_STREAM_SCHEMA_VERSION,
-            "sequence": self.seq,
-            "event_id": f"{self.trace_id}:{self.seq}",
-            "occurred_at": datetime.now(timezone.utc)
-            .isoformat()
-            .replace("+00:00", "Z"),
-            "trace_id": self.trace_id,
-            "thread_id": self.thread_id,
-            "route": self.route,
-        }
-        frame = _format_sse_event(event_type, envelope, seq=self.seq)
+        frame = format_stream_envelope_frame(
+            event_type,
+            data,
+            seq=self.seq,
+            trace_id=self.trace_id,
+            thread_id=self.thread_id,
+            route=self.route,
+        )
         if buffer and self.sid is not None:
             try:
                 await _stream_buffer.append(self.sid, self.seq, frame)

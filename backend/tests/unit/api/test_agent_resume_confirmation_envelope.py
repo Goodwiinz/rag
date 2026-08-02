@@ -1,0 +1,174 @@
+"""``GET /stream/resume`` re-delivers a parked HITL confirmation.
+
+That frame used to be hand-built as ``event: …\\ndata: {…}`` with no ``id:``
+line and none of the envelope fields every live-stream frame carries. Two
+consequences: an EventSource client's Last-Event-ID never advanced past it (a
+reconnect then replayed from a stale cursor), and the payload was the only
+agent SSE frame on the wire without schema_version / sequence / event_id /
+trace_id / route — so any consumer keyed on the envelope had to special-case
+it. The single-frame response also skipped ``_SSE_HEADERS``, leaving proxy
+buffering (``X-Accel-Buffering: no``) unset for the one frame that matters.
+"""
+
+from __future__ import annotations
+
+import uuid as _uuid
+from types import SimpleNamespace
+from typing import Any, Optional
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
+from tests.utils.agent_stream import sse_data, sse_event_name, sse_seq
+
+_CONFIRMATION = {
+    "tool_name": "create_note",
+    "tool_args": {"title": "parked"},
+    "message": "Create this note?",
+}
+
+
+def _snapshot_with_interrupt(value: dict) -> SimpleNamespace:
+    """A checkpoint snapshot parked on a single ``interrupt()``."""
+    return SimpleNamespace(
+        values={},
+        tasks=(SimpleNamespace(interrupts=(SimpleNamespace(value=value),)),),
+    )
+
+
+def _graph_patches(snapshot: Any) -> list:
+    graph = SimpleNamespace(aget_state=AsyncMock(return_value=snapshot))
+    return [
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            new=lambda **_kwargs: graph,
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_resume_confirmation_frame_carries_envelope() -> None:
+    """The re-delivered frame must be a full envelope with an ``id:`` line."""
+    from src.api.agent.execute import _pending_confirmation_frame
+    from src.api.agent.streaming import AGENT_STREAM_SCHEMA_VERSION
+
+    thread_id = str(_uuid.uuid4())
+    current_user = Mock(id="user-1", organization_id="org-1")
+    patches = _graph_patches(_snapshot_with_interrupt(_CONFIRMATION))
+
+    # Called exactly as the pre-fix resume path called it, so this test fails
+    # on the envelope contract rather than on a changed signature.
+    with patches[0], patches[1], patches[2]:
+        frame = await _pending_confirmation_frame(thread_id, current_user)
+
+    assert frame is not None, "a parked interrupt must produce a frame"
+    assert sse_event_name(frame) == "confirmation"
+
+    payload = sse_data(frame)
+    # The original payload survives the envelope.
+    assert payload["thread_id"] == thread_id
+    assert payload["confirmation"] == _CONFIRMATION
+
+    # Envelope fields — same set every live-stream frame carries.
+    assert payload["schema_version"] == AGENT_STREAM_SCHEMA_VERSION
+    assert payload["route"] == "graph"
+    assert payload["occurred_at"].endswith("Z")
+    assert payload["trace_id"]
+    assert payload["event_id"] == f"{payload['trace_id']}:{payload['sequence']}"
+
+    # The id: line is what becomes Last-Event-ID; it must match the envelope's
+    # own sequence and continue past the cursor the client sent.
+    assert sse_seq(frame) == payload["sequence"], (
+        "frame has no id: line matching its sequence — a client resuming from "
+        f"this frame cannot advance its cursor: {frame!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_resume_confirmation_seq_continues_from_client_cursor() -> None:
+    """Echoing this frame's id back as Last-Event-ID must move the cursor on."""
+    from src.api.agent.execute import _pending_confirmation_frame
+
+    current_user = Mock(id="user-1", organization_id="org-1")
+    patches = _graph_patches(_snapshot_with_interrupt(_CONFIRMATION))
+
+    with patches[0], patches[1], patches[2]:
+        frame = await _pending_confirmation_frame(
+            str(_uuid.uuid4()), current_user, after=7
+        )
+
+    assert frame is not None
+    assert sse_seq(frame) == 8
+    assert sse_data(frame)["sequence"] == 8
+
+
+@pytest.mark.asyncio
+async def test_resume_confirmation_response_uses_sse_headers() -> None:
+    """The single-frame resume response must carry the shared SSE headers."""
+    from src.api.agent import execute as execute_mod
+    from src.api.agent.streaming import _SSE_HEADERS
+
+    thread_id = str(_uuid.uuid4())
+    current_user = Mock(id="user-1", organization_id="org-1")
+
+    class _FakeResult:
+        def scalar_one_or_none(self) -> object:
+            return object()  # ownership check passes
+
+    class _FakeDB:
+        async def execute(self, *_args: Any, **_kwargs: Any) -> _FakeResult:
+            return _FakeResult()
+
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    frame = "id: 1\nevent: confirmation\ndata: {}\n\n"
+
+    with (
+        patch.object(
+            execute_mod._stream_buffer,
+            "active_stream_id",
+            new=AsyncMock(return_value=None),
+        ),
+        patch.object(
+            execute_mod,
+            "_pending_confirmation_frame",
+            new=AsyncMock(return_value=frame),
+        ),
+    ):
+        response = await execute_mod.resume_stream(
+            request,  # type: ignore[arg-type]
+            thread_id=thread_id,
+            after=0,
+            last_event_id=None,
+            current_user=current_user,
+            db=_FakeDB(),  # type: ignore[arg-type]
+        )
+
+    for header, value in _SSE_HEADERS.items():
+        assert response.headers.get(header) == value, (
+            f"resume confirmation response is missing {header}: "
+            f"{dict(response.headers)!r}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_resume_confirmation_frame_absent_without_interrupt() -> None:
+    """No parked interrupt → None (resume still degrades to its 204)."""
+    from src.api.agent.execute import _pending_confirmation_frame
+
+    current_user = Mock(id="user-1", organization_id="org-1")
+    patches = _graph_patches(SimpleNamespace(values={}, tasks=()))
+
+    with patches[0], patches[1], patches[2]:
+        frame: Optional[str] = await _pending_confirmation_frame(
+            str(_uuid.uuid4()), current_user
+        )
+
+    assert frame is None
