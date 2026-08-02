@@ -1,25 +1,8 @@
 'use client';
 
 import React, { useMemo, Fragment } from 'react';
-import ReactMarkdown from 'react-markdown';
-import dynamic from 'next/dynamic';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-
-const SyntaxHighlighter = dynamic(
-  () =>
-    import('react-syntax-highlighter/dist/esm/prism').then(
-      (mod) => mod.default
-    ),
-  {
-    loading: () => (
-      <pre className="p-4 rounded-lg bg-(--nous-bg-1) text-xs font-mono overflow-x-auto">
-        <code>Loading...</code>
-      </pre>
-    ),
-    ssr: false,
-  }
-);
 import { cn } from '@/lib/utils';
+import { ChatMarkdown } from './ChatMarkdown';
 import { CitationLink } from './CitationLink';
 import {
   Citation,
@@ -36,40 +19,67 @@ interface CitationRendererProps {
   className?: string;
 }
 
+/** Split a message into fenced-code chunks and prose chunks. Citation
+ * markers are only parsed in prose: bracketed indexing inside a code fence
+ * (`arr[1]`) must render as code, not get carved out into a citation chip
+ * that truncates the block. An unterminated final fence (mid-stream) stays
+ * one code chunk. */
+function splitOnCodeFences(
+  content: string
+): Array<{ type: 'code' | 'prose'; content: string }> {
+  const chunks: Array<{ type: 'code' | 'prose'; content: string }> = [];
+  let buf: string[] = [];
+  let inFence = false;
+
+  const flush = (type: 'code' | 'prose'): void => {
+    if (buf.length > 0) {
+      chunks.push({ type, content: buf.join('\n') });
+      buf = [];
+    }
+  };
+
+  for (const line of content.split('\n')) {
+    if (line.trimStart().startsWith('```')) {
+      if (inFence) {
+        buf.push(line);
+        flush('code');
+        inFence = false;
+      } else {
+        flush('prose');
+        inFence = true;
+        buf.push(line);
+      }
+    } else {
+      buf.push(line);
+    }
+  }
+  flush(inFence ? 'code' : 'prose');
+  return chunks;
+}
+
 export function CitationRenderer({
   content,
   citations = [],
   onCitationClick,
   activeCitationIndex,
   className,
-}: CitationRendererProps) {
-  const segments = useMemo(() => {
-    return parseMessageWithCitations(content);
-  }, [content]);
+}: CitationRendererProps): React.ReactElement {
+  const chunks = useMemo(() => splitOnCodeFences(content), [content]);
 
-  const hasInlineCitations = useMemo(() => {
-    return hasCitations(content);
-  }, [content]);
+  const hasInlineCitations = useMemo(
+    () =>
+      chunks.some(
+        (chunk) => chunk.type === 'prose' && hasCitations(chunk.content)
+      ),
+    [chunks]
+  );
 
   if (!hasInlineCitations) {
     return (
       <div
         className={cn('prose prose-sm dark:prose-invert max-w-none', className)}
       >
-        {/* SECURITY (audit #21): LLM-authored links open with
-            rel="noopener noreferrer" so a malicious target can't reach back
-            via window.opener (reverse tabnabbing). */}
-        <ReactMarkdown
-          components={{
-            a: ({ href, children }) => (
-              <a href={href} target="_blank" rel="noopener noreferrer">
-                {children}
-              </a>
-            ),
-          }}
-        >
-          {content}
-        </ReactMarkdown>
+        <ChatMarkdown content={content} />
       </div>
     );
   }
@@ -78,72 +88,39 @@ export function CitationRenderer({
     <div
       className={cn('prose prose-sm dark:prose-invert max-w-none', className)}
     >
-      {segments.map((segment, index) => {
-        if (
-          segment.type === 'citation' &&
-          segment.citationIndex !== undefined
-        ) {
-          const citation = getCitationByIndex(citations, segment.citationIndex);
+      {chunks.map((chunk, chunkIndex) => {
+        if (chunk.type === 'code') {
           return (
-            <CitationLink
-              key={`citation-${index}-${segment.citationIndex}`}
-              citationNumber={segment.citationIndex}
-              citation={citation}
-              onClick={onCitationClick}
-              isActive={activeCitationIndex === segment.citationIndex}
-            />
+            <ChatMarkdown key={`code-${chunkIndex}`} content={chunk.content} />
           );
         }
         return (
-          <Fragment key={`text-${index}`}>
-            <ReactMarkdown
-              components={{
-                p: ({ children }) => <span>{children}</span>,
-                code({
-                  inline,
-                  className,
-                  children,
-                }: {
-                  inline?: boolean;
-                  className?: string;
-                  children?: React.ReactNode;
-                }) {
-                  const match = /language-(\w+)/.exec(className || '');
-                  const language = match ? match[1] : '';
-                  return !inline && language ? (
-                    <SyntaxHighlighter
-                      style={oneDark}
-                      language={language}
-                      PreTag="div"
-                    >
-                      {String(children).replace(/\n$/, '')}
-                    </SyntaxHighlighter>
-                  ) : (
-                    <code className="rounded bg-(--nous-bg-2) px-1.5 py-0.5 text-[11px] font-mono text-(--nous-sol)">
-                      {children}
-                    </code>
-                  );
-                },
-                a: ({
-                  href,
-                  children,
-                }: {
-                  href?: string;
-                  children?: React.ReactNode;
-                }) => (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-(--nous-sol) hover:text-(--nous-helios) underline"
-                  >
-                    {children}
-                  </a>
-                ),
-              }}
-            >
-              {segment.content}
-            </ReactMarkdown>
+          <Fragment key={`prose-${chunkIndex}`}>
+            {parseMessageWithCitations(chunk.content).map((segment, index) => {
+              if (
+                segment.type === 'citation' &&
+                segment.citationIndex !== undefined
+              ) {
+                const citation = getCitationByIndex(
+                  citations,
+                  segment.citationIndex
+                );
+                return (
+                  <CitationLink
+                    key={`citation-${chunkIndex}-${index}-${segment.citationIndex}`}
+                    citationNumber={segment.citationIndex}
+                    citation={citation}
+                    onClick={onCitationClick}
+                    isActive={activeCitationIndex === segment.citationIndex}
+                  />
+                );
+              }
+              return (
+                <Fragment key={`text-${chunkIndex}-${index}`}>
+                  <ChatMarkdown content={segment.content} inline />
+                </Fragment>
+              );
+            })}
           </Fragment>
         );
       })}
