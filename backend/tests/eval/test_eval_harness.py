@@ -86,7 +86,9 @@ class TestEvaluatorGuards:
             == 1
         )
         assert (
-            tool_subset_match({"tool_calls": ["b"]}, {"expected_tools": ("a",)})["score"]
+            tool_subset_match({"tool_calls": ["b"]}, {"expected_tools": ("a",)})[
+                "score"
+            ]
             == 0
         )
         # Order matters: expected (a, b) is NOT satisfied by actual [b, a].
@@ -168,9 +170,7 @@ class TestPartitionExamples:
             _FakeExample("a", "greeting_hi"),
             _FakeExample("b", "stale_removed_case"),
         ]
-        by_name, orphans = _partition_examples(
-            examples, local_names={"greeting_hi"}
-        )
+        by_name, orphans = _partition_examples(examples, local_names={"greeting_hi"})
         assert set(by_name) == {"greeting_hi"}
         assert [o.id for o in orphans] == ["b"]
 
@@ -219,7 +219,9 @@ class TestPlanAdherence:
             {"step": 1, "tool": "search_arxiv"},
             {"step": 2, "tool": "summarize_document"},
         ]
-        score = plan_adherence(_run(plan, ["search_arxiv", "summarize_document"]))["score"]
+        score = plan_adherence(_run(plan, ["search_arxiv", "summarize_document"]))[
+            "score"
+        ]
         assert score == 1
 
     def test_partial_execution_scores_fraction(self):
@@ -263,7 +265,13 @@ class TestNoToolLoop:
         # A,B,A,B,A — "a" with identical args appears 3x, never adjacent.
         from tests.eval.langsmith_trajectory_evaluators import no_tool_loop
 
-        calls = [("a", {"q": 1}), ("b", {}), ("a", {"q": 1}), ("b", {}), ("a", {"q": 1})]
+        calls = [
+            ("a", {"q": 1}),
+            ("b", {}),
+            ("a", {"q": 1}),
+            ("b", {}),
+            ("a", {"q": 1}),
+        ]
         assert no_tool_loop(_traj(calls))["score"] == 0
 
     def test_two_non_consecutive_repeats_pass(self):
@@ -343,7 +351,11 @@ class TestToolCallValidity:
         from tests.eval.langsmith_trajectory_evaluators import tool_call_validity
 
         msgs = [
-            {"type": "ai", "id": "a1", "tool_calls": [{"id": "c1", "name": "x", "args": {}}]},
+            {
+                "type": "ai",
+                "id": "a1",
+                "tool_calls": [{"id": "c1", "name": "x", "args": {}}],
+            },
             {"type": "tool", "id": "t1", "tool_call_id": "c1"},
         ]
         assert tool_call_validity(self._run(msgs))["score"] == 1
@@ -352,7 +364,11 @@ class TestToolCallValidity:
         from tests.eval.langsmith_trajectory_evaluators import tool_call_validity
 
         msgs = [
-            {"type": "ai", "id": "a1", "tool_calls": [{"id": "c1", "name": "x", "args": {}}]},
+            {
+                "type": "ai",
+                "id": "a1",
+                "tool_calls": [{"id": "c1", "name": "x", "args": {}}],
+            },
         ]
         assert tool_call_validity(self._run(msgs))["score"] == 0
 
@@ -360,7 +376,11 @@ class TestToolCallValidity:
         from tests.eval.langsmith_trajectory_evaluators import tool_call_validity
 
         msgs = [
-            {"type": "ai", "id": "a1", "tool_calls": [{"id": "c1", "name": "x", "args": {}}]},
+            {
+                "type": "ai",
+                "id": "a1",
+                "tool_calls": [{"id": "c1", "name": "x", "args": {}}],
+            },
             {"type": "tool", "id": "t1", "tool_call_id": "c1"},
             {"type": "tool", "id": "t2", "tool_call_id": "c9"},  # orphan
         ]
@@ -387,7 +407,8 @@ class TestGoldenCaseInvariants:
         from tests.eval.golden_examples import LOCAL_CASES
 
         missing = [
-            c.name for c in LOCAL_CASES
+            c.name
+            for c in LOCAL_CASES
             if not (CASSETTE_DIR / f"{c.name}.json").exists()
         ]
         assert not missing, (
@@ -401,11 +422,11 @@ class TestKnownToolsRegistry:
     def test_known_tools_matches_live_registry(self):
         # KNOWN_TOOLS is hardcoded in the (sandbox-uploaded) evaluator module;
         # this drift test fails if it diverges from the real tool registry.
-        from tests.eval.langsmith_trajectory_evaluators import KNOWN_TOOLS
-        from src.services.agent.tools import ALL_TOOLS
-        from src.services.agent.subgraphs.research_agent import RESEARCH_TOOLS
         from src.services.agent.subgraphs.data_agent import DATA_TOOLS
+        from src.services.agent.subgraphs.research_agent import RESEARCH_TOOLS
         from src.services.agent.subgraphs.writing_agent import WRITING_TOOLS
+        from src.services.agent.tools import ALL_TOOLS
+        from tests.eval.langsmith_trajectory_evaluators import KNOWN_TOOLS
 
         live = {t.name for t in ALL_TOOLS}
         for lst in (RESEARCH_TOOLS, DATA_TOOLS, WRITING_TOOLS):
@@ -444,8 +465,8 @@ class TestEvaluatorExtractorRoundTrip:
         # sandbox. _extract_function now exec+smoke-calls internally, so a
         # broken blob raises here at "upload" time.
         from tests.eval.upload_trajectory_rules import (
-            METRICS,
             EVALUATORS_FILE,
+            METRICS,
             _extract_function,
         )
 
@@ -481,10 +502,18 @@ class TestGoldenReplayLLM:
     async def test_structured_output_returns_recorded_instance(self):
         from tests.eval._replay_llm import GoldenReplayLLM
 
-        fake = GoldenReplayLLM(_cassette([
-            {"slot": 0, "kind": "structured", "schema": "_FakeIntent",
-             "payload": {"intent": "research", "confidence": 0.9}},
-        ]))
+        fake = GoldenReplayLLM(
+            _cassette(
+                [
+                    {
+                        "slot": 0,
+                        "kind": "structured",
+                        "schema": "_FakeIntent",
+                        "payload": {"intent": "research", "confidence": 0.9},
+                    },
+                ]
+            )
+        )
         chain = fake.with_structured_output(_FakeIntent)
         result = await chain.ainvoke(["msg"])
         assert isinstance(result, _FakeIntent)
@@ -494,11 +523,26 @@ class TestGoldenReplayLLM:
     async def test_bind_tools_returns_scripted_tool_call(self):
         from tests.eval._replay_llm import GoldenReplayLLM
 
-        fake = GoldenReplayLLM(_cassette([
-            {"slot": 0, "kind": "tool", "message": {
-                "content": "",
-                "tool_calls": [{"name": "do_kb_retrieve", "args": {"q": "x"}, "id": "c0"}]}},
-        ]))
+        fake = GoldenReplayLLM(
+            _cassette(
+                [
+                    {
+                        "slot": 0,
+                        "kind": "tool",
+                        "message": {
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "name": "do_kb_retrieve",
+                                    "args": {"q": "x"},
+                                    "id": "c0",
+                                }
+                            ],
+                        },
+                    },
+                ]
+            )
+        )
         msg = await fake.bind_tools([]).ainvoke(["msg"])
         assert [tc["name"] for tc in msg.tool_calls] == ["do_kb_retrieve"]
 
@@ -514,9 +558,17 @@ class TestGoldenReplayLLM:
     async def test_text_path(self):
         from tests.eval._replay_llm import GoldenReplayLLM
 
-        fake = GoldenReplayLLM(_cassette([
-            {"slot": 0, "kind": "text", "message": {"content": "the answer", "tool_calls": []}},
-        ]))
+        fake = GoldenReplayLLM(
+            _cassette(
+                [
+                    {
+                        "slot": 0,
+                        "kind": "text",
+                        "message": {"content": "the answer", "tool_calls": []},
+                    },
+                ]
+            )
+        )
         msg = await fake.ainvoke(["msg"])
         assert msg.content == "the answer"
 
@@ -526,7 +578,9 @@ class TestGoldenReplayLLM:
         from tests.eval._replay_llm import CassetteExhausted, GoldenReplayLLM
 
         with pytest.raises(CassetteExhausted):
-            await GoldenReplayLLM(_cassette([])).with_structured_output(_FakeIntent).ainvoke(["m"])
+            await GoldenReplayLLM(_cassette([])).with_structured_output(
+                _FakeIntent
+            ).ainvoke(["m"])
 
     def test_replay_disabled_by_default(self):
         # Phase 1 must stay inert unless explicitly enabled.
@@ -574,13 +628,22 @@ async def test_runner_preserves_general_path_tool_calls(monkeypatch):
                             content="",
                             id="m1",
                             tool_calls=[
-                                {"type": "tool_call", "name": "do_kb_retrieve", "id": "1", "args": {}}
+                                {
+                                    "type": "tool_call",
+                                    "name": "do_kb_retrieve",
+                                    "id": "1",
+                                    "args": {},
+                                }
                             ],
                         )
                     ]
                 }
             }
-            yield {"tool_node": {"messages": [ToolMessage(content="hits", tool_call_id="1", id="m2")]}}
+            yield {
+                "tool_node": {
+                    "messages": [ToolMessage(content="hits", tool_call_id="1", id="m2")]
+                }
+            }
             yield {
                 "llm_node": {
                     "messages": [AIMessage(content="final answer", id="m3")],
@@ -595,3 +658,89 @@ async def test_runner_preserves_general_path_tool_calls(monkeypatch):
         "general-path tool call was clobbered — messages channel not merged "
         "with the add_messages reducer"
     )
+
+
+# ---------------------------------------------------------------------------
+# Sweep failure collection — the vacuous-pass guard one level above the
+# evaluators. The evaluators already refuse to pass on a null reference;
+# these pin the same rule for the loop that consumes their scores.
+# ---------------------------------------------------------------------------
+
+
+class _FakeScore:
+    """Minimal stand-in for a LangSmith EvaluationResult (.key / .score)."""
+
+    def __init__(self, key, score):
+        self.key = key
+        self.score = score
+
+
+class _FakeResult:
+    """Minimal stand-in for one ``evaluate()`` result row.
+
+    ``evaluation_results=None`` reproduces the shape that used to be skipped.
+    """
+
+    def __init__(self, ex_id, scores=_UNSET):
+        self.example = _FakeExample(ex_id)
+        if scores is _UNSET:
+            self.evaluation_results = None
+        else:
+            self.evaluation_results = type("_Block", (), {"results": list(scores)})()
+
+
+def _both(ex_id, intent=1, tools=1):
+    return _FakeResult(
+        ex_id,
+        [_FakeScore("intent_match", intent), _FakeScore("tool_subset_match", tools)],
+    )
+
+
+@pytest.mark.unit
+class TestCollectSweepFailures:
+    def test_empty_results_score_nothing(self):
+        """An empty sweep must be reported as 0 scored, not as a clean pass."""
+        from tests.eval.test_agent_regression import collect_sweep_failures
+
+        failures, scored = collect_sweep_failures([])
+        assert scored == 0
+        # No failures, but scored==0 is what the caller asserts on — the bug
+        # was that `not failures` alone read as success.
+        assert failures == []
+
+    def test_missing_evaluation_results_is_a_failure_not_a_skip(self):
+        from tests.eval.test_agent_regression import collect_sweep_failures
+
+        failures, scored = collect_sweep_failures([_FakeResult("ex1")])
+        assert scored == 1
+        assert len(failures) == 1
+        assert "ex1" in failures[0] and "no evaluation_results" in failures[0]
+
+    def test_evaluator_that_never_ran_is_caught(self):
+        """A missing key has no score to compare, so it needs its own check."""
+        from tests.eval.test_agent_regression import collect_sweep_failures
+
+        partial = _FakeResult("ex2", [_FakeScore("intent_match", 1)])
+        failures, scored = collect_sweep_failures([partial])
+        assert scored == 1
+        assert any("tool_subset_match did not run" in f for f in failures)
+
+    def test_empty_score_list_fails_both_keys(self):
+        from tests.eval.test_agent_regression import collect_sweep_failures
+
+        failures, _ = collect_sweep_failures([_FakeResult("ex3", [])])
+        assert any("intent_match did not run" in f for f in failures)
+        assert any("tool_subset_match did not run" in f for f in failures)
+
+    def test_all_present_and_passing_yields_no_failures(self):
+        from tests.eval.test_agent_regression import collect_sweep_failures
+
+        failures, scored = collect_sweep_failures([_both("a"), _both("b")])
+        assert scored == 2
+        assert failures == []
+
+    def test_low_score_still_reported(self):
+        from tests.eval.test_agent_regression import collect_sweep_failures
+
+        failures, _ = collect_sweep_failures([_both("c", tools=0)])
+        assert failures == ["c: tool_subset_match=0"]
