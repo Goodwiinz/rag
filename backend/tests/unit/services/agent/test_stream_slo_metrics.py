@@ -16,7 +16,7 @@ class _Metric:
     observations: list[float] = field(default_factory=list)
     increments: int = 0
 
-    def labels(self, **labels):
+    def labels(self, **labels: str) -> "_Metric":
         self.labels_seen.append(labels)
         return self
 
@@ -27,7 +27,7 @@ class _Metric:
         self.increments += 1
 
 
-def _install_metrics(monkeypatch):
+def _install_metrics(monkeypatch: pytest.MonkeyPatch) -> dict[str, _Metric]:
     metrics = {
         "accepted": _Metric(),
         "first_token": _Metric(),
@@ -50,7 +50,9 @@ def _install_metrics(monkeypatch):
     return metrics
 
 
-def test_tracker_records_accepted_first_token_once_and_one_terminal(monkeypatch):
+def test_tracker_records_accepted_first_token_once_and_one_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     metrics = _install_metrics(monkeypatch)
     times = iter([100.0, 100.1, 101.0, 101.2, 101.5, 102.0])
     tracker = observability.AgentStreamSLOTracker(clock=lambda: next(times))
@@ -71,7 +73,9 @@ def test_tracker_records_accepted_first_token_once_and_one_terminal(monkeypatch)
     assert metrics["routes"].increments == 1
 
 
-def test_tracker_normalizes_unbounded_route_values(monkeypatch):
+def test_tracker_normalizes_unbounded_route_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     metrics = _install_metrics(monkeypatch)
     tracker = observability.AgentStreamSLOTracker(clock=lambda: 10.0)
 
@@ -83,7 +87,9 @@ def test_tracker_normalizes_unbounded_route_values(monkeypatch):
     assert metrics["turns"].labels_seen == [{"route": "unknown", "status": "error"}]
 
 
-def test_tracker_is_a_noop_when_prometheus_is_unavailable(monkeypatch):
+def test_tracker_is_a_noop_when_prometheus_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(observability, "_METRICS_AVAILABLE", False)
     tracker = observability.AgentStreamSLOTracker(clock=lambda: 1.0)
 

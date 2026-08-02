@@ -84,8 +84,12 @@ describe('agentChatService stream auth headers', () => {
     await agentChatService.resumeStream('thread-1', 0, { onDone: vi.fn() });
 
     const init = vi.mocked(global.fetch).mock.calls[0][1] as RequestInit;
-    const headers = init.headers as Record<string, string>;
-    expect(headers['Authorization']).toBe('Bearer session-token');
-    expect(headers).not.toHaveProperty('X-Organization-ID');
+    // resumeStream builds a Headers instance (it adds Last-Event-ID on top of
+    // the auth headers), so read through the Headers API rather than assuming
+    // a plain record.
+    const headers = new Headers(init.headers);
+    expect(headers.get('Authorization')).toBe('Bearer session-token');
+    expect(headers.get('X-Organization-ID')).toBeNull();
+    expect(headers.get('Last-Event-ID')).toBe('0');
   });
 });
