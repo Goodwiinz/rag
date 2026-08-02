@@ -35,8 +35,15 @@ from src.services.agent.agent_execution_service import (
     _resolve_and_bind_project,
     _resolve_thread,
 )
+from src.services.agent.agent_submission_service import (
+    AcceptedSubmission,
+    accept_submission,
+    finalize_submission,
+    mark_submission_dispatched,
+)
 from src.services.agent.observability import AgentStreamSLOTracker, record_token_usage
-from src.shared.enums import AgentStreamEvent
+from src.services.agent.run_event_types import RunEventType
+from src.shared.enums import AgentStreamEvent, JobStatus
 
 from .trace_context import build_trace_payload
 
@@ -44,6 +51,57 @@ logger = logging.getLogger(__name__)
 
 AGENT_STREAM_SCHEMA_VERSION = "1.0"
 _STREAM_ROUTES = frozenset({"pending", "luna", "graph", "unknown"})
+
+
+def _accept_eligible(thread_obj: Any) -> bool:
+    """True when this submission has a thread the accept transaction can use.
+
+    ``agent_runs.thread_id`` and ``chat_messages.thread_id`` are real GUID
+    foreign keys, so an ownership-verified ``Thread`` with a parseable id is
+    the precondition for making acceptance durable. When it is absent
+    (``_resolve_thread`` found no workspace) there is no turn to persist at
+    all, and the stream degrades to its pre-P0-C behaviour rather than
+    failing a chat that can still answer.
+    """
+    if thread_obj is None:
+        return False
+    try:
+        _uuid.UUID(str(getattr(thread_obj, "id", None)))
+    except (ValueError, TypeError, AttributeError):
+        return False
+    return True
+
+
+async def _finalize_run(
+    db: Any,
+    acceptance: Optional[AcceptedSubmission],
+    current_user: Any,
+    *,
+    status: JobStatus,
+    event_type: Optional[RunEventType] = None,
+    payload: Optional[Dict[str, Any]] = None,
+    error_code: Optional[str] = None,
+    error: Optional[str] = None,
+) -> None:
+    """Close the accepted run out at a stream exit. No-op without an accept.
+
+    A run left non-terminal keeps holding ``uq_agent_runs_active_thread`` and
+    is eventually reaped as "stale running" — i.e. a successful turn would be
+    projected as a failure. Purely bookkeeping: it runs after the client's
+    frames, and ``finalize_submission`` never raises.
+    """
+    if acceptance is None:
+        return
+    await finalize_submission(
+        db,
+        run_id=acceptance.run_id,
+        status=status,
+        organization_id=getattr(current_user, "organization_id", None),
+        event_type=event_type,
+        payload=payload,
+        error_code=error_code,
+        error=error,
+    )
 
 
 def _request_trace_id(request: Any) -> str:
@@ -99,8 +157,14 @@ async def _stream_luna_fast_path(
     resolved_thread_id: str,
     emitter: Any,
     stream_started_at: float,
+    acceptance: Optional[AcceptedSubmission] = None,
 ):
-    """Run one evidence-independent turn without entering LangGraph execution."""
+    """Run one evidence-independent turn without entering LangGraph execution.
+
+    ``acceptance`` is the committed P0-C accept record (``None`` on the
+    degraded no-durable-thread path). When present the user row is already
+    durable, and this path owns closing the run out.
+    """
     from langchain_core.messages import AIMessage, HumanMessage
 
     from src.core.config import get_settings
@@ -167,6 +231,11 @@ async def _stream_luna_fast_path(
     assistant_saved = False
 
     async def persist_user() -> bool:
+        # Already committed by the accept transaction (P0-C). Re-running the
+        # insert would add a SECOND user row for a legacy client that sends no
+        # client_message_id — there is nothing for ON CONFLICT to infer.
+        if acceptance is not None:
+            return False
         return await _persist_user_message_guarded(db, current_user, request_body)
 
     async def persist_partial() -> None:
@@ -187,6 +256,16 @@ async def _stream_luna_fast_path(
         )
 
     try:
+        if acceptance is not None:
+            # The dispatch this outbox row recorded is about to happen
+            # in-process. Stamping it keeps a future relay from re-dispatching
+            # a run that already ran (best-effort; never raises).
+            await mark_submission_dispatched(
+                db,
+                run_id=acceptance.run_id,
+                outbox_id=acceptance.outbox_id,
+                organization_id=getattr(current_user, "organization_id", None),
+            )
         async with asyncio.timeout(settings.AGENT_FAST_PATH_REQUEST_TIMEOUT):
             writing_emitted = False
             async for chunk in stream_fast_path_chunks(
@@ -297,6 +376,18 @@ async def _stream_luna_fast_path(
             )
         yield await emitter.emit(AgentStreamEvent.DONE, done_payload)
         await emitter.finish()
+        await _finalize_run(
+            db,
+            acceptance,
+            current_user,
+            status=JobStatus.COMPLETED,
+            event_type=RunEventType.RUN_COMPLETED,
+            payload=(
+                {"assistant_message_id": persisted_assistant_id}
+                if persisted_assistant_id
+                else {}
+            ),
+        )
     except asyncio.CancelledError:
         with contextlib.suppress(Exception):
             await asyncio.shield(persist_partial())
@@ -311,6 +402,17 @@ async def _stream_luna_fast_path(
             {"error": client_safe_error(exc)},
         )
         await emitter.finish()
+        await _finalize_run(
+            db,
+            acceptance,
+            current_user,
+            status=JobStatus.FAILED,
+            event_type=RunEventType.RUN_FAILED,
+            payload={
+                "code": "luna_stream_failed",
+                "message": client_safe_error(exc),
+            },
+        )
 
 
 def _canonical_persistence_enabled() -> bool:
@@ -690,6 +792,12 @@ async def stream_event_generator(
     ``request_started_at`` is the route handler's entry ``time.monotonic()``
     reading; it anchors the accepted-latency SLI to request arrival rather
     than to generator start (which happens after auth and rate limiting).
+
+    Since P0-C the ``accepted`` frame follows the accept transaction rather
+    than preceding it, so that SLI now covers thread resolution and the commit
+    as well. That is intended: the number the SLI exists to report is how long
+    until the client has a *trustworthy* acknowledgment, and an acknowledgment
+    emitted before the write it describes was never worth measuring.
     """
     from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent.graph import compile_agent_graph
@@ -720,20 +828,15 @@ async def stream_event_generator(
     # the error-path partial persist must never double-write the turn.
     assistant_persisted = False
     persist_partial_stop = None  # bound inside try once its inputs exist
+    # Set once the accept transaction has COMMITTED (P0-C). Everything after
+    # the accepted frame keys off this: the run's ledger, the outbox stamp and
+    # the terminal status all address `acceptance.run_id`.
+    acceptance: Optional[AcceptedSubmission] = None
+    org_id = getattr(current_user, "organization_id", None)
     try:
-        # First server-sourced progress signal. It is intentionally unbuffered
-        # and carries no thread id: the client-supplied id has not passed the
-        # ownership check yet, so it must not touch the resumable Redis pointer.
-        yield await emitter.emit(
-            AgentStreamEvent.STATUS,
-            {"phase": "accepted", "detail": "Request accepted"},
-            buffer=False,
-        )
-
-        # Resolve the thread and verify ownership before choosing either route.
-        # The graph path persists immediately afterward; the Luna path starts
-        # persistence and model I/O together, but buffers model chunks until
-        # persistence settles.
+        # Resolve the thread and verify ownership BEFORE acknowledging anything
+        # — the acknowledgment is now a claim about durable state, so it cannot
+        # precede the write it describes.
         thread_obj = None
         try:
             thread_obj, _conversation_id = await _resolve_thread(
@@ -748,6 +851,45 @@ async def stream_event_generator(
                 "Failed to resolve agent thread before routing",
                 exc_info=True,
             )
+
+        # ------------------------------------------------------------------
+        # Atomic accept (P0-C). One transaction commits the user message, the
+        # run row, its `run.created` event and the outbox dispatch record; the
+        # accepted frame below is emitted only afterwards and carries the real
+        # run id. A failure here raises into the error handler: no `accepted`,
+        # an `error` frame, and the rollback guarantees nothing half-written.
+        #
+        # Degraded path: a user with no workspace has no durable thread
+        # (`_resolve_thread` returns None), so there is nothing to make atomic.
+        # That turn still streams an answer exactly as before, with a null run
+        # id on the accepted frame — unchanged behaviour, not a new hole.
+        # ------------------------------------------------------------------
+        if _accept_eligible(thread_obj):
+            acceptance = await accept_submission(
+                db,
+                current_user=current_user,
+                request=request_body,
+                thread=thread_obj,
+            )
+        else:
+            logger.info(
+                "Agent stream accepted without a durable run: no ownership-"
+                "verified thread for this submission",
+                extra={"thread_id": request_body.thread_id},
+            )
+
+        # First server-sourced progress signal — now a post-commit fact. It
+        # stays unbuffered: the resumable Redis pointer is opened by the route
+        # branches below, which own the thread-scoped stream id.
+        yield await emitter.emit(
+            AgentStreamEvent.STATUS,
+            {
+                "phase": "accepted",
+                "detail": "Request accepted",
+                "run_id": acceptance.run_id if acceptance is not None else None,
+            },
+            buffer=False,
+        )
 
         from src.core.config import get_settings
         from src.services.agent.fast_path import classify_fast_path_turn
@@ -774,12 +916,17 @@ async def stream_event_generator(
                 resolved_thread_id=resolved_thread_id,
                 emitter=emitter,
                 stream_started_at=stream_started_at,
+                acceptance=acceptance,
             ):
                 yield frame
             return
 
-        if thread_obj is not None:
-            # Graph route preserves the existing durable-before-LLM guarantee.
+        if thread_obj is not None and acceptance is None:
+            # Degraded accept (no durable run): keep the pre-P0-C
+            # durable-before-LLM guarantee for the user row. When the accept
+            # committed, that row is already in it — writing it again here
+            # would insert a SECOND row for a legacy client that sends no
+            # client_message_id (nothing for ON CONFLICT to infer).
             await _persist_user_message_guarded(db, current_user, request_body)
 
         _bootstrap_langsmith()
@@ -933,6 +1080,17 @@ async def stream_event_generator(
             ).__aiter__()
 
         event_stream_iter = await _open_event_stream()
+        if acceptance is not None:
+            # The dispatch the outbox row recorded has now happened (in-process,
+            # exactly as before P0-C). Stamping it closes the record so a future
+            # relay cannot re-dispatch a run that already ran, and moves the run
+            # queued → running. Best-effort; never raises.
+            await mark_submission_dispatched(
+                db,
+                run_id=acceptance.run_id,
+                outbox_id=acceptance.outbox_id,
+                organization_id=org_id,
+            )
         first_event_yielded = False
         streamed_token = False
         persisted_assistant_id: Optional[str] = None
@@ -1170,6 +1328,14 @@ async def stream_event_generator(
                 stream_thread_id,
             )
             await persist_partial_stop()
+            await _finalize_run(
+                db,
+                acceptance,
+                current_user,
+                status=JobStatus.CANCELLED,
+                event_type=RunEventType.RUN_CANCELLED,
+                payload={"reason": "client_disconnected"},
+            )
             return
 
         # Check graph state after streaming completes
@@ -1204,6 +1370,16 @@ async def stream_event_generator(
                 if not client_disconnected:
                     yield frame
                 await emitter.finish()
+                # Parked, not finished: the run resumes on /stream/confirm, so
+                # its ledger stays OPEN (no terminal event) and only the status
+                # moves. It keeps holding the thread's active-run slot until it
+                # resumes or the next submission supersedes it.
+                await _finalize_run(
+                    db,
+                    acceptance,
+                    current_user,
+                    status=JobStatus.AWAITING_CONFIRMATION,
+                )
                 return
 
             assistant_content = ""
@@ -1333,6 +1509,18 @@ async def stream_event_generator(
         if not client_disconnected:
             yield frame
         await emitter.finish()
+        await _finalize_run(
+            db,
+            acceptance,
+            current_user,
+            status=JobStatus.COMPLETED,
+            event_type=RunEventType.RUN_COMPLETED,
+            payload=(
+                {"assistant_message_id": persisted_assistant_id}
+                if persisted_assistant_id
+                else {}
+            ),
+        )
 
     except asyncio.CancelledError:
         raise
@@ -1383,6 +1571,28 @@ async def stream_event_generator(
             if not client_disconnected:
                 yield frame
         await emitter.finish()
+        if checkpoint_ok:
+            # Parked on a confirmation — ledger stays open (see above).
+            await _finalize_run(
+                db,
+                acceptance,
+                current_user,
+                status=JobStatus.AWAITING_CONFIRMATION,
+            )
+        else:
+            await _finalize_run(
+                db,
+                acceptance,
+                current_user,
+                status=JobStatus.FAILED,
+                event_type=RunEventType.RUN_FAILED,
+                payload={
+                    "code": "interrupt_not_checkpointed",
+                    "message": "Interrupt state could not be saved.",
+                },
+                error_code="interrupt_not_checkpointed",
+                error="Interrupt state could not be saved. Please retry.",
+            )
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
@@ -1401,6 +1611,22 @@ async def stream_event_generator(
         if not client_disconnected:
             yield frame
         await emitter.finish()
+        # `acceptance is None` here covers the case that matters most: the
+        # accept transaction itself failed, so there is nothing to finalize —
+        # and, by construction, no `accepted` frame was ever emitted.
+        await _finalize_run(
+            db,
+            acceptance,
+            current_user,
+            status=JobStatus.FAILED,
+            event_type=RunEventType.RUN_FAILED,
+            payload={
+                "code": "stream_failed",
+                "message": client_safe_error(e),
+            },
+            error_code="stream_failed",
+            error=client_safe_error(e),
+        )
 
     finally:
         await db.close()
