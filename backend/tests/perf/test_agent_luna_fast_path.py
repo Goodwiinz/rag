@@ -68,3 +68,70 @@ def test_summarize_reports_latency_route_prompt_and_failures():
     assert summary["prompt_chars"] == {"min": 12, "max": 20}
     assert summary["latency_ms"]["accepted"]["p95"] == 20.0
     assert summary["latency_ms"]["first_token"]["count"] == 1
+
+
+def test_release_gate_requires_all_latency_route_sample_and_failure_contracts():
+    benchmark = _load_benchmark_module()
+    results = [
+        benchmark.RunResult(
+            accepted_ms=100.0,
+            first_token_ms=2_000.0,
+            completion_ms=4_000.0,
+            route="luna",
+            prompt_chars=20,
+            failure=None,
+        )
+        for _ in range(20)
+    ]
+
+    gate = benchmark.evaluate_release_gate(
+        benchmark.summarize(results),
+        accepted_p95_ms=250.0,
+        first_token_p95_ms=5_000.0,
+        completion_p95_ms=5_000.0,
+        minimum_samples=20,
+        required_route="luna",
+    )
+
+    assert gate["passed"] is True
+    assert all(check["passed"] for check in gate["checks"])
+
+
+def test_release_gate_reports_every_failed_criterion():
+    benchmark = _load_benchmark_module()
+    summary = benchmark.summarize(
+        [
+            benchmark.RunResult(
+                accepted_ms=None,
+                first_token_ms=None,
+                completion_ms=6_000.0,
+                route="graph",
+                prompt_chars=20,
+                failure="timeout",
+            )
+        ]
+    )
+
+    gate = benchmark.evaluate_release_gate(
+        summary,
+        accepted_p95_ms=250.0,
+        first_token_p95_ms=5_000.0,
+        completion_p95_ms=5_000.0,
+        minimum_samples=20,
+        required_route="luna",
+    )
+
+    assert gate["passed"] is False
+    failed_names = {
+        check["name"] for check in gate["checks"] if check["passed"] is False
+    }
+    assert failed_names == {
+        "minimum_samples",
+        "zero_failures",
+        "accepted_event_per_sample",
+        "accepted_p95_ms",
+        "first_token_per_sample",
+        "first_token_p95_ms",
+        "completion_p95_ms",
+        "required_route",
+    }

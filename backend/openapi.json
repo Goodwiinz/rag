@@ -15569,8 +15569,25 @@
             "required": false,
             "schema": {
               "default": 0,
+              "minimum": 0,
               "title": "After",
               "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Last-Event-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
             }
           }
         ],

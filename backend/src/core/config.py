@@ -144,7 +144,11 @@ class Settings(BaseSettings):
         "X-Request-ID,"
         "X-Correlation-ID,"
         "X-Client-Version,"
-        "Cache-Control"
+        "Cache-Control,"
+        # SSE resume cursor (agentChatService.resumeStream). Not a CORS-safelisted
+        # header, so cross-origin preflight (Vercel frontend -> dev-api backend)
+        # rejects the request unless it is allowlisted here.
+        "Last-Event-ID"
     )
     CORS_ALLOWED_METHODS: str = "GET,POST,PUT,DELETE,PATCH,OPTIONS,HEAD"
     CORS_EXPOSE_HEADERS: str = "X-Request-ID,X-Correlation-ID,X-Process-Time"

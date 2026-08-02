@@ -15766,7 +15766,9 @@ export interface operations {
             query?: {
                 after?: number;
             };
-            header?: never;
+            header?: {
+                "Last-Event-ID"?: string | null;
+            };
             path: {
                 thread_id: string;
             };

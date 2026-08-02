@@ -55,6 +55,7 @@ CELERY_QUEUE_NAMES = (
     "low_priority",
     "entity_processing",
     "graph_processing",
+    "agent_runs",
 )
 
 _METRIC_NAME = "celery_queue_depth"
