@@ -51,7 +51,7 @@ export function AgentSidebar({ onCollapse }: AgentSidebarProps) {
           <button
             onClick={newThread}
             aria-label="New conversation"
-            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
@@ -78,14 +78,14 @@ export function AgentSidebar({ onCollapse }: AgentSidebarProps) {
             <button
               onClick={handleCollapse}
               aria-label="Collapse to panel"
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
             >
               <Minimize2 className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={close}
               aria-label="Close agent chat"
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
             >
               <X className="h-4 w-4" />
             </button>
