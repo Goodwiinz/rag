@@ -1,5 +1,6 @@
 'use client';
 
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { downloadStoredNousCliAuth } from '@/services/nousCliAuth';
@@ -134,11 +135,11 @@ function LoginPageContent(): React.JSX.Element | null {
   };
 
   const inputClass =
-    'w-full rounded-(--nous-radius-md) border border-(--nous-border-1) bg-(--nous-nyx) py-3 text-sm text-(--nous-fg-1) placeholder:text-(--nous-fg-3) outline-hidden transition-colors focus-visible:border-(--nous-sol) focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40';
+    'w-full rounded-(--nous-radius-md) border border-(--nous-border-1) bg-(--nous-bg-1) py-3 text-sm text-(--nous-fg-1) placeholder:text-(--nous-fg-3) outline-hidden transition-colors focus-visible:border-(--nous-sol) focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40';
 
   const Brand = (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-(--nous-radius-md) border border-(--nous-border-1) bg-(--nous-obsidian)">
+      <div className="flex h-10 w-10 items-center justify-center rounded-(--nous-radius-md) border border-(--nous-border-1) bg-(--nous-bg-2)">
         <span
           aria-hidden="true"
           className="text-base font-semibold text-(--nous-sol)"
@@ -155,7 +156,7 @@ function LoginPageContent(): React.JSX.Element | null {
   // SSR-friendly skeleton to keep LCP stable while hydrating.
   if (!mounted) {
     return (
-      <div className="flex min-h-screen bg-(--nous-nyx) text-(--nous-fg-1)">
+      <div className="flex min-h-screen bg-(--nous-bg-1) text-(--nous-fg-1)">
         <div className="hidden flex-col justify-center border-r border-(--nous-border-1) px-16 lg:flex lg:w-1/2 lg:px-24">
           <div className="mb-12">{Brand}</div>
           <h1 className="mb-6 max-w-md text-4xl font-semibold leading-tight tracking-tight text-(--nous-fg-1)">
@@ -171,13 +172,13 @@ function LoginPageContent(): React.JSX.Element | null {
         </div>
         <div className="flex flex-1 items-center justify-center px-6 lg:px-8">
           <div className="w-full max-w-md">
-            <div className="rounded-(--nous-radius-xl) border border-(--nous-border-1) bg-(--nous-obsidian) p-8">
+            <div className="rounded-(--nous-radius-xl) border border-(--nous-border-1) bg-(--nous-bg-2) p-8">
               <h2 className="mb-6 text-xl font-semibold text-(--nous-fg-1)">
                 Sign in
               </h2>
               <div className="space-y-5">
-                <div className="h-12 rounded-(--nous-radius-md) bg-(--nous-nyx)" />
-                <div className="h-12 rounded-(--nous-radius-md) bg-(--nous-nyx)" />
+                <div className="h-12 rounded-(--nous-radius-md) bg-(--nous-bg-1)" />
+                <div className="h-12 rounded-(--nous-radius-md) bg-(--nous-bg-1)" />
                 <div className="h-12 rounded-(--nous-radius-md) bg-(--nous-sol)/20" />
               </div>
             </div>
@@ -188,7 +189,10 @@ function LoginPageContent(): React.JSX.Element | null {
   }
 
   return (
-    <div className="flex min-h-screen bg-(--nous-nyx) text-(--nous-fg-1)">
+    <div className="relative flex min-h-screen bg-(--nous-bg-1) text-(--nous-fg-1)">
+      <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
+        <ThemeToggle />
+      </div>
       {/* Left panel — editorial */}
       <div className="hidden flex-col justify-center border-r border-(--nous-border-1) px-16 lg:flex lg:w-1/2 lg:px-24">
         <motion.div
@@ -214,7 +218,7 @@ function LoginPageContent(): React.JSX.Element | null {
               <li key={i} className="flex items-center gap-3">
                 <span
                   aria-hidden="true"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-(--nous-radius-sm) border border-(--nous-border-1) bg-(--nous-obsidian)"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-(--nous-radius-sm) border border-(--nous-border-1) bg-(--nous-bg-2)"
                 >
                   <Database className="h-3.5 w-3.5 text-(--nous-sol)" />
                 </span>
@@ -236,7 +240,7 @@ function LoginPageContent(): React.JSX.Element | null {
             {/* Mobile brand */}
             <div className="mb-8 flex justify-center lg:hidden">{Brand}</div>
 
-            <div className="rounded-(--nous-radius-xl) border border-(--nous-border-1) bg-(--nous-obsidian) p-8 shadow-(--nous-shadow-xl)">
+            <div className="rounded-(--nous-radius-xl) border border-(--nous-border-1) bg-(--nous-bg-2) p-8 shadow-(--nous-shadow-xl)">
               <div className="mb-6">
                 <h2 className="text-xl font-semibold text-(--nous-fg-1)">
                   Sign in
@@ -341,7 +345,7 @@ function LoginPageContent(): React.JSX.Element | null {
                 {/* CLI auth export */}
                 <label
                   htmlFor="downloadCliAuth"
-                  className="flex cursor-pointer items-start gap-3 rounded-(--nous-radius-md) border border-(--nous-border-1) bg-(--nous-nyx) px-3.5 py-3"
+                  className="flex cursor-pointer items-start gap-3 rounded-(--nous-radius-md) border border-(--nous-border-1) bg-(--nous-bg-1) px-3.5 py-3"
                 >
                   <input
                     id="downloadCliAuth"
@@ -349,7 +353,7 @@ function LoginPageContent(): React.JSX.Element | null {
                     type="checkbox"
                     checked={formData.downloadCliAuth}
                     onChange={handleChange}
-                    className="mt-0.5 h-4 w-4 rounded border-(--nous-border-1) bg-(--nous-nyx) accent-(--nous-sol) focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
+                    className="mt-0.5 h-4 w-4 rounded border-(--nous-border-1) bg-(--nous-bg-1) accent-(--nous-sol) focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
                   />
                   <span className="text-sm leading-snug text-(--nous-fg-2)">
                     Download NOUS CLI credentials after signing in
@@ -364,7 +368,7 @@ function LoginPageContent(): React.JSX.Element | null {
                   type="submit"
                   data-testid="login-button"
                   disabled={isSubmitting}
-                  className="group flex w-full items-center justify-center gap-2 rounded-(--nous-radius-md) bg-(--nous-sol) py-3 text-sm font-semibold text-(--nous-erebus) transition-colors hover:bg-(--nous-helios) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) focus-visible:ring-offset-2 focus-visible:ring-offset-(--nous-obsidian) disabled:cursor-not-allowed disabled:opacity-70"
+                  className="group flex w-full items-center justify-center gap-2 rounded-(--nous-radius-md) bg-(--nous-sol) py-3 text-sm font-semibold text-(--nous-erebus) transition-colors hover:bg-(--nous-helios) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) focus-visible:ring-offset-2 focus-visible:ring-offset-(--nous-bg-2) disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isSubmitting ? (
                     <span>Signing in…</span>
