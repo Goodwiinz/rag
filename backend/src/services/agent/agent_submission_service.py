@@ -566,7 +566,12 @@ async def mark_submission_dispatched(
                 organization_id=organization_id,
             )
         except RunAlreadyTerminalError:
-            pass
+            # A supersede won the race and closed the ledger before dispatch
+            # got here; the status/outbox updates above still stand.
+            logger.debug(
+                "mark_submission_dispatched: ledger already terminal for run %s",
+                run_id,
+            )
         await db.commit()
     except Exception:
         logger.warning(
