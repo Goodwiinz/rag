@@ -221,7 +221,11 @@ export interface UseChatStreamingReturn {
   isLoading: boolean;
   handleSubmit: (
     contentOverride?: string,
-    historyOverride?: ChatPageMessage[]
+    historyOverride?: ChatPageMessage[],
+    /** Edit-and-resend: the `client_message_id` of the user turn being
+     * replaced. Sent as `supersedes_client_message_id` so the server
+     * tombstones that turn and everything after it. */
+    supersedesClientMessageId?: string
   ) => Promise<void>;
   handleStop: () => void;
   pendingConfirmation: PendingConfirmation | null;
@@ -935,7 +939,11 @@ export function useChatStreaming(
   );
 
   const handleSubmit = useCallback(
-    async (contentOverride?: string, historyOverride?: ChatPageMessage[]) => {
+    async (
+      contentOverride?: string,
+      historyOverride?: ChatPageMessage[],
+      supersedesClientMessageId?: string
+    ) => {
       if (submitLockRef.current) return;
       const rawContent =
         typeof contentOverride === 'string' ? contentOverride : input;
@@ -953,6 +961,9 @@ export function useChatStreaming(
       );
       const userMessage: ChatPageMessage = {
         runtimeId: turnClientMessageId,
+        // Same value as runtimeId here, but recorded explicitly so an edit of
+        // this still-optimistic turn can supersede it without guessing.
+        clientMessageId: turnClientMessageId,
         source: 'optimistic',
         role: 'user',
         content,
@@ -1114,6 +1125,13 @@ export function useChatStreaming(
                 },
                 use_rag: enableRAG,
                 thread_id: existingAgentThreadId,
+                // Edit-and-resend turns only: omitted entirely otherwise (and
+                // when the edited turn was never persisted with a cmid).
+                ...(supersedesClientMessageId
+                  ? {
+                      supersedes_client_message_id: supersedesClientMessageId,
+                    }
+                  : {}),
               },
               streamCallbacks,
               signal

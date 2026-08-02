@@ -144,6 +144,51 @@ describe('useChatComposerActions', () => {
         'reply 1',
       ]);
     });
+
+    it('names the edited turn as superseded when it has a persisted cmid', async () => {
+      // Durable edit: the FE truncation alone left the old answer and every
+      // later turn in chat_messages + the LangGraph checkpoint (PR #1313).
+      const cmid = '11111111-1111-4111-8111-111111111111';
+      const { result, handleSubmit } = setup({
+        displayedMessages: [
+          makeChatPageMessage({ id: 'u1', role: 'user', content: 'first', timestamp: 1 }),
+          makeChatPageMessage({ id: 'a1', role: 'assistant', content: 'reply 1', timestamp: 2 }),
+          makeChatPageMessage({
+            id: 'u2',
+            role: 'user',
+            content: 'second',
+            timestamp: 3,
+            clientMessageId: cmid,
+          }),
+          makeChatPageMessage({ id: 'a2', role: 'assistant', content: 'reply 2', timestamp: 4 }),
+        ],
+      });
+
+      act(() => {
+        result.current.handleEditUserMessage(2, 'edited second turn');
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(handleSubmit.mock.calls[0][2]).toBe(cmid);
+    });
+
+    it('omits the superseded id when the edited turn has no persisted cmid', async () => {
+      // A turn that never reached the server (or a legacy row) has nothing for
+      // the backend to look up — send the edit without the field rather than
+      // guessing an id, and fall back to the old FE-only truncation.
+      const { result, handleSubmit } = setupFour();
+
+      act(() => {
+        result.current.handleEditUserMessage(2, 'edited second turn');
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(handleSubmit.mock.calls[0][2]).toBeUndefined();
+    });
   });
 
   it('submit forwards to handleSubmit without arguments', () => {

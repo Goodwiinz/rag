@@ -273,6 +273,9 @@ export interface AgentExecuteRequest {
   use_rag?: boolean;
   max_context_docs?: number;
   thread_id?: string;
+  /** Edit-and-resend only: the `client_message_id` of the user turn being
+   * edited. The server tombstones that turn and everything after it. */
+  supersedes_client_message_id?: string;
 }
 
 export interface AgentExecuteResponse {

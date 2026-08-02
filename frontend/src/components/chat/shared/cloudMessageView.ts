@@ -101,6 +101,11 @@ export interface ChatPageMessage {
   source: 'canonical' | 'optimistic' | 'local-only';
   /** Persisted database identity. Only use this for database operations. */
   id?: string;
+  /** The turn's server-side idempotency key (`chat_messages.client_message_id`),
+   * when it has one. Distinct from `runtimeId`, which falls back to the row id
+   * for legacy rows — edit-and-resend needs the unambiguous value because the
+   * backend looks the superseded turn up BY client_message_id. */
+  clientMessageId?: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
@@ -155,6 +160,9 @@ export function mapDbMessageToChatPageMessage(
   return {
     id: dbMsg.id,
     runtimeId: dbMsg.client_message_id ?? dbMsg.id,
+    ...(dbMsg.client_message_id
+      ? { clientMessageId: dbMsg.client_message_id }
+      : {}),
     source: 'canonical',
     role:
       dbMsg.role === MessageRole.USER

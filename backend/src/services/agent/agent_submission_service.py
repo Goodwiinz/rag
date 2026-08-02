@@ -11,10 +11,12 @@ written in ONE transaction and the caller may only emit ``accepted`` after it
 commits:
 
 1. the user's message row (``chat_messages``),
-2. the run row (``agent_runs``) the accepted frame's ``run_id`` names,
-3. ``run.created`` — seq 1 of the run's ledger, via the P0-B
+2. on an edit-and-resend, the tombstones that supersede the edited turn and
+   everything after it (``superseded_by_message_id``),
+3. the run row (``agent_runs``) the accepted frame's ``run_id`` names,
+4. ``run.created`` — seq 1 of the run's ledger, via the P0-B
    ``run_event_store`` (this is its first producer),
-4. an ``agent_outbox`` dispatch-intent record.
+5. an ``agent_outbox`` dispatch-intent record.
 
 Anything that fails before the commit rolls the whole thing back: no
 ``accepted``, an ``error`` frame instead, and no half-written turn.
@@ -68,7 +70,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -129,6 +131,14 @@ class AcceptedSubmission:
     # True when an idempotency key resolved to a run accepted by an earlier
     # request: nothing was written, and the caller must not dispatch again.
     replayed: bool = False
+    # Edit-and-resend: True when this thread now HAS superseded rows
+    # attributable to this turn, so the caller must resync the LangGraph
+    # checkpoint before the model reads history. Distinct from
+    # ``tombstoned_count`` (rows THIS transaction updated) for the same reason
+    # ``TombstoneReport`` keeps the two apart: a replayed or deduped submission
+    # updates nothing yet still needs the resync.
+    tombstoned: bool = False
+    tombstoned_count: int = 0
 
 
 def stream_idempotency_key(request: Any, current_user: Any) -> Optional[str]:
@@ -209,8 +219,14 @@ async def _insert_user_message(
     user_id: Any,
     content: str,
     client_message_id: Optional[UUID],
-) -> Optional[str]:
+) -> tuple[Optional[str], bool]:
     """Insert the turn's user row idempotently. Does NOT commit.
+
+    Returns ``(row_id, inserted)``. The flag is not cosmetic: edit-and-resend
+    tombstoning must know whether it is holding a row THIS transaction created
+    or one a previous attempt left behind, because the second case has to be
+    validated before it may supersede anything (see
+    ``apply_edit_resend_tombstones``).
 
     ``_persist_user_message`` (the pre-P0-C writer) used PostgreSQL's
     ``INSERT ... ON CONFLICT DO NOTHING`` against the partial unique index
@@ -239,9 +255,10 @@ async def _insert_user_message(
         logger.debug(
             "accept_submission: user row already durable for thread %s", thread_id
         )
-        return await _existing_user_message_id(
+        existing = await _existing_user_message_id(
             db, thread_id=thread_id, client_message_id=client_message_id
         )
+        return existing, False
 
     # Thread counters follow the insert, never the dedupe — a retried turn must
     # not inflate message_count. Expressed as SQL rather than a read-modify-write
@@ -255,7 +272,62 @@ async def _insert_user_message(
         )
         .execution_options(synchronize_session=False)
     )
-    return str(message.id)
+    return str(message.id), True
+
+
+async def _apply_tombstones(
+    db: AsyncSession,
+    *,
+    current_user: Any,
+    request: Any,
+    thread_id: UUID,
+    user_message_id: Optional[str],
+    inserted: bool,
+    client_message_id: Optional[UUID],
+) -> Any:  # TombstoneReport
+    """Edit-and-resend: supersede the edited turn's tail. Does NOT commit.
+
+    Joins the accept transaction deliberately. Before P0-C the tombstone pass
+    rode ``_persist_user_message``'s own transaction; now the accept
+    transaction is the one that writes this turn's user row, so the tombstones
+    must land in it or a reader could observe the replacement question next to
+    the superseded answer it was supposed to erase.
+
+    Raises like every other statement in the accept transaction — a failure
+    rolls the whole submission back and the client is told so. Swallowing it
+    would accept an edit that did not take effect, which is exactly the
+    fake-success shape P0-C exists to close.
+    """
+    from src.services.agent.agent_execution_service import (
+        TombstoneReport,
+        apply_edit_resend_tombstones,
+    )
+
+    report = TombstoneReport()
+    supersedes = getattr(request, "supersedes_client_message_id", None)
+    if supersedes is None or user_message_id is None:
+        return report
+    await apply_edit_resend_tombstones(
+        db,
+        current_user,
+        thread_id=str(thread_id),
+        cmid_value=(str(client_message_id) if client_message_id is not None else None),
+        supersedes=supersedes,
+        inserted_row_id=_coerce_uuid(user_message_id) if inserted else None,
+        tombstoned_out=report,
+    )
+    return report
+
+
+def _decrement_message_count(tombstoned: int) -> Any:
+    """``message_count - tombstoned``, floored at 0.
+
+    A CASE rather than ``GREATEST``: the accept transaction's fault-injection
+    suite runs on SQLite, which has no ``greatest``, and ``max()`` is an
+    aggregate under PostgreSQL.
+    """
+    remaining = func.coalesce(Thread.message_count, 0) - tombstoned
+    return case((remaining < 0, 0), else_=remaining)
 
 
 async def _supersede_active_runs(db: AsyncSession, *, thread_id: UUID) -> list[str]:
@@ -431,18 +503,47 @@ async def accept_submission(
                 outbox_id=await _existing_outbox_id(db, str(existing.job_id)),
                 idempotency_key=idempotency_key,
                 replayed=True,
+                # The tombstones this edit implies were committed by the
+                # submission we are attaching to; its response was lost, so
+                # this caller must still converge the checkpoint. A redundant
+                # resync is an idempotent reseed from the DB — a missed one
+                # leaves the model answering the turn the user edited away.
+                tombstoned=(
+                    getattr(request, "supersedes_client_message_id", None) is not None
+                ),
             )
 
     job_id = str(uuid4())
     try:
         await _supersede_active_runs(db, thread_id=thread_uuid)
-        user_message_id = await _insert_user_message(
+        user_message_id, user_row_inserted = await _insert_user_message(
             db,
             thread_id=thread_uuid,
             user_id=current_user.id,
             content=last_user.content,
             client_message_id=client_message_id,
         )
+        tombstones = await _apply_tombstones(
+            db,
+            current_user=current_user,
+            request=request,
+            thread_id=thread_uuid,
+            user_message_id=user_message_id,
+            inserted=user_row_inserted,
+            client_message_id=client_message_id,
+        )
+        if tombstones.count:
+            # Net delta in the SAME transaction: ``_insert_user_message``
+            # already added +1 for the replacement row, so only the -N for the
+            # rows it superseded is owed. Floored at 0 — message_count is a
+            # denormalised counter that historically drifts, and a negative
+            # count renders as nonsense in the UI.
+            await db.execute(
+                update(Thread)
+                .where(Thread.id == thread_uuid)
+                .values(message_count=_decrement_message_count(tombstones.count))
+                .execution_options(synchronize_session=False)
+            )
         run = await _insert_run(
             db,
             job_id=job_id,
@@ -503,6 +604,13 @@ async def accept_submission(
                     outbox_id=await _existing_outbox_id(db, str(winner.job_id)),
                     idempotency_key=idempotency_key,
                     replayed=True,
+                    # Same reasoning as the pre-check replay above: the winner
+                    # committed this edit's tombstones, we did not, and the
+                    # checkpoint still has to converge.
+                    tombstoned=(
+                        getattr(request, "supersedes_client_message_id", None)
+                        is not None
+                    ),
                 )
         raise
     except Exception:
@@ -517,6 +625,8 @@ async def accept_submission(
         user_message_id=user_message_id,
         outbox_id=outbox_id,
         idempotency_key=idempotency_key,
+        tombstoned=tombstones.any,
+        tombstoned_count=tombstones.count,
     )
 
 

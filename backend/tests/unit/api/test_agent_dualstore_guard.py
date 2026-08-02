@@ -225,6 +225,95 @@ async def test_guarded_both_fail_marks_and_does_not_raise(monkeypatch, caplog):
     assert rec.client_message_id == "cmid-9"
 
 
+async def test_guarded_final_failure_keeps_a_committed_tombstone_signal(
+    monkeypatch, caplog
+):
+    """Ambiguous commit on attempt 1, hard failure on attempt 2.
+
+    Attempt 1 committed its tombstone UPDATEs and then lost its acknowledgement
+    (it raises AFTER marking). Attempt 2 fails outright. Those tombstones are
+    durable in the DB no matter what — so ``any`` must survive the final reset,
+    or the route skips the checkpoint resync and the model keeps answering the
+    turn the user edited away. ``count`` stays 0: nothing this pass wrote may be
+    subtracted from ``Thread.message_count``.
+    """
+    attempts = {"n": 0}
+
+    async def flaky(db, user, req, *, tombstoned_out=None):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            # Committed, then died on the way out.
+            tombstoned_out.record(4)
+            raise RuntimeError("connection reset after commit")
+        raise RuntimeError("db down")
+
+    ctr = _FakeCounter()
+    monkeypatch.setattr(jobs, "_persist_user_message", flaky)
+    monkeypatch.setattr(obs, "agent_dualstore_user_turn_persist_failures_total", ctr)
+    caplog.set_level(logging.WARNING, logger=JOBS_LOGGER)
+
+    report = jobs.TombstoneReport()
+    result = await jobs._persist_user_message_guarded(
+        _RollbackDB(), _user(), _req_obj(), tombstoned_out=report
+    )
+
+    assert result is False
+    assert attempts["n"] == 2
+    assert report.any is True
+    assert report.count == 0
+
+
+async def test_guarded_final_failure_without_tombstones_stays_false(monkeypatch):
+    """No attempt saw tombstones → no spurious resync signal."""
+
+    async def always_fail(db, user, req, *, tombstoned_out=None):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(jobs, "_persist_user_message", always_fail)
+    monkeypatch.setattr(
+        obs, "agent_dualstore_user_turn_persist_failures_total", _FakeCounter()
+    )
+
+    report = jobs.TombstoneReport()
+    assert (
+        await jobs._persist_user_message_guarded(
+            _RollbackDB(), _user(), _req_obj(), tombstoned_out=report
+        )
+        is False
+    )
+    assert report.any is False
+    assert report.count == 0
+
+
+async def test_guarded_successful_retry_reports_only_its_own_outcome(monkeypatch):
+    """Stickiness is a FINAL-FAILURE rule, not a running OR.
+
+    When the retry succeeds, the report is exactly what that attempt derived
+    from its own clean transaction — a stale count from the rolled-back attempt
+    must not double-subtract from ``Thread.message_count``.
+    """
+    attempts = {"n": 0}
+
+    async def flaky(db, user, req, *, tombstoned_out=None):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            tombstoned_out.record(4)
+            raise RuntimeError("blip")
+        return True
+
+    monkeypatch.setattr(jobs, "_persist_user_message", flaky)
+
+    report = jobs.TombstoneReport()
+    assert (
+        await jobs._persist_user_message_guarded(
+            _RollbackDB(), _user(), _req_obj(), tombstoned_out=report
+        )
+        is True
+    )
+    assert report.count == 0
+    assert report.any is False
+
+
 async def test_guarded_marker_survives_missing_metric(monkeypatch):
     """A metrics-layer failure must never mask the persist error / raise."""
 

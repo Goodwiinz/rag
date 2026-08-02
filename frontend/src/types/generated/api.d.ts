@@ -8755,6 +8755,11 @@ export interface components {
              */
             model: string;
             page_context?: components["schemas"]["PageContextRequest"];
+            /**
+             * Supersedes Client Message Id
+             * @description Edit-and-resend: the client_message_id of the USER turn being edited. The server tombstones that turn and everything after it in the thread atomically with persisting the new user turn, and drops the superseded messages from the LangGraph checkpoint. The edited turn itself must arrive as the normal last user message with a FRESH client_message_id — reusing the old one would be silently dropped by the ON CONFLICT dedup.
+             */
+            supersedes_client_message_id?: string | null;
             /** Thread Id */
             thread_id?: string | null;
             /**

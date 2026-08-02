@@ -21,7 +21,7 @@ import random
 import time
 import uuid as _uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -323,7 +323,12 @@ async def build_thread_seed_messages(db: AsyncSession, thread_id: str) -> List[A
         (
             await db.execute(
                 select(ChatMessage)
-                .where(ChatMessage.thread_id == tid)
+                .where(
+                    ChatMessage.thread_id == tid,
+                    # Model-visible reseed: a superseded turn must not come
+                    # back into context through the DB rebuild.
+                    ChatMessage.superseded_by_message_id.is_(None),
+                )
                 .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
             )
         )
@@ -476,6 +481,10 @@ async def _chat_user_row_count(
         .where(
             ChatMessage.thread_id == tid,
             ChatMessage.role == MessageRole.USER,
+            # MUST match ``build_thread_seed_messages``: counting superseded
+            # rows the seed excludes makes every edited thread trip the
+            # dual-store divergence WARN.
+            ChatMessage.superseded_by_message_id.is_(None),
         )
     )
     if owner_id is not None:
@@ -1002,10 +1011,440 @@ async def _resolve_thread(
     return thread, conversation_id
 
 
+async def resync_thread_checkpoint(
+    graph: Any,
+    *,
+    thread_id: str,
+    user: Any,
+) -> bool:
+    """Converge a thread's HEAD checkpoint on the DB's post-edit view.
+
+    Edit-and-resend tombstones rows in ``chat_messages``; the LangGraph
+    checkpoint is a second store that must stop showing the model the turns the
+    user replaced. The obvious implementation — map each tombstoned ROW to a
+    checkpoint id and ``RemoveMessage`` it — cannot work: assistant messages in
+    the checkpoint carry ids the MODEL generated (``run-...``, provider ids),
+    which no row-derived mapping predicts, so the superseded ANSWER survived
+    every removal while its question vanished.
+
+    So this does not map. It reads what is actually present, removes ALL of it,
+    and re-adds ``build_thread_seed_messages`` (which already excludes
+    superseded rows) in ONE ``aupdate_state`` — the same
+    ``as_node="memory_save_node"`` seam the fast path appends through, always
+    against HEAD (an update carrying an earlier ``checkpoint_id`` forks the
+    thread and every other writer then misses the fork). ``add_messages``
+    applies the removals and the additions in list order, and an id appearing in
+    both is replaced in place — verified against langgraph 1.2.4 /
+    langchain-core 1.4.1 in ``test_agent_edit_resend_checkpoint.py``.
+
+    ``add_messages`` RAISES ``ValueError`` on a ``RemoveMessage`` whose id is
+    not in state. That is exactly the concurrent-writer TOCTOU: another writer
+    can drop a message between our read and our write. We retry ONCE from a
+    fresh read, then give up with a WARN — the DB tombstones are already
+    committed and every reader filters on them, so a stale checkpoint degrades
+    the model's context for one turn rather than failing the turn.
+
+    Residual: this is not serialised against other writers to the same thread.
+    A user has one live turn per thread in practice (the UI blocks a second
+    send while streaming), so the single-writer assumption holds outside of
+    deliberate concurrent-tab abuse; the retry covers the rest.
+
+    Returns ``True`` when the checkpoint was rewritten, ``False`` otherwise
+    (nothing to do, or a failure that was warned about). Never raises.
+    """
+    from langchain_core.messages import RemoveMessage
+
+    config = {
+        "configurable": {
+            "thread_id": str(thread_id),
+            "user_id": str(getattr(user, "id", "") or ""),
+            "organization_id": str(getattr(user, "organization_id", "") or ""),
+        }
+    }
+
+    for attempt in (1, 2):
+        try:
+            snapshot = await graph.aget_state(config)
+            values = getattr(snapshot, "values", None) or {}
+            present = [
+                str(getattr(m, "id", "") or "") for m in (values.get("messages") or [])
+            ]
+            # dict.fromkeys: dedupe while preserving order. Two RemoveMessages
+            # for one id would make the second one an unknown-id ValueError.
+            present_ids = [mid for mid in dict.fromkeys(present) if mid]
+
+            async with AsyncSessionLocal() as db:
+                seed = await build_thread_seed_messages(db, str(thread_id))
+
+            if not present_ids and not seed:
+                return False
+
+            await graph.aupdate_state(
+                config,
+                {
+                    "messages": [RemoveMessage(id=mid) for mid in present_ids]
+                    + list(seed)
+                },
+                as_node="memory_save_node",
+            )
+            return True
+        except ValueError:
+            if attempt == 1:
+                logger.info(
+                    "edit_resend_checkpoint_resync_retry — a concurrent writer "
+                    "changed the head message set; re-reading",
+                    extra={"thread_id": str(thread_id)},
+                )
+                continue
+            logger.warning(
+                "edit_resend_checkpoint_resync_failed — chat_messages tombstones "
+                "are committed but the LangGraph checkpoint may still hold the "
+                "superseded turns for this thread",
+                extra={"thread_id": str(thread_id)},
+                exc_info=True,
+            )
+            return False
+        except Exception:
+            logger.warning(
+                "edit_resend_checkpoint_resync_failed — chat_messages tombstones "
+                "are committed but the LangGraph checkpoint may still hold the "
+                "superseded turns for this thread",
+                extra={"thread_id": str(thread_id)},
+                exc_info=True,
+            )
+            return False
+
+    return False
+
+
+class TombstoneReport:
+    """Mutable out-parameter for the edit-and-resend tombstone pass.
+
+    Carries two independent facts, because they answer different questions:
+
+    * ``count`` — how many rows this attempt actually UPDATEd. Only that number
+      may be subtracted from ``Thread.message_count``.
+    * ``any`` — whether the thread now HAS superseded rows attributable to this
+      turn, including the ambiguous-commit case where the replacement row was
+      already inserted (and its tombstones already committed) by a previous
+      attempt whose response was lost. ``count`` is 0 there but the checkpoint
+      still needs a resync, so the two must not be collapsed into one integer.
+
+    They also have different lifetimes under retry. ``_persist_user_message_
+    guarded`` resets BOTH between attempts (the retry re-derives its outcome
+    from a clean transaction), but on final failure it re-marks ``any`` if any
+    attempt had seen tombstones: a committed-then-unacknowledged attempt leaves
+    durable tombstones that no later failure undoes. ``count`` is never carried
+    that way — only rows an attempt actually UPDATEd may adjust
+    ``Thread.message_count``.
+    """
+
+    __slots__ = ("count", "any")
+
+    def __init__(self) -> None:
+        self.count = 0
+        self.any = False
+
+    def reset(self) -> None:
+        self.count = 0
+        self.any = False
+
+    def record(self, count: int) -> None:
+        self.count += count
+        if count:
+            self.any = True
+
+    def mark(self) -> None:
+        """Tombstones exist but were not written by this attempt."""
+        self.any = True
+
+    def __bool__(self) -> bool:
+        return self.any
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"TombstoneReport(count={self.count}, any={self.any})"
+
+
+async def _tombstone_superseded_turns(
+    db: AsyncSession,
+    current_user: User,
+    *,
+    thread_id: str,
+    supersedes_cmid: Any,
+    replacement_row_id: Any,
+) -> int:
+    """Tombstone an edited user turn and everything after it in the thread.
+
+    Called through ``apply_edit_resend_tombstones`` by whichever writer owns
+    this turn's user row — ``_persist_user_message`` or ``accept_submission``'s
+    accept transaction — always BEFORE that writer's commit, so the tombstones
+    and the replacement user row land in one transaction: a reader never sees a
+    thread where the old answer is gone but the new question isn't there yet.
+
+    Marks the target user row *and* every not-already-superseded row ordered
+    after it by ``(created_at, id)``. The replacement row is explicitly excluded
+    (it is itself the newest row in the thread, so the range predicate would
+    otherwise swallow it).
+
+    Returns the NUMBER of rows updated. The caller does not need their ids:
+    checkpoint convergence is done by ``resync_thread_checkpoint``, which
+    rewrites the whole head message list from the DB rather than mapping
+    per-row ids onto checkpoint ids (assistant messages carry model-generated
+    ids that no row-derived mapping can predict). Returns ``0`` when the target
+    ``client_message_id`` is not in this thread; that is a real race (the fast
+    path persists the original turn in a background task,
+    ``fast_path``/``stream_fast_path_chunks``), and losing a tombstone must not
+    fail the turn.
+    """
+    from uuid import UUID
+
+    from sqlalchemy import and_, or_, select, update
+
+    from src.models.chat_message import ChatMessage, MessageRole
+    from src.models.conversation import Conversation
+    from src.models.thread import Thread
+    from src.models.workspace import Workspace
+
+    try:
+        tid = UUID(str(thread_id))
+        target_cmid = UUID(str(supersedes_cmid))
+    except (ValueError, TypeError, AttributeError):
+        logger.warning(
+            "edit_resend_tombstone_invalid_ids",
+            extra={"thread_id": str(thread_id)},
+        )
+        return 0
+
+    # Ownership: the thread must hang off a workspace this user owns. Callers
+    # resolve+verify the thread upstream (``_resolve_thread``); this is the
+    # same defense-in-depth join ``_chat_user_row_count`` uses, applied here
+    # because this statement WRITES.
+    owned_thread = (
+        select(Thread.id)
+        .join(Conversation, Thread.conversation_id == Conversation.id)
+        .join(Workspace, Conversation.workspace_id == Workspace.id)
+        .where(Thread.id == tid, Workspace.owner_id == current_user.id)
+    ).scalar_subquery()
+
+    target = (
+        await db.execute(
+            select(ChatMessage.id, ChatMessage.created_at).where(
+                ChatMessage.thread_id == tid,
+                ChatMessage.thread_id.in_(owned_thread),
+                ChatMessage.client_message_id == target_cmid,
+                ChatMessage.role == MessageRole.USER,
+            )
+        )
+    ).first()
+
+    if target is None:
+        logger.warning(
+            "edit_resend_supersede_target_not_found",
+            extra={
+                "thread_id": str(tid),
+                "supersedes_client_message_id": str(target_cmid),
+            },
+        )
+        return 0
+
+    target_id, target_created_at = target.id, target.created_at
+
+    # (created_at, id) tie-break, matching the message pagination order.
+    # LIMITATION (deliberate): ``created_at`` is app-generated with microsecond
+    # precision, so an exact tie means the two rows were written in the same
+    # batch — and every reader in the system sorts by ``created_at`` ALONE, so
+    # their relative order is already arbitrary there. Breaking the tie on the
+    # UUID PK is therefore not "correct ordering", it is only a deterministic,
+    # inclusive boundary: the target row itself is always inside the range, and
+    # a same-microsecond neighbour may fall on either side of a cut the reader
+    # could not have rendered in a stable order anyway.
+    at_or_after = or_(
+        ChatMessage.created_at > target_created_at,
+        and_(
+            ChatMessage.created_at == target_created_at,
+            ChatMessage.id >= target_id,
+        ),
+    )
+
+    # ONE statement: a separate SELECT then UPDATE let a concurrent writer land
+    # a row between the two, so the returned "tombstoned" set and the rows the
+    # UPDATE actually touched could differ. UPDATE ... RETURNING reports exactly
+    # what it changed, atomically.
+    #
+    # Out of scope (by construction, not oversight): rows INSERTed after this
+    # statement's snapshot are not tombstoned — the streaming answer to the
+    # superseded turn can still be racing us. The next edit of this thread
+    # sweeps them, and every reader already filters on the flag.
+    result = await db.execute(
+        update(ChatMessage)
+        .where(
+            ChatMessage.thread_id == tid,
+            ChatMessage.superseded_by_message_id.is_(None),
+            ChatMessage.id != replacement_row_id,
+            at_or_after,
+        )
+        .values(superseded_by_message_id=replacement_row_id)
+        .returning(ChatMessage.id)
+        .execution_options(synchronize_session=False)
+    )
+    return len(result.scalars().all())
+
+
+async def _resolve_deduped_replacement_row(
+    db: AsyncSession,
+    *,
+    thread_id: Any,
+    cmid_value: str,
+    supersedes: Any,
+) -> Any:
+    """The already-durable replacement row this edit may legitimately reuse.
+
+    Reached only when the replacement INSERT deduped: this exact replacement
+    ``client_message_id`` is already a user row in the thread. Either the client
+    resent the same edit, or a previous attempt committed and lost its response
+    (ambiguous commit). Reusing that row makes the pass idempotent — but only
+    after proving it is a LEGITIMATE replacement, because a recycled cmid must
+    never be allowed to tombstone a live turn.
+
+    Returns the row id to tombstone against, or ``None`` when the reuse is
+    refused (each refusal logs its reason).
+    """
+    from uuid import UUID
+
+    from sqlalchemy import select
+
+    from src.models.chat_message import ChatMessage, MessageRole
+
+    existing = (
+        await db.execute(
+            select(ChatMessage.id, ChatMessage.superseded_by_message_id).where(
+                ChatMessage.thread_id == UUID(str(thread_id)),
+                ChatMessage.client_message_id == cmid_value,
+                ChatMessage.role == MessageRole.USER,
+            )
+        )
+    ).first()
+    if existing is None:
+        return None
+
+    conflict = (
+        # The row we would "replace with" IS the row being superseded (the
+        # schema validator rejects this at the edge; a request that reached
+        # here another way must not tombstone its own replacement).
+        str(cmid_value) == str(supersedes)
+        # ...or it has already been superseded by a LATER edit; resurrecting it
+        # as a tombstone target would rewrite history backwards.
+        or existing.superseded_by_message_id is not None
+    )
+    if conflict:
+        logger.warning(
+            "edit_resend_dedup_target_conflict",
+            extra={
+                "thread_id": str(thread_id),
+                "client_message_id": str(cmid_value),
+                "supersedes_client_message_id": str(supersedes),
+                "already_superseded": existing.superseded_by_message_id is not None,
+            },
+        )
+        return None
+
+    # Bind the existing replacement row to the target THIS request claims. A
+    # replacement cmid names exactly one edit; reusing it against a different
+    # target is not an idempotent resend, it is a second, unrelated edit riding
+    # a row whose content we would silently keep. Accept only when the claimed
+    # target is already superseded BY this very row — i.e. this exact edit
+    # demonstrably happened.
+    claimed = (
+        await db.execute(
+            select(ChatMessage.superseded_by_message_id).where(
+                ChatMessage.thread_id == UUID(str(thread_id)),
+                ChatMessage.client_message_id == str(supersedes),
+                ChatMessage.role == MessageRole.USER,
+            )
+        )
+    ).first()
+    if claimed is None or claimed.superseded_by_message_id != existing.id:
+        # Target missing, still active, or superseded by some OTHER row: refuse.
+        # Tombstoning here would kill a live turn on the strength of a recycled
+        # cmid.
+        logger.warning(
+            "edit_resend_dedup_target_mismatch",
+            extra={
+                "thread_id": str(thread_id),
+                "client_message_id": str(cmid_value),
+                "supersedes_client_message_id": str(supersedes),
+                "target_found": claimed is not None,
+                "target_active": (
+                    claimed is not None and claimed.superseded_by_message_id is None
+                ),
+            },
+        )
+        return None
+    return existing.id
+
+
+async def apply_edit_resend_tombstones(
+    db: AsyncSession,
+    current_user: User,
+    *,
+    thread_id: Any,
+    cmid_value: Optional[str],
+    supersedes: Any,
+    inserted_row_id: Any,
+    tombstoned_out: Optional["TombstoneReport"] = None,
+) -> int:
+    """Tombstone the edited turn's tail against the replacement row. No commit.
+
+    The one place edit-and-resend semantics live, shared by the two writers of
+    a user turn: ``_persist_user_message`` (``/execute`` and the degraded
+    ``/stream`` paths) and ``accept_submission``'s atomic accept transaction
+    (P0-C, the primary ``/stream`` path). Both call it BEFORE their commit, so
+    the tombstones and the replacement row land together: a reader never sees a
+    thread where the old answer is gone but the new question isn't there yet.
+
+    ``inserted_row_id`` is the id of a FRESHLY inserted replacement row, or
+    ``None`` when the insert deduped — the dedup case is validated by
+    ``_resolve_deduped_replacement_row`` and, when accepted, reports through
+    ``TombstoneReport.mark()`` rather than ``record()`` (the UPDATE finds
+    nothing, because a previous attempt already committed those tombstones,
+    but the checkpoint still needs a resync).
+
+    Returns the number of rows this call UPDATEd — the only number that may be
+    subtracted from ``Thread.message_count``.
+    """
+    row_id = inserted_row_id
+    if row_id is None:
+        if cmid_value is None:
+            return 0
+        row_id = await _resolve_deduped_replacement_row(
+            db,
+            thread_id=thread_id,
+            cmid_value=cmid_value,
+            supersedes=supersedes,
+        )
+        if row_id is None:
+            return 0
+        if tombstoned_out is not None:
+            tombstoned_out.mark()
+
+    count = await _tombstone_superseded_turns(
+        db,
+        current_user,
+        thread_id=str(thread_id),
+        supersedes_cmid=supersedes,
+        replacement_row_id=row_id,
+    )
+    if tombstoned_out is not None:
+        tombstoned_out.record(count)
+    return count
+
+
 async def _persist_user_message(
     db: AsyncSession,
     current_user: User,
     request: Any,  # AgentExecuteRequest
+    *,
+    tombstoned_out: Optional["TombstoneReport"] = None,
 ) -> bool:
     """Insert the latest user message idempotently.
 
@@ -1018,6 +1457,15 @@ async def _persist_user_message(
     Returns ``True`` if a new row was inserted, ``False`` if a duplicate
     was silently dropped or there is nothing to insert (no user message
     in the request or no ``request.thread_id``).
+
+    Edit-and-resend: when ``request.supersedes_client_message_id`` is set, the
+    named user turn and everything after it in the thread are tombstoned in the
+    SAME transaction as this insert (see ``_tombstone_superseded_turns``), and
+    ``Thread.message_count`` is adjusted by the net delta. The outcome is
+    recorded on ``tombstoned_out`` when the caller supplies a
+    ``TombstoneReport`` — an out-parameter rather than a changed return type
+    because the ``bool`` contract is asserted identity-wise (``result is True``
+    / ``is False``) across the guarded wrapper's tests and eight call sites.
 
     Commits independently of ``_persist_assistant_message``; callers that
     rely on a single all-or-nothing commit must adapt — a partial commit
@@ -1041,6 +1489,7 @@ async def _persist_user_message(
 
     cmid = getattr(last, "client_message_id", None)
     cmid_value = str(cmid) if cmid is not None else None
+    supersedes = getattr(request, "supersedes_client_message_id", None)
 
     stmt = (
         insert(ChatMessage)
@@ -1059,13 +1508,43 @@ async def _persist_user_message(
             index_where=text("client_message_id IS NOT NULL AND role = 'user'"),
         )
     )
+    if supersedes is not None:
+        # RETURNING is only added on the edit path: the tombstone UPDATE needs
+        # the replacement row's PK, and ON CONFLICT DO NOTHING ... RETURNING
+        # yields exactly one row when inserted and zero when deduped — the same
+        # signal ``rowcount`` carries, without disturbing the hot path.
+        stmt = stmt.returning(ChatMessage.id)
+
     result = await db.execute(stmt)
-    inserted = result.rowcount == 1
-    if inserted:
+    tombstoned_count = 0
+    if supersedes is not None:
+        new_row_id = result.scalar_one_or_none()
+        inserted = new_row_id is not None
+        tombstoned_count = await apply_edit_resend_tombstones(
+            db,
+            current_user,
+            thread_id=request.thread_id,
+            cmid_value=cmid_value,
+            supersedes=supersedes,
+            inserted_row_id=new_row_id,
+            tombstoned_out=tombstoned_out,
+        )
+    else:
+        inserted = result.rowcount == 1
+    if inserted or tombstoned_count:
         thread = await db.get(Thread, UUID(request.thread_id))
         if thread is not None:
-            thread.message_count = (thread.message_count or 0) + 1
-            thread.last_message_at = datetime.now(timezone.utc)
+            # Net delta in the SAME transaction as the tombstone UPDATE: +1 for
+            # the replacement row, -N for the rows it superseded. Floored at 0
+            # because message_count is a denormalised counter that historically
+            # drifts, and a negative count renders as nonsense in the UI.
+            delta = (1 if inserted else 0) - tombstoned_count
+            # cast: on a loaded instance this attribute is a plain int; the
+            # Column[int] descriptor type only confuses max()'s type var.
+            current = cast(int, thread.message_count or 0)
+            thread.message_count = max(0, current + delta)
+            if inserted:
+                thread.last_message_at = datetime.now(timezone.utc)
     await db.commit()
     return inserted
 
@@ -1074,6 +1553,8 @@ async def _persist_user_message_guarded(
     db: AsyncSession,
     current_user: User,
     request: Any,  # AgentExecuteRequest
+    *,
+    tombstoned_out: Optional["TombstoneReport"] = None,
 ) -> bool:
     """Persist the user turn, retrying once, then loudly marking a failure.
 
@@ -1087,17 +1568,40 @@ async def _persist_user_message_guarded(
     ``agent_dualstore_user_turn_persist_failures_total`` bump so the drop is
     observable instead of silent.
 
+    ``tombstoned_out``, when given, records the edit-and-resend tombstone
+    outcome (untouched on every non-edit turn and when the superseded target
+    could not be found). It is reset before each attempt so a retry cannot
+    double-count.
+
     Never raises — the caller still continues the turn (a durable-persist
     failure must not abort a chat that can still stream an answer). Returns the
     underlying insert result on success (``True`` inserted / ``False`` duplicate
     or nothing to insert), or ``False`` when both attempts failed.
     """
     last_exc: Optional[Exception] = None
+    # ``any`` is STICKY across attempts, ``count`` is not. An attempt can commit
+    # its tombstone UPDATEs and still raise on the way out (ambiguous commit) —
+    # those rows are durable no matter what the retry does, so the resync signal
+    # must survive the between-attempt reset and the final-failure reset. The
+    # count cannot: only rows this pass actually UPDATEd may be subtracted from
+    # ``Thread.message_count``. A false-positive resync is harmless (it is an
+    # idempotent reseed from the DB); a missed one leaves the model answering
+    # the turn the user edited away.
+    sticky_any = False
     for attempt in (1, 2):
         try:
-            return await _persist_user_message(db, current_user, request)
+            if tombstoned_out is None:
+                return await _persist_user_message(db, current_user, request)
+            # A failed first attempt may have recorded before raising; the
+            # retry re-derives the outcome from a clean transaction.
+            tombstoned_out.reset()
+            return await _persist_user_message(
+                db, current_user, request, tombstoned_out=tombstoned_out
+            )
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
+            if tombstoned_out is not None:
+                sticky_any = sticky_any or tombstoned_out.any
             # Roll the failed INSERT back so the retry (and the rest of the
             # turn) runs on a clean session rather than an aborted transaction.
             try:
@@ -1113,8 +1617,19 @@ async def _persist_user_message_guarded(
                     extra={"thread_id": getattr(request, "thread_id", None)},
                 )
 
-    # Both attempts failed: stamp an observable divergence marker so the lost
-    # turn surfaces on dashboards instead of vanishing silently.
+    # Both attempts failed. The COUNT is zeroed — nothing this pass wrote is
+    # committed, so nothing may be subtracted from ``Thread.message_count``.
+    # ``any`` is restored when ANY attempt saw tombstones: an attempt that
+    # committed and then lost its acknowledgement left durable tombstones in the
+    # DB, and dropping the signal would skip the checkpoint resync against a
+    # thread that HAS been edited.
+    if tombstoned_out is not None:
+        tombstoned_out.reset()
+        if sticky_any:
+            tombstoned_out.mark()
+
+    # Stamp an observable divergence marker so the lost turn surfaces on
+    # dashboards instead of vanishing silently.
     cmid: Optional[str] = None
     try:
         last = next((m for m in reversed(request.messages) if m.role == "user"), None)
@@ -1174,6 +1689,9 @@ async def _latest_user_client_message_id(
             ChatMessage.thread_id == tid,
             ChatMessage.role == MessageRole.USER,
             ChatMessage.client_message_id.isnot(None),
+            # Resume keys off the latest NON-superseded user row; an edited
+            # turn is no longer the turn being resumed.
+            ChatMessage.superseded_by_message_id.is_(None),
         )
         .order_by(ChatMessage.created_at.desc())
         .limit(1)
@@ -1274,6 +1792,9 @@ async def _persist_assistant_message(
         if inserted_id is None:
             # Dedup hit: a retry of an already-persisted turn. Fetch the
             # existing row id and leave thread stats/citations untouched.
+            # Deliberately NOT filtered on ``superseded_by_message_id``: this is
+            # an idempotency read, and a tombstoned row still occupies the
+            # unique index slot this retry collided with.
             existing = await db.execute(
                 select(ChatMessage.id).where(
                     ChatMessage.thread_id == UUID(thread_id),
@@ -1441,6 +1962,7 @@ async def _run_agent_graph(
             # finishes — Task 4 of docs/plans/2026-05-13-agent-persist-perf.md.
             resolved_thread_id: Optional[str] = None
             thread_obj = None
+            tombstones = TombstoneReport()
             try:
                 thread_obj, _conversation_id = await _resolve_thread(
                     db, current_user, request
@@ -1451,7 +1973,9 @@ async def _run_agent_graph(
                         request.thread_id = resolved_thread_id
                     # Retry-once + observable-on-failure so a swallowed persist
                     # can't silently diverge the two stores (audit D3 / P2.6).
-                    await _persist_user_message_guarded(db, current_user, request)
+                    await _persist_user_message_guarded(
+                        db, current_user, request, tombstoned_out=tombstones
+                    )
             except Exception:
                 logger.warning(
                     "Failed to persist user turn before agent graph run",
@@ -1469,6 +1993,15 @@ async def _run_agent_graph(
             checkpointer = await get_checkpointer()
             store = await get_memory_store()
             graph = compile_agent_graph(checkpointer=checkpointer, store=store)
+
+            # Edit-and-resend: converge HEAD on the post-edit DB before any
+            # model input is assembled, exactly as the SSE graph route does.
+            if tombstones.any:
+                await resync_thread_checkpoint(
+                    graph,
+                    thread_id=resolved_thread_id or (request.thread_id or ""),
+                    user=current_user,
+                )
 
             from src.core.config import get_settings
 

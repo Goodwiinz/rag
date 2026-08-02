@@ -295,7 +295,11 @@ async def preview_export(
         if not thread:
             raise HTTPException(status_code=404, detail="Thread not found")
 
-        # Calculate estimated sizes
+        # Calculate estimated sizes.
+        # These count the ThreadExport's message LIST, which ``_load_thread``
+        # has already stripped of edit-superseded turns — deliberately NOT
+        # ``thread.message_count`` (the denormalised DB counter), which would
+        # promise the download more turns than it contains.
         message_count = len(thread.messages)
         citation_count = sum(len(m.citations) for m in thread.messages)
 

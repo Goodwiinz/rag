@@ -202,6 +202,19 @@
           "page_context": {
             "$ref": "#/components/schemas/PageContextRequest"
           },
+          "supersedes_client_message_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Edit-and-resend: the client_message_id of the USER turn being edited. The server tombstones that turn and everything after it in the thread atomically with persisting the new user turn, and drops the superseded messages from the LangGraph checkpoint. The edited turn itself must arrive as the normal last user message with a FRESH client_message_id — reusing the old one would be silently dropped by the ON CONFLICT dedup.",
+            "title": "Supersedes Client Message Id"
+          },
           "thread_id": {
             "anyOf": [
               {

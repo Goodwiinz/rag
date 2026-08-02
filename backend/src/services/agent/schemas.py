@@ -15,7 +15,7 @@ Router-only schemas (job start/status, confirmation, thread listing) stay in
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class AgentMessage(BaseModel):
@@ -73,6 +73,41 @@ class AgentExecuteRequest(BaseModel):
     use_rag: bool = Field(default=True)
     max_context_docs: int = Field(default=5, ge=1, le=10)
     thread_id: Optional[str] = None
+    supersedes_client_message_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            "Edit-and-resend: the client_message_id of the USER turn being "
+            "edited. The server tombstones that turn and everything after it in "
+            "the thread atomically with persisting the new user turn, and drops "
+            "the superseded messages from the LangGraph checkpoint. The edited "
+            "turn itself must arrive as the normal last user message with a "
+            "FRESH client_message_id — reusing the old one would be silently "
+            "dropped by the ON CONFLICT dedup."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _edit_carries_a_fresh_cmid(self) -> "AgentExecuteRequest":
+        """Reject an edit whose replacement reuses the superseded turn's key.
+
+        Reusing the key is not a harmless no-op: the replacement INSERT hits the
+        ``(thread_id, client_message_id)`` ON CONFLICT DO NOTHING and dedups
+        onto the very row being edited, so the tombstone pass would then mark
+        its own replacement superseded — the turn disappears from every reader.
+        422 at the edge is the only place this is cheap to see.
+        """
+        supersedes = self.supersedes_client_message_id
+        if supersedes is None:
+            return self
+        last_user = next((m for m in reversed(self.messages) if m.role == "user"), None)
+        if last_user is None:
+            return self
+        if (
+            last_user.client_message_id is not None
+            and last_user.client_message_id == supersedes
+        ):
+            raise ValueError("edited turn must carry a fresh client_message_id")
+        return self
 
     @field_validator("model")
     @classmethod

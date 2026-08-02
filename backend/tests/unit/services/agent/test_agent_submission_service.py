@@ -31,7 +31,9 @@ from src.models.agent_outbox import AgentOutbox
 from src.models.agent_run import AgentRun
 from src.models.agent_run_event import AgentRunEvent
 from src.models.chat_message import ChatMessage, MessageRole
+from src.models.conversation import Conversation
 from src.models.thread import Thread
+from src.models.workspace import Workspace
 from src.services.agent import agent_submission_service as submission_mod
 from src.services.agent.agent_submission_service import (
     accept_submission,
@@ -48,6 +50,7 @@ USER_A = uuid.UUID("33333333-3333-3333-3333-333333333333")
 USER_B = uuid.UUID("44444444-4444-4444-4444-444444444444")
 THREAD_ID = uuid.UUID("55555555-5555-5555-5555-555555555555")
 CONVERSATION_ID = uuid.UUID("66666666-6666-6666-6666-666666666666")
+WORKSPACE_ID = uuid.UUID("77777777-7777-7777-7777-777777777777")
 
 
 @pytest.fixture
@@ -70,6 +73,11 @@ async def session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     async with engine.begin() as conn:
         await conn.run_sync(Thread.__table__.create)
         await conn.run_sync(ChatMessage.__table__.create)
+        # Edit-and-resend's tombstone pass re-verifies thread ownership through
+        # Conversation -> Workspace.owner_id, so those tables have to exist for
+        # it to supersede anything.
+        await conn.run_sync(Workspace.__table__.create)
+        await conn.run_sync(Conversation.__table__.create)
         await conn.run_sync(AgentRun.__table__.create)
         await conn.run_sync(AgentRunEvent.__table__.create)
         await conn.run_sync(AgentOutbox.__table__.create)
@@ -82,6 +90,22 @@ async def db(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> AsyncIterator[AsyncSession]:
     async with session_factory() as session:
+        session.add(
+            Workspace(
+                id=WORKSPACE_ID,
+                name="w",
+                owner_id=USER_A,
+                organization_id=ORG_A,
+            )
+        )
+        session.add(
+            Conversation(
+                id=CONVERSATION_ID,
+                workspace_id=WORKSPACE_ID,
+                title="c",
+                created_by_id=USER_A,
+            )
+        )
         session.add(
             Thread(
                 id=THREAD_ID,
@@ -99,7 +123,12 @@ def _user(user_id: uuid.UUID = USER_A, org: uuid.UUID | None = ORG_A) -> Any:
     return SimpleNamespace(id=user_id, organization_id=org)
 
 
-def _request(cmid: uuid.UUID | None, content: str = "hello") -> Any:
+def _request(
+    cmid: uuid.UUID | None,
+    content: str = "hello",
+    *,
+    supersedes: uuid.UUID | None = None,
+) -> Any:
     return SimpleNamespace(
         messages=[
             SimpleNamespace(role="user", content=content, client_message_id=cmid)
@@ -107,6 +136,7 @@ def _request(cmid: uuid.UUID | None, content: str = "hello") -> Any:
         model="",
         use_rag=True,
         thread_id=str(THREAD_ID),
+        supersedes_client_message_id=supersedes,
     )
 
 
@@ -326,3 +356,186 @@ async def test_a_failed_write_leaves_nothing_behind(
     assert await _count(db, ChatMessage) == 0
     assert await _count(db, AgentRunEvent) == 0
     assert await _count(db, AgentOutbox) == 0
+
+
+# --------------------------------------------------------------------------- #
+# Edit-and-resend rides the accept transaction
+# --------------------------------------------------------------------------- #
+
+
+async def _seed_turn(
+    db: AsyncSession, *, cmid: uuid.UUID, content: str, role: MessageRole
+) -> uuid.UUID:
+    row = ChatMessage(
+        thread_id=THREAD_ID,
+        user_id=USER_A,
+        role=role,
+        content=content,
+        client_message_id=cmid if role == MessageRole.USER else None,
+    )
+    db.add(row)
+    await db.commit()
+    return uuid.UUID(str(row.id))
+
+
+async def test_accept_tombstones_the_edited_turn_and_its_tail(db: AsyncSession) -> None:
+    """The tombstones must land in the accept transaction, not after it.
+
+    P0-C moved the user row out of ``_persist_user_message`` and into the
+    accept transaction. If edit-and-resend had been left behind there, the
+    replacement question would commit while the answer it replaced stayed
+    visible — and, worse, kept feeding the model.
+    """
+    u1 = uuid.uuid4()
+    await _seed_turn(db, cmid=u1, content="first q", role=MessageRole.USER)
+    await _seed_turn(
+        db, cmid=uuid.uuid4(), content="first a", role=MessageRole.ASSISTANT
+    )
+
+    replacement_cmid = uuid.uuid4()
+    accepted = await accept_submission(
+        db,
+        current_user=_user(),
+        request=_request(replacement_cmid, "first q, edited", supersedes=u1),
+        thread=_thread(),
+    )
+
+    assert accepted.tombstoned is True
+    assert accepted.tombstoned_count == 2  # the edited turn and its answer
+
+    rows = (
+        await db.execute(
+            select(
+                ChatMessage.id,
+                ChatMessage.client_message_id,
+                ChatMessage.superseded_by_message_id,
+            ).where(ChatMessage.thread_id == THREAD_ID)
+        )
+    ).all()
+    assert len(rows) == 3
+    replacement = next(
+        r for r in rows if str(r.client_message_id) == str(replacement_cmid)
+    )
+    assert str(replacement.id) == str(accepted.user_message_id)
+    # The replacement is not swept by its own pass; everything else is.
+    assert replacement.superseded_by_message_id is None
+    assert {
+        str(r.superseded_by_message_id) for r in rows if r.id != replacement.id
+    } == {str(replacement.id)}
+
+    # +1 for the replacement, -2 for what it superseded, floored at 0.
+    count = (
+        await db.execute(select(Thread.message_count).where(Thread.id == THREAD_ID))
+    ).scalar_one()
+    assert count == 0
+
+
+async def test_accept_leaves_a_plain_turn_untombstoned(db: AsyncSession) -> None:
+    u1 = uuid.uuid4()
+    await _seed_turn(db, cmid=u1, content="first q", role=MessageRole.USER)
+
+    accepted = await accept_submission(
+        db,
+        current_user=_user(),
+        request=_request(uuid.uuid4(), "second q"),
+        thread=_thread(),
+    )
+
+    assert accepted.tombstoned is False
+    assert accepted.tombstoned_count == 0
+    superseded = (
+        await db.execute(
+            select(func.count())
+            .select_from(ChatMessage)
+            .where(ChatMessage.superseded_by_message_id.isnot(None))
+        )
+    ).scalar_one()
+    assert superseded == 0
+
+
+async def test_replayed_edit_still_reports_tombstones(db: AsyncSession) -> None:
+    """A replay wrote nothing — but the checkpoint still has to converge.
+
+    The submission being attached to committed this edit's tombstones and then
+    lost its response. Reporting ``tombstoned=False`` here would skip the
+    resync and leave the model answering the turn the user edited away; a
+    redundant resync is only an idempotent reseed from the DB.
+    """
+    u1 = uuid.uuid4()
+    await _seed_turn(db, cmid=u1, content="first q", role=MessageRole.USER)
+    replacement_cmid = uuid.uuid4()
+    request = _request(replacement_cmid, "first q, edited", supersedes=u1)
+
+    first = await accept_submission(
+        db, current_user=_user(), request=request, thread=_thread()
+    )
+    assert first.replayed is False
+    assert first.tombstoned is True
+
+    second = await accept_submission(
+        db, current_user=_user(), request=request, thread=_thread()
+    )
+    assert second.replayed is True
+    assert second.run_id == first.run_id
+    assert second.tombstoned is True
+    # ...and nothing was written twice.
+    assert await _count(db, AgentRun) == 1
+    assert await _count(db, ChatMessage) == 2
+
+
+async def test_accept_refuses_a_recycled_replacement_cmid(db: AsyncSession) -> None:
+    """A reused replacement cmid must not tombstone an unrelated live turn.
+
+    ``_insert_user_message`` dedups onto the existing row, so without the
+    validation in ``apply_edit_resend_tombstones`` the second edit would ride
+    that row and supersede a turn this request never edited.
+    """
+    u1 = uuid.uuid4()
+    u2 = uuid.uuid4()
+    await _seed_turn(db, cmid=u1, content="first q", role=MessageRole.USER)
+    await _seed_turn(db, cmid=u2, content="second q", role=MessageRole.USER)
+
+    replacement_cmid = uuid.uuid4()
+    await accept_submission(
+        db,
+        current_user=_user(),
+        request=_request(replacement_cmid, "first q, edited", supersedes=u1),
+        thread=_thread(),
+    )
+
+    # Same replacement cmid, DIFFERENT claimed target. The pre-check would
+    # short-circuit on the idempotency key, so drive the dedup path directly.
+    u3 = uuid.uuid4()
+    await _seed_turn(db, cmid=u3, content="third q", role=MessageRole.USER)
+    before = (
+        await db.execute(
+            select(ChatMessage.id, ChatMessage.superseded_by_message_id).where(
+                ChatMessage.client_message_id == u3
+            )
+        )
+    ).first()
+    assert before is not None and before.superseded_by_message_id is None
+
+    from unittest.mock import AsyncMock, patch
+
+    with patch.object(
+        submission_mod, "_find_by_idempotency_key", new=AsyncMock(return_value=None)
+    ):
+        with pytest.raises(Exception):
+            # The reused idempotency key trips its unique index; what matters
+            # is that u3 survives the attempt.
+            await accept_submission(
+                db,
+                current_user=_user(),
+                request=_request(replacement_cmid, "unrelated", supersedes=u3),
+                thread=_thread(),
+            )
+
+    after = (
+        await db.execute(
+            select(ChatMessage.superseded_by_message_id).where(
+                ChatMessage.client_message_id == u3
+            )
+        )
+    ).scalar_one()
+    assert after is None

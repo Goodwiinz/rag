@@ -606,6 +606,9 @@ async def save_thread_to_note(
                 and_(
                     ChatMessage.thread_id == request.thread_id,
                     ChatMessage.is_deleted == False,
+                    # Edit-and-resend: a note saved from a thread must capture
+                    # what the user actually asked, not the turn they replaced.
+                    ChatMessage.superseded_by_message_id.is_(None),
                 )
             )
             .order_by(ChatMessage.created_at.asc())

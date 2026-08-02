@@ -449,7 +449,13 @@ async def get_thread(
     messages = []
     if include_messages and thread.messages:
         messages = [
-            _format_message_response(m) for m in thread.messages if not m.is_deleted
+            _format_message_response(m)
+            for m in thread.messages
+            # ``superseded_by_message_id`` is set: an edit-and-resend replaced
+            # this turn. The relationship load has no row filter, so both
+            # copies of this loop (see workspace_routes/presenters.py) filter
+            # in Python.
+            if not m.is_deleted and m.superseded_by_message_id is None
         ]
 
     return ThreadDetailResponse(

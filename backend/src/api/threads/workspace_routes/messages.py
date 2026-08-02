@@ -105,7 +105,9 @@ async def create_message(
             status_code=404, detail="Thread not found or insufficient permissions"
         )
 
-    # Re-query with eager loading to get citations with document info
+    # Re-query with eager loading to get citations with document info.
+    # Deliberately NOT filtered on ``superseded_by_message_id``: this reads back
+    # the row just created, by id.
     stmt = (
         select(ChatMessage)
         .options(
@@ -304,7 +306,9 @@ async def create_message_standalone(
             status_code=404, detail="Thread not found or insufficient permissions"
         )
 
-    # Re-query with eager loading to get citations with document info
+    # Re-query with eager loading to get citations with document info.
+    # Deliberately NOT filtered on ``superseded_by_message_id``: this reads back
+    # the row just created, by id.
     stmt = (
         select(ChatMessage)
         .options(
