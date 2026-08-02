@@ -13,6 +13,7 @@ concerns lives in the service layer (audit B1/B5):
 
 import asyncio
 import logging
+import time
 import uuid as _uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -112,6 +113,7 @@ from src.shared.enums import TERMINAL_STREAM_EVENTS, AgentStreamEvent, JobStatus
 
 from .streaming import (  # noqa: F401
     _SSE_HEADERS,
+    format_stream_envelope_frame,
     stream_confirm_event_generator,
     stream_event_generator,
 )
@@ -592,6 +594,11 @@ async def stream_agent(
     confirmation, done, error. ``heartbeat`` is a payload-less keepalive; the
     terminal frames are ``TERMINAL_STREAM_EVENTS`` (done, error, confirmation).
     """
+    # Stamp the accepted-latency SLI clock on handler entry. Rate limiting,
+    # body parsing, and StreamingResponse setup all cost the client wall time
+    # before the generator builds its emitter, so starting the clock there
+    # reports a latency that excludes the overhead the SLI exists to surface.
+    request_started_at = time.monotonic()
     _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
         str(current_user.id), prefix="agent_stream"
     )
@@ -605,7 +612,11 @@ async def stream_agent(
     )
     return StreamingResponse(
         stream_event_generator(
-            request_body, request, current_user, background_tasks=background_tasks
+            request_body,
+            request,
+            current_user,
+            background_tasks=background_tasks,
+            request_started_at=request_started_at,
         ),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
@@ -686,7 +697,7 @@ async def _single_frame(frame: str):
 
 
 async def _pending_confirmation_frame(
-    thread_id: str, current_user: User
+    thread_id: str, current_user: User, *, after: int = 0
 ) -> Optional[str]:
     """SSE ``confirmation`` frame when the graph is parked on a HITL interrupt.
 
@@ -699,9 +710,13 @@ async def _pending_confirmation_frame(
 
     Best-effort: any failure returns None so resume degrades to its previous
     204 instead of failing the request.
-    """
-    import json as _json
 
+    The frame goes through the shared envelope builder, so it carries the same
+    schema_version / sequence / event_id / occurred_at / trace_id / thread_id /
+    route fields as every live-stream frame and, critically, an ``id:`` line —
+    without one the client's Last-Event-ID cursor never advances past this
+    frame and a reconnect replays from a stale position.
+    """
     try:
         from src.services.agent.checkpointer import get_checkpointer
         from src.services.agent.graph import compile_agent_graph
@@ -739,9 +754,16 @@ async def _pending_confirmation_frame(
             "Re-delivering pending HITL confirmation on resume for thread %s",
             thread_id,
         )
-        return (
-            f"event: {AgentStreamEvent.CONFIRMATION.value}\n"
-            f"data: {_json.dumps(payload)}\n\n"
+        # Seq continues from the cursor the client sent (``after``) so echoing
+        # this frame's id back as Last-Event-ID can only move the cursor
+        # forward — the run this interrupt belongs to is over, so there is no
+        # live buffer to stay in lockstep with.
+        return format_stream_envelope_frame(
+            AgentStreamEvent.CONFIRMATION,
+            payload,
+            seq=after + 1,
+            thread_id=thread_id,
+            route="graph",
         )
     except Exception:
         logger.warning(
@@ -805,10 +827,12 @@ async def resume_stream(
         # forever while the run sat waiting for an answer. The user sees a
         # turn that produced nothing, re-sends, and the pending interrupt is
         # discarded as abandoned. Re-deliver it instead.
-        frame = await _pending_confirmation_frame(thread_id, current_user)
+        frame = await _pending_confirmation_frame(thread_id, current_user, after=after)
         if frame is not None:
             return StreamingResponse(
-                _single_frame(frame), media_type="text/event-stream"
+                _single_frame(frame),
+                media_type="text/event-stream",
+                headers=_SSE_HEADERS,
             )
         return Response(status_code=204)
 

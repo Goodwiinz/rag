@@ -468,6 +468,61 @@ def _format_sse_event(
     return f"{prefix}event: {event_type}\ndata: {_json.dumps(data)}\n\n"
 
 
+def build_stream_envelope(
+    data: Dict[str, Any],
+    *,
+    seq: int,
+    trace_id: str,
+    thread_id: Optional[str] = None,
+    route: str = "pending",
+) -> Dict[str, Any]:
+    """Wrap an SSE payload in the agent stream envelope.
+
+    Single source of the envelope shape (schema_version, sequence, event_id,
+    occurred_at, trace_id, thread_id, route). ``_SeqEmitter.emit`` is the main
+    caller; anything else that has to put a frame on the wire outside a live
+    stream (see ``_pending_confirmation_frame`` on the resume path) goes
+    through here rather than hand-rolling a payload that drifts.
+    """
+    return {
+        **data,
+        "schema_version": AGENT_STREAM_SCHEMA_VERSION,
+        "sequence": seq,
+        "event_id": f"{trace_id}:{seq}",
+        "occurred_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "trace_id": trace_id,
+        "thread_id": thread_id,
+        "route": route,
+    }
+
+
+def format_stream_envelope_frame(
+    event_type: Any,
+    data: Dict[str, Any],
+    *,
+    seq: int,
+    trace_id: Optional[str] = None,
+    thread_id: Optional[str] = None,
+    route: str = "pending",
+) -> str:
+    """Serialize one enveloped SSE frame, ``id:`` line included.
+
+    The ``id:`` line is what EventSource turns into Last-Event-ID, so a frame
+    emitted without it silently freezes the client's resume cursor.
+    """
+    return _format_sse_event(
+        event_type,
+        build_stream_envelope(
+            data,
+            seq=seq,
+            trace_id=trace_id or str(_uuid.uuid4()),
+            thread_id=thread_id,
+            route=route,
+        ),
+        seq=seq,
+    )
+
+
 class _SeqEmitter:
     """Sequence-numbered SSE frames, teed into the resumable-stream Redis
     buffer (``src.services.agent.stream_buffer``). Buffering is best-effort:
@@ -479,13 +534,19 @@ class _SeqEmitter:
         *,
         trace_id: Optional[str] = None,
         slo_tracker: Optional[AgentStreamSLOTracker] = None,
+        started_at: Optional[float] = None,
     ) -> None:
+        """``started_at`` is a ``time.monotonic()`` reading from the route
+        handler's first line. The emitter is built only after auth, rate
+        limiting, and body parsing have run, so stamping the SLI clock here
+        would exclude the very overhead the accepted-latency SLI exists to
+        measure. Falls back to "now" when a caller has no reading."""
         self.seq = 0
         self.sid: Optional[str] = None
         self.thread_id: Optional[str] = None
         self.trace_id = trace_id or str(_uuid.uuid4())
         self.route = "pending"
-        self.slo_tracker = slo_tracker or AgentStreamSLOTracker()
+        self.slo_tracker = slo_tracker or AgentStreamSLOTracker(started_at=started_at)
 
     def set_context(
         self, *, thread_id: Optional[str] = None, route: Optional[str] = None
@@ -508,19 +569,14 @@ class _SeqEmitter:
     ) -> str:
         self.seq += 1
         self.slo_tracker.record(event_type, data)
-        envelope = {
-            **data,
-            "schema_version": AGENT_STREAM_SCHEMA_VERSION,
-            "sequence": self.seq,
-            "event_id": f"{self.trace_id}:{self.seq}",
-            "occurred_at": datetime.now(timezone.utc)
-            .isoformat()
-            .replace("+00:00", "Z"),
-            "trace_id": self.trace_id,
-            "thread_id": self.thread_id,
-            "route": self.route,
-        }
-        frame = _format_sse_event(event_type, envelope, seq=self.seq)
+        frame = format_stream_envelope_frame(
+            event_type,
+            data,
+            seq=self.seq,
+            trace_id=self.trace_id,
+            thread_id=self.thread_id,
+            route=self.route,
+        )
         if buffer and self.sid is not None:
             try:
                 await _stream_buffer.append(self.sid, self.seq, frame)
@@ -624,11 +680,16 @@ async def stream_event_generator(
     current_user: User,
     *,
     background_tasks: Any = None,  # fastapi.BackgroundTasks (optional for tests)
+    request_started_at: Optional[float] = None,
 ):
     """SSE event generator for the /stream endpoint.
 
     Yields SSE-formatted events: token, tool_start, tool_end,
     rag_context, plan, reflection, confirmation, done, error.
+
+    ``request_started_at`` is the route handler's entry ``time.monotonic()``
+    reading; it anchors the accepted-latency SLI to request arrival rather
+    than to generator start (which happens after auth and rate limiting).
     """
     from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent.graph import compile_agent_graph
@@ -650,7 +711,10 @@ async def stream_event_generator(
     graph = None  # type: ignore[assignment]
     resolved_thread_id: Optional[str] = None
     stream_started_at = time.monotonic()
-    emitter = _SeqEmitter(trace_id=_request_trace_id(request))
+    emitter = _SeqEmitter(
+        trace_id=_request_trace_id(request),
+        started_at=request_started_at,
+    )
     client_disconnected = False
     # Set once an assistant row for this turn has been persisted/scheduled —
     # the error-path partial persist must never double-write the turn.

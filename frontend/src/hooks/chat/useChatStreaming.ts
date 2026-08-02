@@ -1464,6 +1464,27 @@ export function useChatStreaming(
             onStatus: (phase) => {
               useChatStore.setState({ streamingPhase: phase });
             },
+            // Same resume-cursor bookkeeping as the primary stream. Without
+            // it the cursor froze at whatever seq the pre-interrupt turn
+            // reached, so a disconnect mid-resume replayed the buffer from a
+            // stale position instead of continuing after the last seen frame.
+            onSeq: (seq) => {
+              const seqThreadId = pendingConfirmation.workspaceThreadId;
+              if (!seqThreadId) return;
+              pendingSeqRef.current = { threadId: seqThreadId, seq };
+              if (seqRafRef.current === null) {
+                seqRafRef.current = requestAnimationFrame(() => {
+                  seqRafRef.current = null;
+                  const p = pendingSeqRef.current;
+                  pendingSeqRef.current = null;
+                  if (p) {
+                    useAgentActivityStore
+                      .getState()
+                      .setStreamSeq(p.threadId, p.seq);
+                  }
+                });
+              }
+            },
             onToolStart: (tool, args) => {
               useAgentActivityStore
                 .getState()
