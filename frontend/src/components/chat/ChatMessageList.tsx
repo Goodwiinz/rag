@@ -33,6 +33,9 @@ export interface ChatMessageListProps {
   onRegenerate: (index: number) => void;
   /** Edit-and-resend a user message at the given index. */
   onEditUserMessage?: (index: number, newContent: string) => void;
+  /** True while a resend cannot be accepted (a turn is in flight). The inline
+   * editor stays open and disables Save rather than dropping the draft. */
+  editDisabled?: boolean;
   onCitationClick: (
     citations: Citation[],
     clickedCitation: Citation,
@@ -59,6 +62,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   storeStreamingContent,
   onRegenerate,
   onEditUserMessage,
+  editDisabled,
   onCitationClick,
   commandOutputs,
   onCommandItemAction,
@@ -284,6 +288,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                     ? (content) => onEditUserMessage(index, content)
                     : undefined
                 }
+                editDisabled={editDisabled}
                 onCitationClick={onCitationClick}
               />
             )}
@@ -327,6 +332,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       isLoading,
       onRegenerate,
       onEditUserMessage,
+      editDisabled,
       onCitationClick,
       thinkingLabel,
     ]
@@ -384,6 +390,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 storeIsStreaming={storeIsStreaming}
                 onRegenerate={onRegenerate}
                 onEditUserMessage={onEditUserMessage}
+                editDisabled={editDisabled}
                 onCitationClick={onCitationClick}
                 isRetrievingRag={isRetrievingRag}
                 onLoadOlder={onLoadOlder}

@@ -135,6 +135,46 @@ describe('ChatHeader', () => {
       expect(pdfButton).toBeDisabled();
     });
 
+    it('disables export while a response is streaming', async () => {
+      // The backend export serves a persisted snapshot, which cannot contain
+      // the in-flight turn — exporting mid-stream silently dropped it.
+      const user = userEvent.setup();
+      render(
+        <ChatHeader messages={messages} threadId="thread-123" isStreaming />
+      );
+
+      const trigger = screen.getByLabelText('Export chat');
+      expect(trigger).toBeDisabled();
+      expect(trigger).toHaveAttribute('aria-disabled', 'true');
+      expect(trigger).toHaveAttribute(
+        'title',
+        'Export is available when the response finishes'
+      );
+
+      await user.click(trigger);
+      expect(screen.queryByText('Export as Markdown')).not.toBeInTheDocument();
+      expect(exportThreadMock).not.toHaveBeenCalled();
+    });
+
+    it('re-enables export once the response finishes', async () => {
+      const user = userEvent.setup();
+      const { rerender } = render(
+        <ChatHeader messages={messages} threadId="thread-123" isStreaming />
+      );
+      rerender(
+        <ChatHeader
+          messages={messages}
+          threadId="thread-123"
+          isStreaming={false}
+        />
+      );
+
+      await user.click(screen.getByLabelText('Export chat'));
+      await user.click(screen.getByText('Export as Markdown'));
+
+      expect(exportThreadMock).toHaveBeenCalledTimes(1);
+    });
+
     it('surfaces a toast on export failure', async () => {
       exportThreadMock.mockReset();
       exportThreadMock.mockRejectedValue(new Error('boom'));

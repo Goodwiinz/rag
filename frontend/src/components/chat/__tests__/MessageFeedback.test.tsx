@@ -59,6 +59,17 @@ describe('MessageFeedback', () => {
     expect(screen.getByText(/what went wrong/i)).toBeInTheDocument();
   });
 
+  it('gives the note field an accessible name (placeholder alone is not one)', async () => {
+    const user = userEvent.setup();
+    render(<MessageFeedback messageId="m1" />);
+
+    await user.click(screen.getByLabelText('Poor response'));
+
+    expect(
+      screen.getByLabelText('Feedback note (optional)')
+    ).toBeInstanceOf(HTMLTextAreaElement);
+  });
+
   it('toggling the same thumb off clears the rating', async () => {
     const user = userEvent.setup();
     render(<MessageFeedback messageId="m1" feedback={{ rating: 5, comment: null }} />);

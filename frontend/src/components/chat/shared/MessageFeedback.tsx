@@ -185,6 +185,7 @@ export function MessageFeedback({
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
+            aria-label="Feedback note (optional)"
             placeholder="Add a note (optional)"
             rows={2}
             className="w-full resize-none rounded-md border border-(--nous-border-1) bg-(--nous-bg-1) px-2 py-1 text-[12px] text-(--nous-fg-1)"

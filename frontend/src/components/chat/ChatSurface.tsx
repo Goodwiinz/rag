@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 // ChatInput/CitationPanel resolve through the barrel (not their own module
@@ -155,6 +155,34 @@ export function ChatSurface({
 
   const isBusy = isLoading || storeIsStreaming || !!activeConfirmation;
 
+  // Export/copy-all must reflect the DISPLAYED thread's snapshot, so it may
+  // only be blocked while THIS thread's transcript is still growing.
+  // `isStreamingThisThread` covers the stream itself. `isLoading` does not:
+  // it is session-scoped (one streaming hook per surface) and stays true for
+  // the whole turn INCLUDING the pre-first-token window, so a turn sent on
+  // thread A wrongly disabled export on thread B once the user switched.
+  // `streamingThreadId` is the authoritative owner of an in-flight turn, but
+  // it is only stamped once the SSE turn actually starts — it is still null
+  // during the pre-first-token window (thread creation + connect). So the
+  // owner of the loading state is `streamingThreadId` when it exists, and
+  // otherwise the thread that was displayed at the isLoading false→true edge
+  // (the thread that initiated the send).
+  const prevIsLoadingRef = useRef(false);
+  const [sendInitiatorThreadId, setSendInitiatorThreadId] = useState<
+    string | null
+  >(null);
+  useEffect(() => {
+    // Only the isLoading EDGE matters: switching threads mid-turn must not
+    // re-point the initiator at whatever is now displayed.
+    if (isLoading !== prevIsLoadingRef.current) {
+      prevIsLoadingRef.current = isLoading;
+      setSendInitiatorThreadId(isLoading ? activeThreadId : null);
+    }
+  }, [isLoading, activeThreadId]);
+  const loadingThreadId = streamingThreadId ?? sendInitiatorThreadId;
+  const isLoadingThisThread = isLoading && loadingThreadId === activeThreadId;
+  const isTranscriptGrowing = isStreamingThisThread || isLoadingThisThread;
+
   // While the session can't accept a turn (unauthenticated, still
   // initializing, or failed to initialize) every submission path must be
   // inert — the transcript already renders the matching state, but the
@@ -162,6 +190,11 @@ export function ChatSurface({
   // that can't own it.
   const isSessionInteractive =
     isAuthenticated && !isInitializing && !initError;
+
+  // An edit resend goes through the same single-flight path as a normal send:
+  // handleEditUserMessage bails while a turn is in flight, so the editor must
+  // KNOW that up front instead of closing on a save nothing will act on.
+  const canSubmitEdit = isSessionInteractive && !isBusy;
 
   const runtimeHydrationPhase =
     displayedMessages.length > 0 ? 'hydrated' : 'empty';
@@ -289,6 +322,7 @@ export function ChatSurface({
                 .join('\n\n');
               navigator.clipboard.writeText(text).catch(() => {});
             }}
+            isStreaming={isTranscriptGrowing}
             onMobileSidebarToggle={toggleDrawer}
           />
 
@@ -309,8 +343,9 @@ export function ChatSurface({
               if (isSessionInteractive) handleRegenerate(index);
             }}
             onEditUserMessage={(index, content) => {
-              if (isSessionInteractive) handleEditUserMessage(index, content);
+              if (canSubmitEdit) handleEditUserMessage(index, content);
             }}
+            editDisabled={!canSubmitEdit}
             onCitationClick={handleCitationClick}
             onCommandItemAction={handleCommandItemAction}
             onLoadOlder={loadOlderMessages}

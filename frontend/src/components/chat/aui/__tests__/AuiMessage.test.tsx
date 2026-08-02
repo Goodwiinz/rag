@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  type RenderResult,
+} from '@testing-library/react';
 
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { makeChatPageMessage } from '@/test/chatMessageFactory';
@@ -28,7 +34,7 @@ function Thrower({
 
 function renderMessages(
   messages: Array<Parameters<typeof makeChatPageMessage>[0]>
-) {
+): RenderResult {
   const completeMessages = messages.map(makeChatPageMessage);
   return render(
     <ChatRuntimeProvider
@@ -153,7 +159,7 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
         traceId?: string
       ) => void;
     } = {}
-  ) {
+  ): RenderResult {
     const completeMessages = messages.map(makeChatPageMessage);
     const index = opts.index ?? completeMessages.length - 1;
     return render(
@@ -378,6 +384,175 @@ describe('AuiMessageByIndex runtime-sync race', () => {
     ).not.toThrow();
 
     expect(screen.queryByText('From thread A.')).not.toBeInTheDocument();
+  });
+});
+
+describe('AuiUserMessage inline edit-and-resend', () => {
+  function renderUserRow(
+    opts: {
+      onEdit?: (content: string) => void;
+      editDisabled?: boolean;
+    } = {}
+  ): RenderResult {
+    const message = makeChatPageMessage({
+      id: 'u1',
+      role: 'user',
+      content: 'original question',
+      timestamp: 1,
+    });
+    return render(
+      <ChatRuntimeProvider
+        messages={[message]}
+        isRunning={false}
+        onSend={noop}
+        onCancel={noop}
+      >
+        <AuiMessageByIndex
+          index={0}
+          message={message}
+          onEdit={opts.onEdit ?? noop}
+          editDisabled={opts.editDisabled}
+        />
+      </ChatRuntimeProvider>
+    );
+  }
+
+  // The action bar autohides; hovering the row is what mounts its controls.
+  async function openEditor(): Promise<HTMLElement> {
+    fireEvent.mouseEnter(document.querySelector('[data-role="user"]')!);
+    const trigger = await screen.findByRole('button', {
+      name: /edit and resend/i,
+    });
+    fireEvent.click(trigger);
+    return trigger;
+  }
+
+  it('keeps the draft and disables Save while a turn is in flight', async () => {
+    // Regression: the surface dropped the edit callback when the session
+    // could not accept a resend, but the editor had already closed — the
+    // user's rewritten message vanished with no explanation.
+    const onEdit = vi.fn();
+    renderUserRow({ onEdit, editDisabled: true });
+    await openEditor();
+
+    const textarea = screen.getByLabelText(
+      'Edit your message'
+    ) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'rewritten question' } });
+
+    const save = screen.getByRole('button', { name: /save & resend/i });
+    expect(save).toBeDisabled();
+    expect(save).toHaveAttribute('aria-disabled', 'true');
+    expect(
+      screen.getByText(/wait for the current response to finish/i)
+    ).toBeInTheDocument();
+
+    fireEvent.click(save);
+    fireEvent.keyDown(textarea, { key: 'Enter' });
+
+    expect(onEdit).not.toHaveBeenCalled();
+    // Editor still open, draft intact.
+    expect(
+      (screen.getByLabelText('Edit your message') as HTMLTextAreaElement).value
+    ).toBe('rewritten question');
+  });
+
+  it('submits the edit when the session can accept a resend', async () => {
+    const onEdit = vi.fn();
+    renderUserRow({ onEdit, editDisabled: false });
+    await openEditor();
+
+    const textarea = screen.getByLabelText('Edit your message');
+    fireEvent.change(textarea, { target: { value: 'rewritten question' } });
+    fireEvent.click(screen.getByRole('button', { name: /save & resend/i }));
+
+    expect(onEdit).toHaveBeenCalledWith('rewritten question');
+    expect(
+      screen.queryByLabelText('Edit your message')
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not submit on Enter while an IME composition is active', async () => {
+    // Japanese/Chinese/Korean input: Enter confirms the IME candidate. Acting
+    // on it would submit half-typed text AND preventDefault would break the
+    // composition itself.
+    const onEdit = vi.fn();
+    renderUserRow({ onEdit, editDisabled: false });
+    await openEditor();
+
+    const textarea = screen.getByLabelText('Edit your message');
+    fireEvent.change(textarea, { target: { value: 'にほん' } });
+    fireEvent.keyDown(textarea, { key: 'Enter', isComposing: true });
+
+    expect(onEdit).not.toHaveBeenCalled();
+    // Editor stays open with the draft intact.
+    expect(
+      (screen.getByLabelText('Edit your message') as HTMLTextAreaElement).value
+    ).toBe('にほん');
+
+    // The same key once composition has ended does submit.
+    fireEvent.keyDown(textarea, { key: 'Enter' });
+    expect(onEdit).toHaveBeenCalledWith('にほん');
+  });
+
+  it('lands focus on the message container after Save, even when the edit trigger unmounts', async () => {
+    // After Save the resend starts and the action bar hides its buttons
+    // (hideWhenRunning), so focusing the trigger would be transient — focus
+    // has to go somewhere that survives the turn.
+    const onEdit = vi.fn();
+    const view = renderUserRow({ onEdit, editDisabled: false });
+    await openEditor();
+
+    const textarea = screen.getByLabelText('Edit your message');
+    fireEvent.change(textarea, { target: { value: 'rewritten question' } });
+    fireEvent.click(screen.getByRole('button', { name: /save & resend/i }));
+
+    // Simulate the resend starting: the runtime goes running and the action
+    // bar (and with it the edit trigger) unmounts.
+    view.rerender(
+      <ChatRuntimeProvider
+        messages={[
+          makeChatPageMessage({
+            id: 'u1',
+            role: 'user',
+            content: 'original question',
+            timestamp: 1,
+          }),
+        ]}
+        isRunning={true}
+        onSend={noop}
+        onCancel={noop}
+      >
+        <AuiMessageByIndex index={0} message={undefined} onEdit={onEdit} />
+      </ChatRuntimeProvider>
+    );
+
+    const container = document.querySelector(
+      '[data-role="user"] [tabindex="-1"]'
+    );
+    expect(container).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(container));
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it('returns focus to the edit trigger after Escape', async () => {
+    renderUserRow({ onEdit: vi.fn() });
+    await openEditor();
+
+    const textarea = screen.getByLabelText('Edit your message');
+    fireEvent.keyDown(textarea, { key: 'Escape' });
+
+    await waitFor(() =>
+      expect(screen.queryByLabelText('Edit your message')).not.toBeInTheDocument()
+    );
+    // Without an explicit restore, unmounting the focused textarea drops
+    // focus to <body> and keyboard users lose their place. The trigger is a
+    // FRESH node (the whole non-editing branch remounts), so re-query it.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: /edit and resend/i })
+      )
+    );
   });
 });
 

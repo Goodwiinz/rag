@@ -64,6 +64,9 @@ interface ChatTranscriptStateProps {
   onPromptSelect: (prompt: string) => void;
   onRegenerate: (assistantMessageIndex: number) => void;
   onEditUserMessage: (userMessageIndex: number, newContent: string) => void;
+  /** True while a resend cannot be accepted (a turn is in flight). Threaded to
+   * the inline message editor so a save can't be silently discarded. */
+  editDisabled?: boolean;
   onCitationClick: (
     citations: Citation[],
     clickedCitation: Citation,
@@ -110,6 +113,7 @@ export function ChatTranscriptState({
   onPromptSelect,
   onRegenerate,
   onEditUserMessage,
+  editDisabled,
   onCitationClick,
   onCommandItemAction,
   onLoadOlder,
@@ -215,6 +219,7 @@ export function ChatTranscriptState({
       storeStreamingContent={isStreamingThisThread ? storeStreamingContent : ''}
       onRegenerate={onRegenerate}
       onEditUserMessage={onEditUserMessage}
+      editDisabled={editDisabled}
       onCitationClick={onCitationClick}
       commandOutputs={commandOutputs}
       onCommandItemAction={onCommandItemAction}
