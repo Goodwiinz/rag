@@ -1,0 +1,171 @@
+/**
+ * Direct rendering tests for CitationRenderer / ChatMarkdown.
+ *
+ * Most chat-page tests mock CitationRenderer away, so this file is the
+ * regression net for the actual markdown output: GFM (tables, task lists,
+ * strikethrough), fenced/inline code, safe links, and markdown interleaved
+ * with [Doc N] citation markers — in BOTH the plain and citation-segmented
+ * paths, which previously had divergent configs.
+ */
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { CitationRenderer } from '../CitationRenderer';
+import { completeStreamingMarkdown } from '@/lib/markdown-utils';
+import type { Citation } from '@/utils/citationParser';
+
+// The syntax highlighter is loaded via next/dynamic (ssr: false); replace it
+// with a synchronous stub so fenced-code assertions don't race React.lazy.
+vi.mock('next/dynamic', () => ({
+  default: () => {
+    const MockHighlighter = ({
+      language,
+      children,
+    }: {
+      language?: string;
+      children?: React.ReactNode;
+    }): React.ReactElement => (
+      <pre data-testid="syntax-highlighter" data-language={language}>
+        <code>{children}</code>
+      </pre>
+    );
+    return MockHighlighter;
+  },
+}));
+
+const CITATIONS: Citation[] = [
+  { documentId: 'doc-1', title: 'Attention Is All You Need', score: 0.9 },
+];
+
+describe('CitationRenderer — plain path (no citation markers)', () => {
+  it('renders headings', () => {
+    render(<CitationRenderer content={'## Results\n\nBody text.'} />);
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Results' })
+    ).toBeInTheDocument();
+  });
+
+  it('renders GFM tables', () => {
+    const table = '| Model | Score |\n| --- | --- |\n| BERT | 82.1 |';
+    render(<CitationRenderer content={table} />);
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(
+      screen.getByRole('columnheader', { name: 'Model' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: '82.1' })).toBeInTheDocument();
+  });
+
+  it('renders GFM strikethrough', () => {
+    const { container } = render(
+      <CitationRenderer content={'~~outdated~~ current'} />
+    );
+    expect(container.querySelector('del')).toHaveTextContent('outdated');
+  });
+
+  it('renders GFM task lists', () => {
+    render(<CitationRenderer content={'- [x] done\n- [ ] todo'} />);
+    const boxes = screen.getAllByRole('checkbox');
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0]).toBeChecked();
+    expect(boxes[1]).not.toBeChecked();
+  });
+
+  it('routes fenced code with a language through the syntax highlighter', () => {
+    render(
+      <CitationRenderer content={'```python\nprint("hi")\n```'} />
+    );
+    const block = screen.getByTestId('syntax-highlighter');
+    expect(block).toHaveAttribute('data-language', 'python');
+    expect(block).toHaveTextContent('print("hi")');
+  });
+
+  it('renders fenced code without a language as a plain code block', () => {
+    const { container } = render(
+      <CitationRenderer content={'```\nplain block\nline two\n```'} />
+    );
+    expect(screen.queryByTestId('syntax-highlighter')).toBeNull();
+    const pre = container.querySelector('pre');
+    expect(pre).toHaveTextContent('plain block');
+  });
+
+  it('renders inline code as a styled span, not a block', () => {
+    const { container } = render(
+      <CitationRenderer content={'Use `pnpm dev` locally.'} />
+    );
+    const code = container.querySelector('code');
+    expect(code).toHaveTextContent('pnpm dev');
+    expect(container.querySelector('pre')).toBeNull();
+  });
+
+  it('opens links in a new tab with noopener noreferrer', () => {
+    render(
+      <CitationRenderer content={'[arXiv](https://arxiv.org/abs/1706.03762)'} />
+    );
+    const link = screen.getByRole('link', { name: 'arXiv' });
+    expect(link).toHaveAttribute('href', 'https://arxiv.org/abs/1706.03762');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+});
+
+describe('CitationRenderer — citation-segmented path', () => {
+  it('renders a citation link between markdown fragments', () => {
+    const { container } = render(
+      <CitationRenderer
+        content={'Transformers use **attention** [Doc 1] heavily.'}
+        citations={CITATIONS}
+      />
+    );
+    expect(container.querySelector('strong')).toHaveTextContent('attention');
+    expect(screen.getAllByText('1').length).toBeGreaterThan(0);
+  });
+
+  it('renders GFM tables in a message that also contains citations', () => {
+    const content =
+      'Summary [Doc 1]\n\n| Model | Score |\n| --- | --- |\n| BERT | 82.1 |';
+    render(<CitationRenderer content={content} citations={CITATIONS} />);
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: '82.1' })).toBeInTheDocument();
+  });
+
+  it('renders fenced code with citations elsewhere in the message', () => {
+    const content = 'Per the paper [Doc 1]:\n\n```python\nx = 1\n```';
+    render(<CitationRenderer content={content} citations={CITATIONS} />);
+    const block = screen.getByTestId('syntax-highlighter');
+    expect(block).toHaveAttribute('data-language', 'python');
+  });
+
+  it('fires onCitationClick with the resolved citation', () => {
+    const onClick = vi.fn();
+    render(
+      <CitationRenderer
+        content={'See [Doc 1].'}
+        citations={CITATIONS}
+        onCitationClick={onClick}
+      />
+    );
+    screen.getByText('1').click();
+    expect(onClick).toHaveBeenCalledWith(
+      expect.objectContaining({ documentId: 'doc-1' })
+    );
+  });
+});
+
+describe('CitationRenderer — streaming (unterminated markdown)', () => {
+  it('renders a dangling code fence as a highlighted block mid-stream', () => {
+    const partial = 'Working:\n\n```python\nprint("hi';
+    render(
+      <CitationRenderer content={completeStreamingMarkdown(partial)} />
+    );
+    const block = screen.getByTestId('syntax-highlighter');
+    expect(block).toHaveAttribute('data-language', 'python');
+    expect(block).toHaveTextContent('print("hi');
+  });
+
+  it('renders a dangling inline code span without swallowing the line', () => {
+    const partial = 'Run `pnpm de';
+    const { container } = render(
+      <CitationRenderer content={completeStreamingMarkdown(partial)} />
+    );
+    expect(container.querySelector('code')).toHaveTextContent('pnpm de');
+  });
+});

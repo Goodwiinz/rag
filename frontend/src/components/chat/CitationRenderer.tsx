@@ -1,25 +1,8 @@
 'use client';
 
 import React, { useMemo, Fragment } from 'react';
-import ReactMarkdown from 'react-markdown';
-import dynamic from 'next/dynamic';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-
-const SyntaxHighlighter = dynamic(
-  () =>
-    import('react-syntax-highlighter/dist/esm/prism').then(
-      (mod) => mod.default
-    ),
-  {
-    loading: () => (
-      <pre className="p-4 rounded-lg bg-(--nous-bg-1) text-xs font-mono overflow-x-auto">
-        <code>Loading...</code>
-      </pre>
-    ),
-    ssr: false,
-  }
-);
 import { cn } from '@/lib/utils';
+import { ChatMarkdown } from './ChatMarkdown';
 import { CitationLink } from './CitationLink';
 import {
   Citation,
@@ -42,7 +25,7 @@ export function CitationRenderer({
   onCitationClick,
   activeCitationIndex,
   className,
-}: CitationRendererProps) {
+}: CitationRendererProps): React.ReactElement {
   const segments = useMemo(() => {
     return parseMessageWithCitations(content);
   }, [content]);
@@ -56,20 +39,7 @@ export function CitationRenderer({
       <div
         className={cn('prose prose-sm dark:prose-invert max-w-none', className)}
       >
-        {/* SECURITY (audit #21): LLM-authored links open with
-            rel="noopener noreferrer" so a malicious target can't reach back
-            via window.opener (reverse tabnabbing). */}
-        <ReactMarkdown
-          components={{
-            a: ({ href, children }) => (
-              <a href={href} target="_blank" rel="noopener noreferrer">
-                {children}
-              </a>
-            ),
-          }}
-        >
-          {content}
-        </ReactMarkdown>
+        <ChatMarkdown content={content} />
       </div>
     );
   }
@@ -96,54 +66,7 @@ export function CitationRenderer({
         }
         return (
           <Fragment key={`text-${index}`}>
-            <ReactMarkdown
-              components={{
-                p: ({ children }) => <span>{children}</span>,
-                code({
-                  inline,
-                  className,
-                  children,
-                }: {
-                  inline?: boolean;
-                  className?: string;
-                  children?: React.ReactNode;
-                }) {
-                  const match = /language-(\w+)/.exec(className || '');
-                  const language = match ? match[1] : '';
-                  return !inline && language ? (
-                    <SyntaxHighlighter
-                      style={oneDark}
-                      language={language}
-                      PreTag="div"
-                    >
-                      {String(children).replace(/\n$/, '')}
-                    </SyntaxHighlighter>
-                  ) : (
-                    <code className="rounded bg-(--nous-bg-2) px-1.5 py-0.5 text-[11px] font-mono text-(--nous-sol)">
-                      {children}
-                    </code>
-                  );
-                },
-                a: ({
-                  href,
-                  children,
-                }: {
-                  href?: string;
-                  children?: React.ReactNode;
-                }) => (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-(--nous-sol) hover:text-(--nous-helios) underline"
-                  >
-                    {children}
-                  </a>
-                ),
-              }}
-            >
-              {segment.content}
-            </ReactMarkdown>
+            <ChatMarkdown content={segment.content} inline />
           </Fragment>
         );
       })}
