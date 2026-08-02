@@ -305,6 +305,47 @@ class AgentStreamEvent(StrEnum):
     ERROR = "error"
 
 
+class AgentErrorCategory(StrEnum):
+    """Wire vocabulary for the ``category`` key on agent SSE ``error`` frames —
+    and, deliberately, the future RFC 9457 problem-type vocabulary for the HTTP
+    error envelope. One source, two transports.
+
+    An ``error`` frame's ``error`` key stays a human-readable **string** (the
+    client-safe message); ``category`` is a sibling top-level key carrying this
+    machine-readable label, so a consumer can branch on *why* a turn failed
+    without regex-matching prose. The frame stays flat and ``schema_version``
+    stays ``"1.0"``: adding a sibling key is backward compatible, turning
+    ``error`` into an object would not be.
+
+    Categories are authored by the **server** at the emit site (see
+    ``src.services.agent._errors.classify_agent_error`` /
+    ``error_frame_payload``) — the frontend mirror in
+    ``frontend/src/services/agentStreamEvents.ts`` only validates against this
+    list and ignores anything it does not know.
+
+    Values are the frozen wire contract — do NOT rename them.
+    """
+
+    #: An upstream call (model, tool, checkpointer) exceeded its deadline.
+    UPSTREAM_TIMEOUT = "upstream_timeout"
+    #: The LLM provider returned an error (bad status, API failure).
+    MODEL_ERROR = "model_error"
+    #: A tool invocation failed in a way that ended the turn.
+    TOOL_ERROR = "tool_error"
+    #: LangGraph checkpoint could not be read/written — resume is impossible.
+    CHECKPOINT_UNAVAILABLE = "checkpoint_unavailable"
+    #: Provider (or our own gate) rate-limited the request; retry later.
+    RATE_LIMITED = "rate_limited"
+    #: The run was cancelled (client disconnect / user stop).
+    CANCELLED = "cancelled"
+    #: The request itself is malformed or unresolvable; retrying as-is fails.
+    INVALID_REQUEST = "invalid_request"
+    #: Conflicting concurrent operation (e.g. a confirmation already claimed).
+    CONFLICT = "conflict"
+    #: Anything else — an unclassified server-side fault.
+    INTERNAL = "internal"
+
+
 # Terminal frames: after one of these the live stream ends and the resumable
 # buffer stops replaying (see ``resume_stream`` in api/agent/execute.py). A
 # ``confirmation`` frame is terminal for the stream even though the turn later

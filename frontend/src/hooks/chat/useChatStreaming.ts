@@ -675,15 +675,19 @@ export function useChatStreaming(
                   .finishRun(currentThreadId, 'done');
               }
             },
-            onError: (error) => {
-              console.error('[Agent] Stream error:', error);
+            onError: (error, category) => {
+              console.error('[Agent] Stream error:', error, category);
               streamHadError = true;
               if (currentThreadId) {
                 useAgentActivityStore
                   .getState()
                   .finishRun(currentThreadId, 'error');
               }
-              // Show error as assistant message instead of blank bubble
+              // Show error as assistant message instead of blank bubble.
+              // The server authored this failure, so its category wins; the
+              // legacy client-side 'stream-error' is only the fallback for a
+              // backend that does not send one yet (or a transport failure,
+              // where the service deliberately reports no category).
               const errorMsg: ChatPageMessage = {
                 runtimeId: crypto.randomUUID(),
                 source: 'local-only',
@@ -693,7 +697,7 @@ export function useChatStreaming(
                 error: {
                   message:
                     'This response failed to generate. Please try again.',
-                  category: 'stream-error',
+                  category: category ?? 'stream-error',
                 },
               };
               if (isTurnDisplayed()) setMessages([...newMessages, errorMsg]);
@@ -1612,14 +1616,23 @@ export function useChatStreaming(
                   setMessages([...confirmMessages, msg]);
               }
             },
-            onError: (error) => {
+            onError: (error, category) => {
               confirmHadError = true;
+              // The confirm path used to commit a PLAIN content bubble for a
+              // failure — no `error` block, so no Retry affordance and no
+              // category. Same shape as the main stream now: server category
+              // when the frame carried one, client fallback otherwise.
               const msg: ChatPageMessage = {
                 runtimeId: crypto.randomUUID(),
                 source: 'local-only',
                 role: 'assistant',
                 content: `Confirmation error: ${error}`,
                 timestamp: Date.now(),
+                error: {
+                  message:
+                    'This confirmation failed to complete. Please try again.',
+                  category: category ?? 'stream-error',
+                },
               };
               confirmCommitted = true;
               if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);

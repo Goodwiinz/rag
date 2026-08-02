@@ -2,7 +2,9 @@ import { api } from '@/services/api-client';
 import { createClient } from '@/lib/supabase/client';
 import { getPublicApiBaseUrl } from '@/utils/publicEndpoints';
 import { parseErrorBody } from '@/utils/parseErrorBody';
+import { parseAgentErrorCategory } from '@/services/agentStreamEvents';
 import type {
+  AgentErrorCategory,
   AgentStreamEvent,
   AgentStreamPhase,
 } from '@/services/agentStreamEvents';
@@ -10,7 +12,26 @@ import type {
 // Re-export the wire-event union so consumers can import it alongside the
 // service. The event names live in agentStreamEvents.ts (the single frontend
 // mirror of backend `AgentStreamEvent`); see HANDLED_STREAM_EVENTS below.
-export type { AgentStreamEvent } from '@/services/agentStreamEvents';
+export type {
+  AgentErrorCategory,
+  AgentStreamEvent,
+} from '@/services/agentStreamEvents';
+
+/**
+ * Client-derived category for an HTTP-level failure — the stream never opened,
+ * so there is no server `error` frame and no server-authored category.
+ *
+ * 429 is the one status that is unambiguous end-to-end (`rate_limited`); any
+ * other 4xx is the client's request being rejected (`invalid_request`). 5xx
+ * and network failures deliberately return `undefined`: the server made no
+ * claim about the cause, and inventing `internal` here would be indistinguishable
+ * from a category the server actually authored.
+ */
+function httpFailureCategory(status: number): AgentErrorCategory | undefined {
+  if (status === 429) return 'rate_limited';
+  if (status >= 400 && status < 500) return 'invalid_request';
+  return undefined;
+}
 
 function agentStreamUrl(path: 'stream' | 'stream/confirm'): string {
   const base = getPublicApiBaseUrl('/api/v1').replace(/\/$/, '');
@@ -77,7 +98,16 @@ export interface AgentStreamCallbacks {
      * results, real durations) — richer than the live SSE summaries. */
     tool_executions?: Array<Record<string, unknown>>;
   }) => void;
-  onError?: (error: string) => void;
+  /**
+   * Fired for a server `error` frame AND for the HTTP-level failures this
+   * service synthesizes (non-2xx before the stream opens).
+   *
+   * `category` is the SERVER's claim about the cause when it came off an
+   * `error` frame; for a synthesized HTTP failure it is derived client-side
+   * from the status, and is left `undefined` for 5xx/network — a transport
+   * failure carries no server claim, so guessing one would be a lie.
+   */
+  onError?: (error: string, category?: AgentErrorCategory) => void;
 }
 
 /** Read the backend's error body so the user sees the real cause, not just
@@ -202,10 +232,14 @@ async function consumeSse(
           callbacks.onDone?.(data);
           break;
         case 'error':
+          // Flat frame: `error` is the message STRING, `category` its sibling.
+          // Unknown/absent categories degrade to undefined (see
+          // parseAgentErrorCategory) so a newer backend never breaks this build.
           callbacks.onError?.(
             typeof data.error === 'string'
               ? data.error
-              : String(data.error?.message || JSON.stringify(data.error))
+              : String(data.error?.message || JSON.stringify(data.error)),
+            parseAgentErrorCategory(data.category)
           );
           break;
       }
@@ -460,7 +494,8 @@ class AgentChatService {
       callbacks.onError?.(
         backendMessage
           ? `Stream failed (${response.status}): ${backendMessage}`
-          : `Stream failed: ${response.status}`
+          : `Stream failed: ${response.status}`,
+        httpFailureCategory(response.status)
       );
       return;
     }
@@ -506,7 +541,8 @@ class AgentChatService {
       callbacks.onError?.(
         backendMessage
           ? `Stream resume failed (${response.status}): ${backendMessage}`
-          : `Stream resume failed: ${response.status}`
+          : `Stream resume failed: ${response.status}`,
+        httpFailureCategory(response.status)
       );
       return { resumed: false };
     }
@@ -540,7 +576,8 @@ class AgentChatService {
       callbacks.onError?.(
         backendMessage
           ? `Stream confirm failed (${response.status}): ${backendMessage}`
-          : `Stream confirm failed: ${response.status}`
+          : `Stream confirm failed: ${response.status}`,
+        httpFailureCategory(response.status)
       );
       return;
     }
