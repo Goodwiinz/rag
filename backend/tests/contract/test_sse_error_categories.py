@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-from typing import List, Set, Tuple
+from typing import AbstractSet, List, Optional, Set, Tuple
 
 import pytest
 
@@ -61,13 +61,13 @@ def _error_event_aliases(tree: ast.AST) -> Set[str]:
     aliases: Set[str] = set()
     for node in ast.walk(tree):
         targets: List[ast.expr] = []
+        value: Optional[ast.expr] = None
         if isinstance(node, ast.Assign):
             targets = list(node.targets)
+            value = node.value
         elif isinstance(node, ast.AnnAssign) and node.value is not None:
             targets = [node.target]
-        else:
-            continue
-        value = node.value
+            value = node.value
         if value is None or not _is_error_event_arg(value):
             continue
         for target in targets:
@@ -76,7 +76,7 @@ def _error_event_aliases(tree: ast.AST) -> Set[str]:
     return aliases
 
 
-def _is_error_event_arg(arg: ast.expr, aliases: Set[str] = frozenset()) -> bool:
+def _is_error_event_arg(arg: ast.expr, aliases: AbstractSet[str] = frozenset()) -> bool:
     """True when *arg* names the ``error`` SSE event (enum member, literal or alias)."""
     if isinstance(arg, ast.Constant) and arg.value == "error":
         return True

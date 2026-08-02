@@ -45,10 +45,12 @@ class _ConfirmGraph:
     def __init__(self, snapshot: Any) -> None:
         self._snapshot = snapshot
 
-    async def astream_events(self, *args, **kwargs):
+    async def astream_events(
+        self, *args: Any, **kwargs: Any
+    ) -> AsyncIterator[dict[str, Any]]:
         yield {"event": "on_chat_model_stream", "data": {}}
 
-    async def aget_state(self, config):
+    async def aget_state(self, config: Any) -> Any:
         return self._snapshot
 
     async def aclose(self) -> None:
@@ -122,7 +124,8 @@ async def _run_confirm(graph: Any) -> list[str]:
 def _error_payload(frames: list[str]) -> dict[str, Any]:
     errors = frames_of_type(frames, "error")
     assert errors, f"no error frame emitted; got {[f[:60] for f in frames]}"
-    return sse_data(errors[-1])
+    payload: dict[str, Any] = sse_data(errors[-1])
+    return payload
 
 
 @pytest.mark.asyncio
