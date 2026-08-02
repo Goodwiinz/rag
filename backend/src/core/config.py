@@ -462,6 +462,12 @@ class Settings(BaseSettings):
     # gpt-5 reasoning_effort knobs. Lower = faster.
     # Accepted values: "minimal" | "low" | "medium" | "high"
     # Defaults tuned for fast responses; raise to "medium" for tougher tasks.
+    #
+    # INERT: _build_llm no longer forwards this. Azure rejects
+    # reasoning_effort alongside function tools on /v1/chat/completions, and
+    # every _build_llm consumer binds tools. Kept as a settings field so
+    # existing env/Infisical values don't break startup, and so the knob is
+    # here to re-wire if Azure lifts the restriction. See graph.py _build_llm.
     AGENT_MAIN_REASONING_EFFORT: str = "low"
     # Governs classify / plan / reflect / compact / synthesis only — never a
     # tool-calling turn. Subgraph tool decisions run on the main deployment

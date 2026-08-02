@@ -93,6 +93,50 @@ def test_build_llm_empty_override_falls_back_to_settings(monkeypatch):
     assert kwargs["model"] == "model-router"
 
 
+def test_build_llm_never_sends_reasoning_effort_on_gpt5(monkeypatch):
+    """gpt-5 tool-calling turns must not carry ``reasoning_effort``.
+
+    Azure returns 400 "Function tools with reasoning_effort are not supported
+    for this model in /v1/chat/completions" when both are present, and every
+    ``_build_llm`` consumer binds tools to the result.
+    """
+    from src.services.agent.graph import _build_llm
+
+    _clear_llm_cache()
+    _set_chat_settings(
+        monkeypatch,
+        AZURE_OPENAI_CHAT_DEPLOYMENT_NAME="gpt-5",
+        AGENT_MAIN_REASONING_EFFORT="low",
+    )
+    mock_lc = _make_langchain_openai_mock()
+    with patch.dict(sys.modules, {"langchain_openai": mock_lc}):
+        _build_llm()
+
+    kwargs = mock_lc.ChatOpenAI.call_args.kwargs
+    assert "reasoning_effort" not in kwargs
+    # The Responses API is not the escape hatch — it rejects tool_call history.
+    assert kwargs["use_responses_api"] is False
+
+
+def test_build_llm_azure_client_never_sends_reasoning_effort(monkeypatch):
+    """Same guarantee on the plain-Azure (AzureChatOpenAI) branch."""
+    from src.services.agent.graph import _build_llm
+
+    _clear_llm_cache()
+    _set_chat_settings(
+        monkeypatch,
+        AZURE_OPENAI_CHAT_ENDPOINT="https://example.openai.azure.com",
+        AGENT_MAIN_REASONING_EFFORT="high",
+    )
+    mock_lc = _make_langchain_openai_mock()
+    with patch.dict(sys.modules, {"langchain_openai": mock_lc}):
+        _build_llm(model_override="gpt-5")
+
+    kwargs = mock_lc.AzureChatOpenAI.call_args.kwargs
+    assert "reasoning_effort" not in kwargs
+    assert kwargs["use_responses_api"] is False
+
+
 def test_build_llm_override_threads_through_azure_client(monkeypatch):
     """When the endpoint is plain Azure (not openai-compatible), override
     still wins — threaded through as ``azure_deployment``."""

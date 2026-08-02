@@ -250,19 +250,24 @@ def _build_llm(model_override: str | None = None):
     # family rather than per-deployment allowlist.
     temperature = None if deployment.startswith("gpt-5") else 0.7
 
-    # gpt-5 family supports reasoning_effort to trade reasoning depth for
-    # latency. Defaults to "low" for fast agent loops; raise via settings
-    # for harder reasoning tasks. Non-gpt-5 deployments ignore this kwarg.
-    reasoning_effort = settings.AGENT_MAIN_REASONING_EFFORT
-    is_gpt5_family = deployment.startswith("gpt-5") if deployment else False
+    # No reasoning_effort here. Every consumer of _build_llm is a tool-calling
+    # path (llm_node + the three subgraph agents all bind_tools on the result),
+    # and Azure now rejects that combination on Chat Completions:
+    #   400 "Function tools with reasoning_effort are not supported for this
+    #        model in /v1/chat/completions. Please use /v1/responses instead."
+    # Switching to the Responses API is not an escape — it rejects the agent's
+    # accumulated tool_call history with "Unsupported data type", which is why
+    # use_responses_api is pinned False below. Both doors are closed, so the
+    # kwarg goes. AGENT_MAIN_REASONING_EFFORT is inert until one reopens.
+    # ponytail: effort dropped for all tool-calling turns, including deployments
+    # that would still accept it. Upgrade path if tool-call quality regresses:
+    # catch the 400 in llm_node and retry once without the kwarg, keeping it on
+    # models that allow it. Lightweight/synthesis turns are unaffected — they
+    # never bind tools and keep their effort via llm_factory.
 
-    # Force Chat Completions API. langchain-openai auto-routes gpt-5 family
-    # with reasoning_effort to the Azure Responses API, which currently rejects
-    # the agent's tool_call message history with "Unsupported data type". The
-    # Chat Completions path handles tool_calls reliably and supports
-    # reasoning_effort on gpt-5 deployments via api-version 2024-10-21+.
-    # Bound LLM call wall-clock + cap retries. Prevents the model-router hang
-    # observed in LangSmith (traces with end_time=null blocking root 70s+).
+    # Force Chat Completions API — see above. Bound LLM call wall-clock + cap
+    # retries. Prevents the model-router hang observed in LangSmith (traces
+    # with end_time=null blocking root 70s+).
     request_timeout = settings.AGENT_LLM_REQUEST_TIMEOUT
     max_retries = settings.AGENT_LLM_MAX_RETRIES
 
@@ -281,8 +286,6 @@ def _build_llm(model_override: str | None = None):
         )
         if temperature is not None:
             kwargs["temperature"] = temperature
-        if is_gpt5_family and reasoning_effort:
-            kwargs["reasoning_effort"] = reasoning_effort
         llm = ChatOpenAI(**kwargs)
     else:
         from langchain_openai import AzureChatOpenAI
@@ -300,8 +303,6 @@ def _build_llm(model_override: str | None = None):
         )
         if temperature is not None:
             kwargs["temperature"] = temperature
-        if is_gpt5_family and reasoning_effort:
-            kwargs["reasoning_effort"] = reasoning_effort
         llm = AzureChatOpenAI(**kwargs)
 
     _LLM_CACHE[cache_key] = llm
