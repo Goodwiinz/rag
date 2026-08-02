@@ -30,7 +30,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "aee9790"
+    tag: "ac86db1"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
