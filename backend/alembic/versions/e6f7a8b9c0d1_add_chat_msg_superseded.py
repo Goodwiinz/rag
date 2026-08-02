@@ -14,14 +14,14 @@ NOTE: this migration must not touch ``uq_chat_messages_thread_client_msg_user``
 that index from a byte-identical literal ``index_where``.
 
 Revision ID: e6f7a8b9c0d1
-Revises: d5e6f7a8b9c0
+Revises: c7d8e9f0a1b2
 Create Date: 2026-08-02
 """
 
 from alembic import op  # type: ignore[attr-defined]
 
 revision = "e6f7a8b9c0d1"
-down_revision = "d5e6f7a8b9c0"
+down_revision = "c7d8e9f0a1b2"
 branch_labels = None
 depends_on = None
 

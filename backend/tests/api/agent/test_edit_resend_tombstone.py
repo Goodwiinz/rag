@@ -17,6 +17,7 @@ tombstone UPDATE uses ``(created_at, id)`` tuple ordering.
 from __future__ import annotations
 
 import logging
+from typing import Any, Sequence
 from uuid import uuid4
 
 import pytest
@@ -37,8 +38,10 @@ pytestmark = pytest.mark.integration
 SERVICE_LOGGER = "src.services.agent.agent_execution_service"
 
 
-def _req(thread_id, content, cmid, *, supersedes=None):
-    kwargs = {}
+def _req(
+    thread_id: Any, content: str, cmid: Any, *, supersedes: Any = None
+) -> AgentExecuteRequest:
+    kwargs: dict[str, Any] = {}
     if supersedes is not None:
         kwargs["supersedes_client_message_id"] = str(supersedes)
     return AgentExecuteRequest(
@@ -50,7 +53,7 @@ def _req(thread_id, content, cmid, *, supersedes=None):
     )
 
 
-async def _track(db_session, thread_id):
+async def _track(db_session: Any, thread_id: Any) -> None:
     ids = (
         (
             await db_session.execute(
@@ -63,7 +66,9 @@ async def _track(db_session, thread_id):
     db_session.info["_created"]["chat_messages"].extend(ids)
 
 
-async def _build_thread(db_session, user_factory, thread_factory):
+async def _build_thread(
+    db_session: Any, user_factory: Any, thread_factory: Any
+) -> tuple:
     """U1, A1, U2, A2 — the shape an edit of U1 has to sweep."""
     user = await user_factory()
     thread = await thread_factory(user=user)
@@ -88,7 +93,7 @@ async def _build_thread(db_session, user_factory, thread_factory):
     return user, thread, u1_cmid, u2_cmid
 
 
-async def _rows(db_session, thread_id):
+async def _rows(db_session: Any, thread_id: Any) -> list[Any]:
     """Raw column tuples, deliberately not ORM entities.
 
     The app's sessions use ``expire_on_commit=False``, so an entity this
@@ -97,19 +102,18 @@ async def _rows(db_session, thread_id):
     session; column tuples bypass the identity map entirely and always show
     what is actually on disk.
     """
-    return (
-        await db_session.execute(
-            select(
-                ChatMessage.id,
-                ChatMessage.role,
-                ChatMessage.content,
-                ChatMessage.client_message_id,
-                ChatMessage.superseded_by_message_id,
-            )
-            .where(ChatMessage.thread_id == thread_id)
-            .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
+    result = await db_session.execute(
+        select(
+            ChatMessage.id,
+            ChatMessage.role,
+            ChatMessage.content,
+            ChatMessage.client_message_id,
+            ChatMessage.superseded_by_message_id,
         )
-    ).all()
+        .where(ChatMessage.thread_id == thread_id)
+        .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
+    )
+    return list(result.all())
 
 
 # --------------------------------------------------------------------------- #
@@ -118,8 +122,8 @@ async def _rows(db_session, thread_id):
 
 
 async def test_editing_the_first_turn_tombstones_the_whole_tail(
-    db_session, thread_factory, user_factory
-):
+    db_session: Any, thread_factory: Any, user_factory: Any
+) -> None:
     user, thread, u1_cmid, _u2 = await _build_thread(
         db_session, user_factory, thread_factory
     )
@@ -153,8 +157,8 @@ async def test_editing_the_first_turn_tombstones_the_whole_tail(
 
 
 async def test_superseded_turns_vanish_from_every_reader(
-    db_session, thread_factory, user_factory
-):
+    db_session: Any, thread_factory: Any, user_factory: Any
+) -> None:
     from src.api.agent.execute import get_thread_messages
     from src.services.threads import message_service, workspace_access
 
@@ -214,8 +218,8 @@ async def test_superseded_turns_vanish_from_every_reader(
 
 
 async def test_workspace_stats_still_counts_superseded_turns(
-    db_session, thread_factory, user_factory
-):
+    db_session: Any, thread_factory: Any, user_factory: Any
+) -> None:
     """Analytics keeps them: an edit hides a turn, it does not un-send it."""
     from src.services.threads.chat_service import ChatService
 
@@ -240,12 +244,13 @@ async def test_workspace_stats_still_counts_superseded_turns(
     stats = await ChatService(db_session).get_workspace_stats(
         conversation.workspace_id, user.id
     )
+    assert stats is not None
     assert stats["message_count"] == 5
 
 
 async def test_export_excludes_superseded_turns(
-    db_session, thread_factory, user_factory
-):
+    db_session: Any, thread_factory: Any, user_factory: Any
+) -> None:
     from src.services.research.export_service import ExportOptions, ExportService
 
     user, thread, u1_cmid, _u2 = await _build_thread(
@@ -283,8 +288,11 @@ async def test_export_excludes_superseded_turns(
 
 
 async def test_unknown_supersedes_cmid_warns_and_still_persists_the_turn(
-    db_session, thread_factory, user_factory, caplog
-):
+    db_session: Any,
+    thread_factory: Any,
+    user_factory: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """The original turn's persist may still be in flight (fast_path.py runs it
     as a background task), so the target row can legitimately be missing. The
     turn must proceed; only the tombstone is lost."""
@@ -321,8 +329,8 @@ async def test_unknown_supersedes_cmid_warns_and_still_persists_the_turn(
 
 
 async def test_supersede_target_in_another_thread_is_not_tombstoned(
-    db_session, thread_factory, user_factory
-):
+    db_session: Any, thread_factory: Any, user_factory: Any
+) -> None:
     """The lookup is thread-scoped: a cmid from a different thread is a miss,
     never a cross-thread tombstone."""
     user_a, thread_a, a_cmid, _ = await _build_thread(
@@ -354,8 +362,8 @@ async def test_supersede_target_in_another_thread_is_not_tombstoned(
 
 
 async def test_resending_the_same_edit_is_idempotent(
-    db_session, thread_factory, user_factory
-):
+    db_session: Any, thread_factory: Any, user_factory: Any
+) -> None:
     user, thread, u1_cmid, _u2 = await _build_thread(
         db_session, user_factory, thread_factory
     )
@@ -387,8 +395,11 @@ async def test_resending_the_same_edit_is_idempotent(
 
 
 async def test_dedup_onto_the_supersede_target_is_refused(
-    db_session, thread_factory, user_factory, caplog
-):
+    db_session: Any,
+    thread_factory: Any,
+    user_factory: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """The replacement cmid IS the superseded turn's cmid.
 
     The schema validator rejects this at the edge (422), so reaching the
@@ -432,8 +443,11 @@ async def test_dedup_onto_the_supersede_target_is_refused(
 
 
 async def test_dedup_onto_an_already_superseded_row_is_refused(
-    db_session, thread_factory, user_factory, caplog
-):
+    db_session: Any,
+    thread_factory: Any,
+    user_factory: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """A LATER edit already tombstoned the row we would reuse.
 
     Reusing it as the replacement would rewrite history backwards: rows the
@@ -486,8 +500,11 @@ async def test_dedup_onto_an_already_superseded_row_is_refused(
 
 
 async def test_dedup_onto_a_replacement_bound_to_another_target_is_refused(
-    db_session, thread_factory, user_factory, caplog
-):
+    db_session: Any,
+    thread_factory: Any,
+    user_factory: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """The replacement cmid exists, but it replaced a DIFFERENT turn.
 
     U2 was edited into R. A later request reuses R's cmid while claiming to
@@ -550,8 +567,11 @@ async def test_dedup_onto_a_replacement_bound_to_another_target_is_refused(
 
 
 async def test_dedup_reporting_a_genuine_prior_edit_still_marks(
-    db_session, thread_factory, user_factory, caplog
-):
+    db_session: Any,
+    thread_factory: Any,
+    user_factory: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """The idempotent case the mismatch guard must not break.
 
     Same replacement cmid AND the same target it actually replaced: this is the
@@ -587,8 +607,8 @@ async def test_dedup_reporting_a_genuine_prior_edit_still_marks(
 
 
 async def test_message_count_is_decremented_by_the_tombstoned_rows(
-    db_session, thread_factory, user_factory
-):
+    db_session: Any, thread_factory: Any, user_factory: Any
+) -> None:
     """Net delta: +1 for the replacement, -N for what it superseded."""
     from src.models.thread import Thread as ThreadModel
 
@@ -625,8 +645,8 @@ async def test_message_count_is_decremented_by_the_tombstoned_rows(
 
 
 async def test_message_count_never_goes_negative(
-    db_session, thread_factory, user_factory
-):
+    db_session: Any, thread_factory: Any, user_factory: Any
+) -> None:
     """message_count is a denormalised counter that historically drifts."""
     from src.models.thread import Thread as ThreadModel
 
@@ -660,16 +680,18 @@ async def test_message_count_never_goes_negative(
 class _RecordingGraph:
     """Head state seeded with MODEL-generated assistant ids."""
 
-    def __init__(self, messages):
+    def __init__(self, messages: Sequence[Any]) -> None:
         self._messages = list(messages)
         self.updates: list = []
 
-    async def aget_state(self, config):
+    async def aget_state(self, config: Any) -> Any:
         from types import SimpleNamespace
 
         return SimpleNamespace(values={"messages": list(self._messages)})
 
-    async def aupdate_state(self, config, values, as_node=None):
+    async def aupdate_state(
+        self, config: Any, values: Any, as_node: Any = None
+    ) -> None:
         from langgraph.graph.message import add_messages
 
         self._messages = add_messages(self._messages, values["messages"])
@@ -677,8 +699,11 @@ class _RecordingGraph:
 
 
 async def test_resync_converges_head_on_the_post_edit_db(
-    db_session, thread_factory, user_factory, monkeypatch
-):
+    db_session: Any,
+    thread_factory: Any,
+    user_factory: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The P0 this design exists for: assistant ids the model invented.
 
     A per-id RemoveMessage mapping could never name ``run-…``, so the
@@ -706,10 +731,10 @@ async def test_resync_converges_head_on_the_post_edit_db(
     # request's transaction has committed). Point that factory at this test's
     # engine; the default one targets the app DSN, which is not this DB.
     class _TestSession:
-        async def __aenter__(self):
+        async def __aenter__(self) -> Any:
             return db_session
 
-        async def __aexit__(self, *a):
+        async def __aexit__(self, *a: Any) -> bool:
             return False
 
     monkeypatch.setattr(aes_module, "AsyncSessionLocal", lambda: _TestSession())

@@ -46,7 +46,7 @@ def _assert_filters_superseded(stmt: Any, label: str) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_sweep_detects_a_missing_predicate():
+def test_sweep_detects_a_missing_predicate() -> None:
     from sqlalchemy import select
 
     unfiltered = select(ChatMessage.id).where(ChatMessage.thread_id == uuid4())
@@ -115,7 +115,9 @@ class _CapturingDB:
         return None
 
 
-def _msg(*, superseded: bool, deleted: bool = False, role=MessageRole.USER):
+def _msg(
+    *, superseded: bool, deleted: bool = False, role: Any = MessageRole.USER
+) -> Any:
     """A row-shaped stand-in for the Python-side (relationship-loaded) loops."""
     return SimpleNamespace(
         id=uuid4(),
@@ -149,7 +151,7 @@ def _msg(*, superseded: bool, deleted: bool = False, role=MessageRole.USER):
 # --------------------------------------------------------------------------- #
 
 
-async def test_build_thread_seed_messages_excludes_superseded():
+async def test_build_thread_seed_messages_excludes_superseded() -> None:
     """Model-visible reseed — the highest-stakes one on this list."""
     from src.services.agent.agent_execution_service import build_thread_seed_messages
 
@@ -158,7 +160,7 @@ async def test_build_thread_seed_messages_excludes_superseded():
     _assert_filters_superseded(db.statements[0], "build_thread_seed_messages")
 
 
-async def test_chat_user_row_count_matches_seed_semantics():
+async def test_chat_user_row_count_matches_seed_semantics() -> None:
     """Counting rows the seed excludes trips the dual-store divergence WARN."""
     from src.services.agent.agent_execution_service import _chat_user_row_count
 
@@ -167,7 +169,7 @@ async def test_chat_user_row_count_matches_seed_semantics():
     _assert_filters_superseded(db.statements[0], "_chat_user_row_count")
 
 
-async def test_latest_user_client_message_id_excludes_superseded():
+async def test_latest_user_client_message_id_excludes_superseded() -> None:
     from src.services.agent.agent_execution_service import (
         _latest_user_client_message_id,
     )
@@ -177,7 +179,7 @@ async def test_latest_user_client_message_id_excludes_superseded():
     _assert_filters_superseded(db.statements[0], "_latest_user_client_message_id")
 
 
-def test_last_message_preview_expression_excludes_superseded():
+def test_last_message_preview_expression_excludes_superseded() -> None:
     from src.services.threads.thread_service import last_message_preview_expression
 
     _assert_filters_superseded(
@@ -185,11 +187,13 @@ def test_last_message_preview_expression_excludes_superseded():
     )
 
 
-async def test_list_messages_page_and_count_are_in_lockstep(monkeypatch):
+async def test_list_messages_page_and_count_are_in_lockstep(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """base_conditions is shared, so a drifted count is structurally impossible."""
     from src.services.threads import message_service, workspace_access
 
-    async def _thread(*a: Any, **k: Any):
+    async def _thread(*a: Any, **k: Any) -> Any:
         return SimpleNamespace(id=uuid4())
 
     monkeypatch.setattr(workspace_access, "get_thread", _thread)
@@ -202,7 +206,7 @@ async def test_list_messages_page_and_count_are_in_lockstep(monkeypatch):
     _assert_filters_superseded(db.statements[1], "list_messages page")
 
 
-async def test_get_thread_messages_full_history_excludes_superseded():
+async def test_get_thread_messages_full_history_excludes_superseded() -> None:
     from src.api.agent.execute import get_thread_messages
 
     thread = SimpleNamespace(id=uuid4())
@@ -218,7 +222,7 @@ async def test_get_thread_messages_full_history_excludes_superseded():
     _assert_filters_superseded(db.statements[1], "get_thread_messages full history")
 
 
-async def test_get_thread_messages_window_page_and_count_agree():
+async def test_get_thread_messages_window_page_and_count_agree() -> None:
     """Same-filters rule: a drifted count over-reports total + has_more."""
     from src.api.agent.execute import get_thread_messages
 
@@ -235,7 +239,7 @@ async def test_get_thread_messages_window_page_and_count_agree():
     _assert_filters_superseded(db.statements[2], "get_thread_messages window count")
 
 
-async def test_thread_summarization_query_excludes_superseded():
+async def test_thread_summarization_query_excludes_superseded() -> None:
     """Sync SQLAlchemy API (self.db.query/.filter) — not the async one."""
     from src.models.thread import Thread
     from src.services.threads.thread_summarization_service import (
@@ -279,7 +283,7 @@ async def test_thread_summarization_query_excludes_superseded():
 # --------------------------------------------------------------------------- #
 
 
-def test_thread_detail_loops_drop_superseded():
+def test_thread_detail_loops_drop_superseded() -> None:
     """Both copies: api/threads/threads.py and workspace_routes/presenters.py."""
     import inspect
 
@@ -299,7 +303,7 @@ def test_thread_detail_loops_drop_superseded():
         ), f"{label} renders superseded messages"
 
 
-def test_get_thread_context_skips_superseded():
+def test_get_thread_context_skips_superseded() -> None:
     """Model context: skip a superseded turn exactly like a soft-deleted one."""
     import inspect
 
@@ -321,7 +325,7 @@ def test_get_thread_context_skips_superseded():
     assert kept == [live]
 
 
-def test_export_loader_skips_superseded():
+def test_export_loader_skips_superseded() -> None:
     import inspect
 
     from src.services.research.export_service import ExportService
@@ -344,7 +348,7 @@ def _assert_raw_filters_superseded(sql: str, label: str) -> None:
     assert RAW_PREDICATE in flat, f"{label} does not exclude superseded rows:\n{flat}"
 
 
-def _search_service():
+def _search_service() -> Any:
     from src.services.threads.thread_message_search_service import (
         ThreadMessageSearchService,
     )
@@ -352,19 +356,19 @@ def _search_service():
     return ThreadMessageSearchService()
 
 
-def _message_request():
+def _message_request() -> Any:
     from src.services.threads.thread_message_search_service import MessageSearchRequest
 
     return MessageSearchRequest(query="q")
 
 
-def _thread_request():
+def _thread_request() -> Any:
     from src.services.threads.thread_message_search_service import ThreadSearchRequest
 
     return ThreadSearchRequest(query="q")
 
 
-def test_message_search_page_and_count_both_exclude_superseded():
+def test_message_search_page_and_count_both_exclude_superseded() -> None:
     """Same-filters rule on raw SQL: a drifted count invents has_more pages."""
     svc, req, uid = _search_service(), _message_request(), uuid4()
 
@@ -375,7 +379,7 @@ def test_message_search_page_and_count_both_exclude_superseded():
     _assert_raw_filters_superseded(count, "message search count")
 
 
-def test_thread_search_message_predicates_exclude_superseded():
+def test_thread_search_message_predicates_exclude_superseded() -> None:
     """A thread must not surface (or claim matches) for an edited-away message."""
     svc, req, uid = _search_service(), _thread_request(), uuid4()
 
@@ -389,7 +393,7 @@ def test_thread_search_message_predicates_exclude_superseded():
     _assert_raw_filters_superseded(count, "thread search count")
 
 
-def test_combined_search_message_cte_excludes_superseded():
+def test_combined_search_message_cte_excludes_superseded() -> None:
     """combined_search's UNION arm over chat_messages."""
     import inspect
 
@@ -401,7 +405,7 @@ def test_combined_search_message_cte_excludes_superseded():
     assert "m.superseded_by_message_id IS NULL" in src
 
 
-def test_save_thread_to_note_excludes_superseded():
+def test_save_thread_to_note_excludes_superseded() -> None:
     """A note is a durable artifact: it must capture what was actually asked."""
     import inspect
 
@@ -413,7 +417,7 @@ def test_save_thread_to_note_excludes_superseded():
     ), "a saved note would contain the turn the user replaced"
 
 
-def test_export_preview_counts_only_non_superseded_messages():
+def test_export_preview_counts_only_non_superseded_messages() -> None:
     """export.py's preview counts the FILTERED list, not Thread.message_count."""
     import inspect
 
@@ -430,7 +434,7 @@ def test_export_preview_counts_only_non_superseded_messages():
 # --------------------------------------------------------------------------- #
 
 
-async def test_get_message_by_id_still_returns_a_superseded_row():
+async def test_get_message_by_id_still_returns_a_superseded_row() -> None:
     """Feedback / edit load a turn BY ID; a tombstone must not hide it."""
     from src.services.threads import workspace_access
 
@@ -440,7 +444,7 @@ async def test_get_message_by_id_still_returns_a_superseded_row():
     assert PREDICATE not in sql
 
 
-def test_workspace_stats_message_count_keeps_superseded():
+def test_workspace_stats_message_count_keeps_superseded() -> None:
     """Analytics: an edit tombstones a turn for display, it did still happen."""
     import inspect
 
