@@ -24,7 +24,12 @@ from src.models.user import User
 from src.services.agent import agent_execution_service as _jobs_mod
 from src.services.agent import stream_buffer as _stream_buffer
 from src.services.agent._builders import RECURSION_LIMIT
-from src.services.agent._errors import client_safe_error, extract_interrupt_confirmation
+from src.services.agent._errors import (
+    classify_agent_error,
+    client_safe_error,
+    error_frame_payload,
+    extract_interrupt_confirmation,
+)
 from src.services.agent._pii_redact import redact_pii, redact_tool_args
 from src.services.agent.agent_execution_service import (
     TombstoneReport,
@@ -45,7 +50,7 @@ from src.services.agent.agent_submission_service import (
 )
 from src.services.agent.observability import AgentStreamSLOTracker, record_token_usage
 from src.services.agent.run_event_types import RunEventType
-from src.shared.enums import AgentStreamEvent, JobStatus
+from src.shared.enums import AgentErrorCategory, AgentStreamEvent, JobStatus
 
 from .trace_context import build_trace_payload
 
@@ -104,6 +109,31 @@ async def _finalize_run(
         error_code=error_code,
         error=error,
     )
+
+
+# `accept_submission` raises a bare ValueError when the submitted messages
+# contain no user turn — a malformed *request*, not a server fault. It carries
+# no dedicated type, so the branch is keyed on the exact sentinel text raised in
+# `agent_submission_service.accept_submission`; anything else falls through to
+# the generic classifier rather than being optimistically blamed on the client.
+_NO_USER_MESSAGE_SENTINEL = "accept_submission requires a user message"
+
+
+# Anti-enumeration: /stream/confirm's "no such checkpoint" and "not your
+# checkpoint" branches MUST be indistinguishable to the caller — same message,
+# same category, byte-identical payload. Both branches build their frame from
+# these two constants precisely so neither the string nor the category can
+# drift into an oracle for whether a guessed thread id exists.
+_CONFIRM_NOT_FOUND_MESSAGE = "Thread not found"
+_CONFIRM_NOT_FOUND_CATEGORY = AgentErrorCategory.INVALID_REQUEST
+
+
+def _stream_failure_category(exc: BaseException) -> AgentErrorCategory:
+    """Category for the /stream catch-all: `invalid_request` for the
+    missing-user-message rejection, otherwise the generic classification."""
+    if isinstance(exc, ValueError) and _NO_USER_MESSAGE_SENTINEL in str(exc):
+        return AgentErrorCategory.INVALID_REQUEST
+    return classify_agent_error(exc)
 
 
 def _request_trace_id(request: Any) -> str:
@@ -435,7 +465,7 @@ async def _stream_luna_fast_path(
         await persist_partial()
         yield await emitter.emit(
             AgentStreamEvent.ERROR,
-            {"error": client_safe_error(exc)},
+            error_frame_payload(exc),
         )
         await emitter.finish()
         await _finalize_run(
@@ -1619,7 +1649,10 @@ async def stream_event_generator(
             )
             frame = await emitter.emit(
                 AgentStreamEvent.ERROR,
-                {"error": "Interrupt state could not be saved. Please retry."},
+                error_frame_payload(
+                    "Interrupt state could not be saved. Please retry.",
+                    AgentErrorCategory.CHECKPOINT_UNAVAILABLE,
+                ),
             )
             if not client_disconnected:
                 yield frame
@@ -1649,6 +1682,11 @@ async def stream_event_generator(
                 payload={
                     "code": "interrupt_not_checkpointed",
                     "message": "Interrupt state could not be saved.",
+                    # Same enum as the wire `category` key — the ledger's
+                    # `code`/`error_code` stay the historical SITE codes (they
+                    # are already persisted and identify where it broke, not
+                    # why), so this adds the category without renaming them.
+                    "category": AgentErrorCategory.CHECKPOINT_UNAVAILABLE.value,
                 },
                 error_code="interrupt_not_checkpointed",
                 error="Interrupt state could not be saved. Please retry.",
@@ -1665,8 +1703,9 @@ async def stream_event_generator(
         if persist_partial_stop is not None:
             with contextlib.suppress(Exception):
                 await persist_partial_stop()
+        category = _stream_failure_category(e)
         frame = await emitter.emit(
-            AgentStreamEvent.ERROR, {"error": client_safe_error(e)}
+            AgentStreamEvent.ERROR, error_frame_payload(e, category)
         )
         if not client_disconnected:
             yield frame
@@ -1683,6 +1722,9 @@ async def stream_event_generator(
             payload={
                 "code": "stream_failed",
                 "message": client_safe_error(e),
+                # See the interrupt branch above: `code`/`error_code` keep
+                # their historical site values; the category rides alongside.
+                "category": category.value,
             },
             error_code="stream_failed",
             error=client_safe_error(e),
@@ -1774,7 +1816,10 @@ async def stream_confirm_event_generator(
         # Verify thread exists
         if not current_snapshot or not current_snapshot.values:
             yield await emitter.emit(
-                AgentStreamEvent.ERROR, {"error": "Thread not found"}
+                AgentStreamEvent.ERROR,
+                error_frame_payload(
+                    _CONFIRM_NOT_FOUND_MESSAGE, _CONFIRM_NOT_FOUND_CATEGORY
+                ),
             )
             return
 
@@ -1789,7 +1834,10 @@ async def stream_confirm_event_generator(
                 current_user.id,
             )
             yield await emitter.emit(
-                AgentStreamEvent.ERROR, {"error": "Thread not found"}
+                AgentStreamEvent.ERROR,
+                error_frame_payload(
+                    _CONFIRM_NOT_FOUND_MESSAGE, _CONFIRM_NOT_FOUND_CATEGORY
+                ),
             )
             return
 
@@ -1835,7 +1883,10 @@ async def stream_confirm_event_generator(
                 if not await _acquire_lock(redis_client, confirm_claim_key, ttl=330):
                     yield await emitter.emit(
                         AgentStreamEvent.ERROR,
-                        {"error": "Confirmation already in progress"},
+                        error_frame_payload(
+                            "Confirmation already in progress",
+                            AgentErrorCategory.CONFLICT,
+                        ),
                     )
                     return
             # ponytail: Redis down → no claim (single-worker in-memory CAS
@@ -2290,9 +2341,7 @@ async def stream_confirm_event_generator(
         if persist_partial_stop is not None:
             with contextlib.suppress(Exception):
                 await persist_partial_stop()
-        frame = await emitter.emit(
-            AgentStreamEvent.ERROR, {"error": client_safe_error(e)}
-        )
+        frame = await emitter.emit(AgentStreamEvent.ERROR, error_frame_payload(e))
         if not client_disconnected:
             yield frame
         await emitter.finish()

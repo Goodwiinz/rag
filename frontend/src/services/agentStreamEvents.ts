@@ -29,6 +29,51 @@ export const AGENT_STREAM_EVENTS = [
 /** Union of every agent SSE event name (mirror of backend `AgentStreamEvent`). */
 export type AgentStreamEvent = (typeof AGENT_STREAM_EVENTS)[number];
 
+/**
+ * Server-authored error categories — the frontend mirror of the backend
+ * `AgentErrorCategory` StrEnum (backend/src/shared/enums.py).
+ *
+ * An `error` frame is flat: `{ error: "<message string>", category: "<label>" }`.
+ * `error` stays a STRING (wire compat — it was never an object); `category` is
+ * a sibling key the backend authors at the emit site, so the UI can branch on
+ * *why* a turn failed without regex-matching prose.
+ *
+ * Unknown values are ignored rather than trusted: an older frontend talking to
+ * a newer backend must degrade to the generic error treatment, not render a
+ * label it does not understand. `parseAgentErrorCategory` is that gate.
+ */
+export const AGENT_ERROR_CATEGORIES = [
+  'upstream_timeout',
+  'model_error',
+  'tool_error',
+  'checkpoint_unavailable',
+  'rate_limited',
+  'cancelled',
+  'invalid_request',
+  'conflict',
+  'internal',
+] as const;
+
+/** Union of every server-authored error category (mirror of backend enum). */
+export type AgentErrorCategory = (typeof AGENT_ERROR_CATEGORIES)[number];
+
+const AGENT_ERROR_CATEGORY_SET: ReadonlySet<string> = new Set(
+  AGENT_ERROR_CATEGORIES
+);
+
+/**
+ * Validate an untrusted `category` value off the wire. Returns the category
+ * when it is one this build knows, `undefined` otherwise (unknown label, wrong
+ * type, or absent — all of which mean "no server claim about the cause").
+ */
+export function parseAgentErrorCategory(
+  value: unknown
+): AgentErrorCategory | undefined {
+  return typeof value === 'string' && AGENT_ERROR_CATEGORY_SET.has(value)
+    ? (value as AgentErrorCategory)
+    : undefined;
+}
+
 export const AGENT_STREAM_PHASES = [
   'accepted',
   'routing',

@@ -519,6 +519,32 @@ function AuiStreamingBody(): ReactElement {
   );
 }
 
+/**
+ * Short, honest helper line under an error message, keyed by the SERVER's
+ * `category` (see `AgentErrorCategory` in services/agentStreamEvents.ts).
+ *
+ * The category was write-only until now — recorded on the bubble and never
+ * read. Anything absent or unrecognised falls back to the existing behaviour
+ * (render `message.content`, the raw failure text), so an unknown category from
+ * a newer backend degrades quietly instead of blanking the line.
+ */
+const ERROR_CATEGORY_HELP: Readonly<Record<string, string>> = {
+  rate_limited: 'The service is busy — try again in a moment.',
+  upstream_timeout: 'The model took too long. Retry usually works.',
+  invalid_request: "This request can't be retried as-is.",
+  conflict: 'A confirmation is already in progress.',
+};
+
+/**
+ * Categories where an identical retry cannot succeed: the request itself is
+ * rejected, or another confirmation already holds the claim. Offering Retry
+ * there is a button that is guaranteed to fail — worse than no button.
+ */
+const NON_RETRYABLE_ERROR_CATEGORIES: ReadonlySet<string> = new Set([
+  'invalid_request',
+  'conflict',
+]);
+
 export function AuiAssistantMessage({
   message,
   onRetry,
@@ -584,6 +610,11 @@ export function AuiAssistantMessage({
   // render an error block with a prominent Retry button instead of an
   // ambiguous blank bubble. onRetry re-sends the prior user turn.
   if (message?.error) {
+    const helperLine =
+      ERROR_CATEGORY_HELP[message.error.category ?? ''] ?? message.content;
+    const retryable = !NON_RETRYABLE_ERROR_CATEGORIES.has(
+      message.error.category ?? ''
+    );
     return (
       <MessagePrimitive.Root
         data-role="assistant"
@@ -599,23 +630,25 @@ export function AuiAssistantMessage({
               <p className="text-sm font-medium text-(--nous-fg-1)">
                 {message.error.message}
               </p>
-              {message.content ? (
+              {helperLine ? (
                 <p className="mt-1 text-[12px] text-(--nous-fg-3)">
-                  {message.content}
+                  {helperLine}
                 </p>
               ) : null}
             </div>
           </div>
-          <div className="mt-2 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onRetry}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-(--nous-border-1) bg-(--nous-bg-2) px-3 py-1.5 text-[12px] font-medium text-(--nous-fg-1) transition-colors hover:border-(--nous-sol)/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Retry
-            </button>
-          </div>
+          {retryable ? (
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onRetry}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-(--nous-border-1) bg-(--nous-bg-2) px-3 py-1.5 text-[12px] font-medium text-(--nous-fg-1) transition-colors hover:border-(--nous-sol)/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Retry
+              </button>
+            </div>
+          ) : null}
         </div>
       </MessagePrimitive.Root>
     );
