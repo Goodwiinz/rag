@@ -72,6 +72,14 @@ async def _run_stream(graph: Any) -> list[str]:
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
+        # No Redis in unit CI: without this the emitter's start_stream sits on a
+        # connect timeout for every frame, which stalled this module for ~11
+        # minutes and pushed the lease-based sweeper tests past their expiry.
+        # Sibling streaming suites patch the same seam.
+        patch(
+            "src.api.agent.streaming._stream_buffer.start_stream",
+            new=AsyncMock(side_effect=RuntimeError("redis down")),
+        ),
         patch(
             "src.services.agent.observability.configure_langsmith", return_value=None
         ),
@@ -95,6 +103,14 @@ async def _run_confirm(graph: Any) -> list[str]:
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
+        # No Redis in unit CI: without this the emitter's start_stream sits on a
+        # connect timeout for every frame, which stalled this module for ~11
+        # minutes and pushed the lease-based sweeper tests past their expiry.
+        # Sibling streaming suites patch the same seam.
+        patch(
+            "src.api.agent.streaming._stream_buffer.start_stream",
+            new=AsyncMock(side_effect=RuntimeError("redis down")),
+        ),
         patch(
             "src.services.agent.observability.configure_langsmith", return_value=None
         ),
