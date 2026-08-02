@@ -65,7 +65,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Optional, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select, update
@@ -170,7 +170,10 @@ async def _find_by_idempotency_key(
         AgentRun.organization_id == _coerce_uuid(organization_id),
         AgentRun.user_id == _coerce_uuid(user_id),
     )
-    return (await db.execute(stmt)).scalar_one_or_none()
+    # Explicit cast: CI's Lint Backend job installs only the linters, so
+    # SQLAlchemy is unresolvable there and ``scalar_one_or_none()`` degrades to
+    # ``Any`` — which trips ``warn_return_any`` in CI while passing locally.
+    return cast(Optional[AgentRun], (await db.execute(stmt)).scalar_one_or_none())
 
 
 async def _existing_outbox_id(db: AsyncSession, run_id: str) -> Optional[str]:
