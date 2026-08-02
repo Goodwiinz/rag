@@ -105,8 +105,8 @@ class AgentRun(Base):
     client_message_id = Column(String(255), nullable=True)
     idempotency_key = Column(String(255), nullable=True)
 
-    # High-water mark of agent_run_events.seq — bumped in the same transaction
-    # as every event insert (under the run-row lock that allocates seq).
+    # High-water mark of agent_run_events.seq — bumped monotonically by
+    # run_event_store.append_event in the same transaction as the event insert.
     last_event_seq = Column(
         Integer, nullable=False, default=0, server_default=text("0")
     )
