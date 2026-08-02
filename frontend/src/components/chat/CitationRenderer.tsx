@@ -19,6 +19,44 @@ interface CitationRendererProps {
   className?: string;
 }
 
+/** Split a message into fenced-code chunks and prose chunks. Citation
+ * markers are only parsed in prose: bracketed indexing inside a code fence
+ * (`arr[1]`) must render as code, not get carved out into a citation chip
+ * that truncates the block. An unterminated final fence (mid-stream) stays
+ * one code chunk. */
+function splitOnCodeFences(
+  content: string
+): Array<{ type: 'code' | 'prose'; content: string }> {
+  const chunks: Array<{ type: 'code' | 'prose'; content: string }> = [];
+  let buf: string[] = [];
+  let inFence = false;
+
+  const flush = (type: 'code' | 'prose'): void => {
+    if (buf.length > 0) {
+      chunks.push({ type, content: buf.join('\n') });
+      buf = [];
+    }
+  };
+
+  for (const line of content.split('\n')) {
+    if (line.trimStart().startsWith('```')) {
+      if (inFence) {
+        buf.push(line);
+        flush('code');
+        inFence = false;
+      } else {
+        flush('prose');
+        inFence = true;
+        buf.push(line);
+      }
+    } else {
+      buf.push(line);
+    }
+  }
+  flush(inFence ? 'code' : 'prose');
+  return chunks;
+}
+
 export function CitationRenderer({
   content,
   citations = [],
@@ -26,13 +64,15 @@ export function CitationRenderer({
   activeCitationIndex,
   className,
 }: CitationRendererProps): React.ReactElement {
-  const segments = useMemo(() => {
-    return parseMessageWithCitations(content);
-  }, [content]);
+  const chunks = useMemo(() => splitOnCodeFences(content), [content]);
 
-  const hasInlineCitations = useMemo(() => {
-    return hasCitations(content);
-  }, [content]);
+  const hasInlineCitations = useMemo(
+    () =>
+      chunks.some(
+        (chunk) => chunk.type === 'prose' && hasCitations(chunk.content)
+      ),
+    [chunks]
+  );
 
   if (!hasInlineCitations) {
     return (
@@ -48,25 +88,39 @@ export function CitationRenderer({
     <div
       className={cn('prose prose-sm dark:prose-invert max-w-none', className)}
     >
-      {segments.map((segment, index) => {
-        if (
-          segment.type === 'citation' &&
-          segment.citationIndex !== undefined
-        ) {
-          const citation = getCitationByIndex(citations, segment.citationIndex);
+      {chunks.map((chunk, chunkIndex) => {
+        if (chunk.type === 'code') {
           return (
-            <CitationLink
-              key={`citation-${index}-${segment.citationIndex}`}
-              citationNumber={segment.citationIndex}
-              citation={citation}
-              onClick={onCitationClick}
-              isActive={activeCitationIndex === segment.citationIndex}
-            />
+            <ChatMarkdown key={`code-${chunkIndex}`} content={chunk.content} />
           );
         }
         return (
-          <Fragment key={`text-${index}`}>
-            <ChatMarkdown content={segment.content} inline />
+          <Fragment key={`prose-${chunkIndex}`}>
+            {parseMessageWithCitations(chunk.content).map((segment, index) => {
+              if (
+                segment.type === 'citation' &&
+                segment.citationIndex !== undefined
+              ) {
+                const citation = getCitationByIndex(
+                  citations,
+                  segment.citationIndex
+                );
+                return (
+                  <CitationLink
+                    key={`citation-${chunkIndex}-${index}-${segment.citationIndex}`}
+                    citationNumber={segment.citationIndex}
+                    citation={citation}
+                    onClick={onCitationClick}
+                    isActive={activeCitationIndex === segment.citationIndex}
+                  />
+                );
+              }
+              return (
+                <Fragment key={`text-${chunkIndex}-${index}`}>
+                  <ChatMarkdown content={segment.content} inline />
+                </Fragment>
+              );
+            })}
           </Fragment>
         );
       })}

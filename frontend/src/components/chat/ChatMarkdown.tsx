@@ -26,46 +26,63 @@ const SyntaxHighlighter = dynamic(
  * paths can't drift apart again. */
 const REMARK_PLUGINS = [remarkGfm];
 
+/** Pull the language class and raw text out of the `<code>` element that
+ * react-markdown places inside every block `<pre>`. */
+function extractCodeChild(children: React.ReactNode): {
+  className: string;
+  value: string;
+} {
+  const child = Array.isArray(children) ? children[0] : children;
+  if (React.isValidElement(child)) {
+    const props = child.props as {
+      className?: string;
+      children?: React.ReactNode;
+    };
+    return {
+      className: props.className ?? '',
+      value: String(props.children ?? ''),
+    };
+  }
+  return { className: '', value: String(children ?? '') };
+}
+
 /**
  * One markdown component config for all assistant-message rendering.
  *
  * react-markdown v9+ no longer passes `inline` to the `code` renderer, so
- * block-vs-inline is detected from the fence's `language-*` class (fenced
- * blocks) or an embedded newline (fenced blocks without a language). Fenced
- * code goes through the lazy syntax highlighter; inline spans get the NOUS
- * pill styling.
+ * block vs inline is decided structurally: block code is exactly a `code`
+ * element whose parent is `pre`, so the `pre` renderer owns every block
+ * (fenced and indented) and the `code` renderer only ever sees inline
+ * spans. Languaged fences go through the lazy syntax highlighter,
+ * unlanguaged/indented blocks get a plain `<pre>`, inline spans get the
+ * NOUS pill styling.
  */
 const baseComponents: Components = {
-  code({ className, children }) {
-    const match = /language-(\w+)/.exec(className || '');
-    const language = match ? match[1] : '';
-    const value = String(children).replace(/\n$/, '');
-    if (language) {
+  pre({ children }) {
+    const { className, value } = extractCodeChild(children);
+    const match = /language-(\w+)/.exec(className);
+    const code = value.replace(/\n$/, '');
+    if (match) {
       return (
-        <SyntaxHighlighter style={oneDark} language={language} PreTag="div">
-          {value}
+        <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div">
+          {code}
         </SyntaxHighlighter>
       );
     }
-    if (value.includes('\n')) {
-      return (
-        <pre className="p-4 rounded-lg bg-(--nous-bg-1) text-xs font-mono overflow-x-auto">
-          <code>{value}</code>
-        </pre>
-      );
-    }
+    return (
+      <pre className="p-4 rounded-lg bg-(--nous-bg-1) text-xs font-mono overflow-x-auto">
+        <code>{code}</code>
+      </pre>
+    );
+  },
+  code({ children }) {
     return (
       <code className="rounded bg-(--nous-bg-2) px-1.5 py-0.5 text-[11px] font-mono text-(--nous-sol)">
         {children}
       </code>
     );
   },
-  // The code renderer above emits its own block containers; a wrapping <pre>
-  // from the default renderer would nest pre-in-pre.
-  pre({ children }) {
-    return <>{children}</>;
-  },
-  // SECURITY (audit #21): LLM-authored links open with
+  // SECURITY (audit #21, PR #692): LLM-authored links open with
   // rel="noopener noreferrer" so a malicious target can't reach back via
   // window.opener (reverse tabnabbing).
   a({ href, children }) {

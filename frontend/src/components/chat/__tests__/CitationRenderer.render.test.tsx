@@ -70,9 +70,7 @@ describe('CitationRenderer — plain path (no citation markers)', () => {
   });
 
   it('routes fenced code with a language through the syntax highlighter', () => {
-    render(
-      <CitationRenderer content={'```python\nprint("hi")\n```'} />
-    );
+    render(<CitationRenderer content={'```python\nprint("hi")\n```'} />);
     const block = screen.getByTestId('syntax-highlighter');
     expect(block).toHaveAttribute('data-language', 'python');
     expect(block).toHaveTextContent('print("hi")');
@@ -85,6 +83,25 @@ describe('CitationRenderer — plain path (no citation markers)', () => {
     expect(screen.queryByTestId('syntax-highlighter')).toBeNull();
     const pre = container.querySelector('pre');
     expect(pre).toHaveTextContent('plain block');
+  });
+
+  it('renders a SINGLE-line unlanguaged fence as a block, not an inline pill', () => {
+    const { container } = render(
+      <CitationRenderer content={'```\npnpm install\n```'} />
+    );
+    const pre = container.querySelector('pre');
+    expect(pre).toHaveTextContent('pnpm install');
+  });
+
+  it('renders GFM autolinks (bare URLs) with the security attributes', () => {
+    render(
+      <CitationRenderer content={'See https://arxiv.org/abs/1706.03762 now.'} />
+    );
+    const link = screen.getByRole('link', {
+      name: 'https://arxiv.org/abs/1706.03762',
+    });
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   it('renders inline code as a styled span, not a block', () => {
@@ -117,6 +134,35 @@ describe('CitationRenderer — citation-segmented path', () => {
     );
     expect(container.querySelector('strong')).toHaveTextContent('attention');
     expect(screen.getAllByText('1').length).toBeGreaterThan(0);
+    // Segments must render inline (p→span unwrap) so the chip doesn't force
+    // a line break — the whole reason the `inline` variant exists.
+    expect(container.querySelector('p')).toBeNull();
+  });
+
+  it('keeps bracketed indexing inside a code fence as code, not a chip', () => {
+    const content = 'Per the paper [Doc 1]:\n\n```python\na = arr[1]\n```';
+    render(<CitationRenderer content={content} citations={CITATIONS} />);
+    const block = screen.getByTestId('syntax-highlighter');
+    expect(block).toHaveTextContent('a = arr[1]');
+    // Exactly one chip (the prose [Doc 1]); arr[1] must not become one.
+    expect(screen.getAllByRole('button', { name: /^Citation 1/ })).toHaveLength(
+      1
+    );
+  });
+
+  it('renders an unresolvable citation index as a disabled chip', () => {
+    const onClick = vi.fn();
+    render(
+      <CitationRenderer
+        content={'See [Doc 3].'}
+        citations={CITATIONS}
+        onCitationClick={onClick}
+      />
+    );
+    const chip = screen.getByRole('button', { name: 'Citation 3' });
+    expect(chip).toBeDisabled();
+    chip.click();
+    expect(onClick).not.toHaveBeenCalled();
   });
 
   it('renders GFM tables in a message that also contains citations', () => {
@@ -153,9 +199,7 @@ describe('CitationRenderer — citation-segmented path', () => {
 describe('CitationRenderer — streaming (unterminated markdown)', () => {
   it('renders a dangling code fence as a highlighted block mid-stream', () => {
     const partial = 'Working:\n\n```python\nprint("hi';
-    render(
-      <CitationRenderer content={completeStreamingMarkdown(partial)} />
-    );
+    render(<CitationRenderer content={completeStreamingMarkdown(partial)} />);
     const block = screen.getByTestId('syntax-highlighter');
     expect(block).toHaveAttribute('data-language', 'python');
     expect(block).toHaveTextContent('print("hi');
