@@ -479,13 +479,19 @@ class _SeqEmitter:
         *,
         trace_id: Optional[str] = None,
         slo_tracker: Optional[AgentStreamSLOTracker] = None,
+        started_at: Optional[float] = None,
     ) -> None:
+        """``started_at`` is a ``time.monotonic()`` reading from the route
+        handler's first line. The emitter is built only after auth, rate
+        limiting, and body parsing have run, so stamping the SLI clock here
+        would exclude the very overhead the accepted-latency SLI exists to
+        measure. Falls back to "now" when a caller has no reading."""
         self.seq = 0
         self.sid: Optional[str] = None
         self.thread_id: Optional[str] = None
         self.trace_id = trace_id or str(_uuid.uuid4())
         self.route = "pending"
-        self.slo_tracker = slo_tracker or AgentStreamSLOTracker()
+        self.slo_tracker = slo_tracker or AgentStreamSLOTracker(started_at=started_at)
 
     def set_context(
         self, *, thread_id: Optional[str] = None, route: Optional[str] = None
@@ -624,11 +630,16 @@ async def stream_event_generator(
     current_user: User,
     *,
     background_tasks: Any = None,  # fastapi.BackgroundTasks (optional for tests)
+    request_started_at: Optional[float] = None,
 ):
     """SSE event generator for the /stream endpoint.
 
     Yields SSE-formatted events: token, tool_start, tool_end,
     rag_context, plan, reflection, confirmation, done, error.
+
+    ``request_started_at`` is the route handler's entry ``time.monotonic()``
+    reading; it anchors the accepted-latency SLI to request arrival rather
+    than to generator start (which happens after auth and rate limiting).
     """
     from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent.graph import compile_agent_graph
@@ -650,7 +661,10 @@ async def stream_event_generator(
     graph = None  # type: ignore[assignment]
     resolved_thread_id: Optional[str] = None
     stream_started_at = time.monotonic()
-    emitter = _SeqEmitter(trace_id=_request_trace_id(request))
+    emitter = _SeqEmitter(
+        trace_id=_request_trace_id(request),
+        started_at=request_started_at,
+    )
     client_disconnected = False
     # Set once an assistant row for this turn has been persisted/scheduled —
     # the error-path partial persist must never double-write the turn.

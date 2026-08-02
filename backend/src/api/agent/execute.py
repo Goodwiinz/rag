@@ -13,6 +13,7 @@ concerns lives in the service layer (audit B1/B5):
 
 import asyncio
 import logging
+import time
 import uuid as _uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -592,6 +593,11 @@ async def stream_agent(
     confirmation, done, error. ``heartbeat`` is a payload-less keepalive; the
     terminal frames are ``TERMINAL_STREAM_EVENTS`` (done, error, confirmation).
     """
+    # Stamp the accepted-latency SLI clock on handler entry. Rate limiting,
+    # body parsing, and StreamingResponse setup all cost the client wall time
+    # before the generator builds its emitter, so starting the clock there
+    # reports a latency that excludes the overhead the SLI exists to surface.
+    request_started_at = time.monotonic()
     _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
         str(current_user.id), prefix="agent_stream"
     )
@@ -605,7 +611,11 @@ async def stream_agent(
     )
     return StreamingResponse(
         stream_event_generator(
-            request_body, request, current_user, background_tasks=background_tasks
+            request_body,
+            request,
+            current_user,
+            background_tasks=background_tasks,
+            request_started_at=request_started_at,
         ),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,

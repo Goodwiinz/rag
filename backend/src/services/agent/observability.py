@@ -423,9 +423,23 @@ class AgentStreamSLOTracker:
     _ROUTES = frozenset({"pending", "luna", "graph", "unknown"})
     _TERMINAL_EVENTS = frozenset({"done", "error", "confirmation"})
 
-    def __init__(self, *, clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(
+        self,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        started_at: Optional[float] = None,
+    ) -> None:
+        """``started_at`` is a ``clock()`` reading taken by the caller.
+
+        The accepted-latency SLI measures the request's queue-to-first-frame
+        time, which includes auth, rate limiting, and body parsing — all of
+        which run before this object can exist. Routes therefore stamp the
+        clock on handler entry and hand the reading in; defaulting to
+        ``clock()`` would silently exclude exactly the overhead the SLI is
+        meant to catch.
+        """
         self._clock = clock
-        self._started_at = clock()
+        self._started_at = clock() if started_at is None else started_at
         self.route = "pending"
         self._accepted_recorded = False
         self._first_token_recorded = False
