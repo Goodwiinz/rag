@@ -475,6 +475,11 @@ class ExportService:
         # Convert to export schema
         messages = []
         for msg in thread.messages:
+            # Edit-and-resend tombstone: an exported document must not contain
+            # a turn the user replaced (nor its answer).
+            if msg.superseded_by_message_id is not None:
+                continue
+
             # Skip system messages if not requested
             if msg.role == MessageRole.SYSTEM and not options.include_system_messages:
                 continue

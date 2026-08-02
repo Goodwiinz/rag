@@ -223,6 +223,9 @@ async def get_message(
     conditions = [
         ChatMessage.id == message_id,
         ChatMessage.is_deleted == False,  # noqa: E712
+        # Deliberately NOT filtered on ``superseded_by_message_id``: this is the
+        # by-id fetch behind feedback/edit, which must still resolve a turn an
+        # edit-and-resend has tombstoned.
     ]
     if thread_id is not None:
         conditions.append(ChatMessage.thread_id == thread_id)

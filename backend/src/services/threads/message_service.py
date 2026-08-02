@@ -103,6 +103,9 @@ async def list_messages(
     base_conditions = [
         ChatMessage.thread_id == thread_id,
         ChatMessage.is_deleted == False,  # noqa: E712
+        # Edit-and-resend tombstones. In base_conditions so the page query and
+        # the count stay in lockstep.
+        ChatMessage.superseded_by_message_id.is_(None),
     ]
 
     if before_id is not None:

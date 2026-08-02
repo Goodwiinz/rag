@@ -68,6 +68,16 @@ class ChatMessage(BaseModel):
                 "client_message_id IS NOT NULL AND role = 'assistant'"
             ),
         ),
+        # Tombstone lookup (migration e6f7a8b9c0d1). Partial because superseded
+        # rows are the rare case: display/model/export reads all filter
+        # ``superseded_by_message_id IS NULL`` on top of the existing
+        # (thread_id, created_at) indexes, and only the audit/repair direction
+        # ("which rows did this edit tombstone?") needs an index of its own.
+        Index(
+            "ix_chat_messages_superseded",
+            "thread_id",
+            postgresql_where=text("superseded_by_message_id IS NOT NULL"),
+        ),
     )
 
     # Parent relationship
@@ -107,6 +117,26 @@ class ChatMessage(BaseModel):
         doc=(
             "Client-supplied idempotency key for user turns. Combined with thread_id "
             "in a partial unique index to dedupe retries without a SELECT."
+        ),
+    )
+    superseded_by_message_id = Column(
+        GUID(),
+        # Named explicitly so ``Base.metadata.create_all`` (tests, fresh dev
+        # DBs) and Alembic revision e6f7a8b9c0d1 produce the SAME constraint
+        # name — an unnamed FK gets an auto-generated name, and a DB built by
+        # create_all then re-stamped/upgraded would end up with two.
+        ForeignKey(
+            "chat_messages.id",
+            name="fk_chat_messages_superseded_by_message_id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+        doc=(
+            "Edit-and-resend tombstone. Set to the id of the NEW user row that "
+            "replaced this turn: the edited user row itself and every message "
+            "after it in the thread point at the replacement. Non-NULL means "
+            "'superseded' — every display / model-context / export read filters "
+            "IS NULL; by-id, idempotency and analytics reads deliberately do not."
         ),
     )
     tool_executions = Column(JSONB, nullable=True)  # Agent tool execution details

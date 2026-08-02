@@ -27,6 +27,7 @@ from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent._errors import client_safe_error, extract_interrupt_confirmation
 from src.services.agent._pii_redact import redact_pii, redact_tool_args
 from src.services.agent.agent_execution_service import (
+    TombstoneReport,
     _clear_stale_pending_confirmation,
     _latest_user_client_message_id,
     _page_context_to_dict,
@@ -34,6 +35,7 @@ from src.services.agent.agent_execution_service import (
     _persist_user_message_guarded,
     _resolve_and_bind_project,
     _resolve_thread,
+    resync_thread_checkpoint,
 )
 from src.services.agent.agent_submission_service import (
     AcceptedSubmission,
@@ -230,13 +232,27 @@ async def _stream_luna_fast_path(
     client_disconnected = False
     assistant_saved = False
 
+    # Edit-and-resend on the fast path. Under an accept (P0-C) the tombstones
+    # are already committed — they rode the accept transaction alongside the
+    # user row — so the report is seeded from it. On the degraded path the
+    # persist still owns them, and it runs CONCURRENTLY with the model stream
+    # (that is the whole point of this route), so nothing can be converged
+    # before the answer is streamed either way. Convergence happens at the
+    # post-answer checkpoint write below, the first point where this route
+    # holds a compiled graph.
+    tombstones = TombstoneReport()
+    if acceptance is not None and acceptance.tombstoned:
+        tombstones.mark()
+
     async def persist_user() -> bool:
         # Already committed by the accept transaction (P0-C). Re-running the
         # insert would add a SECOND user row for a legacy client that sends no
         # client_message_id — there is nothing for ON CONFLICT to infer.
         if acceptance is not None:
             return False
-        return await _persist_user_message_guarded(db, current_user, request_body)
+        return await _persist_user_message_guarded(
+            db, current_user, request_body, tombstoned_out=tombstones
+        )
 
     async def persist_partial() -> None:
         if assistant_saved:
@@ -341,6 +357,26 @@ async def _stream_luna_fast_path(
                 ),
             }
         }
+        # Edit-and-resend: rebuild HEAD from the post-edit DB first, so the
+        # replaced turn stops feeding the model.
+        if tombstones.any:
+            await resync_thread_checkpoint(
+                graph,
+                thread_id=stream_thread_id,
+                user=current_user,
+            )
+        # The append ALWAYS runs, including right after a resync. It is
+        # idempotent by id: ``add_messages`` (the reducer behind
+        # ``aupdate_state``) replaces a same-id message in place rather than
+        # appending a duplicate (pinned by
+        # test_agent_edit_resend_checkpoint.py::
+        # test_langgraph_replaces_a_same_id_message_in_place), so the write is
+        # at worst a no-op. It is also the REPAIR for a partial-row dedup: a
+        # cancelled attempt can persist a stopped partial answer under this
+        # same deterministic assistant cmid, the retry's insert dedups onto that
+        # row WITHOUT updating its content, and the resync then seeds the
+        # PARTIAL text. Skipping the append there would leave the model's
+        # context holding a truncated answer the client never saw.
         await graph.aupdate_state(
             checkpoint_config,
             {
@@ -921,18 +957,42 @@ async def stream_event_generator(
                 yield frame
             return
 
-        if thread_obj is not None and acceptance is None:
+        # Edit-and-resend: whichever writer owned this turn's user row also
+        # owned its tombstones, so the report is sourced from that writer —
+        # the accept transaction (P0-C) when it ran, the guarded persist on the
+        # degraded no-durable-run path.
+        tombstones = TombstoneReport()
+        if acceptance is not None:
+            if acceptance.tombstoned:
+                tombstones.mark()
+        elif thread_obj is not None:
             # Degraded accept (no durable run): keep the pre-P0-C
             # durable-before-LLM guarantee for the user row. When the accept
             # committed, that row is already in it — writing it again here
             # would insert a SECOND row for a legacy client that sends no
             # client_message_id (nothing for ON CONFLICT to infer).
-            await _persist_user_message_guarded(db, current_user, request_body)
+            await _persist_user_message_guarded(
+                db,
+                current_user,
+                request_body,
+                tombstoned_out=tombstones,
+            )
 
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
         store = await get_memory_store()
         graph = compile_agent_graph(checkpointer=checkpointer, store=store)
+
+        # Edit-and-resend: rebuild the HEAD checkpoint from the post-edit DB
+        # BEFORE assembling model input, so the model never sees the superseded
+        # prompt or its answer. Never rewinds to an earlier checkpoint_id —
+        # that forks the thread while every other writer targets head.
+        if tombstones.any:
+            await resync_thread_checkpoint(
+                graph,
+                thread_id=resolved_thread_id or stream_thread_id,
+                user=current_user,
+            )
 
         messages = None
         if get_settings().AGENT_SERVER_SIDE_HISTORY:

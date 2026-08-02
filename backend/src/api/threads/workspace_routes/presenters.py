@@ -176,7 +176,11 @@ def _thread_to_detail_response(
     messages = []
     if include_messages and thread.messages:
         messages = [
-            _message_to_response(m) for m in thread.messages if not m.is_deleted
+            _message_to_response(m)
+            for m in thread.messages
+            # Edit-and-resend tombstone — twin of the loop in
+            # ``api/threads/threads.py``; keep both in sync.
+            if not m.is_deleted and m.superseded_by_message_id is None
         ]
 
     return ThreadDetailResponse(

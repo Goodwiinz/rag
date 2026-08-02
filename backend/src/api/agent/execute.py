@@ -1020,7 +1020,13 @@ async def get_thread_messages(
         # Default (no params): full history ascending — unchanged behavior.
         messages_stmt = (
             select(ChatMessage)
-            .where(ChatMessage.thread_id == thread_id)
+            .where(
+                ChatMessage.thread_id == thread_id,
+                # Edit-and-resend tombstones: a superseded turn (and everything
+                # after it) must never render, or a reload shows the answer to a
+                # question the user replaced.
+                ChatMessage.superseded_by_message_id.is_(None),
+            )
             .options(selectinload(ChatMessage.citations))
             .order_by(ChatMessage.created_at.asc())
         )
@@ -1032,7 +1038,10 @@ async def get_thread_messages(
         # then reversed to chronological order for the client. Backed by the
         # existing ix_chat_messages_thread_created (thread_id, created_at) index.
         eff_limit = limit or 50
-        page_stmt = select(ChatMessage).where(ChatMessage.thread_id == thread_id)
+        page_stmt = select(ChatMessage).where(
+            ChatMessage.thread_id == thread_id,
+            ChatMessage.superseded_by_message_id.is_(None),
+        )
         if before is not None:
             page_stmt = page_stmt.where(ChatMessage.created_at < before)
         page_stmt = (
@@ -1046,7 +1055,10 @@ async def get_thread_messages(
         total = (
             await db.execute(
                 select(func.count(ChatMessage.id)).where(
-                    ChatMessage.thread_id == thread_id
+                    # Same filters as the page query — a drifted count
+                    # over-reports ``total`` and yields phantom has_more pages.
+                    ChatMessage.thread_id == thread_id,
+                    ChatMessage.superseded_by_message_id.is_(None),
                 )
             )
         ).scalar() or 0

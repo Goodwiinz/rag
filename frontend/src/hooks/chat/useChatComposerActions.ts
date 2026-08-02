@@ -14,7 +14,8 @@ export interface UseChatComposerActionsParams {
   setInput: React.Dispatch<React.SetStateAction<string>>;
   handleSubmit: (
     contentOverride?: string,
-    historyOverride?: ChatPageMessage[]
+    historyOverride?: ChatPageMessage[],
+    supersedesClientMessageId?: string
   ) => Promise<void>;
   isLoading: boolean;
   storeIsStreaming: boolean;
@@ -27,7 +28,10 @@ export interface UseChatComposerActionsReturn {
   /** Edit a prior user message in place and re-send. Truncates the transcript
    * to just before the edited message (dropping its old answer + any
    * local-only error bubbles) and re-submits with the new text — the same
-   * slice-and-resend contract as {@link handleRegenerate}. */
+   * slice-and-resend contract as {@link handleRegenerate}. When the edited turn
+   * carries a persisted `clientMessageId`, that id also rides along as
+   * `supersedes_client_message_id` so the server durably tombstones the old
+   * turn and everything after it. */
   handleEditUserMessage: (
     userMessageIndex: number,
     newContent: string
@@ -142,9 +146,18 @@ export function useChatComposerActions({
       if (!edited || edited.role !== 'user') return;
       const editedHistory = displayedMessages.slice(0, userMessageIndex);
       setInput(content);
+      // Durable edit: name the turn being replaced so the server tombstones it
+      // (and everything after it) instead of only truncating the request
+      // context. Omitted when the edited turn has no persisted
+      // client_message_id — a legacy row or one that never reached the server;
+      // the FE-only truncation is then the same behaviour as before.
+      const supersedes = edited.clientMessageId;
       // Pass content explicitly — setInput only schedules an update, and the
       // deferred handleSubmit would otherwise read the stale input value.
-      setTimeout(() => handleSubmit(content, editedHistory), 0);
+      setTimeout(
+        () => handleSubmit(content, editedHistory, supersedes),
+        0
+      );
     },
     [displayedMessages, handleSubmit, isLoading, storeIsStreaming, setInput]
   );

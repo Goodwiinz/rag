@@ -211,6 +211,7 @@ class ThreadSummarizationService:
             self.db.query(ChatMessage)
             .filter(ChatMessage.thread_id == thread_id)
             .filter(ChatMessage.is_deleted == False)
+            .filter(ChatMessage.superseded_by_message_id.is_(None))
             .order_by(ChatMessage.created_at.asc())
             .all()
         )

@@ -1112,12 +1112,22 @@ class ChatService:
 
         messages = []
         total_tokens = 0
-        all_message_count = len([m for m in thread.messages if not m.is_deleted])
+        all_message_count = len(
+            [
+                m
+                for m in thread.messages
+                if not m.is_deleted and m.superseded_by_message_id is None
+            ]
+        )
         truncated = False
 
         # Get messages in reverse order (newest first) for token limiting
         for msg in reversed(thread.messages):
             if msg.is_deleted:
+                continue
+            # Edit-and-resend tombstone — skip exactly like a soft delete, else
+            # the model context carries the prompt the user replaced.
+            if msg.superseded_by_message_id is not None:
                 continue
 
             # Use accurate token counting
@@ -1207,7 +1217,9 @@ class ChatService:
         thread_count_result = await self.db.execute(thread_count_stmt)
         thread_count = thread_count_result.scalar()
 
-        # Count messages
+        # Count messages. Deliberately NOT filtered on
+        # ``superseded_by_message_id``: this is analytics — an edit-and-resend
+        # tombstones a turn for display, it does not un-happen it.
         msg_count_stmt = (
             select(func.count(ChatMessage.id))
             .join(Thread)

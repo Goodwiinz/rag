@@ -61,6 +61,12 @@ _EXCLUDE_LEGACY_AGENT_THREADS = (
 )
 
 
+# Edit-and-resend tombstones. Search is a display surface: a message the user
+# replaced must not be findable by its old text, and the count twin must carry
+# the identical predicate or `total` over-reports and `has_more` goes phantom.
+_EXCLUDE_SUPERSEDED_MESSAGES = "    AND m.superseded_by_message_id IS NULL"
+
+
 class ThreadSearchSortOrder(str, Enum):
     """Sort order options for thread search"""
 
@@ -546,6 +552,7 @@ class ThreadMessageSearchService:
                         AND t.is_deleted = false
                         AND c.is_deleted = false
                         AND w.is_deleted = false
+                        AND m.superseded_by_message_id IS NULL
                         {message_filters}
                 )
                 SELECT * FROM (
@@ -737,7 +744,7 @@ class ThreadMessageSearchService:
             "    ts_rank_cd(t.search_vector, plainto_tsquery(:query)) * 10 as relevance_score,",
             f"    ts_headline('english', COALESCE(t.title, ''), plainto_tsquery(:query), 'StartSel={self.highlight_pre_tag}, StopSel={self.highlight_post_tag}, MaxWords=50, MinWords=10') as highlighted_title,",
             f"    ts_headline('english', COALESCE(t.summary, ''), plainto_tsquery(:query), 'StartSel={self.highlight_pre_tag}, StopSel={self.highlight_post_tag}, MaxWords={self.snippet_length}, MinWords={self.snippet_surround}') as highlighted_summary,",
-            "    (SELECT COUNT(*) FROM chat_messages cm WHERE cm.thread_id = t.id AND cm.search_vector @@ plainto_tsquery(:query)) as matching_message_count",
+            "    (SELECT COUNT(*) FROM chat_messages cm WHERE cm.thread_id = t.id AND cm.search_vector @@ plainto_tsquery(:query) AND cm.superseded_by_message_id IS NULL) as matching_message_count",
             "FROM threads t",
             "JOIN conversations c ON t.conversation_id = c.id",
             "JOIN workspaces w ON c.workspace_id = w.id",
@@ -748,7 +755,7 @@ class ThreadMessageSearchService:
             "    AND w.is_deleted = false",
             "    AND (",
             "        t.search_vector @@ plainto_tsquery(:query)",
-            "        OR EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.thread_id = t.id AND cm.search_vector @@ plainto_tsquery(:query))",
+            "        OR EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.thread_id = t.id AND cm.search_vector @@ plainto_tsquery(:query) AND cm.superseded_by_message_id IS NULL)",
             "    )",
             _WORKSPACE_ACCESS_PREDICATE,
         ]
@@ -787,7 +794,7 @@ class ThreadMessageSearchService:
             "    AND w.is_deleted = false",
             "    AND (",
             "        t.search_vector @@ plainto_tsquery(:query)",
-            "        OR EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.thread_id = t.id AND cm.search_vector @@ plainto_tsquery(:query))",
+            "        OR EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.thread_id = t.id AND cm.search_vector @@ plainto_tsquery(:query) AND cm.superseded_by_message_id IS NULL)",
             "    )",
             _WORKSPACE_ACCESS_PREDICATE,
         ]
@@ -825,6 +832,9 @@ class ThreadMessageSearchService:
             _EXCLUDE_LEGACY_AGENT_THREADS,
             "    AND c.is_deleted = false",
             "    AND w.is_deleted = false",
+            # Same-filters rule: page and count must move in lockstep, and an
+            # edited-away message must not be findable by its old text.
+            _EXCLUDE_SUPERSEDED_MESSAGES,
             _WORKSPACE_ACCESS_PREDICATE,
         ]
 
@@ -862,6 +872,9 @@ class ThreadMessageSearchService:
             _EXCLUDE_LEGACY_AGENT_THREADS,
             "    AND c.is_deleted = false",
             "    AND w.is_deleted = false",
+            # Same-filters rule: page and count must move in lockstep, and an
+            # edited-away message must not be findable by its old text.
+            _EXCLUDE_SUPERSEDED_MESSAGES,
             _WORKSPACE_ACCESS_PREDICATE,
         ]
 

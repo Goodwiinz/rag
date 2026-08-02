@@ -73,6 +73,9 @@ def last_message_preview_expression() -> Any:
         .where(
             ChatMessage.thread_id == Thread.id,
             ChatMessage.is_deleted == False,  # noqa: E712
+            # Without this the thread list preview keeps showing the stale
+            # content of a turn the user already edited away.
+            ChatMessage.superseded_by_message_id.is_(None),
             ChatMessage.role.in_([MessageRole.USER, MessageRole.ASSISTANT]),
         )
         .order_by(ChatMessage.created_at.desc())
