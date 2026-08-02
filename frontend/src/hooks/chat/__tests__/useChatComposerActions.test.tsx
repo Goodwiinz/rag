@@ -89,7 +89,7 @@ describe('useChatComposerActions', () => {
   });
 
   describe('handleEditUserMessage', () => {
-    function setupFour() {
+    function setupFour(): ReturnType<typeof setup> {
       return setup({
         displayedMessages: [
           makeChatPageMessage({ id: 'u1', role: 'user', content: 'first', timestamp: 1 }),

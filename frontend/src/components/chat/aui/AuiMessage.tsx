@@ -1,6 +1,15 @@
 'use client';
 
-import React, { useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import {
   ActionBarPrimitive,
   ErrorPrimitive,
@@ -46,7 +55,7 @@ export type OnCitationClick = (
   traceId?: string
 ) => void;
 
-function TextPart({ className }: { className?: string }) {
+function TextPart({ className }: { className?: string }): ReactElement {
   return (
     <p
       className={cn(
@@ -65,13 +74,13 @@ function TextPart({ className }: { className?: string }) {
   );
 }
 
-function ImagePart() {
+function ImagePart(): ReactElement {
   return (
     <MessagePartPrimitive.Image className="max-h-72 max-w-full rounded-xl border border-(--nous-border-1) object-contain" />
   );
 }
 
-function FilePart({ filename }: { filename?: string }) {
+function FilePart({ filename }: { filename?: string }): ReactElement {
   return (
     <div className="inline-flex max-w-full items-center gap-2 rounded-lg border border-(--nous-border-1) bg-(--nous-bg-2) px-3 py-2 text-sm text-(--nous-fg-1)">
       <FileText className="h-4 w-4 shrink-0 text-(--nous-fg-3)" />
@@ -89,7 +98,7 @@ function MessageParts({
    * used to route committed content through CitationRenderer (markdown +
    * clickable inline citations) instead of raw MessagePartPrimitive.Text. */
   assistantText?: ReactNode;
-}) {
+}): ReactElement {
   return (
     <MessagePrimitive.Parts>
       {({ part }) => {
@@ -117,7 +126,7 @@ function MessageParts({
   );
 }
 
-function AttachmentBadge({ type }: { type: string }) {
+function AttachmentBadge({ type }: { type: string }): ReactElement {
   if (type === 'image') {
     return <ImageIcon className="h-3.5 w-3.5 text-(--nous-fg-3)" />;
   }
@@ -129,7 +138,7 @@ function AttachmentBadge({ type }: { type: string }) {
   );
 }
 
-function MessageAttachments() {
+function MessageAttachments(): ReactElement {
   return (
     <MessagePrimitive.Attachments>
       {({ attachment }) => {
@@ -158,7 +167,7 @@ function MessageAttachments() {
   );
 }
 
-function MessageError() {
+function MessageError(): ReactElement {
   return (
     <MessagePrimitive.Error>
       <ErrorPrimitive.Root
@@ -175,12 +184,15 @@ function MessageActions({
   assistant,
   onRetry,
   onEdit,
+  editButtonRef,
 }: {
   assistant?: boolean;
   onRetry?: () => void;
   /** Enter edit-and-resend mode for a user message (user messages only). */
   onEdit?: () => void;
-}) {
+  /** Focus target the inline editor returns to on cancel/save. */
+  editButtonRef?: React.Ref<HTMLButtonElement>;
+}): ReactElement {
   return (
     <ActionBarPrimitive.Root
       data-slot="aui-message-actions"
@@ -200,6 +212,7 @@ function MessageActions({
       {!assistant && onEdit ? (
         <button
           type="button"
+          ref={editButtonRef}
           onClick={onEdit}
           className="nous-msg-action"
           aria-label="Edit and resend"
@@ -231,9 +244,13 @@ function MessageActions({
   );
 }
 
+export const EDIT_UNAVAILABLE_REASON =
+  'Wait for the current response to finish';
+
 export function AuiUserMessage({
   message,
   onEdit,
+  editDisabled = false,
 }: {
   /** Source ChatPageMessage — needed to seed the editor with the original
    * text and to gate the edit affordance off while a turn is streaming. */
@@ -241,23 +258,54 @@ export function AuiUserMessage({
   /** Edit-and-resend handler. When omitted (e.g. plain AuiMessages usage) the
    * edit affordance is hidden. */
   onEdit?: (newContent: string) => void;
+  /** True while the session cannot accept a resend (a turn is in flight).
+   * The editor stays OPEN and disables Save rather than closing on a save the
+   * caller would silently drop — the draft must never vanish without a word. */
+  editDisabled?: boolean;
 }): ReactElement {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const wasEditingRef = useRef(false);
+  // Set by saveEdit so the focus-restore effect can tell a SAVE exit from a
+  // cancel/Escape exit — the two need different landing targets (below).
+  const savedRef = useRef(false);
 
   const canEdit =
     !!onEdit && !!message?.content && !message?.isStreaming && !editing;
 
-  const startEdit = () => {
+  const canSubmitEdit = !editDisabled && !!draft.trim();
+
+  // Leaving edit mode unmounts the focused textarea; without this, focus drops
+  // to <body> (Escape/cancel/save) and keyboard users lose their place.
+  // On cancel/Escape the edit trigger is the precise target and it stays
+  // mounted. On SAVE the resend starts immediately and the action bar hides
+  // its buttons while the turn runs, so focusing the trigger is transient —
+  // it unmounts a frame later and focus falls to <body> anyway. The message
+  // container (tabIndex -1) persists across the resend, so save lands there.
+  useEffect(() => {
+    if (wasEditingRef.current && !editing) {
+      const target = savedRef.current
+        ? (containerRef.current ?? editButtonRef.current)
+        : (editButtonRef.current ?? containerRef.current);
+      target?.focus();
+      savedRef.current = false;
+    }
+    wasEditingRef.current = editing;
+  }, [editing]);
+
+  const startEdit = (): void => {
     setDraft(message?.content ?? '');
     setEditing(true);
   };
 
-  const cancelEdit = () => setEditing(false);
+  const cancelEdit = (): void => setEditing(false);
 
-  const saveEdit = () => {
+  const saveEdit = (): void => {
     const next = draft.trim();
-    if (!next) return;
+    if (!next || editDisabled) return;
+    savedRef.current = true;
     setEditing(false);
     onEdit?.(next);
   };
@@ -267,14 +315,21 @@ export function AuiUserMessage({
       data-role="user"
       className="group relative mb-7 flex justify-end sm:mb-8"
     >
-      <div className="min-w-0 text-right">
+      <div className="min-w-0 text-right" ref={containerRef} tabIndex={-1}>
         {editing ? (
           <div className="nous-bubble-user relative inline-block w-full max-w-[92%] px-4 py-2.5 text-left sm:max-w-[540px]">
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                // isComposing guards IME input (Japanese/Chinese/Korean):
+                // Enter confirms a candidate rather than submitting, and
+                // preventDefault would break the composition itself.
+                if (
+                  e.key === 'Enter' &&
+                  !e.shiftKey &&
+                  !e.nativeEvent.isComposing
+                ) {
                   e.preventDefault();
                   saveEdit();
                 } else if (e.key === 'Escape') {
@@ -287,6 +342,15 @@ export function AuiUserMessage({
               autoFocus
               className="w-full resize-none rounded-md border border-(--nous-border-1) bg-(--nous-bg-1) px-2 py-1 text-[14px] leading-relaxed text-(--nous-fg-1) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
             />
+            {editDisabled ? (
+              <p
+                role="note"
+                className="mt-1.5 text-[11px] text-(--nous-fg-3)"
+                data-testid="edit-unavailable-reason"
+              >
+                {EDIT_UNAVAILABLE_REASON}
+              </p>
+            ) : null}
             <div className="mt-2 flex justify-end gap-2">
               <button
                 type="button"
@@ -299,7 +363,9 @@ export function AuiUserMessage({
               <button
                 type="button"
                 onClick={saveEdit}
-                disabled={!draft.trim()}
+                disabled={!canSubmitEdit}
+                aria-disabled={!canSubmitEdit}
+                title={editDisabled ? EDIT_UNAVAILABLE_REASON : undefined}
                 className="inline-flex items-center gap-1 rounded-md bg-(--nous-sol) px-2.5 py-1 text-[11px] font-semibold text-(--nous-erebus) hover:opacity-90 disabled:opacity-50"
               >
                 <Check className="h-3 w-3" />
@@ -316,7 +382,10 @@ export function AuiUserMessage({
               </div>
               <MessageError />
             </div>
-            <MessageActions onEdit={canEdit ? startEdit : undefined} />
+            <MessageActions
+              onEdit={canEdit ? startEdit : undefined}
+              editButtonRef={editButtonRef}
+            />
           </>
         )}
       </div>
@@ -647,11 +716,57 @@ export class MessageByIndexBoundary extends React.Component<
   }
 }
 
+/** Per-row bindings for the runtime-rendered message components. The
+ * components themselves are module-level (stable identity — see
+ * {@link BOUND_MESSAGE_COMPONENTS}); the row's data reaches them through this
+ * context instead of through closures baked into freshly-created functions. */
+interface BoundMessageContextValue {
+  message?: ChatPageMessage;
+  onRetry?: () => void;
+  onEdit?: (newContent: string) => void;
+  editDisabled?: boolean;
+  onCitationClick?: OnCitationClick;
+}
+
+const BoundMessageContext = createContext<BoundMessageContextValue>({});
+
+function BoundUserMessage(): ReactElement {
+  const { message, onEdit, editDisabled } = useContext(BoundMessageContext);
+  return (
+    <AuiUserMessage
+      message={message}
+      onEdit={message?.role === 'user' ? onEdit : undefined}
+      editDisabled={editDisabled}
+    />
+  );
+}
+
+function BoundAssistantMessage(): ReactElement {
+  const { message, onRetry, onCitationClick } = useContext(BoundMessageContext);
+  return (
+    <AuiAssistantMessage
+      message={message}
+      onRetry={onRetry}
+      onCitationClick={onCitationClick}
+    />
+  );
+}
+
+// Module-level and frozen: a components map rebuilt per render (or per
+// message/handler change) hands React a NEW component type, which unmounts and
+// remounts the whole message subtree — resetting action-bar state, re-parsing
+// markdown, and discarding an in-progress inline edit draft.
+const BOUND_MESSAGE_COMPONENTS = {
+  UserMessage: BoundUserMessage,
+  AssistantMessage: BoundAssistantMessage,
+} as const;
+
 export function AuiMessageByIndex({
   index,
   message,
   onRetry,
   onEdit,
+  editDisabled,
   onCitationClick,
 }: {
   index: number;
@@ -661,6 +776,8 @@ export function AuiMessageByIndex({
   onRetry?: () => void;
   /** Edit-and-resend handler for user messages at this index. */
   onEdit?: (newContent: string) => void;
+  /** True while a resend cannot be accepted (a turn is in flight). */
+  editDisabled?: boolean;
   onCitationClick?: OnCitationClick;
 }): ReactElement | null {
   // The external-store runtime syncs in a useEffect (post-commit), so on
@@ -670,31 +787,12 @@ export function AuiMessageByIndex({
   // frame; the effect fires immediately after commit and re-renders us.
   const runtimeMessageCount = useThread((t) => t.messages.length);
 
-  // Memoize the components map: a fresh AssistantMessage function identity
-  // per render would make React treat it as a new component type and
-  // unmount/remount the whole assistant subtree (resetting action-bar and
-  // tool-card state, re-parsing markdown) instead of updating it.
-  const components = useMemo(
-    () => ({
-      UserMessage: function BoundUserMessage(): ReactElement {
-        return (
-          <AuiUserMessage
-            message={message}
-            onEdit={message?.role === 'user' ? onEdit : undefined}
-          />
-        );
-      },
-      AssistantMessage: function BoundAssistantMessage(): ReactElement {
-        return (
-          <AuiAssistantMessage
-            message={message}
-            onRetry={onRetry}
-            onCitationClick={onCitationClick}
-          />
-        );
-      },
-    }),
-    [message, onRetry, onEdit, onCitationClick]
+  // The components map is module-level (stable identity); only the row's DATA
+  // changes, and it travels by context so a message refresh re-renders the
+  // subtree instead of remounting it.
+  const bindings = useMemo<BoundMessageContextValue>(
+    () => ({ message, onRetry, onEdit, editDisabled, onCitationClick }),
+    [message, onRetry, onEdit, editDisabled, onCitationClick]
   );
 
   if (index >= runtimeMessageCount) return null;
@@ -705,7 +803,12 @@ export function AuiMessageByIndex({
     <MessageByIndexBoundary
       resetKey={`${runtimeMessageCount}:${message?.runtimeId ?? index}`}
     >
-      <ThreadPrimitive.MessageByIndex index={index} components={components} />
+      <BoundMessageContext.Provider value={bindings}>
+        <ThreadPrimitive.MessageByIndex
+          index={index}
+          components={BOUND_MESSAGE_COMPONENTS}
+        />
+      </BoundMessageContext.Provider>
     </MessageByIndexBoundary>
   );
 }

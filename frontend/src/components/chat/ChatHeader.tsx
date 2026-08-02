@@ -22,6 +22,9 @@ import toast from 'react-hot-toast';
 import { memo, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
+export const EXPORT_BLOCKED_REASON =
+  'Export is available when the response finishes';
+
 interface ExportableMessage {
   role: string;
   content: string;
@@ -35,6 +38,10 @@ interface ChatHeaderProps {
    * thread-export endpoint (with citations + provenance). Absent for a brand-
    * new chat, where the local in-memory fallback is used instead. */
   threadId?: string | null;
+  /** True while a response is streaming into this thread. The backend export
+   * serves a persisted snapshot that cannot contain the in-flight turn, so the
+   * export actions are disabled rather than silently omitting it. */
+  isStreaming?: boolean;
   onCopyAll?: () => void;
   onMobileSidebarToggle?: () => void;
 }
@@ -43,6 +50,7 @@ export const ChatHeader = memo(function ChatHeader({
   messages = [],
   chatTitle = 'Chat',
   threadId,
+  isStreaming = false,
   onCopyAll,
   onMobileSidebarToggle,
 }: ChatHeaderProps) {
@@ -52,7 +60,7 @@ export const ChatHeader = memo(function ChatHeader({
 
   useEffect(() => {
     if (!exportOpen) return;
-    const handler = (e: MouseEvent) => {
+    const handler = (e: MouseEvent): void => {
       if (!exportRef.current?.contains(e.target as Node)) {
         setExportOpen(false);
       }
@@ -67,8 +75,9 @@ export const ChatHeader = memo(function ChatHeader({
   // citations, tool executions, token usage and provenance the local
   // serializer drops. The endpoint is POST with format/options as Query params.
   // For a new chat with no thread yet, fall back to the local in-memory export.
-  const runExport = async (format: ExportFormat) => {
+  const runExport = async (format: ExportFormat): Promise<void> => {
     setExportOpen(false);
+    if (isStreaming) return;
     if (threadId) {
       setIsExporting(true);
       try {
@@ -149,10 +158,17 @@ export const ChatHeader = memo(function ChatHeader({
                 )
               }
               className="p-1.5 text-(--nous-fg-3) hover:text-(--nous-fg-1) hover:bg-(--nous-sol)/8 rounded-lg transition-colors"
+              disabled={isStreaming}
+              aria-disabled={isStreaming}
+              title={isStreaming ? EXPORT_BLOCKED_REASON : undefined}
               onClick={() => setExportOpen((v) => !v)}
             />
             <span className="sr-only" role="status" aria-live="polite">
-              {isExporting ? 'Preparing export…' : ''}
+              {isStreaming
+                ? EXPORT_BLOCKED_REASON
+                : isExporting
+                  ? 'Preparing export…'
+                  : ''}
             </span>
             <AnimatePresence>
               {exportOpen && (
@@ -166,7 +182,9 @@ export const ChatHeader = memo(function ChatHeader({
                 >
                   <button
                     onClick={() => runExport('markdown')}
-                    disabled={isExporting}
+                    disabled={isExporting || isStreaming}
+                    aria-disabled={isExporting || isStreaming}
+                    title={isStreaming ? EXPORT_BLOCKED_REASON : undefined}
                     className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-(--nous-fg-2) hover:bg-(--nous-sol)/8 hover:text-(--nous-fg-1) focus-visible:bg-(--nous-sol)/8 focus-visible:outline-hidden rounded-lg transition-colors disabled:opacity-50"
                   >
                     <FileText className="w-3.5 h-3.5 text-(--nous-fg-3)" />
@@ -174,7 +192,9 @@ export const ChatHeader = memo(function ChatHeader({
                   </button>
                   <button
                     onClick={() => runExport('pdf')}
-                    disabled={isExporting || !threadId}
+                    disabled={isExporting || isStreaming || !threadId}
+                    aria-disabled={isExporting || isStreaming || !threadId}
+                    title={isStreaming ? EXPORT_BLOCKED_REASON : undefined}
                     className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-(--nous-fg-2) hover:bg-(--nous-sol)/8 hover:text-(--nous-fg-1) focus-visible:bg-(--nous-sol)/8 focus-visible:outline-hidden rounded-lg transition-colors disabled:opacity-50"
                   >
                     <FileText className="w-3.5 h-3.5 text-(--nous-fg-3)" />
@@ -182,7 +202,9 @@ export const ChatHeader = memo(function ChatHeader({
                   </button>
                   <button
                     onClick={() => runExport('json')}
-                    disabled={isExporting}
+                    disabled={isExporting || isStreaming}
+                    aria-disabled={isExporting || isStreaming}
+                    title={isStreaming ? EXPORT_BLOCKED_REASON : undefined}
                     className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-(--nous-fg-2) hover:bg-(--nous-sol)/8 hover:text-(--nous-fg-1) focus-visible:bg-(--nous-sol)/8 focus-visible:outline-hidden rounded-lg transition-colors disabled:opacity-50"
                   >
                     <FileJson className="w-3.5 h-3.5 text-(--nous-fg-3)" />
