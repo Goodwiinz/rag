@@ -215,8 +215,14 @@ class AgentPlan(BaseModel):
 
 
 def _build_planner_llm(max_tokens: int = 2048):
-    """Build a lightweight LLM for planner structured-output calls."""
-    return build_lightweight_llm(max_tokens=max_tokens)
+    """Build a lightweight LLM for planner structured-output calls.
+
+    tool_calling=True because the plan is extracted via
+    ``with_structured_output(AgentPlan, method="function_calling")`` — that
+    ships a real function tool, which Azure will not accept alongside
+    reasoning_effort.
+    """
+    return build_lightweight_llm(max_tokens=max_tokens, tool_calling=True)
 
 
 # ---------------------------------------------------------------------------

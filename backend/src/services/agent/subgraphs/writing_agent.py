@@ -137,7 +137,7 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     if use_synthesis:
         from src.services.agent.llm_factory import build_synthesis_llm
 
-        llm = build_synthesis_llm(max_tokens=4096)
+        llm = build_synthesis_llm(max_tokens=4096, tool_calling=True)
         logger.debug("writing_llm_node: using synthesis model after ToolMessage")
     else:
         # Tool-decision turn runs on the main deployment — see the note in
@@ -146,6 +146,9 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         # are destructive, so a wrong call costs a confirmation round trip.
         llm = _build_llm(model_override=state.get("model") or None)
         logger.debug("writing_llm_node: using main model for tool decision")
+    from src.services.agent._nodes_llm import (
+        normalize_ai_content as _normalize_ai_content,
+    )
     from src.services.agent._nodes_llm import tools_for_runtime_snapshot
 
     bound_tools = (
@@ -168,6 +171,7 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
             llm_with_tools.ainvoke(messages, config=invoke_config),
             timeout=AGENT_LLM_TIMEOUT_SECONDS,
         )
+        response = _normalize_ai_content(response)
     except asyncio.TimeoutError:
         logger.warning(
             "writing_llm_node: LLM exceeded %ds; emitting fallback",

@@ -192,21 +192,62 @@ def _build_chat_llm(
     )
 
 
+def _reasoning_effort_for(configured: str | None, *, tool_calling: bool) -> str | None:
+    """Resolve ``reasoning_effort``, dropping it on tool-calling turns.
+
+    Azure rejects the combination on Chat Completions:
+
+        400 "Function tools with reasoning_effort are not supported for this
+             model in /v1/chat/completions. Please use /v1/responses instead."
+
+    This guards the **Chat Completions** path, which is what we send today.
+    ``_build_llm`` in graph.py dropped the kwarg outright for the same reason
+    (#1334); this covers the auxiliary builders, whose results also reach
+    ``bind_tools`` / ``with_structured_output(method="function_calling")``.
+
+    The Responses API *is* an escape, contrary to what #1334 assumed. Measured
+    2026-08-03 against gpt-5.6-luna: with ``api_version="2025-04-01-preview"``
+    (the configured ``2024-12-01-preview`` is too old and 400s with "Responses
+    API is enabled only for api-version…"), ``use_responses_api=True`` accepts
+    tools plus ``reasoning_effort`` all the way to ``max``, including a full
+    HumanMessage/AIMessage-with-tool_calls/ToolMessage history. The
+    "Unsupported data type" failure that pinned ``use_responses_api=False`` was
+    the stale api-version, not the message shape.
+
+    Switching is still not a flag flip: on the Responses path ``content`` comes
+    back as typed blocks (``[{"type": "text", ...}]``, plus ``rs_…`` reasoning
+    items at xhigh/max) where the streaming and persistence layers expect a
+    string. Bumping the api-version and flipping the flag is the real fix for
+    keeping reasoning on tool-calling turns — tracked separately.
+
+    ponytail: a flag rather than sniffing the model — "which models allow it"
+    is Azure-side state we cannot read. If we move to Responses, delete this
+    function and pass ``configured`` straight through.
+    """
+    return None if tool_calling else (configured or None)
+
+
 def build_lightweight_llm(
     *,
     temperature: float = 0,
     max_tokens: int = 512,
     request_timeout: float | None = None,
     use_responses_api: bool | None = None,
+    tool_calling: bool = False,
 ) -> BaseChatModel:
     """Build a LangChain chat model for lightweight auxiliary tasks.
 
     Targets the deployment configured via
     ``AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT``, falling back to the main chat
-    deployment. Used by classifier, planner complexity check, reflection,
-    compactor — never a tool-calling turn.
+    deployment.
+
+    Most callers here (classifier, reflection, compactor, memory insights) send
+    no function tools. The ones that do — anything reaching ``bind_tools`` or
+    ``with_structured_output(..., method="function_calling")`` — must pass
+    ``tool_calling=True`` so ``reasoning_effort`` is dropped; see
+    ``_reasoning_effort_for``.
     """
-    key = (temperature, max_tokens, request_timeout, use_responses_api)
+    key = (temperature, max_tokens, request_timeout, use_responses_api, tool_calling)
     cached = _LIGHTWEIGHT_LLM_CACHE.get(key)
     if cached is not None:
         return cached
@@ -219,7 +260,9 @@ def build_lightweight_llm(
         streaming=False,
         request_timeout=request_timeout,
         use_responses_api=use_responses_api,
-        reasoning_effort=settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT or None,
+        reasoning_effort=_reasoning_effort_for(
+            settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT, tool_calling=tool_calling
+        ),
     )
     _LIGHTWEIGHT_LLM_CACHE[key] = llm
     return llm
@@ -231,6 +274,7 @@ def build_synthesis_llm(
     max_tokens: int = 4096,
     request_timeout: float | None = None,
     use_responses_api: bool | None = None,
+    tool_calling: bool = False,
 ) -> BaseChatModel:
     """Build a LangChain chat model for post-tool prose synthesis.
 
@@ -240,7 +284,7 @@ def build_synthesis_llm(
     runs one deployment everywhere. Set it only to make prose cheaper than
     the tool-decision path — not the other way round.
     """
-    key = (temperature, max_tokens, request_timeout, use_responses_api)
+    key = (temperature, max_tokens, request_timeout, use_responses_api, tool_calling)
     cached = _SYNTHESIS_LLM_CACHE.get(key)
     if cached is not None:
         return cached
@@ -261,14 +305,20 @@ def build_synthesis_llm(
         request_timeout=resolved_timeout,
         use_responses_api=use_responses_api,
         # Shares AGENT_LIGHTWEIGHT_REASONING_EFFORT ("minimal") with the
-        # lightweight tier on purpose. That coupling used to be a defect —
-        # it set the effort for tool-calling turns too — but tool decisions
-        # now run on the main deployment, so every caller left here is prose
-        # or a short classification, and "minimal" is the right setting for
-        # them. Add AGENT_SYNTHESIS_REASONING_EFFORT only if synthesis
-        # quality measurably regresses; a knob for a value that should not
-        # vary is debt.
-        reasoning_effort=settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT or None,
+        # lightweight tier on purpose: every caller here is prose or a short
+        # classification, and "minimal" is the right setting for them. Add
+        # AGENT_SYNTHESIS_REASONING_EFFORT only if synthesis quality
+        # measurably regresses; a knob for a value that should not vary is
+        # debt.
+        #
+        # Not every caller is prose-only, though: the post-tool synthesis
+        # turns in llm_node and the three subgraphs bind the intent's tool
+        # set to this model so the loop can still take another step. Those
+        # pass tool_calling=True and give up the effort setting — Azure
+        # rejects tools + reasoning_effort. See _reasoning_effort_for.
+        reasoning_effort=_reasoning_effort_for(
+            settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT, tool_calling=tool_calling
+        ),
     )
     _SYNTHESIS_LLM_CACHE[key] = llm
     return llm
