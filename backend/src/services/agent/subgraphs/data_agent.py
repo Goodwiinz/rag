@@ -111,6 +111,9 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         # shape small tiers degrade on.
         llm = _build_llm(model_override=state.get("model") or None)
         logger.debug("data_llm_node: using main model for tool decision")
+    from src.services.agent._nodes_llm import (
+        normalize_ai_content as _normalize_ai_content,
+    )
     from src.services.agent._nodes_llm import tools_for_runtime_snapshot
 
     llm_with_tools = llm.bind_tools(
@@ -128,6 +131,7 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
             llm_with_tools.ainvoke(messages, config=invoke_config),
             timeout=AGENT_LLM_TIMEOUT_SECONDS,
         )
+        response = _normalize_ai_content(response)
     except asyncio.TimeoutError:
         logger.warning(
             "data_llm_node: LLM exceeded %ds; emitting fallback",

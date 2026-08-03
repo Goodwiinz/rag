@@ -1292,11 +1292,15 @@ async def stream_event_generator(
                             if not _is_user_facing_token_event(event):
                                 continue
                             chunk = event.get("data", {}).get("chunk")
-                            if chunk and hasattr(chunk, "content") and chunk.content:
+                            # _chunk_text, not chunk.content: on the Responses
+                            # API content is a list of typed blocks, and the
+                            # reasoning ones must not reach the wire.
+                            chunk_text = _chunk_text(chunk) if chunk else ""
+                            if chunk_text:
                                 streamed_token = True
-                                streamed_parts.append(chunk.content)
+                                streamed_parts.append(chunk_text)
                                 frame = await emitter.emit(
-                                    AgentStreamEvent.TOKEN, {"content": chunk.content}
+                                    AgentStreamEvent.TOKEN, {"content": chunk_text}
                                 )
                                 if not client_disconnected:
                                     yield frame
@@ -1475,7 +1479,7 @@ async def stream_event_generator(
             assistant_content = ""
             for msg in reversed(final_values.get("messages", [])):
                 if hasattr(msg, "type") and msg.type == "ai" and msg.content:
-                    assistant_content = msg.content
+                    assistant_content = _chunk_text(msg)
                     break
 
             # Surface a final answer that was produced WITHOUT streaming — the
@@ -2059,10 +2063,13 @@ async def stream_confirm_event_generator(
                     if not _is_user_facing_token_event(event):
                         continue
                     chunk = event.get("data", {}).get("chunk")
-                    if chunk and hasattr(chunk, "content") and chunk.content:
-                        streamed_parts.append(chunk.content)
+                    # See the note on the main stream: Responses-API chunks
+                    # carry typed blocks, not a bare string.
+                    chunk_text = _chunk_text(chunk) if chunk else ""
+                    if chunk_text:
+                        streamed_parts.append(chunk_text)
                         frame = await emitter.emit(
-                            AgentStreamEvent.TOKEN, {"content": chunk.content}
+                            AgentStreamEvent.TOKEN, {"content": chunk_text}
                         )
                         if not client_disconnected:
                             yield frame
@@ -2190,7 +2197,7 @@ async def stream_confirm_event_generator(
         assistant_content = ""
         for msg in reversed(final_values.get("messages", [])):
             if hasattr(msg, "type") and msg.type == "ai" and msg.content:
-                assistant_content = msg.content
+                assistant_content = _chunk_text(msg)
                 break
 
         # Persist ONLY the assistant row for the resumed turn. The user row

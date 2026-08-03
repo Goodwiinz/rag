@@ -47,6 +47,39 @@ from src.services.agent.tools import ALL_TOOLS, TOOL_REGISTRY
 logger = logging.getLogger(__name__)
 
 
+def normalize_ai_content(response: AIMessage) -> AIMessage:
+    """Collapse Responses-API typed content blocks into a plain string.
+
+    Chat Completions returns ``content`` as ``str``. The Responses API returns
+    a list of typed blocks — ``{"type": "text", ...}`` plus ``reasoning`` /
+    ``function_call`` items — and roughly forty call sites downstream (the
+    reflection gate, the iteration ledger, memory extraction, persistence, the
+    SSE emitter) index, slice or ``.lower()`` that value expecting a string.
+
+    Normalising here, at the one boundary where a model reply enters graph
+    state, keeps every one of those sites unchanged. Reasoning blocks are
+    dropped rather than surfaced: they are not user-facing, and a round-trip
+    test against gpt-5.6-luna confirmed the model does not need them echoed
+    back to continue a tool loop — a collapsed history is accepted exactly
+    like a preserved one.
+
+    ``tool_calls`` are carried across untouched; they live on the message, not
+    in ``content``.
+    """
+    content = response.content
+    if isinstance(content, str):
+        return response
+    if not isinstance(content, list):
+        return response.model_copy(update={"content": str(content or "")})
+
+    text = "".join(
+        str(block.get("text", ""))
+        for block in content
+        if isinstance(block, dict) and block.get("type") == "text"
+    )
+    return response.model_copy(update={"content": text})
+
+
 def tools_for_runtime_snapshot(base_tools: list, state: AgentState) -> list:
     """Append the hidden loader only for a durable, non-empty frozen catalog."""
     settings = get_settings()
@@ -395,6 +428,7 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
             llm_with_tools.ainvoke(messages, config=invoke_config),
             timeout=AGENT_LLM_TIMEOUT_SECONDS,
         )
+        response = normalize_ai_content(response)
     except asyncio.TimeoutError:
         logger.warning(
             "llm_node: LLM exceeded %ds (intent=%s); emitting fallback",
@@ -475,6 +509,7 @@ async def force_synthesis_node(state: AgentState, config: RunnableConfig) -> dic
             llm.ainvoke(full, config=invoke_config),
             timeout=AGENT_LLM_TIMEOUT_SECONDS,
         )
+        response = normalize_ai_content(response)
     except asyncio.TimeoutError:
         logger.warning(
             "force_synthesis_node: LLM exceeded %ds; emitting fallback",
