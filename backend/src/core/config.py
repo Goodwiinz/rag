@@ -463,12 +463,30 @@ class Settings(BaseSettings):
     # Accepted values: "minimal" | "low" | "medium" | "high"
     # Defaults tuned for fast responses; raise to "medium" for tougher tasks.
     #
-    # INERT: _build_llm no longer forwards this. Azure rejects
-    # reasoning_effort alongside function tools on /v1/chat/completions, and
-    # every _build_llm consumer binds tools. Kept as a settings field so
-    # existing env/Infisical values don't break startup, and so the knob is
-    # here to re-wire if Azure lifts the restriction. See graph.py _build_llm.
+    # Forwarded ONLY when AGENT_USE_RESPONSES_API is on. On Chat Completions
+    # Azure rejects reasoning_effort alongside function tools, and every
+    # _build_llm consumer binds tools, so the kwarg is dropped there (#1334).
+    # See graph.py _build_llm.
     AGENT_MAIN_REASONING_EFFORT: str = "low"
+
+    # Route the main tool-calling deployment through the Azure Responses API
+    # (/v1/responses) instead of Chat Completions.
+    #
+    # This is the only way to keep reasoning_effort on tool-calling turns —
+    # the capability #1334 had to give up. Measured 2026-08-03 against
+    # gpt-5.6-luna: tools + reasoning_effort up to "max" are accepted over a
+    # full Human/AI-with-tool_calls/Tool history.
+    #
+    # OFF by default because it has a hard prerequisite: the deployment's
+    # AZURE_OPENAI_CHAT_API_VERSION must be >= 2025-04-01-preview. Older
+    # versions 400 with "Azure OpenAI Responses API is enabled only for
+    # api-version...". rag-dev is pinned at 2024-12-01-preview as of this
+    # writing, so enabling this without bumping the secret breaks every turn.
+    #
+    # Responses returns content as typed blocks rather than a string; that is
+    # normalised at the node boundary by _nodes_llm.normalize_ai_content, so
+    # nothing downstream of the LLM nodes needs to know which API was used.
+    AGENT_USE_RESPONSES_API: bool = False
     # Governs classify / plan / reflect / compact / synthesis. Callers that
     # send function tools pass tool_calling=True and drop it entirely — see
     # llm_factory._reasoning_effort_for.

@@ -199,6 +199,9 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         llm = _build_llm(model_override=state.get("model") or None)
         logger.debug("research_llm_node: using main model for tool decision")
     # See graph.llm_node for rationale on parallel_tool_calls=False.
+    from src.services.agent._nodes_llm import (
+        normalize_ai_content as _normalize_ai_content,
+    )
     from src.services.agent._nodes_llm import tools_for_runtime_snapshot
 
     llm_with_tools = llm.bind_tools(
@@ -216,6 +219,7 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
             llm_with_tools.ainvoke(messages, config=invoke_config),
             timeout=AGENT_LLM_TIMEOUT_SECONDS,
         )
+        response = _normalize_ai_content(response)
     except asyncio.TimeoutError:
         logger.warning(
             "research_llm_node: LLM exceeded %ds; emitting fallback",
