@@ -50,7 +50,7 @@ def build(
         graph_module._LLM_CACHE.clear()
         with patch.dict("sys.modules", {"langchain_openai": module}):
             graph_module._build_llm()
-        return module.AzureChatOpenAI.call_args.kwargs
+        return dict(module.AzureChatOpenAI.call_args.kwargs)
 
     yield _run
     graph_module._LLM_CACHE.clear()
