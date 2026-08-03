@@ -7,7 +7,9 @@ from src.services.core.cache import cache_get
 
 
 @pytest.mark.asyncio
-async def test_cache_get_degrades_to_a_warning_with_exception_context(caplog) -> None:
+async def test_cache_get_degrades_to_a_warning_with_exception_context(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     client = AsyncMock()
     client.get.side_effect = ConnectionError("connection lost")
 
