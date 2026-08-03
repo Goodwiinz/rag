@@ -262,6 +262,12 @@ export function useChatSession(): UseChatSessionReturn {
   useEffect(() => {
     if (!activeThreadId || !activeThreadMessages?.length) return;
     const latest = activeThreadMessages[activeThreadMessages.length - 1];
+    // This write has to *persist* after the active thread changes: thread A must
+    // keep showing its latest message in the sidebar once you switch to B.
+    // Deriving it with useMemo only knows about the thread currently loaded, so
+    // A reverts to a stale DB preview. Real fix is dropping the local
+    // `conversations` mirror and making the Zustand store its sole owner.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
     setConversations((prev) =>
       prev.map((conversation) =>
         conversation.id === activeThreadId
@@ -785,6 +791,13 @@ export function useChatSession(): UseChatSessionReturn {
         parkedMessagesRef.current.set(outgoingThreadId, messagesRef.current);
       }
       localMessagesThreadIdRef.current = null;
+      // The reset is paired with the ref mutations above (parking the outgoing
+      // overlay), so it cannot move to render without reintroducing the
+      // render-phase ref writes this PR just removed. Moving it to event
+      // handlers would mean enumerating every path that changes activeThreadId —
+      // the fragility behind the #1121 regressions. Real fix is the same as
+      // above: drop the local `messages` mirror.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
       setMessages([]);
       return;
     }
