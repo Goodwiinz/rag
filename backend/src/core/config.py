@@ -473,19 +473,29 @@ class Settings(BaseSettings):
     # send function tools pass tool_calling=True and drop it entirely — see
     # llm_factory._reasoning_effort_for.
     #
-    # "minimal" is NOT universally supported. Measured against the rag-dev
-    # deployments (2026-08-03, api-version 2024-12-01-preview):
+    # "minimal" is NOT universally supported, and the rule is by model
+    # generation, not by deployment. Per Azure's reasoning-models doc:
+    #
+    #   "minimal is only supported with the original GPT-5 reasoning models.
+    #    minimal isn't supported with gpt-5.1 or greater."
+    #   https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/reasoning
+    #
+    # Confirmed against the rag-dev deployments (2026-08-03):
     #
     #   gpt-5-nano / gpt-5-mini   none | minimal | low | medium | high
-    #   gpt-5.6-luna              none |           low | medium | high
+    #   gpt-5.6-luna              none |           low | medium | high | xhigh
     #       -> 400 "Unsupported value: 'reasoning_effort' does not support
     #          'minimal' with this model."
     #
-    # This matters because _resolve_lightweight_deployment() falls back to the
-    # main chat deployment when AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT is unset.
-    # On a luna-only setup that fallback makes this default fatal on every
-    # classifier turn — set it to "none" there. "none" is the only value all
-    # three deployments accept.
+    # So this default is a migration hazard twice over: it breaks on any
+    # gpt-5.1+ deployment, and _resolve_lightweight_deployment() falls back to
+    # the MAIN chat deployment when AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT is
+    # unset. On a gpt-5.6-only setup that fallback is fatal on every classifier
+    # turn. "none" is the value to use there — the only one measured working
+    # across all three deployments.
+    #
+    # Related: Azure documents that parallel tool calls are unsupported when
+    # reasoning_effort is "minimal", which AGENT_PARALLEL_TOOL_CALLS assumes.
     AGENT_LIGHTWEIGHT_REASONING_EFFORT: str = "minimal"
 
     # Bound Azure LLM call wall-clock to prevent model-router hangs. LangSmith
