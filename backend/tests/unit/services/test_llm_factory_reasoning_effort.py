@@ -48,7 +48,7 @@ def azure_mock(monkeypatch: pytest.MonkeyPatch) -> Iterator[MagicMock]:
 
 
 def _effort(azure_cls: MagicMock) -> str:
-    return azure_cls.call_args.kwargs.get("reasoning_effort", "<absent>")
+    return str(azure_cls.call_args.kwargs.get("reasoning_effort", "<absent>"))
 
 
 @pytest.mark.parametrize(
