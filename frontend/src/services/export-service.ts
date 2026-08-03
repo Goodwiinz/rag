@@ -7,6 +7,9 @@
  * - Export format metadata
  */
 
+// api-client's baseURL already ends in /api/v1 (see API_CONFIG.BASE_URL) —
+// paths here are relative to it. Prefixing /api/v1 again yields
+// /api/v1/api/v1/export/... and a 404.
 import { api } from '@/services/api-client';
 
 export type ExportFormat = 'markdown' | 'pdf' | 'json' | 'html';
@@ -64,7 +67,7 @@ export async function exportThread(
   // on POST). downloadPost sends an authenticated POST and saves the blob;
   // api.download would issue a GET and 405.
   await api.downloadPost(
-    `/api/v1/export/thread/${threadId}?${params.toString()}`,
+    `/export/thread/${threadId}?${params.toString()}`,
     filename
   );
 }
@@ -73,7 +76,7 @@ export async function exportThread(
  * Export multiple threads as a ZIP file.
  */
 export async function exportBatch(request: BatchExportRequest): Promise<void> {
-  const blob: Blob = await api.request('/api/v1/export/batch', {
+  const blob: Blob = await api.request('/export/batch', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -106,7 +109,7 @@ export async function getExportFormats(): Promise<{
     formats: ExportFormatInfo[];
     options: Record<string, string>;
     limits: { max_batch_size: number; max_thread_messages: number };
-  }>('/api/v1/export/formats');
+  }>('/export/formats');
 
   return {
     formats: data.formats,
@@ -133,7 +136,7 @@ export async function previewExport(
     citation_count: number;
     estimated_size_bytes: number;
     exportable: boolean;
-  }>(`/api/v1/export/preview/${threadId}?format=${format}`);
+  }>(`/export/preview/${threadId}?format=${format}`);
 
   return {
     threadId: data.thread_id,
