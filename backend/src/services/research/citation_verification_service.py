@@ -349,8 +349,13 @@ class CitationVerificationService:
             {"role": "user", "content": user_prompt},
         ]
 
+        # tool_calling=True — the with_structured_output call below pins
+        # method="function_calling", which Azure rejects alongside
+        # reasoning_effort.
         llm = build_lightweight_llm(
-            max_tokens=4096, request_timeout=_VERIFIER_TIMEOUT_SECONDS
+            max_tokens=4096,
+            request_timeout=_VERIFIER_TIMEOUT_SECONDS,
+            tool_calling=True,
         )
         # method="function_calling" (not the AzureChatOpenAI default "json_schema"):
         # json_schema routes through chat.completions.parse(), whose ParsedChatCompletion

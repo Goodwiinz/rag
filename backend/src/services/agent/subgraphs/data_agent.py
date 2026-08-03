@@ -102,7 +102,7 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     if use_synthesis:
         from src.services.agent.llm_factory import build_synthesis_llm
 
-        llm = build_synthesis_llm(max_tokens=4096)
+        llm = build_synthesis_llm(max_tokens=4096, tool_calling=True)
         logger.debug("data_llm_node: using synthesis model after ToolMessage")
     else:
         # Tool-decision turn runs on the main deployment — see the note in
