@@ -469,10 +469,23 @@ class Settings(BaseSettings):
     # existing env/Infisical values don't break startup, and so the knob is
     # here to re-wire if Azure lifts the restriction. See graph.py _build_llm.
     AGENT_MAIN_REASONING_EFFORT: str = "low"
-    # Governs classify / plan / reflect / compact / synthesis only — never a
-    # tool-calling turn. Subgraph tool decisions run on the main deployment
-    # under AGENT_MAIN_REASONING_EFFORT, because multi-step function calling
-    # is where the small tiers collapse.
+    # Governs classify / plan / reflect / compact / synthesis. Callers that
+    # send function tools pass tool_calling=True and drop it entirely — see
+    # llm_factory._reasoning_effort_for.
+    #
+    # "minimal" is NOT universally supported. Measured against the rag-dev
+    # deployments (2026-08-03, api-version 2024-12-01-preview):
+    #
+    #   gpt-5-nano / gpt-5-mini   none | minimal | low | medium | high
+    #   gpt-5.6-luna              none |           low | medium | high
+    #       -> 400 "Unsupported value: 'reasoning_effort' does not support
+    #          'minimal' with this model."
+    #
+    # This matters because _resolve_lightweight_deployment() falls back to the
+    # main chat deployment when AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT is unset.
+    # On a luna-only setup that fallback makes this default fatal on every
+    # classifier turn — set it to "none" there. "none" is the only value all
+    # three deployments accept.
     AGENT_LIGHTWEIGHT_REASONING_EFFORT: str = "minimal"
 
     # Bound Azure LLM call wall-clock to prevent model-router hangs. LangSmith
