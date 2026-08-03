@@ -39,6 +39,7 @@ export const initialState: ChatState = {
   isReinitializing: false,
   reinitRetryCount: 0,
   error: null,
+  messageLoadError: null,
   shortcutsDialogOpen: false,
   copiedMessageId: null,
   sidebarCollapsed: false,

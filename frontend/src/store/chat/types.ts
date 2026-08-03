@@ -67,6 +67,15 @@ export interface ChatState {
 
   // Error states
   error: string | null;
+  /**
+   * Thread-scoped transcript-load failure. The global `error` string cannot
+   * attribute a failure to the thread that produced it: a superseded thread's
+   * request failing after the user switched away used to surface as a toast
+   * on the WRONG (current) thread, and a background stale-cache refresh
+   * failure (no loading-flag transition) never surfaced at all. The nonce
+   * lets repeat failures of the same thread re-fire consumers.
+   */
+  messageLoadError: { threadId: string; nonce: number } | null;
 
   // UI states
   shortcutsDialogOpen: boolean;
@@ -157,7 +166,7 @@ export interface ChatActions {
   bulkResolveThreads: () => Promise<BulkThreadResponse | null>;
   bulkArchiveThreads: () => Promise<BulkThreadResponse | null>;
   bulkSummarizeThreads: () => Promise<BulkThreadResponse | null>;
-  bulkDeleteThreads: () => Promise<BulkThreadResponse | null>;
+  bulkDeleteThreads: (ids?: string[]) => Promise<BulkThreadResponse | null>;
 
   // Message actions
   loadMessages: (threadId: string) => Promise<void>;

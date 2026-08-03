@@ -64,6 +64,7 @@ describe('useChatSession thread-load scoping', () => {
       isLoadingMessages: false,
       loadingThreadId: null,
       error: null,
+      messageLoadError: null,
     } as never);
     toastMocks.error.mockReset();
   });
@@ -188,7 +189,7 @@ describe('useChatSession thread-load scoping', () => {
         currentThreadId: 'thread-C',
         isLoadingMessages: true,
         loadingThreadId: 'thread-C',
-        error: null,
+        messageLoadError: null,
       } as never);
     });
 
@@ -196,7 +197,7 @@ describe('useChatSession thread-load scoping', () => {
       useChatStore.setState({
         isLoadingMessages: false,
         loadingThreadId: null,
-        error: 'Failed to load messages',
+        messageLoadError: { threadId: 'thread-C', nonce: 1 },
       } as never);
     });
 
@@ -205,5 +206,100 @@ describe('useChatSession thread-load scoping', () => {
         'Could not load this conversation. Please try again.'
       )
     );
+  });
+
+  it("does not attribute a background thread's failure to the displayed thread", async () => {
+    const { result } = renderHook(() => useChatSession());
+
+    // User clicked A then quickly B: A's request fails after B is active.
+    act(() => {
+      result.current.setConversations([
+        { id: 'thread-A', title: 'A', messages: [] } as never,
+        { id: 'thread-B', title: 'B', messages: [] } as never,
+      ]);
+      useChatStore.setState({
+        currentThreadId: 'thread-B',
+        isLoadingMessages: true,
+        loadingThreadId: 'thread-B',
+        messageLoadError: null,
+      } as never);
+    });
+
+    act(() => {
+      useChatStore.setState({
+        messageLoadError: { threadId: 'thread-A', nonce: 1 },
+      } as never);
+    });
+
+    // B then loads fine — no toast may fire for the successfully shown thread.
+    act(() => {
+      useChatStore.setState({
+        isLoadingMessages: false,
+        loadingThreadId: null,
+      } as never);
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(toastMocks.error).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a background stale-refresh failure of the active thread (no loading-flag transition)', async () => {
+    useChatStore.setState({
+      messages: {
+        'thread-B': [storeMsg('thread-B', 'b1', 'B one')],
+      },
+    } as never);
+
+    const { result } = renderHook(() => useChatSession());
+
+    act(() => {
+      result.current.setConversations([
+        { id: 'thread-B', title: 'B', messages: [] } as never,
+      ]);
+      // Cached stale thread: the background refresh sets NO loading flags.
+      useChatStore.setState({
+        currentThreadId: 'thread-B',
+        isLoadingMessages: false,
+        loadingThreadId: null,
+        messageLoadError: null,
+      } as never);
+    });
+
+    act(() => {
+      useChatStore.setState({
+        messageLoadError: { threadId: 'thread-B', nonce: 7 },
+      } as never);
+    });
+
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith(
+        'Could not load this conversation. Please try again.'
+      )
+    );
+  });
+
+  it('does not re-fire the toast for the same failure on re-render', async () => {
+    const { result, rerender } = renderHook(() => useChatSession());
+
+    act(() => {
+      result.current.setConversations([
+        { id: 'thread-C', title: 'C', messages: [] } as never,
+      ]);
+      useChatStore.setState({
+        currentThreadId: 'thread-C',
+        messageLoadError: { threadId: 'thread-C', nonce: 3 },
+      } as never);
+    });
+
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledTimes(1));
+
+    rerender();
+    act(() => {
+      // Unrelated store churn must not re-toast the same failure record.
+      useChatStore.setState({ sidebarCollapsed: true } as never);
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(toastMocks.error).toHaveBeenCalledTimes(1);
   });
 });

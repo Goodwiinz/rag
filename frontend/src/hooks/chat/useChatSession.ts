@@ -8,6 +8,7 @@ import {
 import toast from 'react-hot-toast';
 
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
 import { ChatConversation } from '@/hooks/chat/chatTypes';
 import { upsertConversationFromThread } from '@/components/chat/shared/threadConversationState';
 import { workspaceService } from '@/services/workspaceService';
@@ -122,9 +123,7 @@ export function useChatSession(): UseChatSessionReturn {
   // URL synchronization reads the latest list without subscribing its effect
   // to conversation-cache writes, which are common during a thread handoff.
   const conversationsRef = useRef(conversations);
-  conversationsRef.current = conversations;
   const messagesRef = useRef(messages);
-  messagesRef.current = messages;
   const localMessagesThreadIdRef = useRef<string | null>(null);
   const isHydratedRef = useRef(false);
 
@@ -147,9 +146,7 @@ export function useChatSession(): UseChatSessionReturn {
     (state) => state.loadOlderMessages
   );
   const storeLoadingThreadId = useChatStore((state) => state.loadingThreadId);
-  const storeError = useChatStore((state) => state.error);
   const messagePagination = useChatStore((state) => state.messagePagination);
-  const lastLoadingThreadIdRef = useRef<string | null>(null);
 
   // ---- Derived values ----
   const displayedMessages = useMemo(
@@ -195,13 +192,37 @@ export function useChatSession(): UseChatSessionReturn {
   // ---- Router / Search params ----
   const searchParams = useSearchParams();
   const searchParamsRef = useRef(searchParams);
-  searchParamsRef.current = searchParams;
   // Depend on the primitive value, not the search-params object: local state
   // renders may change object identity before router.push updates ?thread=.
   const threadFromUrl = searchParams.get('thread');
   const router = useRouter();
+  // Read the router through a ref in callbacks/effects: depending on the
+  // router object itself re-runs the init chain whenever its identity
+  // changes, which can loop initialization.
+  const routerRef = useRef(router);
 
   // ---- Effects ----
+
+  // Latest-value refs, synced after every commit. These exist so effects and
+  // callbacks can read current values WITHOUT taking them as dependencies —
+  // depending on `conversations` re-runs URL sync on every cache write during
+  // a thread handoff, and depending on `router` re-runs the init chain
+  // whenever its identity changes, which loops initialization.
+  //
+  // Written here rather than during render (react-hooks/refs): a render-phase
+  // ref write is a side effect that misbehaves under concurrent rendering.
+  // This effect is declared before every other effect in this hook, and React
+  // runs a commit's effects in declaration order, so the effects below observe
+  // the values from the render they were scheduled by. Every read site is in
+  // an effect or a callback — none during render — so nothing sees a stale
+  // value. Keep this block first if you add effects above it.
+  useEffect(() => {
+    conversationsRef.current = conversations;
+    messagesRef.current = messages;
+    searchParamsRef.current = searchParams;
+    routerRef.current = router;
+  });
+
 
   // Reset refs when user changes (logout/login)
   useEffect(() => {
@@ -220,30 +241,33 @@ export function useChatSession(): UseChatSessionReturn {
     }
   }, [isAuthenticated, isInitializing, router]);
 
-  // The paginated store is the single uncached transcript loader. Preserve the
-  // old user-facing failure signal without starting a second detail request,
-  // and scope it to the thread whose load just completed.
+  // Thread-scoped load-failure signal. The toast fires only when the failed
+  // thread is the one on screen, and — unlike the old loading-flag transition
+  // watcher — also for background stale-cache refreshes, which have no
+  // loading flags. A failed thread the user has already navigated away from
+  // never toasts on the wrong conversation. The nonce dedupes re-renders
+  // while letting a genuinely new failure re-fire.
+  const messageLoadError = useChatStore((state) => state.messageLoadError);
+  const lastMessageLoadErrorNonceRef = useRef<number | null>(null);
   useEffect(() => {
-    if (storeLoadingThreadId) {
-      lastLoadingThreadIdRef.current = storeLoadingThreadId;
-      return;
-    }
-
-    const completedThreadId = lastLoadingThreadIdRef.current;
-    lastLoadingThreadIdRef.current = null;
-    if (
-      storeError === 'Failed to load messages' &&
-      completedThreadId === activeThreadId
-    ) {
-      toast.error('Could not load this conversation. Please try again.');
-    }
-  }, [activeThreadId, storeError, storeLoadingThreadId]);
+    if (!messageLoadError) return;
+    if (messageLoadError.threadId !== activeThreadId) return;
+    if (lastMessageLoadErrorNonceRef.current === messageLoadError.nonce) return;
+    lastMessageLoadErrorNonceRef.current = messageLoadError.nonce;
+    toast.error('Could not load this conversation. Please try again.');
+  }, [activeThreadId, messageLoadError]);
 
   // Keep sidebar metadata current without copying the transcript into a
   // second cache. Zustand is the sole canonical transcript owner.
   useEffect(() => {
     if (!activeThreadId || !activeThreadMessages?.length) return;
     const latest = activeThreadMessages[activeThreadMessages.length - 1];
+    // This write has to *persist* after the active thread changes: thread A must
+    // keep showing its latest message in the sidebar once you switch to B.
+    // Deriving it with useMemo only knows about the thread currently loaded, so
+    // A reverts to a stale DB preview. Real fix is dropping the local
+    // `conversations` mirror and making the Zustand store its sole owner.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
     setConversations((prev) =>
       prev.map((conversation) =>
         conversation.id === activeThreadId
@@ -314,6 +338,12 @@ export function useChatSession(): UseChatSessionReturn {
         } catch (error: unknown) {
           if (!cancelled) {
             console.error('[Chat] Failed to fetch requested thread:', error);
+            // Deleted thread, revoked access, or a transient failure: leaving
+            // ?thread=<dead-id> in the URL would re-trigger this effect on
+            // every render and show whatever thread was previously active
+            // with no explanation. Say what happened and drop the dead param.
+            toast.error('Could not open that conversation. Please try again.');
+            routerRef.current.replace('/chat');
           }
         }
       })();
@@ -385,6 +415,11 @@ export function useChatSession(): UseChatSessionReturn {
         } else if (uiConversations.length > 0) {
           const selectedConversation = uiConversations[0];
           setCurrentThread(selectedConversation.id);
+          // Keep the URL in sync with the auto-selection: a bare /chat URL
+          // breaks Back-button restoration and loses the thread on share.
+          routerRef.current.replace(
+            getSelectedThreadUrl(selectedConversation.id)
+          );
           console.log('[Chat] Active thread:', selectedConversation.title);
         }
         return { ok: true, threadCount: uiConversations.length };
@@ -592,6 +627,12 @@ export function useChatSession(): UseChatSessionReturn {
             // The bounded page and pagination record are already cached, so
             // this selection does not issue another message request.
             setCurrentThread(restoreThreadId);
+            // The restore target came from persisted store state, not the
+            // URL — sync the address bar so Back/share behave (cold-start
+            // auto-select does the same in loadThreadsFromDb).
+            if (!requestedThreadId) {
+              routerRef.current.replace(getSelectedThreadUrl(restoreThreadId));
+            }
             isHydratedRef.current = true;
             setInitError(null);
 
@@ -727,22 +768,63 @@ export function useChatSession(): UseChatSessionReturn {
   // React-local messages are an overlay only. Bind a just-created thread's
   // optimistic turn to its new id, and clear the overlay on every real thread
   // switch. Canonical rows render directly from Zustand.
+  //
+  // Exception: switching away from a thread MID-TURN parks its overlay
+  // (optimistic user message + in-flight assistant state) instead of dropping
+  // it — the stream deliberately keeps running across switches, and the store
+  // page does not contain the just-sent user row yet. Returning to that thread
+  // restores the park so the sent message never vanishes; once the turn
+  // commits and the page refreshes to 'fresh', selectDisplayedMessages filters
+  // the optimistic copy in favor of the canonical rows.
+  const parkedMessagesRef = useRef(new Map<string, ChatPageMessage[]>());
   useEffect(() => {
+    const outgoingThreadId = localMessagesThreadIdRef.current;
+
     if (!activeThreadId) {
+      // "New chat" mid-turn: park the outgoing thread's overlay too, so
+      // returning to it restores the in-flight turn like any other switch.
+      if (
+        outgoingThreadId &&
+        messagesRef.current.length > 0 &&
+        useChatStore.getState().streamingThreadId === outgoingThreadId
+      ) {
+        parkedMessagesRef.current.set(outgoingThreadId, messagesRef.current);
+      }
       localMessagesThreadIdRef.current = null;
+      // The reset is paired with the ref mutations above (parking the outgoing
+      // overlay), so it cannot move to render without reintroducing the
+      // render-phase ref writes this PR just removed. Moving it to event
+      // handlers would mean enumerating every path that changes activeThreadId —
+      // the fragility behind the #1121 regressions. Real fix is the same as
+      // above: drop the local `messages` mirror.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
       setMessages([]);
       return;
     }
 
-    if (localMessagesThreadIdRef.current === activeThreadId) {
+    if (outgoingThreadId === activeThreadId) {
       return;
     }
 
+    if (
+      outgoingThreadId &&
+      messagesRef.current.length > 0 &&
+      useChatStore.getState().streamingThreadId === outgoingThreadId
+    ) {
+      parkedMessagesRef.current.set(outgoingThreadId, messagesRef.current);
+    }
+
     const isNewThreadHandoff =
-      localMessagesThreadIdRef.current === null &&
+      outgoingThreadId === null &&
       messagesRef.current.some((message) => message.source === 'optimistic');
     localMessagesThreadIdRef.current = activeThreadId;
     if (isNewThreadHandoff) {
+      return;
+    }
+    const parked = parkedMessagesRef.current.get(activeThreadId);
+    if (parked) {
+      parkedMessagesRef.current.delete(activeThreadId);
+      setMessages(parked);
       return;
     }
     setMessages([]);
