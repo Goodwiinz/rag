@@ -12,6 +12,7 @@ Activate with:
 The suite is auto-skipped when ``LANGCHAIN_API_KEY`` is unset (see
 ``conftest.py``).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -22,7 +23,6 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import add_messages
 
 from src.services.agent.graph import compile_agent_graph
-
 from tests.eval.golden_examples import LOCAL_CASES, GoldenCase
 
 # NOTE: do NOT put a module-level langsmith mark here. The two suites have
@@ -102,7 +102,11 @@ def _extract_tool_calls(messages: list[Any]) -> list[str]:
     for msg in messages:
         if isinstance(msg, AIMessage):
             for call in getattr(msg, "tool_calls", []) or []:
-                name = call.get("name") if isinstance(call, dict) else getattr(call, "name", None)
+                name = (
+                    call.get("name")
+                    if isinstance(call, dict)
+                    else getattr(call, "name", None)
+                )
                 if name:
                     names.append(name)
     return names
@@ -145,9 +149,7 @@ async def _run_agent(inputs: dict[str, Any]) -> dict[str, Any]:
                     final_state["messages"] = add_messages(
                         final_state.get("messages", []), update["messages"]
                     )
-                final_state.update(
-                    {k: v for k, v in update.items() if k != "messages"}
-                )
+                final_state.update({k: v for k, v in update.items() if k != "messages"})
 
     tool_calls = _extract_tool_calls(final_state.get("messages", []))
     for name in interrupted_tool_calls:
@@ -169,7 +171,9 @@ def _target(inputs: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def intent_match(outputs: dict[str, Any], reference_outputs: dict[str, Any]) -> dict[str, Any]:
+def intent_match(
+    outputs: dict[str, Any], reference_outputs: dict[str, Any]
+) -> dict[str, Any]:
     """Score 1 iff the run's intent is acceptable for the reference row.
 
     Acceptable = equals the exact ``intent`` OR is a member of
@@ -243,6 +247,81 @@ def tool_subset_match(
 # ---------------------------------------------------------------------------
 
 
+REQUIRED_EVALUATOR_KEYS = frozenset({"intent_match", "tool_subset_match"})
+
+
+def collect_sweep_failures(
+    results: Any, required_keys: frozenset[str] = REQUIRED_EVALUATOR_KEYS
+) -> tuple[list[str], int]:
+    """Return ``(failures, scored_count)`` for an ``evaluate()`` result set.
+
+    Absence is a failure, never a skip. The evaluators themselves already
+    treat a missing reference key as score 0 rather than a vacuous pass
+    (``tool_subset_match``); this applies the same rule one level up, to the
+    loop that consumes them. Three shapes used to produce a green sweep that
+    verified nothing:
+
+    - ``evaluate()`` yields no results at all -> caller sees scored_count 0
+    - ``evaluation_results`` is None -> the example was silently skipped
+    - an evaluator never ran -> its key is simply absent, and a loop over
+      the scores that *are* present cannot notice
+
+    ``scored_count`` is returned separately so the caller can distinguish
+    "every example passed" from "no example was ever examined".
+    """
+    failures: list[str] = []
+    scored_count = 0
+
+    for result in results:
+        scored_count += 1
+        # ``ExperimentResults`` items expose ``evaluation_results`` as either
+        # a dict (older SDK) or an attribute (newer SDK). Be defensive.
+        eval_block = (
+            result.get("evaluation_results")
+            if isinstance(result, dict)
+            else getattr(result, "evaluation_results", None)
+        )
+        example = (
+            result.get("example")
+            if isinstance(result, dict)
+            else getattr(result, "example", None)
+        )
+        example_id = (
+            (
+                example.get("id")
+                if isinstance(example, dict)
+                else getattr(example, "id", "?")
+            )
+            if example is not None
+            else "?"
+        )
+
+        if eval_block is None:
+            failures.append(f"{example_id}: no evaluation_results (example unscored)")
+            continue
+
+        eval_list = (
+            eval_block.get("results")
+            if isinstance(eval_block, dict)
+            else getattr(eval_block, "results", [])
+        )
+
+        seen_keys: set[str] = set()
+        for eval_result in eval_list or []:
+            key = getattr(eval_result, "key", None) or "?"
+            seen_keys.add(key)
+            score = getattr(eval_result, "score", None) or 0
+            if score < 1:
+                failures.append(f"{example_id}: {key}={score}")
+
+        # An evaluator that never ran leaves no score to compare against, so
+        # the loop above cannot see it. Check the key set explicitly.
+        for missing in sorted(required_keys - seen_keys):
+            failures.append(f"{example_id}: {missing} did not run (no score)")
+
+    return failures, scored_count
+
+
 @pytest.mark.langsmith
 @pytest.mark.slow
 def test_agent_regression_against_dataset(
@@ -251,7 +330,8 @@ def test_agent_regression_against_dataset(
     """Run the agent against the LangSmith golden dataset.
 
     Fails the suite if any evaluator scores < 1 across the dataset, which
-    catches intent or tool-routing regressions before they ship.
+    catches intent or tool-routing regressions before they ship. A sweep that
+    scored nothing is an error, not a pass.
     """
     from langsmith import evaluate  # local import — heavy dependency
 
@@ -263,38 +343,14 @@ def test_agent_regression_against_dataset(
         max_concurrency=2,
     )
 
-    failures: list[str] = []
-    for result in results:
-        # ``ExperimentResults`` items expose ``evaluation_results`` as either
-        # a dict (older SDK) or an attribute (newer SDK). Be defensive.
-        eval_block = (
-            result.get("evaluation_results")
-            if isinstance(result, dict)
-            else getattr(result, "evaluation_results", None)
-        )
-        if eval_block is None:
-            continue
-        eval_list = (
-            eval_block.get("results")
-            if isinstance(eval_block, dict)
-            else getattr(eval_block, "results", [])
-        )
-        example = (
-            result.get("example")
-            if isinstance(result, dict)
-            else getattr(result, "example", None)
-        )
-        example_id = (
-            (example.get("id") if isinstance(example, dict) else getattr(example, "id", "?"))
-            if example is not None
-            else "?"
-        )
-        for eval_result in eval_list or []:
-            score = getattr(eval_result, "score", None) or 0
-            if score < 1:
-                key = getattr(eval_result, "key", "?")
-                failures.append(f"{example_id}: {key}={score}")
+    failures, scored_count = collect_sweep_failures(results)
 
+    assert scored_count, (
+        f"Agent regression sweep scored 0 examples from dataset "
+        f"{langsmith_dataset_name!r} — evaluate() returned no results. "
+        "An empty sweep must fail rather than pass silently; check the "
+        "dataset is populated and LANGCHAIN_API_KEY is set."
+    )
     assert not failures, "Agent regression failures:\n  " + "\n  ".join(failures)
 
 
@@ -320,12 +376,8 @@ async def test_local_golden_case(case: GoldenCase) -> None:
         inputs["question"] = case.question
     outputs = await _run_agent(inputs)
 
-    intent_result = intent_match(
-        outputs, {"intent": case.expected_intent}
-    )
-    tool_result = tool_subset_match(
-        outputs, {"expected_tools": case.expected_tools}
-    )
+    intent_result = intent_match(outputs, {"intent": case.expected_intent})
+    tool_result = tool_subset_match(outputs, {"expected_tools": case.expected_tools})
 
     assert intent_result["score"] == 1, (
         f"intent mismatch: expected={case.expected_intent} "

@@ -3,6 +3,7 @@
 Skips the entire eval module if LangSmith credentials are missing so the
 suite stays optional in local/CI environments without API keys.
 """
+
 from __future__ import annotations
 
 import os
@@ -35,6 +36,12 @@ def pytest_collection_modifyitems(
         if os.environ.get("LANGCHAIN_API_KEY")
         else pytest.mark.skip(reason="LANGCHAIN_API_KEY not set")
     )
+    # The langsmith SDK uploads runs on a background thread. A sweep driven by
+    # a short-lived process (CI step, `kubectl exec`) exits before that thread
+    # flushes, so the experiment lands in LangSmith with 0 examples and the
+    # per-example scores are unrecoverable after the fact — the run is green
+    # but unauditable. Force synchronous upload; callers can still override.
+    os.environ.setdefault("LANGCHAIN_CALLBACKS_BACKGROUND", "false")
     from tests.eval._replay_llm import replay_enabled
 
     # Under AGENT_GOLDEN_REPLAY the fake model is installed at every LLM seam,
@@ -107,14 +114,14 @@ def _golden_replay(monkeypatch, request):
     # arXiv). Golden cases assert tool-call names + intent, not tool results.
     from tests.eval._replay_llm import stub_tool_executor
 
-    monkeypatch.setattr(graph, "_get_execute_tool", lambda: stub_tool_executor, raising=False)
+    monkeypatch.setattr(
+        graph, "_get_execute_tool", lambda: stub_tool_executor, raising=False
+    )
 
 
 @pytest.fixture(scope="session")
 def langsmith_dataset_name() -> str:
-    return os.environ.get(
-        "AGENT_EVAL_DATASET_NAME", "agent-accuracy-benchmark"
-    )
+    return os.environ.get("AGENT_EVAL_DATASET_NAME", "agent-accuracy-benchmark")
 
 
 @pytest.fixture(scope="session")
