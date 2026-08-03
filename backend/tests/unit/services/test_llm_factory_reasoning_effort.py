@@ -10,13 +10,14 @@ these cover the auxiliary builders in ``llm_factory``, whose results also reach
 from __future__ import annotations
 
 import types
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 
 @pytest.fixture
-def azure_mock(monkeypatch):
+def azure_mock(monkeypatch: pytest.MonkeyPatch) -> Iterator[MagicMock]:
     """Patch AzureChatOpenAI and point the factory at a gpt-5 deployment."""
     from src.services.agent import llm_factory
 
@@ -46,14 +47,16 @@ def azure_mock(monkeypatch):
     llm_factory.reset_llm_caches()
 
 
-def _effort(azure_cls):
+def _effort(azure_cls: MagicMock) -> str:
     return azure_cls.call_args.kwargs.get("reasoning_effort", "<absent>")
 
 
 @pytest.mark.parametrize(
     "builder_name", ["build_synthesis_llm", "build_lightweight_llm"]
 )
-def test_effort_dropped_when_tools_are_bound(azure_mock, builder_name):
+def test_effort_dropped_when_tools_are_bound(
+    azure_mock: MagicMock, builder_name: str
+) -> None:
     from src.services.agent import llm_factory
 
     getattr(llm_factory, builder_name)(tool_calling=True)
@@ -67,7 +70,9 @@ def test_effort_dropped_when_tools_are_bound(azure_mock, builder_name):
 @pytest.mark.parametrize(
     "builder_name", ["build_synthesis_llm", "build_lightweight_llm"]
 )
-def test_effort_kept_for_prose_and_classification(azure_mock, builder_name):
+def test_effort_kept_for_prose_and_classification(
+    azure_mock: MagicMock, builder_name: str
+) -> None:
     from src.services.agent import llm_factory
 
     getattr(llm_factory, builder_name)()
@@ -75,7 +80,7 @@ def test_effort_kept_for_prose_and_classification(azure_mock, builder_name):
     assert _effort(azure_mock) == "minimal"
 
 
-def test_tool_calling_variants_are_cached_separately(azure_mock):
+def test_tool_calling_variants_are_cached_separately(azure_mock: MagicMock) -> None:
     """The flag is part of the cache key, else the first caller wins."""
     from src.services.agent import llm_factory
 
