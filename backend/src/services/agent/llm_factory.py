@@ -200,15 +200,28 @@ def _reasoning_effort_for(configured: str | None, *, tool_calling: bool) -> str 
         400 "Function tools with reasoning_effort are not supported for this
              model in /v1/chat/completions. Please use /v1/responses instead."
 
-    The Responses API is not an escape — it rejects the agent's accumulated
-    tool_call history with "Unsupported data type", which is why
-    ``use_responses_api`` is pinned False. ``_build_llm`` in graph.py dropped
-    the kwarg outright for the same reason (#1334); this covers the auxiliary
-    builders, whose results also reach ``bind_tools`` /
-    ``with_structured_output(method="function_calling")``.
+    This guards the **Chat Completions** path, which is what we send today.
+    ``_build_llm`` in graph.py dropped the kwarg outright for the same reason
+    (#1334); this covers the auxiliary builders, whose results also reach
+    ``bind_tools`` / ``with_structured_output(method="function_calling")``.
+
+    The Responses API *is* an escape, contrary to what #1334 assumed. Measured
+    2026-08-03 against gpt-5.6-luna: with ``api_version="2025-04-01-preview"``
+    (the configured ``2024-12-01-preview`` is too old and 400s with "Responses
+    API is enabled only for api-version…"), ``use_responses_api=True`` accepts
+    tools plus ``reasoning_effort`` all the way to ``max``, including a full
+    HumanMessage/AIMessage-with-tool_calls/ToolMessage history. The
+    "Unsupported data type" failure that pinned ``use_responses_api=False`` was
+    the stale api-version, not the message shape.
+
+    Switching is still not a flag flip: on the Responses path ``content`` comes
+    back as typed blocks (``[{"type": "text", ...}]``, plus ``rs_…`` reasoning
+    items at xhigh/max) where the streaming and persistence layers expect a
+    string. Bumping the api-version and flipping the flag is the real fix for
+    keeping reasoning on tool-calling turns — tracked separately.
 
     ponytail: a flag rather than sniffing the model — "which models allow it"
-    is Azure-side state we cannot read. If the restriction lifts, delete this
+    is Azure-side state we cannot read. If we move to Responses, delete this
     function and pass ``configured`` straight through.
     """
     return None if tool_calling else (configured or None)
