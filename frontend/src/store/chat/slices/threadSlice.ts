@@ -7,7 +7,12 @@
  * request — that cross-cutting cleanup lives here because thread deletion
  * owns the "when", even though the fields belong to the message slice.
  */
-import { BulkThreadResponse, ThreadCreate, ThreadStatus, ThreadUpdate } from '@/types/workspace';
+import {
+  BulkThreadResponse,
+  ThreadCreate,
+  ThreadStatus,
+  ThreadUpdate,
+} from '@/types/workspace';
 import type { Thread } from '@/types/workspace';
 import { workspaceService } from '@/services/workspaceService';
 import type { ChatSliceCreator } from '../types';
@@ -30,7 +35,7 @@ export interface ThreadSlice {
   bulkResolveThreads: () => Promise<BulkThreadResponse | null>;
   bulkArchiveThreads: () => Promise<BulkThreadResponse | null>;
   bulkSummarizeThreads: () => Promise<BulkThreadResponse | null>;
-  bulkDeleteThreads: () => Promise<BulkThreadResponse | null>;
+  bulkDeleteThreads: (ids?: string[]) => Promise<BulkThreadResponse | null>;
 }
 
 // Identity for in-flight loadThreads calls, keyed by conversation. Module
@@ -42,10 +47,7 @@ export interface ThreadSlice {
 // counter can, so a slow request from an earlier cycle can never match.
 const loadThreadsRequestTokens = new Map<string, object>();
 
-export const createThreadSlice: ChatSliceCreator<ThreadSlice> = (
-  set,
-  get
-) => ({
+export const createThreadSlice: ChatSliceCreator<ThreadSlice> = (set, get) => ({
   loadThreads: async (conversationId) => {
     const requestToken = {};
     loadThreadsRequestTokens.set(conversationId, requestToken);
@@ -337,9 +339,11 @@ export const createThreadSlice: ChatSliceCreator<ThreadSlice> = (
     }
   },
 
-  bulkDeleteThreads: async () => {
+  bulkDeleteThreads: async (ids) => {
     const state = get();
-    const threadIds = Array.from(state.selectedThreadIds);
+    // Explicit ids come from the delete dialog; fall back to the sidebar's
+    // select-mode set when invoked without arguments.
+    const threadIds = ids ?? Array.from(state.selectedThreadIds);
     if (threadIds.length === 0) return null;
 
     try {

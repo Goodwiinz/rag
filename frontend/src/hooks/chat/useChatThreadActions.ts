@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { getNewChatUrl } from '@/components/chat/shared/chatNavigation';
 import { ChatConversation } from '@/hooks/chat/chatTypes';
 import { workspaceService } from '@/services/workspaceService';
+import { useChatStore } from '@/store/chat-store';
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -63,7 +64,6 @@ export function useChatThreadActions({
   conversations,
   setConversations,
   activeThreadId,
-  setCurrentThread,
 }: UseChatThreadActionsParams): UseChatThreadActionsReturn {
   const router = useRouter();
 
@@ -124,24 +124,21 @@ export function useChatThreadActions({
   const commitDeleteThread = useCallback(async () => {
     const { threadId } = deleteDialog;
     setDeleteDialog({ open: false, threadId: '' });
-    try {
-      await workspaceService.deleteThread(threadId);
-      setConversations((prev) => prev.filter((c) => c.id !== threadId));
-      if (activeThreadId === threadId) {
-        setCurrentThread(null);
-        router.push(getNewChatUrl());
-      }
-    } catch (err) {
-      console.error('[Chat] Delete failed', err);
+    // Route through the store action: it aborts the thread's in-flight page
+    // request and drops every per-thread cache (messages, pagination,
+    // freshness, reverse indexes). Calling workspaceService directly leaked
+    // all of those for the deleted thread.
+    const deleted = await useChatStore.getState().deleteThread(threadId);
+    if (!deleted) {
       toast.error('Could not delete the conversation. Please try again.');
+      return;
     }
-  }, [
-    deleteDialog,
-    activeThreadId,
-    router,
-    setCurrentThread,
-    setConversations,
-  ]);
+    setConversations((prev) => prev.filter((c) => c.id !== threadId));
+    if (activeThreadId === threadId) {
+      // The store already cleared currentThreadId; just leave the URL.
+      router.push(getNewChatUrl());
+    }
+  }, [deleteDialog, activeThreadId, router, setConversations]);
 
   const handleBulkDeleteThreads = useCallback((ids: string[]) => {
     setBulkDeleteDialog({ open: true, ids });
@@ -150,26 +147,23 @@ export function useChatThreadActions({
   const commitBulkDelete = useCallback(async () => {
     const { ids } = bulkDeleteDialog;
     setBulkDeleteDialog({ open: false, ids: [] });
-    try {
-      await workspaceService.bulkDeleteThreads(ids);
-      setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
-      if (activeThreadId && ids.includes(activeThreadId)) {
-        setCurrentThread(null);
-        router.push(getNewChatUrl());
-      }
-    } catch (err) {
-      console.error('[Chat] Bulk delete failed', err);
+    // Same store-routing rationale as commitDeleteThread: one bulk API call,
+    // then per-thread abort + cache cleanup inside the store action.
+    const response = await useChatStore.getState().bulkDeleteThreads(ids);
+    if (!response) {
       toast.error(
         'Could not delete the selected conversations. Please try again.'
       );
+      return;
     }
-  }, [
-    bulkDeleteDialog,
-    activeThreadId,
-    router,
-    setCurrentThread,
-    setConversations,
-  ]);
+    const deletedIds = new Set(
+      response.results.filter((r) => r.success).map((r) => r.thread_id)
+    );
+    setConversations((prev) => prev.filter((c) => !deletedIds.has(c.id)));
+    if (activeThreadId && deletedIds.has(activeThreadId)) {
+      router.push(getNewChatUrl());
+    }
+  }, [bulkDeleteDialog, activeThreadId, router, setConversations]);
 
   return {
     // Dialog state

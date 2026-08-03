@@ -12,10 +12,7 @@ import { ChatMessage, ChatMessageUpdate } from '@/types/workspace';
 import { workspaceService } from '@/services/workspaceService';
 import type { ChatSliceCreator, RefreshExpectation } from '../types';
 import { removeItemFromRecord } from '../recordIndex';
-import {
-  MAX_CACHED_THREADS,
-  INITIAL_MESSAGE_PAGE_SIZE,
-} from '../initialState';
+import { MAX_CACHED_THREADS, INITIAL_MESSAGE_PAGE_SIZE } from '../initialState';
 import {
   abortNewestPageRequest,
   newestPageRequests,
@@ -125,6 +122,10 @@ export const createMessageSlice: ChatSliceCreator<MessageSlice> = (
     set((state) => {
       state.messageFreshness[threadId] = 'refreshing';
       state.error = null;
+      // A fresh attempt supersedes this thread's earlier failure record.
+      if (state.messageLoadError?.threadId === threadId) {
+        state.messageLoadError = null;
+      }
       if (!hasCachedPage) {
         state.isLoadingMessages = true;
         state.loadingThreadId = threadId;
@@ -161,6 +162,10 @@ export const createMessageSlice: ChatSliceCreator<MessageSlice> = (
 
       newestPageRequests.delete(threadId);
       set((state) => {
+        // This thread's earlier failure (if any) is resolved by the success.
+        if (state.messageLoadError?.threadId === threadId) {
+          state.messageLoadError = null;
+        }
         const existing = state.messages[threadId] || [];
         const existingPagination = state.messagePagination[threadId];
         const { messages, retainedOlderCount } = mergeNewestMessagePage(
@@ -188,9 +193,7 @@ export const createMessageSlice: ChatSliceCreator<MessageSlice> = (
         const threadKeys = Object.keys(state.messages);
         if (threadKeys.length > MAX_CACHED_THREADS) {
           const protectedThreadIds = new Set(
-            [state.currentThreadId, threadId].filter(
-              (id): id is string => !!id
-            )
+            [state.currentThreadId, threadId].filter((id): id is string => !!id)
           );
           const excess = threadKeys.length - MAX_CACHED_THREADS;
           evictedThreadIds.push(
@@ -257,7 +260,9 @@ export const createMessageSlice: ChatSliceCreator<MessageSlice> = (
       set((state) => {
         state.messageFreshness[threadId] = 'stale';
         if (!isAbort) {
-          state.error = 'Failed to load messages';
+          // Thread-scoped: a superseded/background failure must not masquerade
+          // as the currently displayed thread's error via the global string.
+          state.messageLoadError = { threadId, nonce: Date.now() };
         }
         if (state.loadingThreadId === threadId) {
           state.isLoadingMessages = false;

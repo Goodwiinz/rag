@@ -372,6 +372,13 @@ export function useChatStreaming(
       if (seqRafRef.current !== null) {
         cancelAnimationFrame(seqRafRef.current);
       }
+      // Abort this instance's in-flight SSE fetch. The backend run survives a
+      // client disconnect (buffered stream) and the mount-time resume effect
+      // reattaches. Leaving the fetch orphaned instead kept the stream owned
+      // by a dead hook instance: the remounted Stop button's abortControllerRef
+      // is null and could never stop it.
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
     };
   }, []);
 
@@ -759,8 +766,7 @@ export function useChatStreaming(
               content: '',
               timestamp: Date.now(),
               error: {
-                message:
-                  'No response was received. Please try again.',
+                message: 'No response was received. Please try again.',
                 category: 'empty-response',
               },
             };
