@@ -123,9 +123,7 @@ export function useChatSession(): UseChatSessionReturn {
   // URL synchronization reads the latest list without subscribing its effect
   // to conversation-cache writes, which are common during a thread handoff.
   const conversationsRef = useRef(conversations);
-  conversationsRef.current = conversations;
   const messagesRef = useRef(messages);
-  messagesRef.current = messages;
   const localMessagesThreadIdRef = useRef<string | null>(null);
   const isHydratedRef = useRef(false);
 
@@ -194,7 +192,6 @@ export function useChatSession(): UseChatSessionReturn {
   // ---- Router / Search params ----
   const searchParams = useSearchParams();
   const searchParamsRef = useRef(searchParams);
-  searchParamsRef.current = searchParams;
   // Depend on the primitive value, not the search-params object: local state
   // renders may change object identity before router.push updates ?thread=.
   const threadFromUrl = searchParams.get('thread');
@@ -203,9 +200,29 @@ export function useChatSession(): UseChatSessionReturn {
   // router object itself re-runs the init chain whenever its identity
   // changes, which can loop initialization.
   const routerRef = useRef(router);
-  routerRef.current = router;
 
   // ---- Effects ----
+
+  // Latest-value refs, synced after every commit. These exist so effects and
+  // callbacks can read current values WITHOUT taking them as dependencies —
+  // depending on `conversations` re-runs URL sync on every cache write during
+  // a thread handoff, and depending on `router` re-runs the init chain
+  // whenever its identity changes, which loops initialization.
+  //
+  // Written here rather than during render (react-hooks/refs): a render-phase
+  // ref write is a side effect that misbehaves under concurrent rendering.
+  // This effect is declared before every other effect in this hook, and React
+  // runs a commit's effects in declaration order, so the effects below observe
+  // the values from the render they were scheduled by. Every read site is in
+  // an effect or a callback — none during render — so nothing sees a stale
+  // value. Keep this block first if you add effects above it.
+  useEffect(() => {
+    conversationsRef.current = conversations;
+    messagesRef.current = messages;
+    searchParamsRef.current = searchParams;
+    routerRef.current = router;
+  });
+
 
   // Reset refs when user changes (logout/login)
   useEffect(() => {
