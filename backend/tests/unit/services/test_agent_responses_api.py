@@ -9,13 +9,15 @@ content blocks from everything downstream.
 from __future__ import annotations
 
 import types
+from collections.abc import Iterator
+from typing import Any, Callable
 from unittest.mock import MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage
 
 
-def _azure_module():
+def _azure_module() -> types.ModuleType:
     module = types.ModuleType("langchain_openai")
     setattr(module, "AzureChatOpenAI", MagicMock())
     setattr(module, "ChatOpenAI", MagicMock())
@@ -23,7 +25,9 @@ def _azure_module():
 
 
 @pytest.fixture
-def build(monkeypatch):
+def build(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[Callable[[bool], dict[str, Any]]]:
     """Return (call_build_llm, azure_cls) with settings pinned to a gpt-5 deployment."""
     from src.services.agent import graph as graph_module
 
@@ -39,7 +43,7 @@ def build(monkeypatch):
 
     module = _azure_module()
 
-    def _run(use_responses: bool):
+    def _run(use_responses: bool) -> dict[str, Any]:
         monkeypatch.setattr(
             settings, "AGENT_USE_RESPONSES_API", use_responses, raising=False
         )
@@ -52,7 +56,9 @@ def build(monkeypatch):
     graph_module._LLM_CACHE.clear()
 
 
-def test_chat_completions_is_the_default_and_sends_no_effort(build):
+def test_chat_completions_is_the_default_and_sends_no_effort(
+    build: Callable[[bool], dict[str, Any]],
+) -> None:
     kwargs = build(False)
 
     assert kwargs["use_responses_api"] is False
@@ -62,7 +68,9 @@ def test_chat_completions_is_the_default_and_sends_no_effort(build):
     )
 
 
-def test_responses_api_opt_in_restores_reasoning_effort(build):
+def test_responses_api_opt_in_restores_reasoning_effort(
+    build: Callable[[bool], dict[str, Any]],
+) -> None:
     kwargs = build(True)
 
     assert kwargs["use_responses_api"] is True
@@ -72,13 +80,13 @@ def test_responses_api_opt_in_restores_reasoning_effort(build):
 class TestNormalizeAiContent:
     """The Responses API returns typed blocks where downstream expects str."""
 
-    def test_string_content_passes_through_untouched(self):
+    def test_string_content_passes_through_untouched(self) -> None:
         from src.services.agent._nodes_llm import normalize_ai_content
 
         msg = AIMessage(content="plain text")
         assert normalize_ai_content(msg) is msg
 
-    def test_text_blocks_are_joined(self):
+    def test_text_blocks_are_joined(self) -> None:
         from src.services.agent._nodes_llm import normalize_ai_content
 
         msg = AIMessage(
@@ -89,7 +97,7 @@ class TestNormalizeAiContent:
         )
         assert normalize_ai_content(msg).content == "Here are two papers."
 
-    def test_reasoning_blocks_are_dropped(self):
+    def test_reasoning_blocks_are_dropped(self) -> None:
         """rs_ items are not user-facing and must never reach the SSE wire."""
         from src.services.agent._nodes_llm import normalize_ai_content
 
@@ -101,7 +109,7 @@ class TestNormalizeAiContent:
         )
         assert normalize_ai_content(msg).content == "The answer."
 
-    def test_tool_calls_survive_normalisation(self):
+    def test_tool_calls_survive_normalisation(self) -> None:
         """The tool loop breaks if tool_calls are lost while rewriting content."""
         from src.services.agent._nodes_llm import normalize_ai_content
 
