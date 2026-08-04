@@ -186,8 +186,8 @@ class TestPartitionExamples:
 
 
 def _run(plan, executed_tool_names):
-    """Build a dict-shaped run for plan_adherence with an empty inputs set."""
-    messages = [
+    """Build a dict-shaped run for plan_adherence with a current-turn boundary."""
+    messages = [{"type": "human", "id": "human-current"}] + [
         {
             "type": "ai",
             "id": f"ai-{i}",
@@ -195,7 +195,10 @@ def _run(plan, executed_tool_names):
         }
         for i, name in enumerate(executed_tool_names)
     ]
-    return {"inputs": {"messages": []}, "outputs": {"plan": plan, "messages": messages}}
+    return {
+        "inputs": {"messages": [{"type": "human", "id": "human-current"}]},
+        "outputs": {"plan": plan, "messages": messages},
+    }
 
 
 @pytest.mark.unit
@@ -242,8 +245,8 @@ class TestPlanAdherence:
 
 
 def _traj(tool_calls):
-    """Build a dict-shaped run from a list of (name, args_dict) tool calls."""
-    messages = [
+    """Build a current-turn run from a list of (name, args_dict) tool calls."""
+    messages = [{"type": "human", "id": "human-current"}] + [
         {
             "type": "ai",
             "id": f"ai-{i}",
@@ -251,7 +254,45 @@ def _traj(tool_calls):
         }
         for i, (name, args) in enumerate(tool_calls)
     ]
-    return {"inputs": {"messages": []}, "outputs": {"messages": messages}}
+    return {
+        "inputs": {"messages": [{"type": "human", "id": "human-current"}]},
+        "outputs": {"messages": messages},
+    }
+
+
+def _live_shaped_turn():
+    """A cumulative LangGraph history containing a completed prior turn."""
+    return {
+        "inputs": {
+            "messages": [
+                {"type": "human", "id": "human-old"},
+                {"type": "human", "id": "human-current"},
+            ]
+        },
+        "outputs": {
+            "messages": [
+                {"type": "human", "id": "human-old"},
+                {
+                    "type": "ai",
+                    "id": "ai-old",
+                    "tool_calls": [
+                        {"id": "tc-old", "name": "search_documents", "args": {}}
+                    ],
+                },
+                {"type": "tool", "id": "tool-old", "tool_call_id": "tc-old"},
+                {"type": "human", "id": "human-current"},
+                {
+                    "type": "ai",
+                    "id": "ai-current",
+                    "tool_calls": [
+                        {"id": "tc-current", "name": "do_kb_retrieve", "args": {}}
+                    ],
+                },
+                {"type": "tool", "id": "tool-current", "tool_call_id": "tc-current"},
+                {"type": "ai", "id": "final-current", "content": "Answer"},
+            ]
+        },
+    }
 
 
 @pytest.mark.unit
@@ -290,6 +331,17 @@ class TestNoToolLoop:
 
         calls = [("a", {"q": 1}), ("a", {"q": 2}), ("a", {"q": 3})]
         assert no_tool_loop(_traj(calls))["score"] == 1
+
+    def test_prior_turn_duplicates_do_not_fail_current_turn(self):
+        from tests.eval.langsmith_trajectory_evaluators import no_tool_loop
+
+        run = _live_shaped_turn()
+        messages = run["outputs"]["messages"]
+        messages[1]["tool_calls"] = [
+            {"id": f"tc-old-{i}", "name": "search_documents", "args": {}}
+            for i in range(3)
+        ]
+        assert no_tool_loop(run)["score"] == 1
 
 
 def _final(content, tool_calls=None):
@@ -345,7 +397,11 @@ class TestTerminatesWithAnswer:
 @pytest.mark.unit
 class TestToolCallValidity:
     def _run(self, messages):
-        return {"inputs": {"messages": []}, "outputs": {"messages": messages}}
+        boundary = {"type": "human", "id": "human-current"}
+        return {
+            "inputs": {"messages": [boundary]},
+            "outputs": {"messages": [boundary, *messages]},
+        }
 
     def test_matched_call_passes(self):
         from tests.eval.langsmith_trajectory_evaluators import tool_call_validity
@@ -385,6 +441,68 @@ class TestToolCallValidity:
             {"type": "tool", "id": "t2", "tool_call_id": "c9"},  # orphan
         ]
         assert tool_call_validity(self._run(msgs))["score"] == 0
+
+    def test_unmatched_prior_turn_call_does_not_fail_current_turn(self):
+        from tests.eval.langsmith_trajectory_evaluators import tool_call_validity
+
+        run = _live_shaped_turn()
+        run["outputs"]["messages"] = [
+            message
+            for message in run["outputs"]["messages"]
+            if message.get("id") != "tool-old"
+        ]
+        assert tool_call_validity(run)["score"] == 1
+
+
+@pytest.mark.unit
+class TestCurrentTurnBoundary:
+    def test_extract_messages_keeps_only_current_turn_suffix(self):
+        from tests.eval.langsmith_trajectory_evaluators import _extract_messages
+
+        messages = _extract_messages(_live_shaped_turn())
+        assert [message["id"] for message in messages] == [
+            "ai-current",
+            "tool-current",
+            "final-current",
+        ]
+
+    def test_prior_plan_call_does_not_distort_current_plan_step(self):
+        from tests.eval.langsmith_trajectory_evaluators import plan_adherence
+
+        run = _live_shaped_turn()
+        run["outputs"]["plan"] = [
+            {"step": 1, "tool": "do_kb_retrieve"},
+            {"step": 2, "tool": "summarize_document"},
+        ]
+        result = plan_adherence(run)
+        assert result["score"] == 0.5
+        assert "search_documents" not in result["comment"]
+
+    @pytest.mark.parametrize(
+        "evaluator, run",
+        [
+            (
+                "tool_call_validity",
+                {"outputs": {"messages": [{"type": "ai", "id": "a"}]}},
+            ),
+            ("no_tool_loop", {"outputs": {"messages": [{"type": "ai", "id": "a"}]}}),
+            (
+                "plan_adherence",
+                {
+                    "outputs": {
+                        "plan": [{"step": 1, "tool": "do_kb_retrieve"}],
+                        "messages": [{"type": "ai", "id": "a"}],
+                    }
+                },
+            ),
+        ],
+    )
+    def test_missing_human_boundary_fails_closed(self, evaluator, run):
+        from tests.eval import langsmith_trajectory_evaluators as rules
+
+        result = getattr(rules, evaluator)(run)
+        assert result["score"] == 0
+        assert "turn boundary" in result["comment"].lower()
 
 
 @pytest.mark.unit
@@ -471,15 +589,104 @@ class TestEvaluatorExtractorRoundTrip:
         )
 
         src = EVALUATORS_FILE.read_text()
+        smoke_run = {
+            "inputs": {"messages": [{"type": "human", "id": "human-current"}]},
+            "outputs": {
+                "messages": [
+                    {"type": "human", "id": "human-current"},
+                    {
+                        "type": "ai",
+                        "tool_calls": [
+                            {
+                                "id": "call-list-projects",
+                                "name": "list_projects",
+                                "args": {},
+                            },
+                            {
+                                "id": "call-create-project",
+                                "name": "create_project",
+                                "args": {"name": "Synthetic Project"},
+                            },
+                        ],
+                    },
+                    {
+                        "type": "tool",
+                        "tool_call_id": "call-list-projects",
+                        "content": "no existing projects",
+                    },
+                    {
+                        "type": "tool",
+                        "tool_call_id": "call-create-project",
+                        "content": "created",
+                    },
+                    {"type": "ai", "content": "Project created."},
+                ],
+                "plan": [
+                    {"step": 1, "tool": "list_projects"},
+                    {"step": 2, "tool": "create_project"},
+                ],
+            },
+        }
         for fn_name, _label in METRICS:
             blob = _extract_function(src, fn_name)
             assert "def perform_eval(" in blob
             ns: dict = {}
             exec(compile(blob, f"<{fn_name}>", "exec"), ns)
-            result = ns["perform_eval"](
-                {"inputs": {"messages": []}, "outputs": {"messages": [], "plan": []}}
-            )
-            assert isinstance(result.get("score"), (int, float))
+            result = ns["perform_eval"](smoke_run)
+            assert result["score"] == 1
+            if fn_name == "no_tool_loop":
+                assert "no loop possible" not in result["comment"].lower()
+                assert result["comment"] == "2 tool calls, no spinning detected."
+
+    def test_extracted_plan_adherence_bundles_known_tools(self):
+        from tests.eval.upload_trajectory_rules import (
+            EVALUATORS_FILE,
+            _extract_function,
+        )
+
+        blob = _extract_function(EVALUATORS_FILE.read_text(), "plan_adherence")
+        assert "KNOWN_TOOLS = frozenset(" in blob
+
+        ns: dict = {}
+        exec(compile(blob, "<plan_adherence>", "exec"), ns)
+        result = ns["perform_eval"](
+            {
+                "outputs": {
+                    "messages": [
+                        {"type": "human", "id": "human-current"},
+                        {
+                            "type": "ai",
+                            "tool_calls": [
+                                {
+                                    "id": "call-current",
+                                    "name": "create_project",
+                                    "args": {"name": "Synthetic Project"},
+                                }
+                            ],
+                        },
+                    ],
+                    "plan": [{"step": 1, "tool": "create_project"}],
+                }
+            }
+        )
+
+        assert result["score"] == 1
+        assert result["comment"] == "All 1 planned tool-step(s) executed in order."
+
+    def test_known_tools_extraction_does_not_bundle_unrelated_constant(self):
+        from tests.eval.upload_trajectory_rules import (
+            EVALUATORS_FILE,
+            _extract_function,
+        )
+
+        source = 'UNRELATED_TOOLS = frozenset({"must-not-bundle"})\n' + (
+            EVALUATORS_FILE.read_text()
+        )
+        blob = _extract_function(source, "plan_adherence")
+
+        assert "KNOWN_TOOLS = frozenset(" in blob
+        assert "UNRELATED_TOOLS" not in blob
+        assert "must-not-bundle" not in blob
 
 
 from pydantic import BaseModel as _PydBaseModel
@@ -578,9 +785,11 @@ class TestGoldenReplayLLM:
         from tests.eval._replay_llm import CassetteExhausted, GoldenReplayLLM
 
         with pytest.raises(CassetteExhausted):
-            await GoldenReplayLLM(_cassette([])).with_structured_output(
-                _FakeIntent
-            ).ainvoke(["m"])
+            await (
+                GoldenReplayLLM(_cassette([]))
+                .with_structured_output(_FakeIntent)
+                .ainvoke(["m"])
+            )
 
     def test_replay_disabled_by_default(self):
         # Phase 1 must stay inert unless explicitly enabled.

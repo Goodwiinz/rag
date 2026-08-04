@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 # ``_set_job`` sync wrapper which sprays to both L1 and Redis.
 
 from src.services.agent._builders import RECURSION_LIMIT
+from src.services.agent.agent_run_service import get_run
 from src.services.agent.job_store import _l1 as _jobs
 from src.services.agent.job_store import _l1_lock as _jobs_lock
 from src.services.agent.job_store import _write_to_redis_only
@@ -54,6 +55,7 @@ from src.services.agent.job_store import (
     schedule_run_projection as _schedule_run_projection,
 )
 from src.services.agent.job_store import set_job as _set_job_async
+from src.services.agent.trace_metadata import TraceSource, build_trace_metadata
 from src.shared.enums import JobStatus
 
 MAX_JOBS = 500
@@ -1953,6 +1955,11 @@ async def _run_agent_graph(
     AgentExecuteResponse = schemas["AgentExecuteResponse"]
     AgentMessage = schemas["AgentMessage"]
     RetrievedContextResponse = schemas["RetrievedContextResponse"]
+    latest_user_message = next(
+        (message for message in reversed(request.messages) if message.role == "user"),
+        None,
+    )
+    client_message_id = getattr(latest_user_message, "client_message_id", None)
 
     async with AsyncSessionLocal() as db:
         try:
@@ -2115,12 +2122,14 @@ async def _run_agent_graph(
                 # LangSmith run metadata — makes traces filterable per
                 # tenant/turn (saved views by user_id / org_id / thread_id).
                 # Inherited by child runs; never carries secrets.
-                "metadata": {
-                    "user_id": str(current_user.id),
-                    "org_id": str(getattr(current_user, "organization_id", "") or ""),
-                    "thread_id": request.thread_id or job_id,
-                    "job_id": job_id,
-                },
+                "metadata": build_trace_metadata(
+                    trace_source=TraceSource.GRAPH,
+                    user_id=current_user.id,
+                    org_id=getattr(current_user, "organization_id", None),
+                    thread_id=resolved_thread_id,
+                    agent_run_id=job_id,
+                    client_message_id=client_message_id,
+                ),
             }
 
             try:
@@ -2439,6 +2448,39 @@ async def _resume_agent_graph(
                         },
                     )
                     return
+
+            durable_run = await get_run(
+                db,
+                job_id,
+                organization_id=getattr(current_user, "organization_id", None),
+                user_id=current_user.id,
+            )
+            if asyncio.iscoroutine(
+                durable_run
+            ):  # fail closed on a malformed DB adapter
+                durable_run.close()
+                durable_run = None
+            verified_thread_id = None
+            if (
+                durable_run is not None
+                and durable_run.thread_id is not None
+                and str(durable_run.thread_id) == str(resume_thread_id)
+            ):
+                verified_thread_id = durable_run.thread_id
+            config["metadata"] = build_trace_metadata(
+                trace_source=TraceSource.GRAPH,
+                user_id=current_user.id,
+                org_id=getattr(current_user, "organization_id", None),
+                thread_id=verified_thread_id,
+                request_id=job_id,
+                agent_run_id=(durable_run.job_id if durable_run is not None else None),
+                user_message_id=(
+                    durable_run.user_message_id if durable_run is not None else None
+                ),
+                client_message_id=(
+                    durable_run.client_message_id if durable_run is not None else None
+                ),
+            )
 
             async with asyncio.timeout(360):
                 final_state = await graph.ainvoke(

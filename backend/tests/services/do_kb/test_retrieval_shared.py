@@ -257,3 +257,195 @@ async def test_rag_node_delegates_to_shared_retrieve():
     assert kwargs["timeout"] == 4.0
     assert kwargs["org_id"] == org_uuid
     assert out is not None and len(out) == 1
+
+
+@pytest.mark.parametrize("rerank_enabled", [False, True])
+async def test_rag_node_sanitizes_and_deduplicates_before_optional_rerank(
+    rerank_enabled: bool,
+):
+    """The primary path never exposes unsanitized or duplicate chunks."""
+    from contextlib import asynccontextmanager
+
+    from src.services.agent import _nodes_rag
+
+    user_id = str(uuid.uuid4())
+    org_uuid = uuid.uuid4()
+    cfg = SimpleNamespace(
+        DO_KB_PRIMARY_READ=True,
+        DO_KB_RETRIEVE_TIMEOUT_SECONDS=4.0,
+        AGENT_DOKB_COHERE_RERANK=rerank_enabled,
+    )
+    session = MagicMock()
+
+    @asynccontextmanager
+    async def _session_ctx():
+        yield session
+
+    chunks = [
+        Chunk(
+            text="Contact synthetic.alpha@example.test",
+            score=0.9,
+            document_id="a",
+            metadata={"score_source": "rank_proxy"},
+        ),
+        Chunk(
+            text="Contact synthetic.beta@example.test",
+            score=0.8,
+            document_id="b",
+            metadata={"score_source": "rank_proxy"},
+        ),
+        Chunk(
+            text="Distinct result",
+            score=0.7,
+            document_id="c",
+            metadata={"score_source": "rank_proxy"},
+        ),
+    ]
+    outcome = DOKBRetrieveOutcome(
+        status=DOKBRetrieveStatus.SUCCESS,
+        result=RetrieveResult(chunks=chunks, total=3),
+    )
+
+    async def _resolve(**kwargs):
+        return ({}, kwargs["chunks"])
+
+    async def _rerank(_query, sanitized_chunks):
+        assert [chunk.text for chunk in sanitized_chunks] == [
+            "Contact <email>",
+            "Distinct result",
+        ]
+        return list(reversed(sanitized_chunks))
+
+    rerank = AsyncMock(side_effect=_rerank)
+    with (
+        patch("src.core.config.settings", cfg),
+        patch("src.core.database.AsyncSessionLocal", _session_ctx),
+        patch(
+            "src.services.do_kb.retrieval.resolve_org_kb_uuid",
+            AsyncMock(return_value="kb-1"),
+        ),
+        patch(
+            "src.services.do_kb.retrieval.retrieve_kb_chunks",
+            AsyncMock(return_value=outcome),
+        ),
+        patch("src.services.do_kb.resolve.resolve_and_filter_chunks", _resolve),
+        patch("src.services.do_kb.rerank.cohere_rescore_chunks", rerank),
+    ):
+        contexts = await _nodes_rag._try_primary_do_kb_read("q", user_id, str(org_uuid))
+
+    assert contexts is not None
+    expected = (
+        ["Distinct result", "Contact <email>"]
+        if rerank_enabled
+        else ["Contact <email>", "Distinct result"]
+    )
+    assert [context["content"] for context in contexts] == expected
+    assert all("synthetic." not in context["content"] for context in contexts)
+    if rerank_enabled:
+        rerank.assert_awaited_once()
+    else:
+        rerank.assert_not_awaited()
+
+
+async def test_rag_node_rerank_failure_keeps_sanitized_deduplicated_order():
+    from contextlib import asynccontextmanager
+
+    from src.services.agent import _nodes_rag
+
+    user_id = str(uuid.uuid4())
+    org_uuid = uuid.uuid4()
+    cfg = SimpleNamespace(
+        DO_KB_PRIMARY_READ=True,
+        DO_KB_RETRIEVE_TIMEOUT_SECONDS=4.0,
+        AGENT_DOKB_COHERE_RERANK=True,
+    )
+    session = MagicMock()
+
+    @asynccontextmanager
+    async def _session_ctx():
+        yield session
+
+    chunks = [
+        Chunk(text="Call 415-555-0101", document_id="a"),
+        Chunk(text="Call 415-555-0102", document_id="b"),
+    ]
+    outcome = DOKBRetrieveOutcome(
+        status=DOKBRetrieveStatus.SUCCESS,
+        result=RetrieveResult(chunks=chunks, total=2),
+    )
+
+    async def _resolve(**kwargs):
+        return ({}, kwargs["chunks"])
+
+    async def _failure_passthrough(_query, sanitized_chunks):
+        assert [chunk.text for chunk in sanitized_chunks] == ["Call <phone>"]
+        return sanitized_chunks
+
+    with (
+        patch("src.core.config.settings", cfg),
+        patch("src.core.database.AsyncSessionLocal", _session_ctx),
+        patch(
+            "src.services.do_kb.retrieval.resolve_org_kb_uuid",
+            AsyncMock(return_value="kb-1"),
+        ),
+        patch(
+            "src.services.do_kb.retrieval.retrieve_kb_chunks",
+            AsyncMock(return_value=outcome),
+        ),
+        patch("src.services.do_kb.resolve.resolve_and_filter_chunks", _resolve),
+        patch(
+            "src.services.do_kb.rerank.cohere_rescore_chunks",
+            AsyncMock(side_effect=_failure_passthrough),
+        ),
+    ):
+        contexts = await _nodes_rag._try_primary_do_kb_read("q", user_id, str(org_uuid))
+
+    assert contexts is not None
+    assert [context["content"] for context in contexts] == ["Call <phone>"]
+
+
+async def test_rag_node_empty_after_sanitization_triggers_fallback():
+    from contextlib import asynccontextmanager
+
+    from src.services.agent import _nodes_rag
+
+    user_id = str(uuid.uuid4())
+    org_uuid = uuid.uuid4()
+    cfg = SimpleNamespace(
+        DO_KB_PRIMARY_READ=True,
+        DO_KB_RETRIEVE_TIMEOUT_SECONDS=4.0,
+        AGENT_DOKB_COHERE_RERANK=True,
+    )
+    session = MagicMock()
+
+    @asynccontextmanager
+    async def _session_ctx():
+        yield session
+
+    outcome = DOKBRetrieveOutcome(
+        status=DOKBRetrieveStatus.SUCCESS,
+        result=RetrieveResult(chunks=[Chunk(text=" \n ", document_id="a")], total=1),
+    )
+
+    async def _resolve(**kwargs):
+        return ({}, kwargs["chunks"])
+
+    rerank = AsyncMock()
+    with (
+        patch("src.core.config.settings", cfg),
+        patch("src.core.database.AsyncSessionLocal", _session_ctx),
+        patch(
+            "src.services.do_kb.retrieval.resolve_org_kb_uuid",
+            AsyncMock(return_value="kb-1"),
+        ),
+        patch(
+            "src.services.do_kb.retrieval.retrieve_kb_chunks",
+            AsyncMock(return_value=outcome),
+        ),
+        patch("src.services.do_kb.resolve.resolve_and_filter_chunks", _resolve),
+        patch("src.services.do_kb.rerank.cohere_rescore_chunks", rerank),
+    ):
+        contexts = await _nodes_rag._try_primary_do_kb_read("q", user_id, str(org_uuid))
+
+    assert contexts is None
+    rerank.assert_not_awaited()

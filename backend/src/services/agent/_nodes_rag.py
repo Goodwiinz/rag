@@ -29,6 +29,7 @@ import asyncio
 import logging
 import re
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -251,16 +252,22 @@ def _shape_do_kb_context(chunk, title_by_key: dict[str, tuple[str, str]]) -> dic
     ``Document.id`` (UUID) + ``Document.title`` so citations render with real
     titles instead of "DO KB chunk".
     """
+    from src.services.agent._pii_redact import redact_pii
+
     storage_key = chunk.document_id
     resolved_id, title = title_by_key.get(storage_key, (None, None))
+    try:
+        canonical_document_id = str(UUID(str(resolved_id))) if resolved_id else None
+    except (ValueError, TypeError, AttributeError):
+        canonical_document_id = None
+    title_candidate = title or (chunk.metadata or {}).get("title")
+    safe_title = redact_pii(title_candidate).strip() or "Untitled"
     return {
-        "document_id": resolved_id,
-        "title": title
-        or (chunk.metadata or {}).get("title")
-        or storage_key
-        or "Untitled",
+        "document_id": canonical_document_id,
+        "title": safe_title,
         "content": chunk.text[:3000],
         "score": float(chunk.score),
+        "score_source": (chunk.metadata or {}).get("score_source"),
     }
 
 
@@ -423,6 +430,23 @@ async def _try_primary_do_kb_read_impl(
                     scoped_project_id,
                 )
                 _record_do_kb_read("project_scope_empty")
+                return None
+
+            from src.services.do_kb.postprocess import sanitize_and_deduplicate_chunks
+
+            postprocessed = sanitize_and_deduplicate_chunks(chunks_to_emit)
+            logger.info(
+                "do_kb primary-read postprocess complete",
+                extra={
+                    "input_count": postprocessed.input_count,
+                    "output_count": postprocessed.output_count,
+                    "duplicate_count": postprocessed.duplicate_count,
+                    "redacted_count": postprocessed.redacted_count,
+                },
+            )
+            chunks_to_emit = postprocessed.chunks
+            if not chunks_to_emit:
+                _record_do_kb_read("do_kb_empty")
                 return None
 
         if getattr(_kb_cfg, "AGENT_DOKB_COHERE_RERANK", False) and chunks_to_emit:

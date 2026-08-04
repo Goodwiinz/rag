@@ -62,6 +62,10 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
+        ),
     ):
         events = []
         async for event in stream_event_generator(body, request, current_user):
@@ -81,10 +85,15 @@ async def test_stream_event_generator_cancels_on_disconnect():
         return _FakeGraph()
 
     # Client is gone before the first graph event is read.
-    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
+    expected_request_id = "request-disconnect-123"
+    request = SimpleNamespace(
+        state=SimpleNamespace(request_id=expected_request_id),
+        is_disconnected=AsyncMock(return_value=True),
+    )
     body = make_stream_request(messages=[], thread_id="")
     current_user = Mock(id="user-1", organization_id="org-1")
     persist = AsyncMock(return_value=None)
+    finalize = AsyncMock(return_value=None)
 
     with (
         # Force the legacy (no stream buffer) path: these tests cover the
@@ -110,9 +119,14 @@ async def test_stream_event_generator_cancels_on_disconnect():
             "_persist_assistant_message_safe",
             new=persist,
         ),
+        patch.object(streaming_mod, "_finalize_run", new=finalize),
         patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
+        ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
         ),
     ):
         events = []
@@ -122,6 +136,10 @@ async def test_stream_event_generator_cancels_on_disconnect():
     # No completion frame, and no assistant row persisted into a dead socket.
     assert not any("event: done" in e for e in events)
     persist.assert_not_awaited()
+    assert finalize.await_args.kwargs["payload"] == {
+        "reason": "client_disconnected",
+        "request_id": expected_request_id,
+    }
 
 
 @pytest.mark.asyncio

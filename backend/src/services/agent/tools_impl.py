@@ -1719,20 +1719,51 @@ async def _tool_do_kb_retrieve(
             project_id=resolved_project_id,
         )
 
+    from src.services.do_kb.postprocess import sanitize_and_deduplicate_chunks
+
+    postprocessed = sanitize_and_deduplicate_chunks(chunks_to_emit)
+    logger.info(
+        "do_kb tool postprocess complete",
+        extra={
+            "input_count": postprocessed.input_count,
+            "output_count": postprocessed.output_count,
+            "duplicate_count": postprocessed.duplicate_count,
+            "redacted_count": postprocessed.redacted_count,
+        },
+    )
+    chunks_to_emit = postprocessed.chunks
+    if not chunks_to_emit:
+        return {
+            "chunks": [],
+            "total": 0,
+            "source": "do_kb",
+            "reason": "no_safe_chunks",
+            "evidence_mode": False,
+        }
+
     if chunks_to_emit and getattr(_kb_settings, "AGENT_DOKB_COHERE_RERANK", False):
         from src.services.do_kb.rerank import cohere_rescore_chunks
 
         chunks_to_emit = await cohere_rescore_chunks(query, chunks_to_emit)
 
+    from src.services.agent._pii_redact import redact_pii
+
     chunks_payload = []
     for c in chunks_to_emit:
         resolved_id, title = title_by_key.get(c.document_id or "", (None, None))
+        try:
+            canonical_document_id = str(UUID(str(resolved_id))) if resolved_id else None
+        except (ValueError, TypeError, AttributeError):
+            canonical_document_id = None
+        title_candidate = title or (c.metadata or {}).get("title")
+        safe_title = redact_pii(title_candidate).strip() or "Untitled"
         chunks_payload.append(
             {
                 "text": c.text,
                 "score": c.score,
-                "document_id": resolved_id or c.document_id,
-                "title": title or (c.metadata or {}).get("title") or c.document_id,
+                "score_source": (c.metadata or {}).get("score_source"),
+                "document_id": canonical_document_id,
+                "title": safe_title,
                 "metadata": c.metadata,
             }
         )

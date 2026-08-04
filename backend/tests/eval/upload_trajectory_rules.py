@@ -8,9 +8,11 @@ Usage:
 
 Idempotent: deletes existing rules with matching display_name before recreate.
 """
+
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -20,8 +22,19 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 REPO = Path(__file__).resolve().parents[3]
+BACKEND_DIR = REPO / "backend"
+
+# The documented CLI executes this file directly, which puts tests/eval (not
+# backend) on sys.path. Preserve that entry point while importing the shared
+# source contract rather than copying its metadata strings into this uploader.
+if __package__ in (None, ""):
+    sys.path.insert(0, str(BACKEND_DIR))
+
+from src.services.agent.trace_metadata import TRACE_SOURCE_METADATA_KEY, TraceSource
+
 ENV_FILE = REPO / "backend" / ".env"
 EVALUATORS_FILE = Path(__file__).with_name("langsmith_trajectory_evaluators.py")
 PROJECT_NAME = os.environ.get("LANGSMITH_EVAL_PROJECT", "rag-agent-evals")
@@ -33,11 +46,25 @@ METRICS = [
     ("plan_adherence", "Plan Adherence"),
 ]
 
+# Online trajectory evaluators consume LangGraph state-shaped outputs. Scope
+# them to graph roots: child runs inherit this metadata but are excluded by
+# is_root, and non-graph roots (for example Luna's ChatModel call) carry a
+# distinct source value.
+TRAJECTORY_ROOT_FILTER = (
+    "and(eq(is_root, true), "
+    f'and(eq(metadata_key, "{TRACE_SOURCE_METADATA_KEY}"), '
+    f'eq(metadata_value, "{TraceSource.GRAPH.value}")))'
+)
+
 
 def _load_env() -> tuple[str, str]:
-    for line in subprocess.check_output(
-        ["grep", "-E", "^(LANGSMITH_API_KEY|LANGSMITH_ENDPOINT)=", str(ENV_FILE)]
-    ).decode().splitlines():
+    for line in (
+        subprocess.check_output(
+            ["grep", "-E", "^(LANGSMITH_API_KEY|LANGSMITH_ENDPOINT)=", str(ENV_FILE)]
+        )
+        .decode()
+        .splitlines()
+    ):
         k, _, v = line.partition("=")
         os.environ[k] = v
     return os.environ["LANGSMITH_API_KEY"], os.environ.get(
@@ -45,7 +72,9 @@ def _load_env() -> tuple[str, str]:
     )
 
 
-def _request(method: str, url: str, api_key: str, body: dict | None = None):
+def _request(
+    method: str, url: str, api_key: str, body: dict[str, Any] | None = None
+) -> Any:
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(
         url,
@@ -76,13 +105,28 @@ def _extract_function(source: str, fn_name: str) -> str:
     # the sandboxed blob NameErrors at call time (e.g. plan_adherence uses
     # KNOWN_TOOLS). Include any that are present.
     prefix = []
-    const = re.search(
-        r"^KNOWN_TOOLS = frozenset\(\{.*?\}\)\n",
-        source,
-        re.MULTILINE | re.DOTALL,
+    const_node = next(
+        (
+            node
+            for node in ast.parse(source).body
+            if isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "KNOWN_TOOLS"
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Name)
+            and node.value.func.id == "frozenset"
+            and len(node.value.args) == 1
+            and isinstance(node.value.args[0], ast.Set)
+            and not node.value.keywords
+        ),
+        None,
     )
-    if const:
-        prefix.append(const.group().rstrip() + "\n")
+    if const_node is not None:
+        const_source = ast.get_source_segment(source, const_node)
+        if not const_source:
+            raise RuntimeError("Could not extract KNOWN_TOOLS source.")
+        prefix.append(const_source.rstrip() + "\n")
     # Grab the helpers (always needed).
     helpers = []
     for helper in ("_extract_messages", "_iter_tool_calls"):
@@ -122,8 +166,61 @@ def _extract_function(source: str, fn_name: str) -> str:
         exec(compile(blob, f"<{fn_name}>", "exec"), ns)
         fn = ns.get("perform_eval")
         if not callable(fn):
-            raise RuntimeError(f"{fn_name}: extracted blob has no callable perform_eval.")
-        fn({"inputs": {"messages": []}, "outputs": {"messages": [], "plan": []}})
+            raise RuntimeError(
+                f"{fn_name}: extracted blob has no callable perform_eval."
+            )
+        result = fn(
+            {
+                "inputs": {"messages": [{"type": "human", "id": "human-current"}]},
+                "outputs": {
+                    "messages": [
+                        {"type": "human", "id": "human-current"},
+                        {
+                            "type": "ai",
+                            "tool_calls": [
+                                {
+                                    "id": "call-list-projects",
+                                    "name": "list_projects",
+                                    "args": {},
+                                },
+                                {
+                                    "id": "call-create-project",
+                                    "name": "create_project",
+                                    "args": {"name": "Synthetic Project"},
+                                },
+                            ],
+                        },
+                        {
+                            "type": "tool",
+                            "tool_call_id": "call-list-projects",
+                            "content": "no existing projects",
+                        },
+                        {
+                            "type": "tool",
+                            "tool_call_id": "call-create-project",
+                            "content": "created",
+                        },
+                        {"type": "ai", "content": "Project created."},
+                    ],
+                    "plan": [
+                        {"step": 1, "tool": "list_projects"},
+                        {"step": 2, "tool": "create_project"},
+                    ],
+                },
+            }
+        )
+        if not isinstance(result, dict) or result.get("score") != 1:
+            raise RuntimeError(
+                f"{fn_name}: extracted evaluator failed non-vacuous smoke call: "
+                f"{result!r}"
+            )
+        if (
+            fn_name == "no_tool_loop"
+            and "no loop possible" in str(result.get("comment", "")).lower()
+        ):
+            raise RuntimeError(
+                "no_tool_loop: extraction smoke did not exercise the comparison path"
+            )
     except NameError as e:
         raise RuntimeError(
             f"{fn_name}: extracted evaluator references a name not bundled by "
@@ -138,10 +235,10 @@ def _resolve_session_id(api_key: str, endpoint: str) -> str:
     matches = [s for s in data if s.get("name") == PROJECT_NAME]
     if not matches:
         raise RuntimeError(f"Project {PROJECT_NAME!r} not found.")
-    return matches[0]["id"]
+    return str(matches[0]["id"])
 
 
-def _existing_rules(api_key: str, endpoint: str, session_id: str):
+def _existing_rules(api_key: str, endpoint: str, session_id: str) -> Any:
     q = urllib.parse.urlencode({"session_id": session_id, "limit": 100})
     return _request("GET", f"{endpoint}/api/v1/runs/rules?{q}", api_key)
 
@@ -191,12 +288,10 @@ def main() -> int:
             "session_id": session_id,
             "is_enabled": True,
             "sampling_rate": args.sampling_rate,
-            "filter": "eq(is_root, true)",
+            "filter": TRAJECTORY_ROOT_FILTER,
             "code_evaluators": [{"code": code, "language": "python"}],
         }
-        result = _request(
-            "POST", f"{endpoint}/api/v1/runs/rules", api_key, body
-        )
+        result = _request("POST", f"{endpoint}/api/v1/runs/rules", api_key, body)
         print(f"Created rule {display!r} id={result.get('id', '<unknown>')}")
 
     print("\nDone.")

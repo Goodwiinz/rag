@@ -210,6 +210,21 @@ def test_failure_payload_is_code_plus_client_safe_message_only() -> None:
         )
 
 
+@pytest.mark.parametrize("event_type", ["run.stopping", "run.cancelled"])
+def test_cancellation_payload_accepts_bounded_request_id(event_type: str) -> None:
+    request_id = "r" * 128
+
+    assert validate_payload(
+        event_type,
+        {"reason": "client_disconnected", "request_id": request_id},
+    ) == {"reason": "client_disconnected", "request_id": request_id}
+
+    with pytest.raises(ValidationError):
+        validate_payload(event_type, {"request_id": "r" * 129})
+    with pytest.raises(ValidationError):
+        validate_payload(event_type, {"request_id": request_id, "prompt": "secret"})
+
+
 def test_unknown_type_payload_is_rejected_by_validate() -> None:
     with pytest.raises(ValueError):
         validate_payload("not.a.type", {})

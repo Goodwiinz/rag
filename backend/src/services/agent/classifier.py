@@ -23,16 +23,25 @@ from src.services.agent._sanitize import (  # noqa: F401
     _PROMPT_FIELD_MAX_CHARS,
     _sanitize_prompt_field,
 )
-from src.services.agent.graph import INTENT_KEYWORDS, INTENT_PRIORITY
+from src.services.agent.graph import (
+    ACTION_INTENT_OVERRIDES,
+    INTENT_KEYWORDS,
+    INTENT_PRIORITY,
+)
 
 logger = logging.getLogger(__name__)
 
 # Type alias matching the state schema
 IntentType = Literal["research", "writing", "knowledge_graph", "general"]
+ClassifierSource = Literal["llm", "keyword", "action_override", "shortcut", "fallback"]
 
 # Confidence threshold below which the LLM result is discarded in favour of
 # the keyword classifier.
 _LLM_CONFIDENCE_THRESHOLD = 0.7
+
+# With no keyword evidence, specialised routes need enough LLM confidence to
+# avoid sending a user to a tool subset that cannot perform their request.
+_SPECIALIZED_LLM_MIN_CONFIDENCE = 0.60
 
 # Hard wall-clock cap on the LLM classifier call. Prevents a hung Azure
 # endpoint from blocking the agent turn — keyword fallback handles timeouts.
@@ -67,13 +76,14 @@ class ClassificationResult:
         confidence: 0.0-1.0 indicating classifier certainty.
         reasoning:  Short human-readable explanation.
         source:     Which classifier produced this result
-                    ("llm", "keyword", or "fallback").
+                    ("llm", "keyword", "action_override", "shortcut", or
+                    "fallback").
     """
 
     intent: IntentType
     confidence: float
     reasoning: str
-    source: str  # "llm", "keyword", "fallback"
+    source: ClassifierSource
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +175,20 @@ Previous tool: ingest_arxiv_papers (status: skipped)
 # ---------------------------------------------------------------------------
 # Keyword classifier
 # ---------------------------------------------------------------------------
+
+
+def _classify_action_override(query: str) -> Optional[ClassificationResult]:
+    """Return a deterministic action route for a normalized whole phrase."""
+    normalized_query = " ".join(query.casefold().split())
+    for phrase, intent in ACTION_INTENT_OVERRIDES:
+        if re.search(rf"\b{re.escape(phrase)}\b", normalized_query):
+            return ClassificationResult(
+                intent=intent,  # type: ignore[arg-type]
+                confidence=1.0,
+                reasoning=f"Action override matched '{phrase}'.",
+                source="action_override",
+            )
+    return None
 
 
 def classify_intent_keywords(query: str) -> ClassificationResult:
@@ -328,12 +352,12 @@ async def classify_intent_with_fallback(
 ) -> ClassificationResult:
     """Classify intent with keyword-first, LLM-escalation strategy.
 
-    1. Run keyword classifier. If confidence >= 0.7, return immediately (no LLM).
-    2. For ambiguous queries, escalate to LLM for better accuracy.
-    3. If the LLM call fails or returns low confidence, fall back to the
-       keyword result — unless the keyword classifier matched nothing
-       (confidence 0.0), in which case the LLM result is kept: a weak
-       classification beats no classification.
+    1. Route deterministic action phrases before keyword or LLM classification.
+    2. Run keyword classifier. If confidence >= 0.7, return immediately (no LLM).
+    3. For ambiguous queries, escalate to LLM for better accuracy.
+    4. With no keyword evidence, retain ``general`` LLM results and specialised
+       LLM results at or above 0.60; otherwise use ``general/fallback`` while
+       preserving the rejected LLM confidence for telemetry.
 
     Args:
         query:          The user's current query.
@@ -355,6 +379,15 @@ async def classify_intent_with_fallback(
             reasoning="Empty query — defaulted to general.",
             source="fallback",
         )
+
+    action_override = _classify_action_override(query)
+    if action_override is not None:
+        logger.info(
+            "Intent action override selected intent '%s'",
+            action_override.intent,
+            extra={"classifier_decision": "action_override"},
+        )
+        return action_override
 
     keyword_result = classify_intent_keywords(query)
 
@@ -401,23 +434,34 @@ async def classify_intent_with_fallback(
         if llm_result.confidence >= _LLM_CONFIDENCE_THRESHOLD:
             return llm_result
 
-        # A sub-threshold LLM result still beats a keyword result that matched
-        # nothing at all. ``classify_intent_keywords`` returns confidence 0.0
-        # ONLY for "no keyword matches found" — a zero-evidence default, not a
-        # classification — so preferring the keyword result there discards the
-        # only signal the turn has. Observed live: "finish the plan" classified
-        # writing/0.62, overridden to general/0.0, routed to the general
-        # subgraph, and the agent described the note it should have written
-        # instead of calling create_note.
         if keyword_result.confidence == 0.0:
+            if llm_result.intent == "general":
+                return llm_result
+            if llm_result.confidence >= _SPECIALIZED_LLM_MIN_CONFIDENCE:
+                logger.info(
+                    "Accepted weak specialised LLM intent '%s' at %.2f",
+                    llm_result.intent,
+                    llm_result.confidence,
+                    extra={"classifier_decision": "accepted_weak_specialized"},
+                )
+                return llm_result
             logger.info(
-                "LLM confidence %.2f < %.2f but keyword classifier found no "
-                "evidence — keeping LLM intent '%s'",
-                llm_result.confidence,
-                _LLM_CONFIDENCE_THRESHOLD,
+                "Rejected weak specialised LLM intent '%s' at %.2f: insufficient evidence",
                 llm_result.intent,
+                llm_result.confidence,
+                extra={"classifier_decision": "rejected_weak_specialized"},
             )
-            return llm_result
+            return ClassificationResult(
+                intent="general",
+                confidence=llm_result.confidence,
+                reasoning=(
+                    "Specialized evidence was insufficient for "
+                    f"'{llm_result.intent}' (LLM confidence "
+                    f"{llm_result.confidence:.2f} < "
+                    f"{_SPECIALIZED_LLM_MIN_CONFIDENCE:.2f})."
+                ),
+                source="fallback",
+            )
 
         logger.info(
             "LLM confidence %.2f < %.2f for ambiguous query, using keyword result",

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import re
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
@@ -132,9 +133,18 @@ def build_fast_path_messages(
     return [SystemMessage(content=_FAST_PATH_SYSTEM_PROMPT), *selected]
 
 
-async def stream_fast_path_chunks(*, llm: Any, messages: list[Any], persist_user):
+async def stream_fast_path_chunks(
+    *,
+    llm: Any,
+    messages: list[Any],
+    persist_user: Callable[[], Awaitable[Any]],
+    trace_metadata: dict[str, str] | None = None,
+) -> AsyncIterator[Any]:
     """Start Luna and user persistence together, releasing no token too early."""
-    iterator = llm.astream(messages).__aiter__()
+    iterator = llm.astream(
+        messages,
+        config={"metadata": dict(trace_metadata or {})},
+    ).__aiter__()
     persist_task = asyncio.create_task(persist_user())
     first_task = asyncio.create_task(anext(iterator))
     try:

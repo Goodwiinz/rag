@@ -15,6 +15,7 @@ import pytest
 
 from src.services.do_kb.models import Chunk
 from src.services.do_kb.rerank import cohere_rescore_chunks
+from src.services.search.cohere_rerank_service import RerankOutcome
 
 
 def _rerank_result(index: int, relevance_score: float) -> MagicMock:
@@ -34,7 +35,7 @@ async def test_fewer_than_two_chunks_passthrough_service_not_called():
         result = await cohere_rescore_chunks("q", chunks)
 
     assert result == chunks
-    mock_service.rerank.assert_not_called()
+    mock_service.rerank_with_outcome.assert_not_called()
 
 
 @pytest.mark.unit
@@ -44,7 +45,7 @@ async def test_service_disabled_passthrough_original_scores_intact():
         Chunk(text="b", score=0.5, document_id="b", metadata={}),
     ]
     mock_service = MagicMock(is_enabled=False)
-    mock_service.rerank = AsyncMock()
+    mock_service.rerank_with_outcome = AsyncMock()
 
     with patch(
         "src.services.search.cohere_rerank_service.cohere_rerank_service",
@@ -54,7 +55,7 @@ async def test_service_disabled_passthrough_original_scores_intact():
 
     assert result == chunks
     assert [c.score for c in result] == [0.9, 0.5]
-    mock_service.rerank.assert_not_called()
+    mock_service.rerank_with_outcome.assert_not_called()
 
 
 @pytest.mark.unit
@@ -63,10 +64,12 @@ async def test_success_reorders_and_replaces_scores_without_mutating_input():
         Chunk(text="a", score=0.9, document_id="a", metadata={}),
         Chunk(text="b", score=0.5, document_id="b", metadata={}),
     ]
-    mock_service = MagicMock(is_enabled=True, last_failure=None)
+    mock_service = MagicMock(is_enabled=True)
     # Cohere thinks "b" (index 1) is more relevant than "a" (index 0).
-    mock_service.rerank = AsyncMock(
-        return_value=[_rerank_result(1, 0.95), _rerank_result(0, 0.2)]
+    mock_service.rerank_with_outcome = AsyncMock(
+        return_value=RerankOutcome(
+            results=[_rerank_result(1, 0.95), _rerank_result(0, 0.2)]
+        )
     )
 
     with patch(
@@ -78,20 +81,67 @@ async def test_success_reorders_and_replaces_scores_without_mutating_input():
     assert len(result) == 2
     assert [c.document_id for c in result] == ["b", "a"]
     assert [c.score for c in result] == [0.95, 0.2]
+    assert [c.metadata["score_source"] for c in result] == ["cohere", "cohere"]
+    sent_docs = mock_service.rerank_with_outcome.await_args.args[1]
+    assert sent_docs == [
+        {"content": "a", "id": "0", "score": 0.9},
+        {"content": "b", "id": "1", "score": 0.5},
+    ]
     # Original input objects untouched (model_copy, not in-place mutation).
     assert chunks[0].score == 0.9
     assert chunks[1].score == 0.5
 
 
 @pytest.mark.unit
-async def test_last_failure_set_after_call_passthrough():
+async def test_success_preserves_existing_metadata_while_marking_cohere():
+    chunks = [
+        Chunk(
+            text="a",
+            score=0.9,
+            document_id="a",
+            metadata={"title": "A", "score_source": "rank_proxy"},
+        ),
+        Chunk(
+            text="b",
+            score=0.5,
+            document_id="b",
+            metadata={"title": "B", "custom": {"safe": True}},
+        ),
+    ]
+    mock_service = MagicMock(is_enabled=True)
+    mock_service.rerank_with_outcome = AsyncMock(
+        return_value=RerankOutcome(
+            results=[_rerank_result(1, 0.95), _rerank_result(0, 0.2)]
+        )
+    )
+
+    with patch(
+        "src.services.search.cohere_rerank_service.cohere_rerank_service",
+        mock_service,
+    ):
+        result = await cohere_rescore_chunks("q", chunks)
+
+    assert result[0].metadata == {
+        "title": "B",
+        "custom": {"safe": True},
+        "score_source": "cohere",
+    }
+    assert result[1].metadata == {"title": "A", "score_source": "cohere"}
+    assert chunks[0].metadata["score_source"] == "rank_proxy"
+
+
+@pytest.mark.unit
+async def test_failed_invocation_outcome_passthrough():
     chunks = [
         Chunk(text="a", score=0.9, document_id="a", metadata={}),
         Chunk(text="b", score=0.5, document_id="b", metadata={}),
     ]
-    mock_service = MagicMock(is_enabled=True, last_failure={"reason": "circuit_open"})
-    mock_service.rerank = AsyncMock(
-        return_value=[_rerank_result(0, 0.9), _rerank_result(1, 0.5)]
+    mock_service = MagicMock(is_enabled=True)
+    mock_service.rerank_with_outcome = AsyncMock(
+        return_value=RerankOutcome(
+            results=[_rerank_result(0, 0.9), _rerank_result(1, 0.5)],
+            failure={"reason": "circuit_open"},
+        )
     )
 
     with patch(
@@ -104,17 +154,75 @@ async def test_last_failure_set_after_call_passthrough():
 
 
 @pytest.mark.unit
+async def test_concurrent_failure_cannot_inherit_success_provenance():
+    """Each invocation consumes its own outcome, never singleton diagnostics."""
+
+    class _InterleavingService:
+        is_enabled = True
+
+        @property
+        def last_failure(self):
+            raise AssertionError("shared last_failure must not be consulted")
+
+        async def rerank_with_outcome(self, query, _docs, top_n):
+            await asyncio.sleep(0)
+            results = [_rerank_result(i, 0.9 - i * 0.1) for i in range(top_n)]
+            if query == "fallback":
+                return RerankOutcome(
+                    results=results,
+                    failure={"reason": "upstream_http_error"},
+                )
+            return RerankOutcome(results=list(reversed(results)))
+
+    failed_chunks = [
+        Chunk(
+            text="a",
+            score=0.9,
+            document_id="a",
+            metadata={"score_source": "rank_proxy"},
+        ),
+        Chunk(
+            text="b",
+            score=0.5,
+            document_id="b",
+            metadata={"score_source": "rank_proxy"},
+        ),
+    ]
+    successful_chunks = [
+        Chunk(text="c", score=0.8, document_id="c", metadata={}),
+        Chunk(text="d", score=0.4, document_id="d", metadata={}),
+    ]
+
+    with patch(
+        "src.services.search.cohere_rerank_service.cohere_rerank_service",
+        _InterleavingService(),
+    ):
+        failed, successful = await asyncio.gather(
+            cohere_rescore_chunks("fallback", failed_chunks),
+            cohere_rescore_chunks("success", successful_chunks),
+        )
+
+    assert failed == failed_chunks
+    assert [chunk.metadata["score_source"] for chunk in failed] == [
+        "rank_proxy",
+        "rank_proxy",
+    ]
+    assert [chunk.document_id for chunk in successful] == ["d", "c"]
+    assert all(chunk.metadata["score_source"] == "cohere" for chunk in successful)
+
+
+@pytest.mark.unit
 async def test_timeout_passthrough():
     chunks = [
         Chunk(text="a", score=0.9, document_id="a", metadata={}),
         Chunk(text="b", score=0.5, document_id="b", metadata={}),
     ]
-    mock_service = MagicMock(is_enabled=True, last_failure=None)
+    mock_service = MagicMock(is_enabled=True)
 
     async def _hangs(*args, **kwargs):
         raise asyncio.TimeoutError()
 
-    mock_service.rerank = AsyncMock(side_effect=_hangs)
+    mock_service.rerank_with_outcome = AsyncMock(side_effect=_hangs)
 
     with patch(
         "src.services.search.cohere_rerank_service.cohere_rerank_service",
@@ -132,9 +240,11 @@ async def test_partial_results_covered_first_leftovers_in_original_order():
         Chunk(text="b", score=0.5, document_id="b", metadata={}),
         Chunk(text="c", score=0.3, document_id="c", metadata={}),
     ]
-    mock_service = MagicMock(is_enabled=True, last_failure=None)
+    mock_service = MagicMock(is_enabled=True)
     # Only index 2 ("c") came back from Cohere; 0 and 1 are uncovered.
-    mock_service.rerank = AsyncMock(return_value=[_rerank_result(2, 0.99)])
+    mock_service.rerank_with_outcome = AsyncMock(
+        return_value=RerankOutcome(results=[_rerank_result(2, 0.99)])
+    )
 
     with patch(
         "src.services.search.cohere_rerank_service.cohere_rerank_service",
@@ -145,13 +255,73 @@ async def test_partial_results_covered_first_leftovers_in_original_order():
     assert len(result) == 3
     assert [c.document_id for c in result] == ["c", "a", "b"]
     assert result[0].score == 0.99
+    assert result[0].metadata["score_source"] == "cohere"
+    assert result[1].metadata == chunks[0].metadata
+    assert result[2].metadata == chunks[1].metadata
+
+
+@pytest.mark.unit
+async def test_invalid_results_passthrough_original_chunks():
+    chunks = [
+        Chunk(text="a", score=0.9, document_id="a", metadata={}),
+        Chunk(text="b", score=0.5, document_id="b", metadata={}),
+    ]
+    mock_service = MagicMock(is_enabled=True)
+    mock_service.rerank_with_outcome = AsyncMock(
+        return_value=RerankOutcome(results=[_rerank_result(9, 0.99)])
+    )
+
+    with patch(
+        "src.services.search.cohere_rerank_service.cohere_rerank_service",
+        mock_service,
+    ):
+        result = await cohere_rescore_chunks("q", chunks)
+
+    assert result == chunks
+
+
+@pytest.mark.unit
+def test_chunk_from_do_payload_marks_upstream_score_provenance():
+    chunk = Chunk.from_do_payload(
+        {"text_content": "scored", "score": 0.82, "metadata": {"title": "Doc"}}
+    )
+
+    assert chunk.score == 0.82
+    assert chunk.metadata == {"title": "Doc", "score_source": "upstream"}
+
+
+@pytest.mark.unit
+def test_chunk_from_do_payload_preserves_zero_upstream_score():
+    chunk = Chunk.from_do_payload(
+        {"text_content": "zero scored", "score": 0.0, "metadata": {"title": "Doc"}}
+    )
+
+    assert chunk.score == 0.0
+    assert chunk.metadata == {"title": "Doc", "score_source": "upstream"}
+
+
+@pytest.mark.unit
+def test_chunk_from_do_payload_marks_rank_proxy_provenance():
+    chunk = Chunk.from_do_payload(
+        {"text_content": "unscored", "metadata": {"title": "Doc"}}, rank=3
+    )
+
+    assert chunk.score == 0.85
+    assert chunk.metadata == {"title": "Doc", "score_source": "rank_proxy"}
+
+
+@pytest.mark.unit
+def test_cohere_rerank_is_enabled_by_default():
+    from src.core.config import Settings
+
+    assert Settings.model_fields["AGENT_DOKB_COHERE_RERANK"].default is True
 
 
 # -- Call-site wiring: _tool_do_kb_retrieve (src/api/agent/tools_impl.py) ----
 
 
 @pytest.mark.unit
-async def test_tool_do_kb_retrieve_flag_on_calls_rerank_and_reflects_scores():
+async def test_tool_do_kb_retrieve_flag_on_sanitizes_before_rerank():
     from src.services.agent.tools_impl import _tool_do_kb_retrieve
     from src.services.do_kb.client import DOKnowledgeBaseError  # noqa: F401
     from src.services.do_kb.models import RetrieveResult
@@ -171,18 +341,40 @@ async def test_tool_do_kb_retrieve_flag_on_calls_rerank_and_reflects_scores():
     fake_client.retrieve = AsyncMock(
         return_value=RetrieveResult(
             chunks=[
-                Chunk(text="a", score=0.9, document_id="a.pdf", metadata={}),
-                Chunk(text="b", score=0.5, document_id="b.pdf", metadata={}),
+                Chunk(
+                    text="Contact synthetic.alpha@example.test",
+                    score=0.9,
+                    document_id="a.pdf",
+                    metadata={"owner": "synthetic.alpha@example.test"},
+                ),
+                Chunk(
+                    text="Contact synthetic.beta@example.test",
+                    score=0.8,
+                    document_id="duplicate.pdf",
+                    metadata={},
+                ),
+                Chunk(text="Safe content", score=0.5, document_id="b.pdf", metadata={}),
             ],
-            total=2,
+            total=3,
         )
     )
 
-    reranked_chunks = [
-        Chunk(text="b", score=0.99, document_id="b.pdf", metadata={}),
-        Chunk(text="a", score=0.1, document_id="a.pdf", metadata={}),
-    ]
-    mock_rescore = AsyncMock(return_value=reranked_chunks)
+    async def _rerank_sanitized(_query, chunks):
+        assert [chunk.text for chunk in chunks] == [
+            "Contact <email>",
+            "Safe content",
+        ]
+        assert chunks[0].metadata["owner"] == "<email>"
+        return [
+            chunks[1].model_copy(
+                update={"score": 0.99, "metadata": {"score_source": "cohere"}}
+            ),
+            chunks[0].model_copy(
+                update={"score": 0.1, "metadata": {"score_source": "cohere"}}
+            ),
+        ]
+
+    mock_rescore = AsyncMock(side_effect=_rerank_sanitized)
 
     with (
         patch(
@@ -199,12 +391,19 @@ async def test_tool_do_kb_retrieve_flag_on_calls_rerank_and_reflects_scores():
         result = await _tool_do_kb_retrieve({"query": "x", "top_k": 5}, db, user)
 
     mock_rescore.assert_awaited_once()
-    assert [c["document_id"] for c in result["chunks"]] == ["b.pdf", "a.pdf"]
+    assert [c["document_id"] for c in result["chunks"]] == [None, None]
+    assert [c["title"] for c in result["chunks"]] == ["Untitled", "Untitled"]
+    assert [c["text"] for c in result["chunks"]] == [
+        "Safe content",
+        "Contact <email>",
+    ]
     assert result["chunks"][0]["score"] == 0.99
+    assert result["chunks"][0]["score_source"] == "cohere"
+    assert all("synthetic." not in chunk["text"] for chunk in result["chunks"])
 
 
 @pytest.mark.unit
-async def test_tool_do_kb_retrieve_flag_off_never_imports_rerank():
+async def test_tool_do_kb_retrieve_flag_off_still_sanitizes_and_deduplicates():
     from src.services.agent.tools_impl import _tool_do_kb_retrieve
     from src.services.do_kb.models import RetrieveResult
 
@@ -223,8 +422,18 @@ async def test_tool_do_kb_retrieve_flag_off_never_imports_rerank():
     fake_client.retrieve = AsyncMock(
         return_value=RetrieveResult(
             chunks=[
-                Chunk(text="a", score=0.9, document_id="a.pdf", metadata={}),
-                Chunk(text="b", score=0.5, document_id="b.pdf", metadata={}),
+                Chunk(
+                    text="Contact synthetic.alpha@example.test",
+                    score=0.9,
+                    document_id="a.pdf",
+                    metadata={"score_source": "rank_proxy"},
+                ),
+                Chunk(
+                    text="Contact synthetic.beta@example.test",
+                    score=0.5,
+                    document_id="b.pdf",
+                    metadata={"score_source": "rank_proxy"},
+                ),
             ],
             total=2,
         )
@@ -245,8 +454,145 @@ async def test_tool_do_kb_retrieve_flag_off_never_imports_rerank():
         result = await _tool_do_kb_retrieve({"query": "x", "top_k": 5}, db, user)
 
     mock_rescore.assert_not_called()
-    assert [c["document_id"] for c in result["chunks"]] == ["a.pdf", "b.pdf"]
-    assert [c["score"] for c in result["chunks"]] == [0.9, 0.5]
+    assert [c["document_id"] for c in result["chunks"]] == [None]
+    assert [c["title"] for c in result["chunks"]] == ["Untitled"]
+    assert [c["text"] for c in result["chunks"]] == ["Contact <email>"]
+    assert result["chunks"][0]["score_source"] == "rank_proxy"
+
+
+@pytest.mark.unit
+async def test_tool_do_kb_retrieve_rerank_failure_returns_sanitized_deduplicated():
+    from src.services.agent.tools_impl import _tool_do_kb_retrieve
+    from src.services.do_kb.models import RetrieveResult
+
+    user = MagicMock(organization_id="org-1")
+    db = MagicMock()
+    db.get = AsyncMock(return_value=MagicMock(do_kb_uuid="kb-1"))
+    empty_rows = MagicMock()
+    empty_rows.__iter__ = lambda self: iter([])
+    db.execute = AsyncMock(return_value=empty_rows)
+    fake_client = MagicMock()
+    fake_client.retrieve = AsyncMock(
+        return_value=RetrieveResult(
+            chunks=[
+                Chunk(text="Call 415-555-0101", document_id="a.pdf"),
+                Chunk(text="Call 415-555-0102", document_id="b.pdf"),
+            ],
+            total=2,
+        )
+    )
+
+    async def _failure_passthrough(_query, chunks):
+        assert [chunk.text for chunk in chunks] == ["Call <phone>"]
+        return chunks
+
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(
+                DO_KB_ENABLED=True,
+                AGENT_DOKB_COHERE_RERANK=True,
+                AGENT_ITERATIVE_RETRIEVAL=False,
+            ),
+        ),
+        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
+        patch(
+            "src.services.do_kb.rerank.cohere_rescore_chunks",
+            AsyncMock(side_effect=_failure_passthrough),
+        ),
+    ):
+        result = await _tool_do_kb_retrieve({"query": "x", "top_k": 5}, db, user)
+
+    assert [chunk["text"] for chunk in result["chunks"]] == ["Call <phone>"]
+
+
+@pytest.mark.unit
+async def test_tool_do_kb_retrieve_empty_after_sanitization_returns_safe_reason():
+    from src.services.agent.tools_impl import _tool_do_kb_retrieve
+    from src.services.do_kb.models import RetrieveResult
+
+    user = MagicMock(organization_id="org-1")
+    db = MagicMock()
+    db.get = AsyncMock(return_value=MagicMock(do_kb_uuid="kb-1"))
+    empty_rows = MagicMock()
+    empty_rows.__iter__ = lambda self: iter([])
+    db.execute = AsyncMock(return_value=empty_rows)
+    fake_client = MagicMock()
+    fake_client.retrieve = AsyncMock(
+        return_value=RetrieveResult(
+            chunks=[Chunk(text=" \n ", document_id="a.pdf")],
+            total=1,
+        )
+    )
+    rerank = AsyncMock()
+
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(
+                DO_KB_ENABLED=True,
+                AGENT_DOKB_COHERE_RERANK=True,
+                AGENT_ITERATIVE_RETRIEVAL=False,
+            ),
+        ),
+        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
+        patch("src.services.do_kb.rerank.cohere_rescore_chunks", rerank),
+    ):
+        result = await _tool_do_kb_retrieve({"query": "x", "top_k": 5}, db, user)
+
+    assert result["chunks"] == []
+    assert result["total"] == 0
+    assert result["reason"] == "no_safe_chunks"
+    assert "query" not in result
+    rerank.assert_not_awaited()
+
+
+@pytest.mark.unit
+async def test_tool_do_kb_retrieve_sanitizes_resolved_title_and_preserves_uuid():
+    from uuid import uuid4
+
+    from src.services.agent.tools_impl import _tool_do_kb_retrieve
+    from src.services.do_kb.models import RetrieveResult
+
+    canonical_id = uuid4()
+    user = MagicMock(organization_id="org-1")
+    db = MagicMock()
+    db.get = AsyncMock(return_value=MagicMock(do_kb_uuid="kb-1"))
+    fake_client = MagicMock()
+    chunk = Chunk(text="Safe content", document_id="storage-key", metadata={})
+    fake_client.retrieve = AsyncMock(
+        return_value=RetrieveResult(chunks=[chunk], total=1)
+    )
+
+    async def _resolve(**_kwargs):
+        return (
+            {
+                "storage-key": (
+                    str(canonical_id),
+                    "Report for synthetic.owner@example.test",
+                )
+            },
+            [chunk],
+        )
+
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(
+                DO_KB_ENABLED=True,
+                AGENT_DOKB_COHERE_RERANK=False,
+                AGENT_ITERATIVE_RETRIEVAL=False,
+            ),
+        ),
+        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
+        patch("src.services.do_kb.resolve.resolve_and_filter_chunks", _resolve),
+    ):
+        result = await _tool_do_kb_retrieve({"query": "x", "top_k": 5}, db, user)
+
+    payload = result["chunks"][0]
+    assert payload["document_id"] == str(canonical_id)
+    assert payload["title"] == "Report for <email>"
+    assert "synthetic.owner" not in str(payload)
 
 
 # -- Call-site wiring: evidence_mode / summarize_evidence (PR-2) -------------
@@ -280,8 +626,9 @@ async def test_tool_do_kb_retrieve_evidence_flag_on_calls_summarize_evidence():
         {
             "text": "a",
             "score": 0.9,
-            "document_id": "a.pdf",
-            "title": "a.pdf",
+            "score_source": None,
+            "document_id": None,
+            "title": "Untitled",
             "metadata": {},
             "relevance": 8,
             "summary": "on point",
@@ -311,8 +658,9 @@ async def test_tool_do_kb_retrieve_evidence_flag_on_calls_summarize_evidence():
         {
             "text": "a",
             "score": 0.9,
-            "document_id": "a.pdf",
-            "title": "a.pdf",
+            "score_source": None,
+            "document_id": None,
+            "title": "Untitled",
             "metadata": {},
         }
     ]

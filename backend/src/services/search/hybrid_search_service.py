@@ -952,7 +952,10 @@ class HybridSearchService:
                 )
 
             # Use sync version of reranking for sync context
-            rerank_results = cohere_rerank_service.rerank_sync(query, documents, top_n)
+            rerank_outcome = cohere_rerank_service.rerank_sync_with_outcome(
+                query, documents, top_n
+            )
+            rerank_results = rerank_outcome.results
 
             # Build reordered results
             result_map = {r.document_id: r for r in fused_results}
@@ -967,7 +970,7 @@ class HybridSearchService:
                     original.metadata["original_score"] = rr.original_score
                     reranked.append(original)
 
-            fallback_info = cohere_rerank_service.last_failure
+            fallback_info = rerank_outcome.failure
             if fallback_info:
                 for result in reranked:
                     result.metadata["cohere_fallback_used"] = True

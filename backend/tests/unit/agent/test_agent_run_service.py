@@ -236,6 +236,51 @@ async def test_get_run_filters_org_and_user(session_factory):
         )
 
 
+async def test_get_active_run_for_thread_is_tenant_scoped_and_non_terminal(
+    session_factory,
+):
+    job_id = _job_id()
+    thread_id = uuid.uuid4()
+    async with session_factory() as db:
+        await svc.upsert_run(
+            db,
+            job_id=job_id,
+            status=JobStatus.AWAITING_CONFIRMATION,
+            organization_id=ORG_A,
+            user_id=USER_A,
+            thread_id=str(thread_id),
+        )
+
+        owned = await svc.get_active_run_for_thread(
+            db,
+            thread_id,
+            organization_id=ORG_A,
+            user_id=USER_A,
+        )
+        assert owned is not None
+        assert owned.job_id == job_id
+        assert (
+            await svc.get_active_run_for_thread(
+                db,
+                thread_id,
+                organization_id=ORG_B,
+                user_id=USER_A,
+            )
+            is None
+        )
+
+        await svc.upsert_run(db, job_id=job_id, status=JobStatus.COMPLETED)
+        assert (
+            await svc.get_active_run_for_thread(
+                db,
+                thread_id,
+                organization_id=ORG_A,
+                user_id=USER_A,
+            )
+            is None
+        )
+
+
 async def test_get_run_orgless_caller_matches_only_orgless_row(session_factory):
     job_id = _job_id()
     async with session_factory() as db:

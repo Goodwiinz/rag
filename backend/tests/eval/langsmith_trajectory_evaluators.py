@@ -12,57 +12,62 @@ function. Run signature is `(run)` only (online — no dataset example).
 Both `RunTree` (local) and `dict` (uploaded) are handled.
 """
 
-
 # Executable tool universe = ALL_TOOLS (tools.py) ∪ do_kb_retrieve (bound only
 # in the research subgraph, deliberately absent from ALL_TOOLS). Hardcoded
 # because uploaded evaluators run in a sandbox that cannot import src.* — the
 # drift test `test_known_tools_matches_registry` (test_eval_harness.py) fails
 # if this set diverges from the live registry.
-KNOWN_TOOLS = frozenset({
-    "search_arxiv",
-    "ingest_arxiv_papers",
-    "search_documents",
-    "create_project",
-    "list_projects",
-    "add_document_to_project",
-    "create_project_note",
-    "list_project_documents",
-    "summarize_document",
-    "compare_documents",
-    "extract_entities",
-    "search_knowledge_graph",
-    "explore_entity_neighborhood",
-    "find_entity_paths",
-    "get_graph_stats",
-    "create_draft",
-    "export_bibliography",
-    "execute_code",
-    "search_external_database",
-    "list_external_databases",
-    "forget_memory",
-    "do_kb_retrieve",
-})
+KNOWN_TOOLS = frozenset(
+    {
+        "search_arxiv",
+        "ingest_arxiv_papers",
+        "search_documents",
+        "create_project",
+        "list_projects",
+        "add_document_to_project",
+        "create_project_note",
+        "list_project_documents",
+        "summarize_document",
+        "compare_documents",
+        "extract_entities",
+        "search_knowledge_graph",
+        "explore_entity_neighborhood",
+        "find_entity_paths",
+        "get_graph_stats",
+        "create_draft",
+        "export_bibliography",
+        "execute_code",
+        "search_external_database",
+        "list_external_databases",
+        "forget_memory",
+        "do_kb_retrieve",
+    }
+)
 
 
 def _extract_messages(run):
-    """Return list of messages NEW in this execution.
+    """Return messages after the latest human message in ``outputs``.
 
-    LangGraph state accumulates the full thread in `messages`. To measure
-    a single run's trajectory we subtract messages present in inputs from
-    those in outputs (by message id).
+    LangGraph output state retains cumulative thread history. The latest human
+    message starts the current turn; input/output histories can be asymmetric,
+    so input IDs are deliberately not used to determine the boundary.
     """
-    outputs = run.outputs if hasattr(run, "outputs") else run.get("outputs", {}) or {}
-    inputs = run.inputs if hasattr(run, "inputs") else run.get("inputs", {}) or {}
+    if hasattr(run, "outputs"):
+        outputs = run.outputs
+    elif isinstance(run, dict):
+        outputs = run.get("outputs")
+    else:
+        return None
     if not isinstance(outputs, dict):
-        return []
-    out_msgs = outputs.get("messages") or []
-    in_msgs = inputs.get("messages") if isinstance(inputs, dict) else []
+        return None
+    out_msgs = outputs.get("messages")
     if not isinstance(out_msgs, list):
-        return []
-    if not isinstance(in_msgs, list):
-        in_msgs = []
-    seen_ids = {m.get("id") for m in in_msgs if isinstance(m, dict) and m.get("id")}
-    return [m for m in out_msgs if isinstance(m, dict) and m.get("id") not in seen_ids]
+        return None
+    for index in range(len(out_msgs) - 1, -1, -1):
+        message = out_msgs[index]
+        if isinstance(message, dict) and message.get("type") == "human":
+            return out_msgs[index + 1 :]
+    return None
 
 
 def _iter_tool_calls(messages):
@@ -80,7 +85,9 @@ def _iter_tool_calls(messages):
             name = tc.get("name") or ""
             tc_id = tc.get("id") or ""
             try:
-                args_json = json.dumps(tc.get("args") or {}, sort_keys=True, default=str)
+                args_json = json.dumps(
+                    tc.get("args") or {}, sort_keys=True, default=str
+                )
             except (TypeError, ValueError):
                 args_json = repr(tc.get("args"))
             yield tc_id, name, args_json
@@ -93,6 +100,8 @@ def tool_call_validity(run):
     tool_calls must have matching ToolMessages).
     """
     messages = _extract_messages(run)
+    if messages is None:
+        return {"score": 0, "comment": "Missing human turn boundary."}
     expected_ids = {tc_id for tc_id, _, _ in _iter_tool_calls(messages) if tc_id}
     if not expected_ids:
         return {"score": 1, "comment": "No tool calls — vacuously valid."}
@@ -129,6 +138,8 @@ def no_tool_loop(run):
     Detects agent spinning on the same tool invocation.
     """
     messages = _extract_messages(run)
+    if messages is None:
+        return {"score": 0, "comment": "Missing human turn boundary."}
     calls = [(name, args) for _, name, args in _iter_tool_calls(messages)]
     if len(calls) < 2:
         return {"score": 1, "comment": f"{len(calls)} tool call(s) — no loop possible."}
@@ -170,7 +181,10 @@ def terminates_with_answer(run):
     if not isinstance(last, dict):
         return {"score": 0, "comment": "Last message malformed."}
     if last.get("type") != "ai":
-        return {"score": 0, "comment": f"Last message type={last.get('type')!r}, not 'ai'."}
+        return {
+            "score": 0,
+            "comment": f"Last message type={last.get('type')!r}, not 'ai'.",
+        }
     if last.get("tool_calls"):
         return {"score": 0, "comment": "Last AI message has pending tool_calls."}
     content = last.get("content")
@@ -192,7 +206,10 @@ def terminates_with_answer(run):
             for b in content
         )
         if not has_text:
-            return {"score": 0, "comment": "Last AI message has no non-empty text block."}
+            return {
+                "score": 0,
+                "comment": "Last AI message has no non-empty text block.",
+            }
     else:
         return {"score": 0, "comment": "Last AI message has empty content."}
     return {"score": 1, "comment": "Terminates with AI answer."}
@@ -215,15 +232,16 @@ def plan_adherence(run):
     plan_adherence attempt fire 0x. Semantic step<->call mapping (tool-name
     drift, paraphrase) is a future refinement layered on this spine.
     """
+    messages = _extract_messages(run)
+    if messages is None:
+        return {"score": 0, "comment": "Missing human turn boundary."}
     outputs = run.outputs if hasattr(run, "outputs") else run.get("outputs", {}) or {}
     if not isinstance(outputs, dict):
         return {"score": 1, "comment": "No outputs dict — vacuously adherent."}
 
     plan = outputs.get("plan") or []
     raw_planned = [
-        step.get("tool")
-        for step in plan
-        if isinstance(step, dict) and step.get("tool")
+        step.get("tool") for step in plan if isinstance(step, dict) and step.get("tool")
     ]
     # Score adherence only over planned steps naming a REAL executable tool.
     # The planner prompt asks for valid tool names but does not enforce it, so
@@ -244,7 +262,6 @@ def plan_adherence(run):
             }
         return {"score": 1, "comment": "Empty / no-tool plan — vacuously adherent."}
 
-    messages = _extract_messages(run)
     executed = [name for _, name, _ in _iter_tool_calls(messages) if name]
 
     idx = 0
