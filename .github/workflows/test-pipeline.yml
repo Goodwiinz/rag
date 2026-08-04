@@ -939,11 +939,20 @@ jobs:
           file: frontend/Dockerfile.prod
           load: true
           tags: rag-frontend:test
+          # BACKEND_URL must be a BUILD arg: Next resolves rewrites() at build
+          # time into routes-manifest.json, so the `-e BACKEND_URL` on the
+          # `docker run` below is never consulted. Left unset here,
+          # resolveBackendUrl() fell back to http://localhost:8000 — inside the
+          # frontend container that is the container itself, so every
+          # /api/v2/* proxy hop answered a plain-text 500 "Internal Server
+          # Error". That blanked the chat surface (initError) and failed the
+          # three chat E2E specs on every develop push.
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ steps.supabase-jwts.outputs.anon }}
             NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx
             NEXT_PUBLIC_AUTH_COOKIE_NAME=sb-nous-e2e
+            BACKEND_URL=http://backend:8000
           cache-from: type=gha,scope=frontend-e2e
           cache-to: type=gha,scope=frontend-e2e,mode=max
       - name: Start infrastructure services
