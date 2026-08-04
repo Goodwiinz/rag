@@ -51,7 +51,7 @@ from src.services.agent.agent_submission_service import (
 )
 from src.services.agent.observability import AgentStreamSLOTracker, record_token_usage
 from src.services.agent.run_event_types import RunEventType
-from src.services.agent.trace_metadata import build_trace_metadata
+from src.services.agent.trace_metadata import TraceSource, build_trace_metadata
 from src.shared.enums import AgentErrorCategory, AgentStreamEvent, JobStatus
 
 from .trace_context import build_trace_payload
@@ -1020,6 +1020,7 @@ async def stream_event_generator(
                 emitter=emitter,
                 stream_started_at=stream_started_at,
                 trace_metadata=build_trace_metadata(
+                    trace_source=TraceSource.NON_GRAPH,
                     user_id=current_user.id,
                     org_id=org_id,
                     thread_id=(
@@ -1175,6 +1176,7 @@ async def stream_event_generator(
             # LangSmith run metadata — per-tenant/turn filterable traces.
             # Inherited by child runs; never carries secrets.
             "metadata": build_trace_metadata(
+                trace_source=TraceSource.GRAPH,
                 user_id=current_user.id,
                 org_id=org_id,
                 thread_id=(acceptance.thread_id if acceptance is not None else None),
@@ -2044,6 +2046,7 @@ async def stream_confirm_event_generator(
                 **runtime_context,
             },
             "metadata": build_trace_metadata(
+                trace_source=TraceSource.GRAPH,
                 user_id=current_user.id,
                 org_id=getattr(current_user, "organization_id", None),
                 thread_id=request_body.thread_id,

@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.services.agent.trace_metadata import build_trace_metadata
+from src.services.agent.trace_metadata import TraceSource, build_trace_metadata
 
 pytestmark = pytest.mark.unit
 
@@ -15,6 +15,7 @@ def test_build_trace_metadata_emits_all_identifiers_and_release_values(
     monkeypatch.setenv("IMAGE_TAG", "backend-456")
 
     assert build_trace_metadata(
+        trace_source=TraceSource.GRAPH,
         user_id="user-1",
         org_id="org-1",
         thread_id="thread-1",
@@ -23,6 +24,7 @@ def test_build_trace_metadata_emits_all_identifiers_and_release_values(
         user_message_id="message-1",
         client_message_id="client-1",
     ) == {
+        "trace_source": "graph",
         "user_id": "user-1",
         "org_id": "org-1",
         "thread_id": "thread-1",
@@ -42,7 +44,10 @@ def test_build_trace_metadata_falls_back_to_app_version(
     monkeypatch.setenv("APP_VERSION", "app-version-789")
     monkeypatch.delenv("IMAGE_TAG", raising=False)
 
-    assert build_trace_metadata()["deployment_sha"] == "app-version-789"
+    assert (
+        build_trace_metadata(trace_source=TraceSource.GRAPH)["deployment_sha"]
+        == "app-version-789"
+    )
 
 
 def test_build_trace_metadata_whitespace_git_sha_falls_back_to_stripped_app_version(
@@ -51,7 +56,10 @@ def test_build_trace_metadata_whitespace_git_sha_falls_back_to_stripped_app_vers
     monkeypatch.setenv("GIT_SHA", "   \t")
     monkeypatch.setenv("APP_VERSION", "  app-version-789  ")
 
-    assert build_trace_metadata()["deployment_sha"] == "app-version-789"
+    assert (
+        build_trace_metadata(trace_source=TraceSource.GRAPH)["deployment_sha"]
+        == "app-version-789"
+    )
 
 
 def test_build_trace_metadata_omits_missing_and_empty_values(
@@ -61,6 +69,7 @@ def test_build_trace_metadata_omits_missing_and_empty_values(
         monkeypatch.delenv(name, raising=False)
 
     metadata = build_trace_metadata(
+        trace_source=TraceSource.GRAPH,
         user_id=None,
         org_id="",
         thread_id=None,
@@ -70,7 +79,7 @@ def test_build_trace_metadata_omits_missing_and_empty_values(
         client_message_id=None,
     )
 
-    assert metadata == {"request_id": "request-1"}
+    assert metadata == {"trace_source": "graph", "request_id": "request-1"}
     assert "None" not in metadata.values()
 
 
@@ -81,6 +90,7 @@ def test_build_trace_metadata_bounds_every_value(
     monkeypatch.setenv("IMAGE_TAG", "i" * 200)
 
     metadata = build_trace_metadata(
+        trace_source=TraceSource.GRAPH,
         user_id="u" * 200,
         org_id="o" * 200,
         thread_id="t" * 200,
@@ -91,9 +101,15 @@ def test_build_trace_metadata_bounds_every_value(
     )
 
     assert metadata
-    assert all(len(value) == 128 for value in metadata.values())
+    assert metadata["trace_source"] == TraceSource.GRAPH.value
+    assert all(
+        len(value) == 128 for key, value in metadata.items() if key != "trace_source"
+    )
 
 
 def test_build_trace_metadata_rejects_unknown_fields() -> None:
     with pytest.raises(TypeError):
-        build_trace_metadata(prompt="must never enter trace metadata")  # type: ignore[call-arg]
+        build_trace_metadata(  # type: ignore[call-arg]
+            trace_source=TraceSource.GRAPH,
+            prompt="must never enter trace metadata",
+        )

@@ -55,7 +55,7 @@ from src.services.agent.job_store import (
     schedule_run_projection as _schedule_run_projection,
 )
 from src.services.agent.job_store import set_job as _set_job_async
-from src.services.agent.trace_metadata import build_trace_metadata
+from src.services.agent.trace_metadata import TraceSource, build_trace_metadata
 from src.shared.enums import JobStatus
 
 MAX_JOBS = 500
@@ -2123,6 +2123,7 @@ async def _run_agent_graph(
                 # tenant/turn (saved views by user_id / org_id / thread_id).
                 # Inherited by child runs; never carries secrets.
                 "metadata": build_trace_metadata(
+                    trace_source=TraceSource.GRAPH,
                     user_id=current_user.id,
                     org_id=getattr(current_user, "organization_id", None),
                     thread_id=resolved_thread_id,
@@ -2467,6 +2468,7 @@ async def _resume_agent_graph(
             ):
                 verified_thread_id = durable_run.thread_id
             config["metadata"] = build_trace_metadata(
+                trace_source=TraceSource.GRAPH,
                 user_id=current_user.id,
                 org_id=getattr(current_user, "organization_id", None),
                 thread_id=verified_thread_id,

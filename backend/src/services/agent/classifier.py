@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 # Type alias matching the state schema
 IntentType = Literal["research", "writing", "knowledge_graph", "general"]
+ClassifierSource = Literal["llm", "keyword", "action_override", "shortcut", "fallback"]
 
 # Confidence threshold below which the LLM result is discarded in favour of
 # the keyword classifier.
@@ -75,13 +76,14 @@ class ClassificationResult:
         confidence: 0.0-1.0 indicating classifier certainty.
         reasoning:  Short human-readable explanation.
         source:     Which classifier produced this result
-                    ("llm", "keyword", "action_override", or "fallback").
+                    ("llm", "keyword", "action_override", "shortcut", or
+                    "fallback").
     """
 
     intent: IntentType
     confidence: float
     reasoning: str
-    source: str  # "llm", "keyword", "action_override", "shortcut", or "fallback"
+    source: ClassifierSource
 
 
 # ---------------------------------------------------------------------------

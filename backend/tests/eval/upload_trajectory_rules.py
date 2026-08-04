@@ -23,6 +23,8 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from src.services.agent.trace_metadata import TRACE_SOURCE_METADATA_KEY, TraceSource
+
 REPO = Path(__file__).resolve().parents[3]
 ENV_FILE = REPO / "backend" / ".env"
 EVALUATORS_FILE = Path(__file__).with_name("langsmith_trajectory_evaluators.py")
@@ -34,6 +36,16 @@ METRICS = [
     ("terminates_with_answer", "Terminates With Answer"),
     ("plan_adherence", "Plan Adherence"),
 ]
+
+# Online trajectory evaluators consume LangGraph state-shaped outputs. Scope
+# them to graph roots: child runs inherit this metadata but are excluded by
+# is_root, and non-graph roots (for example Luna's ChatModel call) carry a
+# distinct source value.
+TRAJECTORY_ROOT_FILTER = (
+    "and(eq(is_root, true), "
+    f'and(eq(metadata_key, "{TRACE_SOURCE_METADATA_KEY}"), '
+    f'eq(metadata_value, "{TraceSource.GRAPH.value}")))'
+)
 
 
 def _load_env() -> tuple[str, str]:
@@ -265,7 +277,7 @@ def main() -> int:
             "session_id": session_id,
             "is_enabled": True,
             "sampling_rate": args.sampling_rate,
-            "filter": "eq(is_root, true)",
+            "filter": TRAJECTORY_ROOT_FILTER,
             "code_evaluators": [{"code": code, "language": "python"}],
         }
         result = _request("POST", f"{endpoint}/api/v1/runs/rules", api_key, body)

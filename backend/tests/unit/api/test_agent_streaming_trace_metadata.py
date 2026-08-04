@@ -163,6 +163,7 @@ async def test_stream_graph_config_correlates_trace_to_release_and_submission(
     metadata = await _capture_stream_metadata(durable=True)
 
     assert metadata == {
+        "trace_source": "graph",
         "user_id": str(USER_ID),
         "org_id": str(ORG_ID),
         "thread_id": str(THREAD_ID),
@@ -186,6 +187,7 @@ async def test_stream_graph_config_degrades_without_durable_thread(
     metadata = await _capture_stream_metadata(durable=False)
 
     assert metadata == {
+        "trace_source": "graph",
         "user_id": str(USER_ID),
         "org_id": str(ORG_ID),
         "request_id": REQUEST_ID,
@@ -278,6 +280,7 @@ async def test_background_graph_config_uses_same_correlation_contract(
     config = cast(dict[str, Any], graph.ainvoke.await_args.kwargs["config"])
     metadata = config["metadata"]
     assert metadata == {
+        "trace_source": "graph",
         "user_id": str(USER_ID),
         "org_id": str(ORG_ID),
         "agent_run_id": job_id,
@@ -291,8 +294,14 @@ async def test_background_graph_config_uses_same_correlation_contract(
 
 
 @pytest.mark.asyncio
-async def test_luna_chat_model_root_receives_allowlisted_metadata() -> None:
+async def test_luna_chat_model_root_receives_allowlisted_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from src.services.agent.fast_path import stream_fast_path_chunks
+    from src.services.agent.trace_metadata import TraceSource, build_trace_metadata
+
+    monkeypatch.setenv("GIT_SHA", "deployment-sha-123")
+    monkeypatch.setenv("IMAGE_TAG", "backend-image-456")
 
     class _CapturingLuna:
         def __init__(self) -> None:
@@ -303,17 +312,16 @@ async def test_luna_chat_model_root_receives_allowlisted_metadata() -> None:
             yield SimpleNamespace(content="ok")
 
     luna = _CapturingLuna()
-    metadata = {
-        "user_id": str(USER_ID),
-        "org_id": str(ORG_ID),
-        "thread_id": str(THREAD_ID),
-        "request_id": REQUEST_ID,
-        "agent_run_id": RUN_ID,
-        "user_message_id": USER_MESSAGE_ID,
-        "client_message_id": str(CLIENT_MESSAGE_ID),
-        "deployment_sha": "deployment-sha-123",
-        "image_tag": "backend-image-456",
-    }
+    metadata = build_trace_metadata(
+        trace_source=TraceSource.NON_GRAPH,
+        user_id=USER_ID,
+        org_id=ORG_ID,
+        thread_id=THREAD_ID,
+        request_id=REQUEST_ID,
+        agent_run_id=RUN_ID,
+        user_message_id=USER_MESSAGE_ID,
+        client_message_id=CLIENT_MESSAGE_ID,
+    )
 
     chunks = [
         chunk
@@ -327,6 +335,18 @@ async def test_luna_chat_model_root_receives_allowlisted_metadata() -> None:
 
     assert [chunk.content for chunk in chunks] == ["ok"]
     assert luna.config == {"metadata": metadata}
+    assert metadata == {
+        "trace_source": "non_graph",
+        "user_id": str(USER_ID),
+        "org_id": str(ORG_ID),
+        "thread_id": str(THREAD_ID),
+        "request_id": REQUEST_ID,
+        "agent_run_id": RUN_ID,
+        "user_message_id": USER_MESSAGE_ID,
+        "client_message_id": str(CLIENT_MESSAGE_ID),
+        "deployment_sha": "deployment-sha-123",
+        "image_tag": "backend-image-456",
+    }
     assert PROMPT not in str(luna.config)
 
 
@@ -429,6 +449,7 @@ async def test_streaming_confirmation_root_uses_owned_durable_run_metadata(
 
     assert graph.stream_config is not None
     assert graph.stream_config["metadata"] == {
+        "trace_source": "graph",
         "user_id": str(USER_ID),
         "org_id": str(ORG_ID),
         "thread_id": str(THREAD_ID),
@@ -496,6 +517,7 @@ async def test_job_confirmation_root_uses_owned_durable_run_metadata(
 
     assert graph.invoke_config is not None
     assert graph.invoke_config["metadata"] == {
+        "trace_source": "graph",
         "user_id": str(USER_ID),
         "org_id": str(ORG_ID),
         "thread_id": str(THREAD_ID),
