@@ -22,10 +22,19 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from typing import Any
+
+REPO = Path(__file__).resolve().parents[3]
+BACKEND_DIR = REPO / "backend"
+
+# The documented CLI executes this file directly, which puts tests/eval (not
+# backend) on sys.path. Preserve that entry point while importing the shared
+# source contract rather than copying its metadata strings into this uploader.
+if __package__ in (None, ""):
+    sys.path.insert(0, str(BACKEND_DIR))
 
 from src.services.agent.trace_metadata import TRACE_SOURCE_METADATA_KEY, TraceSource
 
-REPO = Path(__file__).resolve().parents[3]
 ENV_FILE = REPO / "backend" / ".env"
 EVALUATORS_FILE = Path(__file__).with_name("langsmith_trajectory_evaluators.py")
 PROJECT_NAME = os.environ.get("LANGSMITH_EVAL_PROJECT", "rag-agent-evals")
@@ -63,7 +72,9 @@ def _load_env() -> tuple[str, str]:
     )
 
 
-def _request(method: str, url: str, api_key: str, body: dict | None = None):
+def _request(
+    method: str, url: str, api_key: str, body: dict[str, Any] | None = None
+) -> Any:
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(
         url,
@@ -224,10 +235,10 @@ def _resolve_session_id(api_key: str, endpoint: str) -> str:
     matches = [s for s in data if s.get("name") == PROJECT_NAME]
     if not matches:
         raise RuntimeError(f"Project {PROJECT_NAME!r} not found.")
-    return matches[0]["id"]
+    return str(matches[0]["id"])
 
 
-def _existing_rules(api_key: str, endpoint: str, session_id: str):
+def _existing_rules(api_key: str, endpoint: str, session_id: str) -> Any:
     q = urllib.parse.urlencode({"session_id": session_id, "limit": 100})
     return _request("GET", f"{endpoint}/api/v1/runs/rules?{q}", api_key)
 

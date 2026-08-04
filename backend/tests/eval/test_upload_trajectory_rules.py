@@ -2,12 +2,32 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 from typing import Any
 
 import pytest
 
 pytestmark = pytest.mark.unit
+
+
+def test_documented_direct_entrypoint_help_is_importable() -> None:
+    from tests.eval import upload_trajectory_rules as uploader
+
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    result = subprocess.run(
+        [sys.executable, str(uploader.__file__), "--help"],
+        cwd=uploader.REPO,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "usage:" in result.stdout.lower()
 
 
 def test_trajectory_rules_use_the_exact_graph_root_filter(
