@@ -589,21 +589,88 @@ class TestEvaluatorExtractorRoundTrip:
         )
 
         src = EVALUATORS_FILE.read_text()
+        smoke_run = {
+            "inputs": {"messages": [{"type": "human", "id": "human-current"}]},
+            "outputs": {
+                "messages": [
+                    {"type": "human", "id": "human-current"},
+                    {
+                        "type": "ai",
+                        "tool_calls": [
+                            {
+                                "id": "call-current",
+                                "name": "create_project",
+                                "args": {"name": "Synthetic Project"},
+                            }
+                        ],
+                    },
+                    {
+                        "type": "tool",
+                        "tool_call_id": "call-current",
+                        "content": "created",
+                    },
+                    {"type": "ai", "content": "Project created."},
+                ],
+                "plan": [{"step": 1, "tool": "create_project"}],
+            },
+        }
         for fn_name, _label in METRICS:
             blob = _extract_function(src, fn_name)
             assert "def perform_eval(" in blob
             ns: dict = {}
             exec(compile(blob, f"<{fn_name}>", "exec"), ns)
-            result = ns["perform_eval"](
-                {
-                    "inputs": {"messages": [{"type": "human", "id": "human-current"}]},
-                    "outputs": {
-                        "messages": [{"type": "human", "id": "human-current"}],
-                        "plan": [],
-                    },
+            result = ns["perform_eval"](smoke_run)
+            assert result["score"] == 1
+
+    def test_extracted_plan_adherence_bundles_known_tools(self):
+        from tests.eval.upload_trajectory_rules import (
+            EVALUATORS_FILE,
+            _extract_function,
+        )
+
+        blob = _extract_function(EVALUATORS_FILE.read_text(), "plan_adherence")
+        assert "KNOWN_TOOLS = frozenset(" in blob
+
+        ns: dict = {}
+        exec(compile(blob, "<plan_adherence>", "exec"), ns)
+        result = ns["perform_eval"](
+            {
+                "outputs": {
+                    "messages": [
+                        {"type": "human", "id": "human-current"},
+                        {
+                            "type": "ai",
+                            "tool_calls": [
+                                {
+                                    "id": "call-current",
+                                    "name": "create_project",
+                                    "args": {"name": "Synthetic Project"},
+                                }
+                            ],
+                        },
+                    ],
+                    "plan": [{"step": 1, "tool": "create_project"}],
                 }
-            )
-            assert isinstance(result.get("score"), (int, float))
+            }
+        )
+
+        assert result["score"] == 1
+        assert result["comment"] == "All 1 planned tool-step(s) executed in order."
+
+    def test_known_tools_extraction_does_not_bundle_unrelated_constant(self):
+        from tests.eval.upload_trajectory_rules import (
+            EVALUATORS_FILE,
+            _extract_function,
+        )
+
+        source = 'UNRELATED_TOOLS = frozenset({"must-not-bundle"})\n' + (
+            EVALUATORS_FILE.read_text()
+        )
+        blob = _extract_function(source, "plan_adherence")
+
+        assert "KNOWN_TOOLS = frozenset(" in blob
+        assert "UNRELATED_TOOLS" not in blob
+        assert "must-not-bundle" not in blob
 
 
 from pydantic import BaseModel as _PydBaseModel

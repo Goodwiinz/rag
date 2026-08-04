@@ -12,6 +12,7 @@ Idempotent: deletes existing rules with matching display_name before recreate.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -81,13 +82,28 @@ def _extract_function(source: str, fn_name: str) -> str:
     # the sandboxed blob NameErrors at call time (e.g. plan_adherence uses
     # KNOWN_TOOLS). Include any that are present.
     prefix = []
-    const = re.search(
-        r"^KNOWN_TOOLS = frozenset\(\{.*?\}\)\n",
-        source,
-        re.MULTILINE | re.DOTALL,
+    const_node = next(
+        (
+            node
+            for node in ast.parse(source).body
+            if isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "KNOWN_TOOLS"
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Name)
+            and node.value.func.id == "frozenset"
+            and len(node.value.args) == 1
+            and isinstance(node.value.args[0], ast.Set)
+            and not node.value.keywords
+        ),
+        None,
     )
-    if const:
-        prefix.append(const.group().rstrip() + "\n")
+    if const_node is not None:
+        const_source = ast.get_source_segment(source, const_node)
+        if not const_source:
+            raise RuntimeError("Could not extract KNOWN_TOOLS source.")
+        prefix.append(const_source.rstrip() + "\n")
     # Grab the helpers (always needed).
     helpers = []
     for helper in ("_extract_messages", "_iter_tool_calls"):
@@ -130,15 +146,38 @@ def _extract_function(source: str, fn_name: str) -> str:
             raise RuntimeError(
                 f"{fn_name}: extracted blob has no callable perform_eval."
             )
-        fn(
+        result = fn(
             {
                 "inputs": {"messages": [{"type": "human", "id": "human-current"}]},
                 "outputs": {
-                    "messages": [{"type": "human", "id": "human-current"}],
-                    "plan": [],
+                    "messages": [
+                        {"type": "human", "id": "human-current"},
+                        {
+                            "type": "ai",
+                            "tool_calls": [
+                                {
+                                    "id": "call-current",
+                                    "name": "create_project",
+                                    "args": {"name": "Synthetic Project"},
+                                }
+                            ],
+                        },
+                        {
+                            "type": "tool",
+                            "tool_call_id": "call-current",
+                            "content": "created",
+                        },
+                        {"type": "ai", "content": "Project created."},
+                    ],
+                    "plan": [{"step": 1, "tool": "create_project"}],
                 },
             }
         )
+        if not isinstance(result, dict) or result.get("score") != 1:
+            raise RuntimeError(
+                f"{fn_name}: extracted evaluator failed non-vacuous smoke call: "
+                f"{result!r}"
+            )
     except NameError as e:
         raise RuntimeError(
             f"{fn_name}: extracted evaluator references a name not bundled by "
