@@ -294,11 +294,10 @@ async def test_background_graph_config_uses_same_correlation_contract(
 
 
 @pytest.mark.asyncio
-async def test_luna_chat_model_root_receives_allowlisted_metadata(
+async def test_luna_producer_attaches_non_graph_metadata_to_chat_model_root(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from src.services.agent.fast_path import stream_fast_path_chunks
-    from src.services.agent.trace_metadata import TraceSource, build_trace_metadata
+    from src.api.agent import streaming as streaming_mod
 
     monkeypatch.setenv("GIT_SHA", "deployment-sha-123")
     monkeypatch.setenv("IMAGE_TAG", "backend-image-456")
@@ -307,45 +306,124 @@ async def test_luna_chat_model_root_receives_allowlisted_metadata(
         def __init__(self) -> None:
             self.config: dict[str, Any] | None = None
 
-        async def astream(self, _messages: Any, *, config: dict[str, Any]):
+        async def astream(
+            self, _messages: Any, *, config: dict[str, Any]
+        ) -> AsyncIterator[Any]:
             self.config = config
             yield SimpleNamespace(content="ok")
 
     luna = _CapturingLuna()
-    metadata = build_trace_metadata(
-        trace_source=TraceSource.NON_GRAPH,
-        user_id=USER_ID,
-        org_id=ORG_ID,
-        thread_id=THREAD_ID,
-        request_id=REQUEST_ID,
-        agent_run_id=RUN_ID,
+    graph = SimpleNamespace(aupdate_state=AsyncMock(return_value=None))
+    body = make_stream_request(
+        messages=[
+            {
+                "role": "user",
+                "content": PROMPT,
+                "client_message_id": str(CLIENT_MESSAGE_ID),
+            }
+        ],
+        thread_id=str(THREAD_ID),
+    )
+    request = SimpleNamespace(
+        state=SimpleNamespace(request_id=REQUEST_ID),
+        is_disconnected=AsyncMock(return_value=False),
+    )
+    current_user = cast(User, SimpleNamespace(id=USER_ID, organization_id=ORG_ID))
+    accepted = AcceptedSubmission(
+        run_id=RUN_ID,
+        thread_id=str(THREAD_ID),
         user_message_id=USER_MESSAGE_ID,
-        client_message_id=CLIENT_MESSAGE_ID,
+        outbox_id="outbox-1",
+        idempotency_key="key-1",
+    )
+    settings = SimpleNamespace(
+        AGENT_FAST_PATH_ENABLED=True,
+        AGENT_FAST_PATH_MAX_INPUT_CHARS=4096,
+        AGENT_FAST_PATH_REQUEST_TIMEOUT=30,
     )
 
-    chunks = [
-        chunk
-        async for chunk in stream_fast_path_chunks(
-            llm=luna,
-            messages=[],
-            persist_user=AsyncMock(return_value=None),
-            trace_metadata=metadata,
-        )
-    ]
+    with (
+        patch.object(streaming_mod, "AsyncSessionLocal", return_value=AsyncMock()),
+        patch.object(
+            streaming_mod,
+            "_resolve_thread",
+            new=AsyncMock(
+                return_value=(SimpleNamespace(id=THREAD_ID), "conversation-1")
+            ),
+        ),
+        patch.object(
+            streaming_mod,
+            "accept_submission",
+            new=AsyncMock(return_value=accepted),
+        ),
+        patch.object(
+            streaming_mod,
+            "mark_submission_dispatched",
+            new=AsyncMock(return_value=None),
+        ),
+        patch.object(
+            streaming_mod,
+            "_finalize_run",
+            new=AsyncMock(return_value=None),
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "start_stream",
+            new=AsyncMock(side_effect=RuntimeError("redis down")),
+        ),
+        patch(
+            "src.services.agent.job_store.get_redis",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.services.agent.observability.configure_langsmith", return_value=None
+        ),
+        patch(
+            "src.core.config.get_settings",
+            return_value=settings,
+        ),
+        patch(
+            "src.services.agent.fast_path.classify_fast_path_turn",
+            return_value=SimpleNamespace(eligible=True),
+        ),
+        patch(
+            "src.services.agent.llm_factory._resolve_fast_path_deployment",
+            return_value="luna-test",
+        ),
+        patch("src.services.agent.llm_factory.build_fast_path_llm", return_value=luna),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch("src.services.agent.graph.compile_agent_graph", return_value=graph),
+        patch.object(
+            streaming_mod._jobs_mod,
+            "_persist_assistant_message_safe",
+            new=AsyncMock(return_value="assistant-1"),
+        ),
+    ):
+        async for _frame in streaming_mod.stream_event_generator(
+            body, request, current_user
+        ):
+            pass
 
-    assert [chunk.content for chunk in chunks] == ["ok"]
-    assert luna.config == {"metadata": metadata}
-    assert metadata == {
-        "trace_source": "non_graph",
-        "user_id": str(USER_ID),
-        "org_id": str(ORG_ID),
-        "thread_id": str(THREAD_ID),
-        "request_id": REQUEST_ID,
-        "agent_run_id": RUN_ID,
-        "user_message_id": USER_MESSAGE_ID,
-        "client_message_id": str(CLIENT_MESSAGE_ID),
-        "deployment_sha": "deployment-sha-123",
-        "image_tag": "backend-image-456",
+    assert luna.config == {
+        "metadata": {
+            "trace_source": "non_graph",
+            "user_id": str(USER_ID),
+            "org_id": str(ORG_ID),
+            "thread_id": str(THREAD_ID),
+            "request_id": REQUEST_ID,
+            "agent_run_id": RUN_ID,
+            "user_message_id": USER_MESSAGE_ID,
+            "client_message_id": str(CLIENT_MESSAGE_ID),
+            "deployment_sha": "deployment-sha-123",
+            "image_tag": "backend-image-456",
+        }
     }
     assert PROMPT not in str(luna.config)
 
@@ -369,7 +447,9 @@ class _ResumeCapturingGraph:
     async def aget_state(self, _config: Any) -> Any:
         return self.snapshot
 
-    async def astream_events(self, *_args: Any, **kwargs: Any):
+    async def astream_events(
+        self, *_args: Any, **kwargs: Any
+    ) -> AsyncIterator[dict[str, Any]]:
         self.stream_config = kwargs["config"]
         if False:
             yield {}
