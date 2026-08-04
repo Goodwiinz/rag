@@ -80,7 +80,7 @@ export function SearchComposer({
                   onClick={onStop}
                   aria-label="Stop generation"
                   title="Stop generation"
-                  className="flex items-center gap-2 rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-2 text-xs font-medium text-red-400 transition-all hover:bg-red-500/20"
+                  className="flex items-center gap-2 rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-2 text-xs font-medium text-red-400 transition-all hover:bg-red-500/20 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500/50"
                   style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   <Square className="h-3 w-3" />
@@ -95,8 +95,8 @@ export function SearchComposer({
                   className={cn(
                     'nous-send-pill flex items-center gap-2 rounded-full h-10 w-10 sm:h-9 sm:w-auto sm:px-5 justify-center text-xs font-semibold tracking-wide transition-all duration-300',
                     value.trim() && !isDisabled
-                      ? 'bg-(--nous-sol) text-(--nous-erebus) shadow-[0_0_18px_rgba(var(--nous-sol-rgb),0.25)] hover:scale-[1.02] hover:shadow-[0_0_24px_rgba(var(--nous-sol-rgb),0.35)] active:scale-95'
-                      : 'cursor-not-allowed border border-(--nous-border-1) bg-(--nous-bg-3) text-(--nous-fg-3)/80'
+                      ? 'bg-(--nous-sol) text-(--nous-erebus) shadow-[0_0_18px_rgba(var(--nous-sol-rgb),0.25)] hover:scale-[1.02] hover:shadow-[0_0_24px_rgba(var(--nous-sol-rgb),0.35)] active:scale-95 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) focus-visible:ring-offset-2'
+                      : 'cursor-not-allowed border border-(--nous-border-1) bg-(--nous-bg-3) text-(--nous-fg-3)/80 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-border-1) focus-visible:ring-offset-2'
                   )}
                   style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >

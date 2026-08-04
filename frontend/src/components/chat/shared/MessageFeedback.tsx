@@ -195,7 +195,7 @@ export function MessageFeedback({
               type="button"
               onClick={handleSubmitCategory}
               disabled={submitting}
-              className="inline-flex items-center gap-1 rounded-md bg-(--nous-sol) px-2.5 py-1 text-[11px] font-semibold text-(--nous-erebus) hover:opacity-90 disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-md bg-(--nous-sol) px-2.5 py-1 text-[11px] font-semibold text-(--nous-erebus) hover:opacity-90 disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) focus-visible:ring-offset-1"
             >
               <Check className="h-3 w-3" />
               Submit feedback

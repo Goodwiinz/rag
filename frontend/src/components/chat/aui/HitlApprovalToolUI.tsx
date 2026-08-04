@@ -139,7 +139,7 @@ function HitlApprovalRenderer({
           ref={approveRef}
           onClick={() => decide(true)}
           disabled={submitted}
-          className="rounded-xl bg-(--nous-sol) px-4 py-2 text-xs font-semibold text-(--nous-erebus) transition-all hover:brightness-110 disabled:opacity-50"
+          className="rounded-xl bg-(--nous-sol) px-4 py-2 text-xs font-semibold text-(--nous-erebus) transition-all hover:brightness-110 disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) focus-visible:ring-offset-2"
           style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
           {submitted ? 'Processing…' : 'Approve'}
@@ -147,7 +147,7 @@ function HitlApprovalRenderer({
         <button
           onClick={() => decide(false)}
           disabled={submitted}
-          className="rounded-xl border border-(--nous-mars)/40 bg-(--nous-mars)/5 px-4 py-2 text-xs font-semibold text-(--nous-mars) transition-all hover:bg-(--nous-mars)/10 disabled:opacity-50"
+          className="rounded-xl border border-(--nous-mars)/40 bg-(--nous-mars)/5 px-4 py-2 text-xs font-semibold text-(--nous-mars) transition-all hover:bg-(--nous-mars)/10 disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-mars) focus-visible:ring-offset-2"
           style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
           Deny
