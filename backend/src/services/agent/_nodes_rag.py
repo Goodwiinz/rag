@@ -261,6 +261,7 @@ def _shape_do_kb_context(chunk, title_by_key: dict[str, tuple[str, str]]) -> dic
         or "Untitled",
         "content": chunk.text[:3000],
         "score": float(chunk.score),
+        "score_source": (chunk.metadata or {}).get("score_source"),
     }
 
 
@@ -423,6 +424,25 @@ async def _try_primary_do_kb_read_impl(
                     scoped_project_id,
                 )
                 _record_do_kb_read("project_scope_empty")
+                return None
+
+            from src.services.do_kb.postprocess import (
+                sanitize_and_deduplicate_chunks,
+            )
+
+            postprocessed = sanitize_and_deduplicate_chunks(chunks_to_emit)
+            logger.info(
+                "do_kb primary-read postprocess complete",
+                extra={
+                    "input_count": postprocessed.input_count,
+                    "output_count": postprocessed.output_count,
+                    "duplicate_count": postprocessed.duplicate_count,
+                    "redacted_count": postprocessed.redacted_count,
+                },
+            )
+            chunks_to_emit = postprocessed.chunks
+            if not chunks_to_emit:
+                _record_do_kb_read("do_kb_empty")
                 return None
 
         if getattr(_kb_cfg, "AGENT_DOKB_COHERE_RERANK", False) and chunks_to_emit:

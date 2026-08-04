@@ -58,7 +58,7 @@ class Chunk(_Permissive):
     @classmethod
     def from_do_payload(cls, raw: dict[str, Any], rank: int = 0) -> "Chunk":
         text = raw.get("text_content") or raw.get("text") or raw.get("content") or ""
-        meta = raw.get("metadata") or {}
+        meta = dict(raw.get("metadata") or {})
         doc_id = (
             raw.get("document_id") or meta.get("document_id") or meta.get("item_name")
         )
@@ -66,11 +66,15 @@ class Chunk(_Permissive):
         # we synthesize a monotonically-decreasing proxy from rank position
         # (1.0 at rank 0, floor 0.1). Lets downstream rank/dedup/threshold
         # logic keep working without conditional branches.
-        score_raw = raw.get("score") or raw.get("relevance_score")
+        score_raw = raw.get("score")
+        if score_raw is None:
+            score_raw = raw.get("relevance_score")
         if score_raw is not None:
             score = float(score_raw)
+            meta["score_source"] = "upstream"
         else:
             score = max(0.1, 1.0 - 0.05 * rank)
+            meta["score_source"] = "rank_proxy"
         return cls(text=text, score=score, document_id=doc_id, metadata=meta)
 
 

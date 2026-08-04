@@ -35,7 +35,7 @@ async def cohere_rescore_chunks(query: str, chunks: list[Chunk]) -> list[Chunk]:
         return chunks
 
     docs = [
-        {"content": c.text, "id": c.document_id or str(i), "score": c.score}
+        {"content": c.text, "id": str(i), "score": c.score}
         for i, c in enumerate(chunks)
     ]
 
@@ -48,13 +48,30 @@ async def cohere_rescore_chunks(query: str, chunks: list[Chunk]) -> list[Chunk]:
         logger.warning("cohere_rescore_chunks: rerank call failed, passthrough")
         return chunks
 
-    if cohere_rerank_service.last_failure is not None:
+    try:
+        if cohere_rerank_service.last_failure is not None:
+            return chunks
+
+        reranked = []
+        covered: set[int] = set()
+        for result in results:
+            index = result.index
+            if index < 0 or index >= len(chunks) or index in covered:
+                raise ValueError("invalid Cohere rerank result index")
+            chunk = chunks[index]
+            metadata = {**chunk.metadata, "score_source": "cohere"}
+            reranked.append(
+                chunk.model_copy(
+                    update={
+                        "score": float(result.relevance_score),
+                        "metadata": metadata,
+                    }
+                )
+            )
+            covered.add(index)
+    except Exception:
+        logger.warning("cohere_rescore_chunks: invalid rerank result, passthrough")
         return chunks
 
-    reranked = [
-        chunks[r.index].model_copy(update={"score": float(r.relevance_score)})
-        for r in results
-    ]
-    covered = {r.index for r in results}
     reranked.extend(c for i, c in enumerate(chunks) if i not in covered)
     return reranked

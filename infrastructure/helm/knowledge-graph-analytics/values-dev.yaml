@@ -99,6 +99,8 @@ backend:
       value: "true"
     - name: AGENT_FAST_PATH_DEPLOYMENT
       value: "gpt-5.6-luna"
+    - name: AGENT_DOKB_COHERE_RERANK
+      value: "true"
     # One process per pod avoids duplicating the model/tool graph in the 2Gi
     # container. Rollback: raise this value without rebuilding the image.
     - name: GUNICORN_WORKERS

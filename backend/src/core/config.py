@@ -674,7 +674,7 @@ class Settings(BaseSettings):
     # resolve/filter. DO KB Public Preview returns no scores (we synthesize
     # 1.0-0.05*rank); this replaces them with calibrated relevance. Requires
     # COHERE_RERANK_ENDPOINT + COHERE_RERANK_API_KEY (already provisioned).
-    AGENT_DOKB_COHERE_RERANK: bool = False
+    AGENT_DOKB_COHERE_RERANK: bool = True
 
     # PaperQA2-style gather-evidence inside do_kb_retrieve: rerank-ordered
     # chunks get per-chunk contextual relevance summaries + verbatim quotes
