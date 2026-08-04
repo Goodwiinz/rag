@@ -66,6 +66,24 @@ def redact_pii(text: Any) -> str:
     return out
 
 
+def redact_nested_pii(value: Any) -> Any:
+    """Recursively redact string values without the browser-facing size cap.
+
+    This is for trusted server-side model boundaries where preserving complete
+    metadata matters. Dictionary keys are intentionally left unchanged: this
+    function sanitizes values while retaining the metadata schema.
+    """
+    if isinstance(value, str):
+        return redact_pii(value)
+    if isinstance(value, dict):
+        return {key: redact_nested_pii(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [redact_nested_pii(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(redact_nested_pii(item) for item in value)
+    return value
+
+
 def redact_tool_args(value: Any) -> Any:
     """Recursively redact PII in a tool-args value while preserving structure.
 
@@ -107,4 +125,9 @@ def redact_tool_executions(entries: Any) -> Any:
     ]
 
 
-__all__ = ["redact_pii", "redact_tool_args", "redact_tool_executions"]
+__all__ = [
+    "redact_nested_pii",
+    "redact_pii",
+    "redact_tool_args",
+    "redact_tool_executions",
+]

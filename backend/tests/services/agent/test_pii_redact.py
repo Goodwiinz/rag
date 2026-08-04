@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.agent._pii_redact import redact_pii
+from src.services.agent._pii_redact import redact_nested_pii, redact_pii
 
 
 @pytest.mark.unit
@@ -134,3 +134,39 @@ class TestRedactPII:
         assert redact_pii("415-555-0123") == "<phone>"
         assert redact_pii("(415) 555-0123") == "<phone>"
         assert redact_pii("415.555.0123") == "<phone>"
+
+
+@pytest.mark.unit
+class TestRedactNestedPII:
+    def test_recursively_redacts_metadata_strings_without_truncating(self):
+        token = "sk-proj-" + "a" * 24
+        metadata = {
+            "summary": "ordinary research notes remain readable",
+            "contact": "synthetic.user@example.test",
+            "nested": [
+                {"phone": "+1-415-555-0123", "ssn": "123-45-6789"},
+                {"credential": "postgresql://user:synthetic@host.test:5432/db"},
+                {"token": token},
+                {"secret_id": "11111111-2222-4333-8444-555555555555"},
+            ],
+        }
+
+        redacted = redact_nested_pii(metadata)
+
+        assert redacted == {
+            "summary": "ordinary research notes remain readable",
+            "contact": "<email>",
+            "nested": [
+                {"phone": "<phone>", "ssn": "[REDACTED_SSN]"},
+                {"credential": "<postgres-url>"},
+                {"token": "<token>"},
+                {"secret_id": "<uuid>"},
+            ],
+        }
+        assert metadata["contact"] == "synthetic.user@example.test"
+        assert redacted["summary"] == "ordinary research notes remain readable"
+
+    def test_nested_redaction_does_not_apply_browser_cap(self):
+        long_prose = "safe text " * 100
+
+        assert redact_nested_pii({"note": long_prose}) == {"note": long_prose}
