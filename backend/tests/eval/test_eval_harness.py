@@ -598,20 +598,33 @@ class TestEvaluatorExtractorRoundTrip:
                         "type": "ai",
                         "tool_calls": [
                             {
-                                "id": "call-current",
+                                "id": "call-list-projects",
+                                "name": "list_projects",
+                                "args": {},
+                            },
+                            {
+                                "id": "call-create-project",
                                 "name": "create_project",
                                 "args": {"name": "Synthetic Project"},
-                            }
+                            },
                         ],
                     },
                     {
                         "type": "tool",
-                        "tool_call_id": "call-current",
+                        "tool_call_id": "call-list-projects",
+                        "content": "no existing projects",
+                    },
+                    {
+                        "type": "tool",
+                        "tool_call_id": "call-create-project",
                         "content": "created",
                     },
                     {"type": "ai", "content": "Project created."},
                 ],
-                "plan": [{"step": 1, "tool": "create_project"}],
+                "plan": [
+                    {"step": 1, "tool": "list_projects"},
+                    {"step": 2, "tool": "create_project"},
+                ],
             },
         }
         for fn_name, _label in METRICS:
@@ -621,6 +634,9 @@ class TestEvaluatorExtractorRoundTrip:
             exec(compile(blob, f"<{fn_name}>", "exec"), ns)
             result = ns["perform_eval"](smoke_run)
             assert result["score"] == 1
+            if fn_name == "no_tool_loop":
+                assert "no loop possible" not in result["comment"].lower()
+                assert result["comment"] == "2 tool calls, no spinning detected."
 
     def test_extracted_plan_adherence_bundles_known_tools(self):
         from tests.eval.upload_trajectory_rules import (
