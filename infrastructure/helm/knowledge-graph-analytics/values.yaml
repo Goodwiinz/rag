@@ -59,6 +59,13 @@ backend:
   image:
     repository: your-registry/knowledge-graph-backend
     tag: "1.0.0"
+    # When set, every backend runtime renders repository@digest. The tag stays
+    # available as release/source metadata (IMAGE_TAG) but is not used for the
+    # pull reference.
+    digest: ""
+    # Full tested Git SHA written by the release workflow and copied to pod
+    # annotations for source-to-runtime traceability.
+    sourceSha: ""
     pullPolicy: IfNotPresent
 
   service:

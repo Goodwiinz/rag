@@ -1,15 +1,8 @@
 name: Deploy to DigitalOcean Kubernetes
 
 on:
-  # Auto-deploy after successful Docker build on main
-  workflow_run:
-    workflows: ["Docker Build"]
-    types:
-      - completed
-    branches:
-      - main
-
-  # Manual deploy with environment selection
+  # Legacy staging/production path: manual only. Dev is released through
+  # release-dev.yml and Argo CD; do not add a workflow_run trigger here.
   workflow_dispatch:
     inputs:
       environment:
@@ -21,12 +14,12 @@ on:
           - staging
           - production
       image_tag:
-        description: "Image tag to deploy (default: latest commit SHA)"
-        required: false
+        description: "Explicit existing image tag to deploy"
+        required: true
         type: string
 
 concurrency:
-  group: deploy-${{ github.event.inputs.environment || 'production' }}
+  group: deploy-${{ inputs.environment }}
   cancel-in-progress: false  # Don't cancel ongoing deploys
 
 env:
@@ -38,7 +31,8 @@ permissions:
   contents: read
 
 jobs:
-  # Gate: Only deploy if Docker build succeeded
+  # Manual identity validation. This workflow does not infer an image from a
+  # branch tip or a preceding Docker Build run.
   check-build:
     name: Check Build Status
     runs-on: ubuntu-latest
@@ -51,26 +45,14 @@ jobs:
       - name: Check if we should deploy
         id: check
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          WORKFLOW_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          INPUT_TAG: ${{ github.event.inputs.image_tag }}
-          COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          INPUT_TAG: ${{ inputs.image_tag }}
         run: |
-          if [ "$EVENT_NAME" == "workflow_run" ]; then
-            if [ "$WORKFLOW_CONCLUSION" != "success" ]; then
-              echo "Docker build did not succeed, skipping deploy"
-              echo "should_deploy=false" >> $GITHUB_OUTPUT
-              exit 0
-            fi
+          if [ -z "$INPUT_TAG" ]; then
+            echo "::error::An explicit existing image tag is required"
+            exit 1
           fi
 
-          # Determine image tag
-          if [ -n "$INPUT_TAG" ]; then
-            echo "image_tag=$INPUT_TAG" >> $GITHUB_OUTPUT
-          else
-            echo "image_tag=${COMMIT_SHA:0:7}" >> $GITHUB_OUTPUT
-          fi
-
+          echo "image_tag=$INPUT_TAG" >> $GITHUB_OUTPUT
           echo "should_deploy=true" >> $GITHUB_OUTPUT
 
   deploy-staging:
@@ -79,7 +61,7 @@ jobs:
     needs: check-build
     if: |
       needs.check-build.outputs.should_deploy == 'true' &&
-      (github.event.inputs.environment == 'staging' || github.event_name == 'workflow_run')
+      inputs.environment == 'staging'
     permissions:
       contents: read
       packages: read
@@ -150,7 +132,7 @@ jobs:
     needs: [check-build, deploy-staging]
     if: |
       needs.check-build.outputs.should_deploy == 'true' &&
-      github.event.inputs.environment == 'production'
+      inputs.environment == 'production'
     permissions:
       contents: read
       packages: read
@@ -233,7 +215,7 @@ jobs:
   rollback:
     name: Rollback Deployment
     runs-on: ubuntu-latest
-    if: failure() && github.event.inputs.environment == 'production'
+    if: failure() && inputs.environment == 'production'
     needs: deploy-production
     permissions:
       contents: read

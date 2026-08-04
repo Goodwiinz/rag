@@ -4,24 +4,10 @@ on:
     branches:
       - main
       - develop
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/PULL_REQUEST_TEMPLATE/**'
-      - 'LICENSE'
-      - '.gitignore'
   pull_request:
     branches:
       - main
       - develop
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/PULL_REQUEST_TEMPLATE/**'
-      - 'LICENSE'
-      - '.gitignore'
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -625,8 +611,8 @@ jobs:
         run: pip install bandit==1.9.4 safety
       - name: Run Bandit (Python security)
         # Blocking on NEW findings only: with continue-on-error the
-        # SECURITY_RESULT gate in test-summary could never fire. The baseline
-        # file pins the 16 pre-existing medium+ findings as tracked debt
+        # security-scan result consumed by Release Gate could never fail. The
+        # baseline file pins the 16 pre-existing medium+ findings as tracked debt
         # (regenerate with: bandit -r backend/src -ll -ii -x tests -f json
         # -o backend/.bandit-baseline.json) — burn it down, never grow it.
         run: bandit -r backend/src -ll -ii -x tests -b backend/.bandit-baseline.json
@@ -1275,146 +1261,29 @@ jobs:
           name: benchmark-results
           path: benchmark.json
   # ==========================================================================
-  # Test Summary
+  # Fail-closed release authority
   # ==========================================================================
   test-summary:
-    name: Test Summary
+    name: Release Gate
     runs-on: ubuntu-latest
-    needs: [migration-check, openapi-contract, unit-tests, golden-replay, integration-tests, resilience-tests, frontend-tests, security-scan, e2e-tests]
+    needs:
+      - lint-backend
+      - lint-frontend
+      - migration-check
+      - openapi-contract
+      - unit-tests
+      - golden-replay
+      - integration-tests
+      - resilience-tests
+      - frontend-tests
+      - security-scan
+      - e2e-tests
     if: always()
-    env:
-      MIGRATION_RESULT: ${{ needs.migration-check.result }}
-      OPENAPI_RESULT: ${{ needs.openapi-contract.result }}
-      UNIT_RESULT: ${{ needs.unit-tests.result }}
-      GOLDEN_RESULT: ${{ needs.golden-replay.result }}
-      INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
-      RESILIENCE_RESULT: ${{ needs.resilience-tests.result }}
-      FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
-      SECURITY_RESULT: ${{ needs.security-scan.result }}
-      E2E_RESULT: ${{ needs.e2e-tests.result }}
-      GH_WORKFLOW: ${{ github.workflow }}
-      GH_REF: ${{ github.ref_name }}
-      GH_SHA: ${{ github.sha }}
     steps:
-      - name: Generate test results summary
-        run: |
-          {
-            echo "## Test Results Summary"
-            echo ""
-            echo "| Test Suite | Status |"
-            echo "|------------|--------|"
-
-            # Alembic Migration Check
-            if [ "$MIGRATION_RESULT" = "success" ]; then
-              echo "| Alembic Migration Check | :white_check_mark: Passed |"
-            elif [ "$MIGRATION_RESULT" = "skipped" ]; then
-              echo "| Alembic Migration Check | :fast_forward: Skipped |"
-            else
-              echo "| Alembic Migration Check | :x: $MIGRATION_RESULT |"
-            fi
-
-            # OpenAPI Contract Ratchet
-            if [ "$OPENAPI_RESULT" = "success" ]; then
-              echo "| OpenAPI Contract Ratchet | :white_check_mark: Passed |"
-            elif [ "$OPENAPI_RESULT" = "skipped" ]; then
-              echo "| OpenAPI Contract Ratchet | :fast_forward: Skipped |"
-            else
-              echo "| OpenAPI Contract Ratchet | :x: $OPENAPI_RESULT |"
-            fi
-
-            # Unit Tests
-            if [ "$UNIT_RESULT" = "success" ]; then
-              echo "| Unit Tests | :white_check_mark: Passed |"
-            elif [ "$UNIT_RESULT" = "skipped" ]; then
-              echo "| Unit Tests | :fast_forward: Skipped |"
-            else
-              echo "| Unit Tests | :x: $UNIT_RESULT |"
-            fi
-
-            # Golden Replay
-            if [ "$GOLDEN_RESULT" = "success" ]; then
-              echo "| Golden Replay | :white_check_mark: Passed |"
-            elif [ "$GOLDEN_RESULT" = "skipped" ]; then
-              echo "| Golden Replay | :fast_forward: Skipped |"
-            else
-              echo "| Golden Replay | :x: $GOLDEN_RESULT |"
-            fi
-
-            # Integration Tests
-            if [ "$INTEGRATION_RESULT" = "success" ]; then
-              echo "| Integration Tests | :white_check_mark: Passed |"
-            elif [ "$INTEGRATION_RESULT" = "skipped" ]; then
-              echo "| Integration Tests | :fast_forward: Skipped |"
-            else
-              echo "| Integration Tests | :x: $INTEGRATION_RESULT |"
-            fi
-
-            # Resilience Tests
-            if [ "$RESILIENCE_RESULT" = "success" ]; then
-              echo "| Resilience Tests | :white_check_mark: Passed |"
-            elif [ "$RESILIENCE_RESULT" = "skipped" ]; then
-              echo "| Resilience Tests | :fast_forward: Skipped |"
-            else
-              echo "| Resilience Tests | :x: $RESILIENCE_RESULT |"
-            fi
-
-            # Frontend Tests
-            if [ "$FRONTEND_RESULT" = "success" ]; then
-              echo "| Frontend Tests | :white_check_mark: Passed |"
-            elif [ "$FRONTEND_RESULT" = "skipped" ]; then
-              echo "| Frontend Tests | :fast_forward: Skipped |"
-            else
-              echo "| Frontend Tests | :x: $FRONTEND_RESULT |"
-            fi
-
-            # Security Scan
-            if [ "$SECURITY_RESULT" = "success" ]; then
-              echo "| Security Scan | :white_check_mark: Passed |"
-            elif [ "$SECURITY_RESULT" = "skipped" ]; then
-              echo "| Security Scan | :fast_forward: Skipped |"
-            else
-              echo "| Security Scan | :x: $SECURITY_RESULT |"
-            fi
-
-            # E2E Tests
-            if [ "$E2E_RESULT" = "success" ]; then
-              echo "| E2E Tests | :white_check_mark: Passed |"
-            elif [ "$E2E_RESULT" = "skipped" ]; then
-              echo "| E2E Tests | :fast_forward: Skipped |"
-            else
-              echo "| E2E Tests | :x: $E2E_RESULT |"
-            fi
-
-            echo ""
-            echo "**Workflow:** \`$GH_WORKFLOW\`"
-            echo "**Branch:** \`$GH_REF\`"
-            echo "**Commit:** \`$GH_SHA\`"
-          } >> "$GITHUB_STEP_SUMMARY"
-      - name: Fail if critical tests failed
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Require exact success from every blocking job
         env:
-          MIGRATION_RESULT: ${{ needs.migration-check.result }}
-          OPENAPI_RESULT: ${{ needs.openapi-contract.result }}
-          UNIT_RESULT: ${{ needs.unit-tests.result }}
-          GOLDEN_RESULT: ${{ needs.golden-replay.result }}
-          FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
-          SECURITY_RESULT: ${{ needs.security-scan.result }}
-          INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
-          RESILIENCE_RESULT: ${{ needs.resilience-tests.result }}
+          REQUIRED_JOB_RESULTS: ${{ toJSON(needs) }}
         run: |
-          # Blocking lanes: migration guard, OpenAPI contract, unit, golden
-          # replay, frontend, security, integration, resilience. E2E and
-          # performance remain non-blocking (continue-on-error) until the E2E
-          # infra is stabilized.
-          failed=0
-          for pair in "migration:$MIGRATION_RESULT" "openapi:$OPENAPI_RESULT" \
-                      "unit:$UNIT_RESULT" "golden:$GOLDEN_RESULT" \
-                      "frontend:$FRONTEND_RESULT" "security:$SECURITY_RESULT" \
-                      "integration:$INTEGRATION_RESULT" \
-                      "resilience:$RESILIENCE_RESULT"; do
-            name="${pair%%:*}"; result="${pair#*:}"
-            if [ "$result" == "failure" ]; then
-              echo "Blocking suite failed: $name"
-              failed=1
-            fi
-          done
-          [ "$failed" -eq 0 ] || { echo "One or more critical test suites failed!"; exit 1; }
+          python3 scripts/ci/assert_required_jobs.py \
+            --summary-file "$GITHUB_STEP_SUMMARY"

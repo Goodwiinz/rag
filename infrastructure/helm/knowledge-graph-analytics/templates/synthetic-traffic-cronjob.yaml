@@ -36,6 +36,10 @@ spec:
       activeDeadlineSeconds: 600
       template:
         metadata:
+          {{- if .Values.backend.image.sourceSha }}
+          annotations:
+            {{- include "knowledge-graph-analytics.backendSourceAnnotation" . | nindent 12 }}
+          {{- end }}
           labels:
             {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 12 }}
             app.kubernetes.io/component: synthetic-traffic
@@ -50,7 +54,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: synthetic-traffic
-              image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
+              image: {{ include "knowledge-graph-analytics.backendImage" . | quote }}
               imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
               workingDir: /app
               command: ["python", "-m", "scripts.synthetic_traffic"]
