@@ -1,0 +1,176 @@
+{
+  "schema_version": "1.0",
+  "suite": "nous-agent-flow-v1",
+  "recorded_at": "2026-08-04",
+  "repository_revision": "6e618d0fb5874fa262b783345000f1496e52d7c7",
+  "agent_revision": "756367d7b015c7e2b2d2b6d69092feb9e3dd0c40",
+  "harbor_version": "0.6.6",
+  "harness_digest": "sha256:a996046efbc7aed46b3ae1ad6458b9656ad580c9681a2161c0fa6523f9c980db",
+  "aggregate": {
+    "capabilities": 3,
+    "passed": 1,
+    "failed": 2,
+    "infrastructure_failures_in_baseline": 0
+  },
+  "verifier_calibration": {
+    "agent-direct-project-action-v1": {
+      "pass": 1,
+      "wrong-route": 0
+    },
+    "rag-retrieval-safety-grounding-v1": {
+      "pass": 1,
+      "wrong-leak": 0
+    },
+    "agent-stream-cancel-durability-v1": {
+      "pass": 1,
+      "wrong-late-completion": 0
+    }
+  },
+  "benchmarks": [
+    {
+      "id": "agent-direct-project-action-v1",
+      "job": "agent-direct-project-action-v1-baseline-formatted-1",
+      "trial": "agent-direct-project-action-v1__7qH6EGb",
+      "task_digest": "sha256:7334a5969b0a7250b045739ba6108cef09db657df296fa73c3ee5dc3d7aa69fc",
+      "reward": 1,
+      "passed": true,
+      "attempts": 1,
+      "passes": 1,
+      "agent_elapsed_ms": 11231,
+      "tokens": {
+        "input": 7054,
+        "output": 71,
+        "cache": 2816
+      },
+      "observations": {
+        "intent": "research",
+        "intent_confidence": 1.0,
+        "classifier_source": "action_override",
+        "hitl_interrupt": true,
+        "create_project_calls": 1,
+        "projects_after": 1,
+        "termination_reason": "completed"
+      },
+      "failures": []
+    },
+    {
+      "id": "rag-retrieval-safety-grounding-v1",
+      "job": "rag-retrieval-safety-grounding-v1-baseline-formatted-1",
+      "trial": "rag-retrieval-safety-grounding-v__522du4p",
+      "task_digest": "sha256:16928efa008d55fd65c3d1a556343b8757158028df6d4ba3ed76e4a7900fdaae",
+      "reward": 0,
+      "passed": false,
+      "attempts": 1,
+      "passes": 0,
+      "agent_elapsed_ms": 26154,
+      "tokens": {
+        "input": 13801,
+        "output": 381,
+        "cache": 7680
+      },
+      "observations": {
+        "intent": "writing",
+        "intent_confidence": 0.5,
+        "do_results": 7,
+        "rerank_inputs_after_deduplication": 6,
+        "reranker": "benchmark-reranker-v1",
+        "tool_sequence": [
+          "list_project_documents",
+          "compare_documents"
+        ],
+        "tool_failures": 0,
+        "judge_supported": true,
+        "termination_reason": "completed"
+      },
+      "failures": [
+        "prohibited synthetic credential literal reached model-visible retrieval context"
+      ]
+    },
+    {
+      "id": "agent-stream-cancel-durability-v1",
+      "job": "agent-stream-cancel-durability-v1-baseline-measured-3",
+      "trials": [
+        {
+          "id": "agent-stream-cancel-durability-v__69LGw59",
+          "reward": 0,
+          "agent_elapsed_ms": 19313,
+          "tokens": {
+            "input": 3426,
+            "output": 105,
+            "cache": 0
+          },
+          "terminalization_elapsed_ms": 65,
+          "buffered_prefix_matches_partial": false
+        },
+        {
+          "id": "agent-stream-cancel-durability-v__HGr9Q4t",
+          "reward": 0,
+          "agent_elapsed_ms": 19785,
+          "tokens": {
+            "input": 3426,
+            "output": 117,
+            "cache": 0
+          },
+          "terminalization_elapsed_ms": 20,
+          "buffered_prefix_matches_partial": true
+        },
+        {
+          "id": "agent-stream-cancel-durability-v__4AmHnAB",
+          "reward": 0,
+          "agent_elapsed_ms": 19756,
+          "tokens": {
+            "input": 3426,
+            "output": 141,
+            "cache": 0
+          },
+          "terminalization_elapsed_ms": 24,
+          "buffered_prefix_matches_partial": true
+        }
+      ],
+      "task_digest": "sha256:d1957d27dccc745c10325c966a5ec660a0bebc5effab2d19add58115905e4136",
+      "reward": 0,
+      "passed": false,
+      "attempts": 3,
+      "passes": 0,
+      "pass_at_3": 0.0,
+      "agent_elapsed_ms": 19756,
+      "tokens": {
+        "input": 3426,
+        "output": 117,
+        "cache": 0
+      },
+      "observations": {
+        "first_token": "The",
+        "terminal_within_10000_ms_count": 3,
+        "terminalization_elapsed_ms": [
+          20,
+          24,
+          65
+        ],
+        "resume_http_204_count": 3,
+        "exactly_one_cancelled_event_count": 3,
+        "active_pointer_cleared_count": 3,
+        "single_stopped_assistant_row_count": 3,
+        "missing_assistant_message_id_count": 3,
+        "buffered_prefix_mismatch_count": 1,
+        "later_successful_completion_count": 0,
+        "termination_reasons": [
+          "cancelled",
+          "cancelled",
+          "cancelled"
+        ]
+      },
+      "failures": [
+        "cancelled run was not linked to the stopped partial assistant row in 3/3 trials",
+        "persisted partial text did not match buffered token history in 1/3 trials"
+      ]
+    }
+  ],
+  "evidence": {
+    "local_jobs_directory": "evals/jobs",
+    "retention": "keep until the evaluation is accepted, revised, or dropped",
+    "production_data_used": false,
+    "schema_bootstrap": "src.models.Base.metadata.create_all",
+    "schema_fidelity_limit": "fresh Alembic upgrade is broken at the pinned source"
+  }
+}

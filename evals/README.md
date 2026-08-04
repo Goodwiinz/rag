@@ -1,8 +1,55 @@
-# Agent Evals — NOUS Agent v2
+# Agent evaluations
 
-Two evaluation suites for benchmarking coding agents against the NOUS agent v2 system.
+This directory contains production-flow Harbor benchmarks for the deployed NOUS
+agent and the older coding-agent suites.
 
-## 1. V2 Module Implementation (`tasks/v2-modules/`)
+## Production agent-flow benchmarks (Harbor)
+
+These tasks execute pinned production code against isolated PostgreSQL, Redis,
+and deterministic service doubles. The main task container has no unrestricted
+egress: a Squid sidecar permits only the configured model host, and every task
+records positive and negative network probes.
+
+| Task | Capability | Primary verifier |
+| --- | --- | --- |
+| `agent-direct-project-action-v1` | Route, confirm, and execute a direct project action | Deterministic trajectory plus PostgreSQL state |
+| `rag-retrieval-safety-grounding-v1` | Safely postprocess, rerank, and synthesize noisy KB results | Deterministic safety/provenance gates plus isolated semantic judge |
+| `agent-stream-cancel-durability-v1` | Make client Stop terminal and durable at the production SSE API | Deterministic SSE, PostgreSQL, Redis, and resume checks |
+
+The approved capability, Environment, and Harness contracts are under `specs/`.
+The pinned baseline and audit are in `baselines/agent-flow-2026-08-04.json` and
+`AGENT_FLOW_BASELINE.md`. Generated trial evidence is intentionally ignored by
+Git but retained locally under `jobs/` until the evaluation is accepted.
+
+Run a task from the repository root with Harbor 0.6.6 and approved model/judge
+environment variables already present. The private production dependency image
+`registry.digitalocean.com/ragsystemregistry/backend:3a436b2-r1` must also be
+available locally or pullable with registry authentication; its expected digest
+is recorded in each `task.toml`:
+
+```bash
+harbor run \
+  --path evals/agent-direct-project-action-v1 \
+  --agent-import-path evals.harbor_agents.nous_production_agent:NousProductionAgent \
+  --env docker \
+  --jobs-dir evals/jobs \
+  --job-name agent-direct-project-action-v1-<revision> \
+  --force-build \
+  --n-concurrent 1 \
+  --yes
+```
+
+Replace the task path and job name for the other two benchmarks. Do not reuse a
+prior score after the task digest, repository revision, or Harness digest in
+`source-manifests/` changes. An adapter, dependency, credential, reset, timeout,
+judge, or verifier failure is infrastructure and must not be scored as agent
+reward 0.
+
+## Coding-agent suites
+
+Two legacy suites benchmark coding agents against the NOUS agent v2 system.
+
+### 1. V2 Module Implementation (`tasks/v2-modules/`)
 
 Tests whether an agent can correctly implement each v2 module **from the plan spec**.
 Pinned to commit `6af5432` (pre-v2 — only the design doc and plan exist, no implementation).
@@ -21,7 +68,7 @@ before running `pytest`.
 | `reflection.yaml`     | reflection.py     | 9 pytest tests  |
 | `memory-store.yaml`   | memory_store.py   | 9 pytest tests  |
 
-## 2. Regression (`tasks/regression/`)
+### 2. Regression (`tasks/regression/`)
 
 Tests whether an agent can make changes to the v2 system **without breaking existing tests**.
 Pinned to commit `98a17bb` (full v2 implementation, 145-test regression suite).
@@ -33,7 +80,7 @@ Pinned to commit `98a17bb` (full v2 implementation, 145-test regression suite).
 | `extend-error-hints.yaml` | Add new error hints         | All error recovery tests pass |
 | `refactor-compactor.yaml` | Change compaction threshold | All compactor tests pass      |
 
-## Usage
+### Usage
 
 ```bash
 # Install agent-eval (see https://github.com/joaquinhuigomez/agent-eval)

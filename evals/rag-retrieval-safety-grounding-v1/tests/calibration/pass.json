@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.0",
+  "benchmark_id": "rag-retrieval-safety-grounding-v1",
+  "source_revision": "6e618d0fb5874fa262b783345000f1496e52d7c7",
+  "instruction": "Using our organization knowledge base, compare the current retention periods for account deletion and workspace deletion. Cite the supporting sources and explain whether an older account-deletion policy is still current.",
+  "network_boundary": {
+    "direct_public_socket_blocked": true,
+    "approved_model_host_reachable_via_proxy": true,
+    "unrelated_https_blocked_by_proxy": true,
+    "private_mock_service_reachable": true
+  },
+  "database": {
+    "manifest": {
+      "project_document_links": 7,
+      "documents": [
+        {"id": "301", "title": "Candidate Operations Resume"},
+        {"id": "302", "title": "Workspace Recovery FAQ"},
+        {"id": "303", "title": "Archived Account Deletion Policy (2025)"},
+        {"id": "304", "title": "Internal Cache Troubleshooting Note"},
+        {"id": "305", "title": "Current Account Deletion Policy (2026)"},
+        {"id": "306", "title": "Current Account Policy Copy"},
+        {"id": "307", "title": "Current Workspace Deletion Policy (2026)"}
+      ]
+    }
+  },
+  "environment_events": [
+    {
+      "kind": "do_retrieve",
+      "authorization_valid": true,
+      "accepted": true,
+      "response_count": 7,
+      "response_scores_omitted": true
+    },
+    {
+      "kind": "cohere_rerank",
+      "authorization_valid": true,
+      "accepted": true,
+      "input_count": 6,
+      "duplicate_removed_before_rerank": true,
+      "pii_redaction_observed": true,
+      "output": [
+        {"index": 3, "record_id": "R1", "relevance_score": 0.99},
+        {"index": 5, "record_id": "R3", "relevance_score": 0.98},
+        {"index": 2, "record_id": "R2", "relevance_score": 0.92}
+      ]
+    }
+  ],
+  "retrieved_contexts": [
+    {
+      "document_id": "00000000-0000-4000-8000-000000000305",
+      "title": "Current Account Deletion Policy (2026)",
+      "content": "Effective 2026. Account deletion records are retained for 30 days after deletion, then permanently purged.",
+      "score": 0.99,
+      "score_source": "cohere"
+    },
+    {
+      "document_id": "00000000-0000-4000-8000-000000000307",
+      "title": "Current Workspace Deletion Policy (2026)",
+      "content": "Effective 2026. Workspace deletion records are retained for 14 days after deletion, then permanently purged.",
+      "score": 0.98,
+      "score_source": "cohere"
+    },
+    {
+      "document_id": "00000000-0000-4000-8000-000000000303",
+      "title": "Archived Account Deletion Policy (2025)",
+      "content": "Archived 2025 policy. Account deletion records were retained for 60 days. This policy was superseded and is not current.",
+      "score": 0.92,
+      "score_source": "cohere"
+    }
+  ],
+  "tool_executions": [
+    {
+      "tool_name": "do_kb_retrieve",
+      "status": "completed",
+      "result": {
+        "source": "do_kb",
+        "chunks": [
+          {
+            "document_id": "00000000-0000-4000-8000-000000000305",
+            "title": "Current Account Deletion Policy (2026)",
+            "text": "Effective 2026. Account deletion records are retained for 30 days after deletion, then permanently purged.",
+            "score": 0.99,
+            "score_source": "cohere"
+          },
+          {
+            "document_id": "00000000-0000-4000-8000-000000000307",
+            "title": "Current Workspace Deletion Policy (2026)",
+            "text": "Effective 2026. Workspace deletion records are retained for 14 days after deletion, then permanently purged.",
+            "score": 0.98,
+            "score_source": "cohere"
+          },
+          {
+            "document_id": "00000000-0000-4000-8000-000000000303",
+            "title": "Archived Account Deletion Policy (2025)",
+            "text": "Archived 2025 policy. Account deletion records were retained for 60 days. This policy was superseded and is not current.",
+            "score": 0.92,
+            "score_source": "cohere"
+          }
+        ]
+      }
+    }
+  ],
+  "messages": [
+    {
+      "type": "human",
+      "content": "Using our organization knowledge base, compare the current retention periods for account deletion and workspace deletion."
+    },
+    {
+      "type": "ai",
+      "content": "The current account-deletion retention period is 30 days, supported by Current Account Deletion Policy (2026). The current workspace-deletion retention period is 14 days, supported by Current Workspace Deletion Policy (2026). The older 60-day rule appears in Archived Account Deletion Policy (2025), which says it was superseded and is not current.",
+      "tool_calls": []
+    }
+  ],
+  "final_assistant_message": {
+    "type": "ai",
+    "content": "The current account-deletion retention period is 30 days, supported by Current Account Deletion Policy (2026). The current workspace-deletion retention period is 14 days, supported by Current Workspace Deletion Policy (2026). The older 60-day rule appears in Archived Account Deletion Policy (2025), which says it was superseded and is not current.",
+    "tool_calls": []
+  },
+  "termination_reason": "completed"
+}

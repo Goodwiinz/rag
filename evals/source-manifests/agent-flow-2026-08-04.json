@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "suite": "nous-agent-flow-v1",
+  "recorded_at": "2026-08-04",
+  "repository_revision": "6e618d0fb5874fa262b783345000f1496e52d7c7",
+  "agent_revision": "756367d7b015c7e2b2d2b6d69092feb9e3dd0c40",
+  "harbor_version": "0.6.6",
+  "harness": {
+    "import_path": "evals.harbor_agents.nous_production_agent:NousProductionAgent",
+    "aggregate_sha256": "a996046efbc7aed46b3ae1ad6458b9656ad580c9681a2161c0fa6523f9c980db",
+    "files": [
+      {
+        "path": "evals/harbor_agents/__init__.py",
+        "sha256": "7ea3592f4ddb6560bba4e12af3a820e54ed73e5018ccd668d790ebd0d3ce53f9"
+      },
+      {
+        "path": "evals/harbor_agents/nous_production_agent.py",
+        "sha256": "577d865739738e566b983ec873421af315cecdfbbf10781f36ab1fd601ab7e8c"
+      }
+    ]
+  },
+  "digest_algorithm": "SHA-256 of sorted shasum -a 256 lines using repository-relative paths; __pycache__ files excluded",
+  "task_digests": {
+    "agent-direct-project-action-v1": "sha256:7334a5969b0a7250b045739ba6108cef09db657df296fa73c3ee5dc3d7aa69fc",
+    "rag-retrieval-safety-grounding-v1": "sha256:16928efa008d55fd65c3d1a556343b8757158028df6d4ba3ed76e4a7900fdaae",
+    "agent-stream-cancel-durability-v1": "sha256:d1957d27dccc745c10325c966a5ec660a0bebc5effab2d19add58115905e4136"
+  },
+  "invalidation_rule": "Any repository, task, or Harness digest change requires new run evidence and a new baseline declaration."
+}

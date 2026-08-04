@@ -1,0 +1,53 @@
+schema_version = "1.2"
+source = "git+https://github.com/Goodwiinz/rag.git@6e618d0fb5874fa262b783345000f1496e52d7c7"
+artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
+
+[task]
+name = "goodwiinz/rag-retrieval-safety-grounding-v1"
+description = "Answer a policy comparison from a noisy synthetic knowledge base without unsafe or uncalibrated evidence."
+authors = [{ name = "Goodwiinz" }]
+keywords = ["langgraph", "rag", "retrieval", "rerank", "pii", "grounding"]
+
+[metadata]
+benchmark_id = "rag-retrieval-safety-grounding-v1"
+source_revision = "6e618d0fb5874fa262b783345000f1496e52d7c7"
+agent_revision = "756367d7b015c7e2b2d2b6d69092feb9e3dd0c40"
+harbor_version = "0.6.6"
+base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
+
+[verifier]
+timeout_sec = 120.0
+
+[verifier.env]
+HARBOR_JUDGE_ENDPOINT = "${HARBOR_JUDGE_ENDPOINT}"
+HARBOR_JUDGE_API_KEY = "${HARBOR_JUDGE_API_KEY}"
+HARBOR_JUDGE_MODEL = "${HARBOR_JUDGE_MODEL}"
+HARBOR_JUDGE_API_VERSION = "${HARBOR_JUDGE_API_VERSION}"
+
+[agent]
+timeout_sec = 360.0
+
+[environment]
+build_timeout_sec = 1800.0
+os = "linux"
+cpus = 4
+memory_mb = 8192
+storage_mb = 20480
+gpus = 0
+# Harbor's false setting forces network_mode:none on the main service, which
+# would also sever the private Postgres/mock-service network. Compose below
+# supplies the real boundary: main is attached only to an internal network;
+# the Squid sidecar is the sole public-network bridge and allowlists one host.
+allow_internet = true
+mcp_servers = []
+workdir = "/app"
+
+[environment.env]
+AZURE_OPENAI_CHAT_ENDPOINT = "${AZURE_OPENAI_CHAT_ENDPOINT}"
+AZURE_OPENAI_CHAT_API_KEY = "${AZURE_OPENAI_CHAT_API_KEY}"
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME = "${AZURE_OPENAI_CHAT_DEPLOYMENT_NAME}"
+AZURE_OPENAI_CHAT_API_VERSION = "${AZURE_OPENAI_CHAT_API_VERSION}"
+AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT = "${AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT}"
+AZURE_OPENAI_SYNTHESIS_DEPLOYMENT = "${AZURE_OPENAI_SYNTHESIS_DEPLOYMENT:-}"
+
+[solution.env]
