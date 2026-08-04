@@ -50,6 +50,7 @@ from src.services.agent.agent_submission_service import (
 )
 from src.services.agent.observability import AgentStreamSLOTracker, record_token_usage
 from src.services.agent.run_event_types import RunEventType
+from src.services.agent.trace_metadata import build_trace_metadata
 from src.shared.enums import AgentErrorCategory, AgentStreamEvent, JobStatus
 
 from .trace_context import build_trace_payload
@@ -878,9 +879,9 @@ async def stream_event_generator(
     )
 
     stream_thread_id = request_body.thread_id or "unknown"
-    config: Dict[str, Any] = (
-        {}
-    )  # Initialize before try block for safe access in except handlers
+    config: Dict[
+        str, Any
+    ] = {}  # Initialize before try block for safe access in except handlers
     db = AsyncSessionLocal()
     graph = None  # type: ignore[assignment]
     resolved_thread_id: Optional[str] = None
@@ -899,6 +900,15 @@ async def stream_event_generator(
     # the terminal status all address `acceptance.run_id`.
     acceptance: Optional[AcceptedSubmission] = None
     org_id = getattr(current_user, "organization_id", None)
+    latest_user_message = next(
+        (
+            message
+            for message in reversed(request_body.messages)
+            if message.role == "user"
+        ),
+        None,
+    )
+    client_message_id = getattr(latest_user_message, "client_message_id", None)
     try:
         # Resolve the thread and verify ownership BEFORE acknowledging anything
         # — the acknowledgment is now a claim about durable state, so it cannot
@@ -1122,11 +1132,17 @@ async def stream_event_generator(
             },
             # LangSmith run metadata — per-tenant/turn filterable traces.
             # Inherited by child runs; never carries secrets.
-            "metadata": {
-                "user_id": str(current_user.id),
-                "org_id": str(getattr(current_user, "organization_id", "") or ""),
-                "thread_id": stream_thread_id,
-            },
+            "metadata": build_trace_metadata(
+                user_id=current_user.id,
+                org_id=org_id,
+                thread_id=(acceptance.thread_id if acceptance is not None else None),
+                request_id=emitter.trace_id,
+                agent_run_id=(acceptance.run_id if acceptance is not None else None),
+                user_message_id=(
+                    acceptance.user_message_id if acceptance is not None else None
+                ),
+                client_message_id=client_message_id,
+            ),
         }
 
         emitter.set_context(route="graph")
@@ -1192,13 +1208,12 @@ async def stream_event_generator(
         # turn's client_message_id: an SSE retry of the same turn maps to the
         # same key, so the assistant-role partial unique index dedupes it.
         assistant_cmid: Optional[str] = None
-        _last_user_msg = next(
-            (m for m in reversed(request_body.messages) if m.role == "user"), None
-        )
-        _user_cmid = getattr(_last_user_msg, "client_message_id", None)
-        if _user_cmid is not None:
+        if client_message_id is not None:
             assistant_cmid = str(
-                _uuid.uuid5(_uuid.NAMESPACE_URL, f"nous-assistant:{_user_cmid}")
+                _uuid.uuid5(
+                    _uuid.NAMESPACE_URL,
+                    f"nous-assistant:{client_message_id}",
+                )
             )
 
         async def persist_partial_stop() -> None:
@@ -1428,7 +1443,10 @@ async def stream_event_generator(
                 current_user,
                 status=JobStatus.CANCELLED,
                 event_type=RunEventType.RUN_CANCELLED,
-                payload={"reason": "client_disconnected"},
+                payload={
+                    "reason": "client_disconnected",
+                    "request_id": emitter.trace_id,
+                },
             )
             return
 

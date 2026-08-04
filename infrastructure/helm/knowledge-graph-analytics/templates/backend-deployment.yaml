@@ -169,6 +169,8 @@ spec:
             {{- if .Values.backend.env }}
             {{- toYaml .Values.backend.env | nindent 12 }}
             {{- end }}
+            - name: IMAGE_TAG
+              value: {{ .Values.backend.image.tag | default .Chart.AppVersion | quote }}
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
           volumeMounts:

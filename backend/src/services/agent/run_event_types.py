@@ -76,6 +76,7 @@ class RunStartedPayload(_Payload):
 
 class RunStoppingPayload(_Payload):
     reason: str | None = Field(default=None, max_length=200)
+    request_id: str | None = Field(default=None, max_length=128)
 
 
 class AssistantDeltaPayload(_Payload):
@@ -175,6 +176,7 @@ class RunFailedPayload(_Payload):
 
 class RunCancelledPayload(_Payload):
     reason: str | None = Field(default=None, max_length=200)
+    request_id: str | None = Field(default=None, max_length=128)
 
 
 PAYLOAD_MODELS: dict[RunEventType, type[_Payload]] = {
