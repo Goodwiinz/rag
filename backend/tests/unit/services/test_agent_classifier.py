@@ -401,6 +401,110 @@ class TestFallbackClassifier:
         # classification, not a fabricated 0.0.
         assert result.confidence == 0.62
 
+    @pytest.mark.parametrize(
+        "intent, confidence",
+        [
+            ("knowledge_graph", 0.28),
+            ("writing", 0.33),
+            ("writing", 0.59),
+        ],
+    )
+    async def test_rejects_weak_specialized_llm_result_without_keyword_evidence(
+        self, intent: str, confidence: float
+    ):
+        """Zero-evidence specialized guesses need the confidence floor."""
+        from src.services.agent.classifier import (
+            ClassificationResult,
+            classify_intent_with_fallback,
+        )
+
+        llm_result = ClassificationResult(
+            intent=intent,
+            confidence=confidence,
+            reasoning="weak specialized guess",
+            source="llm",
+        )
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+            return_value=llm_result,
+        ):
+            result = await classify_intent_with_fallback(
+                "finish the plan",
+                {"type": "unknown"},
+                prior_tool={"name": "search_arxiv", "args": {}, "result": "ok"},
+            )
+
+        assert result.intent == "general"
+        assert result.source == "fallback"
+        assert result.confidence == confidence
+
+    async def test_keeps_specialized_llm_result_at_confidence_floor(self):
+        """The specialized confidence floor is inclusive."""
+        from src.services.agent.classifier import (
+            ClassificationResult,
+            classify_intent_with_fallback,
+        )
+
+        llm_result = ClassificationResult(
+            intent="writing",
+            confidence=0.60,
+            reasoning="sufficient specialized evidence",
+            source="llm",
+        )
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+            return_value=llm_result,
+        ):
+            result = await classify_intent_with_fallback(
+                "finish the plan",
+                {"type": "unknown"},
+                prior_tool={"name": "search_arxiv", "args": {}, "result": "ok"},
+            )
+
+        assert result.intent == "writing"
+        assert result.source == "llm"
+        assert result.confidence == 0.60
+
+    async def test_project_creation_action_override_skips_llm(self):
+        """Project creation should route to research before LLM classification."""
+        from src.services.agent._nodes_classify import route_by_intent
+        from src.services.agent.classifier import classify_intent_with_fallback
+        from src.services.agent.subgraphs.research_agent import RESEARCH_TOOL_NAMES_LIST
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+        ) as mock_llm:
+            result = await classify_intent_with_fallback(
+                "create a project named Security Review", {"type": "unknown"}
+            )
+
+        mock_llm.assert_not_called()
+        assert result.intent == "research"
+        assert result.source == "action_override"
+        assert result.confidence == 1.0
+        assert route_by_intent({"intent": result.intent}) == "research_subgraph"
+        assert "create_project" in RESEARCH_TOOL_NAMES_LIST
+
+    async def test_project_creation_override_uses_whole_phrase_matching(self):
+        """Words containing an override phrase must not be routed as project creation."""
+        from src.services.agent.classifier import classify_intent_with_fallback
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+        ) as mock_llm:
+            result = await classify_intent_with_fallback(
+                "recreate a projection chart", {"type": "unknown"}
+            )
+
+        mock_llm.assert_not_called()  # The short-query shortcut may apply.
+        assert result.source == "shortcut"
+
     async def test_low_confidence_llm_still_loses_to_keyword_evidence(self):
         """The new guard must not swallow the original threshold behaviour."""
         from src.services.agent.classifier import (

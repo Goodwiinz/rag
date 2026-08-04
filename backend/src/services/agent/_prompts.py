@@ -80,6 +80,14 @@ INTENT_KEYWORDS = {
 # Priority order for tie-breaking (higher priority first)
 INTENT_PRIORITY = ["writing", "knowledge_graph", "research"]
 
+# Deterministic user actions that must reach the subgraph exposing the
+# corresponding tool, without waiting on probabilistic classification.
+ACTION_INTENT_OVERRIDES = (
+    ("create a project", "research"),
+    ("create project", "research"),
+    ("new project", "research"),
+)
+
 
 # ---------------------------------------------------------------------------
 # Per-intent guidance — appended to the static prompt at request time

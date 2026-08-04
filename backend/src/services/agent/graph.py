@@ -395,6 +395,7 @@ from src.services.agent._nodes_tools import (  # noqa: E402
 # keep working without churn.
 from src.services.agent._prompts import (  # noqa: E402  (re-export); noqa: E402
     _LLM_NODE_STATIC_PROMPT,
+    ACTION_INTENT_OVERRIDES,
     INTENT_KEYWORDS,
     INTENT_PRIORITY,
     INTENT_PROMPTS,
