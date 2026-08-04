@@ -169,37 +169,41 @@ async def test_stream_frames_carry_ids_and_are_buffered(monkeypatch):
 
 
 class _DisconnectThenHangGraph:
-    """One token, then (post-disconnect, mid-drain) a timeout."""
+    """One token, then a timeout unless the caller closes the stream."""
+
+    def __init__(self):
+        self.closed = False
+        self.timeout_raised = False
 
     async def astream_events(self, *args, **kwargs):
-        yield {
-            "event": "on_chat_model_stream",
-            "name": "llm_node",
-            "metadata": {"langgraph_node": "llm_node"},
-            "data": {"chunk": SimpleNamespace(content="partial answer")},
-        }
-        raise TimeoutError("graph hung during drain")
+        try:
+            yield {
+                "event": "on_chat_model_stream",
+                "name": "llm_node",
+                "metadata": {"langgraph_node": "llm_node"},
+                "data": {"chunk": SimpleNamespace(content="partial answer")},
+            }
+            self.timeout_raised = True
+            raise TimeoutError("graph timed out while the client was connected")
+        finally:
+            self.closed = True
 
     async def aget_state(self, config):  # pragma: no cover - not reached
         return SimpleNamespace(values={}, tasks=())
 
 
 @pytest.mark.asyncio
-async def test_drain_timeout_after_disconnect_persists_partial(monkeypatch):
-    """Regression: a graph death mid-drain (client already gone, buffer
-    active) must persist the accumulated partial with stopped=True instead of
-    silently losing it in the generic error handler."""
+async def test_connected_graph_timeout_persists_partial_and_emits_error(monkeypatch):
+    """A graph timeout with a connected client keeps the failure contract."""
     buf = _RecordingBuffer()
     buf.install(monkeypatch)
 
-    # Connected for the first event, gone afterwards -> drain mode.
-    request = SimpleNamespace(
-        is_disconnected=AsyncMock(side_effect=[False, True, True, True])
-    )
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     body = make_stream_request(thread_id="thread-timeout", use_rag=False)
     current_user = Mock(id="user-1", organization_id="org-1")
     persist = AsyncMock(return_value="row-1")
     thread_obj = SimpleNamespace(id="thread-timeout")
+    graph = _DisconnectThenHangGraph()
 
     with (
         patch(
@@ -212,7 +216,7 @@ async def test_drain_timeout_after_disconnect_persists_partial(monkeypatch):
         ),
         patch(
             "src.services.agent.graph.compile_agent_graph",
-            return_value=_DisconnectThenHangGraph(),
+            return_value=graph,
         ),
         patch(
             "src.api.agent.streaming._resolve_thread",
@@ -247,9 +251,109 @@ async def test_drain_timeout_after_disconnect_persists_partial(monkeypatch):
     assert kwargs["content"] == "partial answer"
     assert kwargs["stopped"] is True
     assert kwargs["thread_id"] == "thread-timeout"
-    # Error frame buffered but not yielded to the dead client.
-    assert not any("event: error" in e for e in events)
+    assert graph.timeout_raised is True
+    assert graph.closed is True
+    # A connected client receives the terminal error, and it is replayable.
+    assert any("event: error" in e for e in events)
     assert any("event: error" in frame for _, _, frame in buf.appends)
+
+
+@pytest.mark.asyncio
+async def test_buffered_disconnect_cancels_and_persists_partial(monkeypatch):
+    """Browser Stop is terminal even when the Redis stream buffer is active."""
+    buf = _RecordingBuffer()
+    buf.install(monkeypatch)
+
+    request_id = "buffered-stop-request"
+    request = SimpleNamespace(
+        state=SimpleNamespace(request_id=request_id),
+        # Connected for the token, disconnected before the graph can raise.
+        is_disconnected=AsyncMock(side_effect=[False, True, True]),
+    )
+    thread_id = "33333333-3333-3333-3333-333333333333"
+    body = make_stream_request(thread_id=thread_id, use_rag=False)
+    current_user = Mock(id="user-1", organization_id="org-1")
+    persist = AsyncMock(return_value="row-1")
+    finalize = AsyncMock(return_value=None)
+    graph = _DisconnectThenHangGraph()
+    thread_obj = SimpleNamespace(id=thread_id)
+    acceptance = streaming.AcceptedSubmission(
+        run_id="55555555-5555-5555-5555-555555555555",
+        thread_id=thread_id,
+        user_message_id="66666666-6666-6666-6666-666666666666",
+        outbox_id="outbox-buffered-stop",
+        idempotency_key="buffered-stop",
+    )
+
+    with (
+        patch(
+            "src.services.agent.observability.configure_langsmith",
+            return_value=None,
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            return_value=graph,
+        ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(thread_obj, None)),
+        ),
+        patch(
+            "src.api.agent.streaming.accept_submission",
+            new=AsyncMock(return_value=acceptance),
+        ),
+        patch(
+            "src.api.agent.streaming.mark_submission_dispatched",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.api.agent.streaming._resolve_and_bind_project",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.api.agent.streaming._jobs_mod._persist_assistant_message_safe",
+            new=persist,
+        ),
+        patch(
+            "src.api.agent.streaming._finalize_run",
+            new=finalize,
+        ),
+        patch(
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=AsyncMock(),
+        ),
+    ):
+        events = []
+        async for event in streaming.stream_event_generator(
+            body, request, current_user
+        ):
+            events.append(event)
+
+    persist.assert_awaited_once()
+    kwargs = persist.await_args.kwargs
+    assert kwargs["content"] == "partial answer"
+    assert kwargs["stopped"] is True
+    assert kwargs["thread_id"] == thread_id
+    assert graph.closed is True
+    assert graph.timeout_raised is False
+    assert not any("event: error" in frame for frame in events)
+    assert not any("event: done" in frame for frame in events)
+    assert not any("event: error" in frame for _, _, frame in buf.appends)
+    assert not any("event: done" in frame for _, _, frame in buf.appends)
+    assert buf.finished == [(thread_id, f"sid-{thread_id}")]
+    finalize.assert_awaited_once()
+    assert finalize.await_args.kwargs["status"] is streaming.JobStatus.CANCELLED
+    assert (
+        finalize.await_args.kwargs["event_type"] is streaming.RunEventType.RUN_CANCELLED
+    )
+    assert finalize.await_args.kwargs["payload"] == {
+        "reason": "client_disconnected",
+        "request_id": request_id,
+    }
 
 
 # ---------------------------------------------------------------------------
