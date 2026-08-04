@@ -1738,7 +1738,6 @@ async def _tool_do_kb_retrieve(
             "total": 0,
             "source": "do_kb",
             "reason": "no_safe_chunks",
-            "query": query,
             "evidence_mode": False,
         }
 
@@ -1747,16 +1746,24 @@ async def _tool_do_kb_retrieve(
 
         chunks_to_emit = await cohere_rescore_chunks(query, chunks_to_emit)
 
+    from src.services.agent._pii_redact import redact_pii
+
     chunks_payload = []
     for c in chunks_to_emit:
         resolved_id, title = title_by_key.get(c.document_id or "", (None, None))
+        try:
+            canonical_document_id = str(UUID(str(resolved_id))) if resolved_id else None
+        except (ValueError, TypeError, AttributeError):
+            canonical_document_id = None
+        title_candidate = title or (c.metadata or {}).get("title")
+        safe_title = redact_pii(title_candidate).strip() or "Untitled"
         chunks_payload.append(
             {
                 "text": c.text,
                 "score": c.score,
                 "score_source": (c.metadata or {}).get("score_source"),
-                "document_id": resolved_id or c.document_id,
-                "title": title or (c.metadata or {}).get("title") or c.document_id,
+                "document_id": canonical_document_id,
+                "title": safe_title,
                 "metadata": c.metadata,
             }
         )

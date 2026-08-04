@@ -273,7 +273,12 @@ async def test_tool_do_kb_retrieve_flag_on_sanitizes_before_rerank():
         result = await _tool_do_kb_retrieve({"query": "x", "top_k": 5}, db, user)
 
     mock_rescore.assert_awaited_once()
-    assert [c["document_id"] for c in result["chunks"]] == ["b.pdf", "a.pdf"]
+    assert [c["document_id"] for c in result["chunks"]] == [None, None]
+    assert [c["title"] for c in result["chunks"]] == ["Untitled", "Untitled"]
+    assert [c["text"] for c in result["chunks"]] == [
+        "Safe content",
+        "Contact <email>",
+    ]
     assert result["chunks"][0]["score"] == 0.99
     assert result["chunks"][0]["score_source"] == "cohere"
     assert all("synthetic." not in chunk["text"] for chunk in result["chunks"])
@@ -331,7 +336,8 @@ async def test_tool_do_kb_retrieve_flag_off_still_sanitizes_and_deduplicates():
         result = await _tool_do_kb_retrieve({"query": "x", "top_k": 5}, db, user)
 
     mock_rescore.assert_not_called()
-    assert [c["document_id"] for c in result["chunks"]] == ["a.pdf"]
+    assert [c["document_id"] for c in result["chunks"]] == [None]
+    assert [c["title"] for c in result["chunks"]] == ["Untitled"]
     assert [c["text"] for c in result["chunks"]] == ["Contact <email>"]
     assert result["chunks"][0]["score_source"] == "rank_proxy"
 
@@ -419,7 +425,56 @@ async def test_tool_do_kb_retrieve_empty_after_sanitization_returns_safe_reason(
     assert result["chunks"] == []
     assert result["total"] == 0
     assert result["reason"] == "no_safe_chunks"
+    assert "query" not in result
     rerank.assert_not_awaited()
+
+
+@pytest.mark.unit
+async def test_tool_do_kb_retrieve_sanitizes_resolved_title_and_preserves_uuid():
+    from uuid import uuid4
+
+    from src.services.agent.tools_impl import _tool_do_kb_retrieve
+    from src.services.do_kb.models import RetrieveResult
+
+    canonical_id = uuid4()
+    user = MagicMock(organization_id="org-1")
+    db = MagicMock()
+    db.get = AsyncMock(return_value=MagicMock(do_kb_uuid="kb-1"))
+    fake_client = MagicMock()
+    chunk = Chunk(text="Safe content", document_id="storage-key", metadata={})
+    fake_client.retrieve = AsyncMock(
+        return_value=RetrieveResult(chunks=[chunk], total=1)
+    )
+
+    async def _resolve(**_kwargs):
+        return (
+            {
+                "storage-key": (
+                    str(canonical_id),
+                    "Report for synthetic.owner@example.test",
+                )
+            },
+            [chunk],
+        )
+
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(
+                DO_KB_ENABLED=True,
+                AGENT_DOKB_COHERE_RERANK=False,
+                AGENT_ITERATIVE_RETRIEVAL=False,
+            ),
+        ),
+        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
+        patch("src.services.do_kb.resolve.resolve_and_filter_chunks", _resolve),
+    ):
+        result = await _tool_do_kb_retrieve({"query": "x", "top_k": 5}, db, user)
+
+    payload = result["chunks"][0]
+    assert payload["document_id"] == str(canonical_id)
+    assert payload["title"] == "Report for <email>"
+    assert "synthetic.owner" not in str(payload)
 
 
 # -- Call-site wiring: evidence_mode / summarize_evidence (PR-2) -------------
@@ -454,8 +509,8 @@ async def test_tool_do_kb_retrieve_evidence_flag_on_calls_summarize_evidence():
             "text": "a",
             "score": 0.9,
             "score_source": None,
-            "document_id": "a.pdf",
-            "title": "a.pdf",
+            "document_id": None,
+            "title": "Untitled",
             "metadata": {},
             "relevance": 8,
             "summary": "on point",
@@ -486,8 +541,8 @@ async def test_tool_do_kb_retrieve_evidence_flag_on_calls_summarize_evidence():
             "text": "a",
             "score": 0.9,
             "score_source": None,
-            "document_id": "a.pdf",
-            "title": "a.pdf",
+            "document_id": None,
+            "title": "Untitled",
             "metadata": {},
         }
     ]
