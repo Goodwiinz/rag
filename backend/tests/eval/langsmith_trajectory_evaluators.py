@@ -12,7 +12,6 @@ function. Run signature is `(run)` only (online — no dataset example).
 Both `RunTree` (local) and `dict` (uploaded) are handled.
 """
 
-
 # Executable tool universe = ALL_TOOLS (tools.py) ∪ do_kb_retrieve (bound only
 # in the research subgraph, deliberately absent from ALL_TOOLS). Hardcoded
 # because uploaded evaluators run in a sandbox that cannot import src.* — the
@@ -45,24 +44,28 @@ KNOWN_TOOLS = frozenset({
 
 
 def _extract_messages(run):
-    """Return list of messages NEW in this execution.
+    """Return messages after the latest human message in ``outputs``.
 
-    LangGraph state accumulates the full thread in `messages`. To measure
-    a single run's trajectory we subtract messages present in inputs from
-    those in outputs (by message id).
+    LangGraph output state retains cumulative thread history. The latest human
+    message starts the current turn; input/output histories can be asymmetric,
+    so input IDs are deliberately not used to determine the boundary.
     """
-    outputs = run.outputs if hasattr(run, "outputs") else run.get("outputs", {}) or {}
-    inputs = run.inputs if hasattr(run, "inputs") else run.get("inputs", {}) or {}
+    if hasattr(run, "outputs"):
+        outputs = run.outputs
+    elif isinstance(run, dict):
+        outputs = run.get("outputs")
+    else:
+        return None
     if not isinstance(outputs, dict):
-        return []
-    out_msgs = outputs.get("messages") or []
-    in_msgs = inputs.get("messages") if isinstance(inputs, dict) else []
+        return None
+    out_msgs = outputs.get("messages")
     if not isinstance(out_msgs, list):
-        return []
-    if not isinstance(in_msgs, list):
-        in_msgs = []
-    seen_ids = {m.get("id") for m in in_msgs if isinstance(m, dict) and m.get("id")}
-    return [m for m in out_msgs if isinstance(m, dict) and m.get("id") not in seen_ids]
+        return None
+    for index in range(len(out_msgs) - 1, -1, -1):
+        message = out_msgs[index]
+        if isinstance(message, dict) and message.get("type") == "human":
+            return out_msgs[index + 1 :]
+    return None
 
 
 def _iter_tool_calls(messages):
@@ -93,6 +96,8 @@ def tool_call_validity(run):
     tool_calls must have matching ToolMessages).
     """
     messages = _extract_messages(run)
+    if messages is None:
+        return {"score": 0, "comment": "Missing human turn boundary."}
     expected_ids = {tc_id for tc_id, _, _ in _iter_tool_calls(messages) if tc_id}
     if not expected_ids:
         return {"score": 1, "comment": "No tool calls — vacuously valid."}
@@ -129,6 +134,8 @@ def no_tool_loop(run):
     Detects agent spinning on the same tool invocation.
     """
     messages = _extract_messages(run)
+    if messages is None:
+        return {"score": 0, "comment": "Missing human turn boundary."}
     calls = [(name, args) for _, name, args in _iter_tool_calls(messages)]
     if len(calls) < 2:
         return {"score": 1, "comment": f"{len(calls)} tool call(s) — no loop possible."}
@@ -215,6 +222,9 @@ def plan_adherence(run):
     plan_adherence attempt fire 0x. Semantic step<->call mapping (tool-name
     drift, paraphrase) is a future refinement layered on this spine.
     """
+    messages = _extract_messages(run)
+    if messages is None:
+        return {"score": 0, "comment": "Missing human turn boundary."}
     outputs = run.outputs if hasattr(run, "outputs") else run.get("outputs", {}) or {}
     if not isinstance(outputs, dict):
         return {"score": 1, "comment": "No outputs dict — vacuously adherent."}
@@ -244,7 +254,6 @@ def plan_adherence(run):
             }
         return {"score": 1, "comment": "Empty / no-tool plan — vacuously adherent."}
 
-    messages = _extract_messages(run)
     executed = [name for _, name, _ in _iter_tool_calls(messages) if name]
 
     idx = 0

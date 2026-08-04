@@ -123,7 +123,15 @@ def _extract_function(source: str, fn_name: str) -> str:
         fn = ns.get("perform_eval")
         if not callable(fn):
             raise RuntimeError(f"{fn_name}: extracted blob has no callable perform_eval.")
-        fn({"inputs": {"messages": []}, "outputs": {"messages": [], "plan": []}})
+        fn(
+            {
+                "inputs": {"messages": [{"type": "human", "id": "human-current"}]},
+                "outputs": {
+                    "messages": [{"type": "human", "id": "human-current"}],
+                    "plan": [],
+                },
+            }
+        )
     except NameError as e:
         raise RuntimeError(
             f"{fn_name}: extracted evaluator references a name not bundled by "
