@@ -40,8 +40,8 @@ async def cohere_rescore_chunks(query: str, chunks: list[Chunk]) -> list[Chunk]:
     ]
 
     try:
-        results = await asyncio.wait_for(
-            cohere_rerank_service.rerank(query, docs, top_n=len(docs)),
+        outcome = await asyncio.wait_for(
+            cohere_rerank_service.rerank_with_outcome(query, docs, top_n=len(docs)),
             timeout=_RERANK_TIMEOUT_SECONDS,
         )
     except (asyncio.TimeoutError, Exception):
@@ -49,12 +49,12 @@ async def cohere_rescore_chunks(query: str, chunks: list[Chunk]) -> list[Chunk]:
         return chunks
 
     try:
-        if cohere_rerank_service.last_failure is not None:
+        if not outcome.succeeded:
             return chunks
 
         reranked = []
         covered: set[int] = set()
-        for result in results:
+        for result in outcome.results:
             index = result.index
             if index < 0 or index >= len(chunks) or index in covered:
                 raise ValueError("invalid Cohere rerank result index")

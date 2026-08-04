@@ -105,6 +105,10 @@ async def _capture_stream_metadata(*, durable: bool) -> dict[str, str]:
             new=AsyncMock(side_effect=RuntimeError("redis down")),
         ),
         patch(
+            "src.services.agent.job_store.get_redis",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
             "src.services.agent.observability.configure_langsmith", return_value=None
         ),
         patch(
@@ -284,3 +288,221 @@ async def test_background_graph_config_uses_same_correlation_contract(
     assert config["configurable"]["thread_id"] == unverified_thread_id
     assert unverified_thread_id not in str(metadata)
     assert PROMPT not in str(metadata)
+
+
+@pytest.mark.asyncio
+async def test_luna_chat_model_root_receives_allowlisted_metadata() -> None:
+    from src.services.agent.fast_path import stream_fast_path_chunks
+
+    class _CapturingLuna:
+        def __init__(self) -> None:
+            self.config: dict[str, Any] | None = None
+
+        async def astream(self, _messages: Any, *, config: dict[str, Any]):
+            self.config = config
+            yield SimpleNamespace(content="ok")
+
+    luna = _CapturingLuna()
+    metadata = {
+        "user_id": str(USER_ID),
+        "org_id": str(ORG_ID),
+        "thread_id": str(THREAD_ID),
+        "request_id": REQUEST_ID,
+        "agent_run_id": RUN_ID,
+        "user_message_id": USER_MESSAGE_ID,
+        "client_message_id": str(CLIENT_MESSAGE_ID),
+        "deployment_sha": "deployment-sha-123",
+        "image_tag": "backend-image-456",
+    }
+
+    chunks = [
+        chunk
+        async for chunk in stream_fast_path_chunks(
+            llm=luna,
+            messages=[],
+            persist_user=AsyncMock(return_value=None),
+            trace_metadata=metadata,
+        )
+    ]
+
+    assert [chunk.content for chunk in chunks] == ["ok"]
+    assert luna.config == {"metadata": metadata}
+    assert PROMPT not in str(luna.config)
+
+
+class _ResumeCapturingGraph:
+    def __init__(self, *, cancel_invoke: bool = False) -> None:
+        self.stream_config: dict[str, Any] | None = None
+        self.invoke_config: dict[str, Any] | None = None
+        self.cancel_invoke = cancel_invoke
+        self.snapshot = SimpleNamespace(
+            values={
+                "user_id": str(USER_ID),
+                "page_context": {},
+                "messages": [],
+                "tool_executions": [],
+            },
+            tasks=(SimpleNamespace(interrupts=[object()]),),
+            config={"configurable": {"checkpoint_id": "checkpoint-1"}},
+        )
+
+    async def aget_state(self, _config: Any) -> Any:
+        return self.snapshot
+
+    async def astream_events(self, *_args: Any, **kwargs: Any):
+        self.stream_config = kwargs["config"]
+        if False:
+            yield {}
+
+    async def ainvoke(self, *_args: Any, **kwargs: Any) -> Any:
+        self.invoke_config = kwargs["config"]
+        if self.cancel_invoke:
+            raise asyncio.CancelledError()
+        return {}
+
+
+@pytest.mark.asyncio
+async def test_streaming_confirmation_root_uses_owned_durable_run_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.api.agent import streaming as streaming_mod
+
+    monkeypatch.setenv("GIT_SHA", "deployment-sha-123")
+    monkeypatch.setenv("IMAGE_TAG", "backend-image-456")
+    graph = _ResumeCapturingGraph()
+    graph.snapshot.tasks = ()
+    db = SimpleNamespace(close=AsyncMock())
+    request = SimpleNamespace(
+        state=SimpleNamespace(request_id=REQUEST_ID),
+        is_disconnected=AsyncMock(return_value=False),
+    )
+    body = SimpleNamespace(thread_id=str(THREAD_ID), confirmed=True, model="")
+    current_user = cast(User, SimpleNamespace(id=USER_ID, organization_id=ORG_ID))
+    durable_run = SimpleNamespace(
+        job_id=RUN_ID,
+        thread_id=THREAD_ID,
+        user_message_id=USER_MESSAGE_ID,
+        client_message_id=str(CLIENT_MESSAGE_ID),
+    )
+
+    with (
+        patch.object(streaming_mod, "AsyncSessionLocal", return_value=db),
+        patch.object(
+            streaming_mod,
+            "get_active_run_for_thread",
+            new=AsyncMock(return_value=durable_run),
+        ),
+        patch.object(
+            streaming_mod, "_finalize_run_id", new=AsyncMock(return_value=None)
+        ),
+        patch.object(
+            streaming_mod._jobs_mod,
+            "_persist_assistant_message_safe",
+            new=AsyncMock(return_value=None),
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "start_stream",
+            new=AsyncMock(side_effect=RuntimeError("redis down")),
+        ),
+        patch(
+            "src.services.agent.job_store.get_redis",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.services.agent.observability.configure_langsmith", return_value=None
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch("src.services.agent.graph.compile_agent_graph", return_value=graph),
+    ):
+        async for _ in streaming_mod.stream_confirm_event_generator(
+            body, request, current_user
+        ):
+            pass
+
+    assert graph.stream_config is not None
+    assert graph.stream_config["metadata"] == {
+        "user_id": str(USER_ID),
+        "org_id": str(ORG_ID),
+        "thread_id": str(THREAD_ID),
+        "request_id": REQUEST_ID,
+        "agent_run_id": RUN_ID,
+        "user_message_id": USER_MESSAGE_ID,
+        "client_message_id": str(CLIENT_MESSAGE_ID),
+        "deployment_sha": "deployment-sha-123",
+        "image_tag": "backend-image-456",
+    }
+
+
+@pytest.mark.asyncio
+async def test_job_confirmation_root_uses_owned_durable_run_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.services.agent import agent_execution_service as execution_mod
+
+    monkeypatch.setenv("GIT_SHA", "deployment-sha-123")
+    monkeypatch.setenv("IMAGE_TAG", "backend-image-456")
+    graph = _ResumeCapturingGraph(cancel_invoke=True)
+    db = AsyncMock()
+    body = make_stream_request(
+        messages=[
+            {
+                "role": "user",
+                "content": PROMPT,
+                "client_message_id": str(CLIENT_MESSAGE_ID),
+            }
+        ],
+        thread_id=str(THREAD_ID),
+    )
+    job_id = RUN_ID
+    current_user = cast(User, SimpleNamespace(id=USER_ID, organization_id=ORG_ID))
+    durable_run = SimpleNamespace(
+        job_id=job_id,
+        thread_id=THREAD_ID,
+        user_message_id=USER_MESSAGE_ID,
+        client_message_id=str(CLIENT_MESSAGE_ID),
+    )
+
+    with (
+        patch.object(
+            execution_mod, "AsyncSessionLocal", return_value=_session_context(db)
+        ),
+        patch.object(
+            execution_mod,
+            "_get_job",
+            return_value={"request": body.model_dump()},
+        ),
+        patch.object(execution_mod, "get_run", new=AsyncMock(return_value=durable_run)),
+        patch.object(execution_mod, "_set_job_async", new=AsyncMock(return_value=None)),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch("src.services.agent.graph.compile_agent_graph", return_value=graph),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await execution_mod._resume_agent_graph(job_id, True, current_user)
+
+    assert graph.invoke_config is not None
+    assert graph.invoke_config["metadata"] == {
+        "user_id": str(USER_ID),
+        "org_id": str(ORG_ID),
+        "thread_id": str(THREAD_ID),
+        "request_id": job_id,
+        "agent_run_id": job_id,
+        "user_message_id": USER_MESSAGE_ID,
+        "client_message_id": str(CLIENT_MESSAGE_ID),
+        "deployment_sha": "deployment-sha-123",
+        "image_tag": "backend-image-456",
+    }

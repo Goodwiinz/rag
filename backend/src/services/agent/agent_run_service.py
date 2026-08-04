@@ -214,6 +214,38 @@ async def get_run(
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
+async def get_active_run_for_thread(
+    db: AsyncSession,
+    thread_id: Any,
+    *,
+    organization_id: Any,
+    user_id: Any,
+) -> Optional[AgentRun]:
+    """Return the caller-owned non-terminal run for a durable thread.
+
+    The partial unique index permits at most one such row. This lookup exists
+    for HITL resume paths that receive a thread id rather than a run id; the
+    same mandatory org + user filters as :func:`get_run` prevent an untrusted
+    checkpoint identifier from entering trace metadata.
+    """
+    thread_uuid = _coerce_uuid(thread_id)
+    if thread_uuid is None:
+        return None
+    active_statuses = [
+        JobStatus.QUEUED.value,
+        JobStatus.RUNNING.value,
+        JobStatus.AWAITING_CONFIRMATION.value,
+        JobStatus.STOPPING.value,
+    ]
+    stmt = select(AgentRun).where(
+        AgentRun.thread_id == thread_uuid,
+        AgentRun.organization_id == _coerce_uuid(organization_id),
+        AgentRun.user_id == _coerce_uuid(user_id),
+        AgentRun.status.in_(active_statuses),
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
 async def get_run_by_idempotency_key(
     db: AsyncSession,
     idempotency_key: str,

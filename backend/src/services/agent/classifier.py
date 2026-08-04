@@ -81,7 +81,7 @@ class ClassificationResult:
     intent: IntentType
     confidence: float
     reasoning: str
-    source: str  # "llm", "keyword", "fallback"
+    source: str  # "llm", "keyword", "action_override", "shortcut", or "fallback"
 
 
 # ---------------------------------------------------------------------------

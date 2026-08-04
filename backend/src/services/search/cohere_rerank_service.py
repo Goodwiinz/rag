@@ -7,6 +7,7 @@ search results based on query-document relevance.
 
 import logging
 import time
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -28,6 +29,23 @@ class RerankResult:
     original_score: float
 
 
+@dataclass(frozen=True)
+class RerankOutcome:
+    """Per-invocation rerank results and fallback provenance.
+
+    ``last_failure`` remains available as a context-local legacy diagnostic,
+    but callers that make correctness decisions consume this explicit value so
+    results and provenance cannot drift apart.
+    """
+
+    results: List[RerankResult]
+    failure: Optional[Dict[str, Any]] = None
+
+    @property
+    def succeeded(self) -> bool:
+        return self.failure is None
+
+
 class CohereRerankService:
     """
     Service for reranking search results using Azure AI Cohere rerank API.
@@ -42,7 +60,9 @@ class CohereRerankService:
         self.model = settings.COHERE_RERANK_MODEL
         self.default_top_n = settings.COHERE_RERANK_TOP_N
         self._enabled = bool(self.endpoint and self.api_key)
-        self.last_failure: Optional[Dict[str, Any]] = None
+        self._last_failure: ContextVar[Optional[Dict[str, Any]]] = ContextVar(
+            f"cohere_last_failure_{id(self)}", default=None
+        )
 
         if self._enabled:
             logger.info(f"Cohere reranking enabled with model: {self.model}")
@@ -53,6 +73,20 @@ class CohereRerankService:
     def is_enabled(self) -> bool:
         """Check if reranking is enabled"""
         return self._enabled
+
+    @property
+    def last_failure(self) -> Optional[Dict[str, Any]]:
+        """Invocation-local diagnostic failure for legacy callers.
+
+        A ``ContextVar`` keeps concurrent asyncio tasks (and worker threads)
+        from overwriting each other's provenance on the shared service.
+        Correctness-sensitive callers still consume ``RerankOutcome``.
+        """
+        return self._last_failure.get()
+
+    @last_failure.setter
+    def last_failure(self, value: Optional[Dict[str, Any]]) -> None:
+        self._last_failure.set(value)
 
     async def rerank(
         self,
@@ -187,6 +221,28 @@ class CohereRerankService:
             if breaker:
                 breaker.record_failure(e)
             return self._fallback_rerank(documents, top_n)
+
+    async def rerank_with_outcome(
+        self,
+        query: str,
+        documents: List[Dict[str, Any]],
+        top_n: Optional[int] = None,
+        return_documents: bool = False,
+    ) -> RerankOutcome:
+        """Return results and provenance as one invocation-local value.
+
+        There is intentionally no await between ``rerank`` returning and the
+        snapshot of ``last_failure``. Asyncio therefore cannot resume another
+        caller of the singleton service in between those operations.
+        """
+        results = await self.rerank(
+            query,
+            documents,
+            top_n=top_n,
+            return_documents=return_documents,
+        )
+        failure = dict(self.last_failure) if self.last_failure is not None else None
+        return RerankOutcome(results=results, failure=failure)
 
     def _fallback_rerank(
         self, documents: List[Dict[str, Any]], top_n: Optional[int] = None
@@ -340,6 +396,23 @@ class CohereRerankService:
             if breaker:
                 breaker.record_failure(e)
             return self._fallback_rerank(documents, top_n)
+
+    def rerank_sync_with_outcome(
+        self,
+        query: str,
+        documents: List[Dict[str, Any]],
+        top_n: Optional[int] = None,
+        return_documents: bool = False,
+    ) -> RerankOutcome:
+        """Synchronous counterpart of :meth:`rerank_with_outcome`."""
+        results = self.rerank_sync(
+            query,
+            documents,
+            top_n=top_n,
+            return_documents=return_documents,
+        )
+        failure = dict(self.last_failure) if self.last_failure is not None else None
+        return RerankOutcome(results=results, failure=failure)
 
     async def rerank_search_results(
         self,

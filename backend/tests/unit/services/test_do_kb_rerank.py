@@ -15,6 +15,7 @@ import pytest
 
 from src.services.do_kb.models import Chunk
 from src.services.do_kb.rerank import cohere_rescore_chunks
+from src.services.search.cohere_rerank_service import RerankOutcome
 
 
 def _rerank_result(index: int, relevance_score: float) -> MagicMock:
@@ -34,7 +35,7 @@ async def test_fewer_than_two_chunks_passthrough_service_not_called():
         result = await cohere_rescore_chunks("q", chunks)
 
     assert result == chunks
-    mock_service.rerank.assert_not_called()
+    mock_service.rerank_with_outcome.assert_not_called()
 
 
 @pytest.mark.unit
@@ -44,7 +45,7 @@ async def test_service_disabled_passthrough_original_scores_intact():
         Chunk(text="b", score=0.5, document_id="b", metadata={}),
     ]
     mock_service = MagicMock(is_enabled=False)
-    mock_service.rerank = AsyncMock()
+    mock_service.rerank_with_outcome = AsyncMock()
 
     with patch(
         "src.services.search.cohere_rerank_service.cohere_rerank_service",
@@ -54,7 +55,7 @@ async def test_service_disabled_passthrough_original_scores_intact():
 
     assert result == chunks
     assert [c.score for c in result] == [0.9, 0.5]
-    mock_service.rerank.assert_not_called()
+    mock_service.rerank_with_outcome.assert_not_called()
 
 
 @pytest.mark.unit
@@ -63,10 +64,12 @@ async def test_success_reorders_and_replaces_scores_without_mutating_input():
         Chunk(text="a", score=0.9, document_id="a", metadata={}),
         Chunk(text="b", score=0.5, document_id="b", metadata={}),
     ]
-    mock_service = MagicMock(is_enabled=True, last_failure=None)
+    mock_service = MagicMock(is_enabled=True)
     # Cohere thinks "b" (index 1) is more relevant than "a" (index 0).
-    mock_service.rerank = AsyncMock(
-        return_value=[_rerank_result(1, 0.95), _rerank_result(0, 0.2)]
+    mock_service.rerank_with_outcome = AsyncMock(
+        return_value=RerankOutcome(
+            results=[_rerank_result(1, 0.95), _rerank_result(0, 0.2)]
+        )
     )
 
     with patch(
@@ -79,7 +82,7 @@ async def test_success_reorders_and_replaces_scores_without_mutating_input():
     assert [c.document_id for c in result] == ["b", "a"]
     assert [c.score for c in result] == [0.95, 0.2]
     assert [c.metadata["score_source"] for c in result] == ["cohere", "cohere"]
-    sent_docs = mock_service.rerank.await_args.args[1]
+    sent_docs = mock_service.rerank_with_outcome.await_args.args[1]
     assert sent_docs == [
         {"content": "a", "id": "0", "score": 0.9},
         {"content": "b", "id": "1", "score": 0.5},
@@ -90,14 +93,55 @@ async def test_success_reorders_and_replaces_scores_without_mutating_input():
 
 
 @pytest.mark.unit
-async def test_last_failure_set_after_call_passthrough():
+async def test_success_preserves_existing_metadata_while_marking_cohere():
+    chunks = [
+        Chunk(
+            text="a",
+            score=0.9,
+            document_id="a",
+            metadata={"title": "A", "score_source": "rank_proxy"},
+        ),
+        Chunk(
+            text="b",
+            score=0.5,
+            document_id="b",
+            metadata={"title": "B", "custom": {"safe": True}},
+        ),
+    ]
+    mock_service = MagicMock(is_enabled=True)
+    mock_service.rerank_with_outcome = AsyncMock(
+        return_value=RerankOutcome(
+            results=[_rerank_result(1, 0.95), _rerank_result(0, 0.2)]
+        )
+    )
+
+    with patch(
+        "src.services.search.cohere_rerank_service.cohere_rerank_service",
+        mock_service,
+    ):
+        result = await cohere_rescore_chunks("q", chunks)
+
+    assert result[0].metadata == {
+        "title": "B",
+        "custom": {"safe": True},
+        "score_source": "cohere",
+    }
+    assert result[1].metadata == {"title": "A", "score_source": "cohere"}
+    assert chunks[0].metadata["score_source"] == "rank_proxy"
+
+
+@pytest.mark.unit
+async def test_failed_invocation_outcome_passthrough():
     chunks = [
         Chunk(text="a", score=0.9, document_id="a", metadata={}),
         Chunk(text="b", score=0.5, document_id="b", metadata={}),
     ]
-    mock_service = MagicMock(is_enabled=True, last_failure={"reason": "circuit_open"})
-    mock_service.rerank = AsyncMock(
-        return_value=[_rerank_result(0, 0.9), _rerank_result(1, 0.5)]
+    mock_service = MagicMock(is_enabled=True)
+    mock_service.rerank_with_outcome = AsyncMock(
+        return_value=RerankOutcome(
+            results=[_rerank_result(0, 0.9), _rerank_result(1, 0.5)],
+            failure={"reason": "circuit_open"},
+        )
     )
 
     with patch(
@@ -110,17 +154,75 @@ async def test_last_failure_set_after_call_passthrough():
 
 
 @pytest.mark.unit
+async def test_concurrent_failure_cannot_inherit_success_provenance():
+    """Each invocation consumes its own outcome, never singleton diagnostics."""
+
+    class _InterleavingService:
+        is_enabled = True
+
+        @property
+        def last_failure(self):
+            raise AssertionError("shared last_failure must not be consulted")
+
+        async def rerank_with_outcome(self, query, _docs, top_n):
+            await asyncio.sleep(0)
+            results = [_rerank_result(i, 0.9 - i * 0.1) for i in range(top_n)]
+            if query == "fallback":
+                return RerankOutcome(
+                    results=results,
+                    failure={"reason": "upstream_http_error"},
+                )
+            return RerankOutcome(results=list(reversed(results)))
+
+    failed_chunks = [
+        Chunk(
+            text="a",
+            score=0.9,
+            document_id="a",
+            metadata={"score_source": "rank_proxy"},
+        ),
+        Chunk(
+            text="b",
+            score=0.5,
+            document_id="b",
+            metadata={"score_source": "rank_proxy"},
+        ),
+    ]
+    successful_chunks = [
+        Chunk(text="c", score=0.8, document_id="c", metadata={}),
+        Chunk(text="d", score=0.4, document_id="d", metadata={}),
+    ]
+
+    with patch(
+        "src.services.search.cohere_rerank_service.cohere_rerank_service",
+        _InterleavingService(),
+    ):
+        failed, successful = await asyncio.gather(
+            cohere_rescore_chunks("fallback", failed_chunks),
+            cohere_rescore_chunks("success", successful_chunks),
+        )
+
+    assert failed == failed_chunks
+    assert [chunk.metadata["score_source"] for chunk in failed] == [
+        "rank_proxy",
+        "rank_proxy",
+    ]
+    assert [chunk.document_id for chunk in successful] == ["d", "c"]
+    assert all(chunk.metadata["score_source"] == "cohere" for chunk in successful)
+
+
+@pytest.mark.unit
 async def test_timeout_passthrough():
     chunks = [
         Chunk(text="a", score=0.9, document_id="a", metadata={}),
         Chunk(text="b", score=0.5, document_id="b", metadata={}),
     ]
-    mock_service = MagicMock(is_enabled=True, last_failure=None)
+    mock_service = MagicMock(is_enabled=True)
 
     async def _hangs(*args, **kwargs):
         raise asyncio.TimeoutError()
 
-    mock_service.rerank = AsyncMock(side_effect=_hangs)
+    mock_service.rerank_with_outcome = AsyncMock(side_effect=_hangs)
 
     with patch(
         "src.services.search.cohere_rerank_service.cohere_rerank_service",
@@ -138,9 +240,11 @@ async def test_partial_results_covered_first_leftovers_in_original_order():
         Chunk(text="b", score=0.5, document_id="b", metadata={}),
         Chunk(text="c", score=0.3, document_id="c", metadata={}),
     ]
-    mock_service = MagicMock(is_enabled=True, last_failure=None)
+    mock_service = MagicMock(is_enabled=True)
     # Only index 2 ("c") came back from Cohere; 0 and 1 are uncovered.
-    mock_service.rerank = AsyncMock(return_value=[_rerank_result(2, 0.99)])
+    mock_service.rerank_with_outcome = AsyncMock(
+        return_value=RerankOutcome(results=[_rerank_result(2, 0.99)])
+    )
 
     with patch(
         "src.services.search.cohere_rerank_service.cohere_rerank_service",
@@ -152,6 +256,8 @@ async def test_partial_results_covered_first_leftovers_in_original_order():
     assert [c.document_id for c in result] == ["c", "a", "b"]
     assert result[0].score == 0.99
     assert result[0].metadata["score_source"] == "cohere"
+    assert result[1].metadata == chunks[0].metadata
+    assert result[2].metadata == chunks[1].metadata
 
 
 @pytest.mark.unit
@@ -160,8 +266,10 @@ async def test_invalid_results_passthrough_original_chunks():
         Chunk(text="a", score=0.9, document_id="a", metadata={}),
         Chunk(text="b", score=0.5, document_id="b", metadata={}),
     ]
-    mock_service = MagicMock(is_enabled=True, last_failure=None)
-    mock_service.rerank = AsyncMock(return_value=[_rerank_result(9, 0.99)])
+    mock_service = MagicMock(is_enabled=True)
+    mock_service.rerank_with_outcome = AsyncMock(
+        return_value=RerankOutcome(results=[_rerank_result(9, 0.99)])
+    )
 
     with patch(
         "src.services.search.cohere_rerank_service.cohere_rerank_service",
@@ -179,6 +287,16 @@ def test_chunk_from_do_payload_marks_upstream_score_provenance():
     )
 
     assert chunk.score == 0.82
+    assert chunk.metadata == {"title": "Doc", "score_source": "upstream"}
+
+
+@pytest.mark.unit
+def test_chunk_from_do_payload_preserves_zero_upstream_score():
+    chunk = Chunk.from_do_payload(
+        {"text_content": "zero scored", "score": 0.0, "metadata": {"title": "Doc"}}
+    )
+
+    assert chunk.score == 0.0
     assert chunk.metadata == {"title": "Doc", "score_source": "upstream"}
 
 

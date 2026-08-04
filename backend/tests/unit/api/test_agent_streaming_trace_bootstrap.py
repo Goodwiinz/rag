@@ -62,6 +62,10 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
+        ),
     ):
         events = []
         async for event in stream_event_generator(body, request, current_user):
@@ -119,6 +123,10 @@ async def test_stream_event_generator_cancels_on_disconnect():
         patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
+        ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
         ),
     ):
         events = []

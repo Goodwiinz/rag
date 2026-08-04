@@ -12,7 +12,7 @@ pytestmark = pytest.mark.integration
 
 
 class _FakeLuna:
-    async def astream(self, _messages):
+    async def astream(self, _messages, *, config=None):
         yield AIMessageChunk(content="hel")
         yield AIMessageChunk(
             content="lo",
@@ -36,13 +36,13 @@ class _NoGraphExecution:
 
 
 class _FailingLuna:
-    async def astream(self, _messages):
+    async def astream(self, _messages, *, config=None):
         yield AIMessageChunk(content="partial")
         raise RuntimeError("model stream broke")
 
 
 class _CancelledLuna:
-    async def astream(self, _messages):
+    async def astream(self, _messages, *, config=None):
         yield AIMessageChunk(content="partial")
         raise asyncio.CancelledError()
 
@@ -54,7 +54,7 @@ async def test_fast_chunks_wait_for_user_persistence_before_release():
     allow_persist = asyncio.Event()
 
     class ImmediateModel:
-        async def astream(self, _messages):
+        async def astream(self, _messages, *, config=None):
             model_started.set()
             yield AIMessageChunk(content="first")
 
@@ -83,8 +83,8 @@ async def test_eligible_turn_streams_luna_and_reconciles_checkpoint_before_done(
     thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4())
     user_cmid = uuid4()
 
-    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
     from src.api.agent import streaming as streaming_mod
+    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
     from src.core.config import get_settings
     from src.services.agent import agent_execution_service as jobs_mod
     from src.services.agent import llm_factory
@@ -116,6 +116,7 @@ async def test_eligible_turn_streams_luna_and_reconciles_checkpoint_before_done(
 
     with (
         patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_session),
+        patch.object(streaming_mod, "_accept_eligible", return_value=False),
         patch.object(
             streaming_mod,
             "_resolve_thread",
@@ -184,8 +185,8 @@ async def test_ineligible_turn_keeps_langgraph_path(
     user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
     thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4(), source_project=None)
 
-    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
     from src.api.agent import streaming as streaming_mod
+    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
     from src.core.config import get_settings
     from src.services.agent import agent_execution_service as jobs_mod
 
@@ -216,6 +217,7 @@ async def test_ineligible_turn_keeps_langgraph_path(
     fake_session = SimpleNamespace(close=AsyncMock())
     with (
         patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_session),
+        patch.object(streaming_mod, "_accept_eligible", return_value=False),
         patch.object(
             streaming_mod,
             "_resolve_thread",
@@ -295,8 +297,8 @@ async def test_luna_failure_persists_streamed_partial_as_stopped(
     thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4())
     user_cmid = uuid4()
 
-    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
     from src.api.agent import streaming as streaming_mod
+    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
     from src.core.config import get_settings
     from src.services.agent import agent_execution_service as jobs_mod
     from src.services.agent import llm_factory
@@ -323,6 +325,7 @@ async def test_luna_failure_persists_streamed_partial_as_stopped(
     persist_assistant = AsyncMock(return_value="partial-row-id")
     with (
         patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_session),
+        patch.object(streaming_mod, "_accept_eligible", return_value=False),
         patch.object(
             streaming_mod,
             "_resolve_thread",

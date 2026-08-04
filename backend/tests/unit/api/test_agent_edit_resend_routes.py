@@ -74,7 +74,9 @@ def _acceptance(thread_id: Any, *, tombstoned: bool, count: int = 3) -> Any:
 
 
 class _FakeLuna:
-    async def astream(self, _messages: Any) -> AsyncIterator[AIMessageChunk]:
+    async def astream(
+        self, _messages: Any, *, config: Any = None
+    ) -> AsyncIterator[AIMessageChunk]:
         yield AIMessageChunk(content="hello")
 
 
@@ -551,6 +553,11 @@ async def _run_execute_route(
         ),
         patch.object(aes, "_persist_user_message_guarded", new=persist),
         patch.object(aes, "resync_thread_checkpoint", new=resync),
+        patch.object(
+            aes,
+            "_resolve_and_bind_project",
+            new=AsyncMock(return_value=None),
+        ),
         patch(
             "src.services.agent.checkpointer.get_checkpointer",
             new=AsyncMock(return_value=object()),

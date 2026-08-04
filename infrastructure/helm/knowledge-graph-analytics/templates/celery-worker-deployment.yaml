@@ -1,4 +1,5 @@
 {{- if .Values.celeryWorker.enabled }}
+{{- $workerImageTag := .Values.backend.image.tag | default .Chart.AppVersion }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -27,7 +28,7 @@ spec:
         {{- toYaml .Values.securityContext | nindent 8 }}
       containers:
         - name: celery-worker
-          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          image: "{{ .Values.backend.image.repository }}:{{ $workerImageTag }}"
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
           command:
             - celery
@@ -56,7 +57,21 @@ spec:
           # but ArgoCD's strategic-merge-patch rejects (env list is keyed by
           # `name`) — breaking sync for the whole app. See mergedEnv helper.
           env:
-            {{- include "knowledge-graph-analytics.mergedEnv" (dict "base" .Values.backend.env "override" .Values.celeryWorker.env) | nindent 12 }}
+            {{- $workerBaseEnv := list }}
+            {{- range .Values.backend.env }}
+            {{- if ne .name "IMAGE_TAG" }}
+            {{- $workerBaseEnv = append $workerBaseEnv . }}
+            {{- end }}
+            {{- end }}
+            {{- $workerOverrideEnv := list }}
+            {{- range .Values.celeryWorker.env }}
+            {{- if ne .name "IMAGE_TAG" }}
+            {{- $workerOverrideEnv = append $workerOverrideEnv . }}
+            {{- end }}
+            {{- end }}
+            {{- include "knowledge-graph-analytics.mergedEnv" (dict "base" $workerBaseEnv "override" $workerOverrideEnv) | nindent 12 }}
+            - name: IMAGE_TAG
+              value: {{ $workerImageTag | quote }}
           resources:
             {{- if .Values.celeryWorker.resources }}
             {{- toYaml .Values.celeryWorker.resources | nindent 12 }}

@@ -42,6 +42,7 @@ from src.services.agent.agent_execution_service import (
     _resolve_thread,
     resync_thread_checkpoint,
 )
+from src.services.agent.agent_run_service import get_active_run_for_thread
 from src.services.agent.agent_submission_service import (
     AcceptedSubmission,
     accept_submission,
@@ -100,9 +101,35 @@ async def _finalize_run(
     """
     if acceptance is None:
         return
+    await _finalize_run_id(
+        db,
+        acceptance.run_id,
+        current_user,
+        status=status,
+        event_type=event_type,
+        payload=payload,
+        error_code=error_code,
+        error=error,
+    )
+
+
+async def _finalize_run_id(
+    db: Any,
+    run_id: Optional[str],
+    current_user: Any,
+    *,
+    status: JobStatus,
+    event_type: Optional[RunEventType] = None,
+    payload: Optional[Dict[str, Any]] = None,
+    error_code: Optional[str] = None,
+    error: Optional[str] = None,
+) -> None:
+    """Close a caller-owned durable run when only its id is available."""
+    if not run_id:
+        return
     await finalize_submission(
         db,
-        run_id=acceptance.run_id,
+        run_id=run_id,
         status=status,
         organization_id=getattr(current_user, "organization_id", None),
         event_type=event_type,
@@ -190,6 +217,7 @@ async def _stream_luna_fast_path(
     resolved_thread_id: str,
     emitter: Any,
     stream_started_at: float,
+    trace_metadata: Dict[str, str],
     acceptance: Optional[AcceptedSubmission] = None,
 ):
     """Run one evidence-independent turn without entering LangGraph execution.
@@ -302,6 +330,24 @@ async def _stream_luna_fast_path(
             client_message_id=assistant_cmid,
         )
 
+    async def cancel_fast_path() -> None:
+        with contextlib.suppress(BaseException):
+            await persist_partial()
+        with contextlib.suppress(BaseException):
+            await emitter.finish()
+        with contextlib.suppress(BaseException):
+            await _finalize_run(
+                db,
+                acceptance,
+                current_user,
+                status=JobStatus.CANCELLED,
+                event_type=RunEventType.RUN_CANCELLED,
+                payload={
+                    "reason": "client_disconnected",
+                    "request_id": emitter.trace_id,
+                },
+            )
+
     try:
         if acceptance is not None:
             # The dispatch this outbox row recorded is about to happen
@@ -319,6 +365,7 @@ async def _stream_luna_fast_path(
                 llm=llm,
                 messages=prompt,
                 persist_user=persist_user,
+                trace_metadata=trace_metadata,
             ):
                 text = _chunk_text(chunk)
                 usage = getattr(chunk, "usage_metadata", None)
@@ -346,6 +393,8 @@ async def _stream_luna_fast_path(
                     yield frame
                 if await request.is_disconnected():
                     client_disconnected = True
+                    await cancel_fast_path()
+                    return
 
         assistant_content = "".join(parts)
         if not assistant_content:
@@ -456,10 +505,7 @@ async def _stream_luna_fast_path(
             ),
         )
     except asyncio.CancelledError:
-        with contextlib.suppress(Exception):
-            await asyncio.shield(persist_partial())
-        with contextlib.suppress(Exception):
-            await asyncio.shield(emitter.finish())
+        await asyncio.shield(cancel_fast_path())
         raise
     except Exception as exc:
         logger.error("Luna fast-path stream failed", exc_info=exc)
@@ -777,42 +823,22 @@ _PLANNER_CHAIN_NODES = frozenset(
 )
 
 
-async def _graph_events_with_keepalive(
-    event_stream_iter, request: Any, *, drain_on_disconnect: bool = False
-):
+async def _graph_events_with_keepalive(event_stream_iter, request: Any):
     """Yield LangGraph events, interleaving keepalive markers during long gaps.
 
-    On client disconnect, emits a ``{"type": "disconnect"}`` sentinel. With
-    ``drain_on_disconnect=False`` (legacy) it then stops and the caller closes
-    the graph iterator, cancelling the run. With ``drain_on_disconnect=True``
-    (resumable-stream buffering active) it keeps yielding the remaining graph
-    events — no keepalives, no further disconnect checks — so the caller can
-    buffer the full turn for a later resume.
+    On client disconnect, emit a ``{"type": "disconnect"}`` sentinel and stop.
+    A browser Stop is an explicit cancellation boundary even when resumable
+    buffering is available; the caller closes the graph and records the
+    terminal cancelled event instead of producing a later completion.
     """
     pending: asyncio.Task | None = None
-    disconnected = False
     try:
         while True:
-            if not disconnected and await request.is_disconnected():
+            if await request.is_disconnected():
                 yield {"type": "disconnect"}
-                if not drain_on_disconnect:
-                    return
-                disconnected = True
+                return
             if pending is None:
                 pending = asyncio.create_task(event_stream_iter.__anext__())
-            if disconnected:
-                # Client gone; nobody needs keepalives — just await events.
-                try:
-                    event = await pending
-                except StopAsyncIteration:
-                    pending = None
-                    break
-                except Exception:
-                    pending = None
-                    raise
-                pending = None
-                yield {"type": "event", "event": event}
-                continue
             sleep_task = asyncio.create_task(asyncio.sleep(_SSE_KEEPALIVE_SECONDS))
             done, _ = await asyncio.wait(
                 {pending, sleep_task},
@@ -895,6 +921,7 @@ async def stream_event_generator(
     # the error-path partial persist must never double-write the turn.
     assistant_persisted = False
     persist_partial_stop = None  # bound inside try once its inputs exist
+    event_stream_iter = None
     # Set once the accept transaction has COMMITTED (P0-C). Everything after
     # the accepted frame keys off this: the run's ledger, the outbox stamp and
     # the terminal status all address `acceptance.run_id`.
@@ -992,6 +1019,21 @@ async def stream_event_generator(
                 resolved_thread_id=resolved_thread_id,
                 emitter=emitter,
                 stream_started_at=stream_started_at,
+                trace_metadata=build_trace_metadata(
+                    user_id=current_user.id,
+                    org_id=org_id,
+                    thread_id=(
+                        acceptance.thread_id if acceptance is not None else None
+                    ),
+                    request_id=emitter.trace_id,
+                    agent_run_id=(
+                        acceptance.run_id if acceptance is not None else None
+                    ),
+                    user_message_id=(
+                        acceptance.user_message_id if acceptance is not None else None
+                    ),
+                    client_message_id=client_message_id,
+                ),
                 acceptance=acceptance,
             ):
                 yield frame
@@ -1216,7 +1258,7 @@ async def stream_event_generator(
                 )
             )
 
-        async def persist_partial_stop() -> None:
+        async def persist_partial_stop(*, force_inline: bool = False) -> None:
             """Persist the accumulated partial answer with stopped=True.
 
             Shared by the legacy (no stream buffer) disconnect branch and the
@@ -1249,30 +1291,44 @@ async def stream_event_generator(
                     else None
                 ),
             )
-            if background_tasks is not None:
+            if background_tasks is not None and not force_inline:
                 background_tasks.add_task(
                     _jobs_mod._persist_assistant_message_safe, **stop_kwargs
                 )
             else:
                 await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
 
+        async def cancel_current_stream() -> None:
+            """Best-effort durable cleanup for polling and ASGI cancellation."""
+            if event_stream_iter is not None:
+                with contextlib.suppress(BaseException):
+                    await event_stream_iter.aclose()
+            with contextlib.suppress(BaseException):
+                await persist_partial_stop(force_inline=True)
+            with contextlib.suppress(BaseException):
+                await emitter.finish()
+            with contextlib.suppress(BaseException):
+                await _finalize_run(
+                    db,
+                    acceptance,
+                    current_user,
+                    status=JobStatus.CANCELLED,
+                    event_type=RunEventType.RUN_CANCELLED,
+                    payload={
+                        "reason": "client_disconnected",
+                        "request_id": emitter.trace_id,
+                    },
+                )
+
         async with asyncio.timeout(300):  # 5 minutes
             while True:
                 try:
                     async for item in _graph_events_with_keepalive(
-                        event_stream_iter,
-                        request,
-                        drain_on_disconnect=emitter.sid is not None,
+                        event_stream_iter, request
                     ):
                         if item["type"] == "disconnect":
                             client_disconnected = True
-                            if emitter.sid is None:
-                                # No buffer available — legacy behavior:
-                                # cancel the run and persist the partial.
-                                break
-                            # Buffering active: keep draining graph events
-                            # into the buffer so a resume gets the full turn.
-                            continue
+                            break
                         if item["type"] == "keepalive":
                             elapsed_ms = int(
                                 (time.monotonic() - stream_started_at) * 1000
@@ -1424,30 +1480,15 @@ async def stream_event_generator(
         # server-side with stopped=True — server-canonical clients no longer
         # save their own copy, so without this an aborted turn would leave
         # the thread with a user message and no assistant row at all.
-        # When resumable-stream buffering is active (emitter.sid set) a
-        # disconnect does NOT take this branch: the loop above drained the
-        # full run into the Redis buffer and we fall through to the normal
-        # end-of-stream logic (persistence, usage, done) with yields
-        # suppressed — a resume then replays the complete turn.
-        if client_disconnected and emitter.sid is None:
-            with contextlib.suppress(Exception):
-                await event_stream_iter.aclose()
+        # A browser Stop is terminal even when Redis buffering is active: close
+        # the graph, keep the partial answer, clear the buffer pointer, and
+        # persist run.cancelled before returning.
+        if client_disconnected:
             logger.info(
                 "SSE client disconnected; cancelled agent run for thread %s",
                 stream_thread_id,
             )
-            await persist_partial_stop()
-            await _finalize_run(
-                db,
-                acceptance,
-                current_user,
-                status=JobStatus.CANCELLED,
-                event_type=RunEventType.RUN_CANCELLED,
-                payload={
-                    "reason": "client_disconnected",
-                    "request_id": emitter.trace_id,
-                },
-            )
+            await cancel_current_stream()
             return
 
         # Check graph state after streaming completes
@@ -1635,6 +1676,32 @@ async def stream_event_generator(
         )
 
     except asyncio.CancelledError:
+        # Starlette cancels StreamingResponse's body iterator directly when
+        # the client aborts the fetch. Shield the cleanup so that cancellation
+        # cannot leave the graph running or the durable run non-terminal.
+        async def cleanup_cancelled_response() -> None:
+            if event_stream_iter is not None:
+                with contextlib.suppress(BaseException):
+                    await event_stream_iter.aclose()
+            if persist_partial_stop is not None:
+                with contextlib.suppress(BaseException):
+                    await persist_partial_stop(force_inline=True)
+            with contextlib.suppress(BaseException):
+                await emitter.finish()
+            with contextlib.suppress(BaseException):
+                await _finalize_run(
+                    db,
+                    acceptance,
+                    current_user,
+                    status=JobStatus.CANCELLED,
+                    event_type=RunEventType.RUN_CANCELLED,
+                    payload={
+                        "reason": "client_disconnected",
+                        "request_id": emitter.trace_id,
+                    },
+                )
+
+        await asyncio.shield(cleanup_cancelled_response())
         raise
 
     except GraphInterrupt as exc:
@@ -1794,6 +1861,9 @@ async def stream_confirm_event_generator(
     confirm_claim_key: Optional[str] = None
     redis_client = None
     events_started = False
+    confirm_event_iter = None
+    active_run = None
+    persist_partial_stop = None
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
@@ -1862,6 +1932,20 @@ async def stream_confirm_event_generator(
                 ),
             )
             return
+
+        # The checkpoint proves thread ownership; the tenant-scoped durable
+        # run lookup supplies only identifiers that can be joined to the run
+        # ledger. A legacy checkpoint with no active run still gets release,
+        # actor, thread, and request correlation without inventing run ids.
+        active_run = await get_active_run_for_thread(
+            db,
+            request_body.thread_id,
+            organization_id=getattr(current_user, "organization_id", None),
+            user_id=current_user.id,
+        )
+        if asyncio.iscoroutine(active_run):  # fail closed on a malformed DB adapter
+            active_run.close()
+            active_run = None
 
         page_context = _page_context_to_dict(
             current_snapshot.values.get("page_context", {})
@@ -1959,6 +2043,19 @@ async def stream_confirm_event_generator(
                 "page_context": page_context,
                 **runtime_context,
             },
+            "metadata": build_trace_metadata(
+                user_id=current_user.id,
+                org_id=getattr(current_user, "organization_id", None),
+                thread_id=request_body.thread_id,
+                request_id=emitter.trace_id,
+                agent_run_id=(active_run.job_id if active_run is not None else None),
+                user_message_id=(
+                    active_run.user_message_id if active_run is not None else None
+                ),
+                client_message_id=(
+                    active_run.client_message_id if active_run is not None else None
+                ),
+            ),
         }
 
         resume_input = Command(resume={"confirmed": request_body.confirmed})
@@ -1986,7 +2083,7 @@ async def stream_confirm_event_generator(
         # leaves the thread with a confirm action and no record of the result).
         streamed_parts: list[str] = []
 
-        async def persist_partial_stop() -> None:
+        async def persist_partial_stop(*, force_inline: bool = False) -> None:
             """Persist the accumulated partial answer with stopped=True.
 
             Shared by the legacy (no stream buffer) disconnect branch and the
@@ -2025,12 +2122,33 @@ async def stream_confirm_event_generator(
                     else None
                 ),
             )
-            if background_tasks is not None:
+            if background_tasks is not None and not force_inline:
                 background_tasks.add_task(
                     _jobs_mod._persist_assistant_message_safe, **stop_kwargs
                 )
             else:
                 await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
+
+        async def cancel_confirm_stream() -> None:
+            if confirm_event_iter is not None:
+                with contextlib.suppress(BaseException):
+                    await confirm_event_iter.aclose()
+            with contextlib.suppress(BaseException):
+                await persist_partial_stop(force_inline=True)
+            with contextlib.suppress(BaseException):
+                await emitter.finish()
+            with contextlib.suppress(BaseException):
+                await _finalize_run_id(
+                    db,
+                    str(active_run.job_id) if active_run is not None else None,
+                    current_user,
+                    status=JobStatus.CANCELLED,
+                    event_type=RunEventType.RUN_CANCELLED,
+                    payload={
+                        "reason": "client_disconnected",
+                        "request_id": emitter.trace_id,
+                    },
+                )
 
         # Named iterator so a mid-stream client disconnect can aclose() it and
         # cancel the resumed graph run, instead of leaving it executing into a
@@ -2044,11 +2162,7 @@ async def stream_confirm_event_generator(
         # done/error. The helper also owns the disconnect check + sentinel.
         stream_started_at = time.monotonic()
         async with asyncio.timeout(300):
-            async for item in _graph_events_with_keepalive(
-                confirm_event_iter,
-                request,
-                drain_on_disconnect=emitter.sid is not None,
-            ):
+            async for item in _graph_events_with_keepalive(confirm_event_iter, request):
                 # CX1: the resumed graph is now making real progress — a
                 # failure from here on must NOT release the claim (the
                 # winner may already have run a destructive tool; TTL
@@ -2056,12 +2170,7 @@ async def stream_confirm_event_generator(
                 events_started = True
                 if item["type"] == "disconnect":
                     client_disconnected = True
-                    if emitter.sid is None:
-                        # No buffer available — legacy behavior below.
-                        break
-                    # Buffering active: keep draining the resumed run into
-                    # the buffer so a reconnect gets the full turn.
-                    continue
+                    break
                 if item["type"] == "keepalive":
                     elapsed_ms = int((time.monotonic() - stream_started_at) * 1000)
                     frame = await emitter.emit(
@@ -2166,17 +2275,12 @@ async def stream_confirm_event_generator(
         # stream_event_generator's disconnect branch). A resumed turn may have
         # already committed a destructive tool; without this the thread is left
         # with the confirm action and no assistant row recording the result.
-        # With buffering active a disconnect drained the resumed run into the
-        # buffer instead — fall through to the normal end-of-stream logic with
-        # yields suppressed (mirrors stream_event_generator).
-        if client_disconnected and emitter.sid is None:
-            with contextlib.suppress(Exception):
-                await confirm_event_iter.aclose()
+        if client_disconnected:
             logger.info(
                 "SSE confirm client disconnected; cancelled resumed run for thread %s",
                 request_body.thread_id,
             )
-            await persist_partial_stop()
+            await cancel_confirm_stream()
             return
 
         # Check for nested interrupts (e.g. ingest confirmed -> add needs confirm)
@@ -2204,6 +2308,12 @@ async def stream_confirm_event_generator(
             # The run is parked awaiting confirmation — no longer producing,
             # so clear the active pointer; the buffered frames stay until TTL.
             await emitter.finish()
+            await _finalize_run_id(
+                db,
+                str(active_run.job_id) if active_run is not None else None,
+                current_user,
+                status=JobStatus.AWAITING_CONFIRMATION,
+            )
             return
 
         final_values = final_snapshot.values if final_snapshot else {}
@@ -2345,6 +2455,46 @@ async def stream_confirm_event_generator(
         if not client_disconnected:
             yield frame
         await emitter.finish()
+
+        await _finalize_run_id(
+            db,
+            str(active_run.job_id) if active_run is not None else None,
+            current_user,
+            status=JobStatus.COMPLETED,
+            event_type=RunEventType.RUN_COMPLETED,
+            payload=(
+                {"assistant_message_id": persisted_assistant_id}
+                if persisted_assistant_id
+                else {}
+            ),
+        )
+
+    except asyncio.CancelledError:
+
+        async def cleanup_cancelled_confirm_response() -> None:
+            if confirm_event_iter is not None:
+                with contextlib.suppress(BaseException):
+                    await confirm_event_iter.aclose()
+            if persist_partial_stop is not None:
+                with contextlib.suppress(BaseException):
+                    await persist_partial_stop(force_inline=True)
+            with contextlib.suppress(BaseException):
+                await emitter.finish()
+            with contextlib.suppress(BaseException):
+                await _finalize_run_id(
+                    db,
+                    str(active_run.job_id) if active_run is not None else None,
+                    current_user,
+                    status=JobStatus.CANCELLED,
+                    event_type=RunEventType.RUN_CANCELLED,
+                    payload={
+                        "reason": "client_disconnected",
+                        "request_id": emitter.trace_id,
+                    },
+                )
+
+        await asyncio.shield(cleanup_cancelled_confirm_response())
+        raise
 
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)

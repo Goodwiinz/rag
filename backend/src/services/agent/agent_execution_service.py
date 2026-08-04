@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 # ``_set_job`` sync wrapper which sprays to both L1 and Redis.
 
 from src.services.agent._builders import RECURSION_LIMIT
+from src.services.agent.agent_run_service import get_run
 from src.services.agent.job_store import _l1 as _jobs
 from src.services.agent.job_store import _l1_lock as _jobs_lock
 from src.services.agent.job_store import _write_to_redis_only
@@ -2446,6 +2447,38 @@ async def _resume_agent_graph(
                         },
                     )
                     return
+
+            durable_run = await get_run(
+                db,
+                job_id,
+                organization_id=getattr(current_user, "organization_id", None),
+                user_id=current_user.id,
+            )
+            if asyncio.iscoroutine(
+                durable_run
+            ):  # fail closed on a malformed DB adapter
+                durable_run.close()
+                durable_run = None
+            verified_thread_id = None
+            if (
+                durable_run is not None
+                and durable_run.thread_id is not None
+                and str(durable_run.thread_id) == str(resume_thread_id)
+            ):
+                verified_thread_id = durable_run.thread_id
+            config["metadata"] = build_trace_metadata(
+                user_id=current_user.id,
+                org_id=getattr(current_user, "organization_id", None),
+                thread_id=verified_thread_id,
+                request_id=job_id,
+                agent_run_id=(durable_run.job_id if durable_run is not None else None),
+                user_message_id=(
+                    durable_run.user_message_id if durable_run is not None else None
+                ),
+                client_message_id=(
+                    durable_run.client_message_id if durable_run is not None else None
+                ),
+            )
 
             async with asyncio.timeout(360):
                 final_state = await graph.ainvoke(
