@@ -166,8 +166,14 @@ spec:
             {{- toYaml .Values.backend.envFrom | nindent 12 }}
             {{- end }}
           env:
-            {{- if .Values.backend.env }}
-            {{- toYaml .Values.backend.env | nindent 12 }}
+            {{- $backendEnv := list }}
+            {{- range .Values.backend.env }}
+            {{- if ne .name "IMAGE_TAG" }}
+            {{- $backendEnv = append $backendEnv . }}
+            {{- end }}
+            {{- end }}
+            {{- with $backendEnv }}
+            {{- toYaml . | nindent 12 }}
             {{- end }}
             - name: IMAGE_TAG
               value: {{ .Values.backend.image.tag | default .Chart.AppVersion | quote }}

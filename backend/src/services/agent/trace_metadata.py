@@ -22,6 +22,9 @@ def build_trace_metadata(
     prompts, tool results, or arbitrary request fields without changing this
     contract. Empty values are omitted and every emitted value is bounded.
     """
+    git_sha = (os.getenv("GIT_SHA") or "").strip()
+    app_version = (os.getenv("APP_VERSION") or "").strip()
+    image_tag = (os.getenv("IMAGE_TAG") or "").strip()
     values = {
         "user_id": user_id,
         "org_id": org_id,
@@ -30,8 +33,8 @@ def build_trace_metadata(
         "agent_run_id": agent_run_id,
         "user_message_id": user_message_id,
         "client_message_id": client_message_id,
-        "deployment_sha": os.getenv("GIT_SHA") or os.getenv("APP_VERSION"),
-        "image_tag": os.getenv("IMAGE_TAG"),
+        "deployment_sha": git_sha or app_version,
+        "image_tag": image_tag,
     }
     metadata: dict[str, str] = {}
     for key, value in values.items():

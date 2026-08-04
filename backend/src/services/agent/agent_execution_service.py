@@ -2124,7 +2124,7 @@ async def _run_agent_graph(
                 "metadata": build_trace_metadata(
                     user_id=current_user.id,
                     org_id=getattr(current_user, "organization_id", None),
-                    thread_id=request.thread_id or job_id,
+                    thread_id=resolved_thread_id,
                     agent_run_id=job_id,
                     client_message_id=client_message_id,
                 ),

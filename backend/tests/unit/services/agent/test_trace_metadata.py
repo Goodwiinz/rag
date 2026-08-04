@@ -45,6 +45,15 @@ def test_build_trace_metadata_falls_back_to_app_version(
     assert build_trace_metadata()["deployment_sha"] == "app-version-789"
 
 
+def test_build_trace_metadata_whitespace_git_sha_falls_back_to_stripped_app_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GIT_SHA", "   \t")
+    monkeypatch.setenv("APP_VERSION", "  app-version-789  ")
+
+    assert build_trace_metadata()["deployment_sha"] == "app-version-789"
+
+
 def test_build_trace_metadata_omits_missing_and_empty_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

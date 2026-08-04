@@ -205,6 +205,7 @@ async def test_background_graph_config_uses_same_correlation_contract(
     monkeypatch.setenv("GIT_SHA", "deployment-sha-123")
     monkeypatch.setenv("IMAGE_TAG", "backend-image-456")
     job_id = "77777777-7777-7777-7777-777777777777"
+    unverified_thread_id = "raw-user-thread-must-not-enter-external-metadata"
     body = make_stream_request(
         messages=[
             {
@@ -213,7 +214,7 @@ async def test_background_graph_config_uses_same_correlation_contract(
                 "client_message_id": str(CLIENT_MESSAGE_ID),
             }
         ],
-        thread_id=None,
+        thread_id=unverified_thread_id,
     )
     current_user = SimpleNamespace(id=USER_ID, organization_id=ORG_ID)
     graph = MagicMock()
@@ -266,14 +267,16 @@ async def test_background_graph_config_uses_same_correlation_contract(
         with pytest.raises(asyncio.CancelledError):
             await execution_mod._run_agent_graph(job_id, body, current_user)
 
-    metadata = graph.ainvoke.await_args.kwargs["config"]["metadata"]
+    config = graph.ainvoke.await_args.kwargs["config"]
+    metadata = config["metadata"]
     assert metadata == {
         "user_id": str(USER_ID),
         "org_id": str(ORG_ID),
-        "thread_id": job_id,
         "agent_run_id": job_id,
         "client_message_id": str(CLIENT_MESSAGE_ID),
         "deployment_sha": "deployment-sha-123",
         "image_tag": "backend-image-456",
     }
+    assert config["configurable"]["thread_id"] == unverified_thread_id
+    assert unverified_thread_id not in str(metadata)
     assert PROMPT not in str(metadata)
