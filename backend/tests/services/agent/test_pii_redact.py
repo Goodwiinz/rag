@@ -1,4 +1,5 @@
 """PII redactor strips emails, phones, UUIDs from memory values."""
+
 from __future__ import annotations
 
 import pytest
@@ -14,19 +15,16 @@ class TestRedactPII:
         )
 
     def test_strips_phone_us(self):
-        assert redact_pii("call +1-415-555-0123 today") == (
-            "call <phone> today"
-        )
+        assert redact_pii("call +1-415-555-0123 today") == ("call <phone> today")
 
     def test_strips_uuid(self):
-        assert redact_pii(
-            "project 5ed25258-5ad2-4b06-9678-4a4abe5ecac1 is active"
-        ) == "project <uuid> is active"
+        assert (
+            redact_pii("project 5ed25258-5ad2-4b06-9678-4a4abe5ecac1 is active")
+            == "project <uuid> is active"
+        )
 
     def test_strips_postgres_url(self):
-        text = (
-            "DB is postgresql://user:secret@host.example.com:5432/db?sslmode=require"
-        )
+        text = "DB is postgresql://user:secret@host.example.com:5432/db?sslmode=require"
         assert redact_pii(text) == "DB is <postgres-url>"
 
     def test_passthrough_clean_text(self):
@@ -57,9 +55,7 @@ class TestRedactPII:
 
     def test_phone_still_matches_after_ip_pattern_added(self):
         # Sanity — the original phone shapes still get redacted.
-        assert redact_pii("call +1-415-555-0123 today") == (
-            "call <phone> today"
-        )
+        assert redact_pii("call +1-415-555-0123 today") == ("call <phone> today")
         assert redact_pii("(415) 555-0123") == "<phone>"
         assert redact_pii("415-555-0123") == "<phone>"
 

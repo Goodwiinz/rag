@@ -7,11 +7,12 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.models.user import User
 from src.services.agent.agent_submission_service import AcceptedSubmission
 from src.services.agent.runtime_snapshot import empty_runtime_snapshot
 from tests.utils.agent_stream import make_stream_request
@@ -59,7 +60,7 @@ async def _capture_stream_metadata(*, durable: bool) -> dict[str, str]:
         state=SimpleNamespace(request_id=REQUEST_ID),
         is_disconnected=AsyncMock(return_value=False),
     )
-    current_user = SimpleNamespace(id=USER_ID, organization_id=ORG_ID)
+    current_user = cast(User, SimpleNamespace(id=USER_ID, organization_id=ORG_ID))
     accepted = AcceptedSubmission(
         run_id=RUN_ID,
         thread_id=str(THREAD_ID),
@@ -138,7 +139,9 @@ async def _capture_stream_metadata(*, durable: bool) -> dict[str, str]:
             pass
 
     assert graph.config is not None
-    return graph.config["metadata"]
+    metadata = graph.config["metadata"]
+    assert isinstance(metadata, dict)
+    return cast(dict[str, str], metadata)
 
 
 @asynccontextmanager
@@ -216,7 +219,7 @@ async def test_background_graph_config_uses_same_correlation_contract(
         ],
         thread_id=unverified_thread_id,
     )
-    current_user = SimpleNamespace(id=USER_ID, organization_id=ORG_ID)
+    current_user = cast(User, SimpleNamespace(id=USER_ID, organization_id=ORG_ID))
     graph = MagicMock()
     graph.ainvoke = AsyncMock(side_effect=asyncio.CancelledError())
     graph.aget_state = AsyncMock(return_value=None)
@@ -267,7 +270,8 @@ async def test_background_graph_config_uses_same_correlation_contract(
         with pytest.raises(asyncio.CancelledError):
             await execution_mod._run_agent_graph(job_id, body, current_user)
 
-    config = graph.ainvoke.await_args.kwargs["config"]
+    assert graph.ainvoke.await_args is not None
+    config = cast(dict[str, Any], graph.ainvoke.await_args.kwargs["config"])
     metadata = config["metadata"]
     assert metadata == {
         "user_id": str(USER_ID),

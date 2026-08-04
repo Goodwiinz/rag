@@ -432,9 +432,7 @@ async def _try_primary_do_kb_read_impl(
                 _record_do_kb_read("project_scope_empty")
                 return None
 
-            from src.services.do_kb.postprocess import (
-                sanitize_and_deduplicate_chunks,
-            )
+            from src.services.do_kb.postprocess import sanitize_and_deduplicate_chunks
 
             postprocessed = sanitize_and_deduplicate_chunks(chunks_to_emit)
             logger.info(

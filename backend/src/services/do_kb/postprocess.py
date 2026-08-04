@@ -26,7 +26,9 @@ class ChunkPostprocessResult:
 
 def _normalize_for_deduplication(text: str) -> str:
     """Canonicalize sanitized chunk text before computing its fingerprint."""
-    return _WHITESPACE_RE.sub(" ", unicodedata.normalize("NFKC", text)).strip().casefold()
+    return (
+        _WHITESPACE_RE.sub(" ", unicodedata.normalize("NFKC", text)).strip().casefold()
+    )
 
 
 def sanitize_and_deduplicate_chunks(chunks: list[Chunk]) -> ChunkPostprocessResult:

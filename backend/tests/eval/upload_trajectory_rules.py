@@ -8,6 +8,7 @@ Usage:
 
 Idempotent: deletes existing rules with matching display_name before recreate.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -35,9 +36,13 @@ METRICS = [
 
 
 def _load_env() -> tuple[str, str]:
-    for line in subprocess.check_output(
-        ["grep", "-E", "^(LANGSMITH_API_KEY|LANGSMITH_ENDPOINT)=", str(ENV_FILE)]
-    ).decode().splitlines():
+    for line in (
+        subprocess.check_output(
+            ["grep", "-E", "^(LANGSMITH_API_KEY|LANGSMITH_ENDPOINT)=", str(ENV_FILE)]
+        )
+        .decode()
+        .splitlines()
+    ):
         k, _, v = line.partition("=")
         os.environ[k] = v
     return os.environ["LANGSMITH_API_KEY"], os.environ.get(
@@ -122,7 +127,9 @@ def _extract_function(source: str, fn_name: str) -> str:
         exec(compile(blob, f"<{fn_name}>", "exec"), ns)
         fn = ns.get("perform_eval")
         if not callable(fn):
-            raise RuntimeError(f"{fn_name}: extracted blob has no callable perform_eval.")
+            raise RuntimeError(
+                f"{fn_name}: extracted blob has no callable perform_eval."
+            )
         fn(
             {
                 "inputs": {"messages": [{"type": "human", "id": "human-current"}]},
@@ -202,9 +209,7 @@ def main() -> int:
             "filter": "eq(is_root, true)",
             "code_evaluators": [{"code": code, "language": "python"}],
         }
-        result = _request(
-            "POST", f"{endpoint}/api/v1/runs/rules", api_key, body
-        )
+        result = _request("POST", f"{endpoint}/api/v1/runs/rules", api_key, body)
         print(f"Created rule {display!r} id={result.get('id', '<unknown>')}")
 
     print("\nDone.")

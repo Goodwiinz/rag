@@ -17,30 +17,32 @@ Both `RunTree` (local) and `dict` (uploaded) are handled.
 # because uploaded evaluators run in a sandbox that cannot import src.* — the
 # drift test `test_known_tools_matches_registry` (test_eval_harness.py) fails
 # if this set diverges from the live registry.
-KNOWN_TOOLS = frozenset({
-    "search_arxiv",
-    "ingest_arxiv_papers",
-    "search_documents",
-    "create_project",
-    "list_projects",
-    "add_document_to_project",
-    "create_project_note",
-    "list_project_documents",
-    "summarize_document",
-    "compare_documents",
-    "extract_entities",
-    "search_knowledge_graph",
-    "explore_entity_neighborhood",
-    "find_entity_paths",
-    "get_graph_stats",
-    "create_draft",
-    "export_bibliography",
-    "execute_code",
-    "search_external_database",
-    "list_external_databases",
-    "forget_memory",
-    "do_kb_retrieve",
-})
+KNOWN_TOOLS = frozenset(
+    {
+        "search_arxiv",
+        "ingest_arxiv_papers",
+        "search_documents",
+        "create_project",
+        "list_projects",
+        "add_document_to_project",
+        "create_project_note",
+        "list_project_documents",
+        "summarize_document",
+        "compare_documents",
+        "extract_entities",
+        "search_knowledge_graph",
+        "explore_entity_neighborhood",
+        "find_entity_paths",
+        "get_graph_stats",
+        "create_draft",
+        "export_bibliography",
+        "execute_code",
+        "search_external_database",
+        "list_external_databases",
+        "forget_memory",
+        "do_kb_retrieve",
+    }
+)
 
 
 def _extract_messages(run):
@@ -83,7 +85,9 @@ def _iter_tool_calls(messages):
             name = tc.get("name") or ""
             tc_id = tc.get("id") or ""
             try:
-                args_json = json.dumps(tc.get("args") or {}, sort_keys=True, default=str)
+                args_json = json.dumps(
+                    tc.get("args") or {}, sort_keys=True, default=str
+                )
             except (TypeError, ValueError):
                 args_json = repr(tc.get("args"))
             yield tc_id, name, args_json
@@ -177,7 +181,10 @@ def terminates_with_answer(run):
     if not isinstance(last, dict):
         return {"score": 0, "comment": "Last message malformed."}
     if last.get("type") != "ai":
-        return {"score": 0, "comment": f"Last message type={last.get('type')!r}, not 'ai'."}
+        return {
+            "score": 0,
+            "comment": f"Last message type={last.get('type')!r}, not 'ai'.",
+        }
     if last.get("tool_calls"):
         return {"score": 0, "comment": "Last AI message has pending tool_calls."}
     content = last.get("content")
@@ -199,7 +206,10 @@ def terminates_with_answer(run):
             for b in content
         )
         if not has_text:
-            return {"score": 0, "comment": "Last AI message has no non-empty text block."}
+            return {
+                "score": 0,
+                "comment": "Last AI message has no non-empty text block.",
+            }
     else:
         return {"score": 0, "comment": "Last AI message has empty content."}
     return {"score": 1, "comment": "Terminates with AI answer."}
@@ -231,9 +241,7 @@ def plan_adherence(run):
 
     plan = outputs.get("plan") or []
     raw_planned = [
-        step.get("tool")
-        for step in plan
-        if isinstance(step, dict) and step.get("tool")
+        step.get("tool") for step in plan if isinstance(step, dict) and step.get("tool")
     ]
     # Score adherence only over planned steps naming a REAL executable tool.
     # The planner prompt asks for valid tool names but does not enforce it, so

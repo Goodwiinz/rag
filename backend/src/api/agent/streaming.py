@@ -879,9 +879,9 @@ async def stream_event_generator(
     )
 
     stream_thread_id = request_body.thread_id or "unknown"
-    config: Dict[
-        str, Any
-    ] = {}  # Initialize before try block for safe access in except handlers
+    config: Dict[str, Any] = (
+        {}
+    )  # Initialize before try block for safe access in except handlers
     db = AsyncSessionLocal()
     graph = None  # type: ignore[assignment]
     resolved_thread_id: Optional[str] = None

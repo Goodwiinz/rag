@@ -331,9 +331,7 @@ async def test_rag_node_sanitizes_and_deduplicates_before_optional_rerank(
         patch("src.services.do_kb.resolve.resolve_and_filter_chunks", _resolve),
         patch("src.services.do_kb.rerank.cohere_rescore_chunks", rerank),
     ):
-        contexts = await _nodes_rag._try_primary_do_kb_read(
-            "q", user_id, str(org_uuid)
-        )
+        contexts = await _nodes_rag._try_primary_do_kb_read("q", user_id, str(org_uuid))
 
     assert contexts is not None
     expected = (
@@ -400,9 +398,7 @@ async def test_rag_node_rerank_failure_keeps_sanitized_deduplicated_order():
             AsyncMock(side_effect=_failure_passthrough),
         ),
     ):
-        contexts = await _nodes_rag._try_primary_do_kb_read(
-            "q", user_id, str(org_uuid)
-        )
+        contexts = await _nodes_rag._try_primary_do_kb_read("q", user_id, str(org_uuid))
 
     assert contexts is not None
     assert [context["content"] for context in contexts] == ["Call <phone>"]
@@ -449,9 +445,7 @@ async def test_rag_node_empty_after_sanitization_triggers_fallback():
         patch("src.services.do_kb.resolve.resolve_and_filter_chunks", _resolve),
         patch("src.services.do_kb.rerank.cohere_rescore_chunks", rerank),
     ):
-        contexts = await _nodes_rag._try_primary_do_kb_read(
-            "q", user_id, str(org_uuid)
-        )
+        contexts = await _nodes_rag._try_primary_do_kb_read("q", user_id, str(org_uuid))
 
     assert contexts is None
     rerank.assert_not_awaited()

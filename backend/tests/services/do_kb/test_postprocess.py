@@ -27,7 +27,7 @@ def _chunk(
 
 @pytest.mark.unit
 class TestSanitizeAndDeduplicateChunks:
-    def test_redacts_text_email_and_phone(self):
+    def test_redacts_text_email_and_phone(self) -> None:
         result = sanitize_and_deduplicate_chunks(
             [_chunk("Email synthetic.user@example.test or call 415-555-0123")]
         )
@@ -35,7 +35,9 @@ class TestSanitizeAndDeduplicateChunks:
         assert result.chunks[0].text == "Email <email> or call <phone>"
         assert result.redacted_count == 1
 
-    def test_recursively_redacts_nested_metadata_without_document_id_change(self):
+    def test_recursively_redacts_nested_metadata_without_document_id_change(
+        self,
+    ) -> None:
         result = sanitize_and_deduplicate_chunks(
             [
                 _chunk(
@@ -57,7 +59,7 @@ class TestSanitizeAndDeduplicateChunks:
         }
         assert result.redacted_count == 1
 
-    def test_exact_duplicates_from_different_documents_collapse(self):
+    def test_exact_duplicates_from_different_documents_collapse(self) -> None:
         result = sanitize_and_deduplicate_chunks(
             [
                 _chunk("Shared result", document_id="highest-ranked"),
@@ -68,7 +70,7 @@ class TestSanitizeAndDeduplicateChunks:
         assert [chunk.document_id for chunk in result.chunks] == ["highest-ranked"]
         assert result.duplicate_count == 1
 
-    def test_contact_only_differences_collapse_after_redaction(self):
+    def test_contact_only_differences_collapse_after_redaction(self) -> None:
         result = sanitize_and_deduplicate_chunks(
             [
                 _chunk("Contact synthetic.first@example.test for the report"),
@@ -82,7 +84,7 @@ class TestSanitizeAndDeduplicateChunks:
         assert result.duplicate_count == 1
         assert result.redacted_count == 2
 
-    def test_distinct_text_from_one_document_remains_distinct(self):
+    def test_distinct_text_from_one_document_remains_distinct(self) -> None:
         result = sanitize_and_deduplicate_chunks(
             [
                 _chunk("First passage", document_id="same-document"),
@@ -90,10 +92,15 @@ class TestSanitizeAndDeduplicateChunks:
             ]
         )
 
-        assert [chunk.text for chunk in result.chunks] == ["First passage", "Second passage"]
+        assert [chunk.text for chunk in result.chunks] == [
+            "First passage",
+            "Second passage",
+        ]
         assert result.duplicate_count == 0
 
-    def test_first_duplicate_is_retained_even_when_later_score_is_higher(self):
+    def test_first_duplicate_is_retained_even_when_later_score_is_higher(
+        self,
+    ) -> None:
         result = sanitize_and_deduplicate_chunks(
             [
                 _chunk("Same passage", document_id="first", score=0.1),
@@ -104,7 +111,7 @@ class TestSanitizeAndDeduplicateChunks:
         assert result.chunks[0].document_id == "first"
         assert result.chunks[0].score == 0.1
 
-    def test_whitespace_and_case_variants_collapse(self):
+    def test_whitespace_and_case_variants_collapse(self) -> None:
         result = sanitize_and_deduplicate_chunks(
             [
                 _chunk("  Research\n  Result  "),
@@ -115,7 +122,7 @@ class TestSanitizeAndDeduplicateChunks:
         assert len(result.chunks) == 1
         assert result.duplicate_count == 1
 
-    def test_empty_after_sanitization_is_dropped(self):
+    def test_empty_after_sanitization_is_dropped(self) -> None:
         result = sanitize_and_deduplicate_chunks([_chunk(" \n\t ")])
 
         assert result.chunks == []
@@ -123,7 +130,7 @@ class TestSanitizeAndDeduplicateChunks:
         assert result.output_count == 0
         assert result.duplicate_count == 0
 
-    def test_input_chunks_and_metadata_are_unchanged(self):
+    def test_input_chunks_and_metadata_are_unchanged(self) -> None:
         original = _chunk(
             "Contact synthetic.user@example.test",
             metadata={"nested": [{"phone": "415-555-0123"}]},
@@ -138,7 +145,7 @@ class TestSanitizeAndDeduplicateChunks:
         assert result.chunks[0] is not original
         assert result.chunks[0].metadata is not original.metadata
 
-    def test_counts_are_integers_without_content(self):
+    def test_counts_are_integers_without_content(self) -> None:
         result = sanitize_and_deduplicate_chunks(
             [
                 _chunk("Contact synthetic.user@example.test"),
