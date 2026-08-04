@@ -59,8 +59,11 @@ async def cache_get(
             return safe_deserialize(value)
         return value
 
-    except Exception as e:
-        logger.error(f"Cache get error for key {key}: {e}")
+    except Exception:
+        # Cache reads are best-effort: callers deliberately degrade to a miss.
+        # Keep the traceback in application logs without turning a handled
+        # Redis interruption into a Sentry error event.
+        logger.warning("Cache get failed for key %s", key, exc_info=True)
         return None
 
 

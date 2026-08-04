@@ -1,12 +1,16 @@
 const path = require('path');
 const { withSentryConfig } = require('@sentry/nextjs');
 const { resolveBackendUrl } = require('./config/resolveBackendUrl');
+const {
+  resolveSentryEnvironment,
+} = require('./config/resolveSentryEnvironment');
 
 const sentryOrg = process.env.SENTRY_ORG;
 const sentryProject = process.env.SENTRY_PROJECT;
 const shouldUploadSentrySourceMaps = Boolean(
   process.env.SENTRY_AUTH_TOKEN && sentryOrg && sentryProject
 );
+const sentryEnvironment = resolveSentryEnvironment();
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -162,6 +166,10 @@ const nextConfig = {
   // JS bundle and cause CORS/mixed-content errors in K8s deployments.
   // The frontend uses Next.js rewrites (/api/v1/* → backend) when these are unset.
   env: {
+    // Vercel preview builds also use NODE_ENV=production. Bake the actual
+    // deployment target into the browser bundle so preview events stay out of
+    // Sentry's production environment.
+    NEXT_PUBLIC_SENTRY_ENVIRONMENT: sentryEnvironment,
     ...(process.env.NEXT_PUBLIC_API_URL
       ? { NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL }
       : {}),
