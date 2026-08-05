@@ -21,17 +21,11 @@ from unittest.mock import patch
 
 import pytest
 from sqlalchemy import column as sa_column
-from sqlalchemy import (
-    create_engine,
-)
+from sqlalchemy import create_engine
 from sqlalchemy import func as sa_func
-from sqlalchemy import (
-    select,
-)
+from sqlalchemy import select
 from sqlalchemy import table as sa_table
-from sqlalchemy import (
-    text,
-)
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 import src.models  # noqa: F401 — load full mapper registry (relationships)
