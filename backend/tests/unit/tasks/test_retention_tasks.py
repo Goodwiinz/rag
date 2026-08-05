@@ -20,7 +20,14 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import create_engine, text, select, func as sa_func, column as sa_column, table as sa_table
+from sqlalchemy import (
+    create_engine,
+    text,
+    select,
+    func as sa_func,
+    column as sa_column,
+    table as sa_table,
+)
 from sqlalchemy.orm import sessionmaker
 
 import src.models  # noqa: F401 — load full mapper registry (relationships)

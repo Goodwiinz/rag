@@ -151,9 +151,7 @@ def _delete_checkpoint_rows(db, thread_id: str) -> int:
         if not _table_exists(db, tbl):
             continue
         t = sa_table(tbl, sa_column("thread_id"))
-        res = db.execute(
-            delete(t).where(t.c.thread_id == thread_id)
-        )
+        res = db.execute(delete(t).where(t.c.thread_id == thread_id))
         deleted += int(res.rowcount or 0)
     return deleted
 
