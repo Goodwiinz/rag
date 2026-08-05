@@ -20,13 +20,17 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import column as sa_column
 from sqlalchemy import (
     create_engine,
-    text,
+)
+from sqlalchemy import func as sa_func
+from sqlalchemy import (
     select,
-    func as sa_func,
-    column as sa_column,
-    table as sa_table,
+)
+from sqlalchemy import table as sa_table
+from sqlalchemy import (
+    text,
 )
 from sqlalchemy.orm import sessionmaker
 

@@ -48,9 +48,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import Column, DateTime, MetaData, Table
+from sqlalchemy import column as sa_column
+from sqlalchemy import delete
 from sqlalchemy import func as sa_func
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy import select, text, delete, column as sa_column, table as sa_table
+from sqlalchemy import select
+from sqlalchemy import table as sa_table
+from sqlalchemy import text
 
 from src.core.config import get_settings
 from src.core.database import SessionLocal
