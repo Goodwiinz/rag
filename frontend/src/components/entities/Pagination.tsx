@@ -87,7 +87,7 @@ export const Pagination: React.FC<PaginationProps> = ({
   if (totalItems === 0) return null;
 
   return (
-    <div className="flex items-center justify-between px-6 py-3 border-t border-(--nous-border-1) bg-(--nous-bg-1)/50">
+    <nav aria-label="Pagination" className="flex items-center justify-between px-6 py-3 border-t border-(--nous-border-1) bg-(--nous-bg-1)/50">
       {/* Left: Page size selector */}
       <div className="flex items-center gap-3">
         <span className="text-[10px] font-mono text-(--nous-fg-3) uppercase tracking-widest">
@@ -199,6 +199,6 @@ export const Pagination: React.FC<PaginationProps> = ({
           <ChevronsRight className="h-4 w-4" />
         </Button>
       </div>
-    </div>
+    </nav>
   );
 };
