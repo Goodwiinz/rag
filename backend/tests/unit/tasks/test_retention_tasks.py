@@ -20,7 +20,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, select, func as sa_func, column as sa_column, table as sa_table
 from sqlalchemy.orm import sessionmaker
 
 import src.models  # noqa: F401 — load full mapper registry (relationships)
@@ -174,9 +174,9 @@ def _checkpoint_count(factory, thread_id):
     with factory() as db:
         total = 0
         for tbl in retention_tasks._CHECKPOINT_TABLES:
+            t = sa_table(tbl, sa_column("thread_id"))
             total += db.execute(
-                text(f"SELECT COUNT(*) FROM {tbl} WHERE thread_id = :t"),
-                {"t": thread_id},
+                select(sa_func.count()).select_from(t).where(t.c.thread_id == thread_id)
             ).scalar()
         return total
 
