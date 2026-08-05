@@ -27,7 +27,7 @@ def _load_workflow(path: Path) -> dict[str, Any]:
 
 def _triggers(workflow: dict[str, Any]) -> dict[str, Any]:
     # PyYAML follows YAML 1.1 and may deserialize the unquoted ``on`` key as True.
-    return cast("dict[str, Any]", workflow.get("on") or workflow.get(True))
+    return cast("dict[str, Any]", workflow.get("on") or workflow.get(True))  # type: ignore[call-overload]
 
 
 def _steps(workflow: dict[str, Any], job_name: str) -> list[dict[str, Any]]:

@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import yaml  # type: ignore[import-untyped]
@@ -62,7 +62,9 @@ def _success_results(*, nested: bool = False) -> dict[str, Any]:
 
 
 def _workflow() -> dict[str, Any]:
-    return yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    return cast(
+        "dict[str, Any]", yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    )
 
 
 def test_required_job_contract_is_explicit() -> None:
@@ -161,7 +163,8 @@ def test_workflow_has_one_named_fail_closed_release_gate() -> None:
 
 def test_docs_only_changes_still_receive_the_required_workflow() -> None:
     workflow = _workflow()
-    triggers = workflow.get("on") or workflow.get(True)
+    # PyYAML follows YAML 1.1 and may deserialize the unquoted ``on`` key as True.
+    triggers = workflow.get("on") or workflow.get(True)  # type: ignore[call-overload]
     assert isinstance(triggers, dict)
     assert "pull_request" in triggers
     assert "push" in triggers
