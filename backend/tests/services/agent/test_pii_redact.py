@@ -83,6 +83,36 @@ class TestRedactPII:
             "token <token>"
         )
 
+    # GitHub issues five distinct token prefixes and the module docstring
+    # already claims OAuth coverage. ``gho_`` reaching model-visible context
+    # is what failed the retrieval-safety benchmark (evals/AGENT_FLOW_BASELINE.md,
+    # P1); ``ghu_``/``ghr_`` are the same family and were never covered either.
+    @pytest.mark.parametrize(
+        "prefix",
+        ["ghp", "gho", "ghu", "ghs", "ghr"],
+        ids=["pat", "oauth", "user-to-server", "server-to-server", "refresh"],
+    )
+    def test_strips_every_github_token_prefix(self, prefix):
+        token = f"{prefix}_abcdefghijklmnopqrstuvwxyz123456"
+        assert redact_pii(f"token {token}") == "token <token>"
+
+    def test_strips_benchmark_oauth_marker(self):
+        """The exact literal the retrieval-safety benchmark plants."""
+        marker = "gho_000000000000000000000000000000000000"
+        assert marker not in redact_pii(f"see {marker} in the doc")
+
+    @pytest.mark.parametrize(
+        "near_miss",
+        [
+            "ghx_abcdefghijklmnopqrstuvwxyz123456",  # not a GitHub prefix
+            "gh_abcdefghijklmnopqrstuvwxyz123456",  # missing family letter
+            "ghp_tooshort",  # below the 30-char body minimum
+        ],
+    )
+    def test_leaves_non_token_lookalikes_intact(self, near_miss):
+        """Widening the prefix class must not turn the regex into a wildcard."""
+        assert near_miss in redact_pii(f"value {near_miss} here")
+
     def test_mixed_pii_in_one_string(self):
         text = (
             "Email jane@example.com about +1-415-555-0123 "

@@ -921,6 +921,10 @@ async def stream_event_generator(
     # the error-path partial persist must never double-write the turn.
     assistant_persisted = False
     persist_partial_stop = None  # bound inside try once its inputs exist
+    # Declared out here, not in the try: the CancelledError cleanup below reads
+    # it to link the cancelled run to its stopped partial row, and that handler
+    # can fire before the try body has run.
+    persisted_assistant_id: Optional[str] = None
     event_stream_iter = None
     # Set once the accept transaction has COMMITTED (P0-C). Everything after
     # the accepted frame keys off this: the run's ledger, the outbox stamp and
@@ -1243,7 +1247,7 @@ async def stream_event_generator(
             )
         first_event_yielded = False
         streamed_token = False
-        persisted_assistant_id: Optional[str] = None
+        # persisted_assistant_id is hoisted to the function top (see there).
         completed_root_values: Optional[Dict[str, Any]] = None
         # Accumulated user-facing tokens, so a client abort can persist the
         # partial answer server-side (stopped=True) instead of losing it.
@@ -1267,7 +1271,7 @@ async def stream_event_generator(
             error path when a disconnected drain dies mid-run (e.g. the 300s
             timeout) — without it that partial would be silently lost.
             """
-            nonlocal assistant_persisted
+            nonlocal assistant_persisted, persisted_assistant_id
             partial = "".join(streamed_parts)
             if assistant_persisted or resolved_thread_id is None or not partial:
                 return
@@ -1294,11 +1298,16 @@ async def stream_event_generator(
                 ),
             )
             if background_tasks is not None and not force_inline:
+                # Deferred to a background task: no id to capture here. Callers
+                # that need the run linked to its partial row (cancellation)
+                # pass force_inline=True and take the awaited branch below.
                 background_tasks.add_task(
                     _jobs_mod._persist_assistant_message_safe, **stop_kwargs
                 )
             else:
-                await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
+                persisted_assistant_id = (
+                    await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
+                )
 
         async def cancel_current_stream() -> None:
             """Best-effort durable cleanup for polling and ASGI cancellation."""
@@ -1310,16 +1319,22 @@ async def stream_event_generator(
             with contextlib.suppress(BaseException):
                 await emitter.finish()
             with contextlib.suppress(BaseException):
+                cancelled_payload: Dict[str, Any] = {
+                    "reason": "client_disconnected",
+                    "request_id": emitter.trace_id,
+                }
+                # Link the run to the stopped partial row persisted just above,
+                # so a cancelled run can still name the message holding its
+                # output. Omitted when nothing streamed before the abort.
+                if persisted_assistant_id:
+                    cancelled_payload["assistant_message_id"] = persisted_assistant_id
                 await _finalize_run(
                     db,
                     acceptance,
                     current_user,
                     status=JobStatus.CANCELLED,
                     event_type=RunEventType.RUN_CANCELLED,
-                    payload={
-                        "reason": "client_disconnected",
-                        "request_id": emitter.trace_id,
-                    },
+                    payload=cancelled_payload,
                 )
 
         async with asyncio.timeout(300):  # 5 minutes
@@ -1371,10 +1386,18 @@ async def stream_event_generator(
                             chunk_text = _chunk_text(chunk) if chunk else ""
                             if chunk_text:
                                 streamed_token = True
-                                streamed_parts.append(chunk_text)
+                                # Buffer BEFORE recording for persistence.
+                                # streamed_parts feeds the stopped partial row;
+                                # emit() feeds the resumable buffer. Appending
+                                # first meant a cancellation inside this await
+                                # persisted a chunk no replay ever saw. This
+                                # order can only lose the last chunk instead,
+                                # keeping the persisted partial a prefix of the
+                                # buffered stream.
                                 frame = await emitter.emit(
                                     AgentStreamEvent.TOKEN, {"content": chunk_text}
                                 )
+                                streamed_parts.append(chunk_text)
                                 if not client_disconnected:
                                     yield frame
 
@@ -1691,16 +1714,22 @@ async def stream_event_generator(
             with contextlib.suppress(BaseException):
                 await emitter.finish()
             with contextlib.suppress(BaseException):
+                cancelled_payload: Dict[str, Any] = {
+                    "reason": "client_disconnected",
+                    "request_id": emitter.trace_id,
+                }
+                # Link the run to the stopped partial row persisted just above,
+                # so a cancelled run can still name the message holding its
+                # output. Omitted when nothing streamed before the abort.
+                if persisted_assistant_id:
+                    cancelled_payload["assistant_message_id"] = persisted_assistant_id
                 await _finalize_run(
                     db,
                     acceptance,
                     current_user,
                     status=JobStatus.CANCELLED,
                     event_type=RunEventType.RUN_CANCELLED,
-                    payload={
-                        "reason": "client_disconnected",
-                        "request_id": emitter.trace_id,
-                    },
+                    payload=cancelled_payload,
                 )
 
         await asyncio.shield(cleanup_cancelled_response())
@@ -1866,6 +1895,10 @@ async def stream_confirm_event_generator(
     confirm_event_iter = None
     active_run = None
     persist_partial_stop = None
+    # Declared out here, not in the try: the CancelledError cleanup below reads
+    # it to link the cancelled run to its stopped partial row, and that handler
+    # can fire before the try body has run.
+    persisted_assistant_id: Optional[str] = None
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
@@ -2093,7 +2126,7 @@ async def stream_confirm_event_generator(
             error path when a disconnected drain dies mid-run (e.g. the 300s
             timeout) — without it that partial would be silently lost.
             """
-            nonlocal assistant_persisted
+            nonlocal assistant_persisted, persisted_assistant_id
             partial = "".join(streamed_parts)
             if assistant_persisted or not partial:
                 return
@@ -2126,11 +2159,16 @@ async def stream_confirm_event_generator(
                 ),
             )
             if background_tasks is not None and not force_inline:
+                # Deferred to a background task: no id to capture here. Callers
+                # that need the run linked to its partial row (cancellation)
+                # pass force_inline=True and take the awaited branch below.
                 background_tasks.add_task(
                     _jobs_mod._persist_assistant_message_safe, **stop_kwargs
                 )
             else:
-                await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
+                persisted_assistant_id = (
+                    await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
+                )
 
         async def cancel_confirm_stream() -> None:
             if confirm_event_iter is not None:
@@ -2141,16 +2179,22 @@ async def stream_confirm_event_generator(
             with contextlib.suppress(BaseException):
                 await emitter.finish()
             with contextlib.suppress(BaseException):
+                cancelled_payload: Dict[str, Any] = {
+                    "reason": "client_disconnected",
+                    "request_id": emitter.trace_id,
+                }
+                # Link the run to the stopped partial row persisted just above,
+                # so a cancelled run can still name the message holding its
+                # output. Omitted when nothing streamed before the abort.
+                if persisted_assistant_id:
+                    cancelled_payload["assistant_message_id"] = persisted_assistant_id
                 await _finalize_run_id(
                     db,
                     str(active_run.job_id) if active_run is not None else None,
                     current_user,
                     status=JobStatus.CANCELLED,
                     event_type=RunEventType.RUN_CANCELLED,
-                    payload={
-                        "reason": "client_disconnected",
-                        "request_id": emitter.trace_id,
-                    },
+                    payload=cancelled_payload,
                 )
 
         # Named iterator so a mid-stream client disconnect can aclose() it and
@@ -2197,10 +2241,15 @@ async def stream_confirm_event_generator(
                     # carry typed blocks, not a bare string.
                     chunk_text = _chunk_text(chunk) if chunk else ""
                     if chunk_text:
-                        streamed_parts.append(chunk_text)
+                        # Buffer BEFORE recording for persistence — same
+                        # ordering invariant as the main stream: the stopped
+                        # partial must stay a prefix of the buffered stream, so
+                        # a cancellation inside this await can only lose the
+                        # last chunk, never invent one.
                         frame = await emitter.emit(
                             AgentStreamEvent.TOKEN, {"content": chunk_text}
                         )
+                        streamed_parts.append(chunk_text)
                         if not client_disconnected:
                             yield frame
                         tokens_emitted = True
@@ -2352,7 +2401,7 @@ async def stream_confirm_event_generator(
             if (turn_input_tokens or turn_output_tokens)
             else None
         )
-        persisted_assistant_id: Optional[str] = None
+        # persisted_assistant_id is hoisted to the function top (see there).
         try:
             persist_kwargs = dict(
                 thread_id=request_body.thread_id,
@@ -2484,16 +2533,22 @@ async def stream_confirm_event_generator(
             with contextlib.suppress(BaseException):
                 await emitter.finish()
             with contextlib.suppress(BaseException):
+                cancelled_payload: Dict[str, Any] = {
+                    "reason": "client_disconnected",
+                    "request_id": emitter.trace_id,
+                }
+                # Link the run to the stopped partial row persisted just above,
+                # so a cancelled run can still name the message holding its
+                # output. Omitted when nothing streamed before the abort.
+                if persisted_assistant_id:
+                    cancelled_payload["assistant_message_id"] = persisted_assistant_id
                 await _finalize_run_id(
                     db,
                     str(active_run.job_id) if active_run is not None else None,
                     current_user,
                     status=JobStatus.CANCELLED,
                     event_type=RunEventType.RUN_CANCELLED,
-                    payload={
-                        "reason": "client_disconnected",
-                        "request_id": emitter.trace_id,
-                    },
+                    payload=cancelled_payload,
                 )
 
         await asyncio.shield(cleanup_cancelled_confirm_response())
