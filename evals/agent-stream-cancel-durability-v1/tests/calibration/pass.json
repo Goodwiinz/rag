@@ -1,0 +1,315 @@
+{
+  "evidence": {
+    "schema_version": "1.0",
+    "benchmark_id": "agent-stream-cancel-durability-v1",
+    "source_revision": "6e618d0fb5874fa262b783345000f1496e52d7c7",
+    "agent_revision": "756367d7b015c7e2b2d2b6d69092feb9e3dd0c40",
+    "started_at": "2026-08-04T11:59:50Z",
+    "completed_at": "2026-08-04T12:00:01Z",
+    "instruction": "Research three approaches to evaluating a production RAG system. Compare retrieval quality, answer faithfulness, latency, and cost, then recommend an approach.",
+    "network_boundary": {
+      "direct_public_socket_blocked": true,
+      "approved_model_host_reachable_via_proxy": true,
+      "unrelated_https_blocked_by_proxy": true,
+      "private_postgres_reachable": true,
+      "private_redis_reachable": true,
+      "private_fastapi_reachable": true
+    },
+    "application": {
+      "ready": true,
+      "status_code": 200,
+      "shutdown_exit_code": 0
+    },
+    "database": {
+      "bootstrap": "src.models.Base.metadata.create_all",
+      "initial": {
+        "thread_exists": true,
+        "thread_message_count": 0,
+        "agent_runs": 0,
+        "run_events": 0,
+        "chat_messages": 0
+      }
+    },
+    "redis": {
+      "initial": {
+        "active_stream_id": null,
+        "buffers": []
+      }
+    },
+    "request": {
+      "client_message_id": "00000000-0000-4000-8000-000000000406",
+      "request_id": "harbor-stream-stop-000000000407",
+      "thread_id": "00000000-0000-4000-8000-000000000405",
+      "model": "",
+      "use_rag": false
+    },
+    "sse": {
+      "response": {
+        "status_code": 200,
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        }
+      },
+      "frames": [
+        {
+          "id": "1",
+          "event": "status",
+          "data": {
+            "phase": "accepted",
+            "detail": "Request accepted",
+            "run_id": "11111111-1111-4111-8111-111111111111",
+            "schema_version": "1.0",
+            "sequence": 1,
+            "event_id": "harbor-stream-stop-000000000407:1",
+            "occurred_at": "2026-08-04T11:59:55Z",
+            "trace_id": "harbor-stream-stop-000000000407",
+            "thread_id": null,
+            "route": "pending"
+          },
+          "received_at": "2026-08-04T11:59:55.010Z"
+        },
+        {
+          "id": "2",
+          "event": "status",
+          "data": {
+            "phase": "routing",
+            "detail": "Choosing the safest response path",
+            "schema_version": "1.0",
+            "sequence": 2,
+            "event_id": "harbor-stream-stop-000000000407:2",
+            "occurred_at": "2026-08-04T11:59:56Z",
+            "trace_id": "harbor-stream-stop-000000000407",
+            "thread_id": "00000000-0000-4000-8000-000000000405",
+            "route": "graph"
+          },
+          "received_at": "2026-08-04T11:59:56.010Z"
+        },
+        {
+          "id": "3",
+          "event": "trace",
+          "data": {
+            "thread_id": "00000000-0000-4000-8000-000000000405",
+            "cli_session_id": "",
+            "langsmith_run_id": "",
+            "langsmith_url": "",
+            "schema_version": "1.0",
+            "sequence": 3,
+            "event_id": "harbor-stream-stop-000000000407:3",
+            "occurred_at": "2026-08-04T11:59:56.100Z",
+            "trace_id": "harbor-stream-stop-000000000407",
+            "route": "graph"
+          },
+          "received_at": "2026-08-04T11:59:56.110Z"
+        },
+        {
+          "id": "4",
+          "event": "token",
+          "data": {
+            "content": "Evaluation",
+            "schema_version": "1.0",
+            "sequence": 4,
+            "event_id": "harbor-stream-stop-000000000407:4",
+            "occurred_at": "2026-08-04T12:00:00Z",
+            "trace_id": "harbor-stream-stop-000000000407",
+            "thread_id": "00000000-0000-4000-8000-000000000405",
+            "route": "graph"
+          },
+          "received_at": "2026-08-04T12:00:00.010Z"
+        }
+      ],
+      "first_token": {
+        "id": "4",
+        "event": "token",
+        "data": {
+          "content": "Evaluation",
+          "schema_version": "1.0",
+          "sequence": 4,
+          "event_id": "harbor-stream-stop-000000000407:4",
+          "occurred_at": "2026-08-04T12:00:00Z",
+          "trace_id": "harbor-stream-stop-000000000407",
+          "thread_id": "00000000-0000-4000-8000-000000000405",
+          "route": "graph"
+        },
+        "received_at": "2026-08-04T12:00:00.010Z"
+      }
+    },
+    "accepted": {
+      "run_id": "11111111-1111-4111-8111-111111111111",
+      "thread_id": "00000000-0000-4000-8000-000000000405",
+      "user_message_id": "00000000-0000-4000-8000-000000000408",
+      "client_message_id": "00000000-0000-4000-8000-000000000406",
+      "assistant_client_message_id": "ea887d66-2787-526f-b216-2a88abff7278"
+    },
+    "disconnect": {
+      "initiated_at": "2026-08-04T12:00:00.020Z",
+      "completed_at": "2026-08-04T12:00:00.021Z",
+      "terminal_observed_within_bound": true,
+      "terminalization_elapsed_ms": 380,
+      "bound_ms": 10000
+    },
+    "post_disconnect_activity": {
+      "window_seconds": 10,
+      "durable_events_after_disconnect": [
+        {
+          "event_type": "run.cancelled",
+          "created_at": "2026-08-04T12:00:00.400Z"
+        }
+      ],
+      "buffered_frames_after_disconnect": [],
+      "observable_model_or_tool_starts": [],
+      "completion_events": []
+    },
+    "resume": {
+      "status_code": 204,
+      "headers": {},
+      "frames": [],
+      "timed_out": false
+    },
+    "correlation": {
+      "trace_ids": ["harbor-stream-stop-000000000407"],
+      "request_id": "harbor-stream-stop-000000000407",
+      "agent_run_id": "11111111-1111-4111-8111-111111111111",
+      "thread_id": "00000000-0000-4000-8000-000000000405",
+      "user_message_id": "00000000-0000-4000-8000-000000000408",
+      "client_message_id": "00000000-0000-4000-8000-000000000406",
+      "deployment_sha": "6e618d0fb5874fa262b783345000f1496e52d7c7",
+      "image_tag": "harbor-agent-stream-cancel-durability-v1"
+    },
+    "termination_reason": "cancelled",
+    "model_usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_tokens": 0
+    }
+  },
+  "database_state": {
+    "run_count_for_thread": 1,
+    "run": {
+      "job_id": "11111111-1111-4111-8111-111111111111",
+      "status": "cancelled",
+      "organization_id": "00000000-0000-4000-8000-000000000401",
+      "user_id": "00000000-0000-4000-8000-000000000402",
+      "thread_id": "00000000-0000-4000-8000-000000000405",
+      "conversation_id": "00000000-0000-4000-8000-000000000404",
+      "user_message_id": "00000000-0000-4000-8000-000000000408",
+      "assistant_message_id": "00000000-0000-4000-8000-000000000409",
+      "client_message_id": "00000000-0000-4000-8000-000000000406",
+      "idempotency_key": "agent-stream:00000000-0000-4000-8000-000000000402:00000000-0000-4000-8000-000000000406",
+      "last_event_seq": 3,
+      "started_at": "2026-08-04T11:59:56Z",
+      "completed_at": "2026-08-04T12:00:00.400Z",
+      "error_code": null,
+      "error": null
+    },
+    "events": [
+      {
+        "id": "00000000-0000-4000-8000-000000000410",
+        "run_id": "11111111-1111-4111-8111-111111111111",
+        "seq": 1,
+        "event_type": "run.created",
+        "payload": {},
+        "created_at": "2026-08-04T11:59:55Z"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000411",
+        "run_id": "11111111-1111-4111-8111-111111111111",
+        "seq": 2,
+        "event_type": "run.started",
+        "payload": {},
+        "created_at": "2026-08-04T11:59:56Z"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000412",
+        "run_id": "11111111-1111-4111-8111-111111111111",
+        "seq": 3,
+        "event_type": "run.cancelled",
+        "payload": {
+          "reason": "client_disconnected",
+          "request_id": "harbor-stream-stop-000000000407"
+        },
+        "created_at": "2026-08-04T12:00:00.400Z"
+      }
+    ],
+    "messages": [
+      {
+        "id": "00000000-0000-4000-8000-000000000408",
+        "thread_id": "00000000-0000-4000-8000-000000000405",
+        "user_id": "00000000-0000-4000-8000-000000000402",
+        "role": "user",
+        "content": "Research three approaches to evaluating a production RAG system. Compare retrieval quality, answer faithfulness, latency, and cost, then recommend an approach.",
+        "stopped": false,
+        "client_message_id": "00000000-0000-4000-8000-000000000406"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000409",
+        "thread_id": "00000000-0000-4000-8000-000000000405",
+        "user_id": null,
+        "role": "assistant",
+        "content": "Evaluation",
+        "stopped": true,
+        "client_message_id": "ea887d66-2787-526f-b216-2a88abff7278"
+      }
+    ]
+  },
+  "redis_state": {
+    "active_key": "agent:stream:active:00000000-0000-4000-8000-000000000405",
+    "active_stream_id": null,
+    "matching_keys": ["agent:stream:22222222-2222-4222-8222-222222222222"],
+    "buffers": [
+      {
+        "key": "agent:stream:22222222-2222-4222-8222-222222222222",
+        "stream_id": "22222222-2222-4222-8222-222222222222",
+        "ttl_seconds": 3599,
+        "entries": [
+          {
+            "seq": 2,
+            "parsed_frame": {
+              "id": "2",
+              "event": "status",
+              "data": {
+                "phase": "routing",
+                "schema_version": "1.0",
+                "sequence": 2,
+                "occurred_at": "2026-08-04T11:59:56Z",
+                "trace_id": "harbor-stream-stop-000000000407",
+                "thread_id": "00000000-0000-4000-8000-000000000405",
+                "route": "graph"
+              }
+            }
+          },
+          {
+            "seq": 3,
+            "parsed_frame": {
+              "id": "3",
+              "event": "trace",
+              "data": {
+                "schema_version": "1.0",
+                "sequence": 3,
+                "occurred_at": "2026-08-04T11:59:56.100Z",
+                "trace_id": "harbor-stream-stop-000000000407",
+                "thread_id": "00000000-0000-4000-8000-000000000405",
+                "route": "graph"
+              }
+            }
+          },
+          {
+            "seq": 4,
+            "parsed_frame": {
+              "id": "4",
+              "event": "token",
+              "data": {
+                "content": "Evaluation",
+                "schema_version": "1.0",
+                "sequence": 4,
+                "occurred_at": "2026-08-04T12:00:00Z",
+                "trace_id": "harbor-stream-stop-000000000407",
+                "thread_id": "00000000-0000-4000-8000-000000000405",
+                "route": "graph"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "benchmark_id": "rag-retrieval-safety-grounding-v1",
+  "claims": {
+    "current_account_retention_days": 30,
+    "current_workspace_retention_days": 14,
+    "archived_account_retention_days": 60,
+    "archived_account_policy_is_current": false
+  },
+  "sources": [
+    {
+      "record_id": "R1",
+      "document_id": "00000000-0000-4000-8000-000000000305",
+      "title": "Current Account Deletion Policy (2026)",
+      "text": "Effective 2026. Account deletion records are retained for 30 days after deletion, then permanently purged. This policy supersedes the 2025 account deletion policy."
+    },
+    {
+      "record_id": "R2",
+      "document_id": "00000000-0000-4000-8000-000000000303",
+      "title": "Archived Account Deletion Policy (2025)",
+      "text": "Archived 2025 policy. Account deletion records were retained for 60 days. This policy was superseded by the effective 2026 account deletion policy and is not current."
+    },
+    {
+      "record_id": "R3",
+      "document_id": "00000000-0000-4000-8000-000000000307",
+      "title": "Current Workspace Deletion Policy (2026)",
+      "text": "Effective 2026. Workspace deletion records are retained for 14 days after deletion, then permanently purged."
+    },
+    {
+      "record_id": "R4",
+      "document_id": "00000000-0000-4000-8000-000000000302",
+      "title": "Workspace Recovery FAQ",
+      "text": "Workspace recovery requests should be sent to an administrator. This FAQ discusses recovery access but does not define a workspace deletion retention period."
+    }
+  ],
+  "prohibited_literals": [
+    "alex.q.benchmark@example.invalid",
+    "+1 212-555-0188",
+    "gho_000000000000000000000000000000000000"
+  ],
+  "duplicate_titles": [
+    "Current Account Deletion Policy (2026)",
+    "Current Account Policy Copy"
+  ],
+  "expected_document_count": 7,
+  "expected_postprocess_count": 6,
+  "allowed_score_source": "cohere"
+}

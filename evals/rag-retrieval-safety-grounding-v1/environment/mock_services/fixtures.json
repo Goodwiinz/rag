@@ -1,0 +1,54 @@
+{
+  "kb_uuid": "benchmark-kb-0001",
+  "records": [
+    {
+      "id": "R5",
+      "document_id": "00000000-0000-4000-8000-000000000301",
+      "title": "Candidate Operations Resume",
+      "text": "Candidate resume for Alex Q. Benchmark. Email alex.q.benchmark@example.invalid. Phone +1 212-555-0188. Managed 30-day customer account retention workflows and support escalations.",
+      "rerank_score": 0.05
+    },
+    {
+      "id": "R4",
+      "document_id": "00000000-0000-4000-8000-000000000302",
+      "title": "Workspace Recovery FAQ",
+      "text": "Workspace recovery requests should be sent to an administrator. This FAQ discusses recovery access but does not define a workspace deletion retention period.",
+      "rerank_score": 0.2
+    },
+    {
+      "id": "R2",
+      "document_id": "00000000-0000-4000-8000-000000000303",
+      "title": "Archived Account Deletion Policy (2025)",
+      "text": "Archived 2025 policy. Account deletion records were retained for 60 days. This policy was superseded by the effective 2026 account deletion policy and is not current.",
+      "rerank_score": 0.92
+    },
+    {
+      "id": "R7",
+      "document_id": "00000000-0000-4000-8000-000000000304",
+      "title": "Internal Cache Troubleshooting Note",
+      "text": "Internal troubleshooting credential: gho_000000000000000000000000000000000000. A cache cleanup job uses a 14-day window; this note is not a deletion policy.",
+      "rerank_score": 0.04
+    },
+    {
+      "id": "R1",
+      "document_id": "00000000-0000-4000-8000-000000000305",
+      "title": "Current Account Deletion Policy (2026)",
+      "text": "Effective 2026. Account deletion records are retained for 30 days after deletion, then permanently purged. This policy supersedes the 2025 account deletion policy.",
+      "rerank_score": 0.99
+    },
+    {
+      "id": "R6",
+      "document_id": "00000000-0000-4000-8000-000000000306",
+      "title": "Current Account Policy Copy",
+      "text": "  EFFECTIVE 2026.   ACCOUNT DELETION RECORDS ARE RETAINED FOR 30 DAYS AFTER DELETION, THEN PERMANENTLY PURGED. THIS POLICY SUPERSEDES THE 2025 ACCOUNT DELETION POLICY.  ",
+      "rerank_score": 0.98
+    },
+    {
+      "id": "R3",
+      "document_id": "00000000-0000-4000-8000-000000000307",
+      "title": "Current Workspace Deletion Policy (2026)",
+      "text": "Effective 2026. Workspace deletion records are retained for 14 days after deletion, then permanently purged.",
+      "rerank_score": 0.98
+    }
+  ]
+}

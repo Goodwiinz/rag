@@ -100,10 +100,21 @@ jobs:
           # deep type debt (measured 529 errors across one 27-file sample),
           # covered by the advisory full-tree lane until it shrinks.
           # --follow-imports=silent keeps errors scoped to the listed files.
-          mapfile -t ADDED < <(python3 scripts/ci/changed_source_files.py "${BASE_FLAG[@]}" --kind python-added)
+          # evals/ is excluded: those files are digest-pinned against recorded
+          # trial evidence (evals/source-manifests/*.json), so an annotation
+          # edit forced by this gate would invalidate a published baseline.
+          mapfile -t ADDED < <(python3 scripts/ci/changed_source_files.py "${BASE_FLAG[@]}" --kind python-added | grep -v '^evals/' || true)
           if [ "${#ADDED[@]}" -gt 0 ]; then
             printf 'Type-checking %d added Python file(s)\n' "${#ADDED[@]}"
-            mypy --ignore-missing-imports --follow-imports=silent "${ADDED[@]}"
+            # One file per run: mypy aborts the WHOLE batch with "Duplicate
+            # module named X" when two added files share a basename outside a
+            # package (e.g. two evals/*/environment/run_agent.py), which hides
+            # every real error behind an unrelated packaging complaint.
+            MYPY_FAILED=0
+            for ADDED_FILE in "${ADDED[@]}"; do
+              mypy --ignore-missing-imports --follow-imports=silent "$ADDED_FILE" || MYPY_FAILED=1
+            done
+            [ "$MYPY_FAILED" -eq 0 ]
           fi
       # Debt reached zero (full-tree reformat PR) — these two are now blocking
       # so it can't regrow. MyPy below stays advisory (type debt is not zero).

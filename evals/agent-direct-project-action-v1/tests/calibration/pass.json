@@ -1,0 +1,104 @@
+{
+  "evidence": {
+    "schema_version": "1.0",
+    "benchmark_id": "agent-direct-project-action-v1",
+    "source_revision": "6e618d0fb5874fa262b783345000f1496e52d7c7",
+    "instruction": "Create a project named The Discovery Note.",
+    "network_boundary": {
+      "direct_public_socket_blocked": true,
+      "approved_model_host_reachable_via_proxy": true,
+      "unrelated_https_blocked_by_proxy": true
+    },
+    "classification": {
+      "intent": "research",
+      "confidence": 1.0,
+      "source_probe": "action_override"
+    },
+    "interrupt": {
+      "observed": true,
+      "payload": {
+        "tools": [
+          {
+            "name": "create_project",
+            "args": {
+              "name": "The Discovery Note"
+            }
+          }
+        ]
+      }
+    },
+    "approval": {
+      "sent": true,
+      "text": "Yes, create it.",
+      "resume": {
+        "confirmed": true
+      }
+    },
+    "pending_interrupt_after_resume": null,
+    "database": {
+      "before_approval": {
+        "workspace_id": "00000000-0000-4000-8000-000000000103",
+        "projects": [],
+        "document_links": 0,
+        "project_notes": 0,
+        "documents": 0
+      },
+      "after": {
+        "workspace_id": "00000000-0000-4000-8000-000000000103",
+        "projects": [
+          {
+            "id": "00000000-0000-4000-8000-000000000201",
+            "workspace_id": "00000000-0000-4000-8000-000000000103",
+            "name": "The Discovery Note",
+            "research_status": "active",
+            "is_deleted": false
+          }
+        ],
+        "document_links": 0,
+        "project_notes": 0,
+        "documents": 0
+      }
+    },
+    "tool_executions": [
+      {
+        "tool_name": "create_project",
+        "status": "completed",
+        "result": {
+          "status": "success",
+          "project_id": "00000000-0000-4000-8000-000000000201",
+          "name": "The Discovery Note"
+        }
+      }
+    ],
+    "milestones": {
+      "instruction": 1,
+      "interrupt": 2,
+      "preapproval_database_read": 3,
+      "approval": 4,
+      "create_project_success": 5,
+      "postapproval_database_read": 6,
+      "final_assistant_message": 7
+    },
+    "final_assistant_message": {
+      "type": "ai",
+      "content": "Created the project The Discovery Note.",
+      "tool_calls": []
+    },
+    "termination_reason": "completed"
+  },
+  "database_state": {
+    "workspace_id": "00000000-0000-4000-8000-000000000103",
+    "projects": [
+      {
+        "id": "00000000-0000-4000-8000-000000000201",
+        "workspace_id": "00000000-0000-4000-8000-000000000103",
+        "name": "The Discovery Note",
+        "research_status": "active",
+        "is_deleted": false
+      }
+    ],
+    "document_links": 0,
+    "project_notes": 0,
+    "documents": 0
+  }
+}
