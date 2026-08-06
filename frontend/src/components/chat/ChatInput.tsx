@@ -502,7 +502,14 @@ export function ChatInput({
             >
               <div className="flex items-center gap-0.5">
                 <label
-                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all"
+                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.currentTarget.click();
+                    }
+                  }}
                   style={{ color: 'var(--nous-fg-3)' }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'var(--nous-aurum)';
@@ -530,7 +537,14 @@ export function ChatInput({
                   />
                 </label>
                 <label
-                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all"
+                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.currentTarget.click();
+                    }
+                  }}
                   style={{ color: 'var(--nous-fg-3)' }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'var(--nous-aurum)';

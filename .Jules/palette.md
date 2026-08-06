@@ -13,3 +13,7 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+
+## 2026-08-06 - Keyboard Accessible Custom File Uploads
+**Learning:** When using `<label>` elements to create custom file upload buttons (by wrapping hidden inputs), they do not automatically receive keyboard focus or trigger on Enter/Space.
+**Action:** Always add `tabIndex={0}`, `focus-visible` utility classes, and an `onKeyDown` handler to trigger the click event to ensure keyboard accessibility.
