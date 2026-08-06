@@ -83,6 +83,39 @@ Create the image name
 {{- end }}
 
 {{/*
+Return the single backend runtime image used by the API, migration init,
+Celery worker, Celery beat, and synthetic traffic. Prefer an immutable digest;
+retain tag fallback so existing environments keep rendering until their
+release workflow supplies a digest.
+*/}}
+{{- define "knowledge-graph-analytics.backendImage" -}}
+{{- $repository := required "backend.image.repository is required" .Values.backend.image.repository -}}
+{{- $digest := .Values.backend.image.digest | default "" | trim -}}
+{{- if $digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail "backend.image.digest must be empty or an immutable sha256 digest" -}}
+{{- end -}}
+{{- printf "%s@%s" $repository $digest -}}
+{{- else -}}
+{{- $tag := .Values.backend.image.tag | default .Chart.AppVersion | required "backend.image.tag or Chart.appVersion is required" -}}
+{{- printf "%s:%s" $repository $tag -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Render the tested source SHA annotation when a release supplied one.
+*/}}
+{{- define "knowledge-graph-analytics.backendSourceAnnotation" -}}
+{{- $sourceSha := .Values.backend.image.sourceSha | default "" | trim -}}
+{{- if $sourceSha -}}
+{{- if not (regexMatch "^[a-f0-9]{40}$" $sourceSha) -}}
+{{- fail "backend.image.sourceSha must be empty or a full 40-character Git SHA" -}}
+{{- end -}}
+nous-platform.dev/source-sha: {{ $sourceSha | quote }}
+{{- end -}}
+{{- end }}
+
+{{/*
 Create the database URL
 */}}
 {{- define "knowledge-graph-analytics.databaseUrl" -}}

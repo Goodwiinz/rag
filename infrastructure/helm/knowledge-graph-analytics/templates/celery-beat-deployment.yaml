@@ -16,6 +16,10 @@ spec:
       app.kubernetes.io/component: celery-beat
   template:
     metadata:
+      {{- if .Values.backend.image.sourceSha }}
+      annotations:
+        {{- include "knowledge-graph-analytics.backendSourceAnnotation" . | nindent 8 }}
+      {{- end }}
       labels:
         {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: celery-beat
@@ -29,7 +33,7 @@ spec:
         {{- toYaml .Values.securityContext | nindent 8 }}
       containers:
         - name: celery-beat
-          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          image: {{ include "knowledge-graph-analytics.backendImage" . | quote }}
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
           command:
             - celery

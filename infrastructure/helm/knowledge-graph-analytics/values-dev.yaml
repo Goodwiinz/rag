@@ -31,6 +31,11 @@ backend:
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
     tag: "756367d"
+    # Empty until the exact-SHA release workflow is shadow-proven and the
+    # deployment branch is seeded. Once populated, the digest is the actual
+    # pull identity and tag/sourceSha are trace metadata only.
+    digest: ""
+    sourceSha: ""
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP

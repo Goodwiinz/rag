@@ -27,6 +27,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "{{ .Values.backend.service.targetPort }}"
         prometheus.io/path: "/metrics"
+        {{- include "knowledge-graph-analytics.backendSourceAnnotation" . | nindent 8 }}
       labels:
         {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: backend
@@ -68,7 +69,7 @@ spec:
                 name: database-credentials
         {{- if .Values.backend.initContainers.runMigrations }}
         - name: run-migrations
-          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "knowledge-graph-analytics.backendImage" . | quote }}
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
           workingDir: /app
           command:
@@ -97,7 +98,7 @@ spec:
         {{- end }}
       containers:
         - name: backend
-          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "knowledge-graph-analytics.backendImage" . | quote }}
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
           securityContext:
             allowPrivilegeEscalation: false

@@ -55,3 +55,6 @@ jobs:
 
       - name: NetworkPolicy render assertions
         run: bash "$CHART/tests/networkpolicy_render_test.sh"
+
+      - name: Immutable backend image render assertions
+        run: bash "$CHART/tests/backend_image_digest_render_test.sh"
