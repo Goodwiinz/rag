@@ -75,7 +75,9 @@ def _filter_citations_by_content(
         return None
 
     filtered = [
-        citations[index - 1] for index in indices if 0 < index <= len(citations)
+        citations[index - 1]
+        for index in indices
+        if 0 < index <= len(citations)
     ]
     return filtered or None
 
@@ -125,7 +127,9 @@ class StreamService:
         self,
         chat_service: ChatService,
         openai_service: AzureOpenAIService,
-        retrieve_context_fn: Optional[Callable[..., Coroutine[Any, Any, list]]] = None,
+        retrieve_context_fn: Optional[
+            Callable[..., Coroutine[Any, Any, list]]
+        ] = None,
         build_context_prompt_fn: Optional[Callable[..., str]] = None,
         rag_system_prompt: Optional[str] = None,
     ):
@@ -284,7 +288,9 @@ class StreamService:
 
             # Add thread history
             for msg in thread_context.get("messages", []):
-                llm_messages.append({"role": msg["role"], "content": msg["content"]})
+                llm_messages.append(
+                    {"role": msg["role"], "content": msg["content"]}
+                )
 
         except Exception as exc:
             logger.error(f"Failed to build LLM context: {exc}", exc_info=True)
@@ -316,14 +322,18 @@ class StreamService:
 
             # Persist partial content if we got any tokens
             full_content = "".join(collected_content)
-            filtered_citations = _filter_citations_by_content(full_content, citations)
+            filtered_citations = _filter_citations_by_content(
+                full_content, citations
+            )
             if full_content:
                 try:
                     await self.chat_service.create_assistant_message(
                         thread_id=thread_id,
                         content=full_content,
                         citations=filtered_citations,
-                        latency_ms=int((time.monotonic() - start_time) * 1000),
+                        latency_ms=int(
+                            (time.monotonic() - start_time) * 1000
+                        ),
                     )
                 except Exception as persist_exc:
                     logger.error(
@@ -366,7 +376,9 @@ class StreamService:
                 },
             )
         except Exception as exc:
-            logger.error(f"Failed to persist assistant message: {exc}", exc_info=True)
+            logger.error(
+                f"Failed to persist assistant message: {exc}", exc_info=True
+            )
             yield SSEEvent(
                 event="error",
                 data={

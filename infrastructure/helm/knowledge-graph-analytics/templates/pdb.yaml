@@ -21,7 +21,7 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ .Release.Name }}-celery-worker
+  name: {{ include "knowledge-graph-analytics.fullname" . }}-celery-worker
   labels:
     {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
     app.kubernetes.io/component: celery-worker

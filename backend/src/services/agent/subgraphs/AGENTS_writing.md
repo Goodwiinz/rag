@@ -22,7 +22,7 @@ Each turn:
    - User gave a **`document_id` UUID** → use it directly.
    - User gave an **arXiv id** (`2303.15563`) not yet in the library → `ingest_arxiv_papers`, then use the returned `document_id`.
    - User gave only a **title** (or several titles, e.g. "make notes for these papers: …") → `search_arxiv` for each title to get its arXiv id, then `ingest_arxiv_papers`, then proceed. Only ask the user if a title is genuinely ambiguous (multiple strong matches) or `search_arxiv` finds nothing.
-   - The **save destination** is resolved the same way, not asked for. When the task writes a note/draft and there is no active project, call `list_projects` and use the best match. Ask only if `list_projects` comes back empty or genuinely ambiguous, and say what you found when you do.
+   - The only thing you may need to ask for is the **save destination** when there is no active project and the task writes a note/draft.
 4. **Generate the artifact from the RESOLVED documents.** One writing operation per resolved `document_id`. For "make notes/summary for these papers" that means `summarize_document` (or `compare_documents`) on each resolved id, then `create_project_note` / `create_draft` containing the real summary — never an empty placeholder.
 
 ## Hard rule — resolve before you write

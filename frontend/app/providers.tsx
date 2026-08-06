@@ -4,7 +4,6 @@
 // import { AnalyticsProvider } from '@/components/analytics/AnalyticsProvider';
 import { AuthProvider } from '@/hooks';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { setAppQueryClient } from '@/lib/query-client';
 import { ThemeProvider } from 'next-themes';
 import React, { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
@@ -15,8 +14,9 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
-  const [queryClient] = useState(() => {
-    const client = new QueryClient({
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
         defaultOptions: {
           queries: {
             staleTime: 5 * 60 * 1000,
@@ -31,12 +31,8 @@ export function Providers({ children }: ProvidersProps) {
             retryDelay: 1000,
           },
         },
-      });
-    // Expose to non-React modules (Zustand stores) for cross-cache
-    // invalidation — see src/lib/query-client.ts.
-    setAppQueryClient(client);
-    return client;
-  });
+      })
+  );
 
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>

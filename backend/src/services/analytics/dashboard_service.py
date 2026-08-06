@@ -515,11 +515,9 @@ class DashboardService:
                 # Create new dashboard
                 new_dashboard = Dashboard(
                     name=new_name,
-                    description=(
-                        f"Copy of {original_dashboard.description}"
-                        if original_dashboard.description
-                        else None
-                    ),
+                    description=f"Copy of {original_dashboard.description}"
+                    if original_dashboard.description
+                    else None,
                     owner_id=user_id,
                     organization_id=original_dashboard.organization_id,
                     layout=original_dashboard.layout,

@@ -66,45 +66,4 @@ def redact_pii(text: Any) -> str:
     return out
 
 
-def redact_tool_args(value: Any) -> Any:
-    """Recursively redact PII in a tool-args value while preserving structure.
-
-    Strings are redacted and capped; dicts/lists recurse; JSON-safe scalars
-    (int/float/bool/None) carry no PII and pass through unchanged. Anything
-    else (datetime, Decimal, a custom object, …) is stringified and redacted —
-    ``str(tool_input)`` used to tolerate those, so a bare passthrough here
-    would make a downstream ``json.dumps`` raise. Keeping the JSON shape is
-    what lets the frontend's args summarizer render it.
-
-    Single source for every place tool args leave the server for a browser:
-    live SSE ``tool_start`` previews, the confirm-path ``done`` payload, and
-    persisted ``tool_executions`` served back on thread reload.
-    """
-    if isinstance(value, str):
-        return redact_pii(value)[:500]
-    if isinstance(value, dict):
-        return {k: redact_tool_args(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [redact_tool_args(v) for v in value]
-    if value is None or isinstance(value, (int, float)):  # bool is an int
-        return value
-    return redact_pii(str(value))[:500]
-
-
-def redact_tool_executions(entries: Any) -> Any:
-    """Redact the ``args`` field of persisted ``tool_executions`` entries.
-
-    ChatMessage.tool_executions rows were written with raw args before (and
-    after) live-SSE redaction shipped, so redaction must happen at serve
-    time to cover historical rows. Non-dict entries pass through untouched
-    rather than risking a 500 on a legacy shape.
-    """
-    if not entries:
-        return entries
-    return [
-        {**e, "args": redact_tool_args(e.get("args"))} if isinstance(e, dict) else e
-        for e in entries
-    ]
-
-
-__all__ = ["redact_pii", "redact_tool_args", "redact_tool_executions"]
+__all__ = ["redact_pii"]

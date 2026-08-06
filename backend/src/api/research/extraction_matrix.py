@@ -18,12 +18,12 @@ from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
-from src.core.dependencies import get_current_user
 from src.models import Collection, CollectionDocument, Workspace
 from src.models.document import Document
 from src.models.extraction_matrix import ExtractionCell, ExtractionMatrix
 from src.models.user import User
 from src.services.research.extraction_matrix_service import ExtractionMatrixService
+from src.core.dependencies import get_current_user
 from src.shared.scispace_schemas import (
     CreateMatrixRequest,
     ExtractionCellResponse,
@@ -32,26 +32,6 @@ from src.shared.scispace_schemas import (
 )
 
 logger = get_logger()
-
-
-def _scoped_document_query(doc_id, project_id):
-    """Build a Document fetch constrained to a project's collection.
-
-    A document is only returned when it is a member of ``project_id``'s
-    collection (collection_documents). Callers must have already verified they
-    own ``project_id``; this drops any client-supplied document id that is not
-    actually in that project, preventing cross-tenant/cross-project reads.
-    """
-    return (
-        select(Document)
-        .join(CollectionDocument, Document.id == CollectionDocument.document_id)
-        .where(
-            Document.id == doc_id,
-            CollectionDocument.collection_id == project_id,
-        )
-    )
-
-
 router = APIRouter(prefix="/api/v1/research", tags=["extraction-matrix"])
 
 
@@ -85,7 +65,6 @@ async def _validate_project_ownership(
             and_(
                 Collection.id == project_id,
                 Workspace.owner_id == current_user.id,
-                Collection.is_deleted.is_(False),
             )
         )
     )
@@ -405,18 +384,13 @@ async def trigger_extraction(
     # Fetch documents and run extraction inline
     extraction_service = ExtractionMatrixService()
 
+    from src.core.config import settings
     import openai
 
-    from src.core.config import settings
-
     azure_key = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY
-    azure_endpoint = (
-        settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT
-    )
+    azure_endpoint = settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT
     azure_deployment = getattr(settings, "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME", "gpt-4o")
-    azure_api_version = getattr(
-        settings, "AZURE_OPENAI_CHAT_API_VERSION", "2024-05-01-preview"
-    )
+    azure_api_version = getattr(settings, "AZURE_OPENAI_CHAT_API_VERSION", "2024-05-01-preview")
     openai_key = settings.OPENAI_API_KEY
 
     if azure_key and azure_endpoint:
@@ -437,13 +411,9 @@ async def trigger_extraction(
     extracted_count = 0
 
     for doc_id in request.document_ids:
-        # Scope the fetch to the matrix's project (already verified as the
-        # caller's above). Without the collection join a client document_ids
-        # list could pull in another org's documents and exfiltrate their
-        # content_text into extraction cells (cross-tenant read). Mirrors the
-        # safe create_matrix auto-extract path, which derives ids from the
-        # project's collection_documents.
-        doc_result = await db.execute(_scoped_document_query(doc_id, matrix.project_id))
+        doc_result = await db.execute(
+            select(Document).where(Document.id == doc_id)
+        )
         document = doc_result.scalar_one_or_none()
         if not document or not document.content_text:
             logger.warning(
@@ -455,7 +425,9 @@ async def trigger_extraction(
         # Truncate to ~12k chars to fit context window
         doc_text = document.content_text[:12000]
 
-        prompt = extraction_service._build_extraction_prompt(matrix.columns, doc_text)
+        prompt = extraction_service._build_extraction_prompt(
+            matrix.columns, doc_text
+        )
 
         try:
             response = await client.chat.completions.create(
@@ -499,16 +471,14 @@ async def trigger_extraction(
                 existing_cell.citation_snippet = cell_data.get("citation")
                 existing_cell.confidence = 0.8
             else:
-                db.add(
-                    ExtractionCell(
-                        matrix_id=matrix_id,
-                        document_id=doc_id,
-                        column_name=col_name,
-                        value=cell_data.get("value"),
-                        citation_snippet=cell_data.get("citation"),
-                        confidence=0.8,
-                    )
-                )
+                db.add(ExtractionCell(
+                    matrix_id=matrix_id,
+                    document_id=doc_id,
+                    column_name=col_name,
+                    value=cell_data.get("value"),
+                    citation_snippet=cell_data.get("citation"),
+                    confidence=0.8,
+                ))
 
         extracted_count += 1
 

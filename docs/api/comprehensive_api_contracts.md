@@ -113,8 +113,8 @@ Login with email and password.
 {
   "success": true,
   "data": {
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "access_token": "JWT_REDACTED",
+    "refresh_token": "JWT_REDACTED",
     "token_type": "Bearer",
     "expires_in": 3600,
     "user": {
@@ -139,7 +139,7 @@ Refresh access token using refresh token.
 **Request Body**:
 ```json
 {
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "refresh_token": "JWT_REDACTED"
 }
 ```
 
@@ -1154,7 +1154,7 @@ wss://api.ragsystem.com/ws
 ```
 
 ### Connection Parameters
-- **Authentication**: JWT token sent as query parameter: `?token=eyJhbGciOi...`
+- **Authentication**: JWT token sent as query parameter: `?token=JWT_REDACTED`
 - **Organization**: Extracted from token claims
 - **Session ID**: Generated for connection tracking
 

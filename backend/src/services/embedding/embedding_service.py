@@ -169,12 +169,7 @@ class EmbeddingService:
             raise ValueError(
                 "Sentence transformers provider requested but not available"
             )
-        elif provider not in [
-            "cohere",
-            "sentence_transformers",
-            "azure_openai",
-            "auto",
-        ]:
+        elif provider not in ["cohere", "sentence_transformers", "azure_openai", "auto"]:
             raise ValueError(f"Invalid provider: {provider}")
 
         self.embedding_provider = provider
@@ -295,9 +290,7 @@ class EmbeddingService:
                 valid_texts.append(text.strip())
                 valid_indices.append(i)
             else:
-                errors.append(
-                    {"index": i, "text": text, "error": "Empty or invalid text"}
-                )
+                errors.append({"index": i, "text": text, "error": "Empty or invalid text"})
 
         if not valid_texts:
             return BatchEmbeddingResponse(
@@ -337,9 +330,7 @@ class EmbeddingService:
 
             # Use Cohere if requested or if it's the preferred provider
             if provider == "cohere":
-                from src.services.embedding.cohere_embed_service import (
-                    cohere_embed_service,
-                )
+                from src.services.embedding.cohere_embed_service import cohere_embed_service
 
                 if cohere_embed_service.is_enabled:
                     return await self.generate_embedding_cohere(request.text)
@@ -407,9 +398,7 @@ class EmbeddingService:
 
             # Use Cohere if requested or if it's the preferred provider
             if provider == "cohere":
-                from src.services.embedding.cohere_embed_service import (
-                    cohere_embed_service,
-                )
+                from src.services.embedding.cohere_embed_service import cohere_embed_service
 
                 if cohere_embed_service.is_enabled:
                     return await self.generate_batch_embeddings_cohere(request.texts)
@@ -628,9 +617,7 @@ class EmbeddingService:
                 return []
 
             # Generate embeddings for all chunks using the configured provider
-            request = BatchEmbeddingRequest(
-                texts=chunks, provider=self.embedding_provider
-            )
+            request = BatchEmbeddingRequest(texts=chunks, provider=self.embedding_provider)
             response = await self.generate_batch_embeddings(request)
 
             # Combine embeddings with metadata

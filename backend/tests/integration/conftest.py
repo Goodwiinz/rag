@@ -42,6 +42,7 @@ os.environ["LOG_LEVEL"] = "WARNING"
 # Mock external service URLs (tests will mock these services)
 os.environ["REDIS_URL"] = "redis://localhost:6379/15"
 os.environ["NEO4J_URI"] = "bolt://localhost:7687"
+os.environ["QDRANT_URL"] = "http://localhost:6333"
 
 # Mock API keys for testing
 os.environ["SECRET_KEY"] = "test-secret-key-for-integration-tests"

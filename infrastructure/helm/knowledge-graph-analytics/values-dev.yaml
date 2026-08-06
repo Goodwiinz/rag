@@ -30,7 +30,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "c446b29"
+    tag: "c1d01b8"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -63,9 +63,9 @@ backend:
       memory: 2Gi
     requests:
       cpu: 250m
-      # Bumped from 512Mi: real RSS reached ~1.3Gi under the former two-fork
-      # image. One worker now avoids duplicating the graph/model, while this
-      # request keeps headroom against kubelet eviction (exit 137).
+      # Bumped from 512Mi: real RSS observed ~1.3Gi (gunicorn 2 forks + model
+      # load). Under-requesting caused kubelet eviction (exit 137) under node
+      # memory pressure on 6.5Gi-allocatable nodes.
       memory: 1500Mi
   autoscaling:
     enabled: false
@@ -93,42 +93,6 @@ backend:
   env:
     - name: ENVIRONMENT
       value: "dev"
-    # Luna direct lane for evidence-independent turns. One-command rollback:
-    # set this value to "false" and re-apply/sync the dev values.
-    - name: AGENT_FAST_PATH_ENABLED
-      value: "true"
-    - name: AGENT_FAST_PATH_DEPLOYMENT
-      value: "gpt-5.6-luna"
-    # One process per pod avoids duplicating the model/tool graph in the 2Gi
-    # container. Rollback: raise this value without rebuilding the image.
-    - name: GUNICORN_WORKERS
-      value: "1"
-    # Durable agent state (audit X3): ENVIRONMENT=dev is a SHARED deployed
-    # environment, so the LangGraph checkpointer/memory store hard-fail on
-    # Postgres init failure instead of silently degrading to in-memory
-    # state (which breaks HITL resume + cross-restart memory invisibly).
-    # "false" here is the code default, stated explicitly as the rollback
-    # lever: flip to "true" (values-only change, no image rebuild) to
-    # temporarily tolerate a broken Postgres, and revert after the outage.
-    - name: ALLOW_MEMORY_FALLBACK
-      value: "false"
-    # Satellite reconciler (audit D1): RECONCILER_ENABLED=true is the code
-    # default (report-only). APPLY=true arms actual re-drives of failed
-    # Neo4j/DO-KB syncs (rate-capped, org-scoped, idempotent cores from
-    # repair_kg/backfill_do_kb). Verified report-only output on dev first
-    # (2026-07-12: eligible=0 — arms forward-repair for new failures only;
-    # historical NULL-status docs are untouched by design). Rollback: flip
-    # to "false", values-only, no image rebuild.
-    - name: RECONCILER_APPLY
-      value: "true"
-    # Data retention (audit D5): RETENTION_ENABLED=true is the code default
-    # (dry-run). APPLY=true arms real deletes of soft-deleted threads >30d,
-    # synthetic threads >7d, and append-only events >180d — org-scoped,
-    # batch-capped. Dry-run verified on dev first (2026-07-13: 5 soft-deleted
-    # threads / 28 msgs / 62 checkpoints, 0 append-only rows, synthetic-thread
-    # backlog — all safe). Rollback: flip to "false", values-only.
-    - name: RETENTION_APPLY
-      value: "true"
     - name: PYTHONPATH
       value: "/app"
     - name: LOG_LEVEL
@@ -137,38 +101,12 @@ backend:
       value: "1"
     - name: TIMEOUT
       value: "300"
-    # Durable agent dispatch (audit X1): route POST /agent/execute through the
-    # Celery `agent_runs` queue instead of request-local BackgroundTasks, so a
-    # pod kill after the job_id response no longer loses the run. Idempotency
-    # key + one-shot claim make redelivery safe; SSE streaming path unchanged.
-    # Rollback is instant: flip back to "background" (values-only, no rebuild).
-    # Requires the celery worker to consume the `agent_runs` queue (-Q).
-    - name: AGENT_DISPATCH_BACKEND
-      value: "celery"
-    # Project skills rollout: enable the descriptor enforcement, catalog API,
-    # and progressive loader together in the shared dev environment only.
-    # Each remains independently reversible with a values-only deploy; do not
-    # copy these flags to values-production.yaml before cohort validation.
-    - name: AGENT_TOOL_REGISTRY_ENFORCEMENT_ENABLED
-      value: "true"
-    - name: PROJECT_SKILL_CATALOG_ENABLED
-      value: "true"
-    - name: PROJECT_SKILL_RUNTIME_ENABLED
-      value: "true"
-    - name: PROJECT_SKILL_SNAPSHOT_RETENTION_DAYS
-      value: "30"
     # Cap glibc per-thread arenas to reduce RSS bloat (default 8*CPU on
     # multi-core). Combined with WORKERS=1, cuts steady-state memory ~30-40%.
     - name: MALLOC_ARENA_MAX
       value: "2"
     - name: CORS_ORIGINS
       value: "https://dev-app.gen-text.app,http://localhost:3000,http://127.0.0.1:3000,https://goodwiinz.tech,https://www.goodwiinz.tech"
-    # Canonical frontend host for CLI-auth device-login approval links.
-    # Set explicitly so the browser_url doesn't ride on CORS_ORIGINS[0] (still
-    # dev-app.gen-text.app) — the frontend now lives at goodwiinz.tech. See
-    # backend/src/api/auth/cli_auth.py::_frontend_base_url.
-    - name: FRONTEND_BASE_URL
-      value: "https://goodwiinz.tech"
     # CORS_ORIGIN_REGEX: defined in Infisical `/app` (env=dev) → synced into
     # the `app-secrets` K8s Secret, exposed via envFrom above. Set the regex
     # there to the project-specific Vercel slug (e.g.
@@ -192,13 +130,6 @@ backend:
       value: "rag-agent-dev"
     - name: LANGCHAIN_PROJECT
       value: "rag-agent-dev"
-    # Server-canonical persistence rollout (PR 4a, dev soak): the backend
-    # persists the assistant row synchronously before `done` and returns the
-    # persisted ids in the done payload (#986). Inert for legacy clients —
-    # mode is chosen by which thread_id the client sends. The frontend half
-    # is NEXT_PUBLIC_SERVER_CANONICAL_CHAT on the Vercel dev project (#993).
-    - name: AGENT_CANONICAL_PERSISTENCE
-      value: "true"
     - name: SENTRY_TRACES_SAMPLE_RATE
       value: "1.0"
     - name: SENTRY_PROFILES_SAMPLE_RATE
@@ -249,12 +180,7 @@ backend:
           key: AZURE_OPENAI_CHAT_API_VERSION
   healthCheck:
     enabled: true
-    # Process-alive path for liveness + startup (unconditional /health handler).
     path: /health
-    livenessPath: /health
-    startupPath: /health
-    # Dependency-aware path for readiness (checks Postgres + Redis, cached ~5s).
-    readinessPath: /health/readiness
     startupProbe:
       initialDelaySeconds: 10
       periodSeconds: 10
@@ -264,13 +190,10 @@ backend:
     periodSeconds: 15
     timeoutSeconds: 5
     failureThreshold: 3
-    # Readiness is deliberately slack: it gates the LB, so a transient DB/Redis
-    # blip must not flap every pod out at once. failureThreshold >= 3 and
-    # periodSeconds >= 10 are enforced as floors in the template.
     readinessInitialDelaySeconds: 5
     readinessPeriodSeconds: 10
-    readinessTimeoutSeconds: 5
-    readinessFailureThreshold: 3
+    readinessTimeoutSeconds: 3
+    readinessFailureThreshold: 2
   initContainers:
     waitForPostgres: true
     waitForRedis: false
@@ -278,6 +201,7 @@ backend:
     # like the chat_messages.tool_executions UndefinedColumnError seen in dev.
     runMigrations: true
     waitForNeo4j: false
+    waitForQdrant: false
 # ──────────────────────────────────────────────
 # All databases are external (DO Managed)
 # ──────────────────────────────────────────────
@@ -310,28 +234,36 @@ neo4j:
       requests:
         cpu: 250m
         memory: 2Gi
+qdrant:
+  enabled: true
+  persistence:
+    size: 5Gi
+  resources:
+    limits:
+      cpu: 300m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  config:
+    service:
+      api_key: ""
+      http_port: 6333
+      grpc_port: 6334
+  backup:
+    enabled: true
+    schedule: "0 3 * * 0" # Weekly Sunday 3am
 celeryWorker:
   enabled: true
   replicaCount: 1
   autoscaling:
     enabled: true
     minReplicas: 1
-    # Capped at 3 (was 5) to bound the Supabase session-mode pooler budget.
-    # Worst-case client math (pooler cap 25): backend 7 + beat 3 + 3*3 workers
-    # 9 + synthetic 3 = 22, leaving headroom 3. Raise only after the pooler
-    # pool_size is lifted (or workers move to the transaction pooler).
-    maxReplicas: 3
+    maxReplicas: 5
     targetCPUUtilizationPercentage: 75
     # A backlog of heavy indexing tasks pressures RAM before CPU, so add workers
     # on memory too. Requires the memory metric block in templates/hpa.yaml.
     targetMemoryUtilizationPercentage: 75
-    # TODO (audit P1.6 / finding X5): CPU+memory is backlog-blind for I/O-bound
-    # LLM/ingestion tasks. The queue-depth signal is now exported as the
-    # Prometheus gauge `celery_queue_depth{queue=...}` (backend
-    # observability/celery_queue_metrics.py). To scale on it, deploy KEDA (add a
-    # ScaledObject on the Redis list length) or prometheus-adapter (expose an
-    # external metric) and add a `- type: External` metric to templates/hpa.yaml.
-    # Deferred: no metrics adapter is deployed in the cluster yet.
   livenessProbe:
     commandTimeout: 60
     initialDelaySeconds: 60
@@ -348,53 +280,19 @@ celeryWorker:
     requests:
       cpu: 500m
       memory: 2Gi
-  # Per-component DB pool override (appended after the shared backend.env in
-  # templates/celery-worker-deployment.yaml; duplicate keys win last). Workers
-  # only open an async engine for the periodic beat tasks (reconcile/retention/
-  # sweepers), so a request-serving pool is wasteful and saturates the Supabase
-  # session-mode pooler (cap 25). Worst case per worker pod: async 1+1 + sync
-  # 1+0 = 3 connections.
-  env:
-    - name: DB_ASYNC_POOL_SIZE
-      value: "1"
-    - name: DB_ASYNC_MAX_OVERFLOW
-      value: "1"
-    - name: DB_SYNC_POOL_SIZE
-      value: "1"
-    - name: DB_SYNC_MAX_OVERFLOW
-      value: "0"
 celeryBeat:
   enabled: true
-  # Per-component DB pool override (see celeryWorker.env above). Beat is a
-  # singleton scheduler; worst case 3 connections (async 1+1 + sync 1+0).
-  env:
-    - name: DB_ASYNC_POOL_SIZE
-      value: "1"
-    - name: DB_ASYNC_MAX_OVERFLOW
-      value: "1"
-    - name: DB_SYNC_POOL_SIZE
-      value: "1"
-    - name: DB_SYNC_MAX_OVERFLOW
-      value: "0"
   resources:
     # memory request == limit so beat is never "over request" and is not a
     # first-choice eviction target. It was OOM-evicted using ~686Mi against a
-    # 384Mi request, which is why this was raised to 768Mi.
-    #
-    # 768Mi then stopped being survivable: the scheduler OOMKilled during
-    # startup (log ends at the celery banner, before the first tick) and
-    # crashlooped, so no beat-scheduled task ran at all. This is a floor, not
-    # a leak — celery-worker runs the same image and the same
-    # src.tasks.celery_app import graph and sits at ~1.16Gi idle, so merely
-    # importing the app costs more than beat's whole limit. 1536Mi clears the
-    # import cost with headroom; if it ever does leak past that it is
-    # OOMKilled and restarts cleanly (beat is a singleton scheduler).
+    # 384Mi request. If it leaks past 768Mi it is OOMKilled and restarts
+    # cleanly (beat is a singleton scheduler), keeping memory bounded.
     limits:
       cpu: 200m
-      memory: 1536Mi
+      memory: 768Mi
     requests:
       cpu: 50m
-      memory: 1536Mi
+      memory: 768Mi
 prometheus:
   enabled: false
 grafana:
@@ -413,24 +311,8 @@ securityContext:
   fsGroup: 1001
 podSecurityPolicy:
   enabled: false
-# NetworkPolicy — ingress default-deny for the backend pods (audit finding X6).
-# Kept DISABLED pending live-cluster selector verification; flipping `enabled:
-# true` renders an INGRESS-ONLY policy (egress lockdown deferred as a follow-up:
-# the external managed deps make egress the outage-prone half). To enable:
-#   1. Confirm the ingress-nginx controller runs in the `ingress-nginx`
-#      namespace: `kubectl get ns -L kubernetes.io/metadata.name | grep nginx`.
-#      If it lives elsewhere, override `networkPolicy.ingressControllerNamespace`.
-#   2. Confirm Prometheus runs in `monitoring` (or override `monitoringNamespace`).
-#   3. Set `enabled: true`, let ArgoCD sync, then verify: dev-api.gen-text.app
-#      still serves, backend readiness probes stay green (kubelet host->pod), and
-#      backend metrics still scrape. Rollback = set `enabled: false` (policy is
-#      pruned on next sync).
 networkPolicy:
   enabled: false
-  ingress:
-    enabled: true
-  egress:
-    enabled: false
 podDisruptionBudget:
   enabled: true
   minAvailable: 1
@@ -443,35 +325,6 @@ serviceAccount:
 # continuous LangSmith traces in rag-agent-dev while the dev agent is idle.
 # Runs every 20 min; set enabled: false to pause without code changes.
 # ──────────────────────────────────────────────
-# ──────────────────────────────────────────────
-# KEDA queue-depth autoscaling for the celery-worker (audit P1.6 / finding X5)
-# ──────────────────────────────────────────────
-# OFF: the KEDA operator is not installed in rag-dev yet. Flipping enabled: true
-# here is the LAST step of the rollout — install KEDA first, ensure the
-# redis-credentials secret exposes REDIS_HOST/REDIS_PORT/REDIS_PASSWORD, then
-# flip. See docs/decisions/worker-autoscaling.md. When enabled, the plain
-# CPU/memory worker HPA above (celeryWorker.autoscaling) stops rendering — KEDA
-# owns scaling. Rollback = set enabled: false (plain HPA re-renders on next sync).
-keda:
-  # ENABLED on dev: queue-depth worker autoscaling via the KEDA operator
-  # (installed in the cluster, keda ns). This SUPPRESSES the plain CPU/memory
-  # worker HPA (templates/hpa.yaml mutual exclusion) — KEDA reconciles its own.
-  # Requires REDIS_PASSWORD synced into the redis-credentials secret; if KEDA
-  # can't auth to Valkey, workers lose autoscaling. Rollback: enabled: false.
-  enabled: true
-  # min/max/polling/cooldown/scaleDown defaults live in values.yaml.
-  redis:
-    # DO Managed Valkey (Redis-protocol) endpoint — NON-SECRET host:port and
-    # username, inlined into the ScaledObject trigger metadata.
-    address: "rag-system-valkey-do-user-26519733-0.j.db.ondigitalocean.com:25061"
-    username: "default"
-    # Only the password is secret: pulled from the redis-credentials secret
-    # (Infisical-managed) under the REDIS_PASSWORD key.
-    authSecretName: redis-credentials
-    passwordKey: REDIS_PASSWORD
-    enableTLS: "true" # DO Managed Valkey is rediss://
-    databaseIndex: "0"
-    # triggers default to celery + document_processing (see values.yaml).
 syntheticTraffic:
   enabled: true
   schedule: "*/20 * * * *"

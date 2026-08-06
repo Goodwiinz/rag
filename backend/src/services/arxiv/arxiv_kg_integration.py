@@ -304,12 +304,7 @@ class ArXivKnowledgeGraphIntegration:
                             "type": "institution",
                             "confidence": 1.0,
                             "source": "paper_metadata",
-                            # Must be a valid ExtractionMethod member —
-                            # "metadata" is not one, and the resulting pydantic
-                            # ValidationError was swallowed in _add_entity_to_kg,
-                            # silently dropping every institution entity (and
-                            # its AFFILIATED_WITH relationship).
-                            "extraction_method": "rule_based",
+                            "extraction_method": "metadata",
                         }
                     )
 
@@ -795,10 +790,7 @@ class ArXivKnowledgeGraphIntegration:
                 source_entity_id=source_id,
                 target_entity_id=target_id,
                 relationship_type=RelationshipType.RELATED_TO,  # Use generic relationship
-                # Field is confidence_score — a `confidence=` kwarg is silently
-                # ignored by pydantic (extra-ignore), so every relationship got
-                # the default 0.8 instead of the extracted confidence.
-                confidence_score=relationship["confidence"],
+                confidence=relationship["confidence"],
                 strength=relationship.get("confidence", 0.5),  # strength field required
                 metadata={
                     "relationship_subtype": relationship["relation"],

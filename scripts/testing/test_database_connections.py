@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Quick test script to verify all database connections
+Tests: PostgreSQL, Redis, Neo4j, and Qdrant
 """
 
 import os
@@ -106,6 +107,34 @@ def test_neo4j():
         return False
 
 
+def test_qdrant():
+    """Test Qdrant connection"""
+    try:
+        from qdrant_client import QdrantClient
+
+        client = QdrantClient(
+            url=os.environ.get("QDRANT_URL", "http://localhost:6333"),
+            api_key=os.environ.get("QDRANT_API_KEY", ""),
+        )
+
+        # Get collections
+        collections = client.get_collections()
+
+        # Get cluster info (if available)
+        try:
+            client.cluster_info()
+        except Exception:
+            pass
+
+        print("✅ Qdrant: Connected")
+        print(f"   Collections: {len(collections.collections)}")
+        if collections.collections:
+            for col in collections.collections:
+                print(f"   - {col.name}: {col.vectors_count} vectors")
+        return True
+    except Exception as e:
+        print(f"❌ Qdrant: Failed - {e}")
+        return False
 
 
 def main():
@@ -120,6 +149,7 @@ def main():
         "PostgreSQL": test_postgresql(),
         "Redis": test_redis(),
         "Neo4j": test_neo4j(),
+        "Qdrant": test_qdrant(),
     }
 
     print()

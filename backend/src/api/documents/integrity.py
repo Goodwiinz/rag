@@ -9,12 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from structlog import get_logger
 
 from src.core.database import get_db
-from src.core.dependencies import get_current_organization, get_current_user
+from src.core.dependencies import get_current_organization
 from src.models.document import Document
 from src.models.integrity_score import IntegrityScore
 from src.models.organization import Organization
 from src.models.user import User
 from src.services.documents.integrity_detection_service import IntegrityDetectionService
+from src.core.dependencies import get_current_user
 from src.shared.scispace_schemas import IntegrityScoreResponse, IntegritySegmentScore
 
 logger = get_logger()

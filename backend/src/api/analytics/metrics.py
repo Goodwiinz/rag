@@ -10,8 +10,9 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import and_, or_, select
 
+from src.core.dependencies import get_current_user
+from src.core.dependencies import require_admin
 from src.core.database import get_async_session
-from src.core.dependencies import get_current_user, require_admin
 from src.models.analytics.analytics_models import (
     AnalyticsKPI,
     AnalyticsMetric,

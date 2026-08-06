@@ -79,59 +79,24 @@ async def resolve_and_filter_chunks(
     title_by_key: dict[str, tuple[str, str]] = {}
 
     if storage_keys:
-        # DO KB reports each chunk's ``item_name`` as the *basename* of the
-        # indexed object key. NOUS's KB data source is the canonical text
-        # mirror ``documents/{org}/{doc}.txt`` (see
-        # ``documents.object_keys.canonical_text_key``), so DO returns
-        # ``"<doc_uuid>.txt"`` — the stem IS the ``Document.id``. Resolve by it
-        # directly; matching the raw key against ``Document.storage_path`` never
-        # hits, because storage_path is the *original* upload key
-        # (``…/{doc}/{ts}_{hash}.pdf``, or NULL for local-backend docs).
-        #
-        # Storage-path suffix matching stays as a fallback for any data source
-        # whose reported key is a full original-object path instead of the
-        # ``.txt`` mirror.
-        doc_id_by_key: dict[str, UUID] = {}
-        for k in storage_keys:
-            stem = k.rsplit("/", 1)[-1]
-            if stem.endswith(".txt"):
-                stem = stem[:-4]
-            try:
-                doc_id_by_key[k] = UUID(stem)
-            except ValueError:
-                pass
-
         filters = [Document.storage_path == k for k in storage_keys]
         filters += [
-            Document.storage_path.like(f"%/{_escape_like(k)}", escape="\\")
+            Document.storage_path.like(
+                f"%/{_escape_like(k)}", escape="\\"
+            )
             for k in storage_keys
         ]
-        if doc_id_by_key:
-            filters.append(Document.id.in_(set(doc_id_by_key.values())))
-
         rows = await session.execute(
             select(Document.id, Document.storage_path, Document.title)
             .where(Document.organization_id == org_id)
             .where(or_(*filters))
         )
-        title_by_doc_id: dict[UUID, tuple[str, str]] = {}
-        title_by_leaf: dict[str, tuple[str, str]] = {}
         for doc_id, storage_path, title in rows:
-            title_by_doc_id[doc_id] = (str(doc_id), title or str(doc_id))
-            if storage_path:
-                title_by_leaf[storage_path] = (str(doc_id), title or storage_path)
-                leaf = storage_path.rsplit("/", 1)[-1]
-                title_by_leaf[leaf] = (str(doc_id), title or leaf)
-
-        # Key ``title_by_key`` by the RAW KB key (``c.document_id``) so
-        # downstream lookups (``_ranked_doc_ids``, ``_shape_do_kb_context``, the
-        # project filter below) resolve without re-deriving the stem.
-        for k in storage_keys:
-            resolved_id = doc_id_by_key.get(k)
-            if resolved_id is not None and resolved_id in title_by_doc_id:
-                title_by_key[k] = title_by_doc_id[resolved_id]
-            elif k in title_by_leaf:
-                title_by_key[k] = title_by_leaf[k]
+            if storage_path in storage_keys:
+                leaf = storage_path
+            else:
+                leaf = storage_path.rsplit("/", 1)[-1] if storage_path else ""
+            title_by_key[leaf] = (str(doc_id), title or leaf)
 
     # ------------------------------------------------------------------
     # Step 2: project scoping via CollectionDocument
@@ -168,7 +133,12 @@ async def resolve_and_filter_chunks(
                 chunks_to_emit = [
                     c
                     for c in chunks
-                    if (title_by_key.get(c.document_id or "", (None, None))[0] or "")
+                    if (
+                        title_by_key.get(
+                            c.document_id or "", (None, None)
+                        )[0]
+                        or ""
+                    )
                     in in_project
                 ]
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote
 
 import httpx
 import structlog
@@ -106,7 +105,7 @@ class ZINCConnector(ExternalDBConnector):
             return []
 
     async def fetch_by_id(self, record_id: str) -> Optional[ConnectorResult]:
-        url = f"{_BASE_URL}/substances/{quote(record_id, safe='')}.json"
+        url = f"{_BASE_URL}/substances/{record_id}.json"
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.get(url)

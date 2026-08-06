@@ -62,8 +62,6 @@ export interface AgentMessage {
   timestamp: Date;
   citations?: AgentCitation[];
   toolExecutions?: ToolExecution[];
-  /** Agent execution plan snapshot for this turn, persisted for the message's lifetime */
-  plan?: PlanStep[];
   isStreaming?: boolean;
   /** Whether this message represents an error */
   isError?: boolean;

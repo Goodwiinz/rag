@@ -13,9 +13,6 @@ from .ab_testing import (
     Variant,
 )
 from .agent_hitl_audit import AgentHitlAudit
-from .agent_run import AgentRun
-from .agent_run_event import AgentRunEvent
-from .agent_runtime_snapshot import AgentRuntimeSnapshot
 from .analytics_event import AnalyticsEvent, EventSeverity, EventType
 
 # Audit models
@@ -48,11 +45,6 @@ from .document_processing import (
     ProcessingStage,
     QualityMetricType,
 )
-
-# Model import order below is dependency-sensitive (notably evaluation models
-# must follow User and Organization), so keep it explicit rather than allowing
-# isort to move imports across those boundaries.
-# isort: off
 from .draft_citation import DraftCitation
 
 # Encrypted user models
@@ -81,12 +73,6 @@ from .permission import (
 from .processing import JobPriority, JobStatus, JobType, ProcessingJob
 from .project_memory import ProjectMemory
 from .project_note import ProjectNote
-from .project_skill import (
-    ProjectSkill,
-    ProjectSkillChangeRequest,
-    ProjectSkillVersion,
-    ProjectSkillVersionScan,
-)
 from .project_thread import ProjectThread, ProjectThreadLinkType
 from .quality import EvaluationType, MetricScope, MetricType, QualityMetric
 from .quality_metrics import SearchSession
@@ -107,6 +93,7 @@ from .evaluation import (
     EvaluationStatus,
     EvaluationThreshold,
 )
+
 
 # Research Engine models
 from .research_blueprint import ResearchBlueprint
@@ -130,16 +117,11 @@ from .evaluation import (
 # Thread-centric chat models (Terminal Observatory)
 from .workspace import Workspace, WorkspaceMember, WorkspaceRole
 
-# isort: on
-
 # Export all models for easy importing
 __all__ = [
     # Base classes
     "Base",
     "AgentHitlAudit",
-    "AgentRun",
-    "AgentRunEvent",
-    "AgentRuntimeSnapshot",
     "BaseModel",
     # User models
     "User",
@@ -188,10 +170,6 @@ __all__ = [
     "CitationRelationship",
     "ProjectMemory",
     "ProjectNote",
-    "ProjectSkill",
-    "ProjectSkillVersion",
-    "ProjectSkillChangeRequest",
-    "ProjectSkillVersionScan",
     "GeneratedDraft",
     "DraftCitation",
     "ProjectThread",

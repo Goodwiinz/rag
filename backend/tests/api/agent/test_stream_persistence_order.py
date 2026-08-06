@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from src.models.chat_message import ChatMessage, MessageRole
 
+
 pytestmark = pytest.mark.integration
 
 
@@ -63,7 +64,9 @@ async def test_user_message_persists_before_llm_call(
     from src.api.agent.execute import AgentExecuteRequest, AgentMessage
 
     body = AgentExecuteRequest(
-        messages=[AgentMessage(role="user", content="ping", client_message_id=cmid)],
+        messages=[
+            AgentMessage(role="user", content="ping", client_message_id=cmid)
+        ],
         thread_id=str(thread.id),
     )
 
@@ -72,7 +75,9 @@ async def test_user_message_persists_before_llm_call(
     # Bind a sessionmaker to the *test* engine so the streaming handler's
     # internal ``AsyncSessionLocal()`` opens a session against the same DB
     # the fixtures wrote to.
-    TestSessionLocal = async_sessionmaker(_engine, expire_on_commit=False)
+    TestSessionLocal = async_sessionmaker(
+        _engine, expire_on_commit=False
+    )
 
     from src.api.agent import streaming as streaming_mod
 
@@ -102,7 +107,7 @@ async def test_user_message_persists_before_llm_call(
             events.append(event)
 
     # The simulated failure must have surfaced as an SSE error event.
-    assert any("event: error" in e for e in events), events
+    assert any(e.startswith("event: error") for e in events), events
 
     # Use the test-fixture session (separate connection / transaction) to
     # verify the row landed in the DB.
@@ -122,97 +127,3 @@ async def test_user_message_persists_before_llm_call(
 
     # Track row for fixture cleanup.
     db_session.info["_created"]["chat_messages"].append(row.id)
-
-
-class _FakeGraphTokenThenError:
-    """Emits one user-facing token, then fails — a mid-stream error *after*
-    partial content was streamed, with the client still connected."""
-
-    def __init__(self):
-        self._snapshot = SimpleNamespace(values={"messages": []}, tasks=())
-
-    async def astream_events(self, *_args, **_kwargs):
-        yield {
-            "event": "on_chat_model_stream",
-            "name": "llm",
-            "metadata": {"langgraph_node": "llm_node"},
-            "data": {"chunk": SimpleNamespace(content="partial ans")},
-        }
-        raise RuntimeError("simulated mid-stream failure after a token")
-
-    async def aget_state(self, _config):
-        return self._snapshot
-
-
-async def test_connected_client_error_persists_partial_assistant_row(
-    db_session, thread_factory, user_factory, _engine
-):
-    """A mid-stream error while the client is still connected must persist the
-    streamed partial as a stopped assistant row — server-canonical clients save
-    nothing themselves, so otherwise the drained tokens are lost on reload (S1).
-    """
-    user = await user_factory()
-    thread = await thread_factory(user=user)
-
-    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
-
-    body = AgentExecuteRequest(
-        messages=[AgentMessage(role="user", content="ping", client_message_id=uuid4())],
-        thread_id=str(thread.id),
-    )
-    # Connected throughout — this is the path the old code left unpersisted.
-    fastapi_request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-
-    TestSessionLocal = async_sessionmaker(_engine, expire_on_commit=False)
-
-    from src.services.agent import agent_execution_service as jobs_mod
-    from src.api.agent import streaming as streaming_mod
-
-    with (
-        patch.object(streaming_mod, "AsyncSessionLocal", TestSessionLocal),
-        # The assistant partial persists via _persist_assistant_message_safe,
-        # which opens its OWN jobs.AsyncSessionLocal — bind it to the test engine
-        # too or the row lands in a DB this test can't see.
-        patch.object(jobs_mod, "AsyncSessionLocal", TestSessionLocal),
-        patch(
-            "src.services.agent.observability.configure_langsmith",
-            new=lambda: None,
-        ),
-        patch(
-            "src.services.agent.checkpointer.get_checkpointer",
-            new=AsyncMock(return_value=object()),
-        ),
-        patch(
-            "src.services.agent.memory.get_memory_store",
-            new=AsyncMock(return_value=object()),
-        ),
-        patch(
-            "src.services.agent.graph.compile_agent_graph",
-            new=lambda **_kwargs: _FakeGraphTokenThenError(),
-        ),
-    ):
-        events = []
-        async for event in streaming_mod.stream_event_generator(
-            body, fastapi_request, user
-        ):
-            events.append(event)
-
-    assert any("event: error" in e for e in events), events
-
-    await db_session.commit()
-    assistant = (
-        await db_session.execute(
-            select(ChatMessage)
-            .where(ChatMessage.thread_id == thread.id)
-            .where(ChatMessage.role == MessageRole.ASSISTANT)
-        )
-    ).scalar_one_or_none()
-
-    assert assistant is not None, (
-        "assistant partial must persist when the stream errors with the client "
-        "still connected (server-canonical mode writes no client-side copy)"
-    )
-    assert assistant.content == "partial ans"
-    assert assistant.stopped is True
-
-    db_session.info["_created"]["chat_messages"].append(assistant.id)

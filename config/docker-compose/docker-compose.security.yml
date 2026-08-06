@@ -14,6 +14,7 @@ services:
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=securitytestpassword
+      - QDRANT_URL=http://qdrant:6333
       - SECRET_KEY=${SECRET_KEY}
       - ENVIRONMENT=security-testing
       - DEBUG=true
@@ -34,6 +35,8 @@ services:
         condition: service_healthy
       neo4j:
         condition: service_healthy
+      qdrant:
+        condition: service_healthy
     networks:
       - security-network
     restart: unless-stopped
@@ -46,13 +49,10 @@ services:
   # Target Application Frontend
   frontend:
     build:
-      context: .
-      dockerfile: frontend/Dockerfile.prod
-      args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3000:80"
     environment:
       - REACT_APP_API_URL=http://backend:8000
       - REACT_APP_ENVIRONMENT=security-testing
@@ -131,6 +131,22 @@ services:
       timeout: 5s
       retries: 10
 
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:v1.7.0
+    volumes:
+      - qdrant_security_data:/qdrant/storage
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    networks:
+      - security-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   # OWASP ZAP Baseline Scan
   zap-baseline:
@@ -250,24 +266,18 @@ services:
     profiles:
       - sast-advanced
 
-  # Dependency Audit for Frontend Dependencies
+  # npm Audit for Frontend Dependencies
   npm-audit:
-    image: node:24-alpine
+    image: node:18-alpine
     command: |
       sh -c "
-        cd /app
-        corepack enable
-        corepack prepare pnpm@10.18.2 --activate
-        pnpm install --frozen-lockfile --filter multimodal-rag-frontend...
-        pnpm audit --audit-level moderate --json > /reports/npm-audit-report.json
-        pnpm audit --audit-level moderate > /reports/npm-audit-report.txt
+        cd /app/frontend
+        npm install
+        npm audit --audit-level moderate --json > /reports/npm-audit-report.json
+        npm audit --audit-level moderate > /reports/npm-audit-report.txt
       "
     volumes:
-      - ./package.json:/app/package.json:ro
-      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
-      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
-      - ./frontend/package.json:/app/frontend/package.json:ro
-      - ./tests/e2e/package.json:/app/tests/e2e/package.json:ro
+      - ./frontend:/app/frontend
       - ./security/reports:/reports
     profiles:
       - dependency-scan
@@ -354,6 +364,7 @@ volumes:
   neo4j_security_logs:
   neo4j_security_import:
   neo4j_security_plugins:
+  qdrant_security_data:
   security_uploads:
   security_test_files:
 

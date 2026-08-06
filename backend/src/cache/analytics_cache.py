@@ -186,9 +186,9 @@ class AnalyticsCache:
                         # Also set in fallback cache
                         fallback_key = self._get_fallback_key(key)
                         self.fallback_cache[fallback_key] = value
-                        self.fallback_cache_expiry[fallback_key] = (
-                            datetime.utcnow() + timedelta(seconds=ttl)
-                        )
+                        self.fallback_cache_expiry[
+                            fallback_key
+                        ] = datetime.utcnow() + timedelta(seconds=ttl)
 
                     return True
 
@@ -199,9 +199,9 @@ class AnalyticsCache:
             if use_fallback:
                 fallback_key = self._get_fallback_key(key)
                 self.fallback_cache[fallback_key] = value
-                self.fallback_cache_expiry[fallback_key] = (
-                    datetime.utcnow() + timedelta(seconds=ttl)
-                )
+                self.fallback_cache_expiry[
+                    fallback_key
+                ] = datetime.utcnow() + timedelta(seconds=ttl)
 
                 # Clean up old entries
                 self._cleanup_fallback_cache()

@@ -67,11 +67,9 @@ class MessageAttachment(BaseModel):
             "display_name": self.display_name
             or (self.document.title if self.document else "Unknown"),
             "thumbnail_url": self.thumbnail_url,
-            "document_type": (
-                self.document.document_type.value
-                if self.document and self.document.document_type
-                else None
-            ),
+            "document_type": self.document.document_type.value
+            if self.document and self.document.document_type
+            else None,
             "mime_type": self.document.mime_type if self.document else None,
         }
 

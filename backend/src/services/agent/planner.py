@@ -1,10 +1,8 @@
 """Adaptive planner for multi-step agent queries.
 
-Generates an execution plan when the query requires three or more tool
-calls, using a single structured-output LLM call that both assesses
-complexity and produces the plan (simple queries come back with an empty
-``steps`` list). Uses structured output from an LLM to produce validated
-Pydantic models.
+Estimates query complexity and generates an execution plan when the
+query requires three or more tool calls. Uses structured output from
+an LLM to produce validated Pydantic models.
 """
 
 import asyncio
@@ -74,11 +72,10 @@ _ARXIV_ID_RE = re.compile(r"\b\d{4}\.\d{4,5}\b")
 # The research LLM handles this in 1-2 tool rounds without a formal plan.
 _SIMPLE_ADD_TARGET_RE = re.compile(r"\b(project|library|collection)\b", re.IGNORECASE)
 
-# Wall-clock cap for the planner LLM call. The planner is purely advisory —
+# Wall-clock cap for planner LLM calls. The planner is purely advisory —
 # on timeout it returns {} and the turn proceeds without a plan. The
 # lightweight model's normal latency is ~2-3s (p95≈8s); 8s is ample
-# headroom. The planner makes a single LLM call per turn (complexity
-# gating is folded into plan generation), so worst-case is 8s flat.
+# headroom while capping worst-case at ~16s (2×8) instead of ~40s (2×20).
 PLANNER_LLM_TIMEOUT_SECONDS = 8
 
 
@@ -110,10 +107,6 @@ _WRITING_CONJUNCTION_RE = re.compile(
 _SIMPLE_WRITING_VERBS: frozenset[str] = frozenset(
     {"summarize", "summarise", "create", "draft", "write"}
 )
-_CONTEXTUAL_WRITING_PREFIX_RE = re.compile(r"^(?:based on|using|from)\b", re.IGNORECASE)
-_WRITING_VERB_RE = re.compile(
-    r"\b(?:summarize|summarise|create|draft|write)\b", re.IGNORECASE
-)
 
 
 def _is_simple_writing_flow(query: str) -> bool:
@@ -140,11 +133,7 @@ def _is_simple_writing_flow(query: str) -> bool:
         return False
 
     first_word = words[0].lower().rstrip(_LEADING_PUNCTUATION)
-    direct_imperative = first_word in _SIMPLE_WRITING_VERBS
-    contextual_imperative = bool(
-        _CONTEXTUAL_WRITING_PREFIX_RE.search(query) and _WRITING_VERB_RE.search(query)
-    )
-    if not direct_imperative and not contextual_imperative:
+    if first_word not in _SIMPLE_WRITING_VERBS:
         return False
 
     # Questions starting with a writing verb ("what should I write?") are not
@@ -170,16 +159,15 @@ def _is_simple_writing_flow(query: str) -> bool:
     return True
 
 
-def _is_grounded_summary_flow(query: str) -> bool:
-    """Return True when retrieved context can answer a simple summary directly."""
-    return _is_simple_writing_flow(query) and bool(
-        re.search(r"\bsummari[sz]e\b", query, re.IGNORECASE)
-    )
-
-
 # ---------------------------------------------------------------------------
 # Pydantic models
 # ---------------------------------------------------------------------------
+
+
+class ComplexityCheck(BaseModel):
+    """Estimated number of tool calls a query requires."""
+
+    step_count: int
 
 
 class PlanStep(BaseModel):
@@ -224,16 +212,39 @@ def _build_planner_llm(max_tokens: int = 2048):
 # ---------------------------------------------------------------------------
 
 
+async def check_complexity(
+    query: str, tool_names: list[str], page_context: dict
+) -> int:
+    """Estimate the number of tool calls needed for a query.
+
+    Uses the lightweight model with structured output for fast, cheap estimation.
+    Returns the estimated step_count.
+    """
+    llm = _build_planner_llm()
+    structured_llm = llm.with_structured_output(ComplexityCheck)
+
+    safe_query = _sanitize_prompt_field(query)
+    safe_page_context = {
+        k: _sanitize_prompt_field(str(v)) if isinstance(v, str) else v
+        for k, v in page_context.items()
+    }
+    prompt = (
+        "Estimate the number of tool calls needed to answer the following "
+        "user query.\n\n"
+        f"Available tools: {', '.join(tool_names)}\n"
+        f"Page context: {safe_page_context}\n\n"
+        f"User query: {safe_query}\n\n"
+        "Return only the estimated step_count (integer)."
+    )
+
+    result = await structured_llm.ainvoke([HumanMessage(content=prompt)])
+    return result.step_count
+
+
 async def generate_plan(
     query: str, tool_names: list[str], page_context: dict
 ) -> AgentPlan:
-    """Generate an execution plan for a query in a single LLM call.
-
-    Complexity gating is folded into this call: the prompt instructs the
-    model to return an EMPTY ``steps`` list when the query needs fewer
-    than three tool calls, so no separate complexity-estimation call is
-    needed (dev traces showed the old two-call design costing ~5s of
-    sequential planner latency per turn).
+    """Generate an execution plan for a complex query.
 
     Uses the lightweight deployment with structured output. Trace 019e69f4
     showed the full model-router call stalling ~25s on a simple add-to-project
@@ -254,10 +265,7 @@ async def generate_plan(
         f"Available tools: {', '.join(tool_names)}\n"
         f"Page context: {safe_page_context}\n\n"
         f"User query: {safe_query}\n\n"
-        "FIRST assess complexity: if the query can be answered with FEWER "
-        "than three tool calls, return an empty steps list (steps: []) and "
-        "nothing else — simple queries need no plan.\n\n"
-        "Otherwise, for each step, specify:\n"
+        "For each step, specify:\n"
         "- step: sequential step number starting at 1\n"
         "- description: what this step does\n"
         "- tool: which tool to use — MUST be one of the available tools "
@@ -336,10 +344,8 @@ def make_planner_node(
 
     The returned async function:
     1. Skips if ``state["plan"]`` is already populated.
-    2. Generates a plan in ONE LLM call; the prompt tells the model to
-       return empty steps for simple (<3 tool call) queries, so no
-       separate complexity-check call is made.
-    3. Returns the plan as serialized dicts when it has 3+ steps.
+    2. Checks complexity -- if step_count < 3, skips (simple query).
+    3. Generates a full plan and returns it as serialized dicts.
     """
 
     async def planner_node(state: Dict[str, Any], config: RunnableConfig) -> dict:
@@ -353,7 +359,7 @@ def make_planner_node(
         # Plans only matter when there's a project context to organize the
         # multi-step output into (ingest → add to project → list). In chat
         # mode the agent runs ad-hoc and the plan is never executed —
-        # generating one wastes a planner LLM call. Skip.
+        # generating one wastes 1-2s + a complexity LLM call. Skip.
         page_context = state.get("page_context") or {}
         if page_context.get("type") != "project":
             return {}
@@ -372,7 +378,7 @@ def make_planner_node(
         if not query:
             return {}
 
-        # Fast heuristic: skip the planner LLM call for obviously simple queries.
+        # Fast heuristic: skip complexity LLM call for obviously simple queries.
         # Bumped from 8 → 12 tokens after trace 019e1554 showed a 52s planner
         # spin on a query the LLM would have handled in one tool call anyway.
         # Tool-trigger detection runs first so short imperatives like
@@ -389,14 +395,33 @@ def make_planner_node(
 
         page_context = state.get("page_context", {})
 
-        # Trace 019e6a08: planner LLM latency pushed the turn past the ~30s
-        # HTTP cancel budget. Simple single-tool imperatives need no plan.
+        # Trace 019e6a08: complexity check alone took ~17s on dev; adding
+        # generate_plan pushed the turn past the ~30s HTTP cancel budget.
+        # Simple single-tool imperatives need neither complexity nor plan.
         if _is_simple_add_flow(query) or _is_simple_writing_flow(query):
             logger.info("Skipping planner entirely for simple single-tool flow")
             return {}
 
-        # 2. Generate plan (single LLM call — complexity gating is folded
-        # into the prompt, which returns empty steps for simple queries).
+        # 2. Check complexity
+        try:
+            step_count = await asyncio.wait_for(
+                check_complexity(query, tool_names, page_context),
+                timeout=PLANNER_LLM_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Complexity check exceeded %ds; skipping planner",
+                PLANNER_LLM_TIMEOUT_SECONDS,
+            )
+            return {}
+        except Exception:
+            logger.warning("Complexity check failed, skipping planner", exc_info=True)
+            return {}
+
+        if step_count < 3:
+            return {}
+
+        # 3. Generate plan
         try:
             plan = await asyncio.wait_for(
                 generate_plan(query, tool_names, page_context),
@@ -412,16 +437,13 @@ def make_planner_node(
             logger.warning("Plan generation failed, skipping planner", exc_info=True)
             return {}
 
-        # Gate on plan size: empty steps = the model judged the query simple
-        # (<3 tool calls), and a 1-2 step plan adds no value over the
-        # executor's own tool loop — same threshold the old two-call design
-        # enforced via its separate complexity estimate. An empty plan must
-        # also never occupy the ``plan`` slot (it would skip planning on
-        # later passes and confuse reflection-prompt rendering). ``plan``
-        # may be ``None`` if the structured-output LLM call returned an
-        # unparseable response without raising.
-        if plan is None or len(plan.steps) < 3:
-            logger.info("Planner judged query simple (<3 steps); no plan stored")
+        # Defensive guard: an empty plan adds no value but does occupy the
+        # ``plan`` slot, which would skip planning on subsequent turns and
+        # confuse the reflection-prompt rendering. Treat it as no-plan.
+        # ``plan`` may also be ``None`` if the structured-output LLM call
+        # returned an unparseable response without raising.
+        if plan is None or not plan.steps:
+            logger.info("Planner returned no plan; treating as no plan")
             return {}
 
         return {"plan": [step.model_dump() for step in plan.steps]}

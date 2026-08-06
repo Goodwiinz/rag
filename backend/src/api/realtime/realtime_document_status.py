@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.core.config import settings
-from src.core.database import get_db
+from src.core.database import get_async_session
 from src.core.dependencies import get_current_organization, get_current_user
 from src.models.document import Document
 from src.models.document import ProcessingStatus as DocumentProcessingStatus
@@ -147,7 +147,7 @@ async def subscribe_document_status_updates(
     subscription: RealtimeStatusSubscription,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_async_session),
 ):
     """
     Subscribe to real-time status updates for a specific document
@@ -233,7 +233,7 @@ async def get_realtime_document_status(
     include_stages: bool = Query(True, description="Include processing stage details"),
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_async_session),
 ):
     """
     Get enhanced real-time status for a specific document
@@ -319,9 +319,9 @@ async def get_realtime_document_status(
                     status=job.status.value,
                     progress=job.progress_percentage,
                     started_at=job.started_at.isoformat() if job.started_at else None,
-                    completed_at=(
-                        job.completed_at.isoformat() if job.completed_at else None
-                    ),
+                    completed_at=job.completed_at.isoformat()
+                    if job.completed_at
+                    else None,
                     duration_seconds=job.duration_seconds,
                     error=job.error_message,
                     metadata={
@@ -378,16 +378,12 @@ async def get_realtime_document_status(
             current_stage=current_stage,
             stages=stages,
             upload_progress=100.0,  # Assume upload is complete for processing status
-            processing_started_at=(
-                document.processing_started_at.isoformat()
-                if document.processing_started_at
-                else None
-            ),
-            processing_completed_at=(
-                document.processing_completed_at.isoformat()
-                if document.processing_completed_at
-                else None
-            ),
+            processing_started_at=document.processing_started_at.isoformat()
+            if document.processing_started_at
+            else None,
+            processing_completed_at=document.processing_completed_at.isoformat()
+            if document.processing_completed_at
+            else None,
             estimated_completion_time=estimated_completion,
             processing_error=document.processing_error,
             retry_count=document.processing_retry_count,
@@ -409,9 +405,9 @@ async def get_realtime_document_status(
             created_at=document.created_at.isoformat(),
             updated_at=document.updated_at.isoformat(),
             websocket_subscribers=active_subscribers,
-            last_status_update=(
-                latest_update.created_at.isoformat() if latest_update else None
-            ),
+            last_status_update=latest_update.created_at.isoformat()
+            if latest_update
+            else None,
             update_frequency="realtime" if active_subscribers > 0 else None,
             is_realtime_enabled=active_subscribers > 0,
         )
@@ -433,7 +429,7 @@ async def get_bulk_realtime_status(
     request: BulkStatusRequest,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_async_session),
 ):
     """
     Get real-time status for multiple documents in bulk
@@ -467,16 +463,12 @@ async def get_bulk_realtime_status(
                 "title": document.title,
                 "document_type": document.document_type.value,
                 "processing_status": document.processing_status.value,
-                "processing_started_at": (
-                    document.processing_started_at.isoformat()
-                    if document.processing_started_at
-                    else None
-                ),
-                "processing_completed_at": (
-                    document.processing_completed_at.isoformat()
-                    if document.processing_completed_at
-                    else None
-                ),
+                "processing_started_at": document.processing_started_at.isoformat()
+                if document.processing_started_at
+                else None,
+                "processing_completed_at": document.processing_completed_at.isoformat()
+                if document.processing_completed_at
+                else None,
                 "processing_error": document.processing_error,
                 "retry_count": document.processing_retry_count,
                 "updated_at": document.updated_at.isoformat(),
@@ -536,7 +528,7 @@ async def get_bulk_realtime_status(
 async def get_realtime_system_metrics(
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_async_session),
 ):
     """
     Get real-time system-wide processing metrics
@@ -659,7 +651,7 @@ async def trigger_document_status_broadcast(
     document_id: str,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_async_session),
 ):
     """
     Trigger a manual status broadcast for a document

@@ -72,6 +72,7 @@ dev: up
 	@echo "API Docs: http://localhost:8000/docs"
 	@echo "Frontend: http://localhost:3000"
 	@echo "Neo4j Browser: http://localhost:7474"
+	@echo "Qdrant Dashboard: http://localhost:6333/dashboard"
 
 test:
 	@echo "Running tests..."
@@ -109,11 +110,11 @@ validate:
 # Individual Services
 api:
 	@echo "Starting only API server..."
-	docker-compose up -d postgres redis neo4j backend
+	docker-compose up -d postgres redis neo4j qdrant backend
 
 worker:
 	@echo "Starting only Celery worker..."
-	docker-compose up -d postgres redis neo4j celery-worker
+	docker-compose up -d postgres redis neo4j qdrant celery-worker
 
 beat:
 	@echo "Starting only Celery beat..."
@@ -145,6 +146,7 @@ quick-start: build dev init-db
 	@echo "  • API Docs: http://localhost:8000/docs"
 	@echo "  • Frontend: http://localhost:3000"
 	@echo "  • Neo4j: http://localhost:7474 (neo4j/neo4jpassword)"
+	@echo "  • Qdrant: http://localhost:6333"
 	@echo ""
 	@echo "Useful commands:"
 	@echo "  • make logs     - View service logs"

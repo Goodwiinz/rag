@@ -7,10 +7,8 @@ Tools: search_arxiv, ingest_arxiv_papers, search_documents,
 
 import asyncio
 import logging
-import re
-from uuid import uuid4
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
@@ -21,13 +19,28 @@ from src.services.agent.observability import track_node_execution
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
-from src.services.agent.tool_registry import ToolPolicyTag
-from src.services.agent.tools import TOOL_REGISTRY
+from src.services.agent.tools import (
+    add_document_to_project,
+    create_project,
+    do_kb_retrieve,
+    ingest_arxiv_papers,
+    list_project_documents,
+    list_projects,
+    search_arxiv,
+    search_documents,
+)
 
 logger = logging.getLogger(__name__)
 
 RESEARCH_TOOLS = [
-    descriptor.tool for descriptor in TOOL_REGISTRY.descriptors_for_subgraph("research")
+    search_arxiv,
+    ingest_arxiv_papers,
+    search_documents,
+    do_kb_retrieve,
+    create_project,
+    list_projects,
+    add_document_to_project,
+    list_project_documents,
 ]
 
 RESEARCH_TOOL_NAMES_LIST = [t.name for t in RESEARCH_TOOLS]
@@ -37,61 +50,6 @@ RESEARCH_TOOL_NAMES_LIST = [t.name for t in RESEARCH_TOOLS]
 # refine → ingest → list → confirm sequence; anything more is the agent
 # refining queries the user did not ask for.
 MAX_RESEARCH_TOOL_LOOPS = 5
-
-_DIRECT_ARXIV_SEARCH_RE = re.compile(
-    r"\b(?:search|find|look\s+up|lookup|discover|list|show)\b.*\barxiv\b"
-    r"|\barxiv\b.*\b(?:search|find|look\s+up|lookup|discover|list|show)\b",
-    re.IGNORECASE,
-)
-
-
-def _direct_arxiv_search_query(content: str) -> str | None:
-    """Return a search query when the user explicitly asks to search arXiv."""
-    if not content or not content.strip():
-        return None
-    if not _DIRECT_ARXIV_SEARCH_RE.search(content):
-        return None
-
-    query = re.sub(
-        r"\b(?:search|find|look\s+up|lookup|discover|list|show)\b",
-        " ",
-        content,
-        count=1,
-        flags=re.IGNORECASE,
-    )
-    query = re.sub(r"\barxiv(?:\.org)?\b", " ", query, flags=re.IGNORECASE)
-    query = query.strip()
-    query = re.sub(
-        r"^(?:for|on|about|regarding|related\s+to)\s+",
-        "",
-        query,
-        flags=re.IGNORECASE,
-    )
-    query = " ".join(query.split())
-    return query or content.strip()
-
-
-def _direct_arxiv_search_message(messages: list) -> AIMessage | None:
-    """Build a deterministic search_arxiv call for clear direct-search turns."""
-    if not messages or not isinstance(messages[-1], HumanMessage):
-        return None
-
-    raw_content = messages[-1].content
-    content = raw_content if isinstance(raw_content, str) else str(raw_content)
-    query = _direct_arxiv_search_query(content)
-    if query is None:
-        return None
-
-    return AIMessage(
-        content="",
-        tool_calls=[
-            {
-                "id": f"direct_search_arxiv_{uuid4().hex}",
-                "name": "search_arxiv",
-                "args": {"query": query, "max_results": 5},
-            }
-        ],
-    )
 
 
 def _build_research_system_prompt() -> str:
@@ -123,11 +81,11 @@ def _build_research_system_prompt() -> str:
 # Only tools actually in RESEARCH_TOOLS belong here — the filtered tool
 # node can never execute anything else, so extra entries are dead weight
 # that misleads readers about what this subgraph can run.
-RESEARCH_DESTRUCTIVE_TOOLS = frozenset(
-    descriptor.name
-    for descriptor in TOOL_REGISTRY.descriptors_for_subgraph("research")
-    if ToolPolicyTag.DESTRUCTIVE in descriptor.policy_tags
-)
+RESEARCH_DESTRUCTIVE_TOOLS = {
+    "ingest_arxiv_papers",
+    "add_document_to_project",
+    "create_project",
+}
 
 
 @track_node_execution("research_llm_node")
@@ -138,19 +96,7 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from src.core.config import get_settings
 
     sanitized = _sanitize_messages(state["messages"])
-    direct_search = _direct_arxiv_search_message(sanitized)
-    if direct_search is not None:
-        return {"messages": [direct_search]}
-
-    messages = [SystemMessage(content=_build_research_system_prompt())]
-    from src.services.agent.runtime_snapshot import render_project_skill_catalog
-
-    skill_catalog_prompt = render_project_skill_catalog(
-        state.get("project_skill_catalog", [])
-    )
-    if skill_catalog_prompt:
-        messages.append(SystemMessage(content=skill_catalog_prompt))
-    messages += sanitized
+    messages = [SystemMessage(content=_build_research_system_prompt())] + sanitized
 
     settings = get_settings()
     # Post-tool synthesis turn → use the lightweight deployment. Mirrors the
@@ -173,35 +119,29 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         if plan_directive:
             messages.insert(1, SystemMessage(content=plan_directive))
 
-    # Hoisted above the branch: _build_llm is used inside it, so importing
-    # after would NameError.
-    from src.services.agent.graph import (
-        AGENT_LLM_TIMEOUT_SECONDS,
-        _build_llm,
-        _merge_run_config,
-    )
-
     if use_lightweight_synthesis:
         from src.services.agent.llm_factory import build_synthesis_llm
 
         llm = build_synthesis_llm(max_tokens=4096)
         logger.debug("research_llm_node: using synthesis model after ToolMessage")
     else:
-        # Tool-decision turn: the main deployment, deliberately. Multi-step
-        # function calling is where model tier dominates — benchmarks put the
-        # top tier around 72% at 5 required calls against ~16% for the small
-        # ones, and this node drives an 8-loop tool path. The cheap tier used
-        # to sit here only because the main deployment was model-router,
-        # which hit the 30s cap (trace 019e1da5); that is no longer the
-        # deployment, so the workaround goes with it.
-        llm = _build_llm(model_override=state.get("model") or None)
-        logger.debug("research_llm_node: using main model for tool decision")
-    # See graph.llm_node for rationale on parallel_tool_calls=False.
-    from src.services.agent._nodes_llm import tools_for_runtime_snapshot
+        # Tool-decision turn: route off model-router to the lightweight
+        # deployment (gpt-5-mini). LangSmith showed model-router hitting the
+        # 30s timeout cap on research_llm_node (trace 019e1da5) while gpt-5-mini
+        # handles the same node in <10s. Lightweight builder also defaults
+        # reasoning_effort=minimal (cheap tool name + query string decision).
+        from src.services.agent.llm_factory import build_lightweight_llm
 
+        llm = build_lightweight_llm(max_tokens=4096)
+        logger.debug("research_llm_node: using lightweight model for tool decision")
+    # See graph.llm_node for rationale on parallel_tool_calls=False.
     llm_with_tools = llm.bind_tools(
-        tools_for_runtime_snapshot(RESEARCH_TOOLS, state),
+        RESEARCH_TOOLS,
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
+    )
+    from src.services.agent.graph import (
+        AGENT_LLM_TIMEOUT_SECONDS,
+        _merge_run_config,
     )
 
     invoke_config = _merge_run_config(
@@ -244,12 +184,7 @@ def research_should_continue(state: AgentState) -> str:
     last = state["messages"][-1] if state["messages"] else None
     if isinstance(last, AIMessage) and last.tool_calls:
         if state.get("tool_loop_count", 0) < MAX_RESEARCH_TOOL_LOOPS:
-            if any(
-                TOOL_REGISTRY.has_policy_in_subgraph(
-                    tc["name"], ToolPolicyTag.DESTRUCTIVE, "research"
-                )
-                for tc in last.tool_calls
-            ):
+            if any(tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
                 return "research_interrupt_node"
             return "research_tool_node"
         # Loop ceiling tripped while the model still wants more tools.
@@ -316,7 +251,10 @@ async def research_force_synthesis_node(
 
     llm = build_synthesis_llm(max_tokens=4096)
     # No bind_tools — force a pure text response.
-    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _merge_run_config
+    from src.services.agent.graph import (
+        AGENT_LLM_TIMEOUT_SECONDS,
+        _merge_run_config,
+    )
 
     invoke_config = _merge_run_config(
         config,
@@ -341,10 +279,8 @@ async def research_force_synthesis_node(
         )
         response = AIMessage(
             content=(
-                "I ran my searches but the final summary step timed out "
-                f"({AGENT_LLM_TIMEOUT_SECONDS}s) before producing an answer. "
-                "The search results are still in context — please ask me again "
-                "and I'll synthesize them directly, rather than re-searching."
+                "I gathered some results but ran out of time composing a "
+                "final summary. Please ask me to summarize the papers above."
             ),
         )
 
@@ -369,11 +305,7 @@ async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> 
         # checkpoint or an out-of-order edge could violate that contract.
         return {"pending_confirmation": {}, "user_confirmed": False}
     destructive_calls = [
-        tc
-        for tc in last.tool_calls
-        if TOOL_REGISTRY.has_policy_in_subgraph(
-            tc["name"], ToolPolicyTag.DESTRUCTIVE, "research"
-        )
+        tc for tc in last.tool_calls if tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS
     ]
     tool_names = [tc["name"] for tc in destructive_calls]
 
@@ -449,7 +381,7 @@ def build_research_subgraph() -> StateGraph:
     """
     from src.services.agent.graph import make_filtered_tool_node
 
-    RESEARCH_TOOL_NAMES = {t.name for t in RESEARCH_TOOLS} | {"load_project_skill"}
+    RESEARCH_TOOL_NAMES = {t.name for t in RESEARCH_TOOLS}
     filtered_tool = make_filtered_tool_node(RESEARCH_TOOL_NAMES)
 
     # Create v2 nodes

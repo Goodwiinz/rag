@@ -55,6 +55,14 @@ data:
     }
 
   # Vector Database Configuration
+  qdrant.json: |
+    {
+      "url": "http://qdrant:6333",
+      "api_key": "",
+      "timeout": 30,
+      "max_retries": 3,
+      "prefer_grpc": false
+    }
 
   # WebSocket Configuration
   websocket.json: |

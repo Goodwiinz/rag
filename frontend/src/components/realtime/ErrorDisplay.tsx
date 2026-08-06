@@ -38,9 +38,9 @@ const getErrorSeverity = (
     return {
       type: 'warning',
       icon: '⚠️',
-      color: 'text-(--nous-corona)',
-      bgColor: 'bg-(--nous-corona)/10',
-      borderColor: 'border-(--nous-corona)/30',
+      color: 'text-[var(--nous-corona)]',
+      bgColor: 'bg-[var(--nous-corona)]/10',
+      borderColor: 'border-[var(--nous-corona)]/30',
       message: 'Connection issue - retrying may resolve this',
     };
   }
@@ -54,9 +54,9 @@ const getErrorSeverity = (
     return {
       type: 'error',
       icon: '❌',
-      color: 'text-(--nous-mars)',
-      bgColor: 'bg-(--nous-mars)/10',
-      borderColor: 'border-(--nous-mars)/30',
+      color: 'text-[var(--nous-mars)]',
+      bgColor: 'bg-[var(--nous-mars)]/10',
+      borderColor: 'border-[var(--nous-mars)]/30',
       message: 'File format error - check file format',
     };
   }
@@ -70,9 +70,9 @@ const getErrorSeverity = (
     return {
       type: 'error',
       icon: '⚙️',
-      color: 'text-(--nous-mars)',
-      bgColor: 'bg-(--nous-mars)/10',
-      borderColor: 'border-(--nous-mars)/30',
+      color: 'text-[var(--nous-mars)]',
+      bgColor: 'bg-[var(--nous-mars)]/10',
+      borderColor: 'border-[var(--nous-mars)]/30',
       message: 'Processing error - check file content',
     };
   }
@@ -86,9 +86,9 @@ const getErrorSeverity = (
     return {
       type: 'critical',
       icon: '🚨',
-      color: 'text-(--nous-mars)',
-      bgColor: 'bg-(--nous-mars)/15',
-      borderColor: 'border-(--nous-mars)/40',
+      color: 'text-[var(--nous-mars)]',
+      bgColor: 'bg-[var(--nous-mars)]/15',
+      borderColor: 'border-[var(--nous-mars)]/40',
       message: 'System error - contact support',
     };
   }
@@ -98,9 +98,9 @@ const getErrorSeverity = (
     return {
       type: 'critical',
       icon: '🚫',
-      color: 'text-(--nous-mars)',
-      bgColor: 'bg-(--nous-mars)/15',
-      borderColor: 'border-(--nous-mars)/40',
+      color: 'text-[var(--nous-mars)]',
+      bgColor: 'bg-[var(--nous-mars)]/15',
+      borderColor: 'border-[var(--nous-mars)]/40',
       message: 'Maximum retry attempts reached',
     };
   }
@@ -109,9 +109,9 @@ const getErrorSeverity = (
   return {
     type: 'error',
     icon: '❌',
-    color: 'text-(--nous-mars)',
-    bgColor: 'bg-(--nous-mars)/10',
-    borderColor: 'border-(--nous-mars)/30',
+    color: 'text-[var(--nous-mars)]',
+    bgColor: 'bg-[var(--nous-mars)]/10',
+    borderColor: 'border-[var(--nous-mars)]/30',
     message: 'An error occurred',
   };
 };
@@ -180,7 +180,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           {shouldShowRetry && (
             <button
               onClick={handleRetry}
-              className="px-3 py-1 text-xs font-medium text-(--nous-fg-accent-safe) hover:text-(--nous-sol) hover:bg-(--nous-sol)/10 rounded transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="px-3 py-1 text-xs font-medium text-[var(--nous-fg-accent-safe)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label="Retry processing"
             >
               Retry
@@ -227,7 +227,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           {shouldShowRetry && (
             <button
               onClick={handleRetry}
-              className="px-4 py-2 text-sm font-medium text-(--nous-fg-accent-safe) hover:text-(--nous-sol) hover:bg-(--nous-sol)/10 rounded-md transition-colors flex items-center space-x-1 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="px-4 py-2 text-sm font-medium text-[var(--nous-fg-accent-safe)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 rounded-md transition-colors flex items-center space-x-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label="Retry processing"
             >
               <svg
@@ -255,7 +255,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
               'text-sm',
               severity.color,
               'cursor-pointer hover:underline',
-              'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               showDetails && 'select-all'
             )}
             onClick={handleErrorClick}
@@ -280,7 +280,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           {showDetails && error.length > 100 && (
             <button
               onClick={handleErrorClick}
-              className="text-xs text-(--nous-fg-accent-safe) hover:text-(--nous-sol) hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="text-xs text-[var(--nous-fg-accent-safe)] hover:text-[var(--nous-sol)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label={
                 isExpanded
                   ? 'Show less error details'
@@ -302,7 +302,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           )}
 
           {severity.type === 'critical' && (
-            <div className="text-xs text-(--nous-mars) bg-(--nous-mars)/10 rounded p-2 border border-(--nous-mars)/30">
+            <div className="text-xs text-[var(--nous-mars)] bg-[var(--nous-mars)]/10 rounded p-2 border border-[var(--nous-mars)]/30">
               <p>
                 🆘 <strong>Support Needed:</strong> This error requires
                 attention. Please contact support with the error details above.
@@ -311,7 +311,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           )}
 
           {isMaxRetriesReached && (
-            <div className="text-xs text-(--nous-corona) bg-(--nous-corona)/10 rounded p-2 border border-(--nous-corona)/30">
+            <div className="text-xs text-[var(--nous-corona)] bg-[var(--nous-corona)]/10 rounded p-2 border border-[var(--nous-corona)]/30">
               <p>
                 ⚠️ <strong>Max Retries:</strong> Maximum retry attempts (
                 {maxRetryAttempts}) reached. The document requires manual
@@ -333,7 +333,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           {onErrorClick && !showDetails && (
             <button
               onClick={onErrorClick}
-              className="text-xs text-(--nous-fg-accent-safe) hover:text-(--nous-sol) hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="text-xs text-[var(--nous-fg-accent-safe)] hover:text-[var(--nous-sol)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label="View error details"
             >
               View Details

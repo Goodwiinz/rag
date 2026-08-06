@@ -404,7 +404,7 @@ curl http://localhost:13133/config
 curl http://localhost:9090/api/v1/targets
 
 # Test Grafana data source
-curl -u admin:admin123 http://localhost:3001/api/datasources
+curl -u admin:REDACTED http://localhost:3001/api/datasources
 
 # Validate alert rules
 curl http://localhost:9090/api/v1/rules

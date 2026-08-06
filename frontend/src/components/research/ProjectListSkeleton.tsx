@@ -19,7 +19,7 @@ export const ProjectListSkeleton: React.FC<ProjectListSkeletonProps> = ({
       {Array.from({ length: count }).map((_, idx) => (
         <div
           key={idx}
-          className="rounded-xl border border-border bg-card p-5 shadow-xs animate-pulse"
+          className="rounded-xl border border-border bg-card p-5 shadow-sm animate-pulse"
           style={{ animationDelay: `${idx * 0.1}s` }}
         >
           <div className="flex items-start justify-between mb-4">

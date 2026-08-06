@@ -25,7 +25,9 @@ router = APIRouter(
 )
 
 
-async def _verify_run_access(run_id: UUID, user_id: UUID, db: AsyncSession) -> None:
+async def _verify_run_access(
+    run_id: UUID, user_id: UUID, db: AsyncSession
+) -> None:
     """Verify user owns the project for this run via a single JOIN query."""
     query = (
         select(ResearchRun.id)

@@ -89,9 +89,24 @@ async def test_process_document_scopes_by_org():
     assert "organization_id" in captured["sql"]
 
 
-# NOTE: test_query_history_filters_to_caller was removed alongside the
-# retirement of the experimental multi-agent-search v2 service/router
-# (no live caller). The /query-history endpoint no longer exists.
+async def test_query_history_filters_to_caller():
+    """The /query-history filter only works if the producer stamps user_id —
+    pin the producer→filter contract so the endpoint isn't silently empty."""
+    import src.services.search.multi_agent_search_service_v2 as mod
+
+    svc = mod.MultiAgentSearchServiceV2.__new__(mod.MultiAgentSearchServiceV2)
+    svc.query_history = []
+
+    await svc._update_learning(
+        "my query", {"workflow_type": None}, [], 1.0, user_id="user-A"
+    )
+
+    assert svc.query_history, "producer must append an entry"
+    entry = svc.query_history[-1]
+    assert entry["user_id"] == "user-A"
+    # The endpoint filter keeps it for user-A, drops it for user-B.
+    assert [e for e in svc.query_history if str(e.get("user_id", "")) == "user-A"]
+    assert not [e for e in svc.query_history if str(e.get("user_id", "")) == "user-B"]
 
 
 # --- comprehensive-review additions -----------------------------------------
@@ -106,10 +121,9 @@ async def test_pipeline_update_and_reset_enforce_access_before_service():
 
     db = _db_scalar(None)  # caller owns no matching project
     body = mod.UpdatePipelineRequest()
-    with (
-        patch.object(mod.PipelineService, "update_pipeline", AsyncMock()) as up,
-        patch.object(mod.PipelineService, "reset_pipeline", AsyncMock()) as rp,
-    ):
+    with patch.object(mod.PipelineService, "update_pipeline", AsyncMock()) as up, patch.object(
+        mod.PipelineService, "reset_pipeline", AsyncMock()
+    ) as rp:
         with pytest.raises(HTTPException) as e1:
             await mod.update_pipeline(uuid4(), body=body, current_user=_user(), db=db)
         with pytest.raises(HTTPException) as e2:
@@ -141,17 +155,12 @@ def test_metrics_source_gates_mutations_with_require_admin():
     on the source instead: the 4 mutations depend on require_admin, not
     get_current_user."""
     import pathlib
-    import re
 
     backend = pathlib.Path(__file__).parents[3]
     src = (backend / "src/api/analytics/metrics.py").read_text()
     # 4 mutation endpoints carry require_admin.
     assert src.count("Depends(require_admin)") >= 4
-    # isort may merge this into a combined import line; assert the binding,
-    # not the exact formatting.
-    assert re.search(
-        r"from src\.core\.dependencies import [^\n]*\brequire_admin\b", src
-    )
+    assert "from src.core.dependencies import require_admin" in src
 
 
 def test_require_admin_rejects_non_admin():

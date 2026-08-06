@@ -17,13 +17,10 @@ from sqlalchemy.orm import selectinload
 
 from src.core.database import get_async_session
 from src.models.document import Document, DocumentType, ProcessingStatus
-from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
+from src.models.processing import JobStatus, JobType, ProcessingJob
 from src.models.websocket_status import UpdateType
 from src.services.base import BaseService
-from src.services.infrastructure.status_update_service import (
-    ProcessingProgress,
-    status_update_service,
-)
+from src.services.infrastructure.status_update_service import status_update_service
 from src.services.websocket.websocket_manager import (
     MessageType,
     Priority,
@@ -283,9 +280,9 @@ class ProcessingIntegrationService(BaseService):
             "step_description": current_step.description,
             "step_progress": progress_percentage,
             "overall_progress": min(100.0, overall_progress),
-            "current_operation": (
-                details.get("operation", step_name) if details else step_name
-            ),
+            "current_operation": details.get("operation", step_name)
+            if details
+            else step_name,
             "estimated_remaining_seconds": self._calculate_remaining_time(
                 context, progress_percentage
             ),
@@ -468,12 +465,10 @@ class ProcessingIntegrationService(BaseService):
                     .values(
                         processing_status=status,
                         processing_error=error,
-                        processing_completed_at=(
-                            datetime.now(dt_timezone.utc)
-                            if status
-                            in [ProcessingStatus.COMPLETED, ProcessingStatus.FAILED]
-                            else None
-                        ),
+                        processing_completed_at=datetime.now(dt_timezone.utc)
+                        if status
+                        in [ProcessingStatus.COMPLETED, ProcessingStatus.FAILED]
+                        else None,
                     )
                 )
                 await session.commit()

@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.services.agent.tools_impl import _tool_compare_documents
+from src.api.agent.tools_impl import _tool_compare_documents
 
 
 def _doc(doc_id: str, title: str):
@@ -35,11 +35,11 @@ async def test_llm_failure_returns_error_not_fabricated_success():
     with (
         patch("src.services.documents.file_service.FileService"),
         patch(
-            "src.services.agent.tools_impl._resolve_document_id",
+            "src.api.agent.tools_impl._resolve_document_id",
             new=AsyncMock(side_effect=lambda raw, *a, **k: docs.get(raw)),
         ),
         patch(
-            "src.services.agent.tools_impl._get_tool_llm",
+            "src.api.agent.tools_impl._get_tool_llm",
             return_value=failing_llm,
         ),
     ):

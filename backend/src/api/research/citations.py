@@ -13,13 +13,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
-from src.core.dependencies import get_current_user
 from src.models import (
     ChatMessage,
     Citation,
@@ -33,6 +32,7 @@ from src.models import (
 )
 from src.services.research.bibliography_service import BibliographyService
 from src.services.research.citation_extraction_service import CitationExtractionService
+from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     CitationCreate,
     CitationListResponse,
@@ -105,13 +105,7 @@ async def _ensure_project_access(
     result = await db.execute(
         select(Collection.id)
         .join(Workspace, Collection.workspace_id == Workspace.id)
-        .where(
-            and_(
-                Collection.id == project_id,
-                Workspace.owner_id == current_user.id,
-                Collection.is_deleted.is_(False),
-            )
-        )
+        .where(and_(Collection.id == project_id, Workspace.owner_id == current_user.id))
     )
     if result.scalar_one_or_none() is None:
         raise HTTPException(
@@ -180,25 +174,6 @@ async def create_citation(
                     detail="Document not found or not accessible",
                 )
 
-        # Verify the referenced message belongs to the user (same ownership
-        # chain _message_is_accessible walks: thread → conversation → workspace)
-        if citation_data.message_id:
-            msg_check = await db.execute(
-                select(ChatMessage.id)
-                .join(ChatMessage.thread)
-                .join(Thread.conversation)
-                .join(Conversation.workspace)
-                .where(
-                    ChatMessage.id == citation_data.message_id,
-                    Workspace.owner_id == current_user.id,
-                )
-            )
-            if msg_check.scalar_one_or_none() is None:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Message not found or not accessible",
-                )
-
         # Create citation instance
         citation = Citation(
             message_id=citation_data.message_id,
@@ -233,8 +208,6 @@ async def create_citation(
 
         return CitationResponse.model_validate(citation)
 
-    except HTTPException:
-        raise
     except Exception as e:
         await db.rollback()
         logger.error(
@@ -282,6 +255,15 @@ async def list_citations(
         limit = 50
 
     try:
+        # Build query with filters
+        query = select(Citation).options(
+            selectinload(Citation.document),
+            selectinload(Citation.message)
+            .selectinload(ChatMessage.thread)
+            .selectinload(Thread.conversation)
+            .selectinload(Conversation.workspace),
+        )
+
         filters = []
         if message_id:
             filters.append(Citation.message_id == message_id)
@@ -294,47 +276,29 @@ async def list_citations(
         if needs_review is not None:
             filters.append(Citation.needs_review == needs_review)
 
-        # SQL equivalent of _citation_is_accessible: accessible via the
-        # document (public or uploaded by the caller) OR via the message's
-        # thread → conversation → workspace ownership chain. All joins are
-        # many-to-one from Citation, so no row multiplication.
-        access_filter = or_(
-            Document.is_public.is_(True),
-            Document.uploaded_by_user_id == current_user.id,
-            Workspace.owner_id == current_user.id,
-        )
-        filtered = (
-            select(Citation)
-            .outerjoin(Citation.document)
-            .outerjoin(Citation.message)
-            .outerjoin(ChatMessage.thread)
-            .outerjoin(Thread.conversation)
-            .outerjoin(Conversation.workspace)
-            .where(and_(*filters, access_filter) if filters else access_filter)
-        )
+        if filters:
+            query = query.where(and_(*filters))
 
-        count_result = await db.execute(
-            select(func.count()).select_from(filtered.subquery())
+        # Get total count
+        count_query = (
+            select(Citation.id).where(and_(*filters))
+            if filters
+            else select(Citation.id)
         )
-        total = count_result.scalar() or 0
+        await db.execute(count_query)
 
-        result = await db.execute(
-            filtered.options(
-                selectinload(Citation.document),
-                selectinload(Citation.message)
-                .selectinload(ChatMessage.thread)
-                .selectinload(Thread.conversation)
-                .selectinload(Conversation.workspace),
-            )
-            .order_by(Citation.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-        )
-        citations = result.scalars().all()
+        query = query.order_by(Citation.created_at.desc())
+        result = await db.execute(query)
+        accessible_citations = [
+            citation
+            for citation in result.scalars().all()
+            if _citation_is_accessible(citation, current_user)
+        ]
+        citations = accessible_citations[skip : skip + limit]
 
         return CitationListResponse(
             citations=[CitationResponse.model_validate(c) for c in citations],
-            total=total,
+            total=len(accessible_citations),
             skip=skip,
             limit=limit,
         )
@@ -459,24 +423,6 @@ async def extract_citation(
         extraction_service = CitationExtractionService(db)
 
         if resolved_document_id:
-            # Tenant scope: verify the client-supplied document_id belongs to the
-            # caller's organization before the extraction service reads its
-            # metadata / PDF. Without this, another org's document title / DOI /
-            # arXiv id (and PDF contents) leak. Mirrors the create_citation check;
-            # 404 (not 403) so document ids can't be probed for existence.
-            doc_check = await db.execute(
-                select(Document.id).where(
-                    Document.id == resolved_document_id,
-                    Document.organization_id == current_user.organization_id,
-                    Document.is_deleted == False,  # noqa: E712
-                )
-            )
-            if doc_check.scalar_one_or_none() is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Document not found or not accessible",
-                )
-
             citation_data, source = await extraction_service.extract_for_document(
                 document_id=resolved_document_id,
                 strategy=resolved_strategy,
@@ -592,24 +538,6 @@ async def lookup_citation(
         extraction_service = CitationExtractionService(db)
 
         if resolved_document_id:
-            # Tenant scope: verify the client-supplied document_id belongs to the
-            # caller's organization before the extraction service reads its
-            # metadata / PDF. Without this, another org's document title / DOI /
-            # arXiv id (and PDF contents) leak. Mirrors the create_citation check;
-            # 404 (not 403) so document ids can't be probed for existence.
-            doc_check = await db.execute(
-                select(Document.id).where(
-                    Document.id == resolved_document_id,
-                    Document.organization_id == current_user.organization_id,
-                    Document.is_deleted == False,  # noqa: E712
-                )
-            )
-            if doc_check.scalar_one_or_none() is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Document not found or not accessible",
-                )
-
             citation_data, source = await extraction_service.extract_for_document(
                 document_id=resolved_document_id,
                 strategy=resolved_strategy,
@@ -742,7 +670,7 @@ async def export_bibliography(
         # Fallback: build bibliography from Document metadata when no
         # Citation records exist (common for freshly ingested papers).
         if not citations and resolved_project_id:
-            from src.services.agent.tools_impl import _citations_from_documents
+            from src.api.agent.tools_impl import _citations_from_documents
 
             doc_stmt = select(Document).where(
                 Document.id.in_(document_ids),
@@ -965,9 +893,9 @@ async def create_citation_relationship(
             "relationship_type": relationship.relationship_type,
             "citation_context": relationship.citation_context,
             "confidence": relationship.confidence,
-            "created_at": (
-                relationship.created_at.isoformat() if relationship.created_at else None
-            ),
+            "created_at": relationship.created_at.isoformat()
+            if relationship.created_at
+            else None,
         }
 
     except HTTPException:

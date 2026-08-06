@@ -5,7 +5,8 @@ Complete Database Setup Script for Multimodal Enterprise RAG System
 This script initializes and configures all four databases:
 1. PostgreSQL - Main relational database with comprehensive schema
 2. Neo4j - Knowledge graph with entities and relationships
-3. Redis - Cache and real-time data structures
+3. Qdrant - Vector database for embeddings
+4. Redis - Cache and real-time data structures
 """
 
 import asyncio
@@ -24,6 +25,8 @@ import asyncpg
 import psycopg2
 from psycopg2.extras import execute_batch
 from neo4j import AsyncGraphDatabase
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams, CreateCollection
 import redis.asyncio as redis
 from sqlalchemy import create_engine, text
 from alembic.config import Config
@@ -71,6 +74,11 @@ NEO4J_CONFIG: dict[str, Any] = {
     "password": os.environ.get("NEO4J_PASSWORD", ""),
 }
 
+QDRANT_CONFIG: dict[str, Any] = {
+    "url": os.environ.get("QDRANT_URL", "http://localhost:6333"),
+    "api_key": os.environ.get("QDRANT_API_KEY", ""),
+}
+
 REDIS_CONFIG: dict[str, Any] = {
     "host": os.environ.get("REDIS_HOST", "localhost"),
     "port": int(os.environ.get("REDIS_PORT", "6379")),
@@ -85,6 +93,7 @@ class DatabaseSetup:
     def __init__(self) -> None:
         self.postgres_engine = None
         self.neo4j_driver = None
+        self.qdrant_client = None
         self.redis_client = None
 
     async def setup_all_databases(self) -> None:
@@ -100,10 +109,13 @@ class DatabaseSetup:
             # 2. Neo4j Setup
             await self.setup_neo4j()
 
-            # 3. Redis Setup
+            # 3. Qdrant Setup
+            await self.setup_qdrant()
+
+            # 4. Redis Setup
             await self.setup_redis()
 
-            # 4. Run database health checks
+            # 5. Run database health checks
             await self.run_health_checks()
 
             logger.info("✅ Complete database setup finished successfully!")
@@ -298,6 +310,75 @@ class DatabaseSetup:
             logger.error(f"❌ Neo4j setup failed: {e}")
             raise
 
+    async def setup_qdrant(self) -> None:
+        """Setup Qdrant vector database with collections"""
+        logger.info("🔺 Setting up Qdrant vector database...")
+
+        try:
+            self.qdrant_client = QdrantClient(**QDRANT_CONFIG)
+
+            # Define collections
+            collections = {
+                "documents": {
+                    "vectors": VectorParams(size=1536, distance=Distance.COSINE),
+                    "payload_schema": {
+                        "document_id": "keyword",
+                        "title": "text",
+                        "content_type": "keyword",
+                        "organization_id": "keyword",
+                        "created_at": "integer",
+                    },
+                },
+                "entities": {
+                    "vectors": VectorParams(size=1536, distance=Distance.COSINE),
+                    "payload_schema": {
+                        "entity_id": "keyword",
+                        "entity_type": "keyword",
+                        "name": "text",
+                        "organization_id": "keyword",
+                        "created_at": "integer",
+                    },
+                },
+                "multimodal": {
+                    "vectors": VectorParams(size=1536, distance=Distance.COSINE),
+                    "payload_schema": {
+                        "content_id": "keyword",
+                        "modality": "keyword",
+                        "organization_id": "keyword",
+                        "created_at": "integer",
+                    },
+                },
+            }
+
+            # Create collections
+            for collection_name, config in collections.items():
+                try:
+                    # Check if collection exists
+                    collections_list = self.qdrant_client.get_collections().collections
+                    exists = any(c.name == collection_name for c in collections_list)
+
+                    if not exists:
+                        self.qdrant_client.create_collection(
+                            collection_name=collection_name,
+                            vectors_config=config["vectors"],
+                        )
+                        logger.info(f"✅ Created Qdrant collection: {collection_name}")
+                    else:
+                        logger.info(
+                            f"✅ Qdrant collection already exists: {collection_name}"
+                        )
+
+                except Exception as e:
+                    logger.error(
+                        f"❌ Failed to create collection {collection_name}: {e}"
+                    )
+
+            logger.info("✅ Qdrant setup completed")
+
+        except Exception as e:
+            logger.error(f"❌ Qdrant setup failed: {e}")
+            raise
+
     async def setup_redis(self) -> None:
         """Setup Redis with data structures and configurations"""
         logger.info("🔴 Setting up Redis cache and data structures...")
@@ -375,6 +456,16 @@ class DatabaseSetup:
             await driver.close()
         except Exception as e:
             health_results["neo4j"] = f"❌ {e}"
+
+        # Qdrant health check
+        try:
+            client = QdrantClient(**QDRANT_CONFIG)
+            collections = client.get_collections()
+            health_results["qdrant"] = (
+                f"✅ Healthy ({len(collections.collections)} collections)"
+            )
+        except Exception as e:
+            health_results["qdrant"] = f"❌ {e}"
 
         # Redis health check
         try:

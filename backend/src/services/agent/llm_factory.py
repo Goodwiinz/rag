@@ -17,16 +17,7 @@ from src.core.openai_endpoint import classify_openai_endpoint
 
 logger = logging.getLogger(__name__)
 
-
-def _main_chat_deployment() -> str:
-    """The configured chat deployment — same chain ``graph._build_llm`` uses."""
-    settings = get_settings()
-    return (
-        settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
-        or settings.AZURE_OPENAI_DEPLOYMENT_NAME
-        or ""
-    )
-
+_DEFAULT_LIGHTWEIGHT_MODEL = "model-router"
 
 # Cache built chat models keyed by the builder's input args. Constructing a
 # ChatOpenAI/AzureChatOpenAI spins up an HTTP client (~30-50ms); the synthesis
@@ -36,7 +27,6 @@ def _main_chat_deployment() -> str:
 # classifier / compactor / reflection single-instance caches already rely on.
 _LIGHTWEIGHT_LLM_CACHE: dict[tuple, BaseChatModel] = {}
 _SYNTHESIS_LLM_CACHE: dict[tuple, BaseChatModel] = {}
-_FAST_PATH_LLM_CACHE: dict[tuple, BaseChatModel] = {}
 
 
 def reset_llm_caches() -> None:
@@ -46,59 +36,21 @@ def reset_llm_caches() -> None:
     """
     _LIGHTWEIGHT_LLM_CACHE.clear()
     _SYNTHESIS_LLM_CACHE.clear()
-    _FAST_PATH_LLM_CACHE.clear()
 
 
 def _resolve_lightweight_deployment() -> str:
-    """Lightweight deployment, falling back to the main chat deployment.
-
-    The fallback used to be ``model-router``, which meant an unset or blank
-    secret silently put the router back inside the agent loop — the exact
-    configuration that produced the 30s timeout cap on research_llm_node
-    (trace 019e1da5). Falling back to the configured chat deployment keeps a
-    misconfigured environment on the model the operator actually chose, and
-    makes "one deployment everywhere" the natural result of leaving the
-    per-role overrides unset.
-    """
     settings = get_settings()
-    return settings.AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT or _main_chat_deployment()
+    return settings.AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT or _DEFAULT_LIGHTWEIGHT_MODEL
 
 
 def _resolve_synthesis_deployment() -> str:
-    """Synthesis deploy falls back to lightweight, then the main deployment."""
+    """Synthesis deploy falls back to lightweight when unset."""
     settings = get_settings()
     return (
         settings.AZURE_OPENAI_SYNTHESIS_DEPLOYMENT
         or settings.AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT
-        or _main_chat_deployment()
+        or _DEFAULT_LIGHTWEIGHT_MODEL
     )
-
-
-def _resolve_fast_path_deployment() -> str:
-    """Dedicated deployment for evidence-independent direct streaming."""
-    return get_settings().AGENT_FAST_PATH_DEPLOYMENT or "gpt-5.6-luna"
-
-
-def build_fast_path_llm() -> BaseChatModel:
-    """Return the cached direct-streaming model for evidence-independent turns."""
-    settings = get_settings()
-    deployment = _resolve_fast_path_deployment()
-    cache_key = (
-        deployment,
-        settings.AGENT_FAST_PATH_MAX_OUTPUT_TOKENS,
-        settings.AGENT_FAST_PATH_REQUEST_TIMEOUT,
-    )
-    if cache_key not in _FAST_PATH_LLM_CACHE:
-        _FAST_PATH_LLM_CACHE[cache_key] = _build_chat_llm(
-            deployment,
-            role_label="Fast-path",
-            max_tokens=settings.AGENT_FAST_PATH_MAX_OUTPUT_TOKENS,
-            streaming=True,
-            request_timeout=settings.AGENT_FAST_PATH_REQUEST_TIMEOUT,
-            reasoning_effort="none",
-            max_retries=1,
-        )
-    return _FAST_PATH_LLM_CACHE[cache_key]
 
 
 def _build_chat_llm(
@@ -107,7 +59,6 @@ def _build_chat_llm(
     role_label: str,
     temperature: float = 0,
     max_tokens: int = 512,
-    streaming: bool = False,
     request_timeout: float | None = None,
     use_responses_api: bool | None = None,
     reasoning_effort: str | None = None,
@@ -152,7 +103,6 @@ def _build_chat_llm(
     extra: dict[str, Any] = {
         "request_timeout": request_timeout,
         "max_retries": max_retries,
-        "streaming": streaming,
     }
     if _accepts_temperature:
         extra["temperature"] = temperature
@@ -202,9 +152,8 @@ def build_lightweight_llm(
     """Build a LangChain chat model for lightweight auxiliary tasks.
 
     Targets the deployment configured via
-    ``AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT``, falling back to the main chat
-    deployment. Used by classifier, planner complexity check, reflection,
-    compactor — never a tool-calling turn.
+    ``AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT`` (defaults to ``model-router``).
+    Used by classifier, planner complexity check, reflection, compactor.
     """
     key = (temperature, max_tokens, request_timeout, use_responses_api)
     cached = _LIGHTWEIGHT_LLM_CACHE.get(key)
@@ -216,7 +165,6 @@ def build_lightweight_llm(
         role_label="Lightweight",
         temperature=temperature,
         max_tokens=max_tokens,
-        streaming=False,
         request_timeout=request_timeout,
         use_responses_api=use_responses_api,
         reasoning_effort=settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT or None,
@@ -234,11 +182,10 @@ def build_synthesis_llm(
 ) -> BaseChatModel:
     """Build a LangChain chat model for post-tool prose synthesis.
 
-    Targets ``AZURE_OPENAI_SYNTHESIS_DEPLOYMENT``, falling back to the
-    lightweight deployment and then to the main chat deployment, so existing
-    single-knob deployments keep working and leaving every override unset
-    runs one deployment everywhere. Set it only to make prose cheaper than
-    the tool-decision path — not the other way round.
+    Targets ``AZURE_OPENAI_SYNTHESIS_DEPLOYMENT`` and falls back to the
+    lightweight deployment when unset, so existing single-knob deployments
+    keep working. Lets ops put a stronger model (e.g. gpt-5-mini) on the
+    final-answer path while routing/classify stay on cheap nano.
     """
     key = (temperature, max_tokens, request_timeout, use_responses_api)
     cached = _SYNTHESIS_LLM_CACHE.get(key)
@@ -257,17 +204,8 @@ def build_synthesis_llm(
         role_label="Synthesis",
         temperature=temperature,
         max_tokens=max_tokens,
-        streaming=True,
         request_timeout=resolved_timeout,
         use_responses_api=use_responses_api,
-        # Shares AGENT_LIGHTWEIGHT_REASONING_EFFORT ("minimal") with the
-        # lightweight tier on purpose. That coupling used to be a defect —
-        # it set the effort for tool-calling turns too — but tool decisions
-        # now run on the main deployment, so every caller left here is prose
-        # or a short classification, and "minimal" is the right setting for
-        # them. Add AGENT_SYNTHESIS_REASONING_EFFORT only if synthesis
-        # quality measurably regresses; a knob for a value that should not
-        # vary is debt.
         reasoning_effort=settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT or None,
     )
     _SYNTHESIS_LLM_CACHE[key] = llm

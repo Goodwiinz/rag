@@ -5,10 +5,7 @@ enabling the agent to remember user preferences and past interactions.
 
 Uses ``AsyncPostgresStore`` over the shared pool owned by ``_pool_utils``.
 Falls back to ``InMemoryStore`` only when ``ENVIRONMENT == "testing"`` or
-the Postgres connection fails while durable agent state is not required
-(``settings.require_durable_agent_state`` — local/CI throwaway envs or
-the ``ALLOW_MEMORY_FALLBACK`` override); every other environment raises
-on init failure instead of degrading silently.
+the Postgres connection fails outside production/staging.
 
 Pool lifecycle lives in ``_pool_utils``; this module never closes it.
 """
@@ -42,7 +39,9 @@ def _build_memory_index_config() -> dict | None:
     back to the un-indexed store rather than crashing on startup.
     """
     try:
-        from src.services.embedding.cohere_embed_service import cohere_embed_service
+        from src.services.embedding.cohere_embed_service import (
+            cohere_embed_service,
+        )
     except Exception as exc:  # noqa: BLE001 - import failure must not crash
         logger.warning("Cohere import failed; memory index disabled: %s", exc)
         return None
@@ -92,41 +91,35 @@ async def get_memory_store():
             pool = await get_shared_langgraph_pool(get_db_uri())
             index_config = _build_memory_index_config()
             if index_config is not None:
-                store = AsyncPostgresStore(pool, index=index_config)
+                _store = AsyncPostgresStore(pool, index=index_config)
             else:
-                store = AsyncPostgresStore(pool)
-            # Assign the singleton only after setup() succeeds — assigning
-            # earlier would leave a half-initialised store (tables missing)
-            # in the global when setup() raises, and every later call would
-            # short-circuit on ``is not None`` and hand it out.
-            await store.setup()
-            _store = store
+                _store = AsyncPostgresStore(pool)
+            await _store.setup()
             # Diagnostic: confirm backend class + whether semantic index is
             # wired. Trace evidence shows asearch returns score=None for
             # every recalled entry when index= is unset. Log makes the
             # runtime state obvious.
             indexed = bool(
-                getattr(store, "_index", None)
-                or getattr(store, "index_config", None)
+                getattr(_store, "_index", None)
+                or getattr(_store, "index_config", None)
                 or index_config is not None
             )
             logger.info(
                 "Memory store initialised (%s, indexed=%s, dims=%s)",
-                type(store).__name__,
+                type(_store).__name__,
                 indexed,
                 (index_config or {}).get("dims") if index_config else None,
             )
             return _store
         except Exception as e:
-            # Raises when durable state is required; the singleton stays
-            # None so the next call retries with a clean slate.
-            require_durable_or_fallback("Postgres memory store", e)
+            require_durable_or_fallback(
+                "Postgres memory store", settings.ENVIRONMENT, e
+            )
 
             logger.error(
                 "Postgres memory store UNAVAILABLE — falling back to "
-                "InMemoryStore (permitted: throwaway env or "
-                "ALLOW_MEMORY_FALLBACK). Long-term memory will NOT survive "
-                "restarts. Cause: %s",
+                "InMemoryStore. Long-term memory will NOT survive restarts. "
+                "Cause: %s",
                 e,
             )
             from langgraph.store.memory import InMemoryStore
@@ -264,7 +257,9 @@ async def delete_memory_by_query(
             await store.adelete(namespace, m["key"])
             deleted += 1
         except Exception as exc:  # noqa: BLE001
-            logger.warning("forget_memory: adelete failed for %s: %s", m["key"], exc)
+            logger.warning(
+                "forget_memory: adelete failed for %s: %s", m["key"], exc
+            )
 
     if unranked:
         logger.warning(

@@ -343,7 +343,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                   currentStep === step
                     ? "bg-primary text-primary-foreground"
                     : currentStepIndex(step) < currentStepIndex(currentStep)
-                    ? "bg-(--nous-terra) text-terra-foreground"
+                    ? "bg-[var(--nous-terra)] text-terra-foreground"
                     : "bg-muted text-muted-foreground"
                 )}
               >
@@ -358,7 +358,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                   className={cn(
                     "w-12 h-0.5",
                     currentStepIndex(step) < currentStepIndex(currentStep)
-                      ? "bg-(--nous-terra)"
+                      ? "bg-[var(--nous-terra)]"
                       : "bg-muted"
                   )}
                 />
@@ -375,7 +375,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
               {validationErrors.length > 0 && (
                 <div role="alert" className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
                   <div className="flex items-start space-x-3">
-                    <ExclamationTriangleIcon className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                    <ExclamationTriangleIcon className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-medium text-destructive">
                         Upload Validation Errors
@@ -407,7 +407,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                 className={cn(
                   "relative border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors",
                   "hover:border-primary hover:bg-primary/5",
-                  "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent",
                   isDragActive && "border-primary bg-primary/10"
                 )}
               >
@@ -616,19 +616,19 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
 
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div className="text-center">
-                    <div className="text-lg font-medium text-(--nous-terra)">
+                    <div className="text-lg font-medium text-[var(--nous-terra)]">
                       {stats.completedFiles}
                     </div>
                     <div className="text-muted-foreground">Completed</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-medium text-(--nous-helios)">
+                    <div className="text-lg font-medium text-[var(--nous-helios)]">
                       {stats.processingFiles}
                     </div>
                     <div className="text-muted-foreground">Processing</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-medium text-(--nous-mars)">
+                    <div className="text-lg font-medium text-[var(--nous-mars)]">
                       {stats.failedFiles}
                     </div>
                     <div className="text-muted-foreground">Failed</div>
@@ -714,7 +714,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
           {currentStep === 'complete' && (
             <div className="space-y-6 text-center">
               <div className="p-8">
-                <CheckCircleIcon className="h-16 w-16 text-(--nous-terra) mx-auto mb-4" />
+                <CheckCircleIcon className="h-16 w-16 text-[var(--nous-terra)] mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-foreground mb-2">
                   Upload Complete!
                 </h3>
@@ -733,13 +733,13 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
 
               <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
                 <div className="p-4 bg-card border rounded-lg">
-                  <div className="text-2xl font-bold text-(--nous-terra)">
+                  <div className="text-2xl font-bold text-[var(--nous-terra)]">
                     {stats.completedFiles}
                   </div>
                   <div className="text-sm text-muted-foreground">Successful</div>
                 </div>
                 <div className="p-4 bg-card border rounded-lg">
-                  <div className="text-2xl font-bold text-(--nous-mars)">
+                  <div className="text-2xl font-bold text-[var(--nous-mars)]">
                     {stats.failedFiles}
                   </div>
                   <div className="text-sm text-muted-foreground">Failed</div>

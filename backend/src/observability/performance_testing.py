@@ -112,17 +112,15 @@ class PerformanceTestRunner:
                 successful_requests=results["successful_requests"],
                 failed_requests=results["failed_requests"],
                 requests_per_second=results["requests_per_second"],
-                average_response_time=(
-                    statistics.mean(results["response_times"])
-                    if results["response_times"]
-                    else 0
-                ),
-                min_response_time=(
-                    min(results["response_times"]) if results["response_times"] else 0
-                ),
-                max_response_time=(
-                    max(results["response_times"]) if results["response_times"] else 0
-                ),
+                average_response_time=statistics.mean(results["response_times"])
+                if results["response_times"]
+                else 0,
+                min_response_time=min(results["response_times"])
+                if results["response_times"]
+                else 0,
+                max_response_time=max(results["response_times"])
+                if results["response_times"]
+                else 0,
                 p50_response_time=self._percentile(results["response_times"], 50),
                 p95_response_time=self._percentile(results["response_times"], 95),
                 p99_response_time=self._percentile(results["response_times"], 99),
@@ -174,7 +172,6 @@ class PerformanceTestRunner:
         semaphore = asyncio.Semaphore(test_config.concurrent_users)
 
         async def make_tracked_request():
-            nonlocal successful_requests, failed_requests
             async with semaphore:
                 result = await self._make_request(test_config)
                 if result["success"]:
@@ -440,11 +437,9 @@ class PerformanceTestRunner:
                 "total_requests": total_requests,
                 "total_successful": total_successful,
                 "total_failed": total_failed,
-                "overall_success_rate": (
-                    (total_successful / total_requests * 100)
-                    if total_requests > 0
-                    else 0
-                ),
+                "overall_success_rate": (total_successful / total_requests * 100)
+                if total_requests > 0
+                else 0,
             },
             "performance_metrics": {
                 "average_rps": avg_rps,
@@ -546,33 +541,24 @@ class SystemMetricsMonitor:
                 "max_usage_percent": max(self.metrics["disk_usage_percent"]),
             },
             "network": {
-                "total_bytes_sent": (
-                    self.metrics["network_io"][-1]["bytes_sent"]
-                    if self.metrics["network_io"]
-                    else 0
-                ),
-                "total_bytes_recv": (
-                    self.metrics["network_io"][-1]["bytes_recv"]
-                    if self.metrics["network_io"]
-                    else 0
-                ),
+                "total_bytes_sent": self.metrics["network_io"][-1]["bytes_sent"]
+                if self.metrics["network_io"]
+                else 0,
+                "total_bytes_recv": self.metrics["network_io"][-1]["bytes_recv"]
+                if self.metrics["network_io"]
+                else 0,
             },
             "duration": {
-                "start": (
-                    self.metrics["timestamps"][0]
-                    if self.metrics["timestamps"]
-                    else None
-                ),
-                "end": (
-                    self.metrics["timestamps"][-1]
-                    if self.metrics["timestamps"]
-                    else None
-                ),
-                "total_seconds": (
-                    self.metrics["timestamps"][-1] - self.metrics["timestamps"][0]
-                    if len(self.metrics["timestamps"]) > 1
-                    else 0
-                ),
+                "start": self.metrics["timestamps"][0]
+                if self.metrics["timestamps"]
+                else None,
+                "end": self.metrics["timestamps"][-1]
+                if self.metrics["timestamps"]
+                else None,
+                "total_seconds": self.metrics["timestamps"][-1]
+                - self.metrics["timestamps"][0]
+                if len(self.metrics["timestamps"]) > 1
+                else 0,
             },
         }
 

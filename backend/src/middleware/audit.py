@@ -136,9 +136,9 @@ class AuditMiddleware(BaseHTTPMiddleware):
                                     "utf-8", errors="ignore"
                                 )
                             else:
-                                request_info["body"] = (
-                                    f"[Body too large: {len(body)} bytes]"
-                                )
+                                request_info[
+                                    "body"
+                                ] = f"[Body too large: {len(body)} bytes]"
                     else:
                         request_info["body"] = None
             except Exception as e:

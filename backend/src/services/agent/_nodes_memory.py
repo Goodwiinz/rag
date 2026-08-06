@@ -37,8 +37,7 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Background-task tracking — strong references so tasks are not GC'd mid-flight.
-# Mirrors the pattern in src/services/agent/agent_execution_service.py
-# (_background_tasks + callback).
+# Mirrors the pattern in src/api/agent/jobs.py (_background_tasks + callback).
 # ---------------------------------------------------------------------------
 _BACKGROUND_TASKS: set[asyncio.Task[Any]] = set()
 
@@ -140,11 +139,9 @@ async def _persist_memory_async(  # noqa: PLR0913
 async def memory_retrieval_node(state: AgentState, config: RunnableConfig) -> dict:
     """Retrieve relevant long-term memories before the LLM call."""
     configurable = config.get("configurable", {})
-    # Ids-only configurable (audit B8): memory is keyed by the scalar
-    # user_id — no ORM User needed here.
-    user_id = str(configurable.get("user_id", "") or "")
+    current_user = configurable.get("current_user")
 
-    if not user_id:
+    if not current_user:
         return {"user_memories": []}
 
     # Find the last user message for memory search.
@@ -172,7 +169,9 @@ async def memory_retrieval_node(state: AgentState, config: RunnableConfig) -> di
         if not store:
             return {"user_memories": []}
 
-        memories = await search_memories(store, user_id, last_user_msg, limit=5)
+        memories = await search_memories(
+            store, str(current_user.id), last_user_msg, limit=5
+        )
         # Defense-in-depth — search_memories already passes limit=5 to the
         # store, but a misbehaving backend (or a future bump in callers)
         # could return more. Sorting by score puts the ranked entries
@@ -205,8 +204,7 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
     those operations (p95 was 8.1 s on the critical path).
     """
     configurable = config.get("configurable", {})
-    # Ids-only configurable (audit B8): the save is keyed by user_id.
-    user_id = str(configurable.get("user_id", "") or "")
+    current_user = configurable.get("current_user")
 
     # Append per-turn iteration record (audit trail) before any early
     # return — even no-user turns (test fixtures, anonymous probes) get
@@ -222,7 +220,7 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
     except Exception as _ledger_exc:  # noqa: BLE001 - observability must not crash
         logger.debug("ledger write skipped: %s", _ledger_exc)
 
-    if not user_id:
+    if not current_user:
         return {}
 
     # Save gate. Trace evidence (019e066b-2a35) showed every greeting
@@ -286,7 +284,7 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
         task = asyncio.create_task(
             _persist_memory_async(
                 store=store,
-                user_id=user_id,
+                user_id=str(current_user.id),
                 mem_key=mem_key,
                 mem_value=mem_value,
                 thread_id=thread_id,

@@ -331,9 +331,7 @@ async def classify_intent_with_fallback(
     1. Run keyword classifier. If confidence >= 0.7, return immediately (no LLM).
     2. For ambiguous queries, escalate to LLM for better accuracy.
     3. If the LLM call fails or returns low confidence, fall back to the
-       keyword result — unless the keyword classifier matched nothing
-       (confidence 0.0), in which case the LLM result is kept: a weak
-       classification beats no classification.
+       keyword result.
 
     Args:
         query:          The user's current query.
@@ -399,24 +397,6 @@ async def classify_intent_with_fallback(
         )
 
         if llm_result.confidence >= _LLM_CONFIDENCE_THRESHOLD:
-            return llm_result
-
-        # A sub-threshold LLM result still beats a keyword result that matched
-        # nothing at all. ``classify_intent_keywords`` returns confidence 0.0
-        # ONLY for "no keyword matches found" — a zero-evidence default, not a
-        # classification — so preferring the keyword result there discards the
-        # only signal the turn has. Observed live: "finish the plan" classified
-        # writing/0.62, overridden to general/0.0, routed to the general
-        # subgraph, and the agent described the note it should have written
-        # instead of calling create_note.
-        if keyword_result.confidence == 0.0:
-            logger.info(
-                "LLM confidence %.2f < %.2f but keyword classifier found no "
-                "evidence — keeping LLM intent '%s'",
-                llm_result.confidence,
-                _LLM_CONFIDENCE_THRESHOLD,
-                llm_result.intent,
-            )
             return llm_result
 
         logger.info(

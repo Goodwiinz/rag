@@ -39,14 +39,11 @@ from src.models.graph import (
     RelationshipType,
     UpdateEntityRequest,
 )
-from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
 from src.models.user import User, UserRole
-from src.services.knowledge_graph.knowledge_graph_service import (
-    RelationshipScopeError,
-    knowledge_graph_service,
-)
-from src.services.processing.entity_extraction_service import EntityExtractionService
+from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
+from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
 from src.services.processing.entity_extraction_service import (
+    EntityExtractionService,
     EntityType as ProcessingEntityType,
 )
 from src.tasks.processing_tasks import kg_extract_entities_job, kg_merge_entities_job
@@ -54,21 +51,6 @@ from src.tasks.processing_tasks import kg_extract_entities_job, kg_merge_entitie
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/knowledge-graph", tags=["knowledge-graph"])
-
-
-def _require_org_id(current_user: User) -> str:
-    """Resolve the caller's organization id, or 403.
-
-    Destructive/maintenance KG writes must be tenant-scoped; never fall through
-    to an unscoped, cross-tenant operation when the caller has no organization.
-    """
-    org_id = getattr(current_user, "organization_id", None)
-    if not org_id:
-        raise HTTPException(
-            status_code=403,
-            detail="No organization associated with this account",
-        )
-    return str(org_id)
 
 
 def _get_org_document_ids(db, organization_id) -> List[str]:
@@ -131,9 +113,7 @@ class CreateExtractionJobRequest(BaseModel):
     document_ids: List[str] = Field(default_factory=list)
 
 
-def _map_processing_entity_type_to_graph(
-    entity_type: ProcessingEntityType,
-) -> EntityType:
+def _map_processing_entity_type_to_graph(entity_type: ProcessingEntityType) -> EntityType:
     mapping = {
         "person": EntityType.PERSON,
         "organization": EntityType.ORGANIZATION,
@@ -182,14 +162,6 @@ def create_entity(
     # Tenant guard: the client supplies source_document_id; without this check a
     # caller could attach an entity to (and thus read/inject into) another org's
     # document. Validate membership against the caller's org documents.
-    # Force the caller's org onto the request — never trust a client-supplied
-    # organization_id. Without this a caller could omit source_document_id (the
-    # only other guard) and stamp the new node with another tenant's org, so it
-    # surfaces in that tenant's org-scoped entity list / search / analytics
-    # (cross-tenant graph poisoning). Mirrors create_relationship.
-    request.organization_id = (
-        str(current_user.organization_id) if current_user.organization_id else None
-    )
     if request.source_document_id:
         org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         if str(request.source_document_id) not in org_doc_ids:
@@ -292,9 +264,7 @@ def get_all_entities(
                 )
 
         entities = knowledge_graph_service.get_all_entities(
-            limit,
-            offset,
-            entity_types,
+            limit, offset, entity_types,
             source_document_ids=scope_doc_ids,
             connected_only=connected_only,
             organization_id=org_scope,
@@ -370,8 +340,7 @@ def get_entity_relationships(
     """Get all relationships for an entity"""
     try:
         relationships = knowledge_graph_service.get_relationships(
-            entity_id,
-            relationship_types,
+            entity_id, relationship_types,
             organization_id=str(current_user.organization_id),
         )
         return relationships
@@ -396,10 +365,7 @@ def get_related_entities(
     """Find entities related to a given entity"""
     try:
         entities = knowledge_graph_service.find_related_entities(
-            entity_id,
-            max_depth,
-            min_strength,
-            limit,
+            entity_id, max_depth, min_strength, limit,
             organization_id=str(current_user.organization_id),
         )
         return entities
@@ -424,10 +390,7 @@ def get_entity_neighborhood(
     """Get neighborhood entities and relationships in a single call"""
     try:
         data = knowledge_graph_service.get_neighborhood(
-            entity_id,
-            max_depth,
-            min_strength,
-            limit,
+            entity_id, max_depth, min_strength, limit,
             organization_id=str(current_user.organization_id),
         )
         return data
@@ -487,15 +450,15 @@ def create_relationship(
         # value — a tenantless caller must not be able to set one). Both
         # endpoints are then org-scoped; the org-doc-id list stays as a fallback.
         request.organization_id = (
-            str(current_user.organization_id) if current_user.organization_id else None
+            str(current_user.organization_id)
+            if current_user.organization_id
+            else None
         )
         org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         relationship = knowledge_graph_service.create_relationship(
             request, source_document_ids=org_doc_ids
         )
         return relationship
-    except RelationshipScopeError:
-        raise HTTPException(status_code=404, detail="Relationship not created")
     except Exception as e:
         logger.error(f"Error creating relationship: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -522,7 +485,9 @@ def get_relationship(
         raise
     except Exception as e:
         logger.error(f"Error getting relationship {relationship_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        )
 
 
 @router.delete("/relationships/{relationship_id}")
@@ -561,9 +526,7 @@ def search_graph(
 
         # Search entities
         entities = knowledge_graph_service.search_entities(
-            request.query,
-            request.entity_types,
-            request.max_results,
+            request.query, request.entity_types, request.max_results,
             organization_id=org_id,
         )
 
@@ -574,19 +537,10 @@ def search_graph(
             organization_id=org_id,
         )
         if request.relationship_types:
-            wanted = {
-                t.value if hasattr(t, "value") else t
-                for t in request.relationship_types
-            }
+            wanted = {t.value if hasattr(t, "value") else t for t in request.relationship_types}
             relationships = [
-                r
-                for r in relationships
-                if (
-                    r.relationship_type.value
-                    if hasattr(r.relationship_type, "value")
-                    else r.relationship_type
-                )
-                in wanted
+                r for r in relationships
+                if (r.relationship_type.value if hasattr(r.relationship_type, "value") else r.relationship_type) in wanted
             ]
 
         # Find paths between entities. Cap the entity set used for pairwise
@@ -636,10 +590,7 @@ def find_paths(
     """Find paths between two entities"""
     try:
         paths = knowledge_graph_service.find_paths(
-            source_id,
-            target_id,
-            max_depth,
-            min_strength,
+            source_id, target_id, max_depth, min_strength,
             organization_id=str(current_user.organization_id),
         )
         return paths
@@ -657,16 +608,6 @@ def batch_create_entities(
 ):
     """Create multiple entities and relationships in a batch"""
     try:
-        # Force the caller's org onto every item — never trust client-supplied
-        # organization_id on batch entities/relationships (same cross-tenant
-        # poisoning vector as the single create_entity endpoint).
-        caller_org = (
-            str(current_user.organization_id) if current_user.organization_id else None
-        )
-        for entity in request.entities:
-            entity.organization_id = caller_org
-        for relationship in request.relationships:
-            relationship.organization_id = caller_org
         org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         result = knowledge_graph_service.create_entities_batch(
             request, source_document_ids=org_doc_ids
@@ -684,16 +625,8 @@ def create_merge_job(
     db=Depends(get_db_sync),
 ):
     """Queue a background merge job for selected duplicate groups."""
-    if not current_user.organization_id:
-        raise HTTPException(
-            status_code=403,
-            detail="Organization is required to merge knowledge graph entities",
-        )
-
     if not request.groups:
-        raise HTTPException(
-            status_code=400, detail="At least one merge group is required"
-        )
+        raise HTTPException(status_code=400, detail="At least one merge group is required")
 
     # Validate that all entity IDs belong to documents in the caller's organization.
     entity_ids = set()
@@ -705,21 +638,20 @@ def create_merge_job(
                 entity_ids.add(entity.id)
 
     if not entity_ids:
-        raise HTTPException(
-            status_code=400, detail="At least one entity ID is required"
-        )
+        raise HTTPException(status_code=400, detail="At least one entity ID is required")
 
-    # Scope by organization_id so org-owned entities with NULL source_document_id
-    # can still be merged, while a scoped miss never falls through to an
-    # unscoped cross-tenant lookup.
-    org_id = str(current_user.organization_id)
+    # Scope the fetch to the caller's org documents. Previously get_entity was
+    # unscoped, so an entity with a NULL source_document_id (orphan) belonging
+    # to another org passed the cross-org check below (orphans are treated as
+    # "safe") and could be merged cross-tenant. A scoped miss now 404s.
+    org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
     entity_source_docs: Dict[str, str] = {}
     for entity_id in entity_ids:
-        entity = knowledge_graph_service.get_entity(entity_id, organization_id=org_id)
+        entity = knowledge_graph_service.get_entity(
+            entity_id, source_document_ids=org_doc_ids
+        )
         if not entity:
-            raise HTTPException(
-                status_code=404, detail=f"Entity not found: {entity_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
 
         source_document_id = getattr(entity, "source_document_id", None)
         if source_document_id:
@@ -768,13 +700,8 @@ def create_merge_job(
         queue_name="graph_processing",
     )
     db.add(job)
-    # Flush (not commit) so job.id is available for apply_async without
-    # persisting a PENDING/celery_task_id=NULL row yet. There is no try/except
-    # here, so if apply_async raises (e.g. broker down) the exception propagates
-    # and the request's session is closed uncommitted -> the flush is rolled
-    # back, leaving no orphaned PENDING job. The commit lands only after the
-    # task is actually enqueued.
-    db.flush()
+    db.commit()
+    db.refresh(job)
 
     task = kg_merge_entities_job.apply_async(
         args=[str(job.id)],
@@ -795,9 +722,7 @@ def create_extraction_job(
 ):
     """Queue a background entity extraction job for one or more documents."""
     if not request.document_ids:
-        raise HTTPException(
-            status_code=400, detail="At least one document ID is required"
-        )
+        raise HTTPException(status_code=400, detail="At least one document ID is required")
 
     # Ensure all requested documents belong to the current organization
     docs = (
@@ -810,9 +735,7 @@ def create_extraction_job(
         .all()
     )
     found_ids = {str(doc.id) for doc in docs}
-    missing = [
-        doc_id for doc_id in request.document_ids if str(doc_id) not in found_ids
-    ]
+    missing = [doc_id for doc_id in request.document_ids if str(doc_id) not in found_ids]
     if missing:
         raise HTTPException(status_code=404, detail=f"Documents not found: {missing}")
 
@@ -830,13 +753,8 @@ def create_extraction_job(
         queue_name="entity_processing",
     )
     db.add(job)
-    # Flush (not commit) so job.id is available for apply_async without
-    # persisting a PENDING/celery_task_id=NULL row yet. There is no try/except
-    # here, so if apply_async raises (e.g. broker down) the exception propagates
-    # and the request's session is closed uncommitted -> the flush is rolled
-    # back, leaving no orphaned PENDING job. The commit lands only after the
-    # task is actually enqueued.
-    db.flush()
+    db.commit()
+    db.refresh(job)
 
     task = kg_extract_entities_job.apply_async(
         args=[str(job.id)],
@@ -852,9 +770,7 @@ def create_extraction_job(
 # Document Integration Endpoints
 @router.post("/documents/{document_id}/extract-entities", response_model=Dict[str, Any])
 def extract_entities_from_document(
-    document_id: str,
-    current_user: User = Depends(get_current_user),
-    db=Depends(get_db_sync),
+    document_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
 ):
     """Extract entities from a document and add them to the knowledge graph"""
     try:
@@ -884,10 +800,8 @@ def extract_entities_from_document(
 
         # Extract entities + relationships using entity extraction service
         entity_extractor = EntityExtractionService()
-        entities_data, relationships_data = (
-            entity_extractor.extract_entities_and_relationships_from_text(
-                document, content
-            )
+        entities_data, relationships_data = entity_extractor.extract_entities_and_relationships_from_text(
+            document, content
         )
 
         # Convert extracted entities to CreateEntityRequest objects.
@@ -903,32 +817,18 @@ def extract_entities_from_document(
             create_requests.append(
                 CreateEntityRequest(
                     name=entity_data.name,
-                    entity_type=_map_processing_entity_type_to_graph(
-                        entity_data.entity_type
-                    ),
+                    entity_type=_map_processing_entity_type_to_graph(entity_data.entity_type),
                     confidence_score=min(1.0, max(0.0, entity_data.confidence or 0.8)),
                     extraction_method=ExtractionMethod.MANUAL,
                     position=position,
-                    context=(
-                        entity_data.properties.get("context_window")
-                        if entity_data.properties
-                        else None
-                    ),
+                    context=entity_data.properties.get("context_window")
+                    if entity_data.properties
+                    else None,
                     metadata={
                         "source": "document_extract_endpoint",
                         "document_id": document_id,
                     },
                     source_document_id=document_id,
-                    # Stamp the caller's org (the document is already verified as
-                    # theirs). Without this the entities are created with an empty
-                    # org_key and never appear in the caller's own org-scoped
-                    # entity list / search — the relationships below already do
-                    # this; the entity requests were missed.
-                    organization_id=(
-                        str(current_user.organization_id)
-                        if current_user.organization_id
-                        else None
-                    ),
                 )
             )
 
@@ -936,9 +836,7 @@ def extract_entities_from_document(
         entity_batch_request = BatchEntityRequest(
             entities=create_requests, upsert=True, document_id=document_id
         )
-        entity_result = knowledge_graph_service.create_entities_batch(
-            entity_batch_request
-        )
+        entity_result = knowledge_graph_service.create_entities_batch(entity_batch_request)
 
         # Build lookup for relationship endpoint resolution.
         created_entity_id_by_key = {}
@@ -1080,16 +978,9 @@ def get_graph_analytics(
 
 @router.get("/health", response_model=GraphHealthStatus)
 def get_graph_health(current_user: User = Depends(get_current_user)):
-    """Get health status of the graph database (counts scoped to caller's org)"""
+    """Get health status of the graph database"""
     try:
-        # Always pass the org string unconditionally. Do NOT rewrite this to
-        # `str(org) if org else None` like the sibling endpoints — a None here
-        # takes get_health_status's global (unscoped) branch and re-leaks the
-        # whole multi-tenant graph size. An orgless user (org deleted → SET NULL)
-        # stringifies to 'None', which matches no node → shows zeros. Safe.
-        health = knowledge_graph_service.get_health_status(
-            organization_id=str(current_user.organization_id)
-        )
+        health = knowledge_graph_service.get_health_status()
         return health
     except Exception as e:
         logger.error(f"Error getting graph health: {e}")
@@ -1120,9 +1011,7 @@ def get_entity_visualization(
 
         # Get related entities
         related_entities = knowledge_graph_service.find_related_entities(
-            entity_id,
-            max_depth=depth,
-            limit=max_nodes - 1,
+            entity_id, max_depth=depth, limit=max_nodes - 1,
             organization_id=org_id,
         )
 
@@ -1225,8 +1114,7 @@ def fix_null_entity_types(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Fix entities with NULL type by setting them to 'OTHER', scoped to the
-    caller's organization.
+    Fix all entities with NULL type by setting them to 'OTHER'.
 
     Requires admin privileges.
     """
@@ -1234,23 +1122,15 @@ def fix_null_entity_types(
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    # Org-scope the maintenance write. UserRole.ADMIN is a per-USER role with no
-    # platform-vs-tenant distinction, so an unscoped SET over (e:Entity) let any
-    # tenant admin mutate every other tenant's graph nodes. Restrict to this
-    # org's entities.
-    org_id = _require_org_id(current_user)
-
     try:
         with knowledge_graph_service.get_session() as session:
-            # Count this org's entities with NULL type
+            # Count entities with NULL type
             count_result = session.run(
                 """
                 MATCH (e:Entity)
-                WHERE e.organization_id = $org_id
-                  AND (e.type IS NULL OR e.entity_type IS NULL)
+                WHERE e.type IS NULL OR e.entity_type IS NULL
                 RETURN count(e) as count
-                """,
-                {"org_id": org_id},
+            """
             )
             count = count_result.single()["count"]
 
@@ -1262,26 +1142,20 @@ def fix_null_entity_types(
             result = session.run(
                 """
                 MATCH (e:Entity)
-                WHERE e.organization_id = $org_id
-                  AND (e.type IS NULL OR e.entity_type IS NULL)
+                WHERE e.type IS NULL OR e.entity_type IS NULL
                 SET e.type = COALESCE(e.type, 'OTHER'),
                     e.entity_type = COALESCE(e.entity_type, 'OTHER')
                 RETURN count(e) as updated
-                """,
-                {"org_id": org_id},
+            """
             )
             total_updated = result.single()["updated"]
 
-            logger.info(
-                f"Fixed {total_updated} entities with NULL type for org {org_id}"
-            )
+            logger.info(f"Fixed {total_updated} entities with NULL type")
 
             return {
                 "message": f"Successfully fixed {total_updated} entities with NULL type",
                 "updated": total_updated,
             }
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error fixing NULL entity types: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -1293,49 +1167,23 @@ def reset_graph_schema(
     confirm: bool = Query(..., description="Confirmation to reset schema"),
     current_user: User = Depends(get_current_user),
 ):
-    """Reset the CALLER'S organization graph (DESTRUCTIVE OPERATION).
-
-    Deletes every Entity node owned by the caller's organization (and, via
-    DETACH DELETE, their relationships). Global schema constraints/indexes are
-    (idempotently) re-ensured.
-    """
-    # Admin-only AND org-scoped: previously this ran `MATCH (n) DETACH DELETE n`
-    # — an unscoped wipe of ALL nodes/relationships across EVERY tenant, gated
-    # only on the per-USER UserRole.ADMIN (no platform-vs-tenant distinction), so
-    # any single tenant's admin could destroy every other tenant's graph. Scope
-    # the delete to this org's entities. A true global wipe is a platform/ops
-    # action, not a tenant-facing API.
+    """Reset the entire graph schema (DESTRUCTIVE OPERATION)"""
+    # Admin-only: this wipes ALL nodes/relationships across EVERY tenant
+    # (MATCH (n) DETACH DELETE n, unscoped). Mirror the gate on fix_null_entity_types.
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Admin access required")
     if not confirm:
         raise HTTPException(status_code=400, detail="Confirmation required")
 
-    org_id = _require_org_id(current_user)
-
     try:
         with knowledge_graph_service.get_session() as session:
-            # Delete only THIS org's entity nodes; DETACH removes their edges.
-            result = session.run(
-                """
-                MATCH (e:Entity)
-                WHERE e.organization_id = $org_id
-                DETACH DELETE e
-                RETURN count(e) as deleted
-                """,
-                {"org_id": org_id},
-            )
-            deleted = result.single()["deleted"]
+            # Delete all nodes and relationships
+            session.run("MATCH (n) DETACH DELETE n")
 
-            # Re-ensure global constraints/indexes (idempotent, IF NOT EXISTS).
+            # Recreate constraints and indexes
             knowledge_graph_service._ensure_schema()
 
-        logger.info(f"Reset graph for org {org_id}: deleted {deleted} entities")
-        return {
-            "message": "Organization graph reset successfully",
-            "deleted_entities": deleted,
-        }
-    except HTTPException:
-        raise
+        return {"message": "Graph schema reset successfully"}
     except Exception as e:
         logger.error(f"Error resetting graph schema: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

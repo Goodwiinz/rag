@@ -64,7 +64,6 @@ _SUPPORTED_SERVICES: Dict[str, Dict[str, str]] = {
 def _bioservices_available() -> bool:
     try:
         import bioservices  # noqa: F401
-
         return True
     except ImportError:
         return False
@@ -118,7 +117,9 @@ class BioServicesBridgeConnector(ExternalDBConnector):
             # forever. (wait_for stops the await; _sync_search additionally sets
             # the service's own HTTP timeout so the worker thread is freed too.)
             results = await asyncio.wait_for(
-                asyncio.to_thread(self._sync_search, service_name, query, max_results),
+                asyncio.to_thread(
+                    self._sync_search, service_name, query, max_results
+                ),
                 timeout=_BIOSERVICES_TIMEOUT_SECONDS,
             )
             return results
@@ -186,7 +187,9 @@ class BioServicesBridgeConnector(ExternalDBConnector):
                     entry_id = str(
                         item.get("id", item.get("stId", item.get("chebiId", "")))
                     )
-                    title = str(item.get("name", item.get("displayName", entry_id)))
+                    title = str(
+                        item.get("name", item.get("displayName", entry_id))
+                    )
                     results.append(
                         ConnectorResult(
                             id=entry_id,

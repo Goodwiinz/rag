@@ -75,7 +75,7 @@ function MetricCard({
       className={cn(
         'transition-colors',
         isInteractive &&
-          'cursor-pointer hover:border-primary/40 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring'
+          'cursor-pointer hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
       )}
       onClick={onClick}
       {...(isInteractive

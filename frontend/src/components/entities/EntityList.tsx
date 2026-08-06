@@ -174,7 +174,7 @@ export const EntityList: React.FC<EntityListProps> = ({
               selectedItems.length === entities.length && entities.length > 0
             }
             onChange={handleSelectAll}
-            className="h-4 w-4 rounded border-border bg-background text-primary accent-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+            className="h-4 w-4 rounded border-border bg-background text-primary accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
           />
           <span className="text-sm text-muted-foreground">Select all</span>
           {selectedItems.length > 0 && (
@@ -256,7 +256,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                       aria-label={`Select ${entity.name}`}
                       checked={selectedItems.includes(entity.id)}
                       onChange={() => handleSelectItem(entity.id)}
-                      className="h-4 w-4 rounded border-border bg-background text-primary accent-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                      className="h-4 w-4 rounded border-border bg-background text-primary accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
                     />
                   </TableCell>
                   <TableCell>

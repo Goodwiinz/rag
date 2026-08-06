@@ -19,7 +19,6 @@ from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
-from src.core.dependencies import get_current_user
 from src.models import (
     Collection,
     CollectionDocument,
@@ -28,9 +27,15 @@ from src.models import (
     ProjectNote,
     User,
 )
-from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
+from src.models.processing import (
+    JobPriority,
+    JobStatus,
+    JobType,
+    ProcessingJob,
+)
 from src.services.research.bibliography_service import BibliographyService
 from src.services.research.project_service import ProjectService
+from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     NoteCreate,
     NoteListResponse,
@@ -481,33 +486,6 @@ async def add_document_to_project(
                     task_count=len(extraction_task_ids),
                 )
 
-        # Capture the response payload from the ORM objects now, while they are
-        # fresh. The KG-queue block below rolls back on failure, which expires
-        # collection_doc/document; reading their attributes after that rollback
-        # would trigger an async lazy-load (MissingGreenlet) and falsely 500 a
-        # doc-add that already succeeded (committed above at db.commit()).
-        response = {
-            "id": str(collection_doc.id),
-            "project_id": str(project_id),
-            "document_id": str(document_id),
-            "added_at": (
-                collection_doc.created_at.isoformat()
-                if collection_doc.created_at
-                else None
-            ),
-            "sort_order": sort_order,
-            "document": {
-                "id": str(document.id),
-                "title": document.title or document.filename,
-                "filename": document.filename,
-                "status": document.processing_status,
-                "created_at": (
-                    document.created_at.isoformat() if document.created_at else None
-                ),
-            },
-            "extraction_task_ids": extraction_task_ids,
-        }
-
         # Auto-populate the knowledge graph: queue an entity-extraction job so
         # the project's knowledge tree reflects this document.
         kg_job_id: Optional[str] = None
@@ -528,28 +506,17 @@ async def add_document_to_project(
                     queue_name="entity_processing",
                 )
                 db.add(kg_job)
-                # Flush so kg_job.id is populated for the enqueue registration.
-                # celery_task_id is intentionally NOT set here and the row stays
-                # PENDING: the worker stamps celery_task_id via start_job when it
-                # picks the job up, so the create-time value is redundant — and
-                # unavailable anyway, because enqueue_after_commit_apply_async
-                # fires the apply_async only *after* the commit below (closing
-                # the worker-reads-before-commit race), returning no task id to
-                # read pre-commit. The enqueue is dropped if the transaction
-                # rolls back; a broker outage in the post-commit window leaves
-                # the job PENDING/celery_task_id=NULL, which the lost-job
-                # reconciler (src.tasks.reconcile_jobs) re-enqueues.
-                await db.flush()
+                await db.commit()
+                await db.refresh(kg_job)
 
-                from src.tasks.enqueue import enqueue_after_commit_apply_async
                 from src.tasks.processing_tasks import kg_extract_entities_job
 
-                enqueue_after_commit_apply_async(
-                    db,
-                    kg_extract_entities_job,
+                task = kg_extract_entities_job.apply_async(
                     args=[str(kg_job.id)],
                     queue="entity_processing",
                 )
+                kg_job.celery_task_id = task.id
+                kg_job.status = JobStatus.QUEUED
                 await db.commit()
                 kg_job_id = str(kg_job.id)
 
@@ -569,8 +536,28 @@ async def add_document_to_project(
                     error=str(kg_error),
                 )
 
-        response["kg_job_id"] = kg_job_id
-        return response
+        return {
+            "id": str(collection_doc.id),
+            "project_id": str(project_id),
+            "document_id": str(document_id),
+            "added_at": (
+                collection_doc.created_at.isoformat()
+                if collection_doc.created_at
+                else None
+            ),
+            "sort_order": sort_order,
+            "document": {
+                "id": str(document.id),
+                "title": document.title or document.filename,
+                "filename": document.filename,
+                "status": document.processing_status,
+                "created_at": (
+                    document.created_at.isoformat() if document.created_at else None
+                ),
+            },
+            "extraction_task_ids": extraction_task_ids,
+            "kg_job_id": kg_job_id,
+        }
 
     except HTTPException:
         raise
@@ -744,21 +731,21 @@ async def create_note(
         Created note
     """
     try:
-        # Authorization guard (raises 404 on unowned project). Kept in the
-        # adapter — the route and the agent tool verify ownership differently
-        # (see ProjectService.create_note docstring), so the shared service
-        # method stays persistence-only.
         await _get_project_with_auth(project_id, current_user, db)
 
-        note = await ProjectService(db).create_note(
-            user_id=current_user.id,
+        note = ProjectNote(
             project_id=project_id,
+            user_id=current_user.id,
             title=note_data.title,
             content=note_data.content,
-            tags=note_data.tags,
-            linked_document_ids=note_data.linked_document_ids,
-            is_pinned=note_data.is_pinned,
+            linked_document_ids=note_data.linked_document_ids or [],
+            tags=note_data.tags or [],
+            is_pinned=note_data.is_pinned or False,
         )
+
+        db.add(note)
+        await db.commit()
+        await db.refresh(note)
 
         logger.info(
             "note_created",
@@ -997,7 +984,7 @@ async def get_project_bibliography(
         # Fallback: build bibliography from Document metadata when no
         # Citation records exist (common for freshly ingested papers).
         if not citations:
-            from src.services.agent.tools_impl import _citations_from_documents
+            from src.api.agent.tools_impl import _citations_from_documents
 
             doc_stmt = select(Document).where(
                 Document.id.in_(document_ids),
@@ -1082,7 +1069,6 @@ async def _get_project_with_auth(
             and_(
                 Collection.id == project_id,
                 Workspace.owner_id == current_user.id,
-                Collection.is_deleted.is_(False),
             )
         )
     )

@@ -75,14 +75,14 @@ export function CitationLink({
         'h-[18px] min-w-[18px] px-[5px] rounded-full',
         'font-nous-ui text-[10px] font-semibold leading-none',
         'transition-all duration-150 cursor-pointer',
-        'focus:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40',
         citation
           ? isActive
-            ? 'bg-(--nous-sol) text-white shadow-[0_0_0_2px_rgba(var(--nous-sol-rgb),0.18)]'
+            ? 'bg-[var(--nous-sol)] text-white shadow-[0_0_0_2px_rgba(212,160,57,0.18)]'
             : canNavigate
-              ? 'bg-(--nous-aurum) text-(--nous-sol-safe) hover:bg-(--nous-sol) hover:text-white hover:-translate-y-px dark:bg-(--nous-ember) dark:text-(--nous-helios) dark:hover:bg-(--nous-helios) dark:hover:text-(--nous-nyx)'
-              : 'bg-transparent border border-(--nous-border-1) text-(--nous-fg-3) cursor-default'
-          : 'bg-(--nous-bg-2) text-(--nous-fg-3) cursor-not-allowed opacity-60',
+              ? 'bg-[var(--nous-aurum)] text-[var(--nous-sol-safe)] hover:bg-[var(--nous-sol)] hover:text-white hover:-translate-y-px dark:bg-[var(--nous-ember)] dark:text-[var(--nous-helios)] dark:hover:bg-[var(--nous-helios)] dark:hover:text-[var(--nous-nyx)]'
+              : 'bg-transparent border border-[var(--nous-border-1)] text-[var(--nous-fg-3)] cursor-default'
+          : 'bg-[var(--nous-bg-2)] text-[var(--nous-fg-3)] cursor-not-allowed opacity-60',
         className
       )}
     >
@@ -117,31 +117,31 @@ export function CitationLink({
         sideOffset={8}
         className={cn(
           'w-[320px] p-0 overflow-hidden z-50',
-          'bg-(--nous-bg-1) border border-(--nous-border-1)',
-          'shadow-[0_8px_24px_rgba(var(--nous-erebus-rgb),0.10)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.45)]'
+          'bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)]',
+          'shadow-[0_8px_24px_rgba(10,10,14,0.10)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.45)]'
         )}
       >
         {/* Header */}
-        <div className="px-3 py-2.5 border-b border-(--nous-border-1) bg-(--nous-bg-2)">
+        <div className="px-3 py-2.5 border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <div className="flex items-start gap-2.5">
             <div
               className={cn(
                 'flex items-center justify-center w-7 h-7 rounded shrink-0 mt-0.5',
                 canNavigate
-                  ? 'bg-(--nous-aurum) dark:bg-(--nous-ember) border border-[rgba(var(--nous-sol-rgb),0.25)]'
-                  : 'bg-(--nous-bg-1) border border-(--nous-border-1)'
+                  ? 'bg-[var(--nous-aurum)] dark:bg-[var(--nous-ember)] border border-[rgba(212,160,57,0.25)]'
+                  : 'bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)]'
               )}
             >
               {canNavigate ? (
-                <FileText className="w-3.5 h-3.5 text-(--nous-sol-safe) dark:text-(--nous-helios)" />
+                <FileText className="w-3.5 h-3.5 text-[var(--nous-sol-safe)] dark:text-[var(--nous-helios)]" />
               ) : (
-                <Archive className="w-3.5 h-3.5 text-(--nous-fg-3)" />
+                <Archive className="w-3.5 h-3.5 text-[var(--nous-fg-3)]" />
               )}
             </div>
 
             <div className="flex-1 min-w-0">
               <h4
-                className="text-[13px] font-medium leading-snug line-clamp-2 text-(--nous-fg-1)"
+                className="text-[13px] font-medium leading-snug line-clamp-2 text-[var(--nous-fg-1)]"
                 style={{ fontFamily: 'var(--nous-font-ui)' }}
               >
                 {citation.title}
@@ -161,7 +161,7 @@ export function CitationLink({
 
                 {citation.source && (
                   <span
-                    className="px-1.5 py-0.5 rounded text-[9px] bg-(--nous-bg-1) text-(--nous-fg-2) border border-(--nous-border-1)"
+                    className="px-1.5 py-0.5 rounded text-[9px] bg-[var(--nous-bg-1)] text-[var(--nous-fg-2)] border border-[var(--nous-border-1)]"
                     style={{ fontFamily: 'var(--nous-font-mono)' }}
                   >
                     {citation.source}
@@ -170,7 +170,7 @@ export function CitationLink({
 
                 {!canNavigate && (
                   <span
-                    className="px-1.5 py-0.5 rounded text-[9px] bg-(--nous-bg-1) text-(--nous-fg-3) border border-(--nous-border-1)"
+                    className="px-1.5 py-0.5 rounded text-[9px] bg-[var(--nous-bg-1)] text-[var(--nous-fg-3)] border border-[var(--nous-border-1)]"
                     style={{ fontFamily: 'var(--nous-font-mono)' }}
                   >
                     External
@@ -180,7 +180,7 @@ export function CitationLink({
 
               {citation.externalReferenceId && !canNavigate && (
                 <p
-                  className="text-[9px] text-(--nous-fg-3) mt-1 truncate"
+                  className="text-[9px] text-[var(--nous-fg-3)] mt-1 truncate"
                   style={{ fontFamily: 'var(--nous-font-mono)' }}
                 >
                   REF: {citation.externalReferenceId}
@@ -192,22 +192,22 @@ export function CitationLink({
 
         {/* Preview */}
         {previewContent && previewContent.length > 10 && (
-          <div className="px-3 py-2.5 border-b border-(--nous-border-1)">
+          <div className="px-3 py-2.5 border-b border-[var(--nous-border-1)]">
             <div className="flex items-center gap-1.5 mb-1.5">
               <BookOpen
                 aria-hidden
-                className="w-3 h-3 text-(--nous-fg-3)"
+                className="w-3 h-3 text-[var(--nous-fg-3)]"
                 strokeWidth={1.8}
               />
               <span
-                className="text-[11px] font-medium text-(--nous-fg-3)"
+                className="text-[11px] font-medium text-[var(--nous-fg-3)]"
                 style={{ fontFamily: 'var(--nous-font-ui)' }}
               >
                 Preview
               </span>
             </div>
             <p
-              className="text-[12px] text-(--nous-fg-2) leading-relaxed line-clamp-4"
+              className="text-[12px] text-[var(--nous-fg-2)] leading-relaxed line-clamp-4"
               style={{ fontFamily: 'var(--nous-font-body)' }}
             >
               {truncateText(previewContent, 240)}
@@ -216,11 +216,11 @@ export function CitationLink({
         )}
 
         {/* Footer */}
-        <div className="px-3 py-2 bg-(--nous-bg-2) flex items-center justify-end">
+        <div className="px-3 py-2 bg-[var(--nous-bg-2)] flex items-center justify-end">
           {canNavigate ? (
             <button
               onClick={handleClick}
-              className="flex items-center gap-1.5 text-[10px] text-(--nous-sol-safe) dark:text-(--nous-helios) hover:opacity-80 transition-opacity"
+              className="flex items-center gap-1.5 text-[10px] text-[var(--nous-sol-safe)] dark:text-[var(--nous-helios)] hover:opacity-80 transition-opacity"
               style={{ fontFamily: 'var(--nous-font-mono)' }}
             >
               View Document
@@ -228,7 +228,7 @@ export function CitationLink({
             </button>
           ) : (
             <span
-              className="text-[10px] text-(--nous-fg-3)"
+              className="text-[10px] text-[var(--nous-fg-3)]"
               style={{ fontFamily: 'var(--nous-font-mono)' }}
             >
               External source

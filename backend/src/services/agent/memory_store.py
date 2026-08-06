@@ -126,7 +126,7 @@ async def extract_insights(
 
     try:
         llm = _build_insights_llm()
-        from langchain_core.messages import HumanMessage, SystemMessage
+        from langchain_core.messages import SystemMessage, HumanMessage
 
         conversation = "\n".join(
             f"{m.get('role', 'unknown')}: {redact_pii(m.get('content', ''))}"

@@ -119,6 +119,7 @@ def test_t4_security():
         "backend/src/middleware/encryption_middleware.py",
         "backend/src/api/encryption.py",
         "backend/src/config/encryption_config.py",
+        "backend/src/migrations/add_encryption_tables.py",
         "backend/src/middleware/multi_tenancy.py",
         "backend/src/middleware/rbac.py",
         "backend/src/services/audit_service.py",
@@ -266,7 +267,7 @@ def test_docker_configuration():
     if check_file_exists("docker-compose.yml"):
         with open("docker-compose.yml", "r") as f:
             content = f.read()
-            services = ["backend", "frontend", "postgres", "redis", "neo4j"]
+            services = ["backend", "frontend", "postgres", "redis", "neo4j", "qdrant"]
             found_services = [service for service in services if service in content]
             print(f"  🐋 Docker services found: {len(found_services)}/{len(services)}")
 

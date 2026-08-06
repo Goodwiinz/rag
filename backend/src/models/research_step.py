@@ -34,7 +34,9 @@ class ResearchStep(BaseModel):
 
     __tablename__ = "research_steps"
 
-    run_id = Column(GUID(), ForeignKey("research_runs.id"), nullable=False)
+    run_id = Column(
+        GUID(), ForeignKey("research_runs.id"), nullable=False
+    )
     step_index = Column(Integer, nullable=False)
     step_type = Column(String(50), nullable=False)
     mode = Column(String(50), nullable=False, default="deterministic")

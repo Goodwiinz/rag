@@ -1,41 +1,7 @@
 /**
  * TypeScript types for NOUS thread-centric chat system
  * Based on backend/src/schemas/chat.py
- *
- * Workspace/conversation/thread/chat-message shapes are adopted from the
- * generated OpenAPI contract (`types/api/workspace-contract.ts`) rather than
- * hand-duplicated. Most are direct re-exports; a few are narrowed or relaxed
- * — see the comment above each one for why. This keeps the public names
- * (`Workspace`, `Thread`, `ChatMessage`, ...) stable so existing store/
- * component imports from `@/types/workspace` don't need to change.
  */
-
-import type { PlanStep } from './agent-chat';
-import type {
-  ApiBulkThreadResponse,
-  ApiCollection,
-  ApiCollectionCreate,
-  ApiCollectionDetail,
-  ApiCollectionListResponse,
-  ApiCollectionUpdate,
-  ApiConversation,
-  ApiConversationCreate,
-  ApiConversationListResponse,
-  ApiConversationUpdate,
-  ApiMessage,
-  ApiMessageCreate,
-  ApiMessageListResponse,
-  ApiMessageUpdate,
-  ApiThread,
-  ApiThreadCreate,
-  ApiThreadDetail,
-  ApiThreadList,
-  ApiThreadUpdate,
-  ApiWorkspace,
-  ApiWorkspaceCreate,
-  ApiWorkspaceDetail,
-  ApiWorkspaceUpdate,
-} from './api/workspace-contract';
 
 // ============================================================================
 // Enums
@@ -62,52 +28,139 @@ export enum MessageRole {
 }
 
 // ============================================================================
-// Workspace Types (generated contract)
+// Workspace Types
 // ============================================================================
 
-/**
- * openapi-typescript marks `is_public` as required because the backend
- * Pydantic field declares a default (`is_public: bool = False`) —
- * `defaultNonNullable` treats any defaulted field as always-present. The
- * client may still omit it and let the backend default apply (existing
- * callers do), so it's relaxed back to optional here.
- */
-export type WorkspaceCreate = Omit<ApiWorkspaceCreate, 'is_public'> & {
-  is_public?: ApiWorkspaceCreate['is_public'];
-};
-export type WorkspaceUpdate = ApiWorkspaceUpdate;
-export type Workspace = ApiWorkspace;
-export type WorkspaceDetail = ApiWorkspaceDetail;
+export interface WorkspaceCreate {
+  name: string;
+  description?: string;
+  is_public?: boolean;
+  organization_id?: string;
+}
+
+export interface WorkspaceUpdate {
+  name?: string;
+  description?: string;
+  is_public?: boolean;
+  is_archived?: boolean;
+}
+
+export interface WorkspaceMember {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  role: WorkspaceRole;
+  joined_at: string;
+  invited_by_id?: string;
+  user_email?: string;
+  user_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  description?: string;
+  is_public: boolean;
+  owner_id: string;
+  organization_id?: string;
+  is_archived: boolean;
+  member_count?: number;
+  conversation_count?: number;
+  collection_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspaceDetail extends Workspace {
+  members: WorkspaceMember[];
+}
 
 // ============================================================================
-// Conversation Types (generated contract)
+// Conversation Types
 // ============================================================================
 
-export type ConversationCreate = ApiConversationCreate;
-export type ConversationUpdate = ApiConversationUpdate;
-export type Conversation = ApiConversation;
-export type ConversationListResponse = ApiConversationListResponse;
+export interface ConversationCreate {
+  title: string;
+  description?: string;
+  workspace_id: string;
+}
+
+export interface ConversationUpdate {
+  title?: string;
+  description?: string;
+  is_archived?: boolean;
+  is_pinned?: boolean;
+}
+
+export interface Conversation {
+  id: string;
+  workspace_id: string;
+  created_by_id: string;
+  title: string;
+  description?: string;
+  is_archived: boolean;
+  is_pinned: boolean;
+  last_activity_at: string;
+  thread_count?: number;
+  message_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationListResponse {
+  conversations: Conversation[];
+  total: number;
+  page: number;
+  limit: number;
+  has_more: boolean;
+}
 
 // ============================================================================
-// Thread Types (generated contract)
+// Thread Types
 // ============================================================================
 
-export type ThreadCreate = ApiThreadCreate;
-export type ThreadUpdate = ApiThreadUpdate;
-/** Project this thread is bound to (drives chat project context). Note the
- * create-side field is `project_id` (ThreadCreate); the read side reports it
- * under this different name, `source_project_id` — that's a genuine backend
- * asymmetry, not something normalized away here. */
-export type Thread = ApiThread;
+export interface ThreadCreate {
+  conversation_id: string;
+  title?: string;
+  initial_message?: string;
+  project_id?: string;
+}
 
-// `messages` narrowed to the view-model-aware `ChatMessage` (below) rather
-// than the raw generated message shape, so `plan`/`tool_executions`/
-// `token_usage`/`citations`/`attachments` keep their concrete frontend types.
-export type ThreadDetail = Omit<ApiThreadDetail, 'messages'> & {
+export interface ThreadUpdate {
+  title?: string;
+  summary?: string;
+  status?: ThreadStatus;
+}
+
+export interface Thread {
+  id: string;
+  conversation_id: string;
+  title?: string;
+  summary?: string;
+  status: ThreadStatus;
+  last_message_at: string;
+  message_count: number;
+  token_count: number;
+  created_by_id?: string;
+  created_at: string;
+  updated_at: string;
+  /** Project this thread is bound to (drives chat project context). */
+  source_project_id?: string | null;
+}
+
+export interface ThreadDetail extends Thread {
   messages: ChatMessage[];
-};
+}
 
-export type ThreadListResponse = ApiThreadList;
+export interface ThreadListResponse {
+  threads: Thread[];
+  total: number;
+  page: number;
+  limit: number;
+  has_more: boolean;
+}
 
 // ============================================================================
 // Bulk Thread Operations
@@ -124,7 +177,12 @@ export interface BulkThreadResult {
   thread?: Thread;
 }
 
-export type BulkThreadResponse = ApiBulkThreadResponse;
+export interface BulkThreadResponse {
+  total: number;
+  succeeded: number;
+  failed: number;
+  results: BulkThreadResult[];
+}
 
 // ============================================================================
 // Chat Message Types
@@ -170,83 +228,126 @@ export interface CitationCreate {
   document_type?: string;
 }
 
-/**
- * `role` is required in the generated type for the same reason as
- * `WorkspaceCreate.is_public` above (Pydantic default `role: MessageRole =
- * MessageRole.USER` β†’ `defaultNonNullable`); real callers omit it and let
- * the backend default apply, so it's relaxed back to optional.
- * `citations` keeps the generated (nullable-field) nested type — the
- * handwritten `CitationCreate[]` below is a narrower shape that's still
- * assignable into it, so no override is needed there.
- */
-export type ChatMessageCreate = Omit<ApiMessageCreate, 'role'> & {
+export interface ChatMessageCreate {
+  thread_id: string;
+  content: string;
   role?: MessageRole;
-};
-
-export type ChatMessageUpdate = ApiMessageUpdate;
-
-/**
- * `plan` / `tool_executions` / `token_usage` are persisted as loose JSONB on
- * the backend, so the generated response types them as an untyped
- * passthrough (`Record<string, unknown>[] | null`). The frontend view-model
- * needs the concrete shapes (`PlanStep[]`, `DbToolExecution[]`, ...), so
- * those three fields β€” plus `role` (enum, not a plain string union) and
- * `citations`/`attachments` (concrete `Citation`/`MessageAttachment`, not
- * the generated nested response types) β€” are narrowed back here rather than
- * left as the raw generated shape.
- */
-export type ChatMessage = Omit<
-  ApiMessage,
-  | 'role'
-  | 'citations'
-  | 'attachments'
-  | 'plan'
-  | 'tool_executions'
-  | 'token_usage'
-> & {
-  role: MessageRole;
-  /** Agent tool executions for this turn (JSONB passthrough from the
-   * backend: {id, tool_name, tool_display_name, args, status, result,
-   * error, duration_ms}[]). Absent for legacy and non-agent rows. */
-  tool_executions?: DbToolExecution[];
-  /** Planner steps persisted for this turn (chat_messages.plan JSONB).
-   * Absent for legacy rows, user rows, and turns without a plan. */
-  plan?: PlanStep[];
-  /** Aggregated per-turn LLM token usage (chat_messages.token_usage JSONB).
-   * Absent when the turn reported no usage. */
-  token_usage?: { input_tokens: number; output_tokens: number };
-  citations: Citation[];
-  attachments: MessageAttachment[];
-};
-
-/** Persisted agent tool-execution record (chat_messages.tool_executions). */
-export interface DbToolExecution {
-  id?: string;
-  tool_name: string;
-  tool_display_name?: string;
-  args?: Record<string, unknown>;
-  status?: string;
-  result?: unknown;
-  error?: string | null;
-  duration_ms?: number | null;
+  attachment_ids?: string[];
+  citations?: CitationCreate[]; // Citations from RAG retrieval
+  latency_ms?: number; // Client-measured response time (ms)
+  stopped?: boolean; // User stopped this response mid-stream
 }
 
-export type ChatMessageListResponse = Omit<
-  ApiMessageListResponse,
-  'messages'
-> & {
+export interface ChatMessageUpdate {
+  feedback_rating?: number;
+  feedback_text?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  thread_id: string;
+  user_id?: string;
+  content: string;
+  role: MessageRole;
+  token_count: number;
+  latency_ms?: number;
+  stopped?: boolean;
+  model_name?: string;
+  model_version?: string;
+  tool_name?: string;
+  tool_call_id?: string;
+  feedback_rating?: number;
+  feedback_text?: string;
+  citations: Citation[];
+  attachments: MessageAttachment[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessageListResponse {
   messages: ChatMessage[];
-};
+  total: number;
+  page: number;
+  limit: number;
+  has_more: boolean;
+}
 
 // ============================================================================
-// Collection Types (generated contract)
+// Collection Types
 // ============================================================================
 
-export type CollectionCreate = ApiCollectionCreate;
-export type CollectionUpdate = ApiCollectionUpdate;
-export type Collection = ApiCollection;
-export type CollectionDetail = ApiCollectionDetail;
-export type CollectionListResponse = ApiCollectionListResponse;
+export interface CollectionCreate {
+  name: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  workspace_id: string;
+  document_ids?: string[];
+}
+
+export interface CollectionUpdate {
+  name?: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+}
+
+export interface Collection {
+  id: string;
+  workspace_id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  document_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CollectionDetail extends Collection {
+  documents: Record<string, any>[];
+}
+
+export interface CollectionListResponse {
+  collections: Collection[];
+  total: number;
+  page: number;
+  limit: number;
+  has_more: boolean;
+}
+
+// ============================================================================
+// Chat Completion Types
+// ============================================================================
+
+export interface ChatCompletionRequest {
+  thread_id: string;
+  message: string;
+  use_rag?: boolean;
+  collection_ids?: string[];
+  search_type?: string;
+  top_k?: number;
+  model?: string;
+  temperature?: number;
+  max_tokens?: number;
+  stream?: boolean;
+}
+
+export interface ChatCompletionResponse {
+  message: ChatMessage;
+  usage: Record<string, number>;
+  sources_used: number;
+  search_latency_ms?: number;
+  generation_latency_ms?: number;
+}
+
+export interface StreamingChatChunk {
+  chunk_type: 'content' | 'citation' | 'done' | 'error';
+  content?: string;
+  citation?: Citation;
+  message_id?: string;
+  error?: string;
+}
 
 // ============================================================================
 // Search Types

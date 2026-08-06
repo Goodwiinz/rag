@@ -24,12 +24,12 @@ Host: localhost (or 'postgres' from containers)
 Port: 5432
 Database: ragdb
 Username: raguser
-Password: rag_password_123
+Password: REDACTED
 ```
 
 **Connection URL**:
 ```
-postgresql://raguser:rag_password_123@localhost:5432/ragdb
+postgresql://raguser:REDACTED@localhost:5432/ragdb
 ```
 
 **Quick Connect**:
@@ -38,7 +38,7 @@ postgresql://raguser:rag_password_123@localhost:5432/ragdb
 docker exec -it rag-postgres-1 psql -U raguser -d ragdb
 
 # From host (if psql installed)
-PGPASSWORD=rag_password_123 psql -h localhost -U raguser -d ragdb
+PGPASSWORD=REDACTED psql -h localhost -U raguser -d ragdb
 ```
 
 **Tables**: 18 tables (~608 KB)
@@ -63,19 +63,19 @@ Host: localhost (or 'neo4j' from containers)
 Bolt Port: 7687
 HTTP Port: 7474
 Username: neo4j
-Password: neo4j_password_123
+Password: REDACTED
 ```
 
 **Connection URLs**:
 ```
-bolt://neo4j:neo4j_password_123@localhost:7687
+bolt://neo4j:REDACTED@localhost:7687
 http://localhost:7474/browser/
 ```
 
 **Quick Connect**:
 ```bash
 # Cypher Shell
-docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123
+docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p REDACTED
 
 # Web Browser
 open http://localhost:7474
@@ -95,17 +95,17 @@ open http://localhost:7474
 ```
 Host: localhost (or 'redis' from containers)
 Port: 6379
-Password: redis_password_123
+Password: REDACTED
 ```
 
 **Connection URL**:
 ```
-redis://:redis_password_123@redis:6379/0
+redis://:REDACTED@redis:6379/0
 ```
 
 **Quick Test**:
 ```bash
-docker exec -it rag-redis-1 redis-cli -a redis_password_123 PING
+docker exec -it rag-redis-1 redis-cli -a REDACTED PING
 ```
 
 ---
@@ -116,7 +116,7 @@ docker exec -it rag-redis-1 redis-cli -a redis_password_123 PING
 ```
 Host: localhost (or 'qdrant' from containers)
 Port: 6333 (HTTP), 6334 (gRPC)
-API Key: qdrant_api_key_123
+API Key: REDACTED
 ```
 
 **Connection URL**:
@@ -140,15 +140,15 @@ http://localhost:6333/dashboard
 docker exec -it rag-postgres-1 psql -U raguser -d ragdb -c "SELECT version();"
 
 # Neo4j
-docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123 \
+docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p REDACTED \
   "RETURN 'Connected!' as status;"
 
 # Redis
-docker exec -it rag-redis-1 redis-cli -a redis_password_123 PING
+docker exec -it rag-redis-1 redis-cli -a REDACTED PING
 
 # Qdrant
 curl -X GET "http://localhost:6333/collections" \
-  -H "api-key: qdrant_api_key_123"
+  -H "api-key: REDACTED"
 ```
 
 ### Python Test Script
@@ -178,22 +178,22 @@ from backend.src.core.config import settings
 
 # PostgreSQL (SQLAlchemy)
 DATABASE_URL = settings.DATABASE_URL
-# postgresql://raguser:rag_password_123@postgres:5432/ragdb
+# postgresql://raguser:REDACTED@postgres:5432/ragdb
 
 # Neo4j
 NEO4J_URI = settings.NEO4J_URI
 NEO4J_USER = settings.NEO4J_USER
 NEO4J_PASSWORD = settings.NEO4J_PASSWORD
-# bolt://neo4j:7687, neo4j, neo4j_password_123
+# bolt://neo4j:7687, neo4j, REDACTED
 
 # Redis
 REDIS_URL = settings.REDIS_URL
-# redis://:redis_password_123@redis:6379/0
+# redis://:REDACTED@redis:6379/0
 
 # Qdrant
 QDRANT_URL = settings.QDRANT_URL
 QDRANT_API_KEY = settings.QDRANT_API_KEY
-# http://qdrant:6333, qdrant_api_key_123
+# http://qdrant:6333, REDACTED
 ```
 
 ### Frontend (React/TypeScript)
@@ -245,10 +245,10 @@ const API_BASE_URL = 'http://localhost:8000/api/v1';
 ⚠️ **Current Configuration**: Development passwords
 
 For production, change these to strong passwords:
-- PostgreSQL: `rag_password_123` → Strong password
-- Neo4j: `neo4j_password_123` → Strong password
-- Redis: `redis_password_123` → Strong password
-- Qdrant: `qdrant_api_key_123` → Strong API key
+- PostgreSQL: `REDACTED` → Strong password
+- Neo4j: `REDACTED` → Strong password
+- Redis: `REDACTED` → Strong password
+- Qdrant: `REDACTED` → Strong API key
 
 **How to change**:
 1. Update `.env` file
@@ -275,7 +275,7 @@ docker run -d \
   --name rag-neo4j-1 \
   --network rag_multimodal-rag-network \
   -p 7474:7474 -p 7687:7687 \
-  -e NEO4J_AUTH=neo4j/neo4j_password_123 \
+  -e NEO4J_AUTH=neo4j/REDACTED \
   -v rag_neo4j_data:/data \
   neo4j:5.15-community
 ```
@@ -338,9 +338,9 @@ docker logs rag-qdrant-1 --tail 20
 
 | Database   | Status | Port | Connection |
 |------------|--------|------|------------|
-| PostgreSQL | ✅     | 5432 | `postgresql://raguser:rag_password_123@localhost:5432/ragdb` |
-| Neo4j      | ✅     | 7687, 7474 | `bolt://neo4j:neo4j_password_123@localhost:7687` |
-| Redis      | ✅     | 6379 | `redis://:redis_password_123@redis:6379/0` |
+| PostgreSQL | ✅     | 5432 | `postgresql://raguser:REDACTED@localhost:5432/ragdb` |
+| Neo4j      | ✅     | 7687, 7474 | `bolt://neo4j:REDACTED@localhost:7687` |
+| Redis      | ✅     | 6379 | `redis://:REDACTED@redis:6379/0` |
 | Qdrant     | ✅     | 6333 | `http://localhost:6333` |
 
 **Your RAG system has a complete, multi-database architecture ready for production use!** 🚀

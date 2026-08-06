@@ -14,20 +14,15 @@ vi.mock('@/services/agentChatService', () => ({
 }));
 
 import { act } from '@testing-library/react';
-import type { QueryClient } from '@tanstack/react-query';
 import { useAgentChatStore } from '@/store/agentChatStore';
 import { agentChatService } from '@/services/agentChatService';
-import { setAppQueryClient } from '@/lib/query-client';
 
 const mockAgentChatService = vi.mocked(agentChatService);
-
-const invalidateQueries = vi.fn().mockResolvedValue(undefined);
 
 describe('agentChatStore project sync', () => {
   beforeEach(() => {
     useAgentChatStore.getState().reset();
     vi.clearAllMocks();
-    setAppQueryClient({ invalidateQueries } as unknown as QueryClient);
     mockAgentChatService.listThreads.mockResolvedValue({ threads: [], total: 0 });
     mockAgentChatService.getThreadMessages.mockResolvedValue({
       messages: [],
@@ -63,42 +58,5 @@ describe('agentChatStore project sync', () => {
     });
 
     expect(useAgentChatStore.getState().projectDataVersion).toBe(1);
-  });
-
-  it('invalidates the Query-side project cache scoped to the bound project', async () => {
-    useAgentChatStore.getState().setPageContext({
-      type: 'project',
-      label: 'Project X',
-      projectId: 'p1',
-    });
-    mockAgentChatService.streamMessage.mockImplementation(async (_request, callbacks) => {
-      callbacks.onToolStart?.('create_project_note', {});
-      callbacks.onToolEnd?.('create_project_note', '{"ok":true}');
-      callbacks.onDone?.();
-    });
-
-    await act(async () => {
-      useAgentChatStore.getState().setInputValue('create a note');
-      await useAgentChatStore.getState().sendMessage();
-    });
-
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['project', 'p1'],
-    });
-  });
-
-  it('does not invalidate the Query cache for non-mutating tools', async () => {
-    mockAgentChatService.streamMessage.mockImplementation(async (_request, callbacks) => {
-      callbacks.onToolStart?.('search_documents', {});
-      callbacks.onToolEnd?.('search_documents', '{"ok":true}');
-      callbacks.onDone?.();
-    });
-
-    await act(async () => {
-      useAgentChatStore.getState().setInputValue('search');
-      await useAgentChatStore.getState().sendMessage();
-    });
-
-    expect(invalidateQueries).not.toHaveBeenCalled();
   });
 });

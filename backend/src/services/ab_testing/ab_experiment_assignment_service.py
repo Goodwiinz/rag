@@ -313,9 +313,7 @@ class ExperimentAssignmentService:
         # Use consistent hash for the same user
         hash_input = f"{context.user_id}_{context.session_id or 'no_session'}"
         # Use MD5 for non-security A/B test bucketing (usedforsecurity=False)
-        hash_value = int(
-            hashlib.md5(hash_input.encode(), usedforsecurity=False).hexdigest(), 16
-        )
+        hash_value = int(hashlib.md5(hash_input.encode(), usedforsecurity=False).hexdigest(), 16)
         index = hash_value % len(variants)
         return variants[index]
 
@@ -332,9 +330,7 @@ class ExperimentAssignmentService:
         # Use consistent hash with weights
         hash_input = f"{context.user_id}_{context.session_id or 'no_session'}"
         # Use MD5 for non-security A/B test bucketing (usedforsecurity=False)
-        hash_value = int(
-            hashlib.md5(hash_input.encode(), usedforsecurity=False).hexdigest(), 16
-        )
+        hash_value = int(hashlib.md5(hash_input.encode(), usedforsecurity=False).hexdigest(), 16)
         random_value = (hash_value % 1000) / 1000.0  # Normalize to [0, 1)
 
         cumulative_weight = 0

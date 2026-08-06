@@ -90,8 +90,7 @@ apply_kubernetes_manifests() {
 
     # Apply configmaps
     kubectl apply -f kubernetes/configmaps/backend-config.yaml
-    # Secrets are materialized by Infisical or scripts/setup-secrets.sh.
-    # Do not apply static Secret manifests from git.
+    kubectl apply -f kubernetes/secrets/secrets.yaml
 
     # Apply monitoring if enabled
     if [ "$MONITORING_ENABLED" = "true" ]; then
@@ -133,7 +132,7 @@ build_and_push_images() {
 
     # Build frontend image
     log_info "Building frontend image..."
-    docker build -f frontend/Dockerfile.prod -t multimodal-rag/frontend:latest .
+    docker build -f frontend/Dockerfile.production -t multimodal-rag/frontend:latest .
     docker push multimodal-rag/frontend:latest
 
     log_success "Docker images built and pushed successfully."

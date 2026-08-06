@@ -100,6 +100,8 @@ volumes:
     external: true
   rag_redis_data:
     external: true
+  rag_qdrant_data:
+    external: true
   prometheus_data:
     external: true
   grafana_data:
@@ -133,6 +135,7 @@ fix_environment() {
         # Update database URLs to use Docker service names
         sed -i.bak 's/localhost/postgres/g' .env
         sed -i.bak 's/bolt:\/\/localhost:7687/bolt:\/\/neo4j:7687/g' .env
+        sed -i.bak 's/http:\/\/localhost:6333/http:\/\/qdrant:6333/g' .env
         sed -i.bak 's/redis:\/\/localhost:6379/redis:\/\/redis:6379/g' .env
 
         print_status "Environment variables updated for Docker networking ✓"
@@ -143,7 +146,7 @@ fix_environment() {
 start_databases() {
     print_header "Starting database services..."
 
-    docker-compose up -d postgres neo4j redis
+    docker-compose up -d postgres neo4j qdrant redis
 
     print_status "Waiting for databases to be ready..."
 
@@ -171,8 +174,12 @@ start_databases() {
         sleep 2
     done
 
+    # Wait for Qdrant
+    local qdrant_ready=false
     for i in {1..15}; do
         if curl -f http://localhost:6333/collections &>/dev/null; then
+            print_status "Qdrant is ready ✓"
+            qdrant_ready=true
             break
         fi
         echo -n "."
@@ -318,6 +325,7 @@ display_info() {
     echo -e "${GREEN}📊 Services running:${NC}"
     echo "  • PostgreSQL:          $(docker ps --format "{{.Names}}" | grep postgres | head -1 || echo "Not running")"
     echo "  • Neo4j:              $(docker ps --format "{{.Names}}" | grep neo4j | head -1 || echo "Not running")"
+    echo "  • Qdrant:             $(docker ps --format "{{.Names}}" | grep qdrant | head -1 || echo "Not running")"
     echo "  • Redis:              $(docker ps --format "{{.Names}}" | grep redis | head -1 || echo "Not running")"
     echo ""
     echo -e "${GREEN}📝 Logs:${NC}"

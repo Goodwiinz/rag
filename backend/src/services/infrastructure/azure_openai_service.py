@@ -42,18 +42,14 @@ class AzureOpenAIService:
                         api_key=chat_api_key,
                         base_url=chat_endpoint,
                     )
-                    logger.info(
-                        f"Chat client initialized (OpenAI-compat) with endpoint: {chat_endpoint}"
-                    )
+                    logger.info(f"Chat client initialized (OpenAI-compat) with endpoint: {chat_endpoint}")
                 else:
                     self.client = AzureOpenAI(
                         api_key=chat_api_key,
                         azure_endpoint=chat_endpoint,
                         api_version=settings.AZURE_OPENAI_CHAT_API_VERSION,
                     )
-                    logger.info(
-                        f"Chat client initialized (Azure) with endpoint: {chat_endpoint}"
-                    )
+                    logger.info(f"Chat client initialized (Azure) with endpoint: {chat_endpoint}")
 
             # Initialize embedding client with embedding endpoint and API key
             embedding_endpoint = (
@@ -85,10 +81,7 @@ class AzureOpenAIService:
 
             # For backwards compatibility, also initialize a general client
             if settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY:
-                if (
-                    classify_openai_endpoint(settings.AZURE_OPENAI_ENDPOINT)
-                    == "openai_compatible"
-                ):
+                if classify_openai_endpoint(settings.AZURE_OPENAI_ENDPOINT) == "openai_compatible":
                     self.chat_client = OpenAI(
                         api_key=settings.AZURE_OPENAI_API_KEY,
                         base_url=settings.AZURE_OPENAI_ENDPOINT,

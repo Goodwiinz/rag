@@ -14,7 +14,9 @@ class ResearchSource(BaseModel):
 
     __tablename__ = "research_sources"
 
-    run_id = Column(GUID(), ForeignKey("research_runs.id"), nullable=False)
+    run_id = Column(
+        GUID(), ForeignKey("research_runs.id"), nullable=False
+    )
     connector_type = Column(String(50), nullable=False)
     external_id = Column(String(255), nullable=True)
     title = Column(String(500), nullable=False)

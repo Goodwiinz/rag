@@ -54,13 +54,17 @@ async def _warm_quality_metrics() -> None:
         from src.core.database import AsyncSessionLocal
 
         async with AsyncSessionLocal() as session:
-            result = await session.execute(text("""
+            result = await session.execute(
+                text(
+                    """
                     SELECT DISTINCT organization_id
                     FROM quality_metrics
                     WHERE created_at >= NOW() - INTERVAL '30 days'
                       AND is_deleted = false
                     LIMIT 10
-                    """))
+                    """
+                )
+            )
             org_ids = [str(row[0]) for row in result.fetchall()]
 
         if not org_ids:
@@ -102,14 +106,18 @@ async def _warm_search_cache() -> None:
         from src.core.database import AsyncSessionLocal
 
         async with AsyncSessionLocal() as session:
-            result = await session.execute(text("""
+            result = await session.execute(
+                text(
+                    """
                     SELECT query_text, COUNT(*) AS cnt
                     FROM search_queries
                     WHERE created_at >= NOW() - INTERVAL '30 days'
                     GROUP BY query_text
                     ORDER BY cnt DESC
                     LIMIT 10
-                    """))
+                    """
+                )
+            )
             rows = result.fetchall()
 
         if rows:
@@ -148,9 +156,7 @@ async def _warm_llm_embedding_index() -> None:
         try:
             await client.ping()
         except Exception as exc:
-            logger.debug(
-                f"Cache warm-up: Redis not reachable for LLM index scan: {exc}"
-            )
+            logger.debug(f"Cache warm-up: Redis not reachable for LLM index scan: {exc}")
             return
 
         count = 0

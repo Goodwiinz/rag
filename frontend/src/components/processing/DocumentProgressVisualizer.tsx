@@ -330,17 +330,17 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   };
 
   const colorClasses = {
-    blue: 'bg-(--nous-sol)',
-    green: 'bg-(--nous-terra)',
-    yellow: 'bg-(--nous-corona)',
-    red: 'bg-(--nous-mars)',
+    blue: 'bg-[var(--nous-sol)]',
+    green: 'bg-[var(--nous-terra)]',
+    yellow: 'bg-[var(--nous-corona)]',
+    red: 'bg-[var(--nous-mars)]',
   };
 
   return (
     <div className="w-full">
       <div
         className={cn(
-          'bg-(--nous-bg-3) rounded-full overflow-hidden',
+          'bg-[var(--nous-bg-3)] rounded-full overflow-hidden',
           sizeClasses[size]
         )}
       >
@@ -413,11 +413,11 @@ const StageIcon: React.FC<StageIconProps> = ({
         'relative flex items-center justify-center rounded-full border-2',
         sizeClasses[size],
         isCompleted
-          ? 'border-(--nous-terra) bg-(--nous-terra)'
+          ? 'border-[var(--nous-terra)] bg-[var(--nous-terra)]'
           : hasError
-            ? 'border-(--nous-mars) bg-(--nous-mars)'
+            ? 'border-[var(--nous-mars)] bg-[var(--nous-mars)]'
             : isActive
-              ? 'border-(--nous-sol) bg-(--nous-sol)'
+              ? 'border-[var(--nous-sol)] bg-[var(--nous-sol)]'
               : 'border-border bg-background'
       )}
     >
@@ -469,7 +469,7 @@ const StageIcon: React.FC<StageIconProps> = ({
 
       {isActive && (
         <motion.div
-          className="absolute inset-0 rounded-full border-2 border-(--nous-sol)"
+          className="absolute inset-0 rounded-full border-2 border-[var(--nous-sol)]"
           animate={{ scale: [1, 1.2, 1] }}
           transition={{ duration: 1, repeat: Infinity }}
         />
@@ -488,7 +488,7 @@ const Timeline: React.FC<TimelineProps> = ({
   return (
     <div className="relative">
       {/* Timeline line */}
-      <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-(--nous-bg-3) -translate-y-1/2" />
+      <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-[var(--nous-bg-3)] -translate-y-1/2" />
 
       {/* Stage nodes */}
       <div className="relative flex justify-between">
@@ -516,7 +516,7 @@ const Timeline: React.FC<TimelineProps> = ({
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="text-xs text-(--nous-fg-accent-safe) mt-1"
+                      className="text-xs text-[var(--nous-fg-accent-safe)] mt-1"
                     >
                       {stage.progress}% complete
                     </motion.div>
@@ -537,7 +537,7 @@ const FileTypeInfo: React.FC<FileTypeInfoProps> = ({ fileType, metadata }) => {
 
   return (
     <div className="flex items-center space-x-3">
-      <div className={cn('p-2 rounded-lg bg-(--nous-bg-3)', config.color)}>
+      <div className={cn('p-2 rounded-lg bg-[var(--nous-bg-3)]', config.color)}>
         <Icon className="w-5 h-5" />
       </div>
       <div>
@@ -568,10 +568,10 @@ const StageDetails: React.FC<StageDetailsProps> = ({
         'p-3 rounded-lg border',
         'border-border',
         isActive
-          ? 'bg-(--nous-sol)/10 border-(--nous-sol)'
+          ? 'bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]'
           : isCompleted
-            ? 'bg-(--nous-terra)/10 border-(--nous-terra)'
-            : 'bg-(--nous-bg-2)'
+            ? 'bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]'
+            : 'bg-[var(--nous-bg-2)]'
       )}
     >
       <div className="flex items-center justify-between">
@@ -582,7 +582,7 @@ const StageDetails: React.FC<StageDetailsProps> = ({
             </h4>
             {isActive && (
               <motion.div
-                className="w-2 h-2 bg-(--nous-sol) rounded-full"
+                className="w-2 h-2 bg-[var(--nous-sol)] rounded-full"
                 animate={{ scale: [1, 1.2, 1] }}
                 transition={{ duration: 1, repeat: Infinity }}
               />
@@ -590,7 +590,7 @@ const StageDetails: React.FC<StageDetailsProps> = ({
           </div>
           <p className="text-xs text-foreground mt-1">{stage.description}</p>
           {stage.error && (
-            <p className="text-xs text-(--nous-mars) mt-1">
+            <p className="text-xs text-[var(--nous-mars)] mt-1">
               Error: {stage.error}
             </p>
           )}
@@ -661,7 +661,7 @@ export const DocumentProgressVisualizer: React.FC<
   return (
     <div
       className={cn(
-        'bg-card rounded-lg border border-border shadow-xs',
+        'bg-card rounded-lg border border-border shadow-sm',
         className
       )}
     >
@@ -737,7 +737,7 @@ export const DocumentProgressVisualizer: React.FC<
       )}
 
       {/* Footer */}
-      <div className="px-4 py-3 bg-(--nous-bg-2) border-t border-border">
+      <div className="px-4 py-3 bg-[var(--nous-bg-2)] border-t border-border">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <div>
             Started:{' '}

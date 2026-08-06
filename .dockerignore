@@ -3,6 +3,3 @@
 **/.git
 **/.env*
 **/dist
-# Runtime arXiv PDF downloads — 434MB of these were once committed and blew
-# the CI runner's disk during image export (dev deploys froze at 4bfb0c5).
-backend/data

@@ -8,7 +8,7 @@ import hashlib
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -270,9 +270,9 @@ class SecurityAuditService:
             "ip_address": audit_log.ip_address,
             "resource_type": audit_log.resource_type,
             "resource_id": audit_log.resource_id,
-            "organization_id": (
-                str(audit_log.organization_id) if audit_log.organization_id else None
-            ),
+            "organization_id": str(audit_log.organization_id)
+            if audit_log.organization_id
+            else None,
         }
 
         # Log based on severity
@@ -439,9 +439,9 @@ class SecurityAuditService:
             "user_id": str(log.user_id) if log.user_id else None,
             "user_email": log.user_email,
             "user_role": log.user_role,
-            "organization_id": (
-                str(log.organization_id) if log.organization_id else None
-            ),
+            "organization_id": str(log.organization_id)
+            if log.organization_id
+            else None,
             "ip_address": log.ip_address,
             "user_agent": log.user_agent,
             "resource_id": log.resource_id,

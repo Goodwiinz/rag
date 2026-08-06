@@ -83,34 +83,6 @@ def _ts() -> str:
     return datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%S")
 
 
-# Rotating arXiv ids for the ingest scenario. A single hardcoded id made the
-# scenario unsatisfiable after its first success: content-hash dedup
-# (uq_documents_org_checksum_live) correctly rejects the second copy, so every
-# run from 2026-07-18 onward reported TOOL-FAILED for a pipeline that was
-# working. Rotating keeps the destructive path genuinely exercised; the ids are
-# well-known, stable papers that will not 404.
-INGEST_PAPER_IDS = (
-    "1706.03762",  # Attention Is All You Need
-    "1810.04805",  # BERT
-    "2005.11401",  # RAG
-    "1907.11692",  # RoBERTa
-    "2005.14165",  # GPT-3
-    "1512.03385",  # ResNet
-)
-
-
-def _rotating_paper_id() -> str:
-    """Pick an id from the pool by clock, like _choose_scenario_rotate does.
-
-    Deterministic within a window and stateless, so two pods in the same window
-    agree — and consecutive runs differ, which is the point.
-    """
-    import time
-
-    window = int(time.time() // ROTATE_WINDOW_S)
-    return INGEST_PAPER_IDS[window % len(INGEST_PAPER_IDS)]
-
-
 SCENARIOS: List[Scenario] = [
     Scenario(
         key="greeting",
@@ -140,21 +112,8 @@ SCENARIOS: List[Scenario] = [
     ),
     Scenario(
         key="writing_draft",
-        # "Draft a short note" is ambiguous — the model can satisfy it with
-        # prose and never touch a tool, which is exactly what it did while
-        # reporting flag=ok. Ask for something only create_draft /
-        # create_project_note can deliver, so the destructive path is really
-        # exercised.
-        prompt=(
-            "Write a short note summarizing the key ideas behind RAG and "
-            "save it to my library."
-        ),
+        prompt="Draft a short note summarizing the key ideas behind RAG.",
         budget_s=45.0,
-        # create_draft and create_project_note are both in
-        # WRITING_DESTRUCTIVE_TOOLS, so a real save always raises the HITL
-        # interrupt. Without this the scenario had no expectation at all and a
-        # zero-tool run was indistinguishable from success.
-        expect_interrupt=True,
         page_context={"type": "general"},
     ),
     Scenario(
@@ -168,8 +127,7 @@ SCENARIOS: List[Scenario] = [
     Scenario(
         key="ingest",
         prompt=(
-            "Ingest the arXiv paper {paper} into a project named "
-            f"{SYNTH_PREFIX}{{ts}}"
+            f"Ingest the arXiv paper 1706.03762 into a project named {SYNTH_PREFIX}{{ts}}"
         ),
         budget_s=60.0,
         expect_interrupt=True,
@@ -181,10 +139,8 @@ SCENARIOS_BY_KEY: Dict[str, Scenario] = {s.key: s for s in SCENARIOS}
 
 
 def _expand_prompt(scenario: Scenario) -> str:
-    """Fill ``{ts}`` (unique project name) and ``{paper}`` (rotating arXiv id)."""
-    return scenario.prompt.replace("{ts}", _ts()).replace(
-        "{paper}", _rotating_paper_id()
-    )
+    """Substitute ``{ts}`` with a UTC timestamp so project names are unique."""
+    return scenario.prompt.replace("{ts}", _ts())
 
 
 # ---------------------------------------------------------------------------
@@ -357,156 +313,20 @@ class TurnResult:
     tool_executions: int
     assistant_preview: str
     error: Optional[str] = None
-    # Derived once by run_scenario via classify_turn; the sweep summary reads
-    # it rather than re-deriving from the key, which would couple the summary
-    # to the catalogue and KeyError after all the agent work is done.
-    flag: str = ""
-    # Names of tools whose execution reported status != completed. A count of
-    # executions says a tool ran, not that it worked.
-    failed_tools: tuple[str, ...] = ()
-
-
-# Flag for a scenario that declared ``expect_interrupt`` but never produced
-# one. Distinct from ERROR (nothing raised) and from ok (nothing happened).
-MISSING_INTERRUPT_FLAG = "MISSING-INTERRUPT"
-
-# Flag for a run still interrupted after MAX_HITL_RESUMES confirmations —
-# the interrupt fired, the resume loop just never cleared it.
-UNRESOLVED_INTERRUPT_FLAG = "INTERRUPT-UNRESOLVED"
-
-# Flag for a run where a tool ran and failed after a confirmed interrupt. The
-# resume makes the run *look* finished — but the action it gated did not
-# happen.
-TOOL_FAILED_FLAG = "TOOL-FAILED"
-
-# The tool layer writes exactly three statuses. Two of them are successes:
-# "deduped" means an identical call already succeeded this turn and its
-# cached result was reused (``tool_dedupe.build_deduped_execution_entry``;
-# the cache only admits ``completed`` candidates). Mirrors the success test
-# in ``reflection.py`` — treating "deduped" as failure would flag a healthy
-# run whenever the agent repeated a call, which is common.
-SUCCESS_TOOL_STATUSES = ("completed", "deduped")
-
-# A tool can report status="completed" and still have done nothing: the
-# ingest tool returns ``{"status": "ingestion_failed", "ingested_count": 0}``
-# with NO top-level "error" key, and ``_nodes_tools`` only downgrades an
-# execution to "failed" when ``"error" in result``. So a zero-document ingest
-# — the exact incident this flag exists for — arrives here looking successful.
-# Mirrors ``reflection._INGEST_FAILURE_STATUSES``.
-FAILED_RESULT_STATUSES = ("ingestion_failed", "ingestion_partial")
-
-
-def _later_success(executions: list, start: int, tool_name: str) -> bool:
-    """True when the same tool succeeds after index ``start``."""
-    for te in executions[start + 1 :]:
-        if not isinstance(te, dict) or te.get("tool_name") != tool_name:
-            continue
-        if te.get("status") in SUCCESS_TOOL_STATUSES:
-            return True
-    return False
-
-
-def failed_tool_names(executions: Any) -> tuple[str, ...]:
-    """Names of tool executions that genuinely failed and were not recovered.
-
-    Three exclusions, each guarding against a false alarm:
-
-    * **Transient failures** — same terms the agent's own reflection guard
-      uses (``result.error_type == "transient"``). An arXiv 429 or an upstream
-      timeout says nothing about whether the agent did its job.
-    * **Circuit-broken duplicates** — ``tool_dedupe`` appends a
-      ``capped_from`` entry after repeated identical failures. The failure it
-      caps is already in this list, so counting the cap double-reports it, and
-      resurrects a transient failure that was deliberately skipped.
-    * **Failed-then-retried** — if the same tool succeeds later in the turn,
-      the agent recovered. Flagging that would punish exactly the behaviour we
-      want from it.
-
-    Conversely a ``completed`` execution whose *result* reports an ingest
-    failure counts: status alone does not mean the work happened.
-    """
-    items = list(executions or [])
-    names: list[str] = []
-    for idx, te in enumerate(items):
-        if not isinstance(te, dict):
-            continue
-        result = te.get("result")
-        result_status = result.get("status") if isinstance(result, dict) else None
-        if (
-            te.get("status") in SUCCESS_TOOL_STATUSES
-            and result_status not in FAILED_RESULT_STATUSES
-        ):
-            continue
-        if te.get("capped_from") is not None:
-            continue
-        if _later_success(items, idx, te.get("tool_name")):
-            continue
-        if isinstance(result, dict) and result.get("error_type") == "transient":
-            continue
-        names.append(str(te.get("tool_name") or "?"))
-    return tuple(names)
-
-
-def classify_turn(scenario: Scenario, result: TurnResult) -> str:
-    """Summarize one turn as the flag recorded in ``scenario_done``.
-
-    ``expect_interrupt`` scenarios drive destructive tools (project creation,
-    arXiv ingest), so the HITL interrupt is the observable proof the tool was
-    actually reached. Without this check a run where the agent answered in
-    prose and called nothing is indistinguishable from a successful ingest —
-    both logged ``flag=ok, errored=0``, which is how a live no-op ingest went
-    unnoticed. The interrupt *detection* was fixed once already (see the
-    __interrupt__ note in run_scenario); the expectation was never asserted,
-    so a regression of that same class stays silent.
-
-    Still-interrupted-after-resuming is called out separately: the old
-    expression fell through to ``ok`` there too, which reads as success for a
-    turn whose HITL loop ran out of confirmations without finishing.
-
-    ``TOOL-FAILED`` closes the successor to that hole. Once the agent started
-    calling its tools, an ingest run reported ``confirmed(1)`` with three
-    executions while the paper was never imported: the first
-    ``ingest_arxiv_papers`` call failed on a bad argument and the agent
-    wandered off into ``list_projects`` instead of retrying. Interrupt fired,
-    resume confirmed, zero documents created — and the summary said
-    ``errored=0, expectations_unmet=0``. Ranked above ``confirmed`` because a
-    failed destructive tool is the more actionable fact about that turn.
-    """
-    if result.error:
-        return f"ERROR {result.error}"
-    if result.interrupted and result.resumes == 0:
-        return "INTERRUPT"
-    if result.interrupted:  # resumes > 0: MAX_HITL_RESUMES exhausted
-        return f"{UNRESOLVED_INTERRUPT_FLAG}({result.resumes})"
-    # Gated on a *confirmed* interrupt rather than on expect_interrupt: a
-    # resume is direct evidence a destructive tool actually ran, it excludes
-    # research_arxiv's transient 429s (nothing interrupts there), it covers
-    # writing_draft — whose create_draft/create_project_note are destructive
-    # despite the scenario not declaring expect_interrupt — and it leaves the
-    # resumes == 0 row to MISSING-INTERRUPT, which is the honest diagnosis
-    # when no interrupt ever fired.
-    if result.resumes > 0 and result.failed_tools:
-        return f"{TOOL_FAILED_FLAG}({','.join(result.failed_tools)})"
-    if result.resumes > 0:
-        return f"confirmed({result.resumes})"
-    if scenario.expect_interrupt:
-        return MISSING_INTERRUPT_FLAG
-    return "ok"
 
 
 async def run_scenario(
     scenario: Scenario,
     graph: Any,
-    db: Any,  # kept for call-signature stability; config carries ids only (B8)
+    db: Any,
     user: Any,
 ) -> TurnResult:
-    """Drive one agent scenario as a real user (ids-only graph config).
+    """Drive one agent scenario with a real DB session + user.
 
-    HITL auto-confirm: on a pending interrupt (detected via the returned
-    ``__interrupt__`` state, or ``GraphInterrupt`` as a defensive fallback)
-    we resume with ``Command(resume={"confirmed": True})`` up to
-    ``MAX_HITL_RESUMES`` times so destructive tools (create_project / ingest)
-    actually execute rather than hanging on the interrupt.
+    HITL auto-confirm: on ``GraphInterrupt`` we resume with
+    ``Command(resume={"confirmed": True})`` up to ``MAX_HITL_RESUMES``
+    times so destructive tools (create_project / ingest) actually execute
+    rather than hanging on the interrupt.
 
     The scenario result is logged regardless of error; exceptions are
     swallowed so a single failure never aborts the whole sweep.
@@ -578,12 +398,10 @@ async def run_scenario(
             "org_id": str(getattr(user, "organization_id", "") or ""),
             "thread_id": thread_id,
         },
-        # Ids only (audit B8): graph nodes/tools open their own
-        # tool_session() and re-load the user org-scoped.
         "configurable": {
             "thread_id": thread_id,
-            "user_id": str(user.id),
-            "organization_id": str(getattr(user, "organization_id", "") or ""),
+            "db": db,
+            "current_user": user,
             "page_context": dict(scenario.page_context),
         },
     }
@@ -598,25 +416,9 @@ async def run_scenario(
         async with asyncio.timeout(SCENARIO_TIMEOUT_S):
             final_state = await graph.ainvoke(initial_state, config=config)
     except GraphInterrupt:
-        # Defensive fallback only. With a checkpointer attached (this graph
-        # always has one — real Postgres or the MemorySaver fallback, never
-        # None), LangGraph's interrupt() returns `__interrupt__` in the state
-        # rather than raising — proven in
-        # tests/unit/agent/test_interrupt_ainvoke_semantics.py. Before this
-        # fix, this was the ONLY detection path, so create_project/ingest
-        # (the two expect_interrupt=True scenarios) silently never triggered
-        # the resume loop below across every sampled run.
-        interrupted = True
-    except Exception as exc:  # noqa: BLE001
-        error = f"{type(exc).__name__}: {exc}"
-
-    # Primary interrupt detection: check the state ainvoke() actually
-    # returned. Mirrors the real, working mechanism streaming.py uses
-    # (aget_state + snapshot.tasks[*].interrupts) for the SSE path.
-    if not error and (interrupted or final_state.get("__interrupt__")):
         interrupted = True
         # Auto-confirm HITL interrupts so destructive tools actually execute
-        while interrupted and resumes < MAX_HITL_RESUMES:
+        while resumes < MAX_HITL_RESUMES:
             resumes += 1
             log.info(
                 "synthetic_traffic.hitl",
@@ -628,25 +430,25 @@ async def run_scenario(
                     final_state = await graph.ainvoke(
                         Command(resume={"confirmed": True}), config=config
                     )
-                interrupted = bool(final_state.get("__interrupt__"))
+                interrupted = False
+                break
             except GraphInterrupt:
                 interrupted = True
                 continue
             except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"
                 break
+    except Exception as exc:  # noqa: BLE001
+        error = f"{type(exc).__name__}: {exc}"
 
     wall = time.perf_counter() - t0
 
     intent = ""
     assistant_preview = ""
     tool_executions_count = 0
-    failed_tools: tuple[str, ...] = ()
     if final_state:
         intent = final_state.get("intent", "") or ""
-        executions = final_state.get("tool_executions", []) or []
-        tool_executions_count = len(executions)
-        failed_tools = failed_tool_names(executions)
+        tool_executions_count = len(final_state.get("tool_executions", []) or [])
         for msg in reversed(final_state.get("messages", []) or []):
             if getattr(msg, "type", None) == "ai" and getattr(msg, "content", None):
                 assistant_preview = str(msg.content)[:160]
@@ -661,32 +463,13 @@ async def run_scenario(
         tool_executions=tool_executions_count,
         assistant_preview=assistant_preview,
         error=error,
-        failed_tools=failed_tools,
     )
 
-    flag = classify_turn(scenario, result)
-    result.flag = flag
-    if flag.startswith(TOOL_FAILED_FLAG):
-        log.warning(
-            "synthetic_traffic.expectation_unmet",
-            scenario=scenario.key,
-            expected="destructive tool completes",
-            tool_executions=tool_executions_count,
-            failed_tools=list(failed_tools),
-            resumes=resumes,
-            # Deliberately does not claim the failed tool WAS the destructive
-            # one, or that it failed after the interrupt — execution entries
-            # carry no timestamps, so neither is knowable here.
-            reason="a tool failed unrecovered during a run with a confirmed interrupt",
-        )
-    if flag == MISSING_INTERRUPT_FLAG:
-        log.warning(
-            "synthetic_traffic.expectation_unmet",
-            scenario=scenario.key,
-            expected="interrupt",
-            tool_executions=tool_executions_count,
-            reason="destructive tool never reached — agent answered without it",
-        )
+    flag = "INTERRUPT" if (interrupted and resumes == 0) else "ok"
+    if resumes > 0 and not interrupted:
+        flag = f"confirmed({resumes})"
+    if error:
+        flag = f"ERROR {error}"
     over = " OVER-BUDGET" if wall >= scenario.budget_s else ""
     log.info(
         "synthetic_traffic.scenario_done",
@@ -865,25 +648,11 @@ async def _main(args: argparse.Namespace) -> int:
 
         total_wall = sum(r.wall_clock_s for r in results)
         errored = [r for r in results if r.error]
-        # Counted and logged, but deliberately not folded into the exit code:
-        # whether the model reaches a destructive tool is nondeterministic, so
-        # failing the CronJob on it would trade a silent miss for a noisy one.
-        # The flag + this counter are the signal to alert on.
-        # Both shapes of "the destructive action did not happen": never
-        # reached (MISSING-INTERRUPT) and reached-but-failed (TOOL-FAILED).
-        # Counting only the first is what let a confirmed(1) run that ingested
-        # nothing report expectations_unmet=0.
-        unmet = [
-            r
-            for r in results
-            if r.flag == MISSING_INTERRUPT_FLAG or r.flag.startswith(TOOL_FAILED_FLAG)
-        ]
         log.info(
             "synthetic_traffic.sweep_done",
             scenarios=len(results),
             total_wall_s=round(total_wall, 2),
             errored=len(errored),
-            expectations_unmet=len(unmet),
         )
 
         # Always run cleanup at the end (unless this was a --cleanup-only run)

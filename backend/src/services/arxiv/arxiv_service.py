@@ -38,163 +38,6 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# --- Shared cross-pod arXiv rate gate ---------------------------------------
-# arXiv rate-limits per SOURCE IP. Each pod honoring only its own 3s gate means
-# N HPA replicas + the synthetic CronJob collectively exceed arXiv's window and
-# 429 (LangSmith thread 301d6031: a first-attempt 429). This gate reserves the
-# next request slot in Redis so ALL pods are serialized >= 3s apart against
-# arXiv's per-IP limit. Redis-down / unset degrades to the per-process gate.
-_ARXIV_RATE_KEY = "arxiv:rategate"
-_ARXIV_MIN_INTERVAL_MS = 3000  # arXiv's minimum 3s between requests
-# Deep enough for a real ingest batch to queue, bounded by the caller's budget.
-# At 15000 only ~5 slots fit, so a 10-paper ingest (the tool's own cap) sent
-# everything past request ~6 through with NO reservation — the gate became a
-# burst generator at exactly the batch size it was meant to smooth. 30s queues
-# the full batch while staying inside AGENT_LLM_TIMEOUT_SECONDS (50s); going
-# higher would trade a 429 for a guaranteed tool-call timeout.
-_ARXIV_MAX_WAIT_MS = 30000
-_ARXIV_GATE_TTL_MS = 20000  # key self-expires so a quiet period resets the gate
-# Atomically reserve the next slot: slot = max(now, last + interval); persist it
-# and return how long THIS caller must wait. -1 => queue too deep, don't reserve.
-_ARXIV_GATE_LUA = """
-local last = tonumber(redis.call('GET', KEYS[1]) or '0')
-local now = tonumber(ARGV[1])
-local interval = tonumber(ARGV[2])
-local maxwait = tonumber(ARGV[3])
-local ttl = tonumber(ARGV[4])
-local slot = math.max(now, last + interval)
-local wait = slot - now
-if wait > maxwait then
-  return -1
-end
-redis.call('SET', KEYS[1], slot, 'PX', ttl)
-return wait
-"""
-_arxiv_gate_redis: Any = None
-_arxiv_gate_disabled = False
-
-
-async def _acquire_arxiv_rate_slot() -> Optional[float]:
-    """Reserve the next shared arXiv request slot across all pods.
-
-    Returns the seconds to sleep before firing (0.0 = now), or ``None`` when the
-    shared gate is unavailable (no REDIS_URL, or a transient Redis error) so the
-    caller falls back to the per-process gate. Never raises.
-    """
-    global _arxiv_gate_redis, _arxiv_gate_disabled
-    if _arxiv_gate_disabled:
-        return None
-    try:
-        if _arxiv_gate_redis is None:
-            from src.core.config import settings
-
-            if not getattr(settings, "REDIS_URL", None):
-                _arxiv_gate_disabled = True  # never going to work; stop trying
-                return None
-            import redis.asyncio as _redis_async
-
-            _arxiv_gate_redis = _redis_async.from_url(
-                settings.REDIS_URL, decode_responses=True
-            )
-        import time
-
-        now_ms = int(time.time() * 1000)
-        # NOTE: this is Redis' server-side Lua EVAL (not Python eval) — the
-        # script is a module constant and every ARGV is an int, so there is no
-        # code-injection surface.
-        res = await _arxiv_gate_redis.eval(
-            _ARXIV_GATE_LUA,
-            1,
-            _ARXIV_RATE_KEY,
-            now_ms,
-            _ARXIV_MIN_INTERVAL_MS,
-            _ARXIV_MAX_WAIT_MS,
-            _ARXIV_GATE_TTL_MS,
-        )
-        wait_ms = int(res)
-        # -1 (queue deeper than the cap) => proceed now rather than pile up.
-        # Deliberate, and pinned by test_deep_queue_proceeds_now: the caller
-        # sits inside AGENT_LLM_TIMEOUT_SECONDS (50s), so waiting the cap would
-        # spend the whole budget and time out — a worse failure than a 429,
-        # which at least surfaces a clean "rate limited, try again" to the user.
-        return 0.0 if wait_ms < 0 else wait_ms / 1000.0
-    except Exception:
-        # Transient Redis error: fall back to the per-process gate THIS call
-        # (don't permanently disable — Redis may recover).
-        logger.debug("arXiv shared rate gate unavailable; per-process gate only")
-        return None
-
-
-def _retry_after_seconds(headers: Any, *, default: float, cap: float = 15.0) -> float:
-    """Seconds to wait from a Retry-After header, clamped to ``cap``.
-
-    Accepts the delta-seconds form (arXiv sends that). A date-form or absent
-    header falls back to ``default``. Clamped because the caller sits inside a
-    tool-call timeout — honouring a literal 60s would just move the failure.
-    """
-    raw = None
-    try:
-        raw = headers.get("Retry-After") or headers.get("retry-after")
-    except Exception:
-        return default
-    if not raw:
-        return default
-    try:
-        return max(0.0, min(float(str(raw).strip()), cap))
-    except (TypeError, ValueError):
-        return default
-
-
-# arXiv's API gate does not cover PDF fetches, and ingest_papers gathers a
-# whole batch at once against a connector with limit=10 — so a 10-paper ingest
-# opened ten simultaneous connections to arxiv.org/pdf. That is the least
-# polite thing this service does, and it is invisible to the Redis slot gate.
-#
-# Deliberately a concurrency cap, NOT the 3s API gate: ten papers serialized at
-# 3s is ~27s of pure waiting inside the 50s tool budget
-# (AGENT_LLM_TIMEOUT_SECONDS), which would trade a burst for a guaranteed
-# timeout — the same trade test_deep_queue_proceeds_now rejects for the API
-# path. Three at a time removes the burst while a 10-paper batch still fits.
-_MAX_CONCURRENT_PDF_DOWNLOADS = 3
-_pdf_semaphore: Optional[asyncio.Semaphore] = None
-_pdf_semaphore_loop: Any = None
-
-
-def _pdf_download_semaphore() -> asyncio.Semaphore:
-    """Per-event-loop semaphore for arxiv.org PDF fetches.
-
-    Rebuilt when the running loop changes: a module-level Semaphore binds to
-    the loop that created it, and this service runs under both uvicorn and
-    Celery workers.
-    """
-    global _pdf_semaphore, _pdf_semaphore_loop
-
-    loop = asyncio.get_running_loop()
-    if _pdf_semaphore is None or _pdf_semaphore_loop is not loop:
-        _pdf_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_PDF_DOWNLOADS)
-        _pdf_semaphore_loop = loop
-    return _pdf_semaphore
-
-
-def _parse_arxiv_date(value: Any) -> Optional[datetime]:
-    """Parse an arXiv timestamp, or None when it cannot be parsed.
-
-    ``published`` is absent or empty on two real paths: an arXiv API *error*
-    entry (errors come back as an HTTP 200 Atom feed, not an HTTP error), and
-    the metadata-miss stub the agent tool builds when a lookup was rate-limited
-    (``tools_impl._tool_ingest_arxiv``). Both used to reach
-    ``datetime.fromisoformat("")`` and kill the whole ingest with
-    ``Invalid isoformat string: ''`` — losing the papers whose metadata was
-    fine. A missing date should cost a field, not the run.
-    """
-    if not value or not isinstance(value, str):
-        return None
-    try:
-        return datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
-    except ValueError:
-        logger.warning("Unparseable arXiv date %r — storing None", value)
-        return None
-
 
 class ArXivIngestionService:
     """
@@ -236,21 +79,14 @@ class ArXivIngestionService:
 
     async def _make_async_request(self, url: str, params: Dict) -> str:
         """Make asynchronous request using httpx with rate limiting and 429 retry"""
-        # Enforce arXiv's minimum 3-second gap between requests. Prefer the
-        # shared cross-pod gate; fall back to the per-process gate when Redis
-        # is unavailable (same behavior as before this change).
+        # Enforce minimum 3-second gap between requests (ArXiv policy)
         import time
 
-        slot_wait = await _acquire_arxiv_rate_slot()
-        if slot_wait is not None:
-            if slot_wait > 0:
-                await asyncio.sleep(slot_wait)
-        else:
-            now = time.monotonic()
-            elapsed = now - ArXivIngestionService._last_request_time
-            if elapsed < 3.0:
-                await asyncio.sleep(3.0 - elapsed)
-            ArXivIngestionService._last_request_time = time.monotonic()
+        now = time.monotonic()
+        elapsed = now - ArXivIngestionService._last_request_time
+        if elapsed < 3.0:
+            await asyncio.sleep(3.0 - elapsed)
+        ArXivIngestionService._last_request_time = time.monotonic()
 
         logger.info(f"Async request to: {url}")
 
@@ -270,11 +106,7 @@ class ArXivIngestionService:
                         saw_rate_limit = True
                         if attempt == max_attempts - 1:
                             break
-                        # arXiv sends Retry-After on 429 (its own message says
-                        # "try again in 60 seconds"); retrying after a fixed 3s
-                        # guaranteed a second 429. Honour the header, clamped so
-                        # a large value cannot outlive the caller's timeout.
-                        wait = _retry_after_seconds(response.headers, default=3.0)
+                        wait = 3.0
                         logger.warning(
                             "ArXiv rate limited (429), attempt %d/%d, retrying in %ss...",
                             attempt + 1,
@@ -395,7 +227,8 @@ class ArXivIngestionService:
 
                 # Use async httpx directly
                 response_text = await self._make_async_request(
-                    self.ARXIV_API_BASE, params
+                    self.ARXIV_API_BASE,
+                    params
                 )
 
                 if not response_text:
@@ -423,11 +256,9 @@ class ArXivIngestionService:
 
                     # Apply date filtering if specified
                     if date_from or date_to:
-                        pub_date = _parse_arxiv_date(paper_data.get("published"))
-                        if pub_date is None:
-                            # Undated entry cannot satisfy a date window;
-                            # skip it rather than abort the whole scan.
-                            continue
+                        pub_date = datetime.fromisoformat(
+                            paper_data["published"].replace("Z", "+00:00")
+                        )
                         # Ensure pub_date is timezone-aware
                         if pub_date.tzinfo is None:
                             pub_date = pub_date.replace(tzinfo=timezone.utc)
@@ -478,30 +309,19 @@ class ArXivIngestionService:
 
     def _parse_arxiv_entry(self, entry: Element, namespaces: Dict) -> Dict[str, Any]:
         """Parse a single arXiv entry from XML"""
-
         # Basic metadata
-        # arXiv returns errors as an HTTP 200 Atom feed whose single entry has
-        # none of these children, so a chained .find(...).text raises
-        # AttributeError on None and takes the whole search down with it.
-        def _text(tag: str, default: str = "") -> str:
-            el = entry.find(tag, namespaces)
-            return (el.text or default).strip() if el is not None else default
-
-        raw_id = _text("atom:id")
-        paper_id = raw_id.split("/")[-1] if raw_id else ""
-        title = _text("atom:title")
-        abstract = _text("atom:summary")
-        published = _text("atom:published")
-        updated = _text("atom:updated")
+        paper_id = entry.find("atom:id", namespaces).text.split("/")[-1]
+        title = entry.find("atom:title", namespaces).text.strip()
+        abstract = entry.find("atom:summary", namespaces).text.strip()
+        published = entry.find("atom:published", namespaces).text
+        updated = entry.find("atom:updated", namespaces).text
 
         # Authors
         authors = []
         authors_detailed = []
         for author in entry.findall("atom:author", namespaces):
-            name_el = author.find("atom:name", namespaces)
-            name = (name_el.text or "").strip() if name_el is not None else ""
-            if name:
-                authors.append(name)
+            name = author.find("atom:name", namespaces).text
+            authors.append(name)
 
             affils = []
             # Try to find affiliation using arxiv namespace
@@ -581,15 +401,10 @@ class ArXivIngestionService:
             async with aiofiles.open(pdf_path, "rb") as f:
                 return await f.read()
 
-        # Download with retry, capped so a whole batch cannot open one
-        # connection per paper. Acquired around the network call only — the
-        # cache hit above and the disk write below hold no slot.
+        # Download with retry
         for attempt in range(self.MAX_RETRIES):
             try:
-                async with (
-                    _pdf_download_semaphore(),
-                    self.session.get(pdf_url) as response,
-                ):
+                async with self.session.get(pdf_url) as response:
                     response.raise_for_status()
 
                     # Save to file
@@ -716,20 +531,20 @@ class ArXivIngestionService:
         # Create document metadata dict
         metadata_dict = {
             "title": paper["title"],
-            "description": (
-                paper["abstract"][:500] + "..."
-                if len(paper["abstract"]) > 500
-                else paper["abstract"]
-            ),
+            "description": paper["abstract"][:500] + "..."
+            if len(paper["abstract"]) > 500
+            else paper["abstract"],
             "authors": paper["authors"],
-            "publication_date": _parse_arxiv_date(paper.get("published")),
+            "publication_date": datetime.fromisoformat(
+                paper["published"].replace("Z", "+00:00")
+            ),
             "categories": paper["categories"],
             "tags": paper["categories"],  # Use categories as tags
             "arxiv_id": paper_id,
             "arxiv_categories": paper["categories"],
-            "arxiv_primary_category": paper.get("primary_category"),
+            "arxiv_primary_category": paper["primary_category"],
             "journal_reference": paper.get("journal_ref"),
-            "doi": (paper.get("links") or {}).get("doi"),
+            "doi": paper["links"].get("doi"),
             "comment": paper.get("comment"),
             "source": "arxiv",
             "language": "en",
@@ -751,13 +566,7 @@ class ArXivIngestionService:
         if paper["categories"]:
             content_parts.append(f"\n# Categories\n\n{', '.join(paper['categories'])}")
 
-        # Download and extract PDF content if requested. Track whether full
-        # text was actually obtained so the persisted metadata is honest: a
-        # PDF fetch/extract failure still yields a COMPLETED abstract-only
-        # document (legit graceful degradation), but downstream consumers must
-        # be able to tell it apart from a full-text ingest — otherwise the
-        # agent may narrate "I read the paper" over an abstract-only doc.
-        has_full_text = False
+        # Download and extract PDF content if requested
         if download_pdfs and paper["links"].get("pdf"):
             try:
                 pdf_content = await self.download_paper_pdf(
@@ -771,7 +580,6 @@ class ArXivIngestionService:
                     if extracted["full_text"]:
                         preview = extracted["full_text"][:2000]
                         content_parts.append(f"\n# Content Preview\n\n{preview}...")
-                        has_full_text = True
 
                     # Update metadata with PDF info
                     metadata_dict["num_pages"] = extracted.get("num_pages")
@@ -781,11 +589,6 @@ class ArXivIngestionService:
 
             except Exception as e:
                 logger.warning(f"Failed to process PDF for {paper_id}: {e}")
-                metadata_dict["pdf_extraction_failed"] = True
-
-        # Record full-text availability for every path (full-text success,
-        # PDF failure, or metadata-only ingest with download_pdfs=False).
-        metadata_dict["has_full_text"] = has_full_text
 
         # Combine all content
         full_content = "\n".join(content_parts)
@@ -796,18 +599,16 @@ class ArXivIngestionService:
             "content_text": full_content,
             "document_metadata": metadata_dict,
             "processing_status": ProcessingStatus.COMPLETED,
-            "document_type": (
-                "PDF" if download_pdfs and paper["links"].get("pdf") else "TEXT"
-            ),
+            "document_type": "PDF"
+            if download_pdfs and paper["links"].get("pdf")
+            else "TEXT",
             "filename": f"{paper_id}.pdf",
-            "mime_type": (
-                "application/pdf"
-                if download_pdfs and paper["links"].get("pdf")
-                else "text/plain"
-            ),
-            "file_size_bytes": (
-                len(pdf_content) if "pdf_content" in locals() and pdf_content else 0
-            ),
+            "mime_type": "application/pdf"
+            if download_pdfs and paper["links"].get("pdf")
+            else "text/plain",
+            "file_size_bytes": len(pdf_content)
+            if "pdf_content" in locals() and pdf_content
+            else 0,
         }
 
         # Return a simple object with the required attributes

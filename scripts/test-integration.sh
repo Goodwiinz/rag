@@ -148,6 +148,14 @@ test_database_connectivity() {
         return 1
     fi
 
+    # Test Qdrant
+    test_step "Qdrant connectivity"
+    if curl -f http://localhost:6333/health &> /dev/null; then
+        success "Qdrant is accessible"
+    else
+        error "Qdrant is not accessible"
+        return 1
+    fi
 }
 
 # Test service health endpoints
@@ -214,6 +222,17 @@ test_database_schema() {
         return 1
     fi
 
+    # Test Qdrant collections
+    test_step "Qdrant collections validation"
+    local collections_check
+    collections_check=$(curl -s http://localhost:6333/collections | jq -r '.result.collections | length' 2>/dev/null || echo "0")
+
+    if [ "$collections_check" -ge 4 ]; then
+        success "Qdrant collections validation passed"
+    else
+        error "Qdrant collections validation failed (found $collections_check collections)"
+        return 1
+    fi
 }
 
 # Test knowledge graph service API
@@ -791,6 +810,7 @@ fi)
 - **PostgreSQL:** $(docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" exec -T postgres-graph pg_isready -U rag_user -d rag_graph &> /dev/null && echo "✅ Connected" || echo "❌ Disconnected")
 - **Neo4j:** $(docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" exec -T neo4j-graph cypher-shell -u neo4j -p ragpassword2024 "RETURN 1" &> /dev/null && echo "✅ Connected" || echo "❌ Disconnected")
 - **Redis:** $(docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" exec -T redis-graph redis-cli ping &> /dev/null && echo "✅ Connected" || echo "❌ Disconnected")
+- **Qdrant:** $(curl -f http://localhost:6333/health &> /dev/null && echo "✅ Connected" || echo "❌ Disconnected")
 
 ## Recommendations
 

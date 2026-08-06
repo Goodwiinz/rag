@@ -139,21 +139,21 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
     (status: DocumentProcessingState['status']) => {
       switch (status) {
         case 'completed':
-          return 'text-(--nous-terra) bg-(--nous-terra)/10 border-(--nous-terra)/30';
+          return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30';
         case 'processing':
-          return 'text-(--nous-fg-accent-safe) bg-(--nous-sol)/10 border-(--nous-sol)/30';
+          return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
         case 'queued':
-          return 'text-foreground bg-(--nous-bg-2) border-border';
+          return 'text-foreground bg-[var(--nous-bg-2)] border-border';
         case 'uploading':
-          return 'text-(--nous-corona) bg-(--nous-corona)/10 border-(--nous-corona)/30';
+          return 'text-[var(--nous-corona)] bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30';
         case 'paused':
-          return 'text-(--nous-corona) bg-(--nous-corona)/10 border-(--nous-corona)/30';
+          return 'text-[var(--nous-corona)] bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30';
         case 'cancelled':
-          return 'text-(--nous-fg-3) bg-(--nous-bg-3) border-(--nous-border-1)';
+          return 'text-[var(--nous-fg-3)] bg-[var(--nous-bg-3)] border-[var(--nous-border-1)]';
         case 'failed':
-          return 'text-(--nous-mars) bg-(--nous-mars)/10 border-(--nous-mars)/30';
+          return 'text-[var(--nous-mars)] bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/30';
         default:
-          return 'text-foreground bg-(--nous-bg-2) border-border';
+          return 'text-foreground bg-[var(--nous-bg-2)] border-border';
       }
     },
     []
@@ -166,7 +166,7 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
         case 'completed':
           return (
             <CheckCircleIcon
-              className={cn(iconClass, 'text-(--nous-terra)')}
+              className={cn(iconClass, 'text-[var(--nous-terra)]')}
             />
           );
         case 'processing':
@@ -174,7 +174,7 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
             <ArrowPathIcon
               className={cn(
                 iconClass,
-                'text-(--nous-fg-accent-safe) animate-spin'
+                'text-[var(--nous-fg-accent-safe)] animate-spin'
               )}
             />
           );
@@ -185,22 +185,22 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
             <ArrowPathIcon
               className={cn(
                 iconClass,
-                'text-(--nous-corona) animate-spin'
+                'text-[var(--nous-corona)] animate-spin'
               )}
             />
           );
         case 'paused':
           return (
-            <PauseIcon className={cn(iconClass, 'text-(--nous-corona)')} />
+            <PauseIcon className={cn(iconClass, 'text-[var(--nous-corona)]')} />
           );
         case 'cancelled':
           return (
-            <XMarkIcon className={cn(iconClass, 'text-(--nous-fg-3)')} />
+            <XMarkIcon className={cn(iconClass, 'text-[var(--nous-fg-3)]')} />
           );
         case 'failed':
           return (
             <ExclamationTriangleIcon
-              className={cn(iconClass, 'text-(--nous-mars)')}
+              className={cn(iconClass, 'text-[var(--nous-mars)]')}
             />
           );
         default:
@@ -214,18 +214,18 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
     (fileType: DocumentProcessingState['fileType']) => {
       switch (fileType) {
         case 'pdf':
-          return <DocumentIcon className="h-5 w-5 text-(--nous-mars)" />;
+          return <DocumentIcon className="h-5 w-5 text-[var(--nous-mars)]" />;
         case 'txt':
           return (
-            <DocumentIcon className="h-5 w-5 text-(--nous-fg-accent-safe)" />
+            <DocumentIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
           );
         case 'jpg':
         case 'png':
-          return <DocumentIcon className="h-5 w-5 text-(--nous-terra)" />;
+          return <DocumentIcon className="h-5 w-5 text-[var(--nous-terra)]" />;
         case 'mp3':
-          return <DocumentIcon className="h-5 w-5 text-(--nous-fg-3)" />;
+          return <DocumentIcon className="h-5 w-5 text-[var(--nous-fg-3)]" />;
         case 'mp4':
-          return <DocumentIcon className="h-5 w-5 text-(--nous-corona)" />;
+          return <DocumentIcon className="h-5 w-5 text-[var(--nous-corona)]" />;
         default:
           return <DocumentIcon className="h-5 w-5 text-foreground" />;
       }
@@ -295,15 +295,15 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
           <div className="flex items-center space-x-2">
             {connection.status === 'connected' ? (
               <>
-                <SignalIcon className="h-4 w-4 text-(--nous-terra)" />
-                <span className="text-sm text-(--nous-terra)">
+                <SignalIcon className="h-4 w-4 text-[var(--nous-terra)]" />
+                <span className="text-sm text-[var(--nous-terra)]">
                   Connected
                 </span>
               </>
             ) : (
               <>
-                <SignalSlashIcon className="h-4 w-4 text-(--nous-mars)" />
-                <span className="text-sm text-(--nous-mars)">
+                <SignalSlashIcon className="h-4 w-4 text-[var(--nous-mars)]" />
+                <span className="text-sm text-[var(--nous-mars)]">
                   {connection.status === 'connecting'
                     ? 'Connecting...'
                     : 'Disconnected'}
@@ -328,7 +328,7 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
           >
             <BellIcon className="h-4 w-4" />
             {notifications.length > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 w-4 bg-(--nous-mars) text-white text-xs rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 h-4 w-4 bg-[var(--nous-mars)] text-white text-xs rounded-full flex items-center justify-center">
                 {notifications.length}
               </span>
             )}
@@ -363,11 +363,11 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Processing</p>
-              <p className="text-2xl font-bold text-(--nous-fg-accent-safe)">
+              <p className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
                 {processingStats.processingFiles}
               </p>
             </div>
-            <ArrowPathIcon className="h-8 w-8 text-(--nous-fg-accent-safe) animate-spin" />
+            <ArrowPathIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)] animate-spin" />
           </div>
         </div>
 
@@ -375,11 +375,11 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Completed</p>
-              <p className="text-2xl font-bold text-(--nous-terra)">
+              <p className="text-2xl font-bold text-[var(--nous-terra)]">
                 {processingStats.completedFiles}
               </p>
             </div>
-            <CheckCircleIcon className="h-8 w-8 text-(--nous-terra)" />
+            <CheckCircleIcon className="h-8 w-8 text-[var(--nous-terra)]" />
           </div>
         </div>
 
@@ -387,11 +387,11 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Failed</p>
-              <p className="text-2xl font-bold text-(--nous-mars)">
+              <p className="text-2xl font-bold text-[var(--nous-mars)]">
                 {processingStats.failedFiles}
               </p>
             </div>
-            <ExclamationTriangleIcon className="h-8 w-8 text-(--nous-mars)" />
+            <ExclamationTriangleIcon className="h-8 w-8 text-[var(--nous-mars)]" />
           </div>
         </div>
       </div>
@@ -669,7 +669,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
           />
 
           {/* File type icon */}
-          <div className="text-xl shrink-0">
+          <div className="text-xl flex-shrink-0">
             {getFileTypeIcon(document.fileType)}
           </div>
 
@@ -699,7 +699,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 shrink-0">
+        <div className="flex items-center space-x-2 flex-shrink-0">
           {/* Status badge */}
           <Badge
             className={cn('text-xs', getStatusColor(document.status))}
@@ -793,17 +793,17 @@ const StageIndicator: React.FC<StageIndicatorProps> = ({
   const getStageIcon = (stage: ProcessingStage) => {
     switch (stage.status) {
       case 'completed':
-        return <CheckCircleIcon className="h-3 w-3 text-(--nous-terra)" />;
+        return <CheckCircleIcon className="h-3 w-3 text-[var(--nous-terra)]" />;
       case 'failed':
         return (
-          <ExclamationTriangleIcon className="h-3 w-3 text-(--nous-mars)" />
+          <ExclamationTriangleIcon className="h-3 w-3 text-[var(--nous-mars)]" />
         );
       case 'in_progress':
         return (
-          <ArrowPathIcon className="h-3 w-3 text-(--nous-fg-accent-safe) animate-spin" />
+          <ArrowPathIcon className="h-3 w-3 text-[var(--nous-fg-accent-safe)] animate-spin" />
         );
       default:
-        return <div className="h-3 w-3 rounded-full bg-(--nous-bg-3)" />;
+        return <div className="h-3 w-3 rounded-full bg-[var(--nous-bg-3)]" />;
     }
   };
 
@@ -818,8 +818,8 @@ const StageIndicator: React.FC<StageIndicatorProps> = ({
                 className={cn(
                   'h-0.5 w-4',
                   stage.status === 'completed'
-                    ? 'bg-(--nous-terra)'
-                    : 'bg-(--nous-bg-3)'
+                    ? 'bg-[var(--nous-terra)]'
+                    : 'bg-[var(--nous-bg-3)]'
                 )}
               />
             )}
@@ -837,13 +837,13 @@ const StageIndicator: React.FC<StageIndicatorProps> = ({
           className={cn(
             'p-2 rounded border text-xs',
             getStageStatus(stage) === 'completed' &&
-              'bg-(--nous-terra)/10 border-(--nous-terra)/30',
+              'bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30',
             getStageStatus(stage) === 'processing' &&
-              'bg-(--nous-sol)/10 border-(--nous-sol)/30',
+              'bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30',
             getStageStatus(stage) === 'error' &&
-              'bg-(--nous-mars)/10 border-(--nous-mars)/30',
+              'bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/30',
             getStageStatus(stage) === 'pending' &&
-              'bg-(--nous-bg-2) border-border'
+              'bg-[var(--nous-bg-2)] border-border'
           )}
         >
           <div className="flex items-center space-x-2 mb-1">
@@ -851,9 +851,9 @@ const StageIndicator: React.FC<StageIndicatorProps> = ({
             <span className="font-medium truncate">{stage.name}</span>
           </div>
           {stage.status === 'in_progress' && (
-            <div className="w-full bg-(--nous-bg-3) rounded-full h-1">
+            <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-1">
               <div
-                className="bg-(--nous-sol) h-1 rounded-full transition-all duration-300"
+                className="bg-[var(--nous-sol)] h-1 rounded-full transition-all duration-300"
                 style={{ width: `${stage.progress}%` }}
               />
             </div>
@@ -938,13 +938,13 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({ document }) => {
                   <div className="flex items-center space-x-2">
                     <span className="text-sm font-medium">{stage.name}</span>
                     {stage.status === 'completed' && (
-                      <CheckCircleIcon className="h-4 w-4 text-(--nous-terra)" />
+                      <CheckCircleIcon className="h-4 w-4 text-[var(--nous-terra)]" />
                     )}
                     {stage.status === 'failed' && (
-                      <ExclamationTriangleIcon className="h-4 w-4 text-(--nous-mars)" />
+                      <ExclamationTriangleIcon className="h-4 w-4 text-[var(--nous-mars)]" />
                     )}
                     {stage.status === 'in_progress' && (
-                      <ArrowPathIcon className="h-4 w-4 text-(--nous-fg-accent-safe) animate-spin" />
+                      <ArrowPathIcon className="h-4 w-4 text-[var(--nous-fg-accent-safe)] animate-spin" />
                     )}
                   </div>
                   <span className="text-sm text-muted-foreground">
@@ -961,7 +961,7 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({ document }) => {
                 )}
 
                 {stage.error && (
-                  <div className="p-2 bg-(--nous-mars)/10 border border-(--nous-mars)/30 rounded text-xs text-(--nous-mars)">
+                  <div className="p-2 bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/30 rounded text-xs text-[var(--nous-mars)]">
                     {stage.error}
                   </div>
                 )}
@@ -987,7 +987,7 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({ document }) => {
           <h3 className="text-lg font-semibold mb-3">Timeline</h3>
           <div className="space-y-2">
             <div className="flex items-center space-x-3 text-sm">
-              <div className="w-3 h-3 rounded-full bg-(--nous-sol)" />
+              <div className="w-3 h-3 rounded-full bg-[var(--nous-sol)]" />
               <span>
                 Upload Started:{' '}
                 {formatTimestamp(document.metadata.uploadStartedAt)}
@@ -995,7 +995,7 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({ document }) => {
             </div>
             {document.metadata.processingStartedAt && (
               <div className="flex items-center space-x-3 text-sm">
-                <div className="w-3 h-3 rounded-full bg-(--nous-corona)" />
+                <div className="w-3 h-3 rounded-full bg-[var(--nous-corona)]" />
                 <span>
                   Processing Started:{' '}
                   {formatTimestamp(document.metadata.processingStartedAt)}
@@ -1004,7 +1004,7 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({ document }) => {
             )}
             {document.metadata.completedAt && (
               <div className="flex items-center space-x-3 text-sm">
-                <div className="w-3 h-3 rounded-full bg-(--nous-terra)" />
+                <div className="w-3 h-3 rounded-full bg-[var(--nous-terra)]" />
                 <span>
                   Completed: {formatTimestamp(document.metadata.completedAt)}
                 </span>
@@ -1017,7 +1017,7 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({ document }) => {
         {document.error && (
           <div>
             <h3 className="text-lg font-semibold mb-3">Error Details</h3>
-            <div className="p-3 bg-(--nous-mars)/10 border border-(--nous-mars)/30 rounded text-sm text-(--nous-mars)">
+            <div className="p-3 bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/30 rounded text-sm text-[var(--nous-mars)]">
               {document.error}
             </div>
           </div>
@@ -1187,13 +1187,13 @@ const NotificationsPanel: React.FC = () => {
             className={cn(
               'p-3 rounded-lg border',
               notification.type === 'success' &&
-                'bg-(--nous-terra)/10 border-(--nous-terra)/30',
+                'bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30',
               notification.type === 'error' &&
-                'bg-(--nous-mars)/10 border-(--nous-mars)/30',
+                'bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/30',
               notification.type === 'warning' &&
-                'bg-(--nous-corona)/10 border-(--nous-corona)/30',
+                'bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30',
               notification.type === 'info' &&
-                'bg-(--nous-sol)/10 border-(--nous-sol)/30'
+                'bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30'
             )}
           >
             <div className="flex items-start justify-between">

@@ -3,7 +3,6 @@
  */
 
 import { create } from 'zustand';
-import { getAppQueryClient } from '@/lib/query-client';
 import { projectService } from '@/services/projectService';
 import type {
   Project,
@@ -24,37 +23,6 @@ function getErrorMessage(error: unknown, fallback: string): string {
     return error;
   }
   return fallback;
-}
-
-// In-flight dedup for fetchProject: /chat's layout effect (and the project
-// page) re-invoke it on render churn before the first GET settles, queueing
-// parallel identical /projects/{id} requests (Sentry JAVASCRIPT-NEXTJS-3Q).
-// Callers awaiting the same id share one request.
-let inflightProjectFetch: { id: string; promise: Promise<void> } | null = null;
-
-// Identity for the "owner" of currentProject/projectDocuments/projectNotes.
-// inflightProjectFetch above only dedups the NETWORK call for a repeated
-// same-id request; it does nothing for a slow fetchProject('A') resolving
-// after fetchProject('B') already committed — that would overwrite B's
-// state with A's. Module scope (outside Zustand), unique token objects, same
-// pattern as pipelineStore's pipelineRequestToken. A dedup joiner (returns
-// inflightProjectFetch.promise) never installs its own token — it's sharing
-// the original caller's in-flight request and that caller already owns it.
-let projectFetchToken: object | null = null;
-
-// Dual-cache reconciliation (docs/engineering/frontend.md, "Legacy
-// server-state stores"): the context rail caches the same project documents/
-// notes via useProjectWorkingFolders under ['project', id, 'documents'|
-// 'notes'] with a 5-minute staleTime. Every store-side mutation must
-// invalidate the Query copy, or the rail serves stale lists until staleTime
-// expires. (Reads don't invalidate — a refetch doesn't change server state.)
-function invalidateProjectQueries(
-  projectId: string,
-  scope: 'documents' | 'notes'
-): void {
-  void getAppQueryClient()?.invalidateQueries({
-    queryKey: ['project', projectId, scope],
-  });
 }
 
 interface ProjectState {
@@ -173,43 +141,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   fetchProject: async (projectId) => {
-    if (inflightProjectFetch?.id === projectId) {
-      return inflightProjectFetch.promise;
-    }
-    const requestToken = {};
-    projectFetchToken = requestToken;
     set({ loading: true, error: null });
-    const promise = (async () => {
-      try {
-        const project = await projectService.getProject(projectId);
-        if (projectFetchToken !== requestToken) return; // superseded
-        // Clear stale documents/notes from the previous project on switch
-        const prev = get().currentProject;
-        if (prev && prev.id !== projectId) {
-          set({
-            currentProject: project,
-            projectDocuments: [],
-            projectNotes: [],
-            loading: false,
-          });
-        } else {
-          set({ currentProject: project, loading: false });
-        }
-      } catch (error: unknown) {
-        if (projectFetchToken !== requestToken) return; // superseded
-        console.error('[ProjectStore] Failed to fetch project:', error);
+    try {
+      const project = await projectService.getProject(projectId);
+      // Clear stale documents/notes from the previous project on switch
+      const prev = get().currentProject;
+      if (prev && prev.id !== projectId) {
         set({
-          error: getErrorMessage(error, 'Failed to fetch project'),
+          currentProject: project,
+          projectDocuments: [],
+          projectNotes: [],
           loading: false,
         });
-      } finally {
-        if (inflightProjectFetch?.id === projectId) {
-          inflightProjectFetch = null;
-        }
+      } else {
+        set({ currentProject: project, loading: false });
       }
-    })();
-    inflightProjectFetch = { id: projectId, promise };
-    return promise;
+    } catch (error: unknown) {
+      console.error('[ProjectStore] Failed to fetch project:', error);
+      set({
+        error: getErrorMessage(error, 'Failed to fetch project'),
+        loading: false,
+      });
+    }
   },
 
   createProject: async (data) => {
@@ -317,7 +270,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectDocuments: [...state.projectDocuments, doc],
         documentsLoading: false,
       }));
-      invalidateProjectQueries(projectId, 'documents');
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to add document:', error);
       set({
@@ -338,7 +290,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ),
         documentsLoading: false,
       }));
-      invalidateProjectQueries(projectId, 'documents');
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to remove document:', error);
       set({
@@ -380,7 +331,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectNotes: [note, ...state.projectNotes],
         notesLoading: false,
       }));
-      invalidateProjectQueries(projectId, 'notes');
       return note;
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to create note:', error);
@@ -402,7 +352,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ),
         notesLoading: false,
       }));
-      invalidateProjectQueries(projectId, 'notes');
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to update note:', error);
       set({
@@ -421,7 +370,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectNotes: state.projectNotes.filter((n) => n.id !== noteId),
         notesLoading: false,
       }));
-      invalidateProjectQueries(projectId, 'notes');
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to delete note:', error);
       set({
@@ -440,7 +388,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           n.id === noteId ? updated : n
         ),
       }));
-      invalidateProjectQueries(projectId, 'notes');
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to toggle pin:', error);
       set({

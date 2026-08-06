@@ -8,8 +8,8 @@ from .neo4j_templates import Neo4jTemplates
 from .stance_classifier import (
     BatchClassificationLimitError,
     BatchClassificationTimeoutError,
-    StanceClassificationResult,
     StanceClassifier,
+    StanceClassificationResult,
 )
 
 __all__ = [

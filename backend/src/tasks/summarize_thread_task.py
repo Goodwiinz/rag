@@ -12,9 +12,7 @@ from uuid import UUID
 # Add src directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from celery import Task, current_app
-from sqlalchemy.exc import InterfaceError, OperationalError
-from sqlalchemy.exc import TimeoutError as SATimeoutError
+from celery import Task, current_app, group
 
 from src.core.config import settings
 from src.core.database import SessionLocal
@@ -23,27 +21,10 @@ from src.models.thread import Thread, ThreadStatus
 logger = logging.getLogger(__name__)
 
 
-# Errors worth retrying: connection/timeout blips between worker and DB/redis.
-# Deliberately narrow — the old (Exception,) retried permanent failures (bad
-# UUID, integrity errors, code bugs) 3x with backoff, adding latency and log
-# noise for outcomes that can never change. LLM-call errors are intentionally
-# absent: ThreadSummarizationService catches them itself and degrades to a
-# fallback summary (they never propagate to this task).
-TRANSIENT_ERRORS = (
-    ConnectionError,
-    TimeoutError,
-    OperationalError,
-    InterfaceError,
-    # SQLAlchemy pool-checkout exhaustion is NOT a builtin TimeoutError
-    # subclass; it is transient (pool pressure) and worth a retry.
-    SATimeoutError,
-)
-
-
 class SummarizationTask(Task):
     """Base class for summarization tasks with error handling."""
 
-    autoretry_for = TRANSIENT_ERRORS
+    autoretry_for = (Exception,)
     retry_kwargs = {"max_retries": 3, "countdown": 5}
     retry_backoff = True
 
@@ -119,7 +100,47 @@ def summarize_thread_on_resolve_task(self, thread_id: str) -> None:
     summarize_thread_task.delay(thread_id, force=True)
 
 
-# batch_summarize_threads_task was deleted (writing-surface audit W-B5): it
-# blocked on group(...).get() inside a task body — the documented Celery
-# deadlock anti-pattern — and had no callers anywhere in the repo. Callers
-# that need batching can dispatch summarize_thread_task per thread directly.
+@current_app.task(name="tasks.batch_summarize_threads")
+def batch_summarize_threads_task(thread_ids: list[str]) -> dict:
+    """
+    Batch summarize multiple threads in parallel.
+
+    Uses Celery group to dispatch all summarization tasks concurrently,
+    improving throughput and reducing total execution time.
+
+    Args:
+        thread_ids: List of thread UUIDs as strings
+
+    Returns:
+        Dict with success/failure counts
+    """
+    results = {
+        "total": len(thread_ids),
+        "success": 0,
+        "failed": 0,
+        "skipped": 0,
+    }
+
+    # Create parallel task group
+    job = group(
+        summarize_thread_task.s(thread_id, force=False) for thread_id in thread_ids
+    )
+
+    try:
+        # Execute in parallel with 5 minute timeout
+        group_result = job.apply_async()
+        task_results = group_result.get(timeout=300)
+
+        # Aggregate results
+        for task_result in task_results:
+            if task_result:  # Summary was generated
+                results["success"] += 1
+            else:  # Summary was skipped (e.g., already exists)
+                results["skipped"] += 1
+
+    except Exception as e:
+        logger.error(f"Batch summarization failed: {e}")
+        results["failed"] = len(thread_ids) - results["success"] - results["skipped"]
+
+    logger.info(f"Batch summarization complete: {results}")
+    return results

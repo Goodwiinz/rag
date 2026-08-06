@@ -165,9 +165,9 @@ class DocumentQualityService:
             return {
                 "overall_score": 0.0,
                 "error": str(e),
-                "processing_time_ms": (
-                    (time.time() - start_time) * 1000 if "start_time" in locals() else 0
-                ),
+                "processing_time_ms": (time.time() - start_time) * 1000
+                if "start_time" in locals()
+                else 0,
             }
 
     async def comprehensive_quality_assessment(
@@ -297,9 +297,9 @@ class DocumentQualityService:
             return {
                 "overall_score": 0.0,
                 "error": str(e),
-                "processing_time_ms": (
-                    (time.time() - start_time) * 1000 if "start_time" in locals() else 0
-                ),
+                "processing_time_ms": (time.time() - start_time) * 1000
+                if "start_time" in locals()
+                else 0,
             }
 
     def quick_readability_assessment(self, text: str) -> float:
@@ -905,9 +905,9 @@ class DocumentQualityService:
                 "has_title": bool(document.title),
                 "has_tags": bool(document.tags),
                 "has_description": bool(document.get_metadata_value("description")),
-                "creation_date": (
-                    document.created_at.isoformat() if document.created_at else None
-                ),
+                "creation_date": document.created_at.isoformat()
+                if document.created_at
+                else None,
             }
 
             # Essential metadata fields

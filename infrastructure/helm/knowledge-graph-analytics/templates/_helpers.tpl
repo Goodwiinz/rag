@@ -123,6 +123,18 @@ Create the Neo4j URI
 {{- end }}
 
 {{/*
+Create the Qdrant URL
+*/}}
+{{- define "knowledge-graph-analytics.qdrantUrl" -}}
+{{- $qdrant := .Values.qdrant -}}
+{{- if $qdrant.enabled -}}
+{{- printf "http://%s:6333" $qdrant.fullname -}}
+{{- else -}}
+{{- printf "%s" .Values.backend.env.QDRANT_URL -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Return the storage class name
 */}}
 {{- define "knowledge-graph-analytics.storageClass" -}}
@@ -159,59 +171,6 @@ Return the environment name
 {{- .Values.global.environment -}}
 {{- else -}}
 {{- "production" -}}
-{{- end -}}
-{{- end }}
-
-{{/*
-Merge the shared backend.env with a component's env overrides into a single
-env list whose names are UNIQUE (the component entry wins over a same-named
-backend entry).
-
-Why this exists: the kubelet tolerates duplicate env names at runtime (last
-value wins), but ArgoCD diffs via a Kubernetes strategic-merge-patch that
-uses `name` as the merge key for the env list. Two entries with the same
-`name` in one container make the patch construction fail
-("failed to construct strategic merge patch: The order in patch list ...")
-and ALL sync for the app stops. So every rendered container env must list
-each name exactly once.
-
-Ordering contract:
-  - backend.env positions are preserved; an overridden name keeps its slot
-    but takes the component's value/valueFrom.
-  - component-only names are appended after, in component order.
-  - when the component env is unset/empty this is a pure no-op and renders
-    identically to `toYaml .Values.backend.env` (pre-override behavior).
-
-Usage:
-  env:
-    {{- include "knowledge-graph-analytics.mergedEnv"
-          (dict "base" .Values.backend.env "override" .Values.celeryWorker.env)
-          | nindent 12 }}
-*/}}
-{{- define "knowledge-graph-analytics.mergedEnv" -}}
-{{- $base := .base | default (list) -}}
-{{- $override := .override | default (list) -}}
-{{- $overrideByName := dict -}}
-{{- range $override -}}
-{{- $_ := set $overrideByName .name . -}}
-{{- end -}}
-{{- $seen := dict -}}
-{{- $merged := list -}}
-{{- range $base -}}
-{{- if hasKey $overrideByName .name -}}
-{{- $merged = append $merged (index $overrideByName .name) -}}
-{{- else -}}
-{{- $merged = append $merged . -}}
-{{- end -}}
-{{- $_ := set $seen .name true -}}
-{{- end -}}
-{{- range $override -}}
-{{- if not (hasKey $seen .name) -}}
-{{- $merged = append $merged . -}}
-{{- end -}}
-{{- end -}}
-{{- if $merged -}}
-{{- toYaml $merged -}}
 {{- end -}}
 {{- end }}
 
@@ -320,5 +279,72 @@ spec:
     rule: 'RunAsAny'
   fsGroup:
     rule: 'RunAsAny'
+{{- end }}
+{{- end }}
+
+{{/*
+Create a default network policy
+*/}}
+{{- define "knowledge-graph-analytics.networkPolicy" -}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "knowledge-graph-analytics.fullname" . }}
+  labels:
+    {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.backend.service.port }}
+  egress:
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: neo4j
+      ports:
+        - protocol: TCP
+          port: 7687
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: qdrant
+      ports:
+        - protocol: TCP
+          port: 6333
 {{- end }}
 {{- end }}

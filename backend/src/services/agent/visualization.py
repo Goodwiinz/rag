@@ -54,9 +54,7 @@ def get_graph_mermaid() -> str:
         return compiled.get_graph().draw_mermaid()
     except Exception as e:
         logger.error("Failed to generate graph mermaid: %s", e)
-        return (
-            f'graph TD\n  error["Failed to generate graph: {_escape_mermaid_label(e)}"]'
-        )
+        return f"graph TD\n  error[\"Failed to generate graph: {_escape_mermaid_label(e)}\"]"
 
 
 async def get_execution_trace_mermaid(

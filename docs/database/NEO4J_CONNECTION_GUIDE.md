@@ -7,12 +7,12 @@
 - **Bolt Port**: `7687` (for programmatic access)
 - **HTTP Port**: `7474` (for web browser interface)
 - **Username**: `neo4j`
-- **Password**: `neo4j_password_123`
+- **Password**: `REDACTED`
 
 **Connection URIs:**
 ```
-bolt://neo4j:neo4j_password_123@localhost:7687
-neo4j://neo4j:neo4j_password_123@localhost:7687
+bolt://neo4j:REDACTED@localhost:7687
+neo4j://neo4j:REDACTED@localhost:7687
 http://localhost:7474/browser/
 ```
 
@@ -26,7 +26,7 @@ http://localhost:7474/browser/
 3. Login with:
    - **Connect URL**: `bolt://localhost:7687`
    - **Username**: `neo4j`
-   - **Password**: `neo4j_password_123`
+   - **Password**: `REDACTED`
 4. Click **Connect**
 
 ### Quick Cypher Queries to Try:
@@ -59,14 +59,14 @@ MATCH (n) RETURN n LIMIT 25;
 
 ```bash
 # Interactive mode
-docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123
+docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p REDACTED
 
 # Single query
-docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123 \
+docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p REDACTED \
   "MATCH (n) RETURN count(n) as nodes;"
 
 # With database selection
-docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123 -d neo4j \
+docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p REDACTED -d neo4j \
   "RETURN 'Hello Neo4j!' as greeting;"
 ```
 
@@ -92,7 +92,7 @@ from py2neo import Graph
 # Connect to Neo4j
 graph = Graph(
     "bolt://localhost:7687",
-    auth=("neo4j", "neo4j_password_123")
+    auth=("neo4j", "REDACTED")
 )
 
 # Test connection
@@ -132,7 +132,7 @@ class Neo4jConnection:
 conn = Neo4jConnection(
     "bolt://localhost:7687",
     "neo4j",
-    "neo4j_password_123"
+    "REDACTED"
 )
 
 # Run query
@@ -178,7 +178,7 @@ with driver.session() as session:
   1. Install Neo4j Desktop
   2. Add "Remote Connection"
   3. Connect URL: `bolt://localhost:7687`
-  4. Username: `neo4j`, Password: `neo4j_password_123`
+  4. Username: `neo4j`, Password: `REDACTED`
 
 ### 2. **Neo4j Bloom** (Visual Exploration)
 - Included with Neo4j Desktop
@@ -352,7 +352,7 @@ docker restart rag-neo4j-1
 sleep 10
 
 # Test connection
-docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123 \
+docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p REDACTED \
   "RETURN 'OK' as status;"
 ```
 
@@ -369,7 +369,7 @@ docker run -d \
   --name rag-neo4j-1 \
   --network rag_multimodal-rag-network \
   -p 7474:7474 -p 7687:7687 \
-  -e NEO4J_AUTH=neo4j/neo4j_password_123 \
+  -e NEO4J_AUTH=neo4j/REDACTED \
   -v rag_neo4j_data:/data \
   neo4j:5.15-community
 
@@ -459,7 +459,7 @@ docker start rag-neo4j-1
 
 ```bash
 # Export all data to Cypher statements
-docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123 \
+docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p REDACTED \
   "CALL apoc.export.cypher.all('/var/lib/neo4j/import/export.cypher', {format: 'cypher-shell'});"
 
 # Copy export file to host
@@ -474,7 +474,7 @@ docker cp rag-neo4j-1:/var/lib/neo4j/import/export.cypher ./neo4j_export.cypher
 
 ```cypher
 // Change password (after first login)
-ALTER CURRENT USER SET PASSWORD FROM 'neo4j_password_123' TO 'new_strong_password';
+ALTER CURRENT USER SET PASSWORD FROM 'REDACTED' TO 'new_strong_password';
 ```
 
 ### Create Additional Users
@@ -563,14 +563,14 @@ SHOW CONSTRAINTS;
 
 ```bash
 # Command line test
-docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123 \
+docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p REDACTED \
   "RETURN 'Neo4j is ready!' as status, datetime() as time;"
 ```
 
 **Or open in browser:**
 - URL: http://localhost:7474
 - Username: `neo4j`
-- Password: `neo4j_password_123`
+- Password: `REDACTED`
 
 ---
 

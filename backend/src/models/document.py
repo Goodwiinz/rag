@@ -2,23 +2,11 @@
 Document model for multimodal content storage and management
 """
 
-from datetime import datetime
-from enum import Enum as PyEnum
-
-from sqlalchemy import (
-    JSON,
-    Boolean,
-    Column,
-    DateTime,
-    Enum,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    Text,
-)
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Enum, ForeignKey, Text, JSON, Index
 from sqlalchemy.dialects.postgresql import TSVECTOR
-from sqlalchemy.orm import joinedload, relationship, selectinload
+from sqlalchemy.orm import relationship, selectinload, joinedload
+from enum import Enum as PyEnum
+from datetime import datetime
 
 from .base import GUID, BaseModel
 from .utils import StringArray
@@ -63,9 +51,7 @@ class Document(BaseModel):
     # Storage
     storage_path = Column(String(2000), nullable=True)  # Storage key (bucket/key)
     storage_backend = Column(String(20), nullable=False, server_default="local")
-    checksum_sha256 = Column(
-        String(64), nullable=True, index=True
-    )  # SHA-256 content hash
+    checksum_sha256 = Column(String(64), nullable=True, index=True)  # SHA-256 content hash
 
     # Content
     content_text = Column(Text, nullable=True)  # Extracted text content
@@ -94,34 +80,14 @@ class Document(BaseModel):
     # DigitalOcean Knowledge Base data source (Phase 2 dual-write)
     do_kb_data_source_uuid = Column(String(64), nullable=True, index=True)
     do_kb_indexed_at = Column(DateTime(timezone=True), nullable=True)
-    # Per-document DO KB indexing health: indexed | skipped | failed | timeout
-    do_kb_index_status = Column(String(20), nullable=True, index=True)
-
-    # Per-satellite fan-out truth (audit D1). Values from
-    # src.shared.enums.SatelliteSyncStatus (pending | completed | failed);
-    # NULL = never attempted. Satellite failures are non-fatal by design (the
-    # document still reaches COMPLETED), so these columns are the only record
-    # that a satellite index drifted — the scheduled reconciler
-    # (src.tasks.reconcile_tasks) re-drives rows marked 'failed'.
-    # Outcome of the last Neo4j knowledge-graph indexing attempt:
-    neo4j_index_status = Column(String(20), nullable=True, index=True)
-    neo4j_indexed_at = Column(DateTime(timezone=True), nullable=True)
-    # Outcome of the last DO KB sync attempt (data-source registration).
-    # Distinct from do_kb_index_status, which tracks the KB-side indexing
-    # lifecycle after a successful registration.
-    do_kb_sync_status = Column(String(20), nullable=True, index=True)
 
     # Access control
     is_public = Column(Boolean, default=False, nullable=False)
     tags = Column(StringArray, nullable=True)
 
     # Organization
-    organization_id = Column(
-        GUID(), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
-    )
-    uploaded_by_user_id = Column(
-        GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
+    organization_id = Column(GUID(), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    uploaded_by_user_id = Column(GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     # Relationships
     organization = relationship("Organization", back_populates="documents")
@@ -155,17 +121,15 @@ class Document(BaseModel):
         "DocumentAccessLog", back_populates="document", cascade="all, delete-orphan"
     )
 
-    # Database indexes for performance optimization
+    # Database indexes for performance optimization  
     __table_args__ = (
-        Index("idx_document_org_user", "organization_id", "uploaded_by_user_id"),
-        Index("idx_document_user_created", "uploaded_by_user_id", "created_at"),
-        Index("idx_document_org_status", "organization_id", "processing_status"),
-        Index("idx_document_org_type", "organization_id", "document_type"),
-        Index("idx_document_status_created", "processing_status", "created_at"),
-        Index("idx_document_embedded_indexed", "is_embedded", "is_indexed"),
-        Index("idx_document_org_public", "organization_id", "is_public"),
-        # Backs the default GET /documents list: WHERE org ORDER BY created_at DESC
-        Index("idx_document_org_created", "organization_id", "created_at"),
+        Index('idx_document_org_user', 'organization_id', 'uploaded_by_user_id'),
+        Index('idx_document_user_created', 'uploaded_by_user_id', 'created_at'),
+        Index('idx_document_org_status', 'organization_id', 'processing_status'),
+        Index('idx_document_org_type', 'organization_id', 'document_type'),
+        Index('idx_document_status_created', 'processing_status', 'created_at'),
+        Index('idx_document_embedded_indexed', 'is_embedded', 'is_indexed'),
+        Index('idx_document_org_public', 'organization_id', 'is_public'),
     )
 
     def __repr__(self):
@@ -174,39 +138,32 @@ class Document(BaseModel):
     @classmethod
     def get_with_user_and_org(cls, document_id):
         """Get document with user and organization eagerly loaded"""
-        return (
-            cls.query.options(
-                joinedload(cls.uploaded_by_user), joinedload(cls.organization)
-            )
-            .filter(cls.id == document_id)
-            .first()
-        )
+        return cls.query.options(
+            joinedload(cls.uploaded_by_user),
+            joinedload(cls.organization)
+        ).filter(cls.id == document_id).first()
 
     @classmethod
     def get_user_documents_with_details(cls, user_id, limit=50):
         """Get user's documents with organization loaded to avoid N+1"""
-        return (
-            cls.query.options(
-                joinedload(cls.organization), selectinload(cls.processing_history)
-            )
-            .filter(cls.uploaded_by_user_id == user_id, cls.is_deleted == False)
-            .order_by(cls.created_at.desc())
-            .limit(limit)
-            .all()
-        )
+        return cls.query.options(
+            joinedload(cls.organization),
+            selectinload(cls.processing_history)
+        ).filter(
+            cls.uploaded_by_user_id == user_id,
+            cls.is_deleted == False
+        ).order_by(cls.created_at.desc()).limit(limit).all()
 
     @classmethod
     def get_org_documents_with_users(cls, organization_id, limit=100):
         """Get organization documents with users loaded to avoid N+1"""
-        return (
-            cls.query.options(
-                joinedload(cls.uploaded_by_user), selectinload(cls.quality_metrics)
-            )
-            .filter(cls.organization_id == organization_id, cls.is_deleted == False)
-            .order_by(cls.created_at.desc())
-            .limit(limit)
-            .all()
-        )
+        return cls.query.options(
+            joinedload(cls.uploaded_by_user),
+            selectinload(cls.quality_metrics)
+        ).filter(
+            cls.organization_id == organization_id,
+            cls.is_deleted == False
+        ).order_by(cls.created_at.desc()).limit(limit).all()
 
     def get_metadata(self):
         """Get document metadata as dict"""
@@ -308,28 +265,38 @@ class Document(BaseModel):
         return self.content_text[:max_length] + "..."
 
     def get_mapped_status(self) -> str:
-        """Get processing status mapped to the public API vocabulary.
-
-        Delegates to :class:`~src.shared.enums.ApiDocumentStatus` — the single
-        source of truth for the db->api status translation.
-        """
-        from src.shared.enums import ApiDocumentStatus
-
-        return ApiDocumentStatus.from_db(self.processing_status).value
+        """Get processing status mapped to frontend-compatible values"""
+        status_mapping = {
+            "pending": "queued",
+            "processing": "processing",
+            "completed": "indexed",
+            "failed": "failed",
+            "retrying": "processing",  # Map retrying to processing
+        }
+        backend_status = (
+            self.processing_status.value if self.processing_status else None
+        )
+        return status_mapping.get(backend_status, "queued")
 
     def to_dict(self, include_content: bool = False) -> dict:
         """Convert to dictionary"""
-        from src.shared.enums import ApiDocumentStatus
-
         data = super().to_dict()
 
         # Convert enum values
         data["document_type"] = self.document_type.value if self.document_type else None
 
-        # Map processing status to the public API vocabulary
-        data["processing_status"] = ApiDocumentStatus.from_db(
-            self.processing_status
-        ).value
+        # Map processing status to frontend-compatible lowercase values
+        status_mapping = {
+            "pending": "queued",
+            "processing": "processing",
+            "completed": "indexed",
+            "failed": "failed",
+            "retrying": "processing",
+        }
+        backend_status = (
+            self.processing_status.value if self.processing_status else None
+        )
+        data["processing_status"] = status_mapping.get(backend_status, "queued")
 
         # Add computed fields
         data["file_size_mb"] = self.file_size_mb
@@ -337,10 +304,6 @@ class Document(BaseModel):
         data["is_processing_complete"] = self.is_processing_complete
         data["is_processing_successful"] = self.is_processing_successful
         data["can_be_searched"] = self.can_be_searched()
-        data["do_kb_index_status"] = self.do_kb_index_status
-        # Per-satellite fan-out truth (audit D1)
-        data["neo4j_index_status"] = self.neo4j_index_status
-        data["do_kb_sync_status"] = self.do_kb_sync_status
 
         # Include content if requested
         if not include_content:

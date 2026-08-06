@@ -13,11 +13,11 @@ class QualityMetricResponse(BaseModel):
 
     id: str
     metric_type: str
-    metric_value: Optional[float] = None
+    metric_value: float
     metric_unit: Optional[str] = None
-    query: Optional[str] = None
-    search_type: Optional[str] = None
-    measured_at: Optional[str] = None
+    query: str
+    search_type: str
+    measured_at: str
     is_threshold_violation: bool = False
     metadata: Optional[Dict[str, Any]] = None
 

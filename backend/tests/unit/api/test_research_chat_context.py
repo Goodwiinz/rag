@@ -11,13 +11,11 @@ from src.api.research.chat import (
 from src.models.search_schemas import SearchResponse, SearchResult, SearchType
 from src.services.diagnostics.retrieval_diagnostics import RetrievalTrace
 
+
 pytestmark = pytest.mark.asyncio
 
 
-@patch(
-    "src.services.diagnostics.diagnostics_store.diagnostics_store.store_trace",
-    new_callable=AsyncMock,
-)
+@patch("src.services.diagnostics.diagnostics_store.diagnostics_store.store_trace", new_callable=AsyncMock)
 @patch("src.api.research.chat.hybrid_search_service.search_with_diagnostics")
 async def test_retrieve_context_prefers_full_text_metadata(
     mock_search_with_diagnostics: MagicMock,
@@ -70,10 +68,7 @@ async def test_retrieve_context_prefers_full_text_metadata(
     assert kwargs["user_id"] == "user-1"
 
 
-@patch(
-    "src.services.diagnostics.diagnostics_store.diagnostics_store.store_trace",
-    new_callable=AsyncMock,
-)
+@patch("src.services.diagnostics.diagnostics_store.diagnostics_store.store_trace", new_callable=AsyncMock)
 @patch("src.api.research.chat.hybrid_search_service.search_with_diagnostics")
 async def test_retrieve_context_requires_organization_id(
     mock_search_with_diagnostics: MagicMock,
@@ -123,7 +118,6 @@ async def test_background_evaluate_rag_uses_sync_db_session(
         answer="RAG combines retrieval and generation.",
         contexts=contexts,
         trace_id="trace-123",
-        organization_id="test-org",
     )
 
     mock_run_evaluation.assert_awaited_once()

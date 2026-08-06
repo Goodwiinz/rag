@@ -6,7 +6,6 @@
  */
 
 import toast from 'react-hot-toast';
-import { useShallow } from 'zustand/react/shallow';
 import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -276,9 +275,7 @@ export function useChatPersistence(): UseChatPersistenceReturn {
     completed: false,
   });
 
-  // Store state — scoped subscription. Reading the whole store here re-rendered
-  // every consumer on each rAF-batched streaming write (streamingContent/Steps/
-  // Citations, isRetrievingRag ~60x/sec) even though none are used below.
+  // Store state
   const {
     currentWorkspaceId,
     currentConversationId,
@@ -293,7 +290,7 @@ export function useChatPersistence(): UseChatPersistenceReturn {
     isLoadingMessages,
     isSendingMessage,
     error,
-    // Actions (stable refs)
+    // Actions
     initializeDefaultWorkspace,
     loadConversations,
     loadThreads,
@@ -307,36 +304,7 @@ export function useChatPersistence(): UseChatPersistenceReturn {
     updateThread,
     deleteThread,
     clearError,
-  } = useChatStore(
-    useShallow((s) => ({
-      currentWorkspaceId: s.currentWorkspaceId,
-      currentConversationId: s.currentConversationId,
-      currentThreadId: s.currentThreadId,
-      workspaces: s.workspaces,
-      conversations: s.conversations,
-      threads: s.threads,
-      messages: s.messages,
-      isLoadingWorkspaces: s.isLoadingWorkspaces,
-      isLoadingConversations: s.isLoadingConversations,
-      isLoadingThreads: s.isLoadingThreads,
-      isLoadingMessages: s.isLoadingMessages,
-      isSendingMessage: s.isSendingMessage,
-      error: s.error,
-      initializeDefaultWorkspace: s.initializeDefaultWorkspace,
-      loadConversations: s.loadConversations,
-      loadThreads: s.loadThreads,
-      loadMessages: s.loadMessages,
-      createThread: s.createThread,
-      createConversation: s.createConversation,
-      sendMessage: s.sendMessage,
-      setCurrentWorkspace: s.setCurrentWorkspace,
-      setCurrentConversation: s.setCurrentConversation,
-      setCurrentThread: s.setCurrentThread,
-      updateThread: s.updateThread,
-      deleteThread: s.deleteThread,
-      clearError: s.clearError,
-    }))
-  );
+  } = useChatStore();
 
   // Derived loading state
   const isLoading =
@@ -473,7 +441,8 @@ export function useChatPersistence(): UseChatPersistenceReturn {
         await loadThreads(conversationId);
 
         const threadsState = useChatStore.getState();
-        const conversationThreads = threadsState.threads[conversationId] || [];
+        const conversationThreads =
+          threadsState.threads[conversationId] || [];
         if (conversationThreads.length > 0 && !threadsState.currentThreadId) {
           const firstThread = conversationThreads[0];
           debugLog(

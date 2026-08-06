@@ -725,36 +725,6 @@ describe('streamToTerminal: tool args, citations footer, usage', () => {
       messages.some((m) => /→ 312 in \/ 540 out · \$0\.0042/.test(m))
     ).toBe(true);
   });
-
-  test('a revising reflection restarts the response block (no concatenation)', async () => {
-    const writeSpy = vi
-      .spyOn(process.stdout, 'write')
-      .mockImplementation(() => true);
-
-    mockedStreamAgent.mockReturnValueOnce(
-      events([
-        { type: 'token', content: 'flawed draft' },
-        {
-          type: 'reflection',
-          passed: false,
-          issues: ['missing citations'],
-          round: 0,
-          revising: true,
-        },
-        { type: 'token', content: 'corrected answer' },
-        { type: 'done' },
-      ])
-    );
-
-    await runRepl();
-
-    const out = writeSpy.mock.calls.map((c) => String(c[0])).join('');
-    // Two NOUS block headers = draft block was closed and a fresh block began.
-    // Before the fix the writer was never reset → one block, both texts glued.
-    expect((out.match(/NOUS/g) || []).length).toBe(2);
-    expect(out).toContain('flawed draft');
-    expect(out).toContain('corrected answer');
-  });
 });
 
 describe('renderCitationsFooter / renderUsageLine (pure helpers)', () => {

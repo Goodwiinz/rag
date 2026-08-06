@@ -86,7 +86,6 @@ async def _resolve_ws_organization_id(
         logger.error("WebSocket org resolution failed for user %s: %s", user_id, e)
     return None
 
-
 router = APIRouter(prefix="/api/v2/ws", tags=["websocket-v2"])
 
 
@@ -158,11 +157,11 @@ async def websocket_connect_v2_secure(
     Secure WebSocket connection endpoint with comprehensive features.
 
     SECURITY: Authentication is performed via headers, NOT URL parameters.
-    A present-but-disallowed Origin header is rejected (CSWSH hardening).
 
     Authentication Methods (in priority order):
     1. Authorization header: `Authorization: Bearer <token>`
     2. Sec-WebSocket-Protocol: `auth, <token>` (browser workaround)
+    3. Cookie: `access_token=<token>` (session-based auth)
 
     Features:
     - Secure JWT authentication (no token in URL)
@@ -277,17 +276,13 @@ async def websocket_connect_v2_secure(
         }
     )
 
-    # Establish connection using secure authenticated method. Stamp the
-    # token's own exp (naive UTC, from TokenData — see security.verify_token)
-    # onto the connection so the heartbeat monitor can close it once the
-    # token expires (AU4), instead of trusting the connect-time check forever.
+    # Establish connection using secure authenticated method
     connection_id = await connection_manager.connect_authenticated(
         websocket=websocket,
         user_id=user_id,
         organization_id=organization_id,
         client_info=client_info_dict,
         subprotocol=subprotocol,
-        expires_at=user_payload.get("exp"),
     )
 
     if not connection_id:
@@ -371,9 +366,9 @@ async def websocket_connect_v2_secure(
                     type=MessageType.ERROR,
                     data={
                         "error": "Message processing failed",
-                        "details": (
-                            str(e) if settings.DEBUG else "Internal error occurred"
-                        ),
+                        "details": str(e)
+                        if settings.DEBUG
+                        else "Internal error occurred",
                     },
                     timestamp=datetime.now(dt_timezone.utc),
                 )
@@ -437,11 +432,9 @@ async def get_websocket_status():
                     "subscribers": len(
                         connection_manager.channel_subscribers.get(channel.value, set())
                     ),
-                    "message_rate": (
-                        "realtime"
-                        if channel in [Channel.DOCUMENT_PROCESSING, Channel.JOB_STATUS]
-                        else "periodic"
-                    ),
+                    "message_rate": "realtime"
+                    if channel in [Channel.DOCUMENT_PROCESSING, Channel.JOB_STATUS]
+                    else "periodic",
                 }
                 for channel in Channel
             },
@@ -525,37 +518,14 @@ async def broadcast_message(
             detail="Only administrators can broadcast messages",
         )
 
-    # Tenant scope: role==ADMIN is a PER-ORG role, not a platform superuser, so
-    # an org admin may only broadcast within their OWN org. A null-org principal
-    # has no tenant to scope to — reject rather than let str(None) conflate every
-    # null-org tenant into one broadcast target.
-    if current_user.organization_id is None:
-        raise HTTPException(
-            status_code=403,
-            detail="Cannot broadcast without an organization",
-        )
-    caller_org = str(current_user.organization_id)
-
-    # An org admin cannot target another tenant's org explicitly.
-    if request.target_organizations:
-        for org_id in request.target_organizations:
-            if str(org_id) != caller_org:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Cannot broadcast to another organization",
-                )
-
     try:
-        # Create WebSocket message — target_organization makes
-        # should_receive_message gate delivery to the caller's own tenant on
-        # every path (channel / user / organization).
+        # Create WebSocket message
         message = WebSocketMessage(
             type=MessageType(request.message_type),
             data=request.data,
             timestamp=datetime.now(dt_timezone.utc),
             priority=request.priority,
             target_channels=[request.channel],
-            target_organization=caller_org,
         )
 
         # Broadcast based on targets
@@ -679,18 +649,15 @@ async def websocket_health_check():
             "timestamp": datetime.now(dt_timezone.utc).isoformat(),
             "checks": {
                 "connection_manager": "healthy" if connection_manager else "unhealthy",
-                "status_update_service": (
-                    "healthy" if status_update_service else "unhealthy"
-                ),
-                "redis_connection": (
-                    "healthy" if connection_manager.redis_client else "disabled"
-                ),
-                "connection_load": (
-                    "healthy"
-                    if conn_stats["total_connections"]
-                    < conn_stats["max_connections"] * 0.8
-                    else "high"
-                ),
+                "status_update_service": "healthy"
+                if status_update_service
+                else "unhealthy",
+                "redis_connection": "healthy"
+                if connection_manager.redis_client
+                else "disabled",
+                "connection_load": "healthy"
+                if conn_stats["total_connections"] < conn_stats["max_connections"] * 0.8
+                else "high",
             },
             "metrics": {
                 "active_connections": conn_stats["total_connections"],

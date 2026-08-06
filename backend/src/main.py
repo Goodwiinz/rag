@@ -18,14 +18,14 @@ import sentry_sdk
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import SQLAlchemyError
-from starlette.middleware.gzip import GZipMiddleware
 
 # Setup basic logging
 logger = logging.getLogger(__name__)
 
 from src.api.agent import agent_router
+from src.api.connectors import connectors_router
 from src.api.arxiv import (
     arxiv_bulk_router,
     arxiv_change_router,
@@ -37,11 +37,8 @@ from src.api.arxiv import (
 )
 from src.api.auth import auth_router, cli_auth_router
 from src.api.auth.api_keys import router as api_keys_router
-from src.api.connectors import connectors_router
-from src.api.diagnostics import diagnostics_router, sentry_debug_router
 from src.api.documents import (
     documents_router,
-    figures_router,
     files_router,
     integrity_router,
     processing_router,
@@ -70,7 +67,6 @@ from src.api.research import (
     pipeline_router,
     project_chat_router,
     project_report_router,
-    project_skills_router,
     projects_router,
     tone_engine_router,
     writer_router,
@@ -81,7 +77,20 @@ from src.api.research_engine import (
     research_engine_runs_router,
     research_engine_steps_router,
 )
-from src.api.search import knowledge_graph_router, search_quality_router, search_router
+from src.api.research_engine import (
+    research_engine_blueprints_router,
+    research_engine_projects_router,
+    research_engine_runs_router,
+    research_engine_steps_router,
+)
+from src.api.search import (
+    knowledge_graph_router,
+    multi_agent_search_router,
+    multi_agent_search_v2_router,
+    search_quality_router,
+    search_router,
+)
+from src.api.diagnostics import diagnostics_router, sentry_debug_router
 from src.api.security import compliance_router, encryption_router, rbac_router
 from src.api.threads import (
     stream_router,
@@ -92,19 +101,11 @@ from src.api.threads import (
 )
 from src.core.config import settings
 from src.core.database import Base, engine
-from src.core.probes import ProbeAwareTrustedHostMiddleware
-from src.core.security import auth_rate_limiter
-from src.exceptions import RAGException
-from src.exceptions.analytics_exceptions import AnalyticsException
-from src.exceptions.error_handlers import (
-    analytics_exception_handler,
-    database_exception_handler,
-    rag_exception_handler,
-)
-from src.health.endpoints import router as health_router
 from src.middleware.multi_tenancy import MultiTenancyMiddleware
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.middleware.security_headers import SecurityHeadersMiddleware
+from src.health.endpoints import router as health_router
+from src.core.security import auth_rate_limiter
 
 # from src.services.documents.file_service import redis_client  # Not exported, not needed here
 
@@ -157,57 +158,18 @@ except Exception as e:
     redis_client = None
 
 
-# Export Celery broker queue depth as a Prometheus gauge (celery_queue_depth) on
-# the global registry — see observability/celery_queue_metrics.py and audit item
-# P1.6. This is the backlog signal a future KEDA/prometheus-adapter-driven worker
-# HPA will scale on; HPA wiring itself is deferred.
-try:
-    from src.observability.celery_queue_metrics import (
-        register_celery_queue_depth_collector,
-    )
-
-    register_celery_queue_depth_collector(settings.REDIS_URL)
-except Exception as _queue_metric_err:  # noqa: BLE001
-    print(
-        f"Warning: Celery queue-depth metric registration failed: {_queue_metric_err}"
-    )
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
     logger.info("Starting up Multimodal RAG System...")
 
-    # Create database tables ONLY for a genuinely local dev DB. Any managed /
-    # deployed database (dev/staging/prod all set SUPABASE_DB_URL) is owned by the
-    # Alembic init container. Running create_all against a managed DB (a) grabs
-    # session-mode pooler connections on every worker boot and can exhaust
-    # Supabase's pool, and (b) races Alembic: create_all skips existing tables and
-    # never back-fills constraints added to a model later, permanently drifting the
-    # schema (this is how project_threads lost uq_project_thread). Fail-safe:
-    # require BOTH an explicit development ENVIRONMENT and the absence of
-    # SUPABASE_DB_URL, so a managed cluster can never trigger create_all even if
-    # ENVIRONMENT is misconfigured to "development".
-    # Third condition (audit M1): the engine host must be genuinely local (or
-    # SQLite, or explicitly forced via RUN_CREATE_ALL=1). Closes the residual
-    # gap where ENVIRONMENT is unset (defaults "development") and a managed
-    # non-Supabase DATABASE_URL is configured — that combination previously
-    # still ran create_all against the managed DB.
-    from src.core.database import should_run_create_all
-
+    # Create database tables only for local Docker Compose development.
+    # Any deployed cluster (dev/staging/production) relies on Alembic migrations —
+    # running create_all there grabs session-mode pooler connections on every worker
+    # boot and can exhaust Supabase's session-mode pool.
     environment = os.environ.get("ENVIRONMENT", "development")
-    supabase_db_url = os.environ.get("SUPABASE_DB_URL", "")
-    db_host = getattr(engine.url, "host", None)
-    is_sqlite = engine.url.get_backend_name().startswith("sqlite")
-    force_create_all = os.environ.get("RUN_CREATE_ALL", "").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
-    if should_run_create_all(
-        environment, supabase_db_url, db_host, is_sqlite, force_create_all
-    ):
+    if environment == "development":
         try:
             Base.metadata.create_all(bind=engine)
             logger.info("Database tables created successfully")
@@ -219,12 +181,8 @@ async def lifespan(app: FastAPI):
                 raise
     else:
         logger.info(
-            "Skipping create_all (environment=%s, supabase_db_url_set=%s, "
-            "db_host=%s, forced=%s) — Alembic migrations are authoritative",
+            "Skipping create_all in %s (Alembic migrations are authoritative)",
             environment,
-            bool(supabase_db_url),
-            db_host,
-            force_create_all,
         )
 
     # Initialize field-level encryption (requires ENCRYPTION_MASTER_KEY env var).
@@ -299,48 +257,40 @@ async def lifespan(app: FastAPI):
         logger.debug(f"LangSmith configuration skipped: {e}")
 
     # Validate LLM (Azure/OpenAI) configuration at startup.
-    # In strict (shared/deployed) environments, a missing endpoint/key flips
-    # the readiness flag to not-ready so the pod is kept out of the load
-    # balancer rather than crashing on every agent turn. In a throwaway
-    # local/CI boot (``is_throwaway_environment``) it is a warning only and
-    # MUST NOT block readiness — otherwise a dev-labelled process with
-    # missing/rotated Azure config would flip every pod NotReady while the
-    # log claims readiness isn't blocked. Uses the same throwaway-env
-    # predicate as ``require_durable_agent_state`` so the two gates can't drift.
+    # In non-dev environments, a missing endpoint/key sets the readiness flag
+    # to not-ready so the pod is kept out of the load balancer rather than
+    # crashing on every agent turn. In dev/local it's a warning only.
     try:
-        from src.health.endpoints import resolve_startup_readiness, set_llm_config_ready
         from src.services.agent.llm_factory import validate_llm_config
+        from src.health.endpoints import set_llm_config_ready
 
         llm_config_ok = validate_llm_config()
-        is_throwaway = app_settings.is_throwaway_environment
-        set_llm_config_ready(resolve_startup_readiness(llm_config_ok, is_throwaway))
-        if llm_config_ok:
-            logger.info("LLM config validated OK")
-        elif is_throwaway:
-            # Throwaway boot: keep readiness ready, warn only.
-            logger.warning(
-                "LLM config incomplete: AZURE_OPENAI_CHAT_ENDPOINT and/or "
-                "AZURE_OPENAI_CHAT_API_KEY (or non-CHAT variants) are unset. "
-                "Agent turns will fail at call time. "
-                "Continuing in %s without blocking readiness.",
-                environment,
-            )
+        set_llm_config_ready(llm_config_ok)
+        if not llm_config_ok:
+            if environment in ("development", "local", "test"):
+                logger.warning(
+                    "LLM config incomplete: AZURE_OPENAI_CHAT_ENDPOINT and/or "
+                    "AZURE_OPENAI_CHAT_API_KEY (or non-CHAT variants) are unset. "
+                    "Agent turns will fail at call time. "
+                    "Continuing in %s without blocking readiness.",
+                    environment,
+                )
+            else:
+                logger.critical(
+                    "LLM config incomplete: AZURE_OPENAI_CHAT_ENDPOINT and "
+                    "AZURE_OPENAI_CHAT_API_KEY (or AZURE_OPENAI_ENDPOINT / "
+                    "AZURE_OPENAI_API_KEY) must be set. Readiness probe will "
+                    "return 503 until resolved (environment=%s).",
+                    environment,
+                )
         else:
-            # Strict env: readiness already flipped False so the pod leaves the LB.
-            logger.critical(
-                "LLM config incomplete: AZURE_OPENAI_CHAT_ENDPOINT and "
-                "AZURE_OPENAI_CHAT_API_KEY (or AZURE_OPENAI_ENDPOINT / "
-                "AZURE_OPENAI_API_KEY) must be set. Readiness probe will "
-                "return 503 until resolved (environment=%s).",
-                environment,
-            )
+            logger.info("LLM config validated OK")
     except Exception as e:
         logger.debug("LLM config validation skipped: %s", e)
 
     # Initialise LangGraph checkpointer + memory store at startup so the
     # first request doesn't pay the setup() cost (and so a misconfigured
-    # Postgres connection surfaces immediately wherever durable agent
-    # state is required — i.e. every env except local/CI throwaways).
+    # Postgres connection surfaces immediately in prod/staging).
     try:
         from src.services.agent.checkpointer import get_checkpointer
         from src.services.agent.memory import get_memory_store
@@ -348,21 +298,14 @@ async def lifespan(app: FastAPI):
         await asyncio.gather(get_checkpointer(), get_memory_store())
         logger.info("LangGraph checkpointer + memory store warmed at startup")
     except Exception as e:
-        if settings.require_durable_agent_state:
+        if environment in ("production", "staging"):
             logger.error(
-                "LangGraph persistence warm-up failed and durable agent "
-                "state is required (ENVIRONMENT=%s) — aborting startup. "
-                "Set ALLOW_MEMORY_FALLBACK=true to permit the non-durable "
-                "in-memory fallback instead. Cause: %s",
+                "LangGraph persistence warm-up failed in %s: %s",
                 environment,
                 e,
             )
             raise
-        logger.warning(
-            "LangGraph persistence warm-up skipped (in-memory fallback "
-            "permitted): %s",
-            e,
-        )
+        logger.warning("LangGraph persistence warm-up skipped: %s", e)
 
     # Pre-populate critical caches in the background (non-blocking)
     try:
@@ -431,24 +374,6 @@ async def lifespan(app: FastAPI):
         logger.error(f"Error closing agent job store Redis: {e}")
 
 
-class SelectiveGZipMiddleware(GZipMiddleware):
-    """Compress JSON/text responses, but pass SSE/streaming + file-export
-    routes through UNCOMPRESSED. gzip buffers to accumulate before flushing,
-    which would stall token-by-token SSE (the whole point of streaming) — so
-    any path containing ``/stream`` (agent stream / confirm / resume, thread
-    stream) or ending in ``/export`` bypasses compression. Everything else
-    (list_messages, list_threads, thread-detail, search JSON) gets 70-85% off
-    the wire size."""
-
-    async def __call__(self, scope, receive, send):  # type: ignore[override]
-        if scope.get("type") == "http":
-            path = scope.get("path", "")
-            if "/stream" in path or path.endswith("/export"):
-                await self.app(scope, receive, send)
-                return
-        await super().__call__(scope, receive, send)
-
-
 # Create FastAPI application
 app = FastAPI(
     title=settings.APP_NAME,
@@ -486,10 +411,6 @@ app.add_middleware(
     max_age=settings.CORS_MAX_AGE,  # Cache preflight for 24 hours
 )
 
-# Compress JSON/text responses (list_messages/list_threads/thread-detail/
-# search) — SSE + export routes are excluded so token streaming isn't buffered.
-app.add_middleware(SelectiveGZipMiddleware, minimum_size=1024)
-
 # Add rate limiting middleware for analytics endpoints
 app.add_middleware(AnalyticsRateLimitMiddleware, redis_client=redis_client)
 
@@ -500,12 +421,19 @@ app.add_middleware(MultiTenancyMiddleware)
 # Add trusted host middleware for production.
 # Kubelet HTTP probes set Host header to the pod IP, which is not in the
 # allow-list — that produced HTTP 400 on /health and crash-looped pods.
-# Probe paths (incl. /health/readiness) are exempted from host validation via
-# PROBE_EXEMPT_PATHS; see src/core/probes.py. A missing readiness exemption
-# would 400 every readiness probe and flap all pods out of the LB.
+# Exempt kube probe paths from host validation.
 if not settings.DEBUG:
+    _PROBE_PATHS = {"/health", "/healthz", "/readyz", "/livez", "/metrics"}
+
+    class _ProbeAwareTrustedHostMiddleware(TrustedHostMiddleware):
+        async def __call__(self, scope, receive, send):
+            if scope.get("type") == "http" and scope.get("path") in _PROBE_PATHS:
+                await self.app(scope, receive, send)
+                return
+            await super().__call__(scope, receive, send)
+
     app.add_middleware(
-        ProbeAwareTrustedHostMiddleware,
+        _ProbeAwareTrustedHostMiddleware,
         allowed_hosts=[
             "localhost",
             "127.0.0.1",
@@ -565,6 +493,8 @@ app.include_router(processing_router, prefix="/api/v1")
 app.include_router(knowledge_graph_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(search_quality_router, prefix="/api/v1")
+app.include_router(multi_agent_search_router, prefix="/api/v1")
+app.include_router(multi_agent_search_v2_router)  # Enhanced v2 multi-agent search
 app.include_router(evidence_router, prefix="/api/v1/evidence", tags=["evidence"])
 app.include_router(quality_metrics_router, prefix="/api/v1/analytics/quality")
 app.include_router(user_behavior_router, prefix="/api/v1/analytics/behavior")
@@ -626,7 +556,6 @@ app.include_router(export_router, prefix="/api/v1")  # Thread export endpoints
 app.include_router(citations_router)  # Research Assistant citations endpoints
 app.include_router(projects_router)  # Research Assistant projects endpoints
 app.include_router(project_report_router)  # GET /api/v1/projects/{id}/report.html
-app.include_router(project_skills_router)  # Project skill catalog and staged approvals
 app.include_router(project_chat_router)  # Project-Chat integration endpoints
 app.include_router(drafts_router)  # Research Assistant drafts endpoints
 app.include_router(tone_engine_router)  # Scholarly Tone Engine endpoints
@@ -635,7 +564,6 @@ app.include_router(writer_router)  # AI Writer endpoints
 app.include_router(pipeline_router)  # Research Pipeline wizard endpoints
 app.include_router(integrity_router)  # AI Integrity Detector endpoints
 app.include_router(table_extraction_router)  # Table & math extraction endpoints
-app.include_router(figures_router)  # Extracted figures endpoints
 app.include_router(
     research_engine_projects_router, prefix="/api/v1"
 )  # Research Engine projects
@@ -786,21 +714,6 @@ async def general_exception_handler(request: Request, exc: Exception):
             }
         },
     )
-
-
-# Wire the application's own exception hierarchies to their structured handlers.
-# Registered explicitly rather than via
-# src.exceptions.error_handlers.setup_error_handlers(), which would also
-# re-register HTTPException / RequestValidationError / Exception and clobber the
-# handlers defined above. Starlette resolves handlers by walking the exception's
-# MRO, so these more-specific handlers take precedence over the generic
-# Exception handler for their own types — e.g. an analytics
-# PermissionDeniedException now returns 403 instead of a generic 500, and a
-# SQLAlchemyError returns a sanitized 500 instead of leaking DB internals in
-# non-production environments.
-app.add_exception_handler(RAGException, rag_exception_handler)
-app.add_exception_handler(AnalyticsException, analytics_exception_handler)
-app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 
 
 # Development server info — requires admin auth even in DEBUG mode

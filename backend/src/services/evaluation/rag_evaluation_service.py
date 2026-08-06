@@ -38,6 +38,7 @@ from src.models.search_schemas import (
 )
 from src.services.knowledge_graph import knowledge_graph_service
 from src.services.search.hybrid_search_service import hybrid_search_service
+from src.services.search.vector_search_service import vector_search_service
 
 logger = logging.getLogger(__name__)
 

@@ -343,9 +343,9 @@ class PerformanceLog(BaseModel):
             "threshold_warning": self.threshold_warning,
             "threshold_critical": self.threshold_critical,
             "component": self.component,
-            "organization_id": (
-                str(self.organization_id) if self.organization_id else None
-            ),
+            "organization_id": str(self.organization_id)
+            if self.organization_id
+            else None,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "cpu_usage_percent": self.cpu_usage_percent,
             "memory_usage_percent": self.memory_usage_percent,

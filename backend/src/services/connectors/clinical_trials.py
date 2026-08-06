@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote
 
 import httpx
 import structlog
@@ -41,11 +40,7 @@ def _build_content(study: Dict[str, Any]) -> str:
         parts.append(f"Interventions: {', '.join(filter(None, names))}")
     if phase := proto.get("designModule", {}).get("phases"):
         parts.append(f"Phase: {', '.join(phase)}")
-    if (
-        enrollment := proto.get("designModule", {})
-        .get("enrollmentInfo", {})
-        .get("count")
-    ):
+    if enrollment := proto.get("designModule", {}).get("enrollmentInfo", {}).get("count"):
         parts.append(f"Enrollment: {enrollment}")
     if summary := proto.get("descriptionModule", {}).get("briefSummary"):
         parts.append(f"\nSummary: {summary[:500]}")
@@ -141,7 +136,7 @@ class ClinicalTrialsConnector(ExternalDBConnector):
         try:
             async with httpx.AsyncClient(timeout=30.0, headers=_HEADERS) as client:
                 resp = await client.get(
-                    f"{_BASE_URL}/studies/{quote(record_id, safe='')}",
+                    f"{_BASE_URL}/studies/{record_id}",
                     params={"format": "json"},
                 )
                 resp.raise_for_status()

@@ -17,12 +17,26 @@ from src.services.agent.graph import _sanitize_messages
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
-from src.services.agent.tools import TOOL_REGISTRY
+from src.services.agent.tools import (
+    explore_entity_neighborhood,
+    extract_entities,
+    find_entity_paths,
+    get_graph_stats,
+    list_project_documents,
+    search_documents,
+    search_knowledge_graph,
+)
 
 logger = logging.getLogger(__name__)
 
 DATA_TOOLS = [
-    descriptor.tool for descriptor in TOOL_REGISTRY.descriptors_for_subgraph("data")
+    extract_entities,
+    search_knowledge_graph,
+    explore_entity_neighborhood,
+    find_entity_paths,
+    get_graph_stats,
+    search_documents,
+    list_project_documents,
 ]
 
 DATA_TOOL_NAMES_LIST = [t.name for t in DATA_TOOLS]
@@ -66,15 +80,7 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS
 
     sanitized = _sanitize_messages(state["messages"])
-    messages = [SystemMessage(content=_build_data_system_prompt())]
-    from src.services.agent.runtime_snapshot import render_project_skill_catalog
-
-    skill_catalog_prompt = render_project_skill_catalog(
-        state.get("project_skill_catalog", [])
-    )
-    if skill_catalog_prompt:
-        messages.append(SystemMessage(content=skill_catalog_prompt))
-    messages += sanitized
+    messages = [SystemMessage(content=_build_data_system_prompt())] + sanitized
 
     settings = get_settings()
     use_synthesis = bool(
@@ -91,28 +97,21 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         if plan_directive:
             messages.insert(1, SystemMessage(content=plan_directive))
 
-    # Hoisted above the branch: _build_llm is used inside it, so importing
-    # after would NameError.
-    from src.services.agent.graph import _build_llm, _merge_run_config
-
     if use_synthesis:
         from src.services.agent.llm_factory import build_synthesis_llm
 
         llm = build_synthesis_llm(max_tokens=4096)
         logger.debug("data_llm_node: using synthesis model after ToolMessage")
     else:
-        # Tool-decision turn runs on the main deployment — see the note in
-        # research_agent.research_llm_node. KG traversal chains several calls
-        # (search → neighborhood → paths), which is exactly the multi-step
-        # shape small tiers degrade on.
-        llm = _build_llm(model_override=state.get("model") or None)
-        logger.debug("data_llm_node: using main model for tool decision")
-    from src.services.agent._nodes_llm import tools_for_runtime_snapshot
+        from src.services.agent.llm_factory import build_lightweight_llm
 
+        llm = build_lightweight_llm(max_tokens=4096)
+        logger.debug("data_llm_node: using lightweight model for tool decision")
     llm_with_tools = llm.bind_tools(
-        tools_for_runtime_snapshot(DATA_TOOLS, state),
+        DATA_TOOLS,
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
+    from src.services.agent.graph import _merge_run_config
 
     invoke_config = _merge_run_config(
         config,
@@ -199,7 +198,10 @@ async def data_force_synthesis_node(state: AgentState, config: RunnableConfig) -
 
     llm = build_synthesis_llm(max_tokens=4096)
     # No bind_tools — force a pure text response.
-    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _merge_run_config
+    from src.services.agent.graph import (
+        AGENT_LLM_TIMEOUT_SECONDS,
+        _merge_run_config,
+    )
 
     invoke_config = _merge_run_config(
         config,
@@ -283,7 +285,7 @@ def build_data_subgraph() -> StateGraph:
     """
     from src.services.agent.graph import make_filtered_tool_node
 
-    DATA_TOOL_NAMES = {t.name for t in DATA_TOOLS} | {"load_project_skill"}
+    DATA_TOOL_NAMES = {t.name for t in DATA_TOOLS}
     filtered_tool = make_filtered_tool_node(DATA_TOOL_NAMES)
 
     # Create v2 nodes

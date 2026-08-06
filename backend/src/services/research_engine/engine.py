@@ -35,9 +35,7 @@ class WorkflowEngine:
         yield {"event": "run_start", "run_id": str(run_id), "total_steps": len(steps)}
 
         try:
-            for idx, step_def in enumerate(
-                steps[start_from_step:], start=start_from_step
-            ):
+            for idx, step_def in enumerate(steps[start_from_step:], start=start_from_step):
                 step_id = step_def.get("id", f"step_{idx}")
 
                 yield {
@@ -68,11 +66,7 @@ class WorkflowEngine:
                 context.update(result.output)
 
                 quality_marks_data = [
-                    {
-                        "check_type": qm.check_type,
-                        "passed": qm.passed,
-                        "details": qm.details,
-                    }
+                    {"check_type": qm.check_type, "passed": qm.passed, "details": qm.details}
                     for qm in result.quality_marks
                 ]
 

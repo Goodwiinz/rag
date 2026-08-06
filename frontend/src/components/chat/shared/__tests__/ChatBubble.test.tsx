@@ -134,37 +134,4 @@ describe('ChatBubble', () => {
 
     expect(screen.queryByText('Stopped')).not.toBeInTheDocument();
   });
-
-  it('renders per-turn token usage when present', () => {
-    render(
-      <ChatBubble
-        message={{
-          role: 'assistant',
-          content: 'An answer',
-          timestamp: Date.now(),
-          metadata: { tokenUsage: { input: 1234, output: 340 } },
-        }}
-        index={0}
-      />
-    );
-
-    expect(screen.getByText(/1\.2k in/)).toBeInTheDocument();
-    expect(screen.getByText(/340 out/)).toBeInTheDocument();
-  });
-
-  it('does not render token usage when absent', () => {
-    render(
-      <ChatBubble
-        message={{
-          role: 'assistant',
-          content: 'An answer',
-          timestamp: Date.now(),
-          metadata: { responseTimeMs: 1200 },
-        }}
-        index={0}
-      />
-    );
-
-    expect(screen.queryByText(/ in ·/)).not.toBeInTheDocument();
-  });
 });

@@ -292,24 +292,20 @@ class PerformanceDashboardService:
             )
 
     async def get_search_performance_metrics(
-        self,
-        organization_id: str,
-        time_range: MetricTimeRange,
-        db: Optional[AsyncSession] = None,
+        self, organization_id: str, time_range: MetricTimeRange, db: Optional[AsyncSession] = None
     ) -> SearchPerformanceMetrics:
         """Get search performance metrics"""
         if db is None:
             async with get_async_session() as db:
-                return await self.get_search_performance_metrics(
-                    organization_id, time_range, db=db
-                )
+                return await self.get_search_performance_metrics(organization_id, time_range, db=db)
         try:
             # Calculate time range
             cutoff_date = self._get_cutoff_date(time_range)
 
             # Get search performance data
             search_result = await db.execute(
-                text("""
+                text(
+                    """
                 SELECT
                     COUNT(*) as total_searches,
                     AVG(search_duration_ms) as avg_response_time,
@@ -318,21 +314,24 @@ class PerformanceDashboardService:
                 FROM search_queries
                 WHERE organization_id = CAST(:org_id AS UUID)
                     AND created_at >= :cutoff_date
-            """),
+            """
+                ),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             )
             search_data = search_result.fetchone()
 
             # Get response time percentiles using percentile_cont
             p95_result = await db.execute(
-                text("""
+                text(
+                    """
                 SELECT
                     percentile_cont(0.95) WITHIN GROUP (ORDER BY search_duration_ms) as p95
                 FROM search_queries
                 WHERE organization_id = CAST(:org_id AS UUID)
                     AND created_at >= :cutoff_date
                     AND search_duration_ms IS NOT NULL
-            """),
+            """
+                ),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             )
             p95_row = p95_result.fetchone()
@@ -340,7 +339,8 @@ class PerformanceDashboardService:
 
             # Get top queries
             top_result = await db.execute(
-                text("""
+                text(
+                    """
                 SELECT
                     query_text as query,
                     COUNT(*) as search_count,
@@ -351,14 +351,16 @@ class PerformanceDashboardService:
                 GROUP BY query_text
                 ORDER BY search_count DESC
                 LIMIT 10
-            """),
+            """
+                ),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             )
             top_queries = top_result.fetchall()
 
             # Get search types distribution
             types_result = await db.execute(
-                text("""
+                text(
+                    """
                 SELECT
                     search_type,
                     COUNT(*) as count
@@ -367,7 +369,8 @@ class PerformanceDashboardService:
                     AND created_at >= :cutoff_date
                 GROUP BY search_type
                 ORDER BY count DESC
-            """),
+            """
+                ),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             )
             search_types = types_result.fetchall()
@@ -401,9 +404,7 @@ class PerformanceDashboardService:
                     }
                     for q in top_queries
                 ],
-                search_types=[
-                    {"type": st.search_type, "count": st.count} for st in search_types
-                ],
+                search_types=[{"type": st.search_type, "count": st.count} for st in search_types],
                 errors=[],
             )
 
@@ -412,23 +413,19 @@ class PerformanceDashboardService:
             raise
 
     async def get_quality_metrics_summary(
-        self,
-        organization_id: str,
-        time_range: MetricTimeRange,
-        db: Optional[AsyncSession] = None,
+        self, organization_id: str, time_range: MetricTimeRange, db: Optional[AsyncSession] = None
     ) -> QualityMetricsSummary:
         """Get quality metrics summary"""
         if db is None:
             async with get_async_session() as db:
-                return await self.get_quality_metrics_summary(
-                    organization_id, time_range, db=db
-                )
+                return await self.get_quality_metrics_summary(organization_id, time_range, db=db)
         try:
             cutoff_date = self._get_cutoff_date(time_range)
 
             # Get quality metrics
             quality_result = await db.execute(
-                text("""
+                text(
+                    """
                 SELECT
                     AVG(qm.value) as avg_score,
                     qm.metric_type,
@@ -437,7 +434,8 @@ class PerformanceDashboardService:
                 WHERE qm.organization_id = CAST(:org_id AS UUID)
                     AND qm.created_at >= :cutoff_date
                 GROUP BY qm.metric_type
-            """),
+            """
+                ),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             )
             quality_data = quality_result.fetchall()
@@ -468,12 +466,14 @@ class PerformanceDashboardService:
 
             # Get active alerts
             alerts_result = await db.execute(
-                text("""
+                text(
+                    """
                 SELECT COUNT(*) as count
                 FROM quality_alerts qa
                 WHERE qa.organization_id = CAST(:org_id AS UUID)
                     AND qa.status = 'active'
-            """),
+            """
+                ),
                 {"org_id": organization_id},
             )
             active_alerts = alerts_result.scalar() or 0
@@ -502,23 +502,19 @@ class PerformanceDashboardService:
             raise
 
     async def get_user_engagement_metrics(
-        self,
-        organization_id: str,
-        time_range: MetricTimeRange,
-        db: Optional[AsyncSession] = None,
+        self, organization_id: str, time_range: MetricTimeRange, db: Optional[AsyncSession] = None
     ) -> UserEngagementMetrics:
         """Get user engagement metrics"""
         if db is None:
             async with get_async_session() as db:
-                return await self.get_user_engagement_metrics(
-                    organization_id, time_range, db=db
-                )
+                return await self.get_user_engagement_metrics(organization_id, time_range, db=db)
         try:
             cutoff_date = self._get_cutoff_date(time_range)
 
             # Get user engagement data
             engagement_result = await db.execute(
-                text("""
+                text(
+                    """
                 SELECT
                     COUNT(DISTINCT sq.user_id) as active_users,
                     COUNT(DISTINCT sq.session_id) as total_sessions,
@@ -527,14 +523,16 @@ class PerformanceDashboardService:
                 FROM search_queries sq
                 WHERE sq.organization_id = CAST(:org_id AS UUID)
                     AND sq.created_at >= :cutoff_date
-            """),
+            """
+                ),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             )
             engagement_data = engagement_result.fetchone()
 
             # Get top users
             top_result = await db.execute(
-                text("""
+                text(
+                    """
                 SELECT
                     u.id,
                     u.first_name,
@@ -549,7 +547,8 @@ class PerformanceDashboardService:
                 GROUP BY u.id, u.first_name, u.last_name
                 ORDER BY search_count DESC
                 LIMIT 10
-            """),
+            """
+                ),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             )
             top_users = top_result.fetchall()
@@ -559,7 +558,9 @@ class PerformanceDashboardService:
             total_sessions = engagement_data.total_sessions or 0
             avg_session_duration = float(engagement_data.avg_duration or 0)
             total_searches = engagement_data.total_searches or 0
-            searches_per_user = total_searches / active_users if active_users > 0 else 0
+            searches_per_user = (
+                total_searches / active_users if active_users > 0 else 0
+            )
 
             # Determine engagement trend (reuse the same session)
             engagement_trend = await self._calculate_engagement_trend(
@@ -588,16 +589,15 @@ class PerformanceDashboardService:
             logger.error(f"Failed to get user engagement metrics: {e}")
             raise
 
-    async def get_active_alerts(
-        self, organization_id: str, db: Optional[AsyncSession] = None
-    ) -> List[Dict[str, Any]]:
+    async def get_active_alerts(self, organization_id: str, db: Optional[AsyncSession] = None) -> List[Dict[str, Any]]:
         """Get active alerts for the organization"""
         if db is None:
             async with get_async_session() as db:
                 return await self.get_active_alerts(organization_id, db=db)
         try:
             result = await db.execute(
-                text("""
+                text(
+                    """
                 SELECT
                     qa.id,
                     qa.severity,
@@ -613,7 +613,8 @@ class PerformanceDashboardService:
                     AND qa.status = 'active'
                 ORDER BY qa.severity DESC, qa.created_at DESC
                 LIMIT 50
-            """),
+            """
+                ),
                 {"org_id": organization_id},
             )
             alerts = result.fetchall()
@@ -831,7 +832,8 @@ class PerformanceDashboardService:
                 async with get_async_session() as db:
                     cutoff_date = self._get_cutoff_date(time_range)
                     result = await db.execute(
-                        text("""
+                        text(
+                            """
                         SELECT
                             search_type,
                             COUNT(*) as count
@@ -840,7 +842,8 @@ class PerformanceDashboardService:
                             AND created_at >= :cutoff_date
                         GROUP BY search_type
                         ORDER BY count DESC
-                    """),
+                    """
+                        ),
                         {"org_id": organization_id, "cutoff_date": cutoff_date},
                     )
                     data = result.fetchall()
@@ -896,29 +899,41 @@ class PerformanceDashboardService:
             async with get_async_session() as db:
                 return await self._get_db_health_metrics(db=db)
         try:
-            rt_result = await db.execute(text("""
+            rt_result = await db.execute(
+                text(
+                    """
                     SELECT
                         percentile_cont(0.5) WITHIN GROUP (ORDER BY search_duration_ms) as p50,
                         percentile_cont(0.95) WITHIN GROUP (ORDER BY search_duration_ms) as p95
                     FROM search_queries
                     WHERE created_at >= NOW() - INTERVAL '1 hour'
                         AND search_duration_ms IS NOT NULL
-                """))
+                """
+                )
+            )
             rt_row = rt_result.fetchone()
 
-            err_result = await db.execute(text("""
+            err_result = await db.execute(
+                text(
+                    """
                     SELECT 0 as errors, COUNT(*) as total
                     FROM search_queries
                     WHERE created_at >= NOW() - INTERVAL '1 hour'
-                """))
+                """
+                )
+            )
             err_row = err_result.fetchone()
 
-            conn_result = await db.execute(text("""
+            conn_result = await db.execute(
+                text(
+                    """
                     SELECT COUNT(DISTINCT session_id) as active_sessions
                     FROM search_sessions
                     WHERE start_time >= NOW() - INTERVAL '30 minutes'
                         AND end_time IS NULL
-                """))
+                """
+                )
+            )
             conn_row = conn_result.fetchone()
 
             p50 = float(rt_row.p50) if rt_row and rt_row.p50 is not None else 0.0
@@ -942,18 +957,15 @@ class PerformanceDashboardService:
             return {"p50": 0.0, "p95": 0.0, "error_rate": 0.0, "active_connections": 0}
 
     async def _calculate_quality_trends(
-        self,
-        db,
-        organization_id: str,
-        current_cutoff: datetime,
-        previous_cutoff: datetime,
+        self, db, organization_id: str, current_cutoff: datetime, previous_cutoff: datetime
     ) -> Dict[str, float]:
         """Calculate quality metric trends. Accepts an existing async session."""
 
         try:
             # Current period metrics
             current_result = await db.execute(
-                text("""
+                text(
+                    """
                 SELECT
                     metric_type,
                     AVG(value) as avg_value
@@ -961,14 +973,16 @@ class PerformanceDashboardService:
                 WHERE organization_id = CAST(:org_id AS UUID)
                     AND measured_at >= :cutoff_date
                 GROUP BY metric_type
-            """),
+            """
+                ),
                 {"org_id": organization_id, "cutoff_date": current_cutoff},
             )
             current_metrics = current_result.fetchall()
 
             # Previous period metrics
             previous_result = await db.execute(
-                text("""
+                text(
+                    """
                 SELECT
                     metric_type,
                     AVG(value) as avg_value
@@ -977,7 +991,8 @@ class PerformanceDashboardService:
                     AND measured_at >= :prev_cutoff
                     AND measured_at < :current_cutoff
                 GROUP BY metric_type
-            """),
+            """
+                ),
                 {
                     "org_id": organization_id,
                     "prev_cutoff": previous_cutoff,
@@ -1010,23 +1025,21 @@ class PerformanceDashboardService:
             return {}
 
     async def _calculate_engagement_trend(
-        self,
-        db,
-        organization_id: str,
-        cutoff_date: datetime,
-        time_range: MetricTimeRange,
+        self, db, organization_id: str, cutoff_date: datetime, time_range: MetricTimeRange
     ) -> str:
         """Calculate engagement trend. Accepts an existing async session."""
 
         try:
             # Current period
             current_result = await db.execute(
-                text("""
+                text(
+                    """
                 SELECT COUNT(DISTINCT user_id) as active_users
                 FROM search_queries
                 WHERE organization_id = CAST(:org_id AS UUID)
                     AND created_at >= :cutoff_date
-            """),
+            """
+                ),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             )
             current_data = current_result.fetchone()
@@ -1036,13 +1049,15 @@ class PerformanceDashboardService:
             prev_cutoff = cutoff_date - timedelta(days=days)
 
             previous_result = await db.execute(
-                text("""
+                text(
+                    """
                 SELECT COUNT(DISTINCT user_id) as active_users
                 FROM search_queries
                 WHERE organization_id = CAST(:org_id AS UUID)
                     AND created_at >= :prev_cutoff
                     AND created_at < :cutoff_date
-            """),
+            """
+                ),
                 {
                     "org_id": organization_id,
                     "prev_cutoff": prev_cutoff,

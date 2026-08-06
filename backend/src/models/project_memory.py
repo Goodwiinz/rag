@@ -31,9 +31,7 @@ class ProjectMemory(BaseModel):
 
     content = Column(Text, nullable=False)
     # How the memory was created: "manual" (UI / API) or "remember" (chat command).
-    source = Column(
-        String(32), nullable=False, default="manual", server_default="manual"
-    )
+    source = Column(String(32), nullable=False, default="manual", server_default="manual")
 
     project = relationship("Collection", backref="memories")
     user = relationship("User", backref="project_memories")

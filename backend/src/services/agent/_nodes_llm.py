@@ -24,14 +24,19 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langchain_core.runnables import RunnableConfig
 
 from src.core.config import get_settings
 from src.services.agent._nodes_tools import AGENT_LLM_TIMEOUT_SECONDS
 from src.services.agent._prompts import (
-    _LLM_NODE_STATIC_PROMPT,
     INTENT_PROMPTS,
+    _LLM_NODE_STATIC_PROMPT,
     _build_page_context_line,
     _merge_run_config,
     _runtime_model_line,
@@ -41,39 +46,41 @@ from src.services.agent.observability import (
     track_node_execution,
 )
 from src.services.agent.state import AgentState
-from src.services.agent.tool_registry import AgentIntent
-from src.services.agent.tools import ALL_TOOLS, TOOL_REGISTRY
+from src.services.agent.tools import ALL_TOOLS
 
 logger = logging.getLogger(__name__)
-
-
-def tools_for_runtime_snapshot(base_tools: list, state: AgentState) -> list:
-    """Append the hidden loader only for a durable, non-empty frozen catalog."""
-    settings = get_settings()
-    if not (
-        settings.PROJECT_SKILL_RUNTIME_ENABLED
-        and state.get("runtime_snapshot_id")
-        and state.get("project_skill_catalog")
-    ):
-        return list(base_tools)
-    loader = TOOL_REGISTRY.descriptor("load_project_skill")
-    return [*base_tools, loader.tool] if loader is not None else list(base_tools)
 
 
 # ---------------------------------------------------------------------------
 # Intent-scoped tool subsets
 # ---------------------------------------------------------------------------
 
-RESEARCH_TOOLS_NAMES = frozenset(
-    descriptor.name for descriptor in TOOL_REGISTRY.descriptors_for_intent("research")
-)
-WRITING_TOOLS_NAMES = frozenset(
-    descriptor.name for descriptor in TOOL_REGISTRY.descriptors_for_intent("writing")
-)
-KG_TOOLS_NAMES = frozenset(
-    descriptor.name
-    for descriptor in TOOL_REGISTRY.descriptors_for_intent("knowledge_graph")
-)
+RESEARCH_TOOLS_NAMES = {
+    "search_arxiv",
+    "ingest_arxiv_papers",
+    "search_documents",
+    "create_project",
+    "list_projects",
+    "add_document_to_project",
+    "list_project_documents",
+    "execute_code",
+}
+WRITING_TOOLS_NAMES = {
+    "create_draft",
+    "create_project_note",
+    "export_bibliography",
+    "summarize_document",
+    "compare_documents",
+}
+KG_TOOLS_NAMES = {
+    "extract_entities",
+    "search_knowledge_graph",
+    "explore_entity_neighborhood",
+    "find_entity_paths",
+    "get_graph_stats",
+    "search_documents",
+    "execute_code",
+}
 
 # Subset for "general" intent — avoids binding all 20 tools on every first
 # message (greetings, "help", etc.) which bloats the token budget by ~4 000
@@ -81,35 +88,49 @@ KG_TOOLS_NAMES = frozenset(
 # sub-graphs. General gets the 10 most commonly used discovery+productivity
 # tools; more specialised tools (create_draft, compare_documents, etc.) are
 # available once the classifier narrows the intent.
-GENERAL_TOOLS_NAMES = frozenset(
-    descriptor.name for descriptor in TOOL_REGISTRY.descriptors_for_intent("general")
-)
+GENERAL_TOOLS_NAMES = {
+    "search_arxiv",
+    "ingest_arxiv_papers",
+    "search_documents",
+    "create_project",
+    "list_projects",
+    "add_document_to_project",
+    "list_project_documents",
+    "create_project_note",
+    "summarize_document",
+    "search_knowledge_graph",
+}
 
 
 def _get_tools_for_intent(intent: str) -> list:
     """Return the tool subset for a given intent."""
-    descriptors = TOOL_REGISTRY.descriptors_for_intent(intent)
-    if intent not in {item.value for item in AgentIntent}:
+    name_set = {
+        "research": RESEARCH_TOOLS_NAMES,
+        "writing": WRITING_TOOLS_NAMES,
+        "knowledge_graph": KG_TOOLS_NAMES,
+        "general": GENERAL_TOOLS_NAMES,
+    }.get(intent)
+
+    if name_set is None:
         return ALL_TOOLS
-    return [descriptor.tool for descriptor in descriptors]
+
+    return [t for t in ALL_TOOLS if t.name in name_set]
 
 
 def _tools_for_turn(intent: str, *, last_user_msg: str, retrieved: list) -> list:
     """Return the tool subset to bind for THIS turn.
 
-    A bare-greeting general turn ("hi") with no retrieved context calls no
-    tool, so binding the 10 ``GENERAL_TOOLS_NAMES`` schemas only inflates the
-    prompt (~thousands of input tokens) and slows time-to-first-token. Bind
-    nothing for those turns; everything else keeps its full intent subset.
-
-    Deliberately uses the NARROW ``_is_greeting`` predicate, not
-    ``is_conversational``: an ack like "yes"/"ok"/"proceed" routinely accepts
-    an action the assistant just proposed, and with ``tools=[]`` the model
-    cannot call the tool — it fabricates a narrated tool call instead
-    (LangSmith trace 019f33ca-fc58-7102-b3da-bb36370b1957). A greeting cannot
-    be answering a question, so only greetings are safe to strip.
+    A conversational general turn ("hi", "thanks", "ok") with no retrieved
+    context calls no tool, so binding the 10 ``GENERAL_TOOLS_NAMES`` schemas
+    only inflates the prompt (~thousands of input tokens) and slows
+    time-to-first-token. Bind nothing for those turns. Every retrieval or
+    specialised-intent turn keeps its full intent subset. Shares the
+    ``is_conversational`` predicate with ``rag_node`` / ``memory_retrieval_node``
+    so all three hot-path nodes agree on what counts as small talk.
     """
-    if intent == "general" and not retrieved and _is_greeting(last_user_msg):
+    from src.services.agent._nodes_rag import is_conversational
+
+    if intent == "general" and not retrieved and is_conversational(last_user_msg):
         return []
     return _get_tools_for_intent(intent)
 
@@ -185,37 +206,6 @@ def _greeting_reply(
 # ---------------------------------------------------------------------------
 
 
-# Injected instead of a Retrieved-context block when retrieval came back
-# empty. Without it, the static "[Doc N]" citation rule plus a silently
-# absent context block leads the model to improvise a bibliography from
-# parametric memory (user-reproduced 2026-07-04: a fabricated "Cited
-# sources" list with unverifiable references). Provenance over assertion:
-# an honest "nothing retrieved" beats fake citations.
-NO_RETRIEVAL_GUIDANCE = (
-    "No documents were retrieved for this turn. If the question concerns "
-    "the user's documents, state plainly that nothing relevant was found "
-    "in their corpus. You may answer from general knowledge ONLY if you "
-    "label it as such — do NOT invent citations, paper references, or a "
-    "bibliography."
-)
-
-
-def _retrieval_context_part(retrieved: list) -> str:
-    """The system-prompt block for this turn's retrieval outcome.
-
-    Non-empty retrieval renders the numbered [Doc N] context block the
-    citation rule refers to; empty retrieval renders the explicit
-    anti-fabrication guidance instead of silently omitting the block.
-    """
-    if retrieved:
-        context_text = "\n\n".join(
-            f"[Doc {i + 1}] {ctx['title']}:\n{ctx['content']}"
-            for i, ctx in enumerate(retrieved)
-        )
-        return f"Retrieved context:\n{context_text}"
-    return NO_RETRIEVAL_GUIDANCE
-
-
 @track_node_execution("llm_node")
 async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Call the LLM with system prompt, RAG context, and bound tools."""
@@ -285,15 +275,12 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
                 f"project; honor them):\n{pm_text}"
             )
 
-    dynamic_parts.append(_retrieval_context_part(retrieved))
-
-    from src.services.agent.runtime_snapshot import render_project_skill_catalog
-
-    skill_catalog_prompt = render_project_skill_catalog(
-        state.get("project_skill_catalog", [])
-    )
-    if skill_catalog_prompt:
-        dynamic_parts.append(skill_catalog_prompt)
+    if retrieved:
+        context_text = "\n\n".join(
+            f"[Doc {i + 1}] {ctx['title']}:\n{ctx['content']}"
+            for i, ctx in enumerate(retrieved)
+        )
+        dynamic_parts.append(f"Retrieved context:\n{context_text}")
 
     # Close the plan→execute handoff (see planner.render_plan_directive). The
     # planner writes state["plan"] but the executor only ever read messages,
@@ -316,8 +303,8 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
     # Bind the per-turn tool subset. Conversational general turns ("hi") get
     # zero tools (see _tools_for_turn) so a greeting prompt stays small.
-    intent_tools = tools_for_runtime_snapshot(
-        _tools_for_turn(intent, last_user_msg=last_user_msg, retrieved=retrieved), state
+    intent_tools = _tools_for_turn(
+        intent, last_user_msg=last_user_msg, retrieved=retrieved
     )
 
     # Lightweight model selection. Two cases use the synthesis deployment:
@@ -326,22 +313,18 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     #    reasoning already happened before the tool call; this turn is
     #    pure prose synthesis. Saves ~5-15s.
     #
-    # 2. No tools bound this turn. Nothing can be called, so there is no
-    #    decision to make and the cheap tier is strictly correct. "hi",
-    #    "thanks" and small talk land here because _tools_for_turn strips
-    #    tools for greetings — trace 019e19f2 ("hi" took 13s on gpt-5) stays
-    #    fixed. This used to test intent == "general", which was a proxy for
-    #    the same thing and a wrong one: general turns that DO carry the full
-    #    tool set were sent to the cheap tier and then asked to choose among
-    #    them. Deciding which tool to call is the job the small tiers are
-    #    worst at, so derive the condition instead of proxying for it.
+    # 2. intent="general" turn (no project/research/writing context).
+    #    "hi", "thanks", capability questions, small talk — gpt-5 burns
+    #    ~700 reasoning tokens deciding whether to call a tool. The
+    #    synthesis tier handles these in 2-3s. Trace 019e19f2 showed
+    #    "hi" took 13s on gpt-5.
     #
     # Both cases gated by AGENT_LIGHTWEIGHT_SYNTHESIS so a single env var
     # disables the optimisation if quality regresses.
     settings = get_settings()
     last_is_tool_msg = bool(sanitized) and isinstance(sanitized[-1], ToolMessage)
     use_synthesis = settings.AGENT_LIGHTWEIGHT_SYNTHESIS and (
-        last_is_tool_msg or not intent_tools
+        last_is_tool_msg or intent == "general"
     )
     try:
         if use_synthesis:
@@ -480,24 +463,10 @@ async def force_synthesis_node(state: AgentState, config: RunnableConfig) -> dic
             "force_synthesis_node: LLM exceeded %ds; emitting fallback",
             AGENT_LLM_TIMEOUT_SECONDS,
         )
-        # Honest fallback: do not claim "I gathered results" — the tool
-        # results may have been empty or the synthesis may have produced
-        # nothing usable. Surface the timeout plainly and tell the user what
-        # to do; this must not read as a successful-but-empty completion
-        # (the phantom-search failure mode).
-        tool_count = state.get("tool_loop_count", 0)
         response = AIMessage(
             content=(
-                "I ran my tool calls but the final summary step timed out "
-                f"({AGENT_LLM_TIMEOUT_SECONDS}s) before producing an answer. "
-                "Please ask me again — the tool results are still in context "
-                "so a retry can synthesize them directly."
-                if tool_count
-                else (
-                    "The final response step timed out "
-                    f"({AGENT_LLM_TIMEOUT_SECONDS}s) before producing an "
-                    "answer. Please send your request again."
-                )
+                "I gathered results but ran out of time composing a final "
+                "summary. Please ask me to summarize."
             ),
         )
 

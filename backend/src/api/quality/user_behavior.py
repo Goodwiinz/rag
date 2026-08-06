@@ -116,7 +116,6 @@ async def track_user_interaction(
             event_id=interaction_data["event_id"],
             interaction_type=interaction_data["interaction_type"],
             data=interaction_data.get("data", {}),
-            organization_id=str(current_user.organization_id),
         )
 
         if success:
@@ -168,30 +167,18 @@ async def get_user_behavior_analytics(
 ):
     """Get behavior analytics for a specific user (admin/org manager only)"""
     try:
-        # Tenant scope: the target user MUST belong to the caller's organization —
-        # for EVERY role. UserRole.ADMIN is a per-organization role (role and
-        # organization_id are independent columns; there is no global superuser),
-        # so an org-A admin must not read an org-B user's behavior. The service
-        # filters only by user_id, so the org boundary is enforced here.
-        from src.models.user import User as UserModel
+        # Check permissions (admin or same organization)
+        from src.models.user import UserRole
 
-        # Reject when the caller has no org, or the target is missing / in a
-        # different org. Guard against None==None: a null-org caller must not
-        # read other null-org users' behavior.
-        target_user = db.query(UserModel).filter(UserModel.id == user_id).first()
-        if (
-            not current_user.organization_id
-            or not target_user
-            or target_user.organization_id != current_user.organization_id
-        ):
-            raise HTTPException(status_code=403, detail="Insufficient permissions")
+        if current_user.role not in [UserRole.ADMIN]:
+            # Must look up target user to compare orgs
+            from src.models.user import User as UserModel
 
-        # Intra-tenant horizontal authz (mirrors get_session_analysis below):
-        # within the caller's org, only an admin may read ANOTHER user's
-        # behavior analytics; a non-admin may read only their own. The org
-        # check above stops cross-tenant reads; this stops same-org peer reads.
-        if str(current_user.id) != user_id and current_user.role.value != "admin":
-            raise HTTPException(status_code=403, detail="Insufficient permissions")
+            target_user = db.query(UserModel).filter(UserModel.id == user_id).first()
+            if not target_user or str(target_user.organization_id) != str(
+                current_user.organization_id
+            ):
+                raise HTTPException(status_code=403, detail="Insufficient permissions")
 
         metrics = await user_behavior_service.analyze_user_behavior(
             user_id=user_id, days_back=days_back
@@ -221,18 +208,9 @@ async def get_session_analysis(
 ):
     """Get detailed analysis of a specific search session"""
     try:
-        # Org-scoped: analyze_session only resolves a session in the caller's
-        # own organization, so a foreign session_id raises not-found (404 below)
-        # rather than leaking another tenant's session — the admin role no
-        # longer crosses the org boundary.
-        try:
-            analysis = await user_behavior_service.analyze_session(
-                session_id, organization_id=str(current_user.organization_id)
-            )
-        except ValueError:
-            raise HTTPException(status_code=404, detail="Session not found")
+        analysis = await user_behavior_service.analyze_session(session_id)
 
-        # Within the caller's org, a non-admin may only read their own session.
+        # Check if user has permission to view this session
         if (
             analysis.user_id
             and str(current_user.id) != analysis.user_id

@@ -2,10 +2,12 @@
 Conversation model for Terminal Observatory thread-centric chat schema
 """
 
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text, Index
+from sqlalchemy.orm import relationship, selectinload, joinedload
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, String, Text
-from sqlalchemy.orm import joinedload, relationship, selectinload
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
+from sqlalchemy.orm import relationship
 
 from .base import GUID, BaseModel
 
@@ -54,13 +56,11 @@ class Conversation(BaseModel):
 
     # Database indexes for performance optimization
     __table_args__ = (
-        Index(
-            "idx_conversation_workspace_activity", "workspace_id", "last_activity_at"
-        ),
-        Index("idx_conversation_creator_created", "created_by_id", "created_at"),
-        Index("idx_conversation_workspace_archived", "workspace_id", "is_archived"),
-        Index("idx_conversation_pinned_activity", "is_pinned", "last_activity_at"),
-        Index("idx_conversation_title_search", "title"),
+        Index('idx_conversation_workspace_activity', 'workspace_id', 'last_activity_at'),
+        Index('idx_conversation_creator_created', 'created_by_id', 'created_at'),
+        Index('idx_conversation_workspace_archived', 'workspace_id', 'is_archived'),
+        Index('idx_conversation_pinned_activity', 'is_pinned', 'last_activity_at'),
+        Index('idx_conversation_title_search', 'title'),
     )
 
     def __repr__(self):
@@ -69,27 +69,24 @@ class Conversation(BaseModel):
     @classmethod
     def get_with_workspace_and_user(cls, conversation_id):
         """Get conversation with workspace and creator eagerly loaded"""
-        return (
-            cls.query.options(joinedload(cls.workspace), joinedload(cls.created_by))
-            .filter(cls.id == conversation_id)
-            .first()
-        )
+        return cls.query.options(
+            joinedload(cls.workspace),
+            joinedload(cls.created_by)
+        ).filter(cls.id == conversation_id).first()
 
     @classmethod
     def get_workspace_conversations_with_details(cls, workspace_id, limit=50):
         """Get workspace conversations with threads and creator loaded"""
         from src.models.thread import Thread
-
-        return (
-            cls.query.options(
-                joinedload(cls.created_by),
-                selectinload(cls.threads).options(joinedload(Thread.created_by)),
+        return cls.query.options(
+            joinedload(cls.created_by),
+            selectinload(cls.threads).options(
+                joinedload(Thread.created_by)
             )
-            .filter(cls.workspace_id == workspace_id, cls.is_archived == False)
-            .order_by(cls.last_activity_at.desc())
-            .limit(limit)
-            .all()
-        )
+        ).filter(
+            cls.workspace_id == workspace_id,
+            cls.is_archived == False
+        ).order_by(cls.last_activity_at.desc()).limit(limit).all()
 
     def update_activity(self):
         """Update last activity timestamp"""

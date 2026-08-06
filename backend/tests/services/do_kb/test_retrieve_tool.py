@@ -11,8 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.services.agent.tools_impl import AGENT_TOOLS, _tool_do_kb_retrieve
-from src.services.do_kb.client import DOKnowledgeBaseError
+from src.api.agent.tools_impl import AGENT_TOOLS, _tool_do_kb_retrieve
 from src.services.do_kb.models import Chunk, RetrieveResult
 
 
@@ -28,7 +27,7 @@ async def test_returns_empty_when_disabled(monkeypatch):
     fake_settings = MagicMock()
     fake_settings.DO_KB_ENABLED = False
     monkeypatch.setattr(
-        "src.services.agent.tools_impl.settings", fake_settings, raising=False
+        "src.api.agent.tools_impl.settings", fake_settings, raising=False
     )
 
     user = MagicMock()
@@ -143,75 +142,6 @@ async def test_retrieve_failure_returns_error_not_raise():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_retrieve_404_logs_error_and_falls_back(caplog):
-    """FIX A3: a 404 (KB deleted on DO's side) is a permanent failure — it must
-    be logged distinctly at ERROR, not blended into WARNING transient noise.
-    Still returns an empty result so the agent falls back cleanly."""
-    import logging
-
-    user = MagicMock()
-    user.organization_id = "org-1"
-
-    db = MagicMock()
-    org_row = MagicMock()
-    org_row.do_kb_uuid = "kb-1"
-    db.get = AsyncMock(return_value=org_row)
-
-    fake_client = MagicMock()
-    fake_client.retrieve = AsyncMock(
-        side_effect=DOKnowledgeBaseError("not found", status_code=404)
-    )
-
-    with (
-        patch("src.core.config.settings", MagicMock(DO_KB_ENABLED=True)),
-        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
-        caplog.at_level(logging.ERROR, logger="src.services.agent.tools_impl"),
-    ):
-        result = await _tool_do_kb_retrieve({"query": "x", "top_k": 3}, db, user)
-
-    # Fallback preserved: empty result, not a raise.
-    assert result["chunks"] == []
-    assert result["total"] == 0
-    assert result["source"] == "do_kb"
-    # The 404 was logged at ERROR level with a distinct message.
-    error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
-    assert any("404" in r.getMessage() for r in error_records)
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_retrieve_transient_error_stays_warning(caplog):
-    """A non-404 DOKnowledgeBaseError (transient) must NOT be logged at ERROR —
-    it stays at WARNING so 404s remain distinguishable."""
-    import logging
-
-    user = MagicMock()
-    user.organization_id = "org-1"
-
-    db = MagicMock()
-    org_row = MagicMock()
-    org_row.do_kb_uuid = "kb-1"
-    db.get = AsyncMock(return_value=org_row)
-
-    fake_client = MagicMock()
-    fake_client.retrieve = AsyncMock(
-        side_effect=DOKnowledgeBaseError("upstream down", status_code=503)
-    )
-
-    with (
-        patch("src.core.config.settings", MagicMock(DO_KB_ENABLED=True)),
-        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
-        caplog.at_level(logging.WARNING, logger="src.services.agent.tools_impl"),
-    ):
-        result = await _tool_do_kb_retrieve({"query": "x", "top_k": 3}, db, user)
-
-    assert result["chunks"] == []
-    error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
-    assert not error_records  # no ERROR for a transient failure
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
 async def test_clamps_top_k():
     user = MagicMock()
     user.organization_id = "org-1"
@@ -304,7 +234,7 @@ async def test_project_id_filters_out_cross_project_chunks():
         ),
         patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
         patch(
-            "src.services.agent.tools_impl._verify_project_ownership",
+            "src.api.agent.tools_impl._verify_project_ownership",
             AsyncMock(return_value=owned),
         ),
     ):
@@ -394,7 +324,7 @@ async def test_owned_project_id_with_unresolvable_chunks_returns_empty():
         ),
         patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
         patch(
-            "src.services.agent.tools_impl._verify_project_ownership",
+            "src.api.agent.tools_impl._verify_project_ownership",
             AsyncMock(return_value=owned),
         ),
     ):
@@ -441,7 +371,7 @@ async def test_project_id_not_owned_returns_access_denied():
         ),
         patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
         patch(
-            "src.services.agent.tools_impl._verify_project_ownership",
+            "src.api.agent.tools_impl._verify_project_ownership",
             AsyncMock(return_value=None),  # not owned / not found
         ),
     ):

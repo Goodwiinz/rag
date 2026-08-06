@@ -175,7 +175,8 @@ class FREDConnector(ExternalDBConnector):
             observations = obs_resp.json().get("observations", [])
             if observations:
                 obs_lines = [
-                    f"  {o.get('date', '')}: {o.get('value', '')}" for o in observations
+                    f"  {o.get('date', '')}: {o.get('value', '')}"
+                    for o in observations
                 ]
                 result.content += "\n\nRecent Observations:\n" + "\n".join(obs_lines)
                 result.metadata["recent_observations"] = [
@@ -193,5 +194,7 @@ class FREDConnector(ExternalDBConnector):
             )
             return None
         except Exception as exc:
-            logger.error("fred_fetch_error", error=str(exc), series_id=record_id)
+            logger.error(
+                "fred_fetch_error", error=str(exc), series_id=record_id
+            )
             return None

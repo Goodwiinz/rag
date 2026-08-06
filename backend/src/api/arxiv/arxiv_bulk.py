@@ -8,25 +8,16 @@ import asyncio
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
-from src.core.dependencies import require_admin
 from src.services.ingestion.kaggle_bulk_ingestion import (
     IngestionProgress,
     KaggleBulkIngestionService,
 )
 
 logger = logging.getLogger(__name__)
-# Admin-only: these endpoints drive a process-global Kaggle ingestion singleton
-# (no per-tenant context) and are resource-intensive. They had NO auth at all —
-# MultiTenancyMiddleware passes tokenless requests through, so every route here
-# was reachable unauthenticated until this router-level guard.
-router = APIRouter(
-    prefix="/arxiv/bulk",
-    tags=["ArXiv Bulk Ingestion"],
-    dependencies=[Depends(require_admin)],
-)
+router = APIRouter(prefix="/arxiv/bulk", tags=["ArXiv Bulk Ingestion"])
 
 # Global progress tracker
 _current_ingestion: Optional[IngestionProgress] = None
@@ -192,12 +183,14 @@ async def get_ingestion_stats():
             entity_count = record["count"] if record else 0
 
             # Get category distribution
-            result = await session.run("""
+            result = await session.run(
+                """
                 MATCH (d:DOCUMENT)
                 RETURN d.arxiv_category as category, count(*) as count
                 ORDER BY count DESC
                 LIMIT 20
-            """)
+            """
+            )
             categories = [
                 {"category": r["category"], "count": r["count"]} async for r in result
             ]

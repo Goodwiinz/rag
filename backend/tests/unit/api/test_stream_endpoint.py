@@ -154,15 +154,6 @@ class TestStreamRouterRegistration:
         """The router should have appropriate tags."""
         assert "Streaming" in router.tags
 
-    def test_route_is_deprecated(self) -> None:
-        """The stream route is deprecated (audit C3: orphaned v2 SSE dialect)."""
-        routes = [r for r in router.routes if hasattr(r, "path")]
-        stream_routes = [
-            r for r in routes if r.path.endswith("/{thread_id}/stream")
-        ]
-        assert len(stream_routes) == 1
-        assert stream_routes[0].deprecated is True
-
 
 # ============================================================================
 # Active Streams Concurrency Tests

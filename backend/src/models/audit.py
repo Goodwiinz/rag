@@ -213,9 +213,9 @@ class ComplianceReport(Base):
             "description": self.description,
             "organization_id": str(self.organization_id),
             "generated_by": str(self.generated_by),
-            "period_start": (
-                self.period_start.isoformat() if self.period_start else None
-            ),
+            "period_start": self.period_start.isoformat()
+            if self.period_start
+            else None,
             "period_end": self.period_end.isoformat() if self.period_end else None,
             "data": self.data,
             "metrics": self.metrics,
@@ -226,9 +226,9 @@ class ComplianceReport(Base):
             "status": self.status,
             "error_message": self.error_message,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "generated_at": (
-                self.generated_at.isoformat() if self.generated_at else None
-            ),
+            "generated_at": self.generated_at.isoformat()
+            if self.generated_at
+            else None,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }
 
@@ -290,9 +290,9 @@ class DataRetentionPolicy(Base):
             "conditions": self.conditions,
             "action": self.action,
             "is_active": self.is_active,
-            "organization_id": (
-                str(self.organization_id) if self.organization_id else None
-            ),
+            "organization_id": str(self.organization_id)
+            if self.organization_id
+            else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "last_run_at": self.last_run_at.isoformat() if self.last_run_at else None,

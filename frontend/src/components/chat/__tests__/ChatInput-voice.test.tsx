@@ -8,8 +8,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { fireEvent, screen } from '@testing-library/react';
-import { renderWithChatRuntime } from './renderWithChatRuntime';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 // Mock framer-motion to avoid animation issues in tests
 vi.mock('framer-motion', () => ({
@@ -26,25 +25,6 @@ vi.mock('framer-motion', () => ({
   useTransform: () => ({ set: vi.fn(), get: () => 0 }),
   useReducedMotion: () => false,
 }));
-
-vi.mock('@assistant-ui/react', async () => {
-  const React = await import('react');
-  return {
-    AssistantRuntimeProvider: ({ children }: any) => <>{children}</>,
-    useExternalStoreRuntime: () => ({}),
-    ComposerPrimitive: {
-      Root: React.forwardRef<HTMLFormElement, any>(
-        ({ children, asChild: _asChild, ...props }, ref) => (
-          <form ref={ref} {...props}>
-            {children}
-          </form>
-        )
-      ),
-      Input: ({ children, asChild: _asChild, ...props }: any) =>
-        React.cloneElement(React.Children.only(children), props),
-    },
-  };
-});
 
 import { ChatInput } from '../ChatInput';
 
@@ -103,7 +83,7 @@ describe('ChatInput voice input', () => {
   afterEach(uninstallSpeechRecognition);
 
   it('disables the Mic button when SpeechRecognition is unavailable', () => {
-    renderWithChatRuntime(<ChatInput {...baseProps} />);
+    render(<ChatInput {...baseProps} />);
     const button = screen.getByLabelText('Voice input not supported');
     expect(button).toBeDisabled();
   });
@@ -111,7 +91,7 @@ describe('ChatInput voice input', () => {
   it('starts recognition when Mic is clicked and surfaces transcript via onChange', () => {
     const { instances } = installSpeechRecognition();
     const onChange = vi.fn();
-    renderWithChatRuntime(<ChatInput {...baseProps} onChange={onChange} />);
+    render(<ChatInput {...baseProps} onChange={onChange} />);
     fireEvent.click(screen.getByLabelText('Voice input'));
     expect(instances).toHaveLength(1);
     const r = instances[0];
@@ -124,7 +104,7 @@ describe('ChatInput voice input', () => {
 
   it('stops recognition when Mic is clicked while listening', () => {
     const { instances } = installSpeechRecognition();
-    renderWithChatRuntime(<ChatInput {...baseProps} />);
+    render(<ChatInput {...baseProps} />);
     fireEvent.click(screen.getByLabelText('Voice input'));
     fireEvent.click(screen.getByLabelText('Stop voice input'));
     expect(instances[0].stop).toHaveBeenCalledTimes(1);

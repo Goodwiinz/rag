@@ -10,7 +10,7 @@ redis.call('CONFIG', 'SET', 'maxmemory', '256mb')
 redis.call('CONFIG', 'SET', 'maxmemory-policy', 'allkeys-lru')
 
 -- Security configuration
-redis.call('CONFIG', 'SET', 'requirepass', 'redis_password_123')
+redis.call('CONFIG', 'SET', 'requirepass', 'REDACTED')
 
 -- Performance configuration
 redis.call('CONFIG', 'SET', 'tcp-keepalive', '300')
@@ -309,6 +309,13 @@ redis.call('HMSET', 'health:neo4j',
     'last_check', tostring(ARGV[1]),
     'response_time_ms', '25',
     'active_connections', '3'
+)
+
+redis.call('HMSET', 'health:qdrant',
+    'status', 'healthy',
+    'last_check', tostring(ARGV[1]),
+    'response_time_ms', '10',
+    'collections_count', '3'
 )
 
 -- =================================================================

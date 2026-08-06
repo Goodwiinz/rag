@@ -5,7 +5,7 @@
 # Prereqs:
 #   - Backend services up (docker-compose -f docker-compose.development.yml up -d)
 #   - Backend running on :8000 (uvicorn src.main:app --reload)
-#   - Dev admin user exists (admin@multimodal-rag.com / admin123)
+#   - Dev admin user exists (admin@multimodal-rag.com / REDACTED)
 #   - jq installed
 #
 # Usage:
@@ -15,7 +15,7 @@ set -uo pipefail
 
 API="${AGENT_E2E_API:-http://localhost:8000}"
 EMAIL="${AGENT_E2E_EMAIL:-admin@multimodal-rag.com}"
-PASS="${AGENT_E2E_PASS:-admin123}"
+PASS="${AGENT_E2E_PASS:-REDACTED}"
 PROJECT_ID="${AGENT_E2E_PROJECT_ID:-}"   # optional, for writing E2E
 
 RED=$'\033[0;31m'; GRN=$'\033[0;32m'; YLW=$'\033[0;33m'; CLR=$'\033[0m'

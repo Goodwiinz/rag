@@ -1,12 +1,8 @@
 /**
  * Playwright configuration for NOUS critical-flow E2E tests.
- * Chromium only, no global setup dependency. Targets BASE_URL when supplied,
- * otherwise reuses or starts the local frontend on localhost:3000.
+ * Chromium only, no global setup dependency, targets localhost:3000.
  */
 import { defineConfig, devices } from '@playwright/test';
-
-const externalBaseUrl = process.env.BASE_URL?.trim() || undefined;
-const localBaseUrl = 'http://localhost:3000';
 
 export default defineConfig({
   testDir: './e2e/nous-flows',
@@ -41,7 +37,7 @@ export default defineConfig({
   outputDir: 'test-results',
 
   use: {
-    baseURL: externalBaseUrl ?? localBaseUrl,
+    baseURL: process.env.BASE_URL ?? 'http://localhost:3000',
     actionTimeout: 15_000,
     navigationTimeout: 20_000,
     screenshot: 'only-on-failure',
@@ -59,14 +55,11 @@ export default defineConfig({
     },
   ],
 
-  // An external BASE_URL is already hosted. For local runs, keep the repo's
-  // pinned pnpm toolchain and reuse an existing dev server when available.
-  webServer: externalBaseUrl
-    ? undefined
-    : {
-        command: 'corepack pnpm@10.18.2 run dev',
-        url: localBaseUrl,
-        reuseExistingServer: true,
-        timeout: 30_000,
-      },
+  // Reuse the already-running dev server; do NOT start a new one
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: true,
+    timeout: 30_000,
+  },
 });

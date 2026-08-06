@@ -45,8 +45,9 @@ vi.mock('@/hooks/chat/useChatStreaming', () => ({
     storeIsStreaming: false,
     storeStreamingContent: '',
     streamingTimestampRef: { current: null },
+    selectedModel: 'gpt-4o',
+    setSelectedModel: vi.fn(),
   }),
-  confirmationBelongsToThread: () => false,
 }));
 
 vi.mock('@/hooks/chat/useChatThreadActions', () => ({
@@ -106,40 +107,5 @@ describe('ChatPage auth states', () => {
       screen.getByText('Authentication required. Redirecting...')
     ).toBeInTheDocument();
     expect(screen.queryByText('Initializing...')).not.toBeInTheDocument();
-  });
-
-  it('shows the cold-init skeleton before session data loads, even once authenticated', () => {
-    mockUseChatSession.mockReturnValue({
-      ...mockUseChatSession(),
-      isAuthenticated: true,
-      isInitializing: true,
-    });
-
-    render(<ChatPage />);
-
-    expect(
-      screen.getByRole('status', { name: 'Loading conversation' })
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText('Authentication required. Redirecting...')
-    ).not.toBeInTheDocument();
-    expect(screen.queryByTestId('welcome-state')).not.toBeInTheDocument();
-  });
-
-  it('renders the welcome state once cold init completes with no conversations', () => {
-    mockUseChatSession.mockReturnValue({
-      ...mockUseChatSession(),
-      isAuthenticated: true,
-      isInitializing: false,
-      isLoadingMessages: false,
-      displayedMessages: [],
-    });
-
-    render(<ChatPage />);
-
-    expect(screen.getByTestId('welcome-state')).toBeInTheDocument();
-    expect(
-      screen.queryByRole('status', { name: 'Loading conversation' })
-    ).not.toBeInTheDocument();
   });
 });

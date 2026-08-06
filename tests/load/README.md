@@ -22,48 +22,6 @@ This directory contains comprehensive load testing scripts using K6 to evaluate 
 - **Duration**: ~6 minutes total
 - **Focus**: System recovery and stability during traffic spikes
 
-## Maximum shared-dev stress run (`run-shared-dev-max.sh`)
-
-> ⚠️ **Disruptive.** This drives the repaired `k6-stress-testing.js` to **400
-> virtual users over ~34 minutes** against **shared dev** (`dev-api.gen-text.app`,
-> namespace `rag-dev`) — the only live environment. It can make dev slow or
-> temporarily unavailable for everyone (developers, CI, synthetic traffic).
-> **Announce it before running `--full`.**
-
-`k6-stress-testing.js` uses the current contracts: Supabase owns identity, so
-`setup()` mints confirmed test users with the service-role key, exchanges a
-password grant for each token, and returns them to the VUs (module-level state
-does **not** cross k6's setup→VU boundary). The backend validates the Supabase
-JWT and JIT-provisions a user+org. `teardown()` deletes every document each
-(fresh) test user owns and then the users themselves.
-
-```bash
-# 1) One-user preflight — exercises search/list/profile/upload + cleanup,
-#    verifies monitoring, and writes a marker for this commit.
-tests/load/run-shared-dev-max.sh --preflight
-
-# 2) Full 400-VU run — REFUSES to start without a passing preflight marker
-#    for the current commit.
-tests/load/run-shared-dev-max.sh --full
-```
-
-The runner (requires `kubectl` read access to `rag-dev` + `docker`):
-
-- reads `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` from
-  the `supabase-credentials` secret and passes them to the pinned `grafana/k6`
-  container via a `0600` `--env-file` (never `-e`, never printed);
-- gates on `/health` + `/health/readiness` and records the backend restart
-  baseline before generating load;
-- samples readiness, pod restarts, `kubectl top`, and warning events every 5s;
-- **aborts** k6 (SIGINT) on 3 consecutive readiness failures or any backend
-  restart (the k6 `http_req_failed` threshold is only a coarse cumulative
-  backstop — the rolling abort lives here);
-- writes all evidence to `/tmp/rag-stress/<run-id>/` (`k6.log`, `summary.json`,
-  `monitor.log`, `events.log`, `baseline.txt`, `recovery.txt`).
-
-Threshold breaches short of those catastrophic conditions are **findings, not
-aborts** — the objective is to locate the breaking point.
-
 ## Prerequisites
 
 1. **Install K6**:

@@ -16,16 +16,19 @@ NC='\033[0m' # No Color
 POSTGRES_HOST="localhost"
 POSTGRES_PORT="5432"
 POSTGRES_USER="raguser"
-POSTGRES_PASSWORD="rag_password_123"
+POSTGRES_PASSWORD="REDACTED"
 POSTGRES_DB="ragdb"
 
 NEO4J_URI="bolt://localhost:7687"
 NEO4J_USER="neo4j"
-NEO4J_PASSWORD="neo4j_password_123"
+NEO4J_PASSWORD="REDACTED"
+
+QDRANT_URL="http://localhost:6333"
+QDRANT_API_KEY="REDACTED"
 
 REDIS_HOST="localhost"
 REDIS_PORT="6379"
-REDIS_PASSWORD="redis_password_123"
+REDIS_PASSWORD="REDACTED"
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -103,6 +106,67 @@ EOF
     fi
 }
 
+# Function to initialize Qdrant
+init_qdrant() {
+    info "Initializing Qdrant vector database..."
+
+    # Create Qdrant setup script
+    cat > "$SCRIPT_DIR/qdrant_setup.py" << 'EOF'
+#!/usr/bin/env python3
+import json
+import sys
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams
+
+def main():
+    config_file = sys.argv[1] if len(sys.argv) > 1 else "03_qdrant_setup.json"
+
+    with open(config_file, 'r') as f:
+        config = json.load(f)
+
+    client = QdrantClient(
+        url="http://localhost:6333",
+        api_key="REDACTED"
+    )
+
+    collections_created = 0
+
+    for collection_name, collection_config in config["collections"].items():
+        try:
+            # Check if collection exists
+            existing_collections = client.get_collections().collections
+            exists = any(c.name == collection_name for c in existing_collections)
+
+            if not exists:
+                client.create_collection(
+                    collection_name=collection_name,
+                    vectors_config=collection_config["vectors"]
+                )
+                print(f"✅ Created collection: {collection_name}")
+                collections_created += 1
+            else:
+                print(f"✅ Collection already exists: {collection_name}")
+
+        except Exception as e:
+            print(f"❌ Failed to create collection {collection_name}: {e}")
+
+    print(f"🎉 Qdrant setup completed! Created {collections_created} new collections.")
+
+if __name__ == "__main__":
+    main()
+EOF
+
+    # Execute Qdrant setup
+    if python3 "$SCRIPT_DIR/qdrant_setup.py" "$SCRIPT_DIR/03_qdrant_setup.json"; then
+        log "Qdrant vector database setup completed"
+    else
+        error "Qdrant setup failed"
+    fi
+
+    # Cleanup temporary script
+    rm -f "$SCRIPT_DIR/qdrant_setup.py"
+}
+
 # Function to initialize Redis
 init_redis() {
     info "Initializing Redis cache and data structures..."
@@ -117,7 +181,7 @@ def main():
     r = redis.Redis(
         host='localhost',
         port=6379,
-        password='redis_password_123',
+        password='REDACTED',
         decode_responses=True
     )
 
@@ -237,6 +301,13 @@ run_health_checks() {
         echo "  ❌ PostgreSQL: Error"
     fi
 
+    # Qdrant health check
+    if curl -s -f "$QDRANT_URL/health" >/dev/null 2>&1; then
+        echo "  ✅ Qdrant: Healthy"
+    else
+        echo "  ❌ Qdrant: Error"
+    fi
+
     # Redis health check
     if redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" ping 2>/dev/null | grep -q "PONG"; then
         key_count=$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" dbsize 2>/dev/null)
@@ -254,6 +325,7 @@ main() {
 
     # Wait for services to be ready
     wait_for_service "PostgreSQL" "$POSTGRES_HOST" "$POSTGRES_PORT" 60
+    wait_for_service "Qdrant" "$POSTGRES_HOST" "6333" 60
     wait_for_service "Redis" "$REDIS_HOST" "$REDIS_PORT" 60
 
     # Check all connections
@@ -261,6 +333,7 @@ main() {
 
     # Initialize databases
     init_postgresql
+    init_qdrant
     init_redis
 
     # Run health checks

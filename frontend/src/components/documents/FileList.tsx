@@ -148,7 +148,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
         )}
 
         {/* File Icon/Thumbnail */}
-        <div className="shrink-0">
+        <div className="flex-shrink-0">
           {document.thumbnail_url ? (
             <img
               src={document.thumbnail_url}
@@ -409,9 +409,9 @@ export const FileList: React.FC<FileListProps> = ({
               onClick={() => setViewMode('list')}
               aria-pressed={viewMode === 'list'}
               className={cn(
-                'px-2 py-1 text-xs font-medium rounded transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
+                'px-2 py-1 text-xs font-medium rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
                 viewMode === 'list'
-                  ? 'bg-background text-foreground shadow-xs'
+                  ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
@@ -421,9 +421,9 @@ export const FileList: React.FC<FileListProps> = ({
               onClick={() => setViewMode('grid')}
               aria-pressed={viewMode === 'grid'}
               className={cn(
-                'px-2 py-1 text-xs font-medium rounded transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
+                'px-2 py-1 text-xs font-medium rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
                 viewMode === 'grid'
-                  ? 'bg-background text-foreground shadow-xs'
+                  ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
@@ -437,7 +437,7 @@ export const FileList: React.FC<FileListProps> = ({
               <button
                 onClick={handleBulkDelete}
                 aria-label={`Delete ${selectedDocuments.length} selected documents`}
-                className="px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 rounded transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
+                className="px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
               >
                 Delete ({selectedDocuments.length})
               </button>

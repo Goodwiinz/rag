@@ -8,7 +8,6 @@ import json
 import logging
 import math
 import statistics
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -376,7 +375,9 @@ class StatisticalAnalysisService:
             n1, n2 = len(control), len(treatment)
             s1, s2 = statistics.stdev(control), statistics.stdev(treatment)
             df_numerator = (s1**2 / n1 + s2**2 / n2) ** 2
-            df_denominator = (s1**4 / (n1**2 * (n1 - 1))) + (s2**4 / (n2**2 * (n2 - 1)))
+            df_denominator = (s1**4 / (n1**2 * (n1 - 1))) + (
+                s2**4 / (n2**2 * (n2 - 1))
+            )
             df = df_numerator / df_denominator
 
             # Calculate confidence interval
@@ -892,11 +893,9 @@ class StatisticalAnalysisService:
             # Find best performing variant
             best_comparison = max(
                 significant_results,
-                key=lambda c: (
-                    c.relative_difference
-                    if c.statistical_result.effect_size > 0
-                    else -abs(c.relative_difference)
-                ),
+                key=lambda c: c.relative_difference
+                if c.statistical_result.effect_size > 0
+                else -abs(c.relative_difference),
             )
 
             if best_comparison.statistical_result.effect_size > 0:

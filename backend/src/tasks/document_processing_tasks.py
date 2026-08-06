@@ -2,8 +2,9 @@
 Background tasks for document processing with async pipeline execution
 """
 
+import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 from celery.exceptions import Retry
@@ -15,13 +16,10 @@ from src.models.document import Document, ProcessingStatus
 from src.models.processing import JobStatus, ProcessingJob
 from src.services.documents.document_quality_service import DocumentQualityService
 from src.services.documents.enhanced_file_service import EnhancedFileService
-from src.services.documents.upload_progress_bus import publish_progress
 from src.services.processing.multimodal_processing_service import (
     MultimodalProcessingService,
 )
-from src.tasks._async_utils import run_async
 from src.tasks.celery_app import celery_app
-from src.tasks.replay_guard import claim_job_for_processing
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +38,9 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
     """
     Process document upload with enhanced pipeline
     """
+    # Lazy import to avoid circular dependency
+    from src.api.documents.document_upload import upload_manager
+
     db = SessionLocal()
     task_id = self.request.id
 
@@ -52,21 +53,9 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
             logger.error(f"Processing job {job_id} not found")
             return {"status": "error", "message": "Job not found"}
 
-        # Atomic idempotency claim for acks_late redelivery (batch_process_documents
-        # dispatches this task via .delay(), so a worker killed mid-run has its
-        # message redelivered). Without a claim the redelivered run reset the job
-        # back to QUEUED (job.queue_job) and reprocessed the whole document. Skip a
-        # finished or actively-running job; reclaim only one whose worker died.
-        claim = claim_job_for_processing(
-            db, job, worker_id=task_id, celery_task_id=task_id
-        )
-        if not claim.proceed:
-            logger.info(
-                "Job %s not claimable (%s); skipping redelivered upload processing",
-                job_id,
-                claim.reason,
-            )
-            return {"status": "skipped", "job_id": job_id, "reason": claim.reason}
+        # Update job with task ID
+        job.celery_task_id = task_id
+        job.queue_job()
 
         # Get document
         document = db.query(Document).filter(Document.id == job.document_id).first()
@@ -84,26 +73,31 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
         # Initialize processing service
         processing_service = MultimodalProcessingService(db)
 
-        # Publish upload progress to Redis; the API process forwards it to the
-        # live WebSocket. This worker cannot reach those sockets directly — its
-        # in-process connection map is always empty (audit B7).
+        # Update upload progress if available
         if upload_id:
-            run_async(publish_progress(upload_id, 20.0, "Starting processing pipeline"))
+            asyncio.run(
+                upload_manager.update_progress(
+                    upload_id, 20.0, "Starting processing pipeline"
+                )
+            )
 
         # Process document
-        processing_results = run_async(
+        processing_results = asyncio.run(
             processing_service.process_document(document, job, upload_id)
         )
 
-        # Publish terminal upload progress (forwarded to the WebSocket by the
-        # API-process subscriber).
+        # Update upload progress if available
         if upload_id:
             if processing_results["success"]:
-                run_async(publish_progress(upload_id, 100.0, "Processing completed"))
+                asyncio.run(
+                    upload_manager.update_progress(
+                        upload_id, 100.0, "Processing completed"
+                    )
+                )
             else:
                 error_msg = "; ".join(processing_results["errors"])
-                run_async(
-                    publish_progress(
+                asyncio.run(
+                    upload_manager.update_progress(
                         upload_id, 0.0, error_message=f"Processing failed: {error_msg}"
                     )
                 )
@@ -132,16 +126,16 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
             job.fail_job(str(e))
             db.commit()
 
-        # Publish failure progress (best-effort; must not mask the original error).
+        # Update upload progress if available
         if upload_id:
             try:
-                run_async(
-                    publish_progress(
+                asyncio.run(
+                    upload_manager.update_progress(
                         upload_id, 0.0, error_message=f"Processing failed: {str(e)}"
                     )
                 )
-            except Exception:  # noqa: BLE001
-                logger.debug("Failed to publish upload failure progress", exc_info=True)
+            except:
+                pass
 
         # Retry if possible
         if self.request.retries < self.max_retries:
@@ -204,7 +198,7 @@ def process_high_priority_document(self, job_id: str):
         job.config["skip_optional_steps"] = True  # Skip non-essential steps for speed
         db.commit()
 
-        processing_results = run_async(
+        processing_results = asyncio.run(
             processing_service.process_document(document, job)
         )
 
@@ -279,7 +273,7 @@ def process_low_priority_document(self, job_id: str):
         job.config["extended_timeout"] = True
         db.commit()
 
-        processing_results = run_async(
+        processing_results = asyncio.run(
             processing_service.process_document(document, job)
         )
 
@@ -484,7 +478,7 @@ def retry_failed_processing(self, job_id: str):
 
         # Process document
         processing_service = MultimodalProcessingService(db)
-        processing_results = run_async(
+        processing_results = asyncio.run(
             processing_service.process_document(document, job)
         )
 
@@ -579,9 +573,9 @@ def generate_processing_report(self, organization_id: str, date_range_days: int 
                 {
                     "status": stat.status.value,
                     "count": stat.count,
-                    "avg_duration_seconds": (
-                        float(stat.avg_duration) if stat.avg_duration else 0
-                    ),
+                    "avg_duration_seconds": float(stat.avg_duration)
+                    if stat.avg_duration
+                    else 0,
                 }
                 for stat in stats
             ],
@@ -618,10 +612,8 @@ def health_check():
         # the literal SQL — passing a raw string here used to fail every minute.
         db.execute(text("SELECT 1"))
 
-        # Check Redis connectivity. The result backend exposes its redis client
-        # as `.client`; `.result_backend` does not exist (AttributeError every
-        # run made health_check report unhealthy unconditionally).
-        celery_app.backend.client.ping()
+        # Check Redis connectivity
+        celery_app.backend.result_backend.ping()
 
         db.close()
 
@@ -644,26 +636,22 @@ def health_check():
 # Schedule periodic tasks
 from celery.schedules import crontab
 
-# Merge (not assign) — a full `= {...}` is clobbered by the task module Celery
-# imports last; .update() lets every module's schedule coexist on the shared conf.
-celery_app.conf.beat_schedule.update(
-    {
-        "cleanup-artifacts": {
-            "task": "src.tasks.document_processing_tasks.cleanup_processing_artifacts",
-            "schedule": crontab(hour=2, minute=0),  # Daily at 2 AM
-            "args": (7,),  # Clean up artifacts older than 7 days
-        },
-        "health-check": {
-            "task": "src.tasks.document_processing_tasks.health_check",
-            "schedule": crontab(minute="*/5"),  # Every 5 minutes
-        },
-        "generate-reports": {
-            "task": "src.tasks.document_processing_tasks.generate_processing_report",
-            "schedule": crontab(hour=1, minute=0),  # Daily at 1 AM
-            "args": ("default_organization_id", 30),  # This should be configurable
-        },
-    }
-)
+celery_app.conf.beat_schedule = {
+    "cleanup-artifacts": {
+        "task": "src.tasks.document_processing_tasks.cleanup_processing_artifacts",
+        "schedule": crontab(hour=2, minute=0),  # Daily at 2 AM
+        "args": (7,),  # Clean up artifacts older than 7 days
+    },
+    "health-check": {
+        "task": "src.tasks.document_processing_tasks.health_check",
+        "schedule": crontab(minute="*/5"),  # Every 5 minutes
+    },
+    "generate-reports": {
+        "task": "src.tasks.document_processing_tasks.generate_processing_report",
+        "schedule": crontab(hour=1, minute=0),  # Daily at 1 AM
+        "args": ("default_organization_id", 30),  # This should be configurable
+    },
+}
 
 
 # Task monitoring and metrics

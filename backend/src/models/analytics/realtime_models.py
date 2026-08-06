@@ -160,6 +160,7 @@ class EventStream(SQLBaseModel):
 # duplicate `analytics_events` mapping removed in #675.)
 from ..websocket_status import ConnectionStatus, WebSocketConnection  # noqa: E402
 
+
 # Pydantic models for API serialization
 
 

@@ -6,8 +6,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent } from '@testing-library/react';
-import { renderWithChatRuntime } from './renderWithChatRuntime';
+import { render, fireEvent } from '@testing-library/react';
 
 // Mock framer-motion to avoid animation issues in tests
 vi.mock('framer-motion', () => ({
@@ -24,25 +23,6 @@ vi.mock('framer-motion', () => ({
   useTransform: () => ({ set: vi.fn(), get: () => 0 }),
   useReducedMotion: () => false,
 }));
-
-vi.mock('@assistant-ui/react', async () => {
-  const React = await import('react');
-  return {
-    AssistantRuntimeProvider: ({ children }: any) => <>{children}</>,
-    useExternalStoreRuntime: () => ({}),
-    ComposerPrimitive: {
-      Root: React.forwardRef<HTMLFormElement, any>(
-        ({ children, asChild: _asChild, ...props }, ref) => (
-          <form ref={ref} {...props}>
-            {children}
-          </form>
-        )
-      ),
-      Input: ({ children, asChild: _asChild, ...props }: any) =>
-        React.cloneElement(React.Children.only(children), props),
-    },
-  };
-});
 
 import { ChatInput } from '../ChatInput';
 
@@ -62,7 +42,7 @@ describe('ChatInput file attach', () => {
   });
 
   it('renders a hidden file input wired into the Paperclip control', () => {
-    const { container } = renderWithChatRuntime(<ChatInput {...baseProps} />);
+    const { container } = render(<ChatInput {...baseProps} />);
     const input = container.querySelector(
       'input[type="file"]'
     ) as HTMLInputElement | null;
@@ -72,7 +52,7 @@ describe('ChatInput file attach', () => {
 
   it('calls onAttach with selected files', () => {
     const onAttach = vi.fn();
-    const { container } = renderWithChatRuntime(
+    const { container } = render(
       <ChatInput {...baseProps} onAttach={onAttach} />
     );
     const input = container.querySelector(
@@ -93,7 +73,7 @@ describe('ChatInput file attach', () => {
 
   it('does not call onAttach when no files selected', () => {
     const onAttach = vi.fn();
-    const { container } = renderWithChatRuntime(
+    const { container } = render(
       <ChatInput {...baseProps} onAttach={onAttach} />
     );
     const input = container.querySelector(
@@ -109,7 +89,7 @@ describe('ChatInput file attach', () => {
 
   it('resets the input value so selecting the same file twice re-fires onAttach', () => {
     const onAttach = vi.fn();
-    const { container } = renderWithChatRuntime(
+    const { container } = render(
       <ChatInput {...baseProps} onAttach={onAttach} />
     );
     const input = container.querySelector(
@@ -124,42 +104,5 @@ describe('ChatInput file attach', () => {
     });
     fireEvent.change(input);
     expect(input.value).toBe('');
-  });
-
-  it('clears attachment chips and revokes blob URLs on send', () => {
-    const revokeObjectURL = vi.fn();
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL: vi.fn(() => 'blob:mock'),
-      revokeObjectURL,
-    });
-
-    // A non-empty value is required for the submit guard to fire onSubmit.
-    const onSubmit = vi.fn();
-    const { container } = renderWithChatRuntime(
-      <ChatInput {...baseProps} value="hi" onSubmit={onSubmit} />
-    );
-    const imageInput = container.querySelector(
-      'input[accept="image/*"]'
-    ) as HTMLInputElement;
-    const image = new File(['x'], 'pic.png', { type: 'image/png' });
-    Object.defineProperty(imageInput, 'files', {
-      value: [image] as unknown as FileList,
-      configurable: true,
-    });
-    fireEvent.change(imageInput);
-
-    // Chip is present before send.
-    expect(container.querySelector('ul[aria-label="Attached files"]')).not.toBeNull();
-
-    const form = container.querySelector('form') as HTMLFormElement;
-    fireEvent.submit(form);
-
-    expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock');
-    // Chips list is gone (attachments emptied).
-    expect(container.querySelector('ul[aria-label="Attached files"]')).toBeNull();
-
-    vi.unstubAllGlobals();
   });
 });

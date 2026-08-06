@@ -6,7 +6,6 @@ import asyncio
 import gc
 import logging
 import multiprocessing
-import os
 import threading
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -447,9 +446,9 @@ class CacheManager:
                 "total_hits": total_hits,
                 "total_misses": total_misses,
                 "total_requests": total_requests,
-                "hit_rate": (
-                    (total_hits / total_requests * 100) if total_requests > 0 else 0
-                ),
+                "hit_rate": (total_hits / total_requests * 100)
+                if total_requests > 0
+                else 0,
             },
             "top_keys": dict(
                 sorted(

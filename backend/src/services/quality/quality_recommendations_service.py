@@ -16,7 +16,7 @@ from sqlalchemy import and_, asc, desc, func, or_, text
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
-from src.core.database import get_db_sync
+from src.core.database import get_db
 from src.models.document import Document
 from src.models.quality import QualityMetric
 from src.models.quality_metrics import MetricAggregation, QualityAlert, QualityThreshold
@@ -318,13 +318,11 @@ class QualityRecommendationsService:
                 "organization_id": organization_id,
                 "period_days": completed_days,
                 "effectiveness": effectiveness,
-                "overall_improvement": (
-                    statistics.mean(
-                        [e["improvement_percentage"] for e in effectiveness.values()]
-                    )
-                    if effectiveness
-                    else 0
-                ),
+                "overall_improvement": statistics.mean(
+                    [e["improvement_percentage"] for e in effectiveness.values()]
+                )
+                if effectiveness
+                else 0,
             }
 
         except Exception as e:
@@ -636,11 +634,12 @@ class QualityRecommendationsService:
     ) -> List[QualityInsight]:
         """Analyze relevance metric insights"""
         try:
-            db = next(get_db_sync())
+            db = next(get_db())
 
             # Get relevance metrics
             relevance_data = db.execute(
-                text("""
+                text(
+                    """
                 SELECT
                     AVG(qm.value) as current_value,
                     MIN(qt.threshold_target) as target_value,
@@ -652,7 +651,8 @@ class QualityRecommendationsService:
                 WHERE qm.organization_id = :org_id
                     AND qm.metric_type = 'relevance'
                     AND qm.measured_at >= :cutoff_date
-            """),
+            """
+                ),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             ).fetchone()
 
@@ -665,14 +665,16 @@ class QualityRecommendationsService:
                 period_length = datetime.utcnow() - cutoff_date
                 prev_cutoff = cutoff_date - period_length
                 prev_data = db.execute(
-                    text("""
+                    text(
+                        """
                     SELECT AVG(qm.value) as prev_value
                     FROM quality_metrics qm
                     WHERE qm.organization_id = :org_id
                         AND qm.metric_type = 'relevance'
                         AND qm.measured_at >= :prev_cutoff
                         AND qm.measured_at < :cutoff_date
-                """),
+                """
+                    ),
                     {
                         "org_id": organization_id,
                         "prev_cutoff": prev_cutoff,
@@ -738,11 +740,12 @@ class QualityRecommendationsService:
     ) -> List[QualityInsight]:
         """Analyze response time insights"""
         try:
-            db = next(get_db_sync())
+            db = next(get_db())
 
             # Get response time from search queries
             response_time_data = db.execute(
-                text("""
+                text(
+                    """
                 SELECT
                     AVG(sq.response_time) as current_value,
                     COUNT(*) as sample_count,
@@ -752,7 +755,8 @@ class QualityRecommendationsService:
                 WHERE s.organization_id = :org_id
                     AND sq.created_at >= :cutoff_date
                     AND sq.response_time IS NOT NULL
-            """),
+            """
+                ),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             ).fetchone()
 
@@ -765,7 +769,8 @@ class QualityRecommendationsService:
                 period_length = datetime.utcnow() - cutoff_date
                 prev_cutoff = cutoff_date - period_length
                 prev_rt_data = db.execute(
-                    text("""
+                    text(
+                        """
                     SELECT AVG(sq.response_time) as prev_value
                     FROM search_queries sq
                     JOIN search_sessions s ON sq.session_id = s.id
@@ -773,7 +778,8 @@ class QualityRecommendationsService:
                         AND sq.created_at >= :prev_cutoff
                         AND sq.created_at < :cutoff_date
                         AND sq.response_time IS NOT NULL
-                """),
+                """
+                    ),
                     {
                         "org_id": organization_id,
                         "prev_cutoff": prev_cutoff,

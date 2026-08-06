@@ -49,19 +49,11 @@ spec:
       selectPolicy: Max
 {{- end }}
 ---
-{{- /*
-Mutual exclusion with KEDA (audit P1.6 / finding X5): when keda.enabled=true the
-KEDA ScaledObject (templates/keda-scaledobject.yaml) owns worker autoscaling and
-reconciles its own HPA (keda-hpa-<name>). Rendering this plain CPU/memory HPA too
-would make two controllers fight over the same Deployment's replica count, so it
-is suppressed while KEDA is on. Rollback = flip keda.enabled false and this HPA
-re-renders unchanged.
-*/ -}}
-{{- if and .Values.celeryWorker.enabled .Values.celeryWorker.autoscaling.enabled (not .Values.keda.enabled) }}
+{{- if and .Values.celeryWorker.enabled .Values.celeryWorker.autoscaling.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ .Release.Name }}-celery-worker
+  name: {{ include "knowledge-graph-analytics.fullname" . }}-celery-worker
   labels:
     app.kubernetes.io/component: celery-worker
     {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
@@ -69,17 +61,9 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ .Release.Name }}-celery-worker
+    name: {{ include "knowledge-graph-analytics.fullname" . }}-celery-worker
   minReplicas: {{ .Values.celeryWorker.autoscaling.minReplicas | default 1 }}
   maxReplicas: {{ .Values.celeryWorker.autoscaling.maxReplicas | default 10 }}
-  # NOTE (audit P1.6 / finding X5): the worker runs I/O-bound LLM/ingestion tasks,
-  # so CPU+memory below is backlog-blind — a queue of pending jobs can build up
-  # while CPU/RAM stay low and the HPA never scales up. The backlog signal is now
-  # exported as the Prometheus gauge `celery_queue_depth{queue=...}` (see
-  # backend/src/observability/celery_queue_metrics.py). Wiring it into scaling is
-  # DEFERRED until a metrics adapter is deployed: add a KEDA ScaledObject on the
-  # Redis list length, or an `External`/`Object` metric via prometheus-adapter,
-  # then add a `- type: External` block here. Neither operator is installed today.
   metrics:
     {{- if .Values.celeryWorker.autoscaling.targetCPUUtilizationPercentage }}
     - type: Resource

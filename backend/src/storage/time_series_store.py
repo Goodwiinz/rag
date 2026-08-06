@@ -238,17 +238,13 @@ class PostgreSQLTimeSeriesStore:
             ]
 
             # Validate base table names
-            allowed_base_tables = [
-                "analytics_events_ts",
-                "performance_metrics_ts",
-                "user_sessions_ts",
-            ]
-
+            allowed_base_tables = ['analytics_events_ts', 'performance_metrics_ts', 'user_sessions_ts']
+            
             for base_table, partition_table in zip(base_tables, partition_tables):
                 if base_table not in allowed_base_tables:
                     logger.warning(f"Skipping invalid base table: {base_table}")
                     continue
-
+                    
                 partition_sql = """
                 CREATE TABLE IF NOT EXISTS {} 
                 PARTITION OF {}
@@ -256,10 +252,7 @@ class PostgreSQLTimeSeriesStore:
                 """.format(partition_table, base_table)
 
                 try:
-                    db.execute(
-                        text(partition_sql),
-                        (start_date.isoformat(), end_date.isoformat()),
-                    )
+                    db.execute(text(partition_sql), (start_date.isoformat(), end_date.isoformat()))
                 except Exception as e:
                     logger.warning(f"Failed to create partition {partition_table}: {e}")
 
@@ -305,11 +298,9 @@ class PostgreSQLTimeSeriesStore:
                 "event_type": point.tags.get("event_type"),
                 "event_name": point.measurement,
                 "timestamp": point.timestamp,
-                "value": (
-                    float(point.value)
-                    if isinstance(point.value, (int, float))
-                    else None
-                ),
+                "value": float(point.value)
+                if isinstance(point.value, (int, float))
+                else None,
                 "tags": json.dumps(point.tags),
                 "fields": json.dumps(point.fields),
             },
@@ -619,9 +610,9 @@ class PostgreSQLTimeSeriesStore:
                 "searches": row.searches,
                 "downloads": row.downloads,
                 "tags": json.loads(row.tags) if row.tags else {},
-                "avg_engagement": (
-                    float(row.avg_engagement) if row.avg_engagement else None
-                ),
+                "avg_engagement": float(row.avg_engagement)
+                if row.avg_engagement
+                else None,
                 "session_count": row.session_count,
             }
             for row in rows
@@ -642,17 +633,11 @@ class PostgreSQLTimeSeriesStore:
 
             for table in tables:
                 # Validate table name
-                if table not in [
-                    "analytics_events_ts",
-                    "performance_metrics_ts",
-                    "user_sessions_ts",
-                ]:
+                if table not in ["analytics_events_ts", "performance_metrics_ts", "user_sessions_ts"]:
                     continue
 
                 # Get row count
-                count_sql = "SELECT COUNT(*) as count FROM {}".format(
-                    table
-                )  # nosec: B608 - table validated against whitelist
+                count_sql = "SELECT COUNT(*) as count FROM {}".format(table)  # nosec: B608 - table validated against whitelist
                 count_result = db.execute(text(count_sql)).first()
 
                 # Get table size (approximate) - use parameterized query
@@ -661,7 +646,7 @@ class PostgreSQLTimeSeriesStore:
                     pg_size_pretty(pg_total_relation_size(:table_name)) as size,
                     pg_total_relation_size(:table_name) as size_bytes
                 """
-                size_result = db.execute(text(size_sql), {"table_name": table}).first()
+                size_result = db.execute(text(size_sql), {'table_name': table}).first()
 
                 stats[table] = {
                     "row_count": count_result.count,
@@ -691,16 +676,10 @@ class PostgreSQLTimeSeriesStore:
 
             for table in tables:
                 # Validate table name
-                if table not in [
-                    "analytics_events_ts",
-                    "performance_metrics_ts",
-                    "user_sessions_ts",
-                ]:
+                if table not in ["analytics_events_ts", "performance_metrics_ts", "user_sessions_ts"]:
                     continue
 
-                delete_sql = "DELETE FROM {} WHERE timestamp < :cutoff_date".format(
-                    table
-                )  # nosec: B608 - table validated against whitelist
+                delete_sql = "DELETE FROM {} WHERE timestamp < :cutoff_date".format(table)  # nosec: B608 - table validated against whitelist
                 result = db.execute(text(delete_sql), {"cutoff_date": cutoff_date})
                 deleted_count += result.rowcount
 
@@ -850,7 +829,7 @@ class InfluxDBTimeSeriesStore:
 
             # Build Flux query
             # Validate and escape measurement
-            if not re.match(r"^[a-zA-Z0-9_-]+$", query_spec.measurement):
+            if not re.match(r'^[a-zA-Z0-9_-]+$', query_spec.measurement):
                 raise ValueError("Invalid measurement name format")
 
             flux_query = f"""
@@ -862,18 +841,16 @@ class InfluxDBTimeSeriesStore:
             # Add tag filters
             if query_spec.tags:
                 for key, value in query_spec.tags.items():
-                    if not re.match(r"^[a-zA-Z0-9_-]+$", key):
+                    if not re.match(r'^[a-zA-Z0-9_-]+$', key):
                         raise ValueError(f"Invalid tag key format: {key}")
                     escaped_value = str(value).replace('"', '\\"')
-                    flux_query += (
-                        f'|> filter(fn: (r) => r.{key} == "{escaped_value}")\n'
-                    )
+                    flux_query += f'|> filter(fn: (r) => r.{key} == "{escaped_value}")\n'
 
             # Add field filters
             if query_spec.fields:
                 escaped_fields = []
                 for field in query_spec.fields:
-                    if not re.match(r"^[a-zA-Z0-9_-]+$", field):
+                    if not re.match(r'^[a-zA-Z0-9_-]+$', field):
                         raise ValueError(f"Invalid field name format: {field}")
                     escaped_fields.append(f'r._field == "{field}"')
 

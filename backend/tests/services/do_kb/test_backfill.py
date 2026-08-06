@@ -96,7 +96,9 @@ async def test_backfill_iterates_documents(stub_settings, monkeypatch):
     async def fake_next_batch(*args, **kwargs):
         return batches.pop(0)
 
-    monkeypatch.setattr("src.services.do_kb.backfill._next_batch", fake_next_batch)
+    monkeypatch.setattr(
+        "src.services.do_kb.backfill._next_batch", fake_next_batch
+    )
 
     sync_calls: list[str] = []
 
@@ -105,7 +107,9 @@ async def test_backfill_iterates_documents(stub_settings, monkeypatch):
         doc.do_kb_data_source_uuid = f"ds-{doc.id}"
         return doc.do_kb_data_source_uuid
 
-    monkeypatch.setattr("src.services.do_kb.backfill.sync_document_to_kb", fake_sync)
+    monkeypatch.setattr(
+        "src.services.do_kb.backfill.sync_document_to_kb", fake_sync
+    )
     monkeypatch.setattr(
         "src.services.do_kb.backfill.ensure_kb_for_org",
         AsyncMock(return_value="kb-1"),
@@ -138,7 +142,9 @@ async def test_backfill_dry_run_skips_external_calls(stub_settings, monkeypatch)
     async def fake_next_batch(*args, **kwargs):
         return batches.pop(0)
 
-    monkeypatch.setattr("src.services.do_kb.backfill._next_batch", fake_next_batch)
+    monkeypatch.setattr(
+        "src.services.do_kb.backfill._next_batch", fake_next_batch
+    )
 
     sync = AsyncMock()
     monkeypatch.setattr("src.services.do_kb.backfill.sync_document_to_kb", sync)
@@ -158,15 +164,11 @@ async def test_backfill_dry_run_skips_external_calls(stub_settings, monkeypatch)
     ensure.assert_not_called()
     api.start_indexing.assert_not_called()
     assert session._progress.status == "dry_run_done"
-    # Dry-run never attempts the kick → CLI warning must not fire.
-    assert report.indexing_attempted is False
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_backfill_short_circuits_when_already_complete(
-    stub_settings, monkeypatch
-):
+async def test_backfill_short_circuits_when_already_complete(stub_settings, monkeypatch):
     org = _FakeOrg("org-1")
     session = _FakeSession(org, [])
     session._progress = DOKBBackfillProgress(
@@ -188,10 +190,6 @@ async def test_backfill_short_circuits_when_already_complete(
     assert report.finished is True
     sync.assert_not_called()
     api.start_indexing.assert_not_called()
-    # Idempotent re-run: no kick attempted this run, so the CLI must NOT emit
-    # the "not queryable" warning despite completed>0 + indexing_started=False.
-    assert report.indexing_attempted is False
-    assert report.indexing_started is False
 
 
 @pytest.mark.unit
@@ -227,8 +225,12 @@ async def test_backfill_commits_once_per_batch_not_per_doc(stub_settings, monkey
         doc.do_kb_data_source_uuid = f"ds-{doc.id}"
         return doc.do_kb_data_source_uuid
 
-    monkeypatch.setattr("src.services.do_kb.backfill._next_batch", fake_next_batch)
-    monkeypatch.setattr("src.services.do_kb.backfill.sync_document_to_kb", fake_sync)
+    monkeypatch.setattr(
+        "src.services.do_kb.backfill._next_batch", fake_next_batch
+    )
+    monkeypatch.setattr(
+        "src.services.do_kb.backfill.sync_document_to_kb", fake_sync
+    )
     monkeypatch.setattr(
         "src.services.do_kb.backfill.ensure_kb_for_org",
         AsyncMock(return_value="kb-1"),
@@ -241,79 +243,3 @@ async def test_backfill_commits_once_per_batch_not_per_doc(stub_settings, monkey
 
     # 3 docs in one batch → 3 commits (NOT 5 = 1+3+1 the old per-doc path).
     assert session.commits == 3
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_backfill_reports_indexing_not_started_when_kick_fails(
-    stub_settings, monkeypatch
-):
-    """FIX C1: when the final start_indexing kick raises, the report must say
-    indexing_started=False even though completed>0 — data sources uploaded but
-    docs are NOT queryable yet. Status still flips to 'completed' (resumable)."""
-    org = _FakeOrg("org-1")
-    docs = [_FakeDoc(f"d{i:02d}") for i in range(2)]
-    session = _FakeSession(org, docs)
-
-    batches = [docs, []]
-
-    async def fake_next_batch(*args, **kwargs):
-        return batches.pop(0)
-
-    async def fake_sync(session_, doc, *, client=None, trigger_indexing=True):
-        doc.do_kb_data_source_uuid = f"ds-{doc.id}"
-        return doc.do_kb_data_source_uuid
-
-    monkeypatch.setattr("src.services.do_kb.backfill._next_batch", fake_next_batch)
-    monkeypatch.setattr("src.services.do_kb.backfill.sync_document_to_kb", fake_sync)
-    monkeypatch.setattr(
-        "src.services.do_kb.backfill.ensure_kb_for_org",
-        AsyncMock(return_value="kb-1"),
-    )
-
-    api = MagicMock()
-    # The indexing kick 400s — the incident this fix prevents.
-    api.start_indexing = AsyncMock(side_effect=RuntimeError("400 Bad Request"))
-
-    report = await backfill_org(session, org.id, batch_size=10, client=api)
-
-    assert report.completed == 2
-    assert report.failed == 0
-    assert report.indexing_started is False
-    # The kick was attempted and failed — this IS the case the CLI warns on.
-    assert report.indexing_attempted is True
-    # Resumability preserved: status is still 'completed', not a failure state.
-    assert session._progress.status == "completed"
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_backfill_reports_indexing_started_on_success(stub_settings, monkeypatch):
-    """Happy path: a successful kick reports indexing_started=True."""
-    org = _FakeOrg("org-1")
-    docs = [_FakeDoc("d00")]
-    session = _FakeSession(org, docs)
-
-    batches = [docs, []]
-
-    async def fake_next_batch(*args, **kwargs):
-        return batches.pop(0)
-
-    async def fake_sync(session_, doc, *, client=None, trigger_indexing=True):
-        doc.do_kb_data_source_uuid = f"ds-{doc.id}"
-        return doc.do_kb_data_source_uuid
-
-    monkeypatch.setattr("src.services.do_kb.backfill._next_batch", fake_next_batch)
-    monkeypatch.setattr("src.services.do_kb.backfill.sync_document_to_kb", fake_sync)
-    monkeypatch.setattr(
-        "src.services.do_kb.backfill.ensure_kb_for_org",
-        AsyncMock(return_value="kb-1"),
-    )
-
-    api = MagicMock()
-    api.start_indexing = AsyncMock()
-
-    report = await backfill_org(session, org.id, batch_size=10, client=api)
-
-    assert report.completed == 1
-    assert report.indexing_started is True

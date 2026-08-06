@@ -34,8 +34,6 @@ describe('useAuthStore signOut', () => {
       isLoading: false,
       error: 'stale error',
       pendingEmailConfirmation: true,
-      pendingConfirmationEmail: 'ada@example.com',
-      pendingSignupPossiblyExisting: true,
     });
 
     useAuthStore.getState().signOut();
@@ -51,83 +49,5 @@ describe('useAuthStore signOut', () => {
         pendingEmailConfirmation: false,
       })
     );
-  });
-
-  it('clears the pending confirmation email when signing out', async () => {
-    // A shared machine must never show the previous visitor's address.
-    const mockBrowserSignOut = vi.fn().mockResolvedValue(undefined);
-
-    vi.doMock('@/lib/supabase/client', () => ({
-      createClient: () => ({
-        auth: {
-          onAuthStateChange: vi.fn(),
-          signOut: mockBrowserSignOut,
-        },
-      }),
-    }));
-
-    vi.doMock('@/services/workspaceService', () => ({
-      clearWorkspaceServiceCache: vi.fn(),
-    }));
-
-    const { useAuthStore } =
-      await vi.importActual<typeof import('@/stores/authStore')>(
-        '@/stores/authStore'
-      );
-
-    useAuthStore.setState({
-      pendingEmailConfirmation: true,
-      pendingConfirmationEmail: 'ada@example.com',
-      pendingSignupPossiblyExisting: true,
-    });
-
-    useAuthStore.getState().signOut();
-
-    expect(useAuthStore.getState()).toEqual(
-      expect.objectContaining({
-        pendingEmailConfirmation: false,
-        pendingConfirmationEmail: null,
-        pendingSignupPossiblyExisting: false,
-      })
-    );
-  });
-
-  it('destroys the local auth cookie when server-side revocation fails', async () => {
-    // supabase-js returns { error } WITHOUT clearing the local session when the
-    // revocation request fails, so the SSR cookie would otherwise survive and
-    // sign the user straight back in on the next page load.
-    const mockBrowserSignOut = vi
-      .fn()
-      .mockResolvedValue({ error: new Error('Failed to fetch') });
-
-    vi.doMock('@/lib/supabase/client', () => ({
-      createClient: () => ({
-        auth: {
-          onAuthStateChange: vi.fn(),
-          signOut: mockBrowserSignOut,
-        },
-      }),
-    }));
-
-    vi.doMock('@/services/workspaceService', () => ({
-      clearWorkspaceServiceCache: vi.fn(),
-    }));
-
-    const { useAuthStore } =
-      await vi.importActual<typeof import('@/stores/authStore')>(
-        '@/stores/authStore'
-      );
-
-    document.cookie = 'sb-example-auth-token=chunkless-session; Path=/';
-    document.cookie = 'sb-example-auth-token.0=first-chunk; Path=/';
-    document.cookie = 'unrelated-cookie=keep-me; Path=/';
-    expect(document.cookie).toContain('sb-example-auth-token=');
-
-    await expect(useAuthStore.getState().signOut()).resolves.toBeUndefined();
-
-    expect(document.cookie).not.toContain('sb-example-auth-token');
-    expect(document.cookie).toContain('unrelated-cookie=keep-me');
-    expect(useAuthStore.getState().isAuthenticated).toBe(false);
-    expect(useAuthStore.getState().error).toMatch(/could not be revoked/i);
   });
 });

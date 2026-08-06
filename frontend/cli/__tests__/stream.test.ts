@@ -31,6 +31,7 @@ const CONFIG = {
 const HEADERS = {
   'Content-Type': 'application/json',
   Authorization: 'Bearer tok_test',
+  'X-Organization-ID': 'org_1',
 };
 
 function sseResponse(events: Array<{ event: string; data: unknown }>) {
@@ -159,8 +160,7 @@ test('yields confirmation event', async () => {
 });
 
 test('yields error event on non-ok response', async () => {
-  const mockFetch = vi
-    .fn()
+  const mockFetch = vi.fn()
     .mockResolvedValue({ ok: false, status: 401, body: null });
 
   const events: unknown[] = [];
@@ -300,32 +300,6 @@ test('yields reflection event with passed/issues/round', async () => {
     passed: false,
     issues: ['missing citations'],
     round: 2,
-    revising: false,
-  });
-});
-
-test('parses revising flag on reflection (self-correction restart)', async () => {
-  const mockFetch = vi.fn().mockResolvedValue(
-    sseResponse([
-      {
-        event: 'reflection',
-        data: { passed: false, issues: ['weak'], round: 0, revising: true },
-      },
-      { event: 'done', data: {} },
-    ])
-  );
-
-  const events: unknown[] = [];
-  for await (const e of streamAgent('go', {}, { fetchFn: mockFetch as any })) {
-    events.push(e);
-  }
-
-  expect(events).toContainEqual({
-    type: 'reflection',
-    passed: false,
-    issues: ['weak'],
-    round: 0,
-    revising: true,
   });
 });
 

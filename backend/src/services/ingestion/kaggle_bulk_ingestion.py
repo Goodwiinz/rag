@@ -368,12 +368,12 @@ class KaggleBulkIngestionService:
             await session.run(
                 query,
                 paper_id=paper["id"],
-                title=(
-                    paper["title"][:500] if paper["title"] else ""
-                ),  # Limit title length
-                abstract=(
-                    paper["abstract"][:5000] if paper["abstract"] else ""
-                ),  # Limit abstract
+                title=paper["title"][:500]
+                if paper["title"]
+                else "",  # Limit title length
+                abstract=paper["abstract"][:5000]
+                if paper["abstract"]
+                else "",  # Limit abstract
                 primary_category=paper["primary_category"],
                 categories=paper["categories"],
                 published=paper["published"],

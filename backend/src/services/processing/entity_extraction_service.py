@@ -301,16 +301,9 @@ class EntityExtractionService:
             if not dedup_source or not dedup_target:
                 continue
 
-            relationship_type = str(
-                relationship.get("relationship_type") or "related_to"
-            )
+            relationship_type = str(relationship.get("relationship_type") or "related_to")
             pattern_matched = str(relationship.get("pattern_matched") or "")
-            dedup_key = (
-                source_key,
-                target_key,
-                relationship_type.lower(),
-                pattern_matched,
-            )
+            dedup_key = (source_key, target_key, relationship_type.lower(), pattern_matched)
             if dedup_key in seen:
                 continue
             seen.add(dedup_key)

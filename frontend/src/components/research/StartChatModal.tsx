@@ -85,7 +85,7 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
               onChange={(e) => setInitialMessage(e.target.value)}
               placeholder="Enter your first message to start the conversation..."
               disabled={isSubmitting}
-              className="w-full h-32 px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
+              className="w-full h-32 px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
               required
             />
           </div>

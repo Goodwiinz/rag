@@ -68,7 +68,7 @@ export function ConfirmationCard({
       role="alertdialog"
       aria-label="Approval needed"
       aria-describedby="fab-hitl-desc"
-      className="rounded-(--nous-radius-md) border border-(--nous-border-1) bg-(--nous-bg-2) text-sm my-2 overflow-hidden outline-hidden"
+      className="rounded-[var(--nous-radius-md)] border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] text-sm my-2 overflow-hidden outline-none"
       onKeyDown={(e) => {
         if (e.key === 'Escape' && !isLoading) onCancel();
       }}
@@ -183,7 +183,7 @@ export function ConfirmationCard({
           onClick={onConfirm}
           disabled={isLoading}
           aria-label="Approve and run the requested action"
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg disabled:opacity-50 transition-all duration-150 ease-out focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg disabled:opacity-50 transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
           style={{
             background: 'var(--nous-sol)',
             color: 'var(--nous-erebus, #0A0A0E)',
@@ -197,7 +197,7 @@ export function ConfirmationCard({
           onClick={onCancel}
           disabled={isLoading}
           aria-label="Cancel — do not run the action"
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border disabled:opacity-50 transition-all duration-150 ease-out focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border disabled:opacity-50 transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
           style={{
             borderColor: 'var(--nous-mars, #ef4444)',
             background:

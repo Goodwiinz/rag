@@ -61,7 +61,7 @@ def _isolated_import_stubs():
     """Install the import stubs this module needs, then restore sys.modules.
 
     Everything added while this module's tests run (stubs, the fake
-    src.services.agent package hierarchy from _import_tools_impl, transitively
+    src.api.agent package hierarchy from _import_tools_impl, transitively
     imported modules) is removed at teardown, and any entry that was
     overwritten is restored — later test modules import the real thing.
     """
@@ -543,31 +543,29 @@ _HEAVY_STUBS = [
 def _import_tools_impl():
     """Return the tools_impl module, importing it under its real package name.
 
-    Bypasses the package __init__ chain (which can drag in heavier deps) by
-    pre-populating sys.modules with stubs for the sibling module and then
-    loading tools_impl.py directly under its canonical dotted name
-    (src/services/agent/ — the shim-free home since audit B1/B5).
+    Bypasses src/api/agent/__init__.py (which drags in langgraph/fastapi) by
+    pre-populating sys.modules with stubs for every sibling module and then
+    loading tools_impl.py directly under its canonical dotted name.
     """
-    key = "src.services.agent.tools_impl"
+    key = "src.api.agent.tools_impl"
     if key in sys.modules:
         return sys.modules[key]
 
-    agent_dir = pathlib.Path(__file__).parents[3] / "src" / "services" / "agent"
+    agent_dir = pathlib.Path(__file__).parents[3] / "src" / "api" / "agent"
 
     # Ensure the package hierarchy exists in sys.modules without running __init__.py
-    for pkg in ("src.services", "src.services.agent"):
+    for pkg in ("src.api", "src.api.agent"):
         if pkg not in sys.modules:
             m = ModuleType(pkg)
             m.__path__ = [str(agent_dir.parent if "agent" not in pkg else agent_dir)]
             m.__package__ = pkg
             sys.modules[pkg] = m
 
-    # Stub the relatively-imported sibling with MagicMock so attribute
-    # imports succeed without dragging in its dependency chain.
+    # Stub every sibling module with MagicMock so attribute imports succeed
     from unittest.mock import MagicMock as _MM
 
-    for sibling in ("tool_helpers",):
-        sibling_key = f"src.services.agent.{sibling}"
+    for sibling in ("execute", "tool_helpers", "jobs", "streaming", "trace_context"):
+        sibling_key = f"src.api.agent.{sibling}"
         if sibling_key not in sys.modules:
             sys.modules[sibling_key] = _MM()
 
@@ -576,7 +574,7 @@ def _import_tools_impl():
         str(agent_dir / "tools_impl.py"),
     )
     mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-    mod.__package__ = "src.services.agent"
+    mod.__package__ = "src.api.agent"
     sys.modules[key] = mod
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod

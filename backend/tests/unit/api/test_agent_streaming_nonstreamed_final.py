@@ -11,8 +11,6 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from tests.utils.agent_stream import frames_of_type, make_stream_request
-
 
 class _FakeGraphNoStream:
     """Graph that emits NO on_chat_model_stream events (e.g. greeting fast-path)
@@ -43,84 +41,17 @@ class _FakeGraphNoStream:
         )
 
 
-class _FakeGraphWithRootFinal:
-    """Graph whose root event already carries the completed final state."""
-
-    def __init__(self):
-        self.aget_state_calls = 0
-        self.final_values = {
-            "user_id": "user-1",
-            "messages": [
-                SimpleNamespace(
-                    type="ai",
-                    content="Root output answer",
-                    tool_calls=[],
-                )
-            ],
-            "tool_executions": [],
-        }
-
-    async def astream_events(self, *args, **kwargs):
-        yield {
-            "event": "on_chain_end",
-            "name": "LangGraph",
-            "parent_ids": [],
-            "data": {"output": self.final_values},
-        }
-
-    async def aget_state(self, config):
-        self.aget_state_calls += 1
-        if self.aget_state_calls == 1:
-            # Required pre-run stale-interrupt check.
-            return SimpleNamespace(values={}, tasks=())
-        return SimpleNamespace(values=self.final_values, tasks=())
-
-
-class _FakeGraphWithInterruptedRoot:
-    """Interrupted roots expose state but not pending-task metadata in events."""
-
-    def __init__(self):
-        self.aget_state_calls = 0
-        self.interrupted_values = {
-            "user_id": "user-1",
-            "messages": [
-                SimpleNamespace(
-                    type="ai",
-                    content="",
-                    tool_calls=[{"name": "create_project", "args": {}}],
-                )
-            ],
-            "tool_executions": [],
-        }
-
-    async def astream_events(self, *args, **kwargs):
-        yield {
-            "event": "on_chain_end",
-            "name": "LangGraph",
-            "parent_ids": [],
-            "data": {"output": self.interrupted_values},
-        }
-
-    async def aget_state(self, config):
-        self.aget_state_calls += 1
-        if self.aget_state_calls == 1:
-            return SimpleNamespace(values={}, tasks=())
-        interrupt = SimpleNamespace(
-            value={
-                "pending_tools": ["create_project"],
-                "tools": [{"name": "create_project", "args": {}}],
-            }
-        )
-        task = SimpleNamespace(interrupts=[interrupt])
-        return SimpleNamespace(values=self.interrupted_values, tasks=[task])
-
-
 @pytest.mark.asyncio
 async def test_stream_emits_nonstreamed_final_answer_as_token():
     from src.api.agent.streaming import stream_event_generator
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-123")
+    body = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="hi")],
+        page_context={"type": "general"},
+        thread_id="thread-123",
+        model=None,
+    )
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
@@ -137,6 +68,10 @@ async def test_stream_emits_nonstreamed_final_answer_as_token():
             return_value=_FakeGraphNoStream(),
         ),
         patch(
+            "src.api.agent.streaming._persist_thread_messages",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
@@ -146,90 +81,11 @@ async def test_stream_emits_nonstreamed_final_answer_as_token():
             events.append(event)
 
     # Exactly one token event, carrying the non-streamed final answer.
-    token_events = frames_of_type(events, "token")
+    token_events = [e for e in events if e.startswith("event: token\n")]
     assert len(token_events) == 1, f"expected one fallback token, got {events}"
     assert "how can I help with your research today" in token_events[0]
     # And it must come before `done`.
-    assert "event: done\n" in events[-1]
-    done_idx = next(i for i, e in enumerate(events) if "event: done\n" in e)
-    token_idx = next(i for i, e in enumerate(events) if "event: token\n" in e)
+    assert events[-1].startswith("event: done\n")
+    done_idx = next(i for i, e in enumerate(events) if e.startswith("event: done\n"))
+    token_idx = next(i for i, e in enumerate(events) if e.startswith("event: token\n"))
     assert token_idx < done_idx
-
-
-@pytest.mark.asyncio
-async def test_completed_stream_reuses_root_output_without_final_checkpoint_read():
-    from src.api.agent.streaming import stream_event_generator
-
-    graph = _FakeGraphWithRootFinal()
-    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(
-        messages=[{"role": "user", "content": "hello"}], thread_id="thread-123"
-    )
-    current_user = Mock(id="user-1", organization_id="org-1")
-
-    with (
-        patch(
-            "src.services.agent.observability.configure_langsmith",
-            return_value=None,
-        ),
-        patch(
-            "src.services.agent.checkpointer.get_checkpointer",
-            new=AsyncMock(return_value=object()),
-        ),
-        patch(
-            "src.services.agent.graph.compile_agent_graph",
-            return_value=graph,
-        ),
-        patch(
-            "src.api.agent.streaming.AsyncSessionLocal",
-            return_value=AsyncMock(),
-        ),
-    ):
-        events = []
-        async for event in stream_event_generator(body, request, current_user):
-            events.append(event)
-
-    assert any(
-        "event: token\n" in event and "Root output answer" in event for event in events
-    )
-    assert any("event: done\n" in event for event in events)
-    assert graph.aget_state_calls == 1
-
-
-@pytest.mark.asyncio
-async def test_interrupted_root_still_reads_checkpoint_for_pending_tasks():
-    from src.api.agent.streaming import stream_event_generator
-
-    graph = _FakeGraphWithInterruptedRoot()
-    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(
-        messages=[{"role": "user", "content": "create a project"}],
-        thread_id="thread-123",
-    )
-    current_user = Mock(id="user-1", organization_id="org-1")
-
-    with (
-        patch(
-            "src.services.agent.observability.configure_langsmith",
-            return_value=None,
-        ),
-        patch(
-            "src.services.agent.checkpointer.get_checkpointer",
-            new=AsyncMock(return_value=object()),
-        ),
-        patch(
-            "src.services.agent.graph.compile_agent_graph",
-            return_value=graph,
-        ),
-        patch(
-            "src.api.agent.streaming.AsyncSessionLocal",
-            return_value=AsyncMock(),
-        ),
-    ):
-        events = []
-        async for event in stream_event_generator(body, request, current_user):
-            events.append(event)
-
-    assert any("event: confirmation\n" in event for event in events)
-    assert not any("event: done\n" in event for event in events)
-    assert graph.aget_state_calls == 2

@@ -1,14 +1,12 @@
 'use client';
 
 import { BookOpen, FileText } from 'lucide-react';
-import type { CitationItem } from '@/hooks';
+import { useCitationsForThread } from '@/hooks';
 import { CollapsibleCard } from './CollapsibleCard';
 
-export function AllCitationsPanel({
-  allCitations,
-}: {
-  allCitations: CitationItem[];
-}) {
+export function AllCitationsPanel() {
+  const { allCitations } = useCitationsForThread();
+
   if (allCitations.length === 0) return null;
 
   return (

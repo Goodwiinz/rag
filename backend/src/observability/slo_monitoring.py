@@ -12,7 +12,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .config import config
 from .logging import get_logger
-from .metrics import increment_counter, increment_updown_counter, record_histogram
+from .metrics import (
+    increment_counter,
+    increment_updown_counter,
+    record_histogram,
+)
 
 logger = get_logger(__name__)
 
@@ -411,16 +415,12 @@ class SLAMonitor:
             "median": statistics.median(recent_data),
             "min": min(recent_data),
             "max": max(recent_data),
-            "p95": (
-                statistics.quantiles(recent_data, n=20)[18]
-                if len(recent_data) >= 20
-                else max(recent_data)
-            ),
-            "p99": (
-                statistics.quantiles(recent_data, n=100)[98]
-                if len(recent_data) >= 100
-                else max(recent_data)
-            ),
+            "p95": statistics.quantiles(recent_data, n=20)[18]
+            if len(recent_data) >= 20
+            else max(recent_data),
+            "p99": statistics.quantiles(recent_data, n=100)[98]
+            if len(recent_data) >= 100
+            else max(recent_data),
             "std_dev": statistics.stdev(recent_data) if len(recent_data) > 1 else 0.0,
         }
 

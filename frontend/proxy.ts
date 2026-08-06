@@ -21,11 +21,7 @@ function buildCsp(nonce: string): string {
     "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self'",
-    // React dev mode needs eval() for debugging features (callstack
-    // reconstruction); never emitted in production builds.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${
-      process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''
-    }`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
@@ -35,16 +31,6 @@ function buildCsp(nonce: string): string {
   ].join('; ');
 }
 
-// NOTE (AU8, 2026-07-16): this proxy intentionally does NOT gate auth. It
-// only refreshes the Supabase session cookie (updateSession) and sets the
-// CSP nonce — no getUser()-checked redirect for unauthenticated requests.
-// Route protection is enforced server-side per route tree: app/(dashboard)/
-// layout.tsx guards all dashboard pages with getUser() + redirect('/login'),
-// and app/api/trigger/** routes each do their own getUser() -> 401. A new
-// top-level protected route MUST bring its own guard (or live under an
-// existing guarded layout) — there is no middleware backstop here. See the
-// comment on app/(dashboard)/layout.tsx for the full history of why an
-// earlier comment implied otherwise.
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const csp = buildCsp(nonce);

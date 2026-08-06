@@ -742,11 +742,9 @@ async def submit_metric(
             ab_testing_service.process_metric_async,
             metric_data=metric_data,
             user_id=current_user.id if current_user else metric_data.user_id,
-            organization_id=(
-                current_user.organization_id
-                if current_user
-                else metric_data.organization_id
-            ),
+            organization_id=current_user.organization_id
+            if current_user
+            else metric_data.organization_id,
             db=db,
             redis_client=redis_client,
         )

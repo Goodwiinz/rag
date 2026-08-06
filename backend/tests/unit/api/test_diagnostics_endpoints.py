@@ -14,11 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from src.core.dependencies import get_current_user, require_admin
-
-# Must match conftest's mock_admin_user.organization_id — the endpoints
-# now scope traces to the caller's tenant.
-_FIXTURE_ORG_ID = "test-org-id"
+from src.core.dependencies import require_admin
 from src.services.diagnostics.retrieval_diagnostics import (
     ContextDiagnostics,
     FusionDiagnostics,
@@ -26,6 +22,7 @@ from src.services.diagnostics.retrieval_diagnostics import (
     RetrievalTrace,
     SourceDiagnostics,
 )
+
 
 # ============================================================================
 # Factories
@@ -63,9 +60,6 @@ def _make_trace(**overrides) -> RetrievalTrace:
         "search_type": "hybrid",
     }
     defaults.update(overrides)
-    # Traces are tenant-scoped: an unstamped one is readable by nobody, so
-    # fixtures must declare an owner just like the live write path does.
-    defaults.setdefault("organization_id", _FIXTURE_ORG_ID)
     return RetrievalTrace(**defaults)
 
 
@@ -73,24 +67,20 @@ def _make_trace(**overrides) -> RetrievalTrace:
 def _override_diagnostics_auth(test_app, mock_admin_user):
     """Default diagnostics tests run as admin unless explicitly cleared."""
     test_app.dependency_overrides[require_admin] = lambda: mock_admin_user
-    # The read endpoints now scope traces to the caller's tenant, so they
-    # need to know who is asking as well as that they are an admin.
-    test_app.dependency_overrides[get_current_user] = lambda: mock_admin_user
     try:
         yield
     finally:
         test_app.dependency_overrides.pop(require_admin, None)
-        test_app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.mark.asyncio
 async def test_diagnostics_requires_auth_without_override() -> None:
     """Diagnostics endpoints should reject unauthenticated requests."""
     # We use a mocked FastAPI app rather than the full `test_app` to avoid triggering database startup
-    from fastapi import Depends, FastAPI, HTTPException
-    from fastapi.testclient import TestClient
-
+    from fastapi import FastAPI, Depends
     from src.api.diagnostics.retrieval_diagnostics import router
+    from fastapi.testclient import TestClient
+    from fastapi import HTTPException
 
     app = FastAPI()
     app.include_router(router)
@@ -221,12 +211,12 @@ class TestGetRecentTracesEndpoint:
         """Should pass limit and offset query params to the store."""
         mock_store.get_recent_traces = AsyncMock(return_value=[])
 
-        response = test_client.get("/api/v1/diagnostics/traces?limit=10&offset=5")
+        response = test_client.get(
+            "/api/v1/diagnostics/traces?limit=10&offset=5"
+        )
 
         assert response.status_code == 200
-        mock_store.get_recent_traces.assert_called_once_with(
-            limit=10, offset=5, organization_id=_FIXTURE_ORG_ID
-        )
+        mock_store.get_recent_traces.assert_called_once_with(limit=10, offset=5)
         body = response.json()
         assert body["limit"] == 10
         assert body["offset"] == 5
@@ -261,11 +251,7 @@ class TestGetAggregateStatsEndpoint:
             "avg_time_ms": 180.5,
             "avg_result_count": 4.2,
             "source_stats": {
-                "fulltext": {
-                    "avg_time_ms": 45.0,
-                    "max_time_ms": 120.0,
-                    "query_count": 100,
-                },
+                "fulltext": {"avg_time_ms": 45.0, "max_time_ms": 120.0, "query_count": 100},
             },
             "source_failure_count": 2,
             "truncation_stats": {
@@ -294,9 +280,7 @@ class TestGetAggregateStatsEndpoint:
         response = test_client.get("/api/v1/diagnostics/aggregate?hours=48")
 
         assert response.status_code == 200
-        mock_store.get_aggregate_stats.assert_called_once_with(
-            hours=48, organization_id=_FIXTURE_ORG_ID
-        )
+        mock_store.get_aggregate_stats.assert_called_once_with(hours=48)
 
 
 # ============================================================================
@@ -337,11 +321,7 @@ class TestWeightExperimentEndpoint:
             "max_docs": 5,
             "configurations": [
                 {"fulltext": 0.4, "vector": 0.4, "knowledge_graph": 0.2},  # Valid
-                {
-                    "fulltext": 0.3,
-                    "vector": 0.3,
-                    "knowledge_graph": 0.3,
-                },  # Invalid: 0.9
+                {"fulltext": 0.3, "vector": 0.3, "knowledge_graph": 0.3},  # Invalid: 0.9
             ],
         }
 
@@ -383,12 +363,10 @@ class TestWeightExperimentEndpoint:
         # never our custom "weights must sum to 1.0" error.
         if response.status_code == 422:
             body = response.json()
-            error_msg = body.get("error", {}).get("message", "") or body.get(
-                "detail", ""
+            error_msg = body.get("error", {}).get("message", "") or body.get("detail", "")
+            assert "sum to 1.0" not in error_msg.lower(), (
+                "Valid weights should not trigger sum-to-1.0 validation"
             )
-            assert (
-                "sum to 1.0" not in error_msg.lower()
-            ), "Valid weights should not trigger sum-to-1.0 validation"
 
     @patch("src.api.diagnostics.retrieval_diagnostics.diagnostics_store")
     def test_empty_configurations_rejected(self, mock_store, test_client) -> None:
@@ -457,11 +435,7 @@ class TestDiagnosticsRouterRegistration:
         from src.api.diagnostics.retrieval_diagnostics import router
 
         routes = [r for r in router.routes if hasattr(r, "path")]
-        list_routes = [
-            r
-            for r in routes
-            if r.path.rstrip("/") in ("/traces", "/diagnostics/traces")
-        ]
+        list_routes = [r for r in routes if r.path.rstrip("/") in ("/traces", "/diagnostics/traces")]
         assert len(list_routes) >= 1
 
     def test_aggregate_route_exists(self) -> None:
@@ -469,11 +443,7 @@ class TestDiagnosticsRouterRegistration:
         from src.api.diagnostics.retrieval_diagnostics import router
 
         routes = [r for r in router.routes if hasattr(r, "path")]
-        aggregate_routes = [
-            r
-            for r in routes
-            if r.path.rstrip("/") in ("/aggregate", "/diagnostics/aggregate")
-        ]
+        aggregate_routes = [r for r in routes if r.path.rstrip("/") in ("/aggregate", "/diagnostics/aggregate")]
         assert len(aggregate_routes) >= 1
 
     def test_weight_experiment_route_exists(self) -> None:
@@ -481,10 +451,5 @@ class TestDiagnosticsRouterRegistration:
         from src.api.diagnostics.retrieval_diagnostics import router
 
         routes = [r for r in router.routes if hasattr(r, "path")]
-        experiment_routes = [
-            r
-            for r in routes
-            if r.path.rstrip("/")
-            in ("/weight-experiment", "/diagnostics/weight-experiment")
-        ]
+        experiment_routes = [r for r in routes if r.path.rstrip("/") in ("/weight-experiment", "/diagnostics/weight-experiment")]
         assert len(experiment_routes) >= 1

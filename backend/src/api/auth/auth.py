@@ -1,15 +1,15 @@
 """
 Authentication API endpoints.
 
-Supabase handles registration, login, token refresh, and password change /
-reset (the hosted GoTrue flows). This module provides profile management,
-session info, admin user management, and API key endpoints.
+Supabase handles registration, login, token refresh, and password reset.
+This module provides profile management, session info, password change,
+admin user management, and API key endpoints.
 """
 
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,10 +17,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import settings
 from src.core.database import get_db
 from src.core.dependencies import get_current_user, require_admin
+from src.core.security import (
+    auth_rate_limiter,
+    get_client_ip,
+    get_current_user_token,
+)
 from src.models.user import User, UserRole
 from src.services.security.auth_service import (
-    AuthenticationError,
     AuthService,
+    AuthenticationError,
     RegistrationError,
     get_auth_service,
 )
@@ -31,6 +36,11 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
 # Request/Response Models
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class ProfileUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
@@ -91,14 +101,68 @@ async def update_profile(
         logger.error(f"Error in update_profile: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while processing the request",
+            detail="An error occurred while processing the request"
         )
 
 
-# NOTE: POST /auth/change-password was retired. Under hosted GoTrue there is no
-# backend register/login, so `User.password_hash` only ever holds the random
-# secret written by JIT provisioning — the "verify current password" gate could
-# never pass. Password changes go through Supabase's own reset-password email.
+@router.post("/change-password")
+async def change_password(
+    password_data: PasswordChange,
+    request: Request,
+    token_data=Depends(get_current_user_token),
+    db: AsyncSession = Depends(get_db),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Change user password"""
+    client_ip = get_client_ip(request)
+
+    # IP-layer rate check first (before auth DB query)
+    ip_allowed, ip_retry = await auth_rate_limiter.check_rate_limit(client_ip, prefix="chpw_ip")
+    if not ip_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many password change attempts from this IP. Please try again later.",
+            headers={"Retry-After": str(ip_retry)},
+        )
+
+    # Resolve authenticated user manually (after rate check)
+    current_user = await get_current_user(token_data=token_data, db=db)
+
+    # Email-layer rate check
+    email_allowed, email_retry = await auth_rate_limiter.check_rate_limit(
+        current_user.email, prefix="chpw_email"
+    )
+    if not email_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many password change attempts for this account. Please try again later.",
+            headers={"Retry-After": str(email_retry)},
+        )
+
+    try:
+        await auth_service.change_password(
+            user=current_user,
+            current_password=password_data.current_password,
+            new_password=password_data.new_password,
+        )
+
+        # Success: no recording
+        return {"message": "Password changed successfully"}
+
+    except (AuthenticationError, RegistrationError) as e:
+        # Failure: record attempts for both layers
+        await auth_rate_limiter.record_attempt(client_ip, prefix="chpw_ip")
+        await auth_rate_limiter.record_attempt(current_user.email, prefix="chpw_email")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        # Failure: record attempts for both layers
+        await auth_rate_limiter.record_attempt(client_ip, prefix="chpw_ip")
+        await auth_rate_limiter.record_attempt(current_user.email, prefix="chpw_email")
+        logger.error(f"Error in change_password: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An error occurred while processing the request"
+        )
 
 
 @router.get("/users")
@@ -165,7 +229,7 @@ async def update_user_role(
         logger.error(f"Error in update_user_role: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while processing the request",
+            detail="An error occurred while processing the request"
         )
 
 
@@ -203,7 +267,7 @@ async def deactivate_user(
         logger.error(f"Error in deactivate_user: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while processing the request",
+            detail="An error occurred while processing the request"
         )
 
 
@@ -244,5 +308,5 @@ async def cleanup_inactive_users(
         logger.error(f"Error in cleanup_inactive_users: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while processing the request",
+            detail="An error occurred while processing the request"
         )

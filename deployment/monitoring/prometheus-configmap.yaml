@@ -255,6 +255,16 @@ data:
             regex: (.+):7474
             replacement: $1:7474
 
+      # Qdrant vector database monitoring
+      - job_name: 'qdrant'
+        static_configs:
+          - targets: ['qdrant:6333']
+        metrics_path: /metrics
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __address__
+            regex: (.+):6333
+            replacement: $1:6333
 
       # Redis caching monitoring
       - job_name: 'redis'
@@ -372,7 +382,7 @@ data:
 
       # Database connection alerts
       - alert: RAG_DatabaseConnectionIssues
-        expr: up{job=~"neo4j|redis"} == 0
+        expr: up{job=~"neo4j|qdrant|redis"} == 0
         for: 1m
         labels:
           severity: critical

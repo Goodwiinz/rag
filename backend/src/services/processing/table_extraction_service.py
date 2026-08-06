@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional
 import structlog
 
 from src.core.config import settings
-from src.services.documents.storage_utils import local_file_for_document
 
 logger = structlog.get_logger()
 
@@ -55,15 +54,13 @@ class TableExtractionService:
         # Data rows
         data_rows = []
         for row in rows[1:]:
-            data_rows.append(
-                "| " + " | ".join(self._escape_md_cell(c) for c in row) + " |"
-            )
+            data_rows.append("| " + " | ".join(self._escape_md_cell(c) for c in row) + " |")
 
         return "\n".join([header, separator] + data_rows)
 
     async def extract_region(
         self,
-        document,
+        pdf_path: str,
         page: int,
         x1: float,
         y1: float,
@@ -81,19 +78,19 @@ class TableExtractionService:
 
         import fitz  # PyMuPDF - lazy import
 
-        with local_file_for_document(document) as pdf_path:
-            if getattr(document, "storage_backend", "local") == "local":
-                pdf_path = self._safe_pdf_path(pdf_path)
-            doc = fitz.open(pdf_path)
-            if page > len(doc):
-                raise ValueError(f"Page {page} exceeds document length ({len(doc)})")
+        pdf_path = self._safe_pdf_path(pdf_path)
+        doc = fitz.open(pdf_path)
+        if page > len(doc):
+            raise ValueError(
+                f"Page {page} exceeds document length ({len(doc)})"
+            )
 
-            pdf_page = doc[page - 1]  # 0-indexed
-            rect = fitz.Rect(x1, y1, x2, y2)
+        pdf_page = doc[page - 1]  # 0-indexed
+        rect = fitz.Rect(x1, y1, x2, y2)
 
-            # Try text extraction first
-            text = pdf_page.get_text("text", clip=rect).strip()
-            doc.close()
+        # Try text extraction first
+        text = pdf_page.get_text("text", clip=rect).strip()
+        doc.close()
 
         if text:
             return {
@@ -109,7 +106,9 @@ class TableExtractionService:
             "confidence": 0.0,
         }
 
-    async def extract_tables_from_pdf(self, document) -> List[Dict[str, Any]]:
+    async def extract_tables_from_pdf(
+        self, pdf_path: str
+    ) -> List[Dict[str, Any]]:
         """Extract all tables from a PDF using Camelot."""
         try:
             import camelot
@@ -117,36 +116,34 @@ class TableExtractionService:
             logger.warning("camelot_not_installed")
             return []
 
-        with local_file_for_document(document) as pdf_path:
-            if getattr(document, "storage_backend", "local") == "local":
-                pdf_path = self._safe_pdf_path(pdf_path)
+        pdf_path = self._safe_pdf_path(pdf_path)
 
+        try:
+            tables = camelot.read_pdf(pdf_path, flavor="lattice", pages="all")
+        except Exception as e:
+            logger.warning("camelot_extraction_failed", error=str(e))
+            # Fallback to stream mode
             try:
-                tables = camelot.read_pdf(pdf_path, flavor="lattice", pages="all")
-            except Exception as e:
-                logger.warning("camelot_extraction_failed", error=str(e))
-                # Fallback to stream mode
-                try:
-                    tables = camelot.read_pdf(pdf_path, flavor="stream", pages="all")
-                except Exception as e2:
-                    logger.error("table_extraction_failed", error=str(e2))
-                    return []
+                tables = camelot.read_pdf(pdf_path, flavor="stream", pages="all")
+            except Exception as e2:
+                logger.error("table_extraction_failed", error=str(e2))
+                return []
 
-            results = []
-            for i, table in enumerate(tables):
-                csv_data = table.df.to_csv(index=False)
-                results.append(
-                    {
-                        "table_index": i,
-                        "page": table.page,
-                        "rows": len(table.df),
-                        "cols": len(table.df.columns),
-                        "csv": csv_data,
-                        "markdown": self._csv_to_markdown(csv_data),
-                        "accuracy": (
-                            table.accuracy if hasattr(table, "accuracy") else None
-                        ),
-                    }
-                )
+        results = []
+        for i, table in enumerate(tables):
+            csv_data = table.df.to_csv(index=False)
+            results.append(
+                {
+                    "table_index": i,
+                    "page": table.page,
+                    "rows": len(table.df),
+                    "cols": len(table.df.columns),
+                    "csv": csv_data,
+                    "markdown": self._csv_to_markdown(csv_data),
+                    "accuracy": table.accuracy
+                    if hasattr(table, "accuracy")
+                    else None,
+                }
+            )
 
         return results

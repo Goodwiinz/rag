@@ -212,11 +212,9 @@ class WebSocketErrorHandler(BaseService):
                 severity=self._determine_error_severity(error),
                 message=str(error),
                 details={
-                    "websocket_state": (
-                        websocket.client_state
-                        if hasattr(websocket, "client_state")
-                        else "unknown"
-                    ),
+                    "websocket_state": websocket.client_state
+                    if hasattr(websocket, "client_state")
+                    else "unknown",
                     "connection_id": connection_id,
                     "user_id": user_id,
                     "organization_id": organization_id,

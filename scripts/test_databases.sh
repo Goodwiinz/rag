@@ -33,9 +33,9 @@ echo ""
 
 # Test Redis
 echo "Testing Redis..."
-if docker exec -it rag-redis-1 redis-cli -a redis_password_123 PING > /dev/null 2>&1; then
-    version=$(docker exec -it rag-redis-1 redis-cli -a redis_password_123 INFO server 2>/dev/null | grep redis_version | cut -d: -f2 | tr -d '\r\n')
-    memory=$(docker exec -it rag-redis-1 redis-cli -a redis_password_123 INFO memory 2>/dev/null | grep used_memory_human | cut -d: -f2 | tr -d '\r\n')
+if docker exec -it rag-redis-1 redis-cli -a REDACTED PING > /dev/null 2>&1; then
+    version=$(docker exec -it rag-redis-1 redis-cli -a REDACTED INFO server 2>/dev/null | grep redis_version | cut -d: -f2 | tr -d '\r\n')
+    memory=$(docker exec -it rag-redis-1 redis-cli -a REDACTED INFO memory 2>/dev/null | grep used_memory_human | cut -d: -f2 | tr -d '\r\n')
     echo -e "${GREEN}✅ Redis: Connected${NC}"
     echo "   Version: $version"
     echo "   Memory Used: $memory"
@@ -47,10 +47,10 @@ echo ""
 
 # Test Neo4j
 echo "Testing Neo4j..."
-if docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123 "RETURN 1;" > /dev/null 2>&1; then
-    version=$(docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123 "CALL dbms.components() YIELD versions RETURN versions[0];" 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-    nodes=$(docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123 "MATCH (n) RETURN count(n);" 2>/dev/null | grep -oE '[0-9]+' | head -1)
-    rels=$(docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123 "MATCH ()-[r]->() RETURN count(r);" 2>/dev/null | grep -oE '[0-9]+' | head -1)
+if docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p REDACTED "RETURN 1;" > /dev/null 2>&1; then
+    version=$(docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p REDACTED "CALL dbms.components() YIELD versions RETURN versions[0];" 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    nodes=$(docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p REDACTED "MATCH (n) RETURN count(n);" 2>/dev/null | grep -oE '[0-9]+' | head -1)
+    rels=$(docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p REDACTED "MATCH ()-[r]->() RETURN count(r);" 2>/dev/null | grep -oE '[0-9]+' | head -1)
     echo -e "${GREEN}✅ Neo4j: Connected${NC}"
     echo "   Version: $version"
     echo "   Nodes: ${nodes:-0}"
@@ -58,6 +58,24 @@ if docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123 "RETU
     ((success_count++))
 else
     echo -e "${RED}❌ Neo4j: Failed${NC}"
+fi
+echo ""
+
+# Test Qdrant
+echo "Testing Qdrant..."
+response=$(curl -s -X GET "http://localhost:6333/collections" -H "api-key: REDACTED")
+if [ $? -eq 0 ] && [[ "$response" != *"error"* ]]; then
+    collection_count=$(echo "$response" | grep -o "name" | wc -l)
+    echo -e "${GREEN}✅ Qdrant: Connected${NC}"
+    echo "   Collections: $collection_count"
+    if [ "$collection_count" -gt 0 ]; then
+        echo "$response" | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | while read name; do
+            echo "   - $name"
+        done
+    fi
+    ((success_count++))
+else
+    echo -e "${RED}❌ Qdrant: Failed${NC}"
 fi
 echo ""
 
@@ -72,18 +90,24 @@ else
     echo -e "${RED}❌ PostgreSQL: Failed${NC}"
 fi
 
-if docker exec -it rag-redis-1 redis-cli -a redis_password_123 PING > /dev/null 2>&1; then
+if docker exec -it rag-redis-1 redis-cli -a REDACTED PING > /dev/null 2>&1; then
     echo -e "${GREEN}✅ Redis: Connected${NC}"
 else
     echo -e "${RED}❌ Redis: Failed${NC}"
 fi
 
-if docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123 "RETURN 1;" > /dev/null 2>&1; then
+if docker exec -it rag-neo4j-1 cypher-shell -u neo4j -p REDACTED "RETURN 1;" > /dev/null 2>&1; then
     echo -e "${GREEN}✅ Neo4j: Connected${NC}"
 else
     echo -e "${RED}❌ Neo4j: Failed${NC}"
 fi
 
+response=$(curl -s -X GET "http://localhost:6333/collections" -H "api-key: REDACTED")
+if [ $? -eq 0 ] && [[ "$response" != *"error"* ]]; then
+    echo -e "${GREEN}✅ Qdrant: Connected${NC}"
+else
+    echo -e "${RED}❌ Qdrant: Failed${NC}"
+fi
 
 echo ""
 echo "Total: $success_count/$total_count databases connected"

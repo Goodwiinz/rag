@@ -4,27 +4,11 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Literal, cast
+from typing import Any, Awaitable, Callable, Literal
 
 logger = logging.getLogger(__name__)
 
 ErrorCategory = Literal["transient", "recoverable", "user_fixable", "fatal"]
-
-# Categories a tool may declare for itself in its error payload. Anything
-# else is ignored and falls through to the keyword heuristics, so a typo
-# cannot silently become a category.
-#
-# "transient" is deliberately NOT declarable. This function classifies a
-# payload the tool *returned*, so the call ran to completion — transience is
-# a property of the call, knowable on the raised-exception path
-# (classify_error) rather than here. It also carries teeth: _nodes_tools
-# sets error_increment = 0 for transient, so a tool could zero its own
-# contribution to MAX_ERRORS by writing one string, and reflection skips its
-# response-quality gate for transient failures. Nothing declares it today;
-# keep that door shut.
-_DECLARABLE_CATEGORIES: frozenset[str] = frozenset(
-    {"recoverable", "user_fixable", "fatal"}
-)
 
 # Maps (tool_name, error_keyword) -> (category, suggestion)
 TOOL_ERROR_HINTS: dict[tuple[str, str], tuple[ErrorCategory, str]] = {
@@ -35,14 +19,6 @@ TOOL_ERROR_HINTS: dict[tuple[str, str], tuple[ErrorCategory, str]] = {
     ("add_document_to_project", "not a valid uuid"): (
         "recoverable",
         "Use document UUIDs from ingest_arxiv_papers, not arXiv paper IDs.",
-    ),
-    ("create_project_note", "project_id is required"): (
-        "recoverable",
-        "Call list_projects for an existing project_id, then retry with " "that id.",
-    ),
-    ("create_draft", "project_id is required"): (
-        "recoverable",
-        "Call list_projects for an existing project_id, then retry with " "that id.",
     ),
     ("ingest_arxiv_papers", "timed out"): (
         "transient",
@@ -96,7 +72,6 @@ _TRANSIENT_ERROR_KEYWORDS = (
 @dataclass(frozen=True)
 class ToolError:
     """Structured tool error with category and actionable suggestion."""
-
     category: ErrorCategory
     message: str
     suggestion: str = ""
@@ -124,16 +99,10 @@ def classify_error(tool_name: str, exc: Exception) -> ToolError:
 
     # Check user_fixable before transient (PermissionError is a subclass of OSError)
     if isinstance(exc, _USER_FIXABLE_EXCEPTIONS):
-        return ToolError(
-            category="user_fixable",
-            message=msg,
-            suggestion="Check your permissions or ask the user for help.",
-        )
+        return ToolError(category="user_fixable", message=msg, suggestion="Check your permissions or ask the user for help.")
 
     if isinstance(exc, _TRANSIENT_EXCEPTIONS):
-        return ToolError(
-            category="transient", message=msg, suggestion="Retrying automatically..."
-        )
+        return ToolError(category="transient", message=msg, suggestion="Retrying automatically...")
 
     # Check hints by keyword
     msg_lower = msg.lower()
@@ -197,38 +166,6 @@ def classify_error_from_payload(tool_name: str, payload: dict) -> ToolError:
             suggestion="You may need different permissions.",
         )
 
-    # 3.5 The tool's own classification, when it declared one.
-    #
-    # Tools that raise a specific, well-understood error write
-    # ``{"error_type": …, "suggestion": …}`` at the raise site, where the
-    # context is known. That was silently discarded: ``_nodes_tools``
-    # rebuilds the ToolMessage from this function, which read only
-    # ``payload["error"]``. So summarize_document's "'<id>' is a project
-    # id, not a document id" — written as *recoverable* with a concrete next
-    # call — matched no keyword and reached the model as **fatal**, which
-    # tells the agent not to recover at all. Every hand-written hint in
-    # tools_impl.py was dead on arrival the same way.
-    #
-    # Placed after TOOL_ERROR_HINTS (the curated central overrides keep
-    # winning) and after the credential/permission checks. That last ordering
-    # is conservatism, not a security property: tool payloads are literals in
-    # this repo, the same trust boundary as the hint table, and a tool that
-    # wanted to hide an auth failure controls payload["error"] too. The cost
-    # is that a tool cannot declare "recoverable" for a message containing
-    # the word "permission"; revisit if a real case turns up.
-    declared = payload.get("error_type")
-    if isinstance(declared, str) and declared in _DECLARABLE_CATEGORIES:
-        # Distinct name: ``suggestion`` is already bound as ``str`` by the
-        # TOOL_ERROR_HINTS loop above.
-        declared_suggestion = payload.get("suggestion")
-        return ToolError(
-            category=cast(ErrorCategory, declared),
-            message=error_msg,
-            suggestion=(
-                declared_suggestion if isinstance(declared_suggestion, str) else ""
-            ),
-        )
-
     # 4. Transient infrastructure / rate-limit errors. See
     # _TRANSIENT_ERROR_KEYWORDS for why connection keywords are scoped and
     # why rate-limit signals are treated as transient.
@@ -236,24 +173,9 @@ def classify_error_from_payload(tool_name: str, payload: dict) -> ToolError:
         return ToolError(category="transient", message=error_msg)
 
     # 5. Recoverable input-shape errors (LLM can usually retry differently).
-    #
-    # "<param> is required" belongs here and used to fall through to fatal:
-    # a missing argument is the most recoverable failure there is — the model
-    # can fetch the value and call again. Observed live: create_project_note
-    # wrote a full note, was rejected for a missing project_id, and the fatal
-    # classification told the agent not to recover, so the work was discarded
-    # (synthetic writing_draft, TOOL-FAILED(create_project_note)).
     if any(
         kw in msg_lower
-        for kw in (
-            "not found",
-            "does not exist",
-            "no results",
-            "invalid",
-            "is required",
-            "missing required",
-            "must be provided",
-        )
+        for kw in ("not found", "does not exist", "no results", "invalid")
     ):
         return ToolError(
             category="recoverable",
@@ -290,7 +212,7 @@ async def retry_transient(
         except _TRANSIENT_EXCEPTIONS as e:
             last_exc = e
             if attempt < max_attempts - 1:
-                delay = base_delay * (2**attempt)
+                delay = base_delay * (2 ** attempt)
                 logger.info(
                     "Transient error (attempt %d/%d), retrying in %.1fs: %s",
                     attempt + 1,

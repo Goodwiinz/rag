@@ -47,9 +47,9 @@ class RealtimeAnalyticsService:
     def __init__(self):
         self.redis_client: Optional[redis.Redis] = None
         self.active_connections: Dict[str, WebSocket] = {}
-        self.subscriptions: Dict[str, Dict[str, Any]] = (
-            {}
-        )  # websocket_id -> subscriptions
+        self.subscriptions: Dict[
+            str, Dict[str, Any]
+        ] = {}  # websocket_id -> subscriptions
         self.event_handlers: Dict[str, List[Callable]] = {}
         self.running = False
         self.background_tasks: Set[asyncio.Task] = set()
@@ -342,15 +342,13 @@ class RealtimeAnalyticsService:
                             == (
                                 uuid.UUID(subscription_id) if subscription_id else None
                             ),
-                            (
-                                and_(
-                                    RealtimeSubscription.channel == channel,
-                                    RealtimeSubscription.subscription_type
-                                    == subscription_type,
-                                )
-                                if channel and subscription_type
-                                else False
-                            ),
+                            and_(
+                                RealtimeSubscription.channel == channel,
+                                RealtimeSubscription.subscription_type
+                                == subscription_type,
+                            )
+                            if channel and subscription_type
+                            else False,
                         ),
                     )
                 )

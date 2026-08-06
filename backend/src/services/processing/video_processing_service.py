@@ -366,9 +366,9 @@ class VideoProcessingService:
                     os.unlink(temp_audio.name)
 
                 else:
-                    audio_analysis["error"] = (
-                        f"Audio extraction failed: {result.stderr}"
-                    )
+                    audio_analysis[
+                        "error"
+                    ] = f"Audio extraction failed: {result.stderr}"
                     logger.error(f"ffmpeg failed for {video_path}: {result.stderr}")
 
         except Exception as e:
@@ -429,9 +429,9 @@ class VideoProcessingService:
                     )
 
                 else:
-                    frame_analysis["error"] = (
-                        f"Keyframe extraction failed: {result.stderr}"
-                    )
+                    frame_analysis[
+                        "error"
+                    ] = f"Keyframe extraction failed: {result.stderr}"
                     logger.warning(
                         f"Keyframe extraction failed for {video_path}: {result.stderr}"
                     )

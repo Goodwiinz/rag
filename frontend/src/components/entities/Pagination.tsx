@@ -87,25 +87,25 @@ export const Pagination: React.FC<PaginationProps> = ({
   if (totalItems === 0) return null;
 
   return (
-    <div className="flex items-center justify-between px-6 py-3 border-t border-(--nous-border-1) bg-(--nous-bg-1)/50">
+    <div className="flex items-center justify-between px-6 py-3 border-t border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50">
       {/* Left: Page size selector */}
       <div className="flex items-center gap-3">
-        <span className="text-[10px] font-mono text-(--nous-fg-3) uppercase tracking-widest">
+        <span className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
           Rows:
         </span>
         <Select
           value={pageSize.toString()}
           onValueChange={(value) => onPageSizeChange(parseInt(value))}
         >
-          <SelectTrigger className="w-20 h-8 bg-(--nous-bg-1) border-(--nous-border-1) font-mono text-xs">
+          <SelectTrigger className="w-20 h-8 bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] font-mono text-xs">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="bg-(--nous-bg-2) border-(--nous-border-1)">
+          <SelectContent className="bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]">
             {pageSizeOptions.map((size) => (
               <SelectItem
                 key={size}
                 value={size.toString()}
-                className="font-mono text-xs focus:bg-(--nous-bg-3)"
+                className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
               >
                 {size}
               </SelectItem>
@@ -115,7 +115,7 @@ export const Pagination: React.FC<PaginationProps> = ({
       </div>
 
       {/* Center: Page info */}
-      <div className="text-[10px] font-mono text-(--nous-fg-3) uppercase tracking-widest">
+      <div className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
         Showing {startItem.toLocaleString()}-{endItem.toLocaleString()} of{' '}
         {totalItems.toLocaleString()} Records
       </div>
@@ -129,7 +129,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           aria-label="First page"
           onClick={() => onPageChange(1)}
           disabled={!canGoPrevious}
-          className="h-8 w-8 text-(--nous-fg-3) hover:text-(--nous-sol) hover:bg-(--nous-sol)/10 disabled:opacity-30"
+          className="h-8 w-8 text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 disabled:opacity-30"
         >
           <ChevronsLeft className="h-4 w-4" />
         </Button>
@@ -141,7 +141,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           aria-label="Previous page"
           onClick={() => onPageChange(currentPage - 1)}
           disabled={!canGoPrevious}
-          className="h-8 w-8 text-(--nous-fg-3) hover:text-(--nous-sol) hover:bg-(--nous-sol)/10 disabled:opacity-30"
+          className="h-8 w-8 text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 disabled:opacity-30"
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
@@ -152,7 +152,7 @@ export const Pagination: React.FC<PaginationProps> = ({
             page === 'ellipsis' ? (
               <span
                 key={`ellipsis-${index}`}
-                className="px-2 text-(--nous-fg-3) font-mono text-xs"
+                className="px-2 text-[var(--nous-fg-3)] font-mono text-xs"
               >
                 ...
               </span>
@@ -165,8 +165,8 @@ export const Pagination: React.FC<PaginationProps> = ({
                 className={cn(
                   'h-8 w-8 font-mono text-xs',
                   page === currentPage
-                    ? 'bg-(--nous-sol)/20 text-(--nous-sol) border border-(--nous-sol)/30'
-                    : 'text-(--nous-fg-3) hover:text-(--nous-sol) hover:bg-(--nous-sol)/10'
+                    ? 'bg-[var(--nous-sol)]/20 text-[var(--nous-sol)] border border-[var(--nous-sol)]/30'
+                    : 'text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10'
                 )}
               >
                 {page}
@@ -182,7 +182,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           aria-label="Next page"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={!canGoNext}
-          className="h-8 w-8 text-(--nous-fg-3) hover:text-(--nous-sol) hover:bg-(--nous-sol)/10 disabled:opacity-30"
+          className="h-8 w-8 text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 disabled:opacity-30"
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -194,7 +194,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           aria-label="Last page"
           onClick={() => onPageChange(totalPages)}
           disabled={!canGoNext}
-          className="h-8 w-8 text-(--nous-fg-3) hover:text-(--nous-sol) hover:bg-(--nous-sol)/10 disabled:opacity-30"
+          className="h-8 w-8 text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 disabled:opacity-30"
         >
           <ChevronsRight className="h-4 w-4" />
         </Button>

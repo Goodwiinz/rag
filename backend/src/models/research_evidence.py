@@ -23,11 +23,17 @@ class ResearchEvidence(BaseModel):
 
     __tablename__ = "research_evidence"
 
-    step_id = Column(GUID(), ForeignKey("research_steps.id"), nullable=False)
-    source_id = Column(GUID(), ForeignKey("research_sources.id"), nullable=False)
+    step_id = Column(
+        GUID(), ForeignKey("research_steps.id"), nullable=False
+    )
+    source_id = Column(
+        GUID(), ForeignKey("research_sources.id"), nullable=False
+    )
     claim_text = Column(Text, nullable=False)
     confidence = Column(Float, nullable=True)
-    grounding_status = Column(String(50), nullable=False, default="unverified")
+    grounding_status = Column(
+        String(50), nullable=False, default="unverified"
+    )
     page_reference = Column(String(100), nullable=True)
 
     def __init__(self, **kwargs):

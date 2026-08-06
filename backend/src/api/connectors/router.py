@@ -8,9 +8,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+
+import structlog
 
 from src.core.dependencies import get_current_user
 from src.services.connectors import connector_registry
@@ -48,7 +49,9 @@ class SearchRequest(BaseModel):
     connectors: Optional[List[str]] = Field(
         None, description="Connector names to search. None = all available."
     )
-    domain: Optional[str] = Field(None, description="Filter connectors by domain.")
+    domain: Optional[str] = Field(
+        None, description="Filter connectors by domain."
+    )
     max_results: int = Field(10, ge=1, le=50)
     filters: Optional[Dict[str, Any]] = None
 
@@ -137,9 +140,7 @@ async def search_connectors(body: SearchRequest):
         try:
             d = ConnectorDomain(body.domain)
         except ValueError:
-            raise HTTPException(
-                status_code=400, detail=f"Invalid domain: {body.domain}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid domain: {body.domain}")
         targets = connector_registry.search_by_domain(d)
     else:
         targets = connector_registry.list_available()
@@ -207,9 +208,7 @@ async def fetch_record(connector_name: str, record_id: str):
     """Fetch a single record from a specific connector by ID."""
     connector = connector_registry.get(connector_name)
     if connector is None:
-        raise HTTPException(
-            status_code=404, detail=f"Connector not found: {connector_name}"
-        )
+        raise HTTPException(status_code=404, detail=f"Connector not found: {connector_name}")
     if not connector.is_available():
         raise HTTPException(
             status_code=503,

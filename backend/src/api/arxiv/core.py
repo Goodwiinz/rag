@@ -11,7 +11,6 @@ Provides REST API endpoints for:
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
-from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -20,6 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
 from src.core.database import get_db
+
+# from src.services.search.search_service import SearchService  # Not used
 from src.core.dependencies import get_current_user
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.services.arxiv.arxiv_service import ArXivIngestionService
@@ -160,7 +161,6 @@ async def ingest_arxiv_papers(
             _process_arxiv_ingestion,
             paper_ids=request.paper_ids,
             user_id=current_user.id,
-            organization_id=current_user.organization_id,
             download_pdfs=request.download_pdfs,
             extract_content=request.extract_content,
             batch_size=request.batch_size,
@@ -359,7 +359,6 @@ async def get_arxiv_statistics(
 async def _process_arxiv_ingestion(
     paper_ids: List[str],
     user_id: str,
-    organization_id: "str | UUID",
     download_pdfs: bool,
     extract_content: bool,
     batch_size: int,
@@ -369,7 +368,7 @@ async def _process_arxiv_ingestion(
         # Get database session
         from src.core.database import get_db_session
 
-        async with get_db_session() as db:
+        async for db in get_db_session():
             async with ArXivIngestionService() as arxiv_service:
                 # First, get paper metadata
                 papers = []
@@ -390,67 +389,27 @@ async def _process_arxiv_ingestion(
                         batch_size=batch_size,
                     )
 
-                    # Save documents to database. ingest_papers returns
-                    # SimpleDocument objects (attributes, NOT dicts) — the prior
-                    # doc.get(...) calls raised AttributeError, which the outer
-                    # except swallowed, so ingest silently persisted nothing.
-                    # organization_id MUST come from the authenticated user (never
-                    # a doc field / "" default) or the NOT NULL FK insert fails and
-                    # papers are un-scoped.
-                    persisted = 0
-                    persisted_ids = []
+                    # Save documents to database
                     for doc in documents:
-                        try:
-                            metadata = getattr(doc, "document_metadata", {}) or {}
-                            document = Document(
-                                title=getattr(doc, "title", "") or "",
-                                filename=getattr(doc, "filename", "") or "",
-                                file_path=metadata.get("pdf_path", "") or "",
-                                file_size_bytes=getattr(doc, "file_size_bytes", 0) or 0,
-                                mime_type=getattr(doc, "mime_type", "application/pdf")
-                                or "application/pdf",
-                                document_type=getattr(
-                                    doc, "document_type", DocumentType.PDF
-                                ),
-                                content_text=getattr(doc, "content_text", None),
-                                document_metadata=metadata,
-                                processing_status=ProcessingStatus.COMPLETED,
-                                uploaded_by_user_id=user_id,
-                                organization_id=organization_id,
-                                is_public=False,
-                            )
-                            db.add(document)
-                            await db.flush()  # populate document.id
-                            persisted_ids.append(str(document.id))
-                            persisted += 1
-                        except Exception as doc_err:
-                            # One malformed paper must not abort the whole batch.
-                            logger.error(
-                                f"Skipping arXiv paper during persist: {doc_err}"
-                            )
-
-                    if persisted:
-                        # Build search_vector BEFORE commit — these docs land
-                        # COMPLETED, so without this they'd be permanently
-                        # invisible to fulltext/RAG (NULL tsvector never matches).
-                        try:
-                            from src.services.search.fulltext_search_service import (
-                                fulltext_search_service,
-                            )
-
-                            await fulltext_search_service.async_update_document_search_vectors(
-                                persisted_ids, db
-                            )
-                        except Exception as vec_err:
-                            logger.error(
-                                f"arXiv ingest: search_vector update failed: {vec_err}"
-                            )
-
-                        await db.commit()
-                        logger.info(
-                            f"arXiv ingestion persisted {persisted}/{len(documents)} "
-                            f"documents for org {organization_id}"
+                        # Create document instance
+                        document = Document(
+                            title=doc.get("title", ""),
+                            filename=doc.get("filename", ""),
+                            file_path=doc.get("file_path", ""),
+                            file_size_bytes=doc.get("file_size_bytes", 0),
+                            mime_type=doc.get("mime_type", "application/pdf"),
+                            document_type=DocumentType.PDF,
+                            content_text=doc.get("content_text"),
+                            content_summary=doc.get("content_summary"),
+                            document_metadata=doc.get("metadata", {}),
+                            processing_status=ProcessingStatus.COMPLETED,
+                            uploaded_by_user_id=user_id,
+                            organization_id=doc.get("organization_id", ""),
+                            is_public=doc.get("is_public", False),
                         )
+                        db.add(document)
+
+                    await db.commit()
 
     except Exception as e:
         logger.error(f"Background arXiv ingestion failed: {e}")

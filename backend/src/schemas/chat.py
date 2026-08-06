@@ -223,7 +223,6 @@ class ThreadResponse(ThreadBase, TimestampMixin):
     id: UUID
     conversation_id: UUID
     summary: Optional[str] = None
-    last_message_preview: Optional[str] = None
     status: ThreadStatus = ThreadStatus.ACTIVE
     last_message_at: datetime
     message_count: int = 0
@@ -293,9 +292,9 @@ class CitationCreate(BaseModel):
     """Citation input for creating messages with sources"""
 
     document_id: Optional[UUID] = None  # Optional: may not have a database UUID
-    external_reference_id: Optional[str] = (
-        None  # For non-UUID references (e.g., arXiv IDs)
-    )
+    external_reference_id: Optional[
+        str
+    ] = None  # For non-UUID references (e.g., arXiv IDs)
     chunk_index: Optional[int] = None
     chunk_id: Optional[str] = None
     snippet: Optional[str] = None
@@ -329,9 +328,9 @@ class CitationResponse(BaseModel):
 
     id: UUID
     document_id: Optional[UUID] = None  # Optional: may not have a database reference
-    external_reference_id: Optional[str] = (
-        None  # For non-database references (e.g., arXiv IDs)
-    )
+    external_reference_id: Optional[
+        str
+    ] = None  # For non-database references (e.g., arXiv IDs)
     chunk_index: Optional[int] = None
     chunk_id: Optional[str] = None
     snippet: Optional[str] = None
@@ -370,9 +369,6 @@ class ChatMessageResponse(ChatMessageBase, TimestampMixin):
 
     id: UUID
     thread_id: UUID
-    # Stable client/runtime identity carried across optimistic rendering,
-    # persistence, and reload. Legacy rows predate this field and remain null.
-    client_message_id: Optional[UUID] = None
     user_id: Optional[UUID] = None
     token_count: int = 0
     latency_ms: Optional[int] = None
@@ -383,15 +379,6 @@ class ChatMessageResponse(ChatMessageBase, TimestampMixin):
     tool_call_id: Optional[str] = None
     feedback_rating: Optional[int] = None
     feedback_text: Optional[str] = None
-    # Agent tool executions recorded for this turn (JSONB passthrough:
-    # [{id, tool_name, tool_display_name, args, status, result, error,
-    # duration_ms}, ...]). Null for legacy rows and non-agent messages.
-    tool_executions: Optional[List[dict]] = None
-    # Per-turn agent provenance (JSONB passthrough). plan: planner steps
-    # [{step, description, tool, args_hint, depends_on}]; token_usage:
-    # {input_tokens, output_tokens}. Null for legacy/non-agent rows.
-    plan: Optional[List[dict]] = None
-    token_usage: Optional[dict] = None
 
     # Nested data
     citations: List[CitationResponse] = []

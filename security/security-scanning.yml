@@ -388,7 +388,7 @@ infrastructure-scanning:
       # Dockerfiles to scan
       dockerfiles:
         - "Dockerfile"
-        - "frontend/Dockerfile.prod"
+        - "frontend/Dockerfile"
         - "backend/Dockerfile"
       # Output format
       output-format: "json"
@@ -402,7 +402,7 @@ infrastructure-scanning:
       # Dockerfiles to check
       dockerfiles:
         - "Dockerfile"
-        - "frontend/Dockerfile.prod"
+        - "frontend/Dockerfile"
         - "backend/Dockerfile"
       # Output format
       output-format: "json"

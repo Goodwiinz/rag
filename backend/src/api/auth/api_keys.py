@@ -2,24 +2,24 @@
 API Key Management endpoints for administrators
 """
 
-import logging
-from datetime import datetime, timedelta
+from fastapi import APIRouter, HTTPException, Depends, Query, status
 from typing import List, Optional
+from datetime import datetime, timedelta
+import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.api_key_auth import (
-    APIKey,
-    APIKeyCreate,
-    APIKeyData,
-    APIKeyResponse,
-    api_key_auth,
-    generate_api_key,
-)
 from src.core.database import get_db
 from src.core.dependencies import require_admin
+from src.core.api_key_auth import (
+    APIKey,
+    APIKeyData,
+    APIKeyCreate,
+    APIKeyResponse,
+    generate_api_key,
+    api_key_auth,
+)
 from src.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -65,11 +65,9 @@ async def create_api_key(
             description=api_key_create.description,
             created_by=f"{current_user.email} ({current_user.id})",
             expires_at=expires_at,
-            allowed_endpoints=(
-                str(api_key_create.allowed_endpoints)
-                if api_key_create.allowed_endpoints
-                else None
-            ),
+            allowed_endpoints=str(api_key_create.allowed_endpoints)
+            if api_key_create.allowed_endpoints
+            else None,
             organization_id=str(current_user.organization_id),
         )
 

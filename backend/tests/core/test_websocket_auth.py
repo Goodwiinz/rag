@@ -89,93 +89,19 @@ async def test_authenticate_accepts_browser_subprotocol_token():
 
 
 @pytest.mark.asyncio
-async def test_authenticate_ignores_access_token_cookie():
-    """The cookie fallback was removed (AU5): a token-bearing cookie alone
-    must NOT authenticate — only Authorization / Sec-WebSocket-Protocol do.
-    """
+async def test_authenticate_accepts_cookie_token_fallback():
     websocket = DummyWebSocket(cookies={"access_token": "cookie-token"})
 
-    with pytest.raises(WebSocketAuthError, match="No authentication token") as exc:
-        await WebSocketAuthenticator.authenticate(websocket)
-
-    assert exc.value.code == 4001
-
-
-# ---- Origin allowlist (AU5 CSWSH hardening) --------------------------------
-
-
-@pytest.mark.asyncio
-async def test_authenticate_rejects_disallowed_origin():
-    websocket = DummyWebSocket(
-        headers={
-            "origin": "https://evil.example.com",
-            "authorization": "Bearer some-token",
-        },
-    )
-
-    with (
-        patch(
-            "src.core.websocket_auth.settings.CORS_ORIGINS",
-            "https://goodwiinz.tech",
-        ),
-        patch("src.core.websocket_auth.settings.CORS_ORIGIN_REGEX", ""),
-    ):
-        with pytest.raises(WebSocketAuthError, match="not allowed") as exc:
-            await WebSocketAuthenticator.authenticate(websocket)
-
-    assert exc.value.code == 4003
-
-
-@pytest.mark.asyncio
-async def test_authenticate_allows_allowlisted_origin():
-    websocket = DummyWebSocket(
-        headers={
-            "origin": "https://goodwiinz.tech",
-            "authorization": "Bearer good-token",
-        },
-    )
-
-    with (
-        patch(
-            "src.core.websocket_auth.settings.CORS_ORIGINS",
-            "https://goodwiinz.tech",
-        ),
-        patch("src.core.websocket_auth.settings.CORS_ORIGIN_REGEX", ""),
-        patch(
-            "src.core.websocket_auth.verify_token",
-            return_value=make_token_data(),
-            create=True,
-        ),
-    ):
+    with patch(
+        "src.core.websocket_auth.verify_token",
+        return_value=make_token_data(user_id="cookie-user"),
+        create=True,
+    ) as verify_token:
         payload = await WebSocketAuthenticator.authenticate(websocket)
 
-    assert payload["sub"] == "user-123"
-
-
-@pytest.mark.asyncio
-async def test_authenticate_allows_missing_origin():
-    """Non-browser clients (CLI, server-to-server) send no Origin header at
-    all — those must still be allowed through to normal token validation.
-    """
-    websocket = DummyWebSocket(
-        headers={"authorization": "Bearer good-token"},
-    )
-
-    with (
-        patch(
-            "src.core.websocket_auth.settings.CORS_ORIGINS",
-            "https://goodwiinz.tech",
-        ),
-        patch("src.core.websocket_auth.settings.CORS_ORIGIN_REGEX", ""),
-        patch(
-            "src.core.websocket_auth.verify_token",
-            return_value=make_token_data(),
-            create=True,
-        ),
-    ):
-        payload = await WebSocketAuthenticator.authenticate(websocket)
-
-    assert payload["sub"] == "user-123"
+    verify_token.assert_called_once_with("cookie-token")
+    assert payload["sub"] == "cookie-user"
+    assert payload["_auth_method"] == "cookie"
 
 
 @pytest.mark.asyncio

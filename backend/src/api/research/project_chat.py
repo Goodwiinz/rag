@@ -18,7 +18,6 @@ from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
-from src.core.dependencies import get_current_user
 from src.models import (
     ChatMessage,
     Collection,
@@ -32,6 +31,7 @@ from src.models import (
     Workspace,
 )
 from src.schemas.chat import ThreadCreate
+from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     LinkThreadRequest,
     NoteCreate,
@@ -70,7 +70,6 @@ async def _get_project_with_auth(
             and_(
                 Collection.id == project_id,
                 Workspace.owner_id == current_user.id,
-                Collection.is_deleted.is_(False),
             )
         )
     )
@@ -266,7 +265,9 @@ async def start_chat_from_project(
             conversation_id=conversation_id,
             project_thread_id=project_thread.id,
             # Pydantic coerces the stored strings to UUIDs (field is List[UUID])
-            document_scope=(thread.rag_document_scope or {}).get("document_ids", []),
+            document_scope=(thread.rag_document_scope or {}).get(
+                "document_ids", []
+            ),
         )
 
     except HTTPException:
@@ -495,57 +496,30 @@ async def unlink_thread_from_project(
         # scalar source, OR whenever the scalar is NULL but other links remain
         # (fixes desync where source_project_id was already cleared).
         scalar = getattr(thread, "source_project_id", None)
-        # Only reassign the scalar source to a project the caller still owns.
-        # Scoping the lookup through Workspace.owner_id stops a stray
-        # cross-workspace link from repointing the thread's RAG fast-path to a
-        # project the user can't access, and the id tiebreaker makes the chosen
-        # survivor deterministic when two links share a linked_at timestamp.
         remaining_query = (
             select(ProjectThread)
-            .join(Collection, ProjectThread.project_id == Collection.id)
-            .join(Workspace, Collection.workspace_id == Workspace.id)
             .where(
                 and_(
                     ProjectThread.thread_id == thread_id,
                     ProjectThread.project_id != project_id,
                     ProjectThread.is_deleted == False,
-                    Workspace.owner_id == current_user.id,
-                    # The link row can be live while its project is soft
-                    # deleted; without this, unlinking repoints
-                    # thread.source_project_id at a dead project and every
-                    # later agent turn on the thread fails to resolve it.
-                    Collection.is_deleted.is_(False),
                 )
             )
-            .order_by(ProjectThread.linked_at.desc(), ProjectThread.id.desc())
+            .order_by(ProjectThread.linked_at.desc())
         )
         remaining_result = await db.execute(remaining_query)
         remaining_link = remaining_result.scalars().first()
 
         if scalar == project_id or (scalar is None and remaining_link):
-            # MERGE rather than overwrite rag_document_scope. The column is
-            # overloaded to also carry the agent marker ({"source": "agent"}),
-            # which list_agent_threads (execute.py) filters on via
-            # rag_document_scope.contains(AGENT_THREAD_MARKER). Replacing the
-            # whole dict — or nulling it — drops the marker, so an agent thread
-            # that was bound to a project silently vanishes from
-            # GET /api/v1/agent/threads after it is unlinked.
             if remaining_link:
                 document_ids = await _get_project_document_scope(
                     remaining_link.project_id, db
                 )
                 thread.source_project_id = remaining_link.project_id
-                thread.rag_document_scope = {
-                    **(thread.rag_document_scope or {}),
-                    "document_ids": document_ids,
-                }
+                thread.rag_document_scope = {"document_ids": document_ids}
             else:
                 thread.source_project_id = None
-                # Drop only the project scope; keep any sibling keys (agent
-                # marker) so the thread stays visible in the agent list.
-                scope = dict(thread.rag_document_scope or {})
-                scope.pop("document_ids", None)
-                thread.rag_document_scope = scope or None
+                thread.rag_document_scope = None
 
         await db.commit()
 

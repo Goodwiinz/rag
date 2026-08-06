@@ -195,20 +195,7 @@ class MultimodalContent(BaseModel):
     )
 
     # Content identification
-    # values_callable: the DB enum was created with lowercase values
-    # (alembic/versions/f931599b6b5b) but plain Enum(ContentType) binds the
-    # member *name* ("IMAGE"), not its value ("image") -> invalid input value
-    # for enum contenttype. Mirrors thread.py's ThreadStatus fix. Model-side
-    # only, no migration (the DB type is unchanged).
-    content_type = Column(
-        Enum(
-            ContentType,
-            values_callable=lambda x: [e.value for e in x],
-            native_enum=True,
-        ),
-        nullable=False,
-        index=True,
-    )
+    content_type = Column(Enum(ContentType), nullable=False, index=True)
     content_id = Column(
         String(255), nullable=False, index=True
     )  # Unique ID within document

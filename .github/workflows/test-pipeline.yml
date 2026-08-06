@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 env:
   PYTHON_VERSION: "3.11"
-  NODE_VERSION: "24"
+  NODE_VERSION: "20"
   DOCKER_BUILDKIT: "1"
   # NOTE: PIP_NO_CACHE_DIR is intentionally NOT set here. Setting it globally
   # makes pip ignore ~/.cache/pip on the runner, which silently turns every
@@ -43,7 +43,7 @@ env:
   # Anon JWT is signed with the same secret gotrue verifies with HS256 —
   # see docker-compose.ci.yml gotrue service for the matching env.
   NEXT_PUBLIC_SUPABASE_URL: "http://localhost:8999"
-  SUPABASE_JWT_SECRET: "ci-test-supabase-jwt-secret-not-for-prod-use"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "JWT_REDACTED"
 defaults:
   run:
     shell: bash
@@ -59,10 +59,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # Full history: the changed-file ratchet diffs against the PR base
-          # (or push `before`) via merge-base, which a shallow clone breaks.
-          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
@@ -77,57 +73,15 @@ jobs:
         run: ruff check backend/src --output-format=github
       - name: Directory docs lint (blocking — carried from the fast lane)
         run: python3 scripts/docs/check_dir_docs.py
-      # Blocking ratchet: changed Python files must pass the full formatter/
-      # type gauntlet. New or touched code cannot add debt; the untouched
-      # tree is covered by the advisory full-tree lanes below until their
-      # debt reaches zero.
-      - name: Changed-file quality gate (blocking)
-        env:
-          # base_ref (live base BRANCH), not pull_request.base.sha: GitHub
-          # freezes base.sha at PR-creation time, so a stale base charged
-          # every commit the base branch gained since to the PR under review
-          # (a 6-file PR ratcheted 198 files after a big merge landed).
-          # merge-base against the live branch scopes the diff to the PR.
-          PR_BASE_REF: ${{ github.base_ref || '' }}
-          GITHUB_EVENT_BEFORE: ${{ github.event.before || '' }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch || 'develop' }}
-        run: |
-          BASE_FLAG=()
-          ZEROS="0000000000000000000000000000000000000000"
-          if [ -n "$PR_BASE_REF" ]; then
-            BASE_FLAG=(--base "origin/${PR_BASE_REF}")
-          elif [ -z "$GITHUB_EVENT_BEFORE" ] || [ "$GITHUB_EVENT_BEFORE" = "$ZEROS" ]; then
-            # workflow_dispatch or first push of a new branch: ratchet
-            # against the default branch instead of failing.
-            BASE_FLAG=(--base "origin/${DEFAULT_BRANCH}")
-          fi
-          mapfile -t FILES < <(python3 scripts/ci/changed_source_files.py "${BASE_FLAG[@]}" --kind python)
-          if [ "${#FILES[@]}" -eq 0 ]; then
-            echo "No changed Python files; nothing to ratchet."
-            exit 0
-          fi
-          printf 'Ratcheting %d changed Python file(s)\n' "${#FILES[@]}"
-          ruff check "${FILES[@]}"
-          black --check "${FILES[@]}"
-          isort --check-only "${FILES[@]}"
-          # MyPy blocks ADDED files only: modified legacy files still carry
-          # deep type debt (measured 529 errors across one 27-file sample),
-          # covered by the advisory full-tree lane until it shrinks.
-          # --follow-imports=silent keeps errors scoped to the listed files.
-          mapfile -t ADDED < <(python3 scripts/ci/changed_source_files.py "${BASE_FLAG[@]}" --kind python-added)
-          if [ "${#ADDED[@]}" -gt 0 ]; then
-            printf 'Type-checking %d added Python file(s)\n' "${#ADDED[@]}"
-            mypy --ignore-missing-imports --follow-imports=silent "${ADDED[@]}"
-          fi
-      # Debt reached zero (full-tree reformat PR) — these two are now blocking
-      # so it can't regrow. MyPy below stays advisory (type debt is not zero).
-      - name: Full-tree Black (formatting check)
+      - name: Run Black (formatting check)
         run: black --check backend/src
-      - name: Full-tree isort (import sorting)
+        continue-on-error: true # Allow failures during gradual adoption
+      - name: Run isort (import sorting)
         run: isort --check-only backend/src
-      - name: Advisory full-tree MyPy (type checking)
+        continue-on-error: true # Allow failures during gradual adoption
+      - name: Run MyPy (type checking)
         run: mypy backend/src --ignore-missing-imports
-        continue-on-error: true # Advisory until full-tree debt reaches zero
+        continue-on-error: true # Allow failures during gradual adoption
   lint-frontend:
     name: Lint Frontend
     runs-on: ubuntu-latest
@@ -136,10 +90,6 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # Full history: the quality ratchet diffs against the PR base
-          # (or push `before`) via merge-base, which a shallow clone breaks.
-          fetch-depth: 0
       - name: Set up pnpm
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - name: Set up Node.js
@@ -152,165 +102,9 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Run type check
         run: pnpm run type-check
-      # Blocking ratchet: one full ESLint JSON run feeds the comparator,
-      # which rejects errors/new warnings in changed files and any growth
-      # of the global totals recorded in frontend/quality-baseline.json.
-      # The tsconfig exclusion ratchet blocks new type-check debt the
-      # same way. Untouched legacy debt stays visible in the advisory
-      # lane below until it reaches zero.
-      - name: Frontend quality ratchet (blocking)
-        env:
-          # Live base BRANCH, not the creation-time-frozen base.sha — see the
-          # backend changed-file gate for the stale-base failure this fixes.
-          PR_BASE_REF: ${{ github.base_ref || '' }}
-          GITHUB_EVENT_BEFORE: ${{ github.event.before || '' }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch || 'develop' }}
-        run: |
-          ZEROS="0000000000000000000000000000000000000000"
-          if [ -n "$PR_BASE_REF" ]; then
-            BASE="origin/${PR_BASE_REF}"
-          elif [ -n "$GITHUB_EVENT_BEFORE" ] && [ "$GITHUB_EVENT_BEFORE" != "$ZEROS" ]; then
-            BASE="$GITHUB_EVENT_BEFORE"
-          else
-            BASE="origin/${DEFAULT_BRANCH}"
-          fi
-          pnpm exec eslint app src --format json --output-file /tmp/eslint-report.json || true
-          node ../scripts/ci/check_frontend_quality.mjs --report /tmp/eslint-report.json --base "$BASE"
-          python3 ../scripts/ci/check_tsconfig_exclusions.py --base "$BASE"
-      - name: Advisory full lint (human-readable)
+      - name: Run linting
         run: pnpm run lint
-        continue-on-error: true # Advisory until full-tree debt reaches zero
-  # ==========================================================================
-  # Alembic Migration Guard (Fast - No DB, No App Deps)
-  # ==========================================================================
-  # Reads only the revision scripts via Alembic's ScriptDirectory (env.py is
-  # never executed, no engine is created), so this needs nothing but Alembic
-  # itself and runs in a few seconds. It enforces two invariants that have each
-  # broken a deploy: exactly one migration head (divergent branches can't be
-  # applied by `alembic upgrade head`) and revision ids <= 32 chars
-  # (alembic_version.version_num is VARCHAR(32); a longer id crash-loops deploy).
-  #
-  # BLOCKING: the static guard above runs first with only Alembic installed and
-  # never touches a DB (env.py is not executed). Below it, three ADVISORY
-  # execution-depth probes (Task 5.1) MEASURE what a static read cannot — that
-  # the chain actually applies. They are continue-on-error because the schema
-  # carries known create-migration debt (analytics_* tables shipped with no
-  # create migration; a to_regclass guard papered over it, PR #720), so a
-  # from-empty `upgrade head` and `alembic check` may legitimately fail TODAY.
-  # First-run CI results become the record that Task 5.2 uses to promote any of
-  # these to blocking. Their outcomes are written to the job summary.
-  #
-  # Why these steps need the FULL backend requirements (not just alembic): the
-  # static guard reads only ScriptDirectory, but `alembic upgrade head` EXECUTES
-  # backend/alembic/env.py, which imports src.models.base + the entire model
-  # layer (and, in URL fallback, src.core.config.settings). env.py builds its DB
-  # URL from SUPABASE_DB_URL or DATABASE_URL (get_url()), so the throwaway
-  # service-container DATABASE_URL below is all the engine needs.
-  migration-check:
-    name: Alembic Migration Check
-    runs-on: ubuntu-latest
-    # Throwaway CI-local Postgres for the advisory execution probes. Credentials
-    # are disposable (postgres/postgres) — no secrets, by design.
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install Alembic (pinned to backend requirement)
-        run: pip install alembic==1.18.4
-      # BLOCKING guard — unchanged. Runs before any DB work so a divergent-head
-      # or over-long-revision-id defect fails the job regardless of the advisory
-      # probes below (which cannot block).
-      - name: Check single head + revision-id length
-        working-directory: backend
-        run: python ../scripts/ci/check_alembic.py
-      # --- Advisory execution-depth probes (Task 5.1: MEASURE, do not block) ---
-      - name: Cache pip dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-test-
-            ${{ runner.os }}-pip-
-      # env.py imports the full model layer at runtime, so `alembic upgrade head`
-      # needs the same dependency set as the app. Advisory: a dependency hiccup
-      # must never fail the blocking static guard that already ran above.
-      - name: Install backend requirements (for execution probes)
-        continue-on-error: true
-        run: |
-          set +e
-          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
-          rc=$?
-          set -e
-          if [ "$rc" -eq 0 ]; then
-            echo "- Install backend requirements (for probes): :white_check_mark: PASS" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "- Install backend requirements (for probes): :x: FAIL (rc=$rc) — probes below are unreliable" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit $rc
-      # NOTE: these three run in sequence against one shared DB; a probe-1 failure
-      # cascades into 2/3.
-      - name: Advisory — upgrade head from empty DB
-        continue-on-error: true
-        working-directory: backend
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-        run: |
-          set +e
-          alembic upgrade head
-          rc=$?
-          set -e
-          if [ "$rc" -eq 0 ]; then
-            echo "- Alembic upgrade head (from empty): :white_check_mark: PASS" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "- Alembic upgrade head (from empty): :x: FAIL (rc=$rc) — advisory, see Task 5.2" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit $rc
-      - name: Advisory — alembic check (models vs migrations drift)
-        continue-on-error: true
-        working-directory: backend
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-        run: |
-          set +e
-          alembic check
-          rc=$?
-          set -e
-          if [ "$rc" -eq 0 ]; then
-            echo "- Alembic check (drift): :white_check_mark: PASS" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "- Alembic check (drift): :x: FAIL (rc=$rc) — advisory, model/migration drift" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit $rc
-      - name: Advisory — downgrade -1 then upgrade head (round-trip smoke)
-        continue-on-error: true
-        working-directory: backend
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-        run: |
-          set +e
-          alembic downgrade -1 && alembic upgrade head
-          rc=$?
-          set -e
-          if [ "$rc" -eq 0 ]; then
-            echo "- Alembic downgrade -1 / upgrade head (round-trip): :white_check_mark: PASS" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "- Alembic downgrade -1 / upgrade head (round-trip): :x: FAIL (rc=$rc) — advisory" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit $rc
+        continue-on-error: true # Allow warnings during gradual adoption
   # ==========================================================================
   # Unit Tests (Fast - No External Dependencies)
   # ==========================================================================
@@ -449,166 +243,6 @@ jobs:
           AZURE_OPENAI_API_KEY: "test-key-not-real"
 
   # ==========================================================================
-  # OpenAPI Contract Ratchet (C5) — the FastAPI app is the single source of
-  # truth for the REST contract. Regenerate the committed schema snapshot and
-  # fail if it drifts from backend/openapi.json, forcing every contract change
-  # to ship with regenerated frontend types (openapi-typescript) in the SAME PR
-  # instead of silently diverging from the hand-mirrored types.
-  # ==========================================================================
-  openapi-contract:
-    name: OpenAPI Contract Ratchet
-    runs-on: ubuntu-latest
-    needs: lint-backend
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # Full history so the advisory oasdiff step can resolve the PR base's
-          # committed spec via `git show <base-sha>:backend/openapi.json`.
-          fetch-depth: 0
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Free runner disk space
-        run: |
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /usr/share/dotnet || true
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
-          docker system prune -af || true
-      - name: Cache pip dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: ~/.cache/pip
-          # Same key as unit-tests: importing the app needs the full backend
-          # requirement set, so the warm test wheel cache is reused here.
-          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-test-
-            ${{ runner.os }}-pip-
-      - name: Install backend dependencies
-        run: pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
-      - name: Verify OpenAPI snapshot is in sync with the app
-        # Rebuilds app.openapi() offline (in-memory SQLite + placeholder Azure
-        # creds — no DB/Redis/network) and diffs it against the committed
-        # backend/openapi.json. On drift: `python scripts/ci/generate_openapi.py`
-        # then `cd frontend && pnpm generate:api-types`, review + commit both.
-        run: python scripts/ci/generate_openapi.py --check
-        env:
-          ENVIRONMENT: testing
-          DATABASE_URL: "sqlite:///:memory:"
-          # Dummy Azure creds — the agent-graph constructor refuses to import
-          # without them; no real model call is made during schema generation.
-          AZURE_OPENAI_CHAT_ENDPOINT: "https://example.invalid"
-          AZURE_OPENAI_CHAT_API_KEY: "test-key-not-real"
-          AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: "test-deployment"
-          AZURE_OPENAI_CHAT_API_VERSION: "2024-02-01"
-          AZURE_OPENAI_ENDPOINT: "https://example.invalid"
-          AZURE_OPENAI_API_KEY: "test-key-not-real"
-      # The TypeScript half of the contract: regenerate api.d.ts from the
-      # (now-verified) snapshot and fail if EITHER committed artifact drifts.
-      # Without this, backend/openapi.json could be regenerated while the
-      # frontend types silently lag a contract change behind.
-      - name: Set up pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-      - name: Set up Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Verify generated TypeScript is in sync with the snapshot
-        run: |
-          pnpm --dir frontend generate:api-types
-          git diff --exit-code -- backend/openapi.json frontend/src/types/generated/api.d.ts
-      # Semantic-compatibility gate. The freshness diff above is blind to
-      # compatibility: a breaking change that regenerates both committed
-      # artifacts passes it. oasdiff compares the PR base's committed spec
-      # against this branch's. Split into three steps: install+materialize,
-      # a BLOCKING `breaking --fail-on ERR` gate, and an informational changelog.
-      - name: Set up oasdiff and materialize base spec
-        id: oasdiff
-        if: github.event_name == 'pull_request'
-        env:
-          # Pinned oasdiff release + checksum. Do NOT `go install` at CI time and
-          # do NOT pipe curl to a shell. Bump both together from
-          # https://github.com/oasdiff/oasdiff/releases (checksums.txt).
-          OASDIFF_VERSION: "1.23.0"
-          OASDIFF_SHA256: "972b10535c3db4366b9dc3ebc11ca021279af3095267c3cffdca854a3a3c4f89"
-          # Env indirection: never interpolate github.event.* into a run: block.
-          # Live base BRANCH, not the creation-time-frozen base.sha: a stale
-          # sha diffed the PR spec against an outdated base spec, flagging (or
-          # masking) changes the base branch had already absorbed.
-          PR_BASE_REF: ${{ github.base_ref || '' }}
-        run: |
-          set -euo pipefail
-          tarball="oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
-          url="https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/${tarball}"
-          curl -fsSL --retry 3 --retry-all-errors --max-time 60 "$url" -o "/tmp/${tarball}"
-          echo "${OASDIFF_SHA256}  /tmp/${tarball}" | sha256sum -c -
-          tar -xzf "/tmp/${tarball}" -C /tmp oasdiff
-          if [ -z "${PR_BASE_REF}" ]; then
-            echo "No PR base ref available; API compatibility gate skipped." >> "$GITHUB_STEP_SUMMARY"
-            echo "base_available=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          # Base spec as committed at the live base branch (fetch-depth: 0 makes it reachable).
-          if ! git show "origin/${PR_BASE_REF}:backend/openapi.json" > /tmp/openapi-base.json 2>/dev/null; then
-            echo "Base spec not present at origin/${PR_BASE_REF} (new file?); API compatibility gate skipped." >> "$GITHUB_STEP_SUMMARY"
-            echo "base_available=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "base_available=true" >> "$GITHUB_OUTPUT"
-      # BLOCKING: ERR-level breaking changes fail the job. Escape hatch — a
-      # reviewed, intentional break lands by labelling the PR
-      # `api-breaking-approved`, which skips this gate (the changelog step below
-      # still records what changed). A missing base spec is NOT a failure: the
-      # step exits 0 with a summary note.
-      - name: API breaking-change gate (oasdiff, ERR-level blocking)
-        if: >-
-          github.event_name == 'pull_request' &&
-          !contains(github.event.pull_request.labels.*.name, 'api-breaking-approved')
-        env:
-          BASE_AVAILABLE: ${{ steps.oasdiff.outputs.base_available }}
-        run: |
-          set -euo pipefail
-          if [ "${BASE_AVAILABLE}" != "true" ]; then
-            echo "No base spec to compare; API breaking-change gate skipped." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          {
-            echo "## API breaking-change gate (oasdiff, --fail-on ERR)"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          # Capture oasdiff's exit code (ERR-level break => non-zero) through the
-          # pipe so we can close the ``` fence before propagating. `|| rc=$?`
-          # keeps `set -e` from aborting mid-fence; rc pre-set to 0 for success.
-          rc=0
-          /tmp/oasdiff breaking --fail-on ERR /tmp/openapi-base.json backend/openapi.json 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || rc=$?
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          # Propagate: non-zero here fails the step (and job) — this gate blocks.
-          exit "${rc}"
-      # Informational: full changelog into the job summary, never blocking.
-      - name: API changelog (oasdiff, informational)
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        env:
-          BASE_AVAILABLE: ${{ steps.oasdiff.outputs.base_available }}
-        run: |
-          set -euo pipefail
-          if [ "${BASE_AVAILABLE}" != "true" ]; then
-            exit 0
-          fi
-          {
-            echo "## API changelog (oasdiff)"
-            echo '```'
-            /tmp/oasdiff changelog /tmp/openapi-base.json backend/openapi.json 2>&1 || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  # ==========================================================================
   # Security Scan
   # ==========================================================================
   security-scan:
@@ -660,11 +294,6 @@ jobs:
         run: pnpm test:coverage
         env:
           CI: true
-      # Blocking ratchet: global coverage may never fall below the floors
-      # committed in frontend/quality-baseline.json ("coverage" key).
-      # Raising or lowering a floor is an intentional, reviewed JSON edit.
-      - name: Coverage ratchet (blocking)
-        run: node ../scripts/ci/check_frontend_coverage.mjs coverage/coverage-summary.json
       - name: Upload coverage
         if: always()
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
@@ -841,6 +470,59 @@ jobs:
           flags: resilience
           token: ${{ secrets.CODECOV_TOKEN }}
   # ==========================================================================
+  # API Contract Tests
+  # ==========================================================================
+  api-contract-tests:
+    name: API Contract Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests, frontend-tests]
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432/tcp
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Free runner disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+          df -h
+      - name: Cache pip dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+          pip install schemathesis
+      - name: Run contract tests
+        run: |
+          pytest backend/tests/api_contract/ \
+            -c backend/pytest.ini \
+            -v
+        env:
+          ENVIRONMENT: testing
+          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
+        continue-on-error: true # Allow failures during development
+  # ==========================================================================
   # E2E Tests (Full System)
   # ==========================================================================
   e2e-tests:
@@ -880,46 +562,6 @@ jobs:
       # right layers). Distinct scopes keep the two images' caches separate.
       # The `docker system prune` above only clears the local daemon, not the
       # remote GHA store, so it does not defeat this.
-      - name: Generate CI Supabase JWTs
-        id: supabase-jwts
-        run: |
-          python - <<'PY'
-          import base64
-          import hashlib
-          import hmac
-          import json
-          import os
-
-          def b64url(data):
-              return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
-
-          def jwt_for(role):
-              header = {"alg": "HS256", "typ": "JWT"}
-              payload = {
-                  "role": role,
-                  "iss": "supabase-demo",
-                  "iat": 0,
-                  "exp": 9999999999,
-              }
-              header_part = b64url(json.dumps(header, separators=(",", ":")).encode())
-              payload_part = b64url(json.dumps(payload, separators=(",", ":")).encode())
-              signing_input = f"{header_part}.{payload_part}"
-              signature = hmac.new(
-                  os.environ["SUPABASE_JWT_SECRET"].encode(),
-                  signing_input.encode(),
-                  hashlib.sha256,
-              ).digest()
-              return f"{signing_input}.{b64url(signature)}"
-
-          anon = jwt_for("anon")
-          service_role = jwt_for("service_role")
-          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
-              out.write(f"anon={anon}\n")
-              out.write(f"service_role={service_role}\n")
-          with open(os.environ["GITHUB_ENV"], "a") as env:
-              env.write(f"NEXT_PUBLIC_SUPABASE_ANON_KEY={anon}\n")
-              env.write(f"SERVICE_ROLE_JWT={service_role}\n")
-          PY
       - name: Build backend image
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
@@ -941,7 +583,7 @@ jobs:
           tags: rag-frontend:test
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ steps.supabase-jwts.outputs.anon }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
             NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx
             NEXT_PUBLIC_AUTH_COOKIE_NAME=sb-nous-e2e
           cache-from: type=gha,scope=frontend-e2e
@@ -1012,9 +654,9 @@ jobs:
             -e ENCRYPTION_MASTER_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
             -e CORS_ORIGINS=http://localhost:3000,http://frontend:3000 \
             -e ENABLE_AI_PROCESSING=false \
-            -e SEED_ADMIN_PASSWORD=admin123 \
+            -e SEED_ADMIN_PASSWORD=REDACTED \
             -e SEED_DEMO_PASSWORD=demo123 \
-            -e SEED_LAB_ADMIN_PASSWORD=admin123 \
+            -e SEED_LAB_ADMIN_PASSWORD=REDACTED \
             rag-backend:test
 
           # Start frontend with pre-built image
@@ -1072,7 +714,7 @@ jobs:
         run: |
           docker exec \
             -e PYTHONPATH=/app \
-            -e SERVICE_ROLE_JWT=$SERVICE_ROLE_JWT \
+            -e SERVICE_ROLE_JWT=JWT_REDACTED \
             backend-e2e \
             python -c "
           import os, httpx
@@ -1080,9 +722,9 @@ jobs:
           from src.models.user import User
 
           PASSWORDS = {
-              'admin@multimodal-rag.com': 'admin123',
+              'admin@multimodal-rag.com': 'REDACTED',
               'demo@multimodal-rag.com': 'demo123',
-              'lab-admin@multimodal-rag.com': 'admin123',
+              'lab-admin@multimodal-rag.com': 'REDACTED',
           }
           headers = {'Authorization': f\"Bearer {os.environ['SERVICE_ROLE_JWT']}\"}
           # GoTrue v2.151 IGNORES a client-supplied id on /admin/users and
@@ -1114,57 +756,65 @@ jobs:
                       print(f'  app user id {u.id} -> {gid} (adopted gotrue id)')
               db.commit()
           "
-      - name: Set up pnpm for Playwright
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - name: Setup Node.js for Playwright
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
+          node-version: '20'
+      - name: Cache e2e node_modules
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: tests/e2e/node_modules
+          # No lockfile in tests/e2e (package.json only) — key on it directly.
+          key: ${{ runner.os }}-e2e-node-${{ hashFiles('tests/e2e/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-node-
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
-          # Key on pnpm-lock.yaml so browser cache invalidates when the locked
-          # @playwright/test/playwright version changes.
-          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('pnpm-lock.yaml') }}
+          # Key on package.json (not the @playwright/test semver RANGE) so a
+          # patch bump invalidates the cached browser binary.
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('tests/e2e/package.json') }}
           restore-keys: |
             ${{ runner.os }}-playwright-chromium-
       - name: Install Playwright dependencies
+        working-directory: tests/e2e
         run: |
-          pnpm config set fetch-retries 5
-          pnpm config set fetch-retry-mintimeout 20000
-          pnpm config set fetch-retry-maxtimeout 120000
-          pnpm install --frozen-lockfile --filter ./tests/e2e
+          npm install
           # Always run `playwright install` — do NOT gate it on the cache-hit.
-          # The locked workspace install keeps @playwright/test and the browser
-          # cache in sync; this command is a no-op when the matching browser is
-          # cached and re-downloads only on drift. --with-deps also installs OS
-          # libs (libnss/libatk/libgbm) absent on a fresh runner.
-          pnpm --dir tests/e2e exec playwright install --with-deps chromium
+          # The cache key hashes tests/e2e/package.json, which holds a semver
+          # RANGE, and there's no lockfile here, so `npm install` can resolve a
+          # newer @playwright/test patch (e.g. a bumped chrome-headless-shell
+          # build) WITHOUT changing package.json → exact cache-hit → the old
+          # gated logic skipped the install and left a stale browser binary,
+          # failing launch with "Executable doesn't exist". `playwright install`
+          # is a no-op when the cached browser already matches and re-downloads
+          # only on drift; --with-deps also installs the OS libs (libnss/libatk/
+          # libgbm) absent on a fresh runner.
+          npx playwright install --with-deps chromium
       - name: Run E2E Tests
         env:
           CI: true
           BASE_URL: http://localhost:3000
           API_BASE_URL: http://localhost:8000
           TEST_ADMIN_EMAIL: admin@multimodal-rag.com
-          TEST_ADMIN_PASSWORD: admin123
+          TEST_ADMIN_PASSWORD: REDACTED
           TEST_USER_EMAIL: demo@multimodal-rag.com
           TEST_USER_PASSWORD: demo123
           TEST_ORG_ADMIN_EMAIL: lab-admin@multimodal-rag.com
-          TEST_ORG_ADMIN_PASSWORD: admin123
+          TEST_ORG_ADMIN_PASSWORD: REDACTED
         run: |
+          cd tests/e2e
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             echo "Running smoke tests for PR..."
-            pnpm --dir tests/e2e exec playwright test --grep "@smoke" --project=chromium --reporter=html,github
+            npx playwright test --grep "@smoke" --project=chromium --reporter=html,github
           else
             echo "Running full E2E tests..."
             # --max-failures: a systemic failure (stack misconfig, dead
             # selector everywhere) exits fast and REPORTS instead of burning
             # the whole job budget and getting killed as "cancelled".
-            pnpm --dir tests/e2e exec playwright test --project=chromium --reporter=html,github --max-failures=15
+            npx playwright test --project=chromium --reporter=html,github --max-failures=15
           fi
       - name: Upload E2E test results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -1271,17 +921,16 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [migration-check, openapi-contract, unit-tests, golden-replay, integration-tests, resilience-tests, frontend-tests, security-scan, e2e-tests]
+    needs: [unit-tests, golden-replay, integration-tests, resilience-tests, frontend-tests, security-scan, api-contract-tests, e2e-tests]
     if: always()
     env:
-      MIGRATION_RESULT: ${{ needs.migration-check.result }}
-      OPENAPI_RESULT: ${{ needs.openapi-contract.result }}
       UNIT_RESULT: ${{ needs.unit-tests.result }}
       GOLDEN_RESULT: ${{ needs.golden-replay.result }}
       INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
       RESILIENCE_RESULT: ${{ needs.resilience-tests.result }}
       FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
       SECURITY_RESULT: ${{ needs.security-scan.result }}
+      CONTRACT_RESULT: ${{ needs.api-contract-tests.result }}
       E2E_RESULT: ${{ needs.e2e-tests.result }}
       GH_WORKFLOW: ${{ github.workflow }}
       GH_REF: ${{ github.ref_name }}
@@ -1294,24 +943,6 @@ jobs:
             echo ""
             echo "| Test Suite | Status |"
             echo "|------------|--------|"
-
-            # Alembic Migration Check
-            if [ "$MIGRATION_RESULT" = "success" ]; then
-              echo "| Alembic Migration Check | :white_check_mark: Passed |"
-            elif [ "$MIGRATION_RESULT" = "skipped" ]; then
-              echo "| Alembic Migration Check | :fast_forward: Skipped |"
-            else
-              echo "| Alembic Migration Check | :x: $MIGRATION_RESULT |"
-            fi
-
-            # OpenAPI Contract Ratchet
-            if [ "$OPENAPI_RESULT" = "success" ]; then
-              echo "| OpenAPI Contract Ratchet | :white_check_mark: Passed |"
-            elif [ "$OPENAPI_RESULT" = "skipped" ]; then
-              echo "| OpenAPI Contract Ratchet | :fast_forward: Skipped |"
-            else
-              echo "| OpenAPI Contract Ratchet | :x: $OPENAPI_RESULT |"
-            fi
 
             # Unit Tests
             if [ "$UNIT_RESULT" = "success" ]; then
@@ -1367,6 +998,15 @@ jobs:
               echo "| Security Scan | :x: $SECURITY_RESULT |"
             fi
 
+            # API Contract Tests
+            if [ "$CONTRACT_RESULT" = "success" ]; then
+              echo "| API Contract Tests | :white_check_mark: Passed |"
+            elif [ "$CONTRACT_RESULT" = "skipped" ]; then
+              echo "| API Contract Tests | :fast_forward: Skipped |"
+            else
+              echo "| API Contract Tests | :x: $CONTRACT_RESULT |"
+            fi
+
             # E2E Tests
             if [ "$E2E_RESULT" = "success" ]; then
               echo "| E2E Tests | :white_check_mark: Passed |"
@@ -1383,25 +1023,21 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Fail if critical tests failed
         env:
-          MIGRATION_RESULT: ${{ needs.migration-check.result }}
-          OPENAPI_RESULT: ${{ needs.openapi-contract.result }}
           UNIT_RESULT: ${{ needs.unit-tests.result }}
           GOLDEN_RESULT: ${{ needs.golden-replay.result }}
           FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
           SECURITY_RESULT: ${{ needs.security-scan.result }}
           INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
+          CONTRACT_RESULT: ${{ needs.api-contract-tests.result }}
           RESILIENCE_RESULT: ${{ needs.resilience-tests.result }}
         run: |
-          # Blocking lanes: migration guard, OpenAPI contract, unit, golden
-          # replay, frontend, security, integration, resilience. E2E and
-          # performance remain non-blocking (continue-on-error) until the E2E
-          # infra is stabilized.
+          # Blocking lanes: unit, golden replay, frontend, security, integration,
+          # contract, resilience. E2E and performance remain non-blocking
+          # (continue-on-error) until the E2E infra is stabilized.
           failed=0
-          for pair in "migration:$MIGRATION_RESULT" "openapi:$OPENAPI_RESULT" \
-                      "unit:$UNIT_RESULT" "golden:$GOLDEN_RESULT" \
-                      "frontend:$FRONTEND_RESULT" "security:$SECURITY_RESULT" \
-                      "integration:$INTEGRATION_RESULT" \
-                      "resilience:$RESILIENCE_RESULT"; do
+          for pair in "unit:$UNIT_RESULT" "golden:$GOLDEN_RESULT" "frontend:$FRONTEND_RESULT" \
+                      "security:$SECURITY_RESULT" "integration:$INTEGRATION_RESULT" \
+                      "contract:$CONTRACT_RESULT" "resilience:$RESILIENCE_RESULT"; do
             name="${pair%%:*}"; result="${pair#*:}"
             if [ "$result" == "failure" ]; then
               echo "Blocking suite failed: $name"

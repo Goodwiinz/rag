@@ -15,22 +15,12 @@ export interface Step {
  * High-level task item from the LangGraph planner_node. Rendered Cowork-style
  * in the Progress card (check-circle + strikethrough when done). Derived from
  * the `plan` SSE event emitted by the backend.
- *
- * `tool` carries the planner's tool hint for the step (absent for pure
- * reasoning/respond steps). Tool-bearing items are only marked done when the
- * matching tool actually completes successfully — never in bulk at stream
- * end — so the Progress card reflects what really ran, not just that the
- * stream closed.
  */
 export interface PlanItem {
   id: string;
   text: string;
-  tool?: string;
   done: boolean;
 }
-
-/** Input accepted by setPlan: plain text or text + planner tool hint. */
-export type PlanItemInput = string | { text: string; tool?: string | null };
 
 export interface Run {
   threadId: string;
@@ -38,19 +28,8 @@ export interface Run {
   task: string;
   steps: Step[];
   plan: PlanItem[];
-  state: 'running' | 'done' | 'error' | 'stopped';
+  state: 'running' | 'done' | 'error';
   startedAt: number;
-  /**
-   * Done-state of the previous run's plan on this thread. A re-send starts a
-   * fresh run, but the work the earlier run actually completed is still real
-   * (and still shown by the in-transcript plan card, which derives status from
-   * the committed message). `setPlan` is set-once per run, so the carry-over
-   * cannot be merged after the new plan lands — it is kept here and consulted
-   * when the new plan arrives.
-   */
-  carriedPlan?: PlanItem[];
-  /** Last SSE frame seq seen for this run — the resume cursor. */
-  streamSeq?: number;
 }
 
 interface AgentActivityState {
@@ -59,9 +38,8 @@ interface AgentActivityState {
   startRun: (threadId: string, name: string, task: string) => void;
   pushToolStart: (threadId: string, tool: string) => void;
   pushToolEnd: (threadId: string, tool: string, ok: boolean) => void;
-  setPlan: (threadId: string, items: PlanItemInput[]) => void;
-  setStreamSeq: (threadId: string, seq: number) => void;
-  finishRun: (threadId: string, state: 'done' | 'error' | 'stopped') => void;
+  setPlan: (threadId: string, items: string[]) => void;
+  finishRun: (threadId: string, state: 'done' | 'error') => void;
 }
 
 // Eviction constants — cap unbounded growth of runs and steps
@@ -77,16 +55,6 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
 
   startRun: (threadId, name, task) =>
     set((s) => {
-      // Re-sending in the same thread must not blank out what already ran:
-      // keep the previous plan's done-state (or the one it was itself
-      // carrying, when this run never received a plan of its own) so the new
-      // plan can restore it.
-      const previous = s.runs[threadId];
-      const carriedPlan = previous
-        ? previous.plan.length > 0
-          ? previous.plan
-          : previous.carriedPlan
-        : undefined;
       const newRuns = {
         ...s.runs,
         [threadId]: {
@@ -95,7 +63,6 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
           task,
           steps: [],
           plan: [],
-          ...(carriedPlan && carriedPlan.length > 0 ? { carriedPlan } : {}),
           state: 'running' as const,
           startedAt: Date.now(),
         },
@@ -153,27 +120,11 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
       const idx = run.steps.findIndex(
         (st) => st.tool === tool && st.status === 'active'
       );
-      let steps = run.steps;
-      if (idx >= 0) {
-        steps = [...run.steps];
-        steps[idx] = { ...steps[idx], status: ok ? 'done' : 'error' };
-      }
-
-      // A successful tool completion also completes the first pending plan
-      // item that hints at this tool — this is the only path that marks
-      // tool-bearing plan items done.
-      let plan = run.plan;
-      if (ok) {
-        const planIdx = run.plan.findIndex((p) => !p.done && p.tool === tool);
-        if (planIdx >= 0) {
-          plan = [...run.plan];
-          plan[planIdx] = { ...plan[planIdx], done: true };
-        }
-      }
-
-      if (steps === run.steps && plan === run.plan) return s;
+      if (idx < 0) return s;
+      const next = [...run.steps];
+      next[idx] = { ...next[idx], status: ok ? 'done' : 'error' };
       return {
-        runs: { ...s.runs, [threadId]: { ...run, steps, plan } },
+        runs: { ...s.runs, [threadId]: { ...run, steps: next } },
       };
     }),
 
@@ -183,44 +134,24 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
       if (!run) return s;
       // Only set once — avoid clobbering existing plan with later re-emits.
       if (run.plan.length > 0) return s;
-      const plan: PlanItem[] = items.map((item, i) => {
-        const text = typeof item === 'string' ? item : item.text;
-        const rawTool = typeof item === 'string' ? undefined : item.tool;
-        // Planner emits "N/A" for reasoning/respond steps with no tool.
-        const tool =
-          rawTool && rawTool.trim().toUpperCase() !== 'N/A'
-            ? rawTool.trim()
-            : undefined;
-        // Restore the done-state a previous run in this thread reached for the
-        // same item. Nothing is marked done that wasn't done before.
-        const done = (run.carriedPlan ?? []).some(
-          (prev) => prev.text === text && prev.done
-        );
-        return { id: `plan-${Date.now()}-${i}`, text, tool, done };
-      });
+      const plan: PlanItem[] = items.map((text, i) => ({
+        id: `plan-${Date.now()}-${i}`,
+        text,
+        done: false,
+      }));
       return { runs: { ...s.runs, [threadId]: { ...run, plan } } };
-    }),
-
-  setStreamSeq: (threadId, seq) =>
-    set((s) => {
-      const run = s.runs[threadId];
-      if (!run || run.streamSeq === seq) return s;
-      return { runs: { ...s.runs, [threadId]: { ...run, streamSeq: seq } } };
     }),
 
   finishRun: (threadId, state) =>
     set((s) => {
       const run = s.runs[threadId];
       if (!run) return s;
-      // On successful completion, close out only the tool-less plan items
-      // (reasoning/respond steps) — tool-bearing items are completed by
-      // pushToolEnd when their tool actually succeeds. A run that never
-      // executed its planned tools must not render as fully complete
-      // (7-of-7 struck through while the answer says the extraction
-      // failed). 'stopped' (user abort) and 'error' leave the plan as-is.
+      // On successful completion, mark every plan item as done — matches
+      // Cowork's "all checked" end state (we don't have fine-grained plan
+      // step tracking yet, so this binary mapping is the honest default).
       const plan =
         state === 'done' && run.plan.length > 0
-          ? run.plan.map((p) => (p.tool ? p : { ...p, done: true }))
+          ? run.plan.map((p) => ({ ...p, done: true }))
           : run.plan;
       return {
         currentThreadId:

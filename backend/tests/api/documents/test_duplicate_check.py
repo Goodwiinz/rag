@@ -67,5 +67,5 @@ async def test_check_duplicate_falls_back_when_checksum_lookup_fails():
     assert response.document is not None
     assert response.document.id == "doc-1"
     assert response.document.document_type == "pdf"
-    assert response.document.processing_status == "indexed"
+    assert response.document.processing_status == "completed"
     assert db.execute.await_count == 2

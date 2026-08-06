@@ -55,9 +55,7 @@ class SearchQuery(BaseModel):
 
     # User information
     user_id = Column(GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    organization_id = Column(
-        GUID(), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
-    )
+    organization_id = Column(GUID(), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
 
     # Session tracking
     session_id = Column(String(255), nullable=True, index=True)
@@ -211,12 +209,8 @@ class SearchResult(BaseModel):
     __tablename__ = "search_results"
 
     # Result information
-    document_id = Column(
-        GUID(), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
-    )
-    search_query_id = Column(
-        GUID(), ForeignKey("search_queries.id", ondelete="CASCADE"), nullable=False
-    )
+    document_id = Column(GUID(), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    search_query_id = Column(GUID(), ForeignKey("search_queries.id", ondelete="CASCADE"), nullable=False)
     rank_position = Column(Integer, nullable=False)
     relevance_score = Column(Float, nullable=False, index=True)
     confidence = Column(Float, default=1.0, nullable=False)

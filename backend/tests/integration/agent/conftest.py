@@ -124,10 +124,9 @@ def make_mock_execute_tool(results: dict | None = None):
     default_results = results or {}
 
     async def _execute(
-        *, tool_name, args, user_id=None, organization_id=None, thread_id=None, **_kw
+        *, tool_name, args, user_id=None, db=None, current_user=None, **_kw
     ):
-        # unused — captured for signature parity with the ids-only executor
-        del args, user_id, organization_id, thread_id, _kw
+        del args, user_id, db, current_user, _kw  # unused — captured for signature parity
         return default_results.get(tool_name, {"result": "ok"})
 
     return _execute
@@ -210,17 +209,11 @@ def make_graph_config(
     thread_id: str | None = None,
     page_context: dict | None = None,
 ) -> dict:
-    """Build a RunnableConfig for graph invocation.
-
-    Mirrors production (audit B8): the configurable carries scalar ids only
-    — never a live session or ORM user.
-    """
-    user = user or make_mock_user()
+    """Build a RunnableConfig for graph invocation."""
     return {
         "configurable": {
             "thread_id": thread_id or str(uuid.uuid4()),
-            "user_id": str(user.id),
-            "organization_id": str(getattr(user, "organization_id", "") or ""),
+            "current_user": user or make_mock_user(),
             "page_context": page_context or {},
             "search_fn": AsyncMock(return_value=[]),
         }

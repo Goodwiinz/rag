@@ -5,7 +5,6 @@ Addresses critical authentication vulnerabilities
 
 import base64
 import hashlib
-import json
 import logging
 import os
 import re
@@ -578,9 +577,37 @@ class EnhancedAuthService:
 
         return user.to_dict(exclude_sensitive=True)
 
-    # NOTE: change_password() was retired here too — it was an unreachable copy of
-    # the retired AuthService.change_password, gating on a local password_hash that
-    # hosted GoTrue never populates. Supabase's reset-password email is the flow.
+    async def change_password(
+        self, user: User, current_password: str, new_password: str
+    ) -> bool:
+        """Change user password with security validation"""
+
+        # Verify current password
+        if not self._verify_password(current_password, user.password_hash):
+            raise ValueError("Current password is incorrect")
+
+        # Validate new password
+        is_valid, errors = self.password_policy.validate_password(
+            new_password,
+            {
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "email": user.email,
+            },
+        )
+
+        if not is_valid:
+            raise ValueError(f"Password validation failed: {'; '.join(errors)}")
+
+        # Update password
+        user.password_hash = self._hash_password(new_password)
+        user.password_changed_at = datetime.utcnow()
+        await self.db.commit()
+
+        # Revoke all existing tokens for this user
+        self.token_manager.revoke_all_user_tokens(str(user.id))
+
+        return True
 
     def _hash_password(self, password: str) -> str:
         """Hash password using bcrypt"""

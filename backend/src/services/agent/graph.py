@@ -42,6 +42,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
+
 _TOOL_PLACEHOLDER_CONTENT = '{"status": "skipped"}'
 
 
@@ -103,7 +104,9 @@ def _sanitize_messages(raw: list) -> list:
                 continue
             tm = tm_by_id.get(tc_id)
             if tm is None:
-                tm = ToolMessage(content=_TOOL_PLACEHOLDER_CONTENT, tool_call_id=tc_id)
+                tm = ToolMessage(
+                    content=_TOOL_PLACEHOLDER_CONTENT, tool_call_id=tc_id
+                )
             rebuilt.append(tm)
             placed_tm_ids.add(tc_id)
 
@@ -131,7 +134,7 @@ def _sanitize_messages(raw: list) -> list:
     return merged
 
 
-from langgraph.types import Command, RetryPolicy, interrupt
+from langgraph.types import RetryPolicy, interrupt, Command
 
 from src.core.config import get_settings
 from src.core.openai_endpoint import classify_openai_endpoint
@@ -158,22 +161,22 @@ def _get_execute_tool():
     """Lazily import execute_tool and keep it patch-friendly.
 
     The agent tests patch both ``src.services.agent.graph.execute_tool`` and
-    the dispatcher at ``src.services.agent.tools_impl.execute_tool``.
+    the backward-compatible re-export at ``src.api.agent.execute.execute_tool``.
     After the API split, caching the first imported callable caused later
-    source-module patches to be ignored. We only refresh the cached callable
-    when graph.py is still pointing at the last default import.
+    re-export patches to be ignored. We only refresh the cached callable when
+    graph.py is still pointing at the last default import.
     """
     global execute_tool, _default_execute_tool  # noqa: PLW0603
 
     with _execute_tool_lock:
         if execute_tool is None:
-            from src.services.agent.tools_impl import execute_tool as _et
+            from src.api.agent.execute import execute_tool as _et
 
             execute_tool = _et
             _default_execute_tool = _et
             return execute_tool
 
-        from src.services.agent.tools_impl import execute_tool as _et
+        from src.api.agent.execute import execute_tool as _et
 
         if execute_tool is _default_execute_tool:
             execute_tool = _et
@@ -194,6 +197,7 @@ def _safe_json_loads(s: str) -> Any:
         return json.loads(s)
     except (json.JSONDecodeError, TypeError):
         return {"raw": s}
+
 
 
 # ---------------------------------------------------------------------------
@@ -274,7 +278,6 @@ def _build_llm(model_override: str | None = None):
             api_key=api_key,
             base_url=endpoint,
             max_tokens=4096,
-            streaming=True,
             use_responses_api=False,
             request_timeout=request_timeout,
             max_retries=max_retries,
@@ -293,7 +296,6 @@ def _build_llm(model_override: str | None = None):
             api_key=api_key,
             api_version=api_version,
             max_tokens=4096,
-            streaming=True,
             use_responses_api=False,
             request_timeout=request_timeout,
             max_retries=max_retries,
@@ -313,31 +315,6 @@ def _build_llm(model_override: str | None = None):
 # ---------------------------------------------------------------------------
 
 
-from src.services.agent._builders import (  # noqa: E402
-    MAX_ERRORS,
-    MAX_TOOL_LOOPS,
-    after_interrupt,
-    build_agent_graph,
-    compile_agent_graph,
-    create_graph,
-    should_continue,
-)
-from src.services.agent._nodes_classify import (  # noqa: E402
-    _classify_core,
-    _extract_prior_tool,
-    intent_classifier_node,
-    preprocessing_node,
-    route_by_intent,
-)
-from src.services.agent._nodes_llm import (  # noqa: E402
-    GENERAL_TOOLS_NAMES,
-    KG_TOOLS_NAMES,
-    RESEARCH_TOOLS_NAMES,
-    WRITING_TOOLS_NAMES,
-    _get_tools_for_intent,
-    llm_node,
-)
-
 # Memory recall/save nodes now live in _nodes_memory. Re-export so
 # legacy imports (`from src.services.agent.graph import memory_save_node`)
 # keep working without rewriting tests/callers.
@@ -346,64 +323,40 @@ from src.services.agent._nodes_memory import (  # noqa: E402
     memory_save_node,
 )
 
-# rag_node + DO KB / hybrid search helpers + conversational fast-path
-# heuristics live in _nodes_rag. Re-export so legacy callers
-# (`from src.services.agent.graph import rag_node`) keep working.
-from src.services.agent._nodes_rag import (  # noqa: E402
-    _is_retrieval_query,
-    _legacy_hybrid_search_fallback,
-    _shape_do_kb_context,
-    _try_primary_do_kb_read,
-    is_conversational,
-    rag_node,
-)
-
-# Tool execution + interrupt + concurrency constants now live in
-# _nodes_tools. Re-export so legacy imports
-# (`from src.services.agent.graph import tool_node, interrupt_node,
-# DESTRUCTIVE_TOOLS, AGENT_LLM_TIMEOUT_SECONDS, TOOL_TIMEOUT_SECONDS,
-# make_filtered_tool_node`) keep working without rewriting subgraphs/tests.
-from src.services.agent._nodes_tools import (  # noqa: E402
-    _NO_OUTER_RETRY_TOOLS,
-    _SLOW_TOOL_TIMEOUT_SECONDS,
-    _SLOW_TOOLS,
-    AGENT_LLM_TIMEOUT_SECONDS,
-    DESTRUCTIVE_TOOLS,
-    TOOL_TIMEOUT_SECONDS,
-    _execute_single_tool,
-    _get_tool_semaphore,
-    interrupt_node,
-    make_filtered_tool_node,
-    tool_node,
-)
-
-# Prompt content + render helpers (re-exported for subgraphs/tests/classifier).
-# Subgraph LLM nodes look these up via lazy import on every call, so they
-# must resolve from graph.py for back-compat with pre-T2.1 wiring.
-# Weighted keywords: (keyword, weight)
-# Action verbs get higher weight; ambiguous nouns get lower weight
-# Classifier hints live in _prompts; re-exported here so legacy imports
-# (`from src.services.agent.graph import INTENT_KEYWORDS, INTENT_PRIORITY`)
-# keep working without churn.
-from src.services.agent._prompts import (  # noqa: E402  (re-export); noqa: E402
-    _LLM_NODE_STATIC_PROMPT,
-    INTENT_KEYWORDS,
-    INTENT_PRIORITY,
-    INTENT_PROMPTS,
-    SHARED_AGENT_RULES,
-    _build_page_context_line,
-    _merge_run_config,
-    _runtime_model_line,
-)
 
 # ---------------------------------------------------------------------------
 # Graph nodes
 # ---------------------------------------------------------------------------
 
 
+# rag_node + DO KB / hybrid search helpers + conversational fast-path
+# heuristics live in _nodes_rag. Re-export so legacy callers
+# (`from src.services.agent.graph import rag_node`) keep working.
+from src.services.agent._nodes_rag import (  # noqa: E402
+    _is_retrieval_query,
+    is_conversational,
+    _legacy_hybrid_search_fallback,
+    _shape_do_kb_context,
+    _try_primary_do_kb_read,
+    rag_node,
+)
+
+
 # ---------------------------------------------------------------------------
 # Intent classification
 # ---------------------------------------------------------------------------
+
+# Weighted keywords: (keyword, weight)
+# Action verbs get higher weight; ambiguous nouns get lower weight
+# Classifier hints live in _prompts; re-exported here so legacy imports
+# (`from src.services.agent.graph import INTENT_KEYWORDS, INTENT_PRIORITY`)
+# keep working without churn.
+from src.services.agent._prompts import (  # noqa: E402  (re-export)
+    INTENT_KEYWORDS,
+    INTENT_PRIORITY,
+)
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -413,6 +366,47 @@ from src.services.agent._prompts import (  # noqa: E402  (re-export); noqa: E402
 # keep working unchanged.
 # ---------------------------------------------------------------------------
 
+from src.services.agent._nodes_llm import (  # noqa: E402
+    GENERAL_TOOLS_NAMES,
+    KG_TOOLS_NAMES,
+    RESEARCH_TOOLS_NAMES,
+    WRITING_TOOLS_NAMES,
+    _get_tools_for_intent,
+    llm_node,
+)
+
+# Prompt content + render helpers (re-exported for subgraphs/tests/classifier).
+# Subgraph LLM nodes look these up via lazy import on every call, so they
+# must resolve from graph.py for back-compat with pre-T2.1 wiring.
+from src.services.agent._prompts import (  # noqa: E402
+    INTENT_PROMPTS,
+    SHARED_AGENT_RULES,
+    _LLM_NODE_STATIC_PROMPT,
+    _build_page_context_line,
+    _merge_run_config,
+    _runtime_model_line,
+)
+
+
+# Tool execution + interrupt + concurrency constants now live in
+# _nodes_tools. Re-export so legacy imports
+# (`from src.services.agent.graph import tool_node, interrupt_node,
+# DESTRUCTIVE_TOOLS, AGENT_LLM_TIMEOUT_SECONDS, TOOL_TIMEOUT_SECONDS,
+# make_filtered_tool_node`) keep working without rewriting subgraphs/tests.
+from src.services.agent._nodes_tools import (  # noqa: E402
+    AGENT_LLM_TIMEOUT_SECONDS,
+    DESTRUCTIVE_TOOLS,
+    TOOL_TIMEOUT_SECONDS,
+    _execute_single_tool,
+    _get_tool_semaphore,
+    _NO_OUTER_RETRY_TOOLS,
+    _SLOW_TOOL_TIMEOUT_SECONDS,
+    _SLOW_TOOLS,
+    interrupt_node,
+    make_filtered_tool_node,
+    tool_node,
+)
+
 
 # ---------------------------------------------------------------------------
 # Intent classification + parallel preprocessing — moved to _nodes_classify.
@@ -421,6 +415,14 @@ from src.services.agent._prompts import (  # noqa: E402  (re-export); noqa: E402
 # the classifier path.
 # ---------------------------------------------------------------------------
 
+from src.services.agent._nodes_classify import (  # noqa: E402
+    _classify_core,
+    _extract_prior_tool,
+    intent_classifier_node,
+    preprocessing_node,
+    route_by_intent,
+)
+
 
 # ---------------------------------------------------------------------------
 # Graph builders + conditional edges — moved to _builders. Re-export so
@@ -428,3 +430,13 @@ from src.services.agent._prompts import (  # noqa: E402  (re-export); noqa: E402
 # tests importing `should_continue` / `MAX_ERRORS` / `MAX_TOOL_LOOPS`
 # keep working unchanged.
 # ---------------------------------------------------------------------------
+
+from src.services.agent._builders import (  # noqa: E402
+    MAX_ERRORS,
+    MAX_TOOL_LOOPS,
+    after_interrupt,
+    build_agent_graph,
+    compile_agent_graph,
+    create_graph,
+    should_continue,
+)

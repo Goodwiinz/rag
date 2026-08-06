@@ -1,5 +1,4 @@
-import toast from 'react-hot-toast';
-
+import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { getNewChatUrl } from '@/components/chat/shared/chatNavigation';
 import { ChatConversation } from '@/hooks/chat/chatTypes';
 import { workspaceService } from '@/services/workspaceService';
@@ -34,25 +33,11 @@ export interface BulkDeleteDialogState {
 export interface UseChatThreadActionsParams {
   conversations: ChatConversation[];
   setConversations: React.Dispatch<React.SetStateAction<ChatConversation[]>>;
-  activeThreadId: string | null;
+  activeConversationId: string | null;
+  setActiveConversationId: React.Dispatch<React.SetStateAction<string | null>>;
+  activeConversationIdRef: React.MutableRefObject<string | null>;
+  setMessages: React.Dispatch<React.SetStateAction<ChatPageMessage[]>>;
   setCurrentThread: (threadId: string | null) => void;
-}
-
-export interface UseChatThreadActionsReturn {
-  renameDialog: RenameDialogState;
-  setRenameDialog: React.Dispatch<React.SetStateAction<RenameDialogState>>;
-  deleteDialog: DeleteDialogState;
-  setDeleteDialog: React.Dispatch<React.SetStateAction<DeleteDialogState>>;
-  bulkDeleteDialog: BulkDeleteDialogState;
-  setBulkDeleteDialog: React.Dispatch<
-    React.SetStateAction<BulkDeleteDialogState>
-  >;
-  handleRenameThread: (threadId: string) => Promise<void>;
-  commitRename: () => Promise<void>;
-  handleDeleteThread: (threadId: string) => void;
-  commitDeleteThread: () => Promise<void>;
-  handleBulkDeleteThreads: (ids: string[]) => void;
-  commitBulkDelete: () => Promise<void>;
 }
 
 // ============================================
@@ -62,9 +47,12 @@ export interface UseChatThreadActionsReturn {
 export function useChatThreadActions({
   conversations,
   setConversations,
-  activeThreadId,
+  activeConversationId,
+  setActiveConversationId,
+  activeConversationIdRef,
+  setMessages,
   setCurrentThread,
-}: UseChatThreadActionsParams): UseChatThreadActionsReturn {
+}: UseChatThreadActionsParams) {
   const router = useRouter();
 
   // Dialog state for rename/delete — replaces window.prompt/confirm
@@ -110,10 +98,7 @@ export function useChatThreadActions({
         )
       );
     } catch (err) {
-      // The dialog already closed optimistically, so without this the title
-      // silently stays the old value and the rename looks like it worked.
       console.error('[Chat] Rename failed', err);
-      toast.error('Could not rename the conversation. Please try again.');
     }
   }, [renameDialog, setConversations]);
 
@@ -127,20 +112,25 @@ export function useChatThreadActions({
     try {
       await workspaceService.deleteThread(threadId);
       setConversations((prev) => prev.filter((c) => c.id !== threadId));
-      if (activeThreadId === threadId) {
+      if (activeConversationId === threadId) {
+        setActiveConversationId(null);
+        activeConversationIdRef.current = null;
+        setMessages([]);
         setCurrentThread(null);
         router.push(getNewChatUrl());
       }
     } catch (err) {
       console.error('[Chat] Delete failed', err);
-      toast.error('Could not delete the conversation. Please try again.');
     }
   }, [
     deleteDialog,
-    activeThreadId,
+    activeConversationId,
     router,
     setCurrentThread,
     setConversations,
+    setActiveConversationId,
+    activeConversationIdRef,
+    setMessages,
   ]);
 
   const handleBulkDeleteThreads = useCallback((ids: string[]) => {
@@ -153,22 +143,25 @@ export function useChatThreadActions({
     try {
       await workspaceService.bulkDeleteThreads(ids);
       setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
-      if (activeThreadId && ids.includes(activeThreadId)) {
+      if (activeConversationId && ids.includes(activeConversationId)) {
+        setActiveConversationId(null);
+        activeConversationIdRef.current = null;
+        setMessages([]);
         setCurrentThread(null);
         router.push(getNewChatUrl());
       }
     } catch (err) {
       console.error('[Chat] Bulk delete failed', err);
-      toast.error(
-        'Could not delete the selected conversations. Please try again.'
-      );
     }
   }, [
     bulkDeleteDialog,
-    activeThreadId,
+    activeConversationId,
     router,
     setCurrentThread,
     setConversations,
+    setActiveConversationId,
+    activeConversationIdRef,
+    setMessages,
   ]);
 
   return {

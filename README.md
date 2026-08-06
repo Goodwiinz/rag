@@ -8,7 +8,7 @@
 
 [![Live Demo](https://img.shields.io/badge/Live_Showcase-goodwiins.github.io%2Fnous-D4A039?style=for-the-badge)](https://goodwiins.github.io/nous/)
 [![GitHub](https://img.shields.io/badge/GitHub-goodwiins%2Frag-0A0A0E?style=for-the-badge&logo=github)](https://github.com/goodwiins/rag)
-[![Next.js](https://img.shields.io/badge/Next.js-16.2-000000?style=for-the-badge&logo=nextdotjs)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-15.1-000000?style=for-the-badge&logo=nextdotjs)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Agent_System-1C3C3C?style=for-the-badge)](https://langchain-ai.github.io/langgraph/)
 
@@ -62,7 +62,7 @@ Intent-routed StateGraph with specialized subgraphs (research · writing · data
 
 ### Hybrid Retrieval
 
-Vector (DO Knowledge Base) + keyword (Postgres FTS) + graph (Neo4j) fused and reranked (Cohere). Cross-modal: a query hits text chunks, image regions, audio segments, and citation edges in one call.
+Vector (Qdrant) + keyword (Postgres FTS) + graph (Neo4j) fused and reranked (Cohere). Cross-modal: a query hits text chunks, image regions, audio segments, and citation edges in one call.
 
 </td>
 </tr>
@@ -132,19 +132,19 @@ Full gallery at [goodwiins.github.io/nous](https://goodwiins.github.io/nous/).
 
 ```
 ┌─────────────────┐     ┌──────────────────────────────────────────┐     ┌────────────────┐
-│  Next.js 16     │────▶│  FastAPI · LangGraph StateGraph          │────▶│  Postgres      │
-│  React 18       │ SSE │  ┌──────────────────────────────────┐    │     │  Neo4j         │
-│  Zustand + RQ   │◀────│  │ rag → intent → memory → route →  │    │     │  Redis         │
-│  shadcn/ui      │     │  │ [research|writing|data|general]  │    │     │  MinIO         │
-└─────────────────┘     │  │ → tools → memory_save → END      │    │     └────────────────┘
+│  Next.js 15     │────▶│  FastAPI · LangGraph StateGraph          │────▶│  Postgres      │
+│  React 18       │ SSE │  ┌──────────────────────────────────┐    │     │  Qdrant        │
+│  Zustand + RQ   │◀────│  │ rag → intent → memory → route →  │    │     │  Neo4j         │
+│  shadcn/ui      │     │  │ [research|writing|data|general]  │    │     │  Redis         │
+└─────────────────┘     │  │ → tools → memory_save → END      │    │     │  MinIO         │
                         │  └──────────────────────────────────┘    │     └────────────────┘
                         │  interrupt() ── HITL ── Command(resume)  │
                         └──────────────────────────────────────────┘
 ```
 
-- **Frontend**: Next.js 16 · React 18 · TS strict · Tailwind · shadcn/ui · Zustand · TanStack Query v5 · Cytoscape.js
+- **Frontend**: Next.js 15 · React 18 · TS strict · Tailwind · shadcn/ui · Zustand · TanStack Query v5 · Cytoscape.js
 - **Backend**: FastAPI · LangGraph · Celery · Whisper · spaCy · sentence-transformers · Cohere rerank
-- **Data**: Postgres (metadata + checkpoints + FTS) · Neo4j (KG + citations) · Redis (cache + broker) · MinIO (blobs)
+- **Data**: Postgres (metadata + checkpoints) · Qdrant (vectors) · Neo4j (KG + citations) · Redis (cache + broker) · MinIO (blobs)
 - **Infra**: Docker Compose · Kubernetes + Helm · Terraform · GitHub Actions CI
 - **Observability**: Prometheus · LangSmith · structlog
 
@@ -158,19 +158,18 @@ git clone https://github.com/goodwiins/rag.git nous
 cd nous
 cp .env.example .env.local     # add OPENAI_API_KEY / ANTHROPIC_API_KEY
 
-# 2. Spin up services (Postgres, Neo4j, Redis, MinIO, backend)
+# 2. Spin up services (Postgres, Qdrant, Neo4j, Redis, MinIO, backend)
 docker-compose -f docker-compose.development.yml up -d
 
-# 3. Install workspace deps and start the frontend
-pnpm install
-pnpm dev
+# 3. Start the frontend
+cd frontend && npm install && npm run dev
 
 # 4. Open:  http://localhost:3000   (API docs at :8000/docs)
 ```
 
-**Prerequisites:** Node 24+, pnpm 10.18+ (via corepack), Python 3.11+, Docker 24+, 16 GB RAM, OpenAI or Anthropic key.
+**Prerequisites:** Node 18.17+, Python 3.11+, Docker 24+, 16 GB RAM, OpenAI or Anthropic key.
 
-**Dev users:** `admin@multimodal-rag.com / admin123` · `demo@multimodal-rag.com / demo123`
+**Dev users:** `admin@multimodal-rag.com / REDACTED` · `demo@multimodal-rag.com / demo123`
 
 ---
 
@@ -182,7 +181,7 @@ pnpm dev
 | Testing       | Jest · RTL · Playwright E2E · pytest (unit/integration/e2e/perf markers)   |
 | AI evals      | DeepEval in CI — faithfulness, relevancy, hallucination thresholds         |
 | Lint/format   | Prettier · ESLint · Black 88 · isort                                       |
-| Validation    | `pnpm validate` = lint + type-check + test                                 |
+| Validation    | `npm run validate` = lint + type-check + test                              |
 | CI/CD         | GitHub Actions · Docker Bake · Helm deploys                                |
 | Security      | JWT auth · RBAC · encrypted fields · SQL injection guards · CORS allowlist |
 | Observability | Prometheus metrics · LangSmith traces · structured logs                    |
@@ -225,7 +224,7 @@ Interactive docs at `http://localhost:8000/docs` when running.
 ```
 .
 ├── backend/          FastAPI app — api/, services/ (agent, research, search), models/, core/
-├── frontend/         Next.js 16 — app/, src/ (components, hooks, store, services, types)
+├── frontend/         Next.js 15 — app/, src/ (components, hooks, store, services, types)
 ├── brand/            Logos, guidelines, screenshots, landing page
 ├── docs/             Architecture, deployment, security, testing, observability
 ├── infrastructure/   Terraform + K8s manifests
@@ -241,13 +240,12 @@ Interactive docs at `http://localhost:8000/docs` when running.
 | Area                                 | Description                              |
 | ------------------------------------ | ---------------------------------------- |
 | [Architecture](docs/architecture/)   | System design, LangGraph flow, data flow |
-| [Database](docs/database/)           | Schema, Neo4j, migrations        |
+| [Database](docs/database/)           | Schema, Neo4j, Qdrant, migrations        |
 | [Deployment](docs/deployment/)       | Docker, K8s, Helm, runbooks              |
 | [Security](docs/security/)           | Auth, RBAC, encryption, audit            |
 | [Testing](docs/testing/)             | Unit, integration, E2E, eval reports     |
 | [Observability](docs/observability/) | Prometheus, LangSmith, tracing           |
 | [API](docs/api/)                     | OpenAPI specs, endpoint reference        |
-| [Engineering standards](docs/engineering/) | Enforced router/service boundaries, quality ratchets, API-contract pipeline |
 
 ---
 

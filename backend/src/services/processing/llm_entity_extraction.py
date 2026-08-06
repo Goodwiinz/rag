@@ -168,16 +168,8 @@ class ExtractedRelationship:
 
 
 ENTITY_TYPES = [
-    "PERSON",
-    "ORGANIZATION",
-    "CONCEPT",
-    "METHOD",
-    "MODEL",
-    "DATASET",
-    "TECHNOLOGY",
-    "METRIC",
-    "LOCATION",
-    "RESEARCH",
+    "PERSON", "ORGANIZATION", "CONCEPT", "METHOD", "MODEL",
+    "DATASET", "TECHNOLOGY", "METRIC", "LOCATION", "RESEARCH",
 ]
 
 # Constrained vocabulary the LLM may use for relationship types. Anything it
@@ -185,17 +177,9 @@ ENTITY_TYPES = [
 # RELATED_TO), but giving it real options yields typed edges instead of every
 # edge collapsing to the generic RELATED_TO.
 RELATIONSHIP_TYPES = [
-    "WORKS_FOR",
-    "PART_OF",
-    "LOCATED_IN",
-    "CREATED_BY",
-    "OWNS",
-    "MANAGES",
-    "MEMBER_OF",
-    "COLLABORATES_WITH",
-    "PUBLISHED_BY",
-    "REFERENCES",
-    "RELATED_TO",
+    "WORKS_FOR", "PART_OF", "LOCATED_IN", "CREATED_BY", "OWNS",
+    "MANAGES", "MEMBER_OF", "COLLABORATES_WITH", "PUBLISHED_BY",
+    "REFERENCES", "RELATED_TO",
 ]
 
 
@@ -242,7 +226,6 @@ def _resolve_relationships(
             )
         )
     return resolved
-
 
 EXTRACTION_SYSTEM_PROMPT = """\
 Extract named entities and the relationships between them from the following text.
@@ -294,9 +277,7 @@ def _parse_relationships(data: dict) -> list[ExtractedRelationship]:
         # A self-loop or a missing endpoint is not a usable edge.
         if not source or not target or source.lower() == target.lower():
             continue
-        rel_type = (
-            str(raw_rel.get("type", "RELATED_TO")).strip().upper() or "RELATED_TO"
-        )
+        rel_type = str(raw_rel.get("type", "RELATED_TO")).strip().upper() or "RELATED_TO"
         try:
             confidence = max(0.0, min(1.0, float(raw_rel.get("confidence", 0.7))))
         except (TypeError, ValueError):
@@ -435,7 +416,9 @@ class LLMEntityExtractionService:
             try:
                 messages = [
                     SystemMessage(content=system_prompt),
-                    HumanMessage(content=EXTRACTION_USER_TEMPLATE.format(text=chunk)),
+                    HumanMessage(
+                        content=EXTRACTION_USER_TEMPLATE.format(text=chunk)
+                    ),
                 ]
                 response = await self._llm.ainvoke(messages)
                 self._breaker.record_success()
@@ -457,9 +440,7 @@ class LLMEntityExtractionService:
         chunks = chunk_text(text, max_tokens=max_tokens_per_chunk, overlap_tokens=200)
         if not chunks:
             return ExtractionResult(
-                entities=[],
-                chunks_processed=0,
-                chunks_failed=0,
+                entities=[], chunks_processed=0, chunks_failed=0,
                 processing_time_ms=0.0,
             )
 
@@ -477,15 +458,15 @@ class LLMEntityExtractionService:
             if elapsed >= timeout_seconds:
                 logger.warning(
                     "Entity extraction timeout after %d/%d chunks",
-                    batch_start,
-                    len(chunks),
+                    batch_start, len(chunks),
                 )
                 break
 
             batch = chunks[batch_start : batch_start + batch_size]
             chunks_attempted += len(batch)
             tasks = [
-                self._extract_chunk(chunk, system_prompt, semaphore) for chunk in batch
+                self._extract_chunk(chunk, system_prompt, semaphore)
+                for chunk in batch
             ]
 
             results = await asyncio.gather(*tasks, return_exceptions=True)

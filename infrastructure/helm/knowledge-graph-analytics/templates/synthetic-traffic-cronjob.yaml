@@ -2,13 +2,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  # NOT the {{`{{ .fullname }}`}} prefix used elsewhere: CronJob names must stay
-  # short. K8s appends "-<8-digit-minute-stamp>" for the Job and "-<5-char>" for
-  # the Pod, and the Job name is used as the `job-name` label value (max 63).
-  # The full "nous-dev-knowledge-graph-analytics-synthetic-traffic" (52) already
-  # forced pod-name truncation and left zero headroom before Jobs would fail to
-  # create. Base on the release name only. trunc 52 = the CronJob-name ceiling.
-  name: {{ printf "%s-synthetic-traffic" .Release.Name | trunc 52 | trimSuffix "-" }}
+  name: {{ include "knowledge-graph-analytics.fullname" . }}-synthetic-traffic
   labels:
     {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
     app.kubernetes.io/component: synthetic-traffic

@@ -6,64 +6,36 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any, Dict
 
 from celery import Task, current_app
 
 from src.core.config import settings
 from src.core.database import SessionLocal, get_db
-from src.models.document import Document, DocumentType, ProcessingStatus
-from src.models.entity import Entity, ExtractionMethod
+from src.tasks.celery_app import celery_app
+from src.models.document import Document, ProcessingStatus
+from src.models.entity import Entity
 from src.models.graph import (
     BatchEntityRequest,
     CreateEntityRequest,
     CreateRelationshipRequest,
+    EntityType as GraphEntityType,
+    ExtractionMethod as GraphExtractionMethod,
+    RelationshipType as GraphRelationshipType,
 )
-from src.models.graph import EntityType as GraphEntityType
-from src.models.graph import ExtractionMethod as GraphExtractionMethod
-from src.models.graph import RelationshipType as GraphRelationshipType
 from src.models.processing import JobStatus, ProcessingJob
 from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
-from src.services.processing.llm_entity_extraction import LLMEntityExtractionService
+from src.services.processing.llm_entity_extraction import (
+    LLMEntityExtractionService,
+)
 from src.services.processing.processing_service import ProcessingPipeline
 from src.services.search.fulltext_search_service import fulltext_search_service
-from src.shared.enums import SatelliteSyncStatus
-from src.tasks.celery_app import celery_app
-from src.tasks.replay_guard import claim_job_for_processing
 
 logger = logging.getLogger(__name__)
 
-# Extraction methods produced by the synchronous ingestion pipeline
-# (ProcessingPipeline -> EntityExtractionService: spaCy NER + regex). Curated
-# (MANUAL) and LLM (OPENAI) entities use other methods and must never be
-# clobbered when this pipeline replays; scope the delete-before-insert to these.
-_PIPELINE_EXTRACTION_METHODS = (ExtractionMethod.SPACY, ExtractionMethod.REGEX)
 
-
-def _reset_pipeline_entities(db, document_id) -> int:
-    """Delete this pipeline's own auto-extracted entities for a document.
-
-    Makes the entity-extraction stage idempotent under acks_late redelivery: a
-    crash mid-run can leave a partial spaCy/regex entity set from the previous
-    attempt, so we drop those rows before re-inserting the fresh set
-    (delete-before-insert, the same pattern the figure stage uses). Only rows
-    written by this pipeline (SPACY/REGEX) are removed; MANUAL/OPENAI entities
-    are preserved. Returns the number of rows deleted.
-    """
-    return (
-        db.query(Entity)
-        .filter(
-            Entity.document_id == document_id,
-            Entity.extraction_method.in_(_PIPELINE_EXTRACTION_METHODS),
-        )
-        .delete(synchronize_session=False)
-    )
-
-
-def _sync_document_to_kb_blocking(
-    document, *, trigger_indexing: bool = True
-) -> str | None:
+def _sync_document_to_kb_blocking(document) -> str | None:
     """Push a document to DO KB from a synchronous Celery task.
 
     DO KB (DigitalOcean Knowledge Base) is the retrieval backend after Qdrant
@@ -71,10 +43,6 @@ def _sync_document_to_kb_blocking(
     while these tasks hold a sync ``SessionLocal`` — bridge the sync-loaded ORM
     object into a fresh ``AsyncSessionLocal`` via ``merge()`` (synchronous in
     SQLAlchemy 2.0 — do NOT await), mirroring ``api/agent/tools_impl.py``.
-
-    ``trigger_indexing=False`` registers the data source without kicking the
-    org-level indexing job — the satellite reconciler uses it to batch one
-    kick per org instead of one per re-driven document.
 
     Returns the data-source uuid, or ``None`` when DO KB is disabled or the
     sync fails. Never raises — ingestion must not fail on a KB outage.
@@ -87,9 +55,7 @@ def _sync_document_to_kb_blocking(
         async with AsyncSessionLocal() as kb_db:
             # merge() is synchronous in SQLAlchemy 2.0; awaiting it raises.
             merged = kb_db.merge(document)
-            return await sync_document_to_kb(
-                kb_db, merged, trigger_indexing=trigger_indexing
-            )
+            return await sync_document_to_kb(kb_db, merged)
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -104,88 +70,6 @@ def _sync_document_to_kb_blocking(
         return None
     finally:
         loop.close()
-
-
-def _index_entities_to_graph(document, entities) -> int:
-    """Fan extracted entities out to the Neo4j knowledge graph, recording truth.
-
-    Audit D1 (P2.1): this fan-out is best-effort by design — a Neo4j outage
-    must never fail ingestion — but the outcome used to be a warn-log only, so
-    a graph-drifted document was indistinguishable from a healthy one. This
-    helper records the per-satellite outcome on the document instead:
-
-    - ``neo4j_index_status='completed'`` (+ ``neo4j_indexed_at``) only when
-      EVERY entity landed. ``create_entity_node`` swallows per-entity failures
-      and returns ``None`` (it never raises on a Neo4j outage), so a partial
-      or zero-indexed run is a real failure, not a success with a warn-log.
-    - ``neo4j_index_status='failed'`` on any exception or any missed entity —
-      the scheduled reconciler (``src.tasks.reconcile_tasks``) picks these up.
-
-    Also fixes the fan-out itself: the pipeline hands over ORM ``Entity`` rows
-    whose confidence column is ``confidence`` — the old inline code read
-    ``entity.confidence_score`` (an attribute that does not exist), so the
-    very first entity raised ``AttributeError`` and EVERY document's Neo4j
-    fan-out failed into the warn-log. The new status column would have exposed
-    that as 100% ``failed``; reading the real attribute makes success possible
-    again.
-
-    Never raises. Mutates ``document`` only; the caller owns the commit.
-    Returns the number of entities actually indexed.
-    """
-    kg_indexed = 0
-    try:
-        for entity in entities:
-            entity_id = knowledge_graph_service.create_entity_node(
-                entity_text=entity.name,
-                entity_type=(
-                    entity.entity_type.value
-                    if hasattr(entity.entity_type, "value")
-                    else str(entity.entity_type)
-                ),
-                document_id=str(document.id),
-                confidence=entity.confidence or 0.8,
-                organization_id=(
-                    str(document.organization_id) if document.organization_id else None
-                ),
-            )
-            if entity_id:
-                kg_indexed += 1
-        logger.info(
-            f"Indexed {kg_indexed}/{len(entities)} entities into Neo4j "
-            f"for document {document.id}"
-        )
-        if kg_indexed == len(entities):
-            document.neo4j_index_status = SatelliteSyncStatus.COMPLETED.value
-            document.neo4j_indexed_at = datetime.now(timezone.utc)
-        else:
-            document.neo4j_index_status = SatelliteSyncStatus.FAILED.value
-    except Exception as e:
-        document.neo4j_index_status = SatelliteSyncStatus.FAILED.value
-        logger.warning(
-            f"Neo4j indexing failed for document {document.id}: {e}. "
-            "Entities are still available in PostgreSQL; marked "
-            "neo4j_index_status=failed for the reconciler."
-        )
-    return kg_indexed
-
-
-def _record_do_kb_sync_outcome(document, ds_uuid) -> None:
-    """Record the DO KB sync outcome on the document (audit D1 / P2.1).
-
-    Only meaningful when DO KB is enabled: ``sync_document_to_kb`` returns
-    ``None`` both when the feature is off (not an attempt — leave the column
-    alone) and when an enabled sync failed (record ``failed`` so the
-    reconciler can re-drive it). The ingestion call sites only invoke the sync
-    for documents with ``content_text``, so an enabled ``None`` here is always
-    a genuine failure (provisioning, canonical-text upload, data-source add,
-    or persist), never a nothing-to-sync skip.
-
-    Mutates ``document`` only; the caller owns the commit.
-    """
-    if ds_uuid:
-        document.do_kb_sync_status = SatelliteSyncStatus.COMPLETED.value
-    elif settings.DO_KB_ENABLED:
-        document.do_kb_sync_status = SatelliteSyncStatus.FAILED.value
 
 
 class ProcessingTask(Task):
@@ -252,7 +136,7 @@ def _safe_relationship_type(raw_type: str) -> GraphRelationshipType:
         return GraphRelationshipType.RELATED_TO
 
 
-@current_app.task(base=ProcessingTask, bind=True, name="process_document_ingestion")
+@current_app.task(base=ProcessingTask, bind=True)
 def process_document_ingestion(self, job_id: str):
     """Process complete document ingestion pipeline"""
     db = SessionLocal()
@@ -272,38 +156,14 @@ def process_document_ingestion(self, job_id: str):
         if not document:
             raise ValueError(f"Document not found for job {job_id}")
 
-        # Atomic idempotency claim for acks_late redelivery. The Celery app sets
-        # task_acks_late, so a worker killed mid-run never acks and the broker
-        # redelivers this message. claim_job_for_processing serializes the
-        # decision on a row lock: it short-circuits a job that already finished
-        # (terminal) or is still running on another worker, and reclaims only one
-        # whose worker died mid-run (stale RUNNING). A reclaim safely re-runs the
-        # pipeline because every stage is idempotent — text/metadata are
-        # overwritten, figure rows use delete-before-insert, DO KB sync reuses
-        # the existing data source, the Neo4j path upserts, and the Postgres
-        # entity writes below are replaced (not appended) per run.
-        claim = claim_job_for_processing(
-            db,
-            job,
-            worker_id=self.request.id,
-            celery_task_id=self.request.id,
-        )
-        if not claim.proceed:
-            logger.info(
-                "Job %s not claimable (%s); skipping redelivered ingestion run",
-                job_id,
-                claim.reason,
-            )
-            return {
-                "status": job.status.value,
-                "document_id": str(document.id),
-                "skipped": claim.reason,
-            }
-
         # Initialize processing service
         processing_service = ProcessingPipeline(db)
 
-        # Update document status (claim already moved the job to RUNNING).
+        # Start job
+        job.start_job(worker_id=self.request.id)
+        db.commit()
+
+        # Update document status
         document.update_processing_status(ProcessingStatus.PROCESSING)
         db.commit()
 
@@ -327,31 +187,6 @@ def process_document_ingestion(self, job_id: str):
             )
         db.commit()
 
-        # Step 1b: Figure extraction (optional, flag-gated; never fails ingestion)
-        if (
-            settings.FIGURE_EXTRACTION_ENABLED
-            and document.document_type == DocumentType.PDF
-        ):
-            try:
-                from src.services.processing.figure_extraction_service import (
-                    extract_figures_for_document,
-                    merge_captions_into_text,
-                )
-
-                job.update_progress("Extracting figures", 35)
-                db.commit()
-                fig_result = extract_figures_for_document(db, document)
-                if fig_result.get("captions_text"):
-                    document.content_text = merge_captions_into_text(
-                        document.content_text, fig_result["captions_text"]
-                    )
-                db.commit()
-            except Exception as fig_err:  # optional step, mirrors Neo4j tolerance above
-                db.rollback()
-                logger.warning(
-                    f"Figure extraction failed for document {document.id}: {fig_err}"
-                )
-
         # Step 2: Entity Extraction
         job.update_progress("Extracting entities", 50)
         db.commit()
@@ -369,44 +204,58 @@ def process_document_ingestion(self, job_id: str):
             finally:
                 loop.close()
 
-            # Replay-safe write: drop any spaCy/regex entities left by a prior
-            # crashed run for this document before inserting the fresh set, so an
-            # acks_late reclaim replaces rather than duplicates them. The delete
-            # and the inserts commit in one transaction (all-or-nothing).
-            _reset_pipeline_entities(db, document.id)
             for entity in entities:
                 db.add(entity)
             db.commit()
 
-            # Index entities into Neo4j knowledge graph. Best-effort (a Neo4j
-            # outage never fails ingestion) but no longer silent: the helper
-            # records neo4j_index_status=completed/failed on the document
-            # (audit D1) so the reconciler can re-drive drifted rows. Stamp
-            # 'pending' first so a worker killed mid-fan-out is visible too.
+            # Index entities into Neo4j knowledge graph
             job.update_progress("Indexing knowledge graph", 60)
-            document.neo4j_index_status = SatelliteSyncStatus.PENDING.value
             db.commit()
 
-            _index_entities_to_graph(document, entities)
-            db.commit()
+            try:
+                from src.services.knowledge_graph.knowledge_graph_service import (
+                    knowledge_graph_service,
+                )
+
+                kg_indexed = 0
+                for entity in entities:
+                    entity_id = knowledge_graph_service.create_entity_node(
+                        entity_text=entity.name,
+                        entity_type=(
+                            entity.entity_type.value
+                            if hasattr(entity.entity_type, "value")
+                            else str(entity.entity_type)
+                        ),
+                        document_id=str(document.id),
+                        confidence=entity.confidence_score or 0.8,
+                        organization_id=(
+                            str(document.organization_id)
+                            if document.organization_id
+                            else None
+                        ),
+                    )
+                    if entity_id:
+                        kg_indexed += 1
+                logger.info(
+                    f"Indexed {kg_indexed}/{len(entities)} entities into Neo4j for document {document.id}"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Neo4j indexing failed for document {document.id}: {e}. "
+                    "Entities are still available in PostgreSQL."
+                )
 
         # Step 3: Embedding Generation — push the document to DO KB, the
         # retrieval backend (replaces the dead Qdrant write). Idempotent and
         # gated by DO_KB_ENABLED; a None result (KB disabled/outage) is a clean
-        # no-op so ingestion still completes — but the outcome is recorded in
-        # do_kb_sync_status (audit D1) so a failed sync is reconcilable.
+        # no-op so ingestion still completes.
         job.update_progress("Generating embeddings", 75)
         db.commit()
 
         if document.content_text:
-            if settings.DO_KB_ENABLED:
-                # Visible in-flight marker; overwritten by the outcome below.
-                document.do_kb_sync_status = SatelliteSyncStatus.PENDING.value
-                db.commit()
             ds_uuid = _sync_document_to_kb_blocking(document)
             if ds_uuid:
                 document.is_embedded = True
-            _record_do_kb_sync_outcome(document, ds_uuid)
         db.commit()
 
         # Step 4: Generate Search Vector
@@ -414,10 +263,8 @@ def process_document_ingestion(self, job_id: str):
         db.commit()
 
         # Update search vector for full-text search
-        search_vector_ok = False
         try:
             fulltext_search_service.update_document_search_vector(str(document.id), db)
-            search_vector_ok = True
             logger.info(f"Updated search vector for document {document.id}")
         except Exception as e:
             logger.warning(
@@ -428,14 +275,9 @@ def process_document_ingestion(self, job_id: str):
         job.update_progress("Finalizing", 95)
         db.commit()
 
-        # Mark document as processed. is_indexed must reflect ACTUAL full-text
-        # searchability: if the search-vector build above failed the document has
-        # no tsvector and the primary full-text retrieval can never surface it —
-        # claiming is_indexed=True there is a silent partial index (the doc looks
-        # ready but is unreachable). Tie the flag to the real outcome so a
-        # re-index can be triggered for the not-yet-searchable docs.
+        # Mark document as processed
         document.update_processing_status(ProcessingStatus.COMPLETED)
-        document.is_indexed = search_vector_ok
+        document.is_indexed = True
         db.commit()
 
         # Complete job
@@ -447,7 +289,6 @@ def process_document_ingestion(self, job_id: str):
                 # embedding_id is the dead Qdrant vector-id column (always NULL
                 # now), so bool(embedding_id) always reported False.
                 "embedding_generated": bool(document.is_embedded),
-                "search_indexed": search_vector_ok,
                 "word_count": text_extraction_result.get("word_count", 0),
             }
         )
@@ -463,13 +304,6 @@ def process_document_ingestion(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Document ingestion failed for job {job_id}: {str(e)}")
-
-        # Roll back first: if the failure came from a DB op the session is
-        # poisoned (PendingRollbackError), so the queries/commit below to write
-        # the FAILED status would themselves throw and get swallowed — leaving
-        # the document stuck in PROCESSING (never FAILED), which then blocks
-        # content-hash dedup from ever re-uploading it.
-        db.rollback()
 
         # Update document and job status
         try:
@@ -495,7 +329,7 @@ def process_document_ingestion(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True, name="extract_text_content")
+@current_app.task(base=ProcessingTask, bind=True)
 def extract_text_content(self, job_id: str):
     """Extract text content from document"""
     db = SessionLocal()
@@ -543,8 +377,6 @@ def extract_text_content(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Text extraction failed for job {job_id}: {str(e)}")
-        # Roll back a possibly-poisoned session before writing fail state.
-        db.rollback()
         if job:
             job.fail_job(str(e))
             db.commit()
@@ -554,7 +386,7 @@ def extract_text_content(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True, name="extract_entities")
+@current_app.task(base=ProcessingTask, bind=True)
 def extract_entities(self, job_id: str):
     """Extract entities from document text"""
     db = SessionLocal()
@@ -563,24 +395,6 @@ def extract_entities(self, job_id: str):
 
         if not job:
             raise ValueError(f"Job {job_id} not found")
-
-        # Idempotency guard for acks_late redelivery (celery_app sets
-        # task_acks_late=True): a worker killed after completion but before the
-        # broker ack redelivers the SAME message. Without this the task re-runs
-        # the full paid LLM extraction AND appends a SECOND copy of every entity
-        # (OPENAI rows are deliberately never delete-before-inserted, so the
-        # duplicates accumulate), while regressing the job COMPLETED -> RUNNING.
-        # Same short-circuit as kg_extract_entities_job / kg_merge_entities_job.
-        if job.status == JobStatus.COMPLETED:
-            logger.info(
-                f"Job {job_id} already completed; skipping redelivered "
-                "entity extraction"
-            )
-            return {
-                "status": "completed",
-                "job_id": job_id,
-                "skipped": "duplicate_delivery",
-            }
 
         document = (
             db.query(Document)
@@ -615,10 +429,9 @@ def extract_entities(self, job_id: str):
             )
 
         # Save entities
-        from datetime import datetime
-
         from src.models.entity import Entity, ExtractionMethod
         from src.services.processing.llm_entity_extraction import map_to_entity_type
+        from datetime import datetime
 
         saved_entities = []
         for ent in extraction_result.entities:
@@ -659,8 +472,6 @@ def extract_entities(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Entity extraction failed for job {job_id}: {str(e)}")
-        # Roll back a possibly-poisoned session before writing fail state.
-        db.rollback()
         if job:
             job.fail_job(str(e))
             db.commit()
@@ -670,7 +481,7 @@ def extract_entities(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True, name="generate_embeddings")
+@current_app.task(base=ProcessingTask, bind=True)
 def generate_embeddings(self, job_id: str):
     """Generate embeddings for document"""
     db = SessionLocal()
@@ -697,16 +508,7 @@ def generate_embeddings(self, job_id: str):
         db.commit()
 
         # Push the document to DO KB (retrieval backend; replaces dead Qdrant).
-        if settings.DO_KB_ENABLED:
-            # Visible in-flight marker; overwritten by the outcome below.
-            document.do_kb_sync_status = SatelliteSyncStatus.PENDING.value
-            db.commit()
         ds_uuid = _sync_document_to_kb_blocking(document)
-
-        # Record the per-satellite outcome (audit D1): completed on success,
-        # failed when DO KB is enabled but the sync returned nothing, untouched
-        # when the feature is disabled (never attempted).
-        _record_do_kb_sync_outcome(document, ds_uuid)
 
         # Update document
         if ds_uuid:
@@ -719,10 +521,9 @@ def generate_embeddings(self, job_id: str):
 
             return {"do_kb_data_source_uuid": ds_uuid, "status": "success"}
         else:
-            # DO KB disabled or returned nothing — not a task failure. Complete
-            # the job cleanly rather than raising (there is no other embedding
-            # backend now that Qdrant is gone); do_kb_sync_status carries the
-            # truth for the reconciler when the KB is enabled.
+            # DO KB disabled or returned nothing — not a failure. Complete the
+            # job cleanly rather than raising (there is no other embedding
+            # backend now that Qdrant is gone).
             job.complete_job(
                 result={"status": "skipped", "reason": "do_kb_unavailable"}
             )
@@ -731,8 +532,6 @@ def generate_embeddings(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Embedding generation failed for job {job_id}: {str(e)}")
-        # Roll back a possibly-poisoned session before writing fail state.
-        db.rollback()
         if job:
             job.fail_job(str(e))
             db.commit()
@@ -742,7 +541,7 @@ def generate_embeddings(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True, name="index_in_graph")
+@current_app.task(base=ProcessingTask, bind=True)
 def index_in_graph(self, job_id: str):
     """Index document and entities in knowledge graph"""
     db = SessionLocal()
@@ -797,8 +596,6 @@ def index_in_graph(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Graph indexing failed for job {job_id}: {str(e)}")
-        # Roll back a possibly-poisoned session before writing fail state.
-        db.rollback()
         if job:
             job.fail_job(str(e))
             db.commit()
@@ -816,20 +613,6 @@ def kg_extract_entities_job(self, job_id: str):
         job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
         if not job:
             raise ValueError(f"Job {job_id} not found")
-
-        # Idempotency guard for acks_late redelivery (same pattern as
-        # process_document_ingestion above): a worker killed after completion
-        # but before the broker ack redelivers the message, which would re-run
-        # the full LLM extraction and regress the job COMPLETED -> RUNNING.
-        if job.status == JobStatus.COMPLETED:
-            logger.info(
-                f"Job {job_id} already completed; skipping redelivered KG extraction"
-            )
-            return {
-                "status": "completed",
-                "job_id": job_id,
-                "skipped": "duplicate_delivery",
-            }
 
         job.start_job(worker_id=self.request.id, celery_task_id=self.request.id)
         db.commit()
@@ -984,38 +767,20 @@ def kg_extract_entities_job(self, job_id: str):
 
         job.update_progress("Finalizing extraction job", 90)
 
-        result = {
-            "document_ids": document_ids,
-            "entities_found": entities_found_total,
-            "entities_created": entities_created_total,
-            "relationships_found": relationships_found_total,
-            "relationships_created": relationships_created_total,
-            "errors": errors_total,
-            "extraction_errors": extraction_errors_total,
-        }
-
-        # Honest outcome: if NOTHING was created and something errored (all
-        # documents missing/empty, or every KG write failed), completing the job
-        # reports a false success to anything polling job status. Fail it so the
-        # total failure is visible; a legitimately-empty run (no creates, no
-        # errors) still completes.
-        total_created = entities_created_total + relationships_created_total
-        total_errors = errors_total + extraction_errors_total
-        if total_created == 0 and total_errors > 0:
-            job.fail_job(
-                f"KG extraction created no entities or relationships "
-                f"({total_errors} errors across {total_docs} documents)",
-                error_type="extraction_failed",
-            )
-            db.commit()
-            return {"status": "failed", "job_id": job_id, "result": result}
-
-        job.complete_job(result=result)
+        job.complete_job(
+            result={
+                "document_ids": document_ids,
+                "entities_found": entities_found_total,
+                "entities_created": entities_created_total,
+                "relationships_found": relationships_found_total,
+                "relationships_created": relationships_created_total,
+                "errors": errors_total,
+                "extraction_errors": extraction_errors_total,
+            }
+        )
         db.commit()
         return {"status": "completed", "job_id": job_id}
     except Exception as e:
-        # Roll back a possibly-poisoned session before writing fail state.
-        db.rollback()
         if "job" in locals() and job:
             job.fail_job(str(e), error_type=type(e).__name__)
             db.commit()
@@ -1033,29 +798,9 @@ def kg_merge_entities_job(self, job_id: str):
         if not job:
             raise ValueError(f"Job {job_id} not found")
 
-        # Idempotency guard for acks_late redelivery (same pattern as
-        # kg_extract_entities_job): a worker killed after completion but before
-        # the broker ack redelivers the message. Re-running would regress the
-        # job COMPLETED -> RUNNING and re-process every group — re-deleting
-        # already-merged duplicate nodes and duplicating re-pointed edges.
-        if job.status == JobStatus.COMPLETED:
-            logger.info(
-                f"Job {job_id} already completed; skipping redelivered entity merge"
-            )
-            return {
-                "status": "completed",
-                "job_id": job_id,
-                "skipped": "duplicate_delivery",
-            }
-
         groups = (job.parameters or {}).get("groups", [])
         if not groups:
             raise ValueError("No groups provided for merge job")
-
-        # Tenant scope for every KG read/write below. Entity ids are org-validated
-        # at enqueue, but the KG service itself is only tenant-safe when the org
-        # is passed through.
-        job_org_id = str(job.organization_id) if job.organization_id else None
 
         job.start_job(worker_id=self.request.id, celery_task_id=self.request.id)
         db.commit()
@@ -1083,15 +828,9 @@ def kg_merge_entities_job(self, job_id: str):
             db.commit()
 
             try:
-                merged_all_duplicates = True
                 for duplicate_id in duplicate_ids:
-                    # Scope every KG read/write to the job's org: get_relationships
-                    # and delete_entity are otherwise unscoped and would
-                    # read/DETACH DELETE any entity by id across tenants, and a
-                    # re-pointed edge created without organization_id lands
-                    # org-less, regressing edge-level tenancy.
                     relationships = knowledge_graph_service.get_relationships(
-                        duplicate_id, organization_id=job_org_id
+                        duplicate_id
                     )
                     for rel in relationships:
                         create_request = CreateRelationshipRequest(
@@ -1118,56 +857,18 @@ def kg_merge_entities_job(self, job_id: str):
                             evidence=rel.evidence or [],
                             metadata=rel.metadata or {},
                             source_document_id=rel.source_document_id,
-                            organization_id=job_org_id,
                         )
                         try:
                             knowledge_graph_service.create_relationship(create_request)
-                        except Exception as rel_error:
-                            # Duplicate-relationship inserts are expected while
-                            # re-pointing edges onto the primary; log at debug so
-                            # a genuine create failure isn't fully invisible.
-                            logger.debug(
-                                "Skipped relationship insert during entity merge: %s",
-                                rel_error,
-                                exc_info=True,
-                            )
+                        except Exception:
+                            # Ignore duplicate relationship insertion errors
+                            pass
 
-                    # delete_entity swallows Neo4j errors and returns False (and
-                    # also returns False when the node is already gone). The
-                    # relationships were already re-pointed onto the primary, so
-                    # a failure here leaves the duplicate node alive alongside
-                    # duplicated edges — NOT a merged group. Track it so the
-                    # group is reported failed instead of a false success.
-                    if not knowledge_graph_service.delete_entity(
-                        duplicate_id, organization_id=job_org_id
-                    ):
-                        merged_all_duplicates = False
-                        logger.warning(
-                            "Entity merge: duplicate %s not deleted "
-                            "(group %s/%s, primary %s) — group marked failed",
-                            duplicate_id,
-                            index + 1,
-                            total_groups,
-                            primary_id,
-                        )
+                    knowledge_graph_service.delete_entity(duplicate_id)
 
-                if merged_all_duplicates:
-                    success_count += 1
-                else:
-                    failure_count += 1
-            except Exception as merge_error:
-                # A group that fails to merge was previously counted but never
-                # logged, so the cause was invisible while the job still reported
-                # COMPLETED. Log which group failed and why.
+                success_count += 1
+            except Exception:
                 failure_count += 1
-                logger.warning(
-                    "Failed to merge entity group %s/%s (primary %s): %s",
-                    index + 1,
-                    total_groups,
-                    primary_id,
-                    merge_error,
-                    exc_info=True,
-                )
 
         job.update_progress("Finalizing merge job", 95)
         job.complete_job(
@@ -1180,98 +881,9 @@ def kg_merge_entities_job(self, job_id: str):
         db.commit()
         return {"status": "completed", "job_id": job_id}
     except Exception as e:
-        # Roll back a possibly-poisoned session before writing fail state.
-        db.rollback()
         if "job" in locals() and job:
             job.fail_job(str(e), error_type=type(e).__name__)
             db.commit()
-        raise
-    finally:
-        db.close()
-
-
-# Terminal ProcessingJob states (mirrors ProcessingJob.is_finished). Everything
-# else — PENDING, QUEUED, RUNNING, RETRYING — is non-terminal and sweepable.
-_TERMINAL_PROCESSING_STATUSES = frozenset(
-    {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}
-)
-_NON_TERMINAL_PROCESSING_STATUSES = [
-    status for status in JobStatus if status not in _TERMINAL_PROCESSING_STATUSES
-]
-
-
-@current_app.task(name="src.tasks.processing_tasks.sweep_stuck_processing_jobs")
-def sweep_stuck_processing_jobs() -> dict:
-    """Fail non-terminal processing_jobs rows that stopped making progress.
-
-    Audit P1.4b / D7: ``cleanup_old_jobs`` below only ever deletes TERMINAL
-    rows, so a job whose worker died (OOM-kill, pod eviction, crash between
-    status writes) sat in pending/queued/running/retrying forever, invisibly
-    "in progress" to the UI.
-
-    ``updated_at`` is bumped by every progress write, and Celery's hard time
-    limit is 600s — so a non-terminal row silent for
-    ``PROCESSING_JOB_STUCK_AFTER_SECONDS`` (default 30 min, ≥3× the max legal
-    task runtime) is definitively stuck and is marked FAILED with an explicit
-    sweep message. Conservative by design: mark-failed only, never re-enqueue
-    (the task may have partially executed). Known edge: with acks_late a
-    QUEUED row swept during an extreme (>30 min) broker backlog can still be
-    picked up later — its start_job/complete writes simply overwrite the
-    sweep, so the job self-heals; the sweep is logged either way.
-
-    Flag-gated by SWEEPERS_ENABLED (values-controllable kill switch).
-    """
-    from src.core.config import get_settings
-
-    settings_local = get_settings()
-    if not settings_local.SWEEPERS_ENABLED:
-        logger.info("sweep_stuck_processing_jobs: skipped (SWEEPERS_ENABLED=false)")
-        return {"skipped": "sweepers-disabled"}
-
-    threshold_seconds = settings_local.PROCESSING_JOB_STUCK_AFTER_SECONDS
-    # Naive-UTC cutoff matches this model's BaseModel timestamps
-    # (default/onupdate=datetime.utcnow) and cleanup_old_jobs' convention.
-    cutoff = datetime.utcnow() - timedelta(seconds=threshold_seconds)
-
-    db = SessionLocal()
-    try:
-        stuck_jobs = (
-            db.query(ProcessingJob)
-            .filter(
-                ProcessingJob.status.in_(_NON_TERMINAL_PROCESSING_STATUSES),
-                ProcessingJob.updated_at < cutoff,
-                ProcessingJob.is_deleted == False,  # noqa: E712
-            )
-            .limit(200)
-            .all()
-        )
-
-        for job in stuck_jobs:
-            prior_status = job.status.value if job.status else "unknown"
-            last_update = job.updated_at.isoformat() if job.updated_at else "unknown"
-            logger.warning(
-                "sweep_stuck_processing_jobs: failing job %s (type=%s, was=%s, "
-                "last update %s, threshold %ss)",
-                job.id,
-                job.job_type.value if job.job_type else "unknown",
-                prior_status,
-                last_update,
-                threshold_seconds,
-            )
-            job.fail_job(
-                f"Swept as stuck: status '{prior_status}' with no update since "
-                f"{last_update} (threshold {threshold_seconds}s; Celery hard "
-                "time limit is 600s)",
-                error_type="StuckJobSweep",
-            )
-
-        db.commit()
-        result = {"swept": len(stuck_jobs)}
-        logger.info("sweep_stuck_processing_jobs: %s", result)
-        return result
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Stuck-job sweep failed: {str(e)}")
         raise
     finally:
         db.close()
@@ -1315,14 +927,9 @@ def cleanup_old_jobs():
 # Periodic tasks
 from celery.schedules import crontab
 
-# Merge (not assign) — every task module shares one app.conf.beat_schedule, so a
-# full `= {...}` here is clobbered by whichever module Celery imports last
-# (include order in celery_app.py). .update() lets all modules' schedules coexist.
-current_app.conf.beat_schedule.update(
-    {
-        "cleanup-old-jobs": {
-            "task": "src.tasks.processing_tasks.cleanup_old_jobs",
-            "schedule": crontab(hour=2, minute=0),  # Run daily at 2 AM
-        },
-    }
-)
+current_app.conf.beat_schedule = {
+    "cleanup-old-jobs": {
+        "task": "src.tasks.processing_tasks.cleanup_old_jobs",
+        "schedule": crontab(hour=2, minute=0),  # Run daily at 2 AM
+    },
+}

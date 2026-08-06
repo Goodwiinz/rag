@@ -215,7 +215,7 @@ export function CreateProjectModal({
                       type="button"
                       onClick={() => handleRemoveTag(tag)}
                       aria-label={`Remove tag ${tag}`}
-                      className="p-0.5 text-muted-foreground hover:text-destructive transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded"
+                      className="p-0.5 text-muted-foreground hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                     >
                       <X className="h-3 w-3" />
                     </button>

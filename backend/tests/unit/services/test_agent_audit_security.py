@@ -62,7 +62,7 @@ def test_sanitize_prompt_field_handles_empty_and_none():
 
 @pytest.mark.unit
 def test_client_safe_error_hides_exception_detail():
-    from src.services.agent._errors import client_safe_error
+    from src.api.agent._errors import client_safe_error
 
     msg = client_safe_error(ValueError("postgresql://user:pw@host/db secret"))
     assert "secret" not in msg
@@ -72,7 +72,7 @@ def test_client_safe_error_hides_exception_detail():
 
 @pytest.mark.unit
 def test_client_safe_error_respects_custom_fallback():
-    from src.services.agent._errors import client_safe_error
+    from src.api.agent._errors import client_safe_error
 
     assert client_safe_error(RuntimeError("x"), fallback="nope") == "nope"
 
@@ -87,20 +87,11 @@ def test_client_safe_error_respects_custom_fallback():
 async def test_search_knowledge_graph_scopes_to_caller_org():
     """The KG search tool must pass the caller's org to the service so a
     user in org A cannot read entities from org B."""
-    from contextlib import asynccontextmanager
-
     from src.services.agent import tools
 
     org_id = uuid4()
     current_user = SimpleNamespace(id=uuid4(), organization_id=org_id)
-    # Ids-only configurable (audit B8) — the wrapper resolves the user via
-    # _tool_context; patch that seam so no real session/user load happens.
-    config = {
-        "configurable": {
-            "user_id": str(current_user.id),
-            "organization_id": str(org_id),
-        }
-    }
+    config = {"configurable": {"db": MagicMock(), "current_user": current_user}}
 
     captured: dict = {}
 
@@ -110,12 +101,12 @@ async def test_search_knowledge_graph_scopes_to_caller_org():
 
     fake_service = SimpleNamespace(search_entities=_fake_search_entities)
 
-    @asynccontextmanager
-    async def _fake_tool_context(_config):
-        yield MagicMock(), current_user, {}
-
     with (
-        patch.object(tools, "_tool_context", _fake_tool_context),
+        patch.object(
+            tools,
+            "_get_context",
+            return_value=(config["configurable"]["db"], current_user, None),
+        ),
         patch(
             "src.services.knowledge_graph.knowledge_graph_service.knowledge_graph_service",
             fake_service,
@@ -146,7 +137,7 @@ async def test_execute_tool_forwards_current_user_to_kg_tools(tool_name, args):
     distinct from the @tool wrappers) must forward current_user to every KG
     tool. Dropping it makes the org guard trip and returns "Authentication
     required" on every call."""
-    from src.services.agent import tools_impl
+    from src.api.agent import tools_impl
 
     current_user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
 
@@ -182,7 +173,7 @@ async def test_execute_tool_forwards_current_user_to_kg_tools(tool_name, args):
 async def test_execute_tool_kg_rejects_user_without_org():
     """A user with no organization_id must be refused (fail loud, not run
     unscoped across all tenants)."""
-    from src.services.agent import tools_impl
+    from src.api.agent import tools_impl
 
     no_org_user = SimpleNamespace(id=uuid4(), organization_id=None)
     result = await tools_impl.execute_tool(

@@ -22,6 +22,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import PendingEmailConfirmation from '@/components/auth/PendingEmailConfirmation';
+import { useAuthStore } from '@/stores/authStore';
 
 interface RegisterFormData {
   email: string;
@@ -37,15 +38,8 @@ const _PHOSPHOR_GREEN = '#D4A039';
 const _AMBER = '#ffb700';
 
 export default function RegisterPage() {
-  const {
-    register,
-    isAuthenticated,
-    isLoading,
-    pendingEmailConfirmation,
-    pendingConfirmationEmail,
-    pendingSignupPossiblyExisting,
-    clearPendingEmailConfirmation,
-  } = useAuth();
+  const { register, isAuthenticated, isLoading, pendingEmailConfirmation } =
+    useAuth();
   const router = useRouter();
   const [formData, setFormData] = useState<RegisterFormData>({
     email: '',
@@ -65,13 +59,10 @@ export default function RegisterPage() {
     setMounted(true);
   }, []);
 
-  // Redirect if already authenticated. '/' is the public marketing landing and
-  // does not bounce authenticated visitors anywhere, so sending them there
-  // would drop them back on the anonymous page; match the login page's
-  // destination instead.
+  // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      router.push('/dashboard');
+      router.push('/');
     }
   }, [isAuthenticated, isLoading, router]);
 
@@ -104,8 +95,7 @@ export default function RegisterPage() {
 
       const result = await register(registerData);
       if (!result.requiresEmailConfirmation) {
-        // Signup issued a session — land on the app, not the marketing page.
-        router.push('/dashboard');
+        router.push('/');
       }
     } catch (err) {
       setError(
@@ -145,7 +135,7 @@ export default function RegisterPage() {
   const strength = passwordStrength();
 
   const handleResetConfirmation = () => {
-    clearPendingEmailConfirmation();
+    useAuthStore.setState({ pendingEmailConfirmation: false });
     setFormData({
       email: '',
       password: '',
@@ -162,17 +152,14 @@ export default function RegisterPage() {
   if (pendingEmailConfirmation) {
     return (
       <PendingEmailConfirmation
-        // The store is the source of truth: `formData.email` is local state
-        // that empties on remount, which used to blank the address out.
-        email={pendingConfirmationEmail ?? formData.email}
-        possiblyExisting={pendingSignupPossiblyExisting}
+        email={formData.email}
         onReset={handleResetConfirmation}
       />
     );
   }
 
   const inputClasses =
-    'w-full pl-11 pr-4 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/70 outline-hidden transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/40';
+    'w-full pl-11 pr-4 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/70 outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/40';
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
@@ -249,7 +236,7 @@ export default function RegisterPage() {
           transition={{ duration: 0.4 }}
           className="w-full max-w-lg"
         >
-          <div className="rounded-2xl border border-border bg-card p-8 shadow-xs">
+          <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
             {/* Header */}
             <div className="mb-8">
               <h2 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -418,7 +405,7 @@ export default function RegisterPage() {
                       showPassword ? 'Hide password' : 'Show password'
                     }
                     aria-pressed={showPassword}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-muted-foreground hover:text-foreground rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-muted-foreground hover:text-foreground rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                   >
                     {showPassword ? (
                       <EyeOff className="w-4 h-4" aria-hidden="true" />
@@ -488,7 +475,7 @@ export default function RegisterPage() {
                         : 'Show confirmation password'
                     }
                     aria-pressed={showConfirmPassword}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-muted-foreground hover:text-foreground rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-muted-foreground hover:text-foreground rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                   >
                     {showConfirmPassword ? (
                       <EyeOff className="w-4 h-4" aria-hidden="true" />
@@ -506,7 +493,7 @@ export default function RegisterPage() {
                 className={cn(
                   'group w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-medium',
                   'bg-primary text-primary-foreground',
-                  'hover:bg-primary/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+                  'hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
                   'disabled:opacity-60 disabled:cursor-not-allowed transition-colors'
                 )}
               >
@@ -530,7 +517,7 @@ export default function RegisterPage() {
                 Already have an account?{' '}
                 <Link
                   href="/login"
-                  className="font-medium text-primary hover:underline rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+                  className="font-medium text-primary hover:underline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Sign in
                 </Link>

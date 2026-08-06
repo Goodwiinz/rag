@@ -220,32 +220,6 @@ class UploadManager:
 # Global upload manager
 upload_manager = UploadManager()
 
-# Single Redis -> WebSocket progress subscriber for this API process. The Celery
-# worker publishes upload progress to Redis (it cannot reach these sockets
-# directly — its in-process connection map is always empty, audit B7); this task
-# subscribes and forwards each event to `upload_manager`. Started lazily on the
-# first upload-progress WebSocket connection and reused for the process lifetime.
-_progress_subscriber_task: Optional[asyncio.Task] = None
-_progress_subscriber_lock = asyncio.Lock()
-
-
-async def _ensure_progress_subscriber() -> None:
-    """Start the Redis -> WebSocket upload-progress subscriber once per process."""
-    global _progress_subscriber_task
-    if _progress_subscriber_task is not None and not _progress_subscriber_task.done():
-        return
-    async with _progress_subscriber_lock:
-        if (
-            _progress_subscriber_task is not None
-            and not _progress_subscriber_task.done()
-        ):
-            return
-        from src.services.documents.upload_progress_bus import run_progress_subscriber
-
-        _progress_subscriber_task = asyncio.create_task(
-            run_progress_subscriber(upload_manager)
-        )
-
 
 def _resolve_job_priority(processing_priority: str) -> JobPriority:
     """Map a client-supplied priority string to JobPriority, or 400.
@@ -406,6 +380,15 @@ async def upload_single_document(
 
         await upload_manager.update_progress(upload_id, 100.0, "Upload completed")
 
+        # Invalidate search cache so new document appears in results
+        try:
+            from src.services.search.search_service import cache
+
+            await cache.delete_pattern("search:*")
+            await cache.delete_pattern("suggestions:*")
+        except Exception:
+            pass  # Cache invalidation is best-effort
+
         # Send completion notification
         await upload_manager.send_completion(
             upload_id,
@@ -455,11 +438,7 @@ async def upload_single_document(
                 await db.rollback()
                 file_service._best_effort_delete_object(document)
                 document.soft_delete()
-                await db.execute(
-                    Organization.storage_usage_update(
-                        organization.id, -(document.file_size_bytes or 0)
-                    )
-                )
+                organization.update_storage_usage(-(document.file_size_bytes or 0))
                 await db.commit()
             except Exception:  # noqa: BLE001
                 await db.rollback()
@@ -554,9 +533,6 @@ async def websocket_upload_progress(websocket: WebSocket, upload_id: str):
         return
 
     await upload_manager.connect(websocket, upload_id)
-    # Ensure the Redis subscriber is running so worker-published progress reaches
-    # this socket (the worker cannot push to it directly — audit B7).
-    await _ensure_progress_subscriber()
 
     try:
         while True:

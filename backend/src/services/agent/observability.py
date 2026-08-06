@@ -4,42 +4,16 @@ Provides custom metrics and tracing for agent execution monitoring.
 Dual approach: LangSmith for LangGraph tracing + OpenTelemetry/Prometheus for custom metrics.
 """
 
+import asyncio
 import logging
 import os
+import threading
 import time
 from contextlib import asynccontextmanager
 from functools import wraps
 from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
-
-_PROJECT_SKILL_EVENTS = frozenset(
-    {
-        "registry_parity",
-        "snapshot",
-        "scan",
-        "proposal",
-        "approval",
-        "rejection",
-        "supersede",
-        "rescan",
-        "loader",
-    }
-)
-_PROJECT_SKILL_OUTCOMES = frozenset(
-    {
-        "match",
-        "mismatch",
-        "success",
-        "failure",
-        "skipped",
-        "rejected",
-        "passed",
-        "blocked",
-        "error",
-        "completed",
-    }
-)
 
 # LangGraph control-flow signals. interrupt() (HITL confirm for destructive
 # tools) raises GraphInterrupt, and Send/Command parent-bubbling raises
@@ -54,6 +28,26 @@ try:
     _CONTROL_FLOW_EXC: tuple = (_GraphBubbleUp,)
 except ImportError:  # pragma: no cover - langgraph always present in app runtime
     _CONTROL_FLOW_EXC = ()
+
+# Cached LangSmith client for run patching (intent tagging). Building one per
+# call re-reads env + sets up a session; cache it behind a lock.
+_LS_CLIENT: Any = None
+_LS_CLIENT_LOCK = threading.Lock()
+# Strong refs to in-flight fire-and-forget tag patches so the loop can't GC them.
+_TAG_TASKS: set = set()
+
+
+def _get_ls_client() -> Any:
+    global _LS_CLIENT
+    if _LS_CLIENT is not None:
+        return _LS_CLIENT
+    with _LS_CLIENT_LOCK:
+        if _LS_CLIENT is None:
+            from langsmith import Client
+
+            _LS_CLIENT = Client()
+    return _LS_CLIENT
+
 
 # ---------------------------------------------------------------------------
 # LangSmith configuration
@@ -162,12 +156,25 @@ def get_langsmith_base_url() -> str:
 
 
 def tag_trace_intent(intent: str) -> None:
-    """Best-effort: tag the active run without PATCHing the live trace root.
+    """Best-effort: tag the current LangSmith ROOT run with the classified
+    intent so top-level traces are filterable by intent in the UI.
 
-    LangSmith can treat a mid-run ``Client.update_run`` as the root's terminal
-    payload. That closes the root before later subgraph children finish,
-    corrupting root latency and outputs. The active preprocessing run is
-    instead tagged locally and will upload the tag with its natural end event.
+    The earlier RunTree-walk approach (``add_tags`` on the run reached by
+    walking ``parent_run``) did NOT land: under ``astream_events`` the
+    ``parent_run`` chain is often not populated, so the walk tagged the
+    current node, not the trace root — and even then a local mutation never
+    PATCHed the already-uploaded root run. Instead, identify the root by
+    ``RunTree.trace_id`` (== the root run's id) and PATCH it directly via
+    ``Client.update_run(run_id=trace_id, tags=[...])``.
+
+    Only TAGS are patched (not ``extra``/metadata) so the root's tenant
+    metadata (user_id/org_id/thread_id/job_id, set in the invoke config) is
+    never clobbered. The root carries no tags by config, so replacing tags
+    with ``[intent:<x>]`` is safe.
+
+    The patch is dispatched fire-and-forget (``asyncio.to_thread``) so the
+    HTTP call never adds latency to the hot-path node. No-op when intent is
+    empty, the SDK is absent, or there is no active run context. Never raises.
     """
     if not intent:
         return
@@ -177,11 +184,28 @@ def tag_trace_intent(intent: str) -> None:
         rt = get_current_run_tree()
         if rt is None:
             return
-        if getattr(rt, "trace_id", None) is None:
+        root_id = getattr(rt, "trace_id", None)
+        if root_id is None:
             return
 
         tag = f"intent:{intent}"
-        rt.add_tags([tag])
+        root_id_str = str(root_id)
+
+        def _patch() -> None:
+            try:
+                _get_ls_client().update_run(run_id=root_id_str, tags=[tag])
+            except Exception:
+                logger.debug("tag_trace_intent patch failed", exc_info=True)
+
+        # Fire-and-forget off the hot path. preprocessing_node is always inside
+        # a running loop; fall back to inline if somehow not.
+        try:
+            loop = asyncio.get_running_loop()
+            task = loop.create_task(asyncio.to_thread(_patch))
+            _TAG_TASKS.add(task)
+            task.add_done_callback(_TAG_TASKS.discard)
+        except RuntimeError:
+            _patch()
     except Exception:
         logger.debug("tag_trace_intent failed", exc_info=True)
 
@@ -285,28 +309,6 @@ try:
         [],
     )
 
-    # User-turn persistence failures on the agent hot path (P2.6 / audit D3).
-    # The user row is a single idempotent INSERT written BEFORE the LLM call;
-    # historically its failure was swallowed (warn-and-continue), so the
-    # LangGraph checkpoint could accumulate a turn the chat_messages store
-    # never recorded — a permanent divergence the user can't see. Bumped by
-    # _persist_user_message_guarded after a retry still fails, so the drop is
-    # observable instead of silent.
-    agent_dualstore_user_turn_persist_failures_total = _get_or_create_counter(
-        "agent_dualstore_user_turn_persist_failures_total",
-        "User-turn persistence failures after one retry on the agent hot path",
-        [],
-    )
-
-    # Detected (not repaired) divergence between the LangGraph checkpoint's
-    # HumanMessage count and the persisted chat_messages user-row count for a
-    # thread (P2.6 / audit D3). Detection only; re-seed repair is a follow-up.
-    agent_dualstore_divergence_detected_total = _get_or_create_counter(
-        "agent_dualstore_divergence_detected_total",
-        "Threads where checkpoint human-count and chat user-row count diverged",
-        [],
-    )
-
     # Quality histogram: max similarity score returned per recall call.
     # Trace evidence showed score=null for every recalled item — once the
     # store has a semantic index wired this histogram surfaces whether
@@ -344,72 +346,10 @@ try:
         [0.0, 0.25, 0.5, 0.7, 0.85, 0.95, 1.0],
     )
 
-    # Project-skill rollout events intentionally have only low-cardinality,
-    # server-owned dimensions. Never attach a skill name, project/user ID, or
-    # instruction text: those values can be sensitive and are not needed for
-    # operational rollout decisions.
-    PROJECT_SKILL_EVENTS = _get_or_create_counter(
-        "project_skill_events_total",
-        "Project skill catalog, snapshot, and loader outcomes",
-        ["event", "outcome"],
-    )
-    PROJECT_SKILL_LOADED_SKILLS = _get_or_create_counter(
-        "project_skill_loaded_skills_total",
-        "Project skill documents loaded into agent turns",
-        [],
-    )
-    PROJECT_SKILL_LOADED_TOKENS = _get_or_create_counter(
-        "project_skill_loaded_tokens_total",
-        "Estimated project skill instruction tokens loaded into agent turns",
-        [],
-    )
-
     _METRICS_AVAILABLE = True
 except ImportError:
     _METRICS_AVAILABLE = False
-    PROJECT_SKILL_EVENTS = None
-    PROJECT_SKILL_LOADED_SKILLS = None
-    PROJECT_SKILL_LOADED_TOKENS = None
     logger.debug("prometheus_client not available, metrics disabled")
-
-
-def record_project_skill_event(
-    event: str,
-    outcome: str,
-    *,
-    loaded_skill_count: int = 0,
-    loaded_skill_tokens: int = 0,
-    **_unsafe_details: object,
-) -> None:
-    """Emit safe, low-cardinality project-skill rollout telemetry.
-
-    Callers may have access to instructions, scanner findings, or user-provided
-    audit notes. This boundary deliberately ignores arbitrary details so those
-    values cannot reach indexed logs or metric labels by accident.
-    """
-    safe_event = event if event in _PROJECT_SKILL_EVENTS else "unknown"
-    safe_outcome = outcome if outcome in _PROJECT_SKILL_OUTCOMES else "unknown"
-    safe_count = max(0, int(loaded_skill_count))
-    safe_tokens = max(0, int(loaded_skill_tokens))
-    logger.info(
-        "project_skill_event",
-        extra={
-            "project_skill_event": safe_event,
-            "project_skill_outcome": safe_outcome,
-            "loaded_skill_count": safe_count,
-            "loaded_skill_tokens": safe_tokens,
-        },
-    )
-    if not _METRICS_AVAILABLE:
-        return
-    assert PROJECT_SKILL_EVENTS is not None
-    PROJECT_SKILL_EVENTS.labels(event=safe_event, outcome=safe_outcome).inc()
-    if safe_count:
-        assert PROJECT_SKILL_LOADED_SKILLS is not None
-        PROJECT_SKILL_LOADED_SKILLS.inc(safe_count)
-    if safe_tokens:
-        assert PROJECT_SKILL_LOADED_TOKENS is not None
-        PROJECT_SKILL_LOADED_TOKENS.inc(safe_tokens)
 
 
 # ---------------------------------------------------------------------------
@@ -480,18 +420,6 @@ def record_execution_duration(intent: str, status: str, duration: float):
     """Record agent execution duration."""
     if _METRICS_AVAILABLE:
         AGENT_EXECUTION_DURATION.labels(intent=intent, status=status).observe(duration)
-
-
-def record_node_duration(node: str, status: str, duration: float) -> None:
-    """Record a sub-node / phase duration into the shared node histogram.
-
-    Lets phases that don't go through ``track_node_execution`` (e.g. the
-    subtasks ``preprocessing_node`` fans out via ``asyncio.gather``, which
-    otherwise emit no traced run) surface on the same
-    ``agent_node_duration_seconds`` dashboard.
-    """
-    if _METRICS_AVAILABLE:
-        AGENT_NODE_DURATION.labels(node=node, status=status).observe(duration)
 
 
 def record_token_usage(model: str, prompt_tokens: int, completion_tokens: int):

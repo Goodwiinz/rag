@@ -404,7 +404,7 @@ components:
       properties:
         access_token:
           type: string
-          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+          example: JWT_REDACTED
         token_type:
           type: string
           example: bearer

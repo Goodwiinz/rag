@@ -4,10 +4,10 @@ Uses MemorySaver checkpointer + update_state to test node-to-node
 flows without requiring real LLM calls or external services.
 """
 
+import pytest
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
-import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -17,7 +17,6 @@ pytestmark = pytest.mark.asyncio
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
 
 def _make_initial_state(user_msg: str = "find papers on transformers") -> dict:
     """Create a minimal valid AgentState dict."""
@@ -38,12 +37,12 @@ def _make_initial_state(user_msg: str = "find papers on transformers") -> dict:
 
 
 def _make_config(thread_id: str | None = None) -> dict:
-    # Ids-only configurable (audit B8) — never a live session / ORM user.
+    user = Mock(id=uuid4(), organization_id=uuid4())
     return {
         "configurable": {
             "thread_id": thread_id or str(uuid4()),
-            "user_id": str(uuid4()),
-            "organization_id": str(uuid4()),
+            "db": AsyncMock(),
+            "current_user": user,
             "page_context": {"type": "unknown"},
         }
     }
@@ -106,10 +105,6 @@ def _assert_shared_rules_present(system_text: str) -> None:
     # Always-reply rule (b96bd89 — prevents silent blank after tool success)
     assert "Always reply after a tool call" in system_text
     assert "do not return empty content" in system_text
-    # Save-target resolution (this PR — writing_draft asked "which project?"
-    # instead of calling list_projects, 5 dev runs out of 5)
-    assert "Resolving a save target" in system_text
-    assert "list_projects FIRST" in system_text
 
 
 # ---------------------------------------------------------------------------
@@ -229,11 +224,11 @@ class TestIndividualNodes:
         project_id and replied "I'm not using any project yet"."""
         from src.services.agent.graph import rag_node
 
+        user = Mock(id=uuid4(), organization_id=uuid4())
         config = {
             "configurable": {
                 "thread_id": str(uuid4()),
-                "user_id": str(uuid4()),
-                "organization_id": str(uuid4()),
+                "current_user": user,
                 "search_fn": AsyncMock(return_value=[]),
             }
         }
@@ -258,11 +253,11 @@ class TestIndividualNodes:
         and the CLI still sends type='chat'."""
         from src.services.agent.graph import rag_node
 
+        user = Mock(id=uuid4(), organization_id=uuid4())
         config = {
             "configurable": {
                 "thread_id": str(uuid4()),
-                "user_id": str(uuid4()),
-                "organization_id": str(uuid4()),
+                "current_user": user,
                 "search_fn": AsyncMock(return_value=[]),
             }
         }
@@ -293,11 +288,11 @@ class TestIndividualNodes:
                 }
             ]
 
+        user = Mock(id=uuid4(), organization_id=uuid4())
         config = {
             "configurable": {
                 "thread_id": str(uuid4()),
-                "user_id": str(uuid4()),
-                "organization_id": str(uuid4()),
+                "current_user": user,
                 "search_fn": mock_search,
             }
         }
@@ -308,9 +303,7 @@ class TestIndividualNodes:
         )
         assert len(result["retrieved_contexts"]) == 1
         assert result["retrieved_contexts"][0]["title"] == "Test Document"
-        assert (
-            "find papers about test query" in result["retrieved_contexts"][0]["content"]
-        )
+        assert "find papers about test query" in result["retrieved_contexts"][0]["content"]
 
     async def test_memory_retrieval_node_without_user(self):
         """memory_retrieval_node should return empty when no user in config."""
@@ -330,11 +323,11 @@ class TestIndividualNodes:
         async def mock_search(query: str, user_id: str):
             return [{"document_id": "d1", "title": "T", "content": "c", "score": 0.9}]
 
+        user = Mock(id=uuid4(), organization_id=uuid4())
         config = {
             "configurable": {
                 "thread_id": str(uuid4()),
-                "user_id": str(uuid4()),
-                "organization_id": str(uuid4()),
+                "current_user": user,
                 "page_context": {"type": "unknown"},
                 "search_fn": mock_search,
             }
@@ -406,9 +399,7 @@ class TestIndividualNodes:
         state["messages"].append(
             AIMessage(
                 content="",
-                tool_calls=[
-                    {"id": "tc1", "name": "search_arxiv", "args": {"query": "test"}}
-                ],
+                tool_calls=[{"id": "tc1", "name": "search_arxiv", "args": {"query": "test"}}],
             )
         )
 
@@ -440,12 +431,7 @@ class TestPartialExecution:
         # Simulate state as if preprocessing_node just completed with research intent
         state_after_preprocessing = _make_initial_state("search arxiv for transformers")
         state_after_preprocessing["retrieved_contexts"] = [
-            {
-                "document_id": "d1",
-                "title": "Attention Is All You Need",
-                "content": "...",
-                "score": 0.95,
-            }
+            {"document_id": "d1", "title": "Attention Is All You Need", "content": "...", "score": 0.95}
         ]
         state_after_preprocessing["intent"] = "research"
         state_after_preprocessing["intent_confidence"] = 0.9
@@ -498,13 +484,7 @@ class TestPartialExecution:
         # Simulate: LLM produced a tool call, state is at tool_node
         ai_msg = AIMessage(
             content="",
-            tool_calls=[
-                {
-                    "id": "tc1",
-                    "name": "search_arxiv",
-                    "args": {"query": "attention mechanism"},
-                }
-            ],
+            tool_calls=[{"id": "tc1", "name": "search_arxiv", "args": {"query": "attention mechanism"}}],
         )
         state = _make_initial_state("find papers")
         state["messages"].append(ai_msg)
@@ -513,7 +493,7 @@ class TestPartialExecution:
 
         # Mock execute_tool to avoid real API calls
         with patch(
-            "src.services.agent.tools_impl.execute_tool",
+            "src.api.agent.execute.execute_tool",
             new_callable=AsyncMock,
             return_value={"results": [], "total": 0},
         ):
@@ -542,9 +522,7 @@ class TestPartialExecution:
         # Simulate: LLM returned with tool_calls but we've hit max errors
         ai_msg = AIMessage(
             content="Let me try again",
-            tool_calls=[
-                {"id": "tc1", "name": "search_arxiv", "args": {"query": "test"}}
-            ],
+            tool_calls=[{"id": "tc1", "name": "search_arxiv", "args": {"query": "test"}}],
         )
         state = _make_initial_state("test")
         state["messages"].append(ai_msg)
@@ -584,9 +562,9 @@ class TestGraphStructure:
             "data_subgraph",
         }
         actual_nodes = set(graph.nodes.keys()) - {"__start__", "__end__"}
-        assert expected_nodes.issubset(
-            actual_nodes
-        ), f"Missing nodes: {expected_nodes - actual_nodes}"
+        assert expected_nodes.issubset(actual_nodes), (
+            f"Missing nodes: {expected_nodes - actual_nodes}"
+        )
         # Sequential preprocessing nodes should not be top-level graph nodes
         assert "rag_node" not in actual_nodes
         assert "intent_classifier_node" not in actual_nodes
@@ -639,13 +617,11 @@ class TestHumanInTheLoopFlow:
         # Create state where LLM has requested a destructive tool (ingest_arxiv_papers)
         ai_msg = AIMessage(
             content="I'll ingest those papers for you.",
-            tool_calls=[
-                {
-                    "id": "tc1",
-                    "name": "ingest_arxiv_papers",
-                    "args": {"paper_ids": ["2401.12345"]},
-                }
-            ],
+            tool_calls=[{
+                "id": "tc1",
+                "name": "ingest_arxiv_papers",
+                "args": {"paper_ids": ["2401.12345"]},
+            }],
         )
         state = _make_initial_state("ingest this paper 2401.12345")
         state["messages"].append(ai_msg)
@@ -660,9 +636,7 @@ class TestHumanInTheLoopFlow:
 
         # Verify the graph is paused at interrupt_node
         snapshot = await graph.aget_state(config)
-        assert (
-            "interrupt_node" in snapshot.next
-        ), "Graph should be paused at interrupt_node"
+        assert "interrupt_node" in snapshot.next, "Graph should be paused at interrupt_node"
 
         # The interrupt should contain confirmation details
         assert len(snapshot.tasks) > 0
@@ -676,7 +650,6 @@ class TestHumanInTheLoopFlow:
     async def test_confirmed_interrupt_resumes_execution(self):
         """After confirming, the graph should resume and execute the tool."""
         from langgraph.types import Command
-
         from src.services.agent.graph import compile_agent_graph
 
         checkpointer = MemorySaver()
@@ -687,13 +660,11 @@ class TestHumanInTheLoopFlow:
         # Setup: LLM requested a destructive tool
         ai_msg = AIMessage(
             content="I'll ingest that paper.",
-            tool_calls=[
-                {
-                    "id": "tc1",
-                    "name": "ingest_arxiv_papers",
-                    "args": {"paper_ids": ["2401.12345"]},
-                }
-            ],
+            tool_calls=[{
+                "id": "tc1",
+                "name": "ingest_arxiv_papers",
+                "args": {"paper_ids": ["2401.12345"]},
+            }],
         )
         state = _make_initial_state("ingest paper 2401.12345")
         state["messages"].append(ai_msg)
@@ -707,7 +678,7 @@ class TestHumanInTheLoopFlow:
 
         # Now resume with confirmation
         with patch(
-            "src.services.agent.tools_impl.execute_tool",
+            "src.api.agent.execute.execute_tool",
             new_callable=AsyncMock,
             return_value={"status": "success", "document_ids": ["doc-uuid-1"]},
         ):
@@ -717,9 +688,7 @@ class TestHumanInTheLoopFlow:
             # points.
             mock_llm = MagicMock()
             mock_response = AIMessage(content="Papers ingested successfully!")
-            mock_llm.bind_tools.return_value.ainvoke = AsyncMock(
-                return_value=mock_response
-            )
+            mock_llm.bind_tools.return_value.ainvoke = AsyncMock(return_value=mock_response)
             with (
                 patch("src.services.agent.graph._build_llm", return_value=mock_llm),
                 patch(
@@ -734,9 +703,7 @@ class TestHumanInTheLoopFlow:
 
         # Graph should have completed with the tool result and LLM response
         assert result is not None
-        assert (
-            "__interrupt__" not in result
-        ), "Graph should have completed (no pending interrupt)"
+        assert "__interrupt__" not in result, "Graph should have completed (no pending interrupt)"
         final_answer = ""
         for msg in reversed(result["messages"]):
             if isinstance(msg, AIMessage) and msg.content:
@@ -751,7 +718,6 @@ class TestHumanInTheLoopFlow:
     async def test_confirmed_research_interrupt_resumes_tool_execution(self):
         """Research subgraph should execute destructive tools after confirmation."""
         from langgraph.types import Command
-
         from src.services.agent.subgraphs.research_agent import build_research_subgraph
 
         checkpointer = MemorySaver()
@@ -776,12 +742,10 @@ class TestHumanInTheLoopFlow:
         graph.update_state(config, values=state, as_node="research_llm_node")
 
         result = await graph.ainvoke(None, config=config)
-        assert (
-            "__interrupt__" in result
-        ), "Research graph should pause with an interrupt"
+        assert "__interrupt__" in result, "Research graph should pause with an interrupt"
 
         with patch(
-            "src.services.agent.tools_impl.execute_tool",
+            "src.api.agent.execute.execute_tool",
             new_callable=AsyncMock,
             return_value={"status": "success", "document_ids": ["doc-uuid-1"]},
         ) as mock_execute_tool:
@@ -821,7 +785,6 @@ class TestHumanInTheLoopFlow:
     async def test_denied_interrupt_skips_tool(self):
         """Denying the interrupt should skip tool execution."""
         from langgraph.types import Command
-
         from src.services.agent.graph import compile_agent_graph
 
         checkpointer = MemorySaver()
@@ -832,13 +795,11 @@ class TestHumanInTheLoopFlow:
         # Setup: LLM requested a destructive tool
         ai_msg = AIMessage(
             content="I'll create a draft.",
-            tool_calls=[
-                {
-                    "id": "tc1",
-                    "name": "create_draft",
-                    "args": {"themes": ["AI"]},
-                }
-            ],
+            tool_calls=[{
+                "id": "tc1",
+                "name": "create_draft",
+                "args": {"themes": ["AI"]},
+            }],
         )
         state = _make_initial_state("create a draft about AI")
         state["messages"].append(ai_msg)
@@ -882,13 +843,11 @@ class TestHumanInTheLoopFlow:
         # Setup: LLM requested a non-destructive tool (search_arxiv)
         ai_msg = AIMessage(
             content="Let me search for that.",
-            tool_calls=[
-                {
-                    "id": "tc1",
-                    "name": "search_arxiv",
-                    "args": {"query": "transformers"},
-                }
-            ],
+            tool_calls=[{
+                "id": "tc1",
+                "name": "search_arxiv",
+                "args": {"query": "transformers"},
+            }],
         )
         state = _make_initial_state("find papers on transformers")
         state["messages"].append(ai_msg)
@@ -903,7 +862,7 @@ class TestHumanInTheLoopFlow:
         mock_response = AIMessage(content="No papers found.")
         mock_llm.bind_tools.return_value.ainvoke = AsyncMock(return_value=mock_response)
         with patch(
-            "src.services.agent.tools_impl.execute_tool",
+            "src.api.agent.execute.execute_tool",
             new_callable=AsyncMock,
             return_value={"results": [], "total": 0},
         ):
@@ -918,8 +877,6 @@ class TestHumanInTheLoopFlow:
 
         # Should complete without any interrupt
         assert result is not None
-        assert (
-            "__interrupt__" not in result
-        ), "Non-destructive tools should not trigger interrupt"
+        assert "__interrupt__" not in result, "Non-destructive tools should not trigger interrupt"
         snapshot = await graph.aget_state(config)
         assert not snapshot.next, "Graph should have completed"

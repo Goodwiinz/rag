@@ -6,9 +6,9 @@ from contextlib import contextmanager
 from typing import Optional
 
 import structlog
+from supabase import Client, create_client
 
 from src.core.config import settings
-from supabase import Client, create_client
 
 logger = structlog.get_logger(__name__)
 
@@ -114,10 +114,7 @@ class StorageHelper:
         try:
             data = self.client.storage.from_(bucket).download(key)
             self._log.debug(
-                "storage_download_complete",
-                bucket=bucket,
-                key=key,
-                size_bytes=len(data),
+                "storage_download_complete", bucket=bucket, key=key, size_bytes=len(data)
             )
             return data
         except Exception as exc:
@@ -139,25 +136,9 @@ class StorageHelper:
             )
             return False
 
-    def object_exists(self, bucket: str, key: str) -> bool:
-        """Check whether an object exists in Supabase Storage.
-
-        Lists the key's parent prefix and matches the basename exactly.
-        Errors propagate — an outage must not read as "missing".
-        """
-        parent, _, name = key.rpartition("/")
-        try:
-            entries = self.client.storage.from_(bucket).list(
-                path=parent, options={"search": name}
-            )
-            return any(e.get("name") == name for e in entries or [])
-        except Exception as exc:
-            self._log.error(
-                "storage_exists_failed", bucket=bucket, key=key, error=str(exc)
-            )
-            raise
-
-    def create_signed_url(self, bucket: str, key: str, expires_in: int = 3600) -> str:
+    def create_signed_url(
+        self, bucket: str, key: str, expires_in: int = 3600
+    ) -> str:
         """Create a signed URL for temporary file access.
 
         Args:

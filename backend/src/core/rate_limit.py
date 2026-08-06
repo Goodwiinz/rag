@@ -2,13 +2,10 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
-
 import redis.asyncio as redis
-
 from src.core.config import settings
 
 logger = logging.getLogger(__name__)
-
 
 class RateLimiterInterface(ABC):
     @abstractmethod
@@ -22,9 +19,7 @@ class RateLimiterInterface(ABC):
         pass
 
     @abstractmethod
-    async def check_rate_limit(
-        self, identifier: str, prefix: str = ""
-    ) -> Tuple[bool, int]:
+    async def check_rate_limit(self, identifier: str, prefix: str = "") -> Tuple[bool, int]:
         """Read-only check: returns (allowed, retry_after_seconds)"""
         pass
 
@@ -37,7 +32,6 @@ class RateLimiterInterface(ABC):
     async def close(self):
         """Cleanup resources"""
         pass
-
 
 class InMemoryRateLimiter(RateLimiterInterface):
     """Simple rate limiter for authentication endpoints (In-Memory)"""
@@ -71,24 +65,22 @@ class InMemoryRateLimiter(RateLimiterInterface):
         self.attempts[key].append(now)
         return True
 
-    async def check_rate_limit(
-        self, identifier: str, prefix: str = ""
-    ) -> Tuple[bool, int]:
+    async def check_rate_limit(self, identifier: str, prefix: str = "") -> Tuple[bool, int]:
         """Read-only check: returns (allowed, retry_after_seconds)"""
         key = f"{prefix}:{identifier}" if prefix else identifier
         now = datetime.now(timezone.utc)
         window_start = now - timedelta(minutes=self.window_minutes)
 
         if key in self.attempts:
-            self.attempts[key] = [t for t in self.attempts[key] if t > window_start]
+            self.attempts[key] = [
+                t for t in self.attempts[key] if t > window_start
+            ]
         else:
             self.attempts[key] = []
 
         if len(self.attempts[key]) >= self.max_attempts:
             oldest = self.attempts[key][0]
-            retry_after = int(
-                (oldest + timedelta(minutes=self.window_minutes) - now).total_seconds()
-            )
+            retry_after = int((oldest + timedelta(minutes=self.window_minutes) - now).total_seconds())
             return False, max(1, retry_after)
 
         return True, 0
@@ -121,7 +113,6 @@ class InMemoryRateLimiter(RateLimiterInterface):
 
     async def close(self):
         self.attempts.clear()
-
 
 class RedisRateLimiter(RateLimiterInterface):
     """Redis-based rate limiter for distributed environments"""
@@ -167,16 +158,15 @@ class RedisRateLimiter(RateLimiterInterface):
         """Check if identifier is allowed to make an attempt"""
         try:
             client = await self._get_redis()
-            key = (
-                f"auth_rate_limit:{prefix}:{identifier}"
-                if prefix
-                else f"auth_rate_limit:{identifier}"
-            )
+            key = f"auth_rate_limit:{prefix}:{identifier}" if prefix else f"auth_rate_limit:{identifier}"
 
             # Execute Lua script for atomicity and correct expiration behavior
             # ARGV[1] is expiration in seconds
             current = await client.eval(
-                self._incr_expire_script, 1, key, self.window_minutes * 60
+                self._incr_expire_script,
+                1,
+                key,
+                self.window_minutes * 60
             )
 
             return int(current) <= self.max_attempts
@@ -186,17 +176,11 @@ class RedisRateLimiter(RateLimiterInterface):
             # Fail open - allow request if Redis is down
             return True
 
-    async def check_rate_limit(
-        self, identifier: str, prefix: str = ""
-    ) -> Tuple[bool, int]:
+    async def check_rate_limit(self, identifier: str, prefix: str = "") -> Tuple[bool, int]:
         """Read-only check: returns (allowed, retry_after_seconds)"""
         try:
             client = await self._get_redis()
-            key = (
-                f"auth_rate_limit:{prefix}:{identifier}"
-                if prefix
-                else f"auth_rate_limit:{identifier}"
-            )
+            key = f"auth_rate_limit:{prefix}:{identifier}" if prefix else f"auth_rate_limit:{identifier}"
 
             # Execute Lua check script (GET + TTL, no writes)
             result = await client.eval(self._check_script, 1, key)
@@ -215,11 +199,7 @@ class RedisRateLimiter(RateLimiterInterface):
         """Write-only: record a failed attempt"""
         try:
             client = await self._get_redis()
-            key = (
-                f"auth_rate_limit:{prefix}:{identifier}"
-                if prefix
-                else f"auth_rate_limit:{identifier}"
-            )
+            key = f"auth_rate_limit:{prefix}:{identifier}" if prefix else f"auth_rate_limit:{identifier}"
 
             # Execute Lua record script (INCR + EXPIRE)
             await client.eval(
@@ -236,11 +216,7 @@ class RedisRateLimiter(RateLimiterInterface):
         """Get remaining attempts for identifier"""
         try:
             client = await self._get_redis()
-            key = (
-                f"auth_rate_limit:{prefix}:{identifier}"
-                if prefix
-                else f"auth_rate_limit:{identifier}"
-            )
+            key = f"auth_rate_limit:{prefix}:{identifier}" if prefix else f"auth_rate_limit:{identifier}"
 
             current = await client.get(key)
             if current is None:
@@ -258,7 +234,6 @@ class RedisRateLimiter(RateLimiterInterface):
             await self._redis.close()
             self._redis = None
 
-
 def create_rate_limiter(max_attempts: int, window_minutes: int) -> RateLimiterInterface:
     """Factory to create appropriate rate limiter"""
     # If REDIS_URL is configured (and not explicitly disabled), use Redis
@@ -268,7 +243,5 @@ def create_rate_limiter(max_attempts: int, window_minutes: int) -> RateLimiterIn
         logger.info(f"Initializing RedisRateLimiter with URL: {settings.REDIS_URL}")
         return RedisRateLimiter(max_attempts, window_minutes)
 
-    logger.warning(
-        "REDIS_URL not set. Using InMemoryRateLimiter (not suitable for production multi-worker setups)."
-    )
+    logger.warning("REDIS_URL not set. Using InMemoryRateLimiter (not suitable for production multi-worker setups).")
     return InMemoryRateLimiter(max_attempts, window_minutes)

@@ -31,3 +31,4 @@ def parse_sse_lines(lines: Iterable[str]) -> Iterator[CLIEvent]:
             payload_parts.append(line[5:].lstrip())
 
     yield from flush()
+

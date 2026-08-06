@@ -2,21 +2,16 @@
 User model and related functionality
 """
 
+from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Integer, Index
+from sqlalchemy.orm import relationship, selectinload, joinedload
+from enum import Enum as PyEnum
+import bcrypt
 from datetime import datetime
 from enum import Enum as PyEnum
 
 import bcrypt
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    Enum,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-)
-from sqlalchemy.orm import joinedload, relationship, selectinload
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
 
 from .base import GUID, BaseModel
 from .encrypted_fields import encrypted_string
@@ -47,9 +42,7 @@ class User(BaseModel):
     is_active = Column(Boolean, default=True, nullable=False)
 
     # Organization
-    organization_id = Column(
-        GUID(), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
-    )
+    organization_id = Column(GUID(), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
 
     # Authentication tracking
     last_login = Column(DateTime(timezone=True), nullable=True)
@@ -83,11 +76,11 @@ class User(BaseModel):
 
     # Database indexes for performance optimization
     __table_args__ = (
-        Index("idx_user_email_active", "email", "is_active"),
-        Index("idx_user_org_role", "organization_id", "role"),
-        Index("idx_user_org_active", "organization_id", "is_active"),
-        Index("idx_user_last_login_active", "last_login", "is_active"),
-        Index("idx_user_role_active", "role", "is_active"),
+        Index('idx_user_email_active', 'email', 'is_active'),
+        Index('idx_user_org_role', 'organization_id', 'role'),
+        Index('idx_user_org_active', 'organization_id', 'is_active'),
+        Index('idx_user_last_login_active', 'last_login', 'is_active'),
+        Index('idx_user_role_active', 'role', 'is_active'),
     )
 
     def __repr__(self):
@@ -133,9 +126,7 @@ class User(BaseModel):
 
         # Use 100 as default for unknown required roles to fail securely
         # (user level will never be >= 100)
-        return role_hierarchy.get(self.role, 0) >= role_hierarchy.get(
-            required_role, 100
-        )
+        return role_hierarchy.get(self.role, 0) >= role_hierarchy.get(required_role, 100)
 
     def can_upload_documents(self) -> bool:
         """Check if user can upload documents"""
@@ -153,44 +144,30 @@ class User(BaseModel):
     def get_with_organization(cls, user_id):
         """Get user with organization eagerly loaded to avoid N+1 queries"""
         from sqlalchemy.orm import sessionmaker
-
-        return (
-            cls.query.options(joinedload(cls.organization))
-            .filter(cls.id == user_id)
-            .first()
-        )
-
+        return cls.query.options(joinedload(cls.organization)).filter(cls.id == user_id).first()
+    
     @classmethod
     def get_with_recent_activity(cls, user_id):
         """Get user with recent activity data eagerly loaded"""
         from sqlalchemy.orm import sessionmaker
-
         from src.models.quality_metrics import SearchSession
-
-        return (
-            cls.query.options(
-                joinedload(cls.organization),
-                selectinload(cls.search_sessions).options(
-                    selectinload(SearchSession.searches)
-                ),
-                selectinload(cls.sessions),
-            )
-            .filter(cls.id == user_id)
-            .first()
-        )
-
+        return cls.query.options(
+            joinedload(cls.organization),
+            selectinload(cls.search_sessions).options(
+                selectinload(SearchSession.searches)
+            ),
+            selectinload(cls.sessions)
+        ).filter(cls.id == user_id).first()
+    
     @classmethod
     def get_org_users_with_details(cls, organization_id):
         """Get organization users with common relationships loaded to avoid N+1"""
-        return (
-            cls.query.options(
-                joinedload(cls.organization),
-                selectinload(cls.search_sessions),
-                selectinload(cls.analytics_events),
-            )
-            .filter(cls.organization_id == organization_id)
-            .all()
-        )
+        return cls.query.options(
+            joinedload(cls.organization),
+            selectinload(cls.search_sessions),
+            selectinload(cls.analytics_events)
+        ).filter(cls.organization_id == organization_id).all()
+
 
     def to_dict(self, exclude_sensitive: bool = True) -> dict:
         """Convert to dictionary, optionally excluding sensitive data"""

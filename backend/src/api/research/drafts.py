@@ -17,13 +17,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from structlog import get_logger
 
 from src.core.database import get_db
-from src.core.dependencies import get_current_user
 from src.models import Collection, Workspace
 from src.models.user import User
 from src.services.research.draft_generation_service import (
     DraftGenerationService,
     DraftGenerationStatus,
 )
+from src.core.dependencies import get_current_user
 
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/projects/{project_id}/drafts", tags=["drafts"])
@@ -60,7 +60,6 @@ async def _validate_project_ownership(
             and_(
                 Collection.id == project_id,
                 Workspace.owner_id == current_user.id,
-                Collection.is_deleted.is_(False),
             )
         )
     )
@@ -378,9 +377,7 @@ async def export_draft(
             raise HTTPException(status_code=500, detail="No LaTeX files generated")
 
         zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(
-            zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED
-        ) as zip_file:
+        with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
             for file_data in files:
                 name = file_data.get("filename")
                 content = file_data.get("content", "")
@@ -389,9 +386,7 @@ async def export_draft(
                 zip_file.writestr(name, content)
 
         zip_buffer.seek(0)
-        filename = (result.get("files", [{}])[0].get("filename", "draft.tex")).replace(
-            ".tex", ".zip"
-        )
+        filename = (result.get("files", [{}])[0].get("filename", "draft.tex")).replace(".tex", ".zip")
         return Response(
             content=zip_buffer.getvalue(),
             media_type="application/zip",
@@ -464,8 +459,7 @@ async def get_generation_status_by_task(
 async def cancel_generation(
     project_id: UUID,
     task_id: Optional[str] = Query(
-        None,
-        description="Optional task ID. If omitted, cancels latest active generation",
+        None, description="Optional task ID. If omitted, cancels latest active generation"
     ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

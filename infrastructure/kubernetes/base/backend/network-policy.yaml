@@ -43,6 +43,9 @@ spec:
     - podSelector:
         matchLabels:
           app: neo4j
+    - podSelector:
+        matchLabels:
+          app: qdrant
     ports:
     - protocol: TCP
       port: 5432

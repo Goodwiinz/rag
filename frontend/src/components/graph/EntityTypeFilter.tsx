@@ -533,8 +533,8 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
 
                 {/* Selection Info */}
                 {enableMultiSelect && (
-                  <div className="flex items-center justify-between p-3 bg-(--nous-bg-3) rounded">
-                    <span className="text-sm text-(--nous-fg-accent-safe)">
+                  <div className="flex items-center justify-between p-3 bg-[var(--nous-bg-3)] rounded">
+                    <span className="text-sm text-[var(--nous-fg-accent-safe)]">
                       {filters.selectedEntityIds.length} entities selected
                     </span>
                     {filters.selectedEntityIds.length > 0 && (
@@ -674,7 +674,7 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                   <div
                     role="button"
                     tabIndex={0}
-                    className="flex items-center justify-between p-4 bg-(--nous-bg-2) cursor-pointer hover:bg-(--nous-bg-3) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="flex items-center justify-between p-4 bg-[var(--nous-bg-2)] cursor-pointer hover:bg-[var(--nous-bg-3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     onClick={() => toggleTypeExpansion(stat.type)}
                   >
                     <div className="flex items-center space-x-3">
@@ -709,7 +709,7 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                           className={cn(
                             'h-6 px-2',
                             allOfTypeSelected &&
-                              'text-(--nous-fg-accent-safe)'
+                              'text-[var(--nous-fg-accent-safe)]'
                           )}
                         >
                           {allOfTypeSelected ? (
@@ -742,9 +742,9 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                               tabIndex={0}
                               aria-pressed={isSelected}
                               className={cn(
-                                'flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-(--nous-bg-3) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                'flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-[var(--nous-bg-3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                                 isSelected &&
-                                  'bg-(--nous-sol)/10 border border-(--nous-sol)'
+                                  'bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]'
                               )}
                               onClick={() => toggleEntitySelection(entity.id)}
                             >
@@ -754,7 +754,7 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                                     className={cn(
                                       'w-4 h-4 rounded border-2 flex items-center justify-center',
                                       isSelected
-                                        ? 'bg-(--nous-sol) border-(--nous-sol)'
+                                        ? 'bg-[var(--nous-sol)] border-[var(--nous-sol)]'
                                         : 'border-border'
                                     )}
                                   >

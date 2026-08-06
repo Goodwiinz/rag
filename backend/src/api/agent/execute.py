@@ -1,21 +1,18 @@
 """Agent execution endpoint.
 
-FastAPI route definitions for the agent API. Everything without HTTP
-concerns lives in the service layer (audit B1/B5):
+FastAPI route definitions for the agent API. Tool implementations,
+job management, streaming, and helpers live in sibling modules:
 
-- src/services/agent/tools_impl.py    — _tool_* functions, execute_tool, AGENT_TOOLS
-- src/services/agent/tool_helpers.py  — _resolve_document_id, _verify_project_ownership, etc.
-- src/services/agent/agent_execution_service.py — job store access,
-  _run_agent_graph/_resume_agent_graph, thread resolution, message persistence
-- src/services/agent/schemas.py       — execute/response wire models (re-exported here)
-- streaming.py (sibling)              — SSE event generators for /stream and /stream/confirm
+- tools_impl.py   — _tool_* functions, execute_tool, AGENT_TOOLS
+- tool_helpers.py  — _resolve_document_id, _verify_project_ownership, etc.
+- jobs.py          — _jobs, _set_job, _get_job, _run_agent_graph, _resume_agent_graph
+- streaming.py     — SSE event generators for /stream and /stream/confirm
 """
 
-import asyncio
 import logging
 import uuid as _uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from fastapi import (
@@ -27,93 +24,80 @@ from fastapi import (
     Query,
     Request,
 )
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import StreamingResponse
 from langgraph.errors import GraphInterrupt  # noqa: F401  re-export for backward compat
-from pydantic import BaseModel, Field
-from sqlalchemy import cast, desc, func, select
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import cast, select, desc, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user, require_admin
-from src.core.rate_limit import create_rate_limiter
 from src.models.chat_message import ChatMessage, MessageRole
 from src.models.conversation import Conversation
 from src.models.document import Document
 from src.models.thread import Thread, ThreadStatus
 from src.models.user import User
 from src.models.workspace import Workspace
-from src.services.agent import stream_buffer as _stream_buffer
-from src.services.agent._pii_redact import redact_tool_executions
-from src.services.agent._sanitize import _sanitize_prompt_field
-from src.services.agent.agent_execution_service import (  # noqa: F401
-    MAX_JOBS,
-    _actor_fields,
-    _cleanup_jobs,
-    _get_job,
-    _get_latest_user_content,
-    _jobs,
-    _jobs_lock,
-    _page_context_to_dict,
-    _resume_agent_graph,
-    _run_agent_graph,
-    _set_job,
+
+# Re-export from new modules so existing imports keep working.
+# Every `from src.api.agent.execute import <name>` must resolve.
+from .tools_impl import (  # noqa: F401
+    AGENT_TOOLS,
+    execute_tool,
+    _tool_search_arxiv,
+    _tool_ingest_arxiv,
+    _tool_search_documents,
+    _tool_do_kb_retrieve,
+    _tool_add_document_to_project,
+    _tool_create_project,
+    _tool_create_project_note,
+    _tool_list_project_documents,
+    _tool_list_projects,
+    _tool_summarize_document,
+    _tool_compare_documents,
+    _tool_extract_entities,
+    _tool_search_knowledge_graph,
+    _tool_explore_entity_neighborhood,
+    _tool_find_entity_paths,
+    _tool_get_graph_stats,
+    _tool_create_draft,
+    _tool_export_bibliography,
+    _tool_execute_code,
+    _tool_search_external_database,
+    _tool_list_external_databases,
 )
 
-# Wire models moved to the service layer (audit B5) so the graph runner can
-# build them without importing src.api. Re-exported here so every existing
-# `from src.api.agent.execute import <schema>` keeps resolving.
-from src.services.agent.schemas import (  # noqa: F401
-    SUPPORTED_MODELS,
-    AgentExecuteRequest,
-    AgentExecuteResponse,
-    AgentMessage,
-    PageContextRequest,
-    RetrievedContextResponse,
-    ToolExecutionResponse,
-)
-from src.services.agent.tool_helpers import (  # noqa: F401
+from .tool_helpers import (  # noqa: F401
+    _sanitize_metadata,
     _resolve_document_id,
     _resolve_project_id,
-    _sanitize_metadata,
     _verify_project_ownership,
 )
 
-# Re-export from the canonical service modules so existing imports keep
-# working. Every `from src.api.agent.execute import <name>` must resolve.
-from src.services.agent.tools_impl import (  # noqa: F401
-    AGENT_TOOLS,
-    _tool_add_document_to_project,
-    _tool_compare_documents,
-    _tool_create_draft,
-    _tool_create_project,
-    _tool_create_project_note,
-    _tool_do_kb_retrieve,
-    _tool_execute_code,
-    _tool_explore_entity_neighborhood,
-    _tool_export_bibliography,
-    _tool_extract_entities,
-    _tool_find_entity_paths,
-    _tool_get_graph_stats,
-    _tool_ingest_arxiv,
-    _tool_list_external_databases,
-    _tool_list_project_documents,
-    _tool_list_projects,
-    _tool_search_arxiv,
-    _tool_search_documents,
-    _tool_search_external_database,
-    _tool_search_knowledge_graph,
-    _tool_summarize_document,
-    execute_tool,
+from .jobs import (  # noqa: F401
+    _jobs,
+    _jobs_lock,
+    _cleanup_jobs,
+    _set_job,
+    _get_job,
+    _page_context_to_dict,
+    _get_latest_user_content,
+    _persist_thread_messages,
+    _run_agent_graph,
+    _resume_agent_graph,
+    MAX_JOBS,
 )
-from src.shared.enums import TERMINAL_STREAM_EVENTS, AgentStreamEvent, JobStatus
 
 from .streaming import (  # noqa: F401
     _SSE_HEADERS,
-    stream_confirm_event_generator,
     stream_event_generator,
+    stream_confirm_event_generator,
 )
+
+from src.services.agent._sanitize import _sanitize_prompt_field
+from src.core.rate_limit import create_rate_limiter
 
 # Per-user rate limiter for agent execute/stream endpoints.
 # 30 requests per minute — adjust MAX_AGENT_RPM / AGENT_RATE_WINDOW_MINUTES via
@@ -139,18 +123,109 @@ def _validate_confirmable_job(job: dict, current_user: User) -> None:
     job_user_id = job.get("user_id")
     if not job_user_id or job_user_id != str(current_user.id):
         raise HTTPException(status_code=404, detail="Job not found")
-    if job.get("status") != JobStatus.AWAITING_CONFIRMATION:
+    if job.get("status") != "awaiting_confirmation":
         raise HTTPException(status_code=409, detail="Job is not awaiting confirmation")
 
 
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
-#
-# AgentMessage / PageContextRequest / SUPPORTED_MODELS / AgentExecuteRequest /
-# RetrievedContextResponse / ToolExecutionResponse / AgentExecuteResponse
-# moved to src/services/agent/schemas.py (re-exported above). Only the
-# router-local schemas remain here.
+
+
+class AgentMessage(BaseModel):
+    role: Literal["user", "assistant"] = Field(
+        ..., description="Message role: user or assistant"
+    )
+    content: str = Field(..., max_length=32000, description="Message content")
+    client_message_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            "Client-supplied idempotency key. Only honored for role='user'; "
+            "ignored otherwise. Used to dedupe retries without a server-side SELECT."
+        ),
+    )
+
+    @field_validator("client_message_id")
+    @classmethod
+    def _only_for_user(cls, v: Optional[UUID], info) -> Optional[UUID]:
+        if v is not None and info.data.get("role") != "user":
+            raise ValueError("client_message_id only valid on user messages")
+        return v
+
+
+class PageContextRequest(BaseModel):
+    type: str = Field(default="unknown", description="Page context type")
+    project_id: Optional[str] = Field(
+        default=None, description="Project ID if on project page"
+    )
+    project_name: Optional[str] = Field(
+        default=None, description="Project name for display"
+    )
+    label: Optional[str] = Field(
+        default=None, description="Current page label (e.g., 'Documents', 'Notes')"
+    )
+    metadata: Optional[Dict[str, Any]] = None
+
+
+SUPPORTED_MODELS: frozenset[str] = frozenset({"", "model-router", "gpt-5-mini"})
+
+
+class AgentExecuteRequest(BaseModel):
+    messages: List[AgentMessage] = Field(
+        ..., max_length=50, description="Conversation messages"
+    )
+    page_context: PageContextRequest = Field(default_factory=PageContextRequest)
+    model: str = Field(
+        default="",
+        description=(
+            "Azure deployment name to route the chat to. Empty string uses the "
+            "server-configured deployment. See SUPPORTED_MODELS for the allow-list."
+        ),
+    )
+    use_rag: bool = Field(default=True)
+    max_context_docs: int = Field(default=5, ge=1, le=10)
+    thread_id: Optional[str] = None
+
+    @field_validator("model")
+    @classmethod
+    def _validate_model(cls, value: str) -> str:
+        if value not in SUPPORTED_MODELS:
+            supported = ", ".join(sorted(name for name in SUPPORTED_MODELS if name))
+            raise ValueError(
+                f"Unsupported model {value!r}. Supported deployments: {supported}."
+            )
+        return value
+
+
+class RetrievedContextResponse(BaseModel):
+    document_id: Optional[str] = None
+    title: str
+    content: str
+    score: float
+
+
+class ToolExecutionResponse(BaseModel):
+    id: str
+    tool_name: str
+    tool_display_name: str
+    args: Dict[str, Any]
+    status: str
+    result: Optional[Any] = None
+    error: Optional[str] = None
+    duration_ms: Optional[int] = None
+
+
+class AgentExecuteResponse(BaseModel):
+    message: AgentMessage
+    model: str
+    usage: Dict[str, int]
+    finish_reason: str
+    timestamp: str
+    rag_enabled: bool = False
+    retrieved_contexts: Optional[List[RetrievedContextResponse]] = None
+    tool_executions: Optional[List[ToolExecutionResponse]] = None
+    thread_id: str = ""
+    conversation_id: str = ""
 
 
 class JobStartResponse(BaseModel):
@@ -158,10 +233,7 @@ class JobStartResponse(BaseModel):
 
 
 class JobStatusResponse(BaseModel):
-    # Typed wire contract (audit C7): every status the backend can return is a
-    # JobStatus member; the legacy "error" alias is normalized to FAILED
-    # before this model is built (see get_job_status).
-    status: JobStatus
+    status: str
     result: Optional[dict] = None
     tool_executions: Optional[List[dict]] = None
     error: Optional[str] = None
@@ -233,162 +305,6 @@ class StreamConfirmRequest(BaseModel):
     confirmed: bool
 
 
-# ---------------------------------------------------------------------------
-# Dispatch backends (audit P1.3, X1 dispatch half)
-# ---------------------------------------------------------------------------
-
-_DISPATCH_BACKENDS = frozenset({"background", "celery"})
-
-
-def _resolve_dispatch_backend() -> str:
-    """Read AGENT_DISPATCH_BACKEND per-call (values-flippable, no restart).
-
-    Unknown values degrade to ``"background"`` with a warning instead of
-    failing the request — a typo in a values file must not take down /execute.
-    """
-    from src.core.config import get_settings
-
-    raw = (get_settings().AGENT_DISPATCH_BACKEND or "background").strip().lower()
-    if raw not in _DISPATCH_BACKENDS:
-        logger.warning(
-            "Unknown AGENT_DISPATCH_BACKEND %r — falling back to 'background'", raw
-        )
-        return "background"
-    return raw
-
-
-def _client_idempotency_key(request: "AgentExecuteRequest", current_user: User):
-    """Idempotency key for a dispatch, derived from the newest user turn.
-
-    Scoped by user id so the globally-unique partial index on
-    ``agent_runs.idempotency_key`` can never collide across tenants. ``None``
-    when the client sent no ``client_message_id`` (legacy clients) — those
-    requests dispatch unconditionally, exactly like today.
-    """
-    last = next((m for m in reversed(request.messages) if m.role == "user"), None)
-    cmid = getattr(last, "client_message_id", None) if last is not None else None
-    if cmid is None:
-        return None
-    return f"agent-execute:{current_user.id}:{cmid}"
-
-
-async def _celery_dispatch(
-    job_id: str,
-    job_payload: dict,
-    request: "AgentExecuteRequest",
-    current_user: User,
-) -> tuple[str, str]:
-    """Dispatch the turn to the Celery ``agent_runs`` queue.
-
-    Returns ``(outcome, job_id_for_client)`` with outcome one of:
-
-    - ``"dispatched"`` — row committed, job record written, task enqueued.
-    - ``"dedup"``     — a run for this idempotency key already exists; the
-      existing job_id is returned and NOTHING new is enqueued (retry of the
-      same turn resolves to the original run).
-    - ``"failed"``    — the enqueue itself failed AFTER the durable writes;
-      the job is marked failed in both stores so the poller stops cleanly.
-      We deliberately do NOT fall back to in-process execution here: the
-      broker exception is ambiguous (the message may have been published),
-      and running the turn in-process next to a possibly-delivered task
-      would double-execute it.
-    - ``"fallback"``  — the durable row could not be written, so nothing was
-      enqueued and the caller may safely run the turn in-process instead.
-
-    Ordering is the whole point (repo orphan-state lesson: flush-before-
-    external): the ``agent_runs`` row commits FIRST, then the Redis job
-    record, and the broker publish happens strictly last. A crash between
-    the commit and the publish leaves a row the sweeper reaps — never a
-    running task without a row (which would be unclaimable and unsweepable).
-    """
-    from src.core.database import AsyncSessionLocal
-    from src.services.agent import agent_run_service
-
-    org = getattr(current_user, "organization_id", None)
-    idem_key = _client_idempotency_key(request, current_user)
-
-    # 1. Durable agent_runs row (+ idempotency key) FIRST.
-    try:
-        async with AsyncSessionLocal() as run_db:
-            run = await agent_run_service.upsert_run(
-                run_db,
-                job_id=job_id,
-                status=JobStatus.RUNNING,
-                organization_id=org,
-                user_id=current_user.id,
-                thread_id=request.thread_id,
-                idempotency_key=idem_key,
-            )
-            if run is None and idem_key is not None:
-                existing = await agent_run_service.get_run_by_idempotency_key(
-                    run_db,
-                    idem_key,
-                    organization_id=org,
-                    user_id=current_user.id,
-                )
-                if existing is not None:
-                    logger.info(
-                        "celery dispatch: idempotency key already dispatched — "
-                        "returning existing job %s (requested %s)",
-                        existing.job_id,
-                        job_id,
-                    )
-                    return "dedup", existing.job_id
-            if run is None:
-                logger.warning(
-                    "celery dispatch: agent_runs row not created for job %s; "
-                    "falling back to in-process dispatch",
-                    job_id,
-                )
-                return "fallback", job_id
-    except Exception:
-        logger.warning(
-            "celery dispatch: agent_runs row write failed for job %s; "
-            "falling back to in-process dispatch",
-            job_id,
-            exc_info=True,
-        )
-        return "fallback", job_id
-
-    # 2. Job record for pollers (L1 + Redis + projection).
-    _set_job(job_id, job_payload)
-
-    # 3. Enqueue LAST — the external call happens only after all state is
-    #    durable, so the worker's execution claim always finds its row.
-    try:
-        from src.tasks.agent_run_tasks import run_agent_job
-
-        run_agent_job.delay(
-            job_id=job_id,
-            request_payload=request.model_dump(mode="json"),
-            user_id=str(current_user.id),
-        )
-    except Exception:
-        logger.exception(
-            "celery dispatch: enqueue failed for job %s — marking failed", job_id
-        )
-        error = "Agent dispatch failed (task queue unavailable). Please retry."
-        _set_job(
-            job_id,
-            {
-                "status": JobStatus.FAILED,
-                "error": error,
-                "tool_executions": [],
-                **_actor_fields(current_user),
-            },
-        )
-        # Durable projection write (await — the fire-and-forget projection
-        # scheduled by _set_job is best-effort; this one must land so the
-        # sweeper never resurrects the orphan as "stale running").
-        await agent_run_service.record_job_status(
-            job_id,
-            {"status": JobStatus.FAILED, "error": error, **_actor_fields(current_user)},
-        )
-        return "failed", job_id
-
-    return "dispatched", job_id
-
-
 @router.post("/execute", response_model=JobStartResponse)
 async def execute_agent(
     request: AgentExecuteRequest,
@@ -399,11 +315,6 @@ async def execute_agent(
     """Execute an agent chat completion via LangGraph.
 
     Returns a job ID immediately.  Poll ``GET /jobs/{job_id}`` for the result.
-
-    Dispatch is flag-gated (AGENT_DISPATCH_BACKEND): "background" runs the
-    graph on this pod via FastAPI BackgroundTasks (default, today's behavior);
-    "celery" enqueues it to the dedicated agent_runs queue with a durable
-    agent_runs row committed before the publish (audit P1.3 / X1).
     """
     _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
         str(current_user.id), prefix="agent_execute"
@@ -423,28 +334,19 @@ async def execute_agent(
             "page_context": request.page_context.type,
             "message_count": len(request.messages),
             "use_rag": request.use_rag,
-            "dispatch_backend": _resolve_dispatch_backend(),
         },
     )
 
     job_id = str(_uuid.uuid4())
-    job_payload = {
-        "status": JobStatus.RUNNING,
-        "tool_executions": [],
-        **_actor_fields(current_user),
-        "request": request.model_dump(),
-    }
-
-    if _resolve_dispatch_backend() == "celery":
-        outcome, dispatched_job_id = await _celery_dispatch(
-            job_id, job_payload, request, current_user
-        )
-        if outcome != "fallback":
-            return JobStartResponse(job_id=dispatched_job_id)
-        # "fallback": nothing was enqueued and no job record written — safe
-        # to run in-process below, exactly as if the flag were "background".
-
-    _set_job(job_id, job_payload)
+    _set_job(
+        job_id,
+        {
+            "status": "running",
+            "tool_executions": [],
+            "user_id": str(current_user.id),
+            "request": request.model_dump(),
+        },
+    )
 
     background_tasks.add_task(
         _run_agent_graph,
@@ -455,66 +357,27 @@ async def execute_agent(
     return JobStartResponse(job_id=job_id)
 
 
-def _normalized_job_status(raw: object) -> JobStatus:
-    """Coerce a stored job status to the typed wire contract.
-
-    Maps the legacy ``"error"`` alias to FAILED (one-release transition) and
-    degrades an unknown/corrupted value to FAILED with a log instead of a
-    response-validation 500 — pollers must always be able to stop.
-    """
-    try:
-        return JobStatus(raw)
-    except ValueError:
-        logger.warning("Unknown job status %r in stored record", raw)
-        return JobStatus.FAILED
-
-
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(
     job_id: str = Path(pattern=r"^[0-9a-fA-F-]{36}$"),
     current_user: User = Depends(get_current_user),
 ):
-    """Poll for agent job status — L1 cache, then Redis, then Postgres.
-
-    The Postgres ``agent_runs`` projection is the failover path: when Redis
-    lost the record (failover/TTL) the poller previously got a hard 404 and
-    the run became untrackable (audit X1/D7). The projection carries only
-    status + error — result payloads still require the Redis record.
-    """
-    # L1 is only trustworthy for terminal records (immutable). A non-terminal
-    # L1 entry may be a stale seed while another PROCESS owns the run's writes
-    # (Celery dispatch mode, multi-replica API) — without the fresh read the
-    # poller would see "running" until the 1h TTL. get_job_fresh degrades to
-    # the L1 read when Redis is unavailable, so single-process behavior (and
-    # Redis-less tests) are unchanged.
+    """Poll for agent job status — checks L1 cache then Redis."""
+    # Try L1 first (fast path)
     job = _get_job(job_id)
-    if job is None or not _normalized_job_status(job.get("status")).is_terminal:
-        from src.services.agent.job_store import get_job_fresh as _get_job_fresh
-
-        job = (await _get_job_fresh(job_id)) or job
+    # Fall back to Redis L2 (survives restarts)
     if not job:
-        # Redis miss: fall back to the durable projection (tenancy-filtered —
-        # org + user must both match; a miss 404s without confirming existence).
-        from src.services.agent import agent_run_service
+        from src.services.agent.job_store import get_job as _get_job_async_local
 
-        run = await agent_run_service.get_run_fallback(
-            job_id,
-            organization_id=getattr(current_user, "organization_id", None),
-            user_id=current_user.id,
-        )
-        if run is None:
-            raise HTTPException(status_code=404, detail="Job not found")
-        return JobStatusResponse(
-            status=_normalized_job_status(run.status), error=run.error
-        )
+        job = await _get_job_async_local(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
     # Fail closed: a job record without an owner must not be readable. Every
     # write path stamps user_id; its absence means a corrupted/legacy record,
     # not a public one.
     if job.get("user_id") != str(current_user.id):
         raise HTTPException(status_code=404, detail="Job not found")
-    return JobStatusResponse(
-        **{**job, "status": _normalized_job_status(job.get("status"))}
-    )
+    return JobStatusResponse(**job)
 
 
 @router.post("/confirm/{job_id}")
@@ -525,22 +388,15 @@ async def confirm_agent_action(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Confirm or deny a pending agent action (human-in-the-loop).
-
-    Works identically in both dispatch modes: the graph re-enters via the
-    Postgres checkpointer (keyed by thread_id), which any API pod can reach,
-    so the resume itself runs here as a BackgroundTask BY DESIGN even when
-    the original turn executed on a Celery worker (see agent_run_tasks).
-    """
+    """Confirm or deny a pending agent action (human-in-the-loop)."""
     from src.services.agent.job_store import compare_and_set_status
-    from src.services.agent.job_store import get_job_fresh as _get_job_fresh
+    from src.services.agent.job_store import get_job as _get_job_async_local
 
-    # Read the job Redis-first for the friendly 404 + ownership/status check.
-    # In Celery dispatch mode the awaiting_confirmation write came from the
-    # worker process, so this pod's L1 may still hold the stale "running"
-    # dispatch record — trusting it would 409 every legitimate confirm.
-    # (The authoritative claim is still the CAS below, not this read.)
-    job = await _get_job_fresh(job_id)
+    # Read the job (L1 then Redis) for a friendly 404 + ownership/status check.
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if job is None:
+        job = await _get_job_async_local(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     _validate_confirmable_job(job, current_user)
@@ -551,9 +407,7 @@ async def confirm_agent_action(
     # only the CAS winner schedules a resume, so a destructive HITL tool can't
     # be executed twice. The transition self-resets when a multi-step resume
     # re-parks the job as awaiting_confirmation, so the next confirm still works.
-    result = await compare_and_set_status(
-        job_id, JobStatus.AWAITING_CONFIRMATION, JobStatus.RUNNING
-    )
+    result = await compare_and_set_status(job_id, "awaiting_confirmation", "running")
     if result == "missing":
         raise HTTPException(status_code=404, detail="Job not found")
     if result == "conflict":
@@ -565,7 +419,7 @@ async def confirm_agent_action(
     with _jobs_lock:
         cached = _jobs.get(job_id)
         if cached is not None:
-            cached["status"] = JobStatus.RUNNING
+            cached["status"] = "running"
 
     background_tasks.add_task(
         _resume_agent_graph,
@@ -573,7 +427,7 @@ async def confirm_agent_action(
         request.confirmed,
         current_user,
     )
-    return {"status": JobStatus.RUNNING, "job_id": job_id}
+    return {"status": "running", "job_id": job_id}
 
 
 @router.post("/stream")
@@ -585,11 +439,7 @@ async def stream_agent(
 ):
     """Stream agent responses via Server-Sent Events.
 
-    SSE event types are the ``AgentStreamEvent`` wire vocabulary
-    (``src/shared/enums.py`` — the single source of truth): token, tool_start,
-    tool_end, rag_context, plan, reflection, trace, usage, heartbeat, status,
-    confirmation, done, error. ``heartbeat`` is a payload-less keepalive; the
-    terminal frames are ``TERMINAL_STREAM_EVENTS`` (done, error, confirmation).
+    SSE event types: token, tool_start, tool_end, rag_context, done, error
     """
     _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
         str(current_user.id), prefix="agent_stream"
@@ -616,17 +466,11 @@ async def stream_agent(
 async def stream_confirm_agent(
     request_body: StreamConfirmRequest,
     request: Request,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
     """Resume a graph interrupted by HITL via SSE streaming."""
     return StreamingResponse(
-        stream_confirm_event_generator(
-            request_body,
-            request,
-            current_user,
-            background_tasks=background_tasks,
-        ),
+        stream_confirm_event_generator(request_body, request, current_user),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
     )
@@ -679,159 +523,6 @@ async def get_graph_trace(
     return {"mermaid": diagram, "thread_id": thread_id}
 
 
-async def _single_frame(frame: str):
-    """One-frame SSE body."""
-    yield frame
-
-
-async def _pending_confirmation_frame(
-    thread_id: str, current_user: User
-) -> Optional[str]:
-    """SSE ``confirmation`` frame when the graph is parked on a HITL interrupt.
-
-    Reads the checkpoint directly rather than the stream buffer: the buffer's
-    active pointer is cleared the moment a stream ends, while the interrupt
-    outlives it and is only resolved by ``/confirm`` or discarded by the next
-    turn. Detection mirrors ``streaming.py`` — ``aget_state`` plus
-    ``snapshot.tasks[*].interrupts`` — because with a checkpointer attached
-    ``interrupt()`` returns state rather than raising ``GraphInterrupt``.
-
-    Best-effort: any failure returns None so resume degrades to its previous
-    204 instead of failing the request.
-    """
-    import json as _json
-
-    try:
-        from src.services.agent.checkpointer import get_checkpointer
-        from src.services.agent.graph import compile_agent_graph
-        from src.services.agent.memory import get_memory_store
-
-        checkpointer = await get_checkpointer()
-        store = await get_memory_store()
-        graph = compile_agent_graph(checkpointer=checkpointer, store=store)
-
-        config = {
-            "configurable": {
-                "thread_id": thread_id,
-                "user_id": str(current_user.id),
-                "organization_id": str(
-                    getattr(current_user, "organization_id", "") or ""
-                ),
-            }
-        }
-        snapshot = await graph.aget_state(config)
-        if snapshot is None:
-            return None
-
-        confirmation: Dict[str, Any] = {}
-        for task in snapshot.tasks or ():
-            for intr in getattr(task, "interrupts", ()) or ():
-                confirmation = getattr(intr, "value", {}) or {}
-                break
-            if confirmation:
-                break
-        if not confirmation:
-            return None
-
-        payload = {"thread_id": thread_id, "confirmation": confirmation}
-        logger.info(
-            "Re-delivering pending HITL confirmation on resume for thread %s",
-            thread_id,
-        )
-        return (
-            f"event: {AgentStreamEvent.CONFIRMATION.value}\n"
-            f"data: {_json.dumps(payload)}\n\n"
-        )
-    except Exception:
-        logger.warning(
-            "Failed to check for a pending confirmation on resume for thread %s",
-            thread_id,
-            exc_info=True,
-        )
-        return None
-
-
-@router.get("/stream/resume/{thread_id}")
-async def resume_stream(
-    request: Request,
-    thread_id: str = Path(pattern=r"^[0-9a-fA-F-]{36}$"),
-    after: int = Query(0),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Replay buffered SSE frames (seq > after) for the thread's active run."""
-    try:
-        thread_uuid = _uuid.UUID(thread_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid thread_id")
-
-    # Same IDOR guard as get_graph_trace: thread must belong to the caller's
-    # workspace; 404 (not 403) so we don't confirm another tenant's thread.
-    ownership_stmt = (
-        select(Thread)
-        .join(Conversation, Thread.conversation_id == Conversation.id)
-        .join(Workspace, Conversation.workspace_id == Workspace.id)
-        .where(
-            Thread.id == thread_uuid,
-            Workspace.owner_id == current_user.id,
-            Thread.is_deleted == False,
-        )
-    )
-    thread_row = (await db.execute(ownership_stmt)).scalar_one_or_none()
-    if thread_row is None:
-        raise HTTPException(status_code=404, detail="Thread not found")
-
-    sid = await _stream_buffer.active_stream_id(thread_id)
-    if sid is None:
-        # No live stream — but the graph may still be parked on a HITL
-        # interrupt. The confirmation frame was emitted on a stream that has
-        # since ended, so a client that missed it (backgrounded tab, reconnect,
-        # dropped frame) had no way to ever get it back: this returned 204
-        # forever while the run sat waiting for an answer. The user sees a
-        # turn that produced nothing, re-sends, and the pending interrupt is
-        # discarded as abandoned. Re-deliver it instead.
-        frame = await _pending_confirmation_frame(thread_id, current_user)
-        if frame is not None:
-            return StreamingResponse(
-                _single_frame(frame), media_type="text/event-stream"
-            )
-        return Response(status_code=204)
-
-    async def replay():
-        last_seq = after
-        # Hard bound: ~10 min of polling so a stuck active pointer can't
-        # hold the connection forever.
-        for _ in range(600):
-            frames = await _stream_buffer.read_after(sid, last_seq)
-            for buffered in frames:
-                yield buffered.frame
-                last_seq = buffered.seq
-                # Anchor to the actual event line: LLM token text in the
-                # data line can contain the literal string "event: done".
-                event_line = next(
-                    (
-                        line
-                        for line in buffered.frame.split("\n")
-                        if line.startswith("event: ")
-                    ),
-                    "",
-                )
-                # Terminal frames come from TERMINAL_STREAM_EVENTS (the enum,
-                # single source of truth) — no hand-listed literal set here.
-                if event_line.removeprefix("event: ") in TERMINAL_STREAM_EVENTS:
-                    return
-            if await request.is_disconnected():
-                return
-            if not frames and await _stream_buffer.active_stream_id(thread_id) != sid:
-                return  # run finished and buffer drained
-            # ponytail: poll-follow; pub/sub if latency matters
-            await asyncio.sleep(1.0)
-
-    return StreamingResponse(
-        replay(), media_type="text/event-stream", headers=_SSE_HEADERS
-    )
-
-
 @router.get("/health")
 async def agent_health():
     """Health check for agent service."""
@@ -869,9 +560,6 @@ class MessageResponse(BaseModel):
     tool_call_id: Optional[str] = None
     citations: Optional[List[Dict[str, Any]]] = None
     tool_executions: Optional[List[Dict[str, Any]]] = None
-    # Per-turn agent provenance (assistant rows only; None for legacy rows).
-    plan: Optional[List[Dict[str, Any]]] = None
-    token_usage: Optional[Dict[str, int]] = None
 
 
 class ThreadMessagesResponse(BaseModel):
@@ -1028,12 +716,7 @@ async def get_thread_messages(
                 tool_name=msg.tool_name,
                 tool_call_id=msg.tool_call_id,
                 citations=citations_data,
-                # Serve-time redaction: rows were persisted with raw args
-                # (before and after #1046 redacted the live SSE preview), so
-                # redacting here is what covers historical rows on reload.
-                tool_executions=redact_tool_executions(msg.tool_executions),
-                plan=msg.plan,
-                token_usage=msg.token_usage,
+                tool_executions=msg.tool_executions,
             )
         )
 

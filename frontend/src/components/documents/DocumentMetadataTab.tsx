@@ -9,7 +9,7 @@ interface DocumentMetadataTabProps {
 export function DocumentMetadataTab({ metadata }: DocumentMetadataTabProps) {
   return (
     <div className="py-6">
-      <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs">
+      <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
         <table className="w-full text-sm text-left">
           <thead className="bg-muted/30 text-xs text-muted-foreground border-b border-border">
             <tr>
@@ -21,7 +21,7 @@ export function DocumentMetadataTab({ metadata }: DocumentMetadataTabProps) {
             {Object.entries(metadata || {}).map(([key, value]) => (
               <tr key={key} className="hover:bg-muted/30 transition-colors">
                 <td className="px-6 py-3 font-medium text-foreground align-top">{key}</td>
-                <td className="px-6 py-3 text-muted-foreground wrap-break-word">
+                <td className="px-6 py-3 text-muted-foreground break-words">
                   {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                 </td>
               </tr>

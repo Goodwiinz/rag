@@ -6,7 +6,6 @@ import { useAgentChatStore } from '@/store/agentChatStore';
 import ProjectDetailPage from '../../../../app/(dashboard)/projects/[id]/page';
 import { useProjectStore } from '@/store/projectStore';
 import { projectService } from '@/services/projectService';
-import { projectSkillService } from '@/services/projectSkillService';
 
 const mockPush = vi.fn();
 
@@ -33,9 +32,6 @@ vi.mock('@/services/projectService', () => ({
     getGenerationStatus: vi.fn(),
     downloadDraftExport: vi.fn(),
   },
-}));
-vi.mock('@/services/projectSkillService', () => ({
-  projectSkillService: { list: vi.fn() },
 }));
 
 vi.mock('@/components/research/ProjectHeader', () => ({
@@ -78,16 +74,12 @@ vi.mock('@/components/research/NoteEditor', () => ({
 vi.mock('@/components/research/NoteList', () => ({
   NoteList: () => <div>Notes</div>,
 }));
-vi.mock('@/components/research/ProjectSkillsTab', () => ({
-  ProjectSkillsTab: () => <div>Project Skills Tab</div>,
-}));
 vi.mock('@/components/upload', () => ({
   DocumentUploadWizard: () => null,
 }));
 
 const mockUseProjectStore = useProjectStore as unknown as Mock;
 const mockProjectService = vi.mocked(projectService);
-const mockProjectSkillService = vi.mocked(projectSkillService);
 
 const mockFetchProject = vi.fn().mockResolvedValue(undefined);
 const mockFetchProjectDocuments = vi.fn().mockResolvedValue(undefined);
@@ -118,7 +110,6 @@ describe('ProjectDetailPage agent sync', () => {
     mockUpdateNote.mockResolvedValue(undefined);
     mockDeleteNote.mockResolvedValue(undefined);
     mockToggleNotePin.mockResolvedValue(undefined);
-    mockProjectSkillService.list.mockRejectedValue({ error: { status_code: 404 } });
 
     mockUseProjectStore.mockReturnValue({
       currentProject: {
@@ -219,21 +210,5 @@ describe('ProjectDetailPage agent sync', () => {
       expect(mockFetchProjectDocuments).toHaveBeenCalledTimes(2);
       expect(mockFetchProjectNotes).toHaveBeenCalledTimes(2);
     });
-  });
-
-  it('adds Skills as a secondary tab only when the backend catalog is available', async () => {
-    mockProjectSkillService.list.mockResolvedValue({
-      skills: [],
-      pending_change_requests: [],
-      capabilities: { can_edit: false, can_admin: false },
-    } as never);
-    const { user } = render(<ProjectDetailPage />);
-
-    await screen.findByText('Project One');
-    await user.click(screen.getByRole('button', { name: /more tabs/i }));
-    const skills = await screen.findByRole('menuitem', { name: /skills/i });
-    await user.click(skills);
-
-    expect(await screen.findByText('Project Skills Tab')).toBeInTheDocument();
   });
 });

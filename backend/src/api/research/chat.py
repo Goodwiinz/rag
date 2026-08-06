@@ -214,11 +214,11 @@ async def retrieve_context(
             total_chars_before_truncation=total_chars_before,
             total_chars_after_truncation=total_chars_after,
             truncated_docs=truncated_docs,
-            truncation_ratio=(
-                round((total_chars_before - total_chars_after) / total_chars_before, 4)
-                if total_chars_before > 0
-                else 0.0
-            ),
+            truncation_ratio=round(
+                (total_chars_before - total_chars_after) / total_chars_before, 4
+            )
+            if total_chars_before > 0
+            else 0.0,
         )
 
         # Store the trace
@@ -226,11 +226,6 @@ async def retrieve_context(
         try:
             from src.services.diagnostics.diagnostics_store import diagnostics_store
 
-            # Stamp the owning tenant. retrieve_context already takes
-            # organization_id as the required tenant boundary; every
-            # diagnostics read path scopes by it, and an unstamped trace is
-            # unreadable rather than readable by every tenant.
-            trace.organization_id = str(organization_id)
             await diagnostics_store.store_trace(trace)
         except Exception as store_err:
             logger.warning(f"Failed to store diagnostics trace: {store_err}")
@@ -248,7 +243,6 @@ async def _background_evaluate_rag(
     answer: str,
     contexts: List[RetrievedContext],
     trace_id: str,
-    organization_id: str,
 ) -> None:
     """Background task: evaluate RAG response quality and link to diagnostics trace."""
     try:
@@ -282,10 +276,7 @@ async def _background_evaluate_rag(
                 "hallucination_rate": metrics.hallucination_rate,
             }
             await diagnostics_store.update_trace_evaluation(
-                trace_id,
-                evaluation_id=f"eval-{trace_id}",
-                scores=scores,
-                organization_id=organization_id,
+                trace_id, evaluation_id=f"eval-{trace_id}", scores=scores
             )
             logger.info(
                 f"Background RAG evaluation completed for trace {trace_id}: "
@@ -513,9 +504,9 @@ async def chat_completions(
                 usage=response.get("usage"),
                 metadata={
                     "rag_enabled": request.use_rag,
-                    "context_count": (
-                        len(retrieved_contexts) if retrieved_contexts else 0
-                    ),
+                    "context_count": len(retrieved_contexts)
+                    if retrieved_contexts
+                    else 0,
                 },
                 retrieved_contexts=contexts_for_cache,
             )
@@ -528,7 +519,6 @@ async def chat_completions(
                 answer=response["content"],
                 contexts=retrieved_contexts,
                 trace_id=diagnostics_trace_id,
-                organization_id=str(current_user.organization_id),
             )
 
         # Build response
@@ -549,7 +539,9 @@ async def chat_completions(
         raise
     except Exception as e:
         logger.error(f"Chat completion error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        )
 
 
 @router.get("/health")
@@ -558,9 +550,9 @@ async def chat_health_check():
     Health check for chat service.
     """
     return {
-        "status": (
-            "healthy" if azure_openai_service.is_chat_available() else "unavailable"
-        ),
+        "status": "healthy"
+        if azure_openai_service.is_chat_available()
+        else "unavailable",
         "chat_available": azure_openai_service.is_chat_available(),
         "model_info": azure_openai_service.get_model_info(),
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -652,11 +644,9 @@ async def generate_suggestions(
         if request.citations:
             doc_text = "\n".join(
                 [
-                    (
-                        f"- {ctx.title}: {ctx.content[:200]}..."
-                        if ctx.content
-                        else f"- {ctx.title}"
-                    )
+                    f"- {ctx.title}: {ctx.content[:200]}..."
+                    if ctx.content
+                    else f"- {ctx.title}"
                     for ctx in request.citations[:3]
                 ]
             )

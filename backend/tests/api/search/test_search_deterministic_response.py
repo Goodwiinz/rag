@@ -37,7 +37,7 @@ def test_hybrid_search_returns_deterministic_fields() -> None:
     mock_user.organization_id = "test-org-id"
 
     app.dependency_overrides[search_module.get_current_user] = lambda: mock_user
-    app.dependency_overrides[search_module.get_db_sync] = lambda: Mock()
+    app.dependency_overrides[search_module.get_db] = lambda: Mock()
 
     hybrid_response = SearchResponse(
         query="deterministic test query",
@@ -99,7 +99,7 @@ def test_hybrid_search_backfills_missing_deterministic_fields() -> None:
     mock_user.organization_id = "test-org-id"
 
     app.dependency_overrides[search_module.get_current_user] = lambda: mock_user
-    app.dependency_overrides[search_module.get_db_sync] = lambda: Mock()
+    app.dependency_overrides[search_module.get_db] = lambda: Mock()
 
     hybrid_response = SearchResponse(
         query="deterministic defaults query",

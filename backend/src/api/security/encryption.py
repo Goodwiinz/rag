@@ -9,8 +9,8 @@ This module provides REST API endpoints for:
 - Data protection operations
 """
 
-import logging
 from datetime import datetime
+import logging
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -342,9 +342,9 @@ async def decrypt_data(
             "resource_type": request.resource_type,
             "resource_id": str(request.resource_id),
             "decrypted_data": decrypted_data,
-            "fields_decrypted": (
-                list(decrypted_data.keys()) if isinstance(decrypted_data, dict) else []
-            ),
+            "fields_decrypted": list(decrypted_data.keys())
+            if isinstance(decrypted_data, dict)
+            else [],
         }
 
     except EncryptionError as e:
@@ -521,9 +521,9 @@ async def get_encryption_audit_logs(
                 "resource_id": str(log.resource_id),
                 "key_id": log.key_id,
                 "performed_by": str(log.performed_by) if log.performed_by else None,
-                "organization_id": (
-                    str(log.organization_id) if log.organization_id else None
-                ),
+                "organization_id": str(log.organization_id)
+                if log.organization_id
+                else None,
                 "ip_address": log.ip_address,
                 "user_agent": log.user_agent,
                 "success": log.success,

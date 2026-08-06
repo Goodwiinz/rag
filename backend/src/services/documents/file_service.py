@@ -17,7 +17,7 @@ import magic
 from fastapi import Depends, HTTPException, UploadFile, status
 from PIL import Image
 from pypdf import PdfReader
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Optional pandas import for spreadsheet processing
@@ -341,16 +341,6 @@ class FileService:
         is_public: bool = False,
     ) -> Document:
         """Process and store uploaded file"""
-        # Track what durably landed so a mid-upload failure can be compensated.
-        # The storage object is committed BEFORE the DB rows, and the DB writes
-        # span multiple commits — without this, a failure orphans the object,
-        # strands a PENDING row, or drifts org storage quota (see the except).
-        document = None
-        document_committed = False
-        quota_committed = False
-        processing_job = None
-        processing_job_committed = False
-        stored_object = None  # (backend, storage_path, file_path) once the object lands
         try:
             # Validate file
             validation_result = self.validate_file(file, user, organization)
@@ -450,17 +440,6 @@ class FileService:
                     storage_backend="local",
                 )
 
-            # Capture the storage identity as plain values now, before any commit
-            # or rollback can expire the ORM instance. The rollback path must be
-            # able to delete the object without reading the (possibly expired)
-            # instance — a sync attribute read on an expired instance raises
-            # MissingGreenlet inside an async session.
-            stored_object = (
-                document.storage_backend,
-                document.storage_path,
-                document.file_path,
-            )
-
             # Add file hash as metadata
             document.add_metadata("file_hash", file_hash)
             document.add_metadata("original_filename", file.filename)
@@ -468,16 +447,10 @@ class FileService:
             self.db.add(document)
             await self.db.commit()
             await self.db.refresh(document)
-            document_committed = True
 
-            # Atomically update organization storage usage
-            await self.db.execute(
-                Organization.storage_usage_update(
-                    organization.id, validation_result["file_size"]
-                )
-            )
+            # Update organization storage usage
+            organization.update_storage_usage(validation_result["file_size"])
             await self.db.commit()
-            quota_committed = True
 
             # Create processing job for document ingestion
             processing_job = ProcessingJob(
@@ -502,7 +475,6 @@ class FileService:
             self.db.add(processing_job)
             await self.db.commit()
             await self.db.refresh(processing_job)
-            processing_job_committed = True
 
             # Queue the job for processing
             from src.tasks.processing_tasks import process_document_ingestion
@@ -513,50 +485,6 @@ class FileService:
 
         except Exception as e:
             await self.db.rollback()
-            # Compensate whatever durably landed before the failure. First reverse
-            # the DB (soft-delete the row + revert quota + drop the stray job in one
-            # commit); only if that succeeds do we delete the storage object. If the
-            # DB reversal itself fails (e.g. the connection is still bad), the row
-            # stays live, so we keep the object as a sweepable orphan rather than
-            # orphan a live row from its backing file. `reversal_ok` starts True when
-            # nothing was committed (no live row to protect).
-            reversal_ok = not document_committed
-            if document_committed and document is not None:
-                try:
-                    # A committed ProcessingJob only exists when the enqueue
-                    # (.delay) failed — drop it so it can't run against the
-                    # soft-deleted document.
-                    if processing_job_committed and processing_job is not None:
-                        await self.db.delete(processing_job)
-                    document.soft_delete()
-                    if quota_committed:
-                        await self.db.execute(
-                            Organization.storage_usage_update(
-                                organization.id, -validation_result["file_size"]
-                            )
-                        )
-                    await self.db.commit()
-                    reversal_ok = True
-                except Exception:
-                    await self.db.rollback()
-                    logger.warning(
-                        "upload rollback: failed to reverse committed row/quota for "
-                        "document %s; leaving storage object as a sweepable orphan",
-                        getattr(document, "id", None),
-                        exc_info=True,
-                    )
-            # Delete by captured primitives (never the possibly-expired instance).
-            if reversal_ok and stored_object is not None:
-                backend, storage_path, obj_file_path = stored_object
-                try:
-                    self._delete_stored_object(backend, storage_path, obj_file_path)
-                except Exception:
-                    logger.warning(
-                        "upload rollback: orphaned storage object %s (recoverable "
-                        "by a later sweep)",
-                        storage_path or obj_file_path,
-                        exc_info=True,
-                    )
             raise FileStorageError(f"Failed to upload file: {str(e)}")
 
     def extract_text_content(self, document: Document) -> str:
@@ -734,257 +662,50 @@ class FileService:
 
         return metadata
 
-    def _delete_stored_object(
-        self,
-        storage_backend: Optional[str],
-        storage_path: Optional[str],
-        file_path: Optional[str],
-    ) -> None:
-        """Delete a stored object by its raw identity (backend / key / path).
-
-        Takes plain values rather than a Document so it can run in the upload
-        rollback path, where the ORM instance may be expired — a sync attribute
-        read on an expired instance raises MissingGreenlet in an async session.
-        """
-        if storage_backend == "s3" and storage_path:
+    def delete_physical_file(self, document: Document) -> None:
+        """Delete the physical file from S3, Supabase Storage, or local disk."""
+        if document.storage_backend == "s3" and document.storage_path:
             from src.core.s3_client import S3StorageHelper
 
-            S3StorageHelper().delete_file(storage_path)
-        elif storage_backend == "supabase" and storage_path:
+            helper = S3StorageHelper()
+            helper.delete_file(document.storage_path)
+        elif document.storage_backend == "supabase" and document.storage_path:
             from src.core.supabase_client import parse_storage_key
 
-            bucket, key = parse_storage_key(storage_path)
+            bucket, key = parse_storage_key(document.storage_path)
             self.storage_helper.delete_file(bucket, key)
-        elif file_path and os.path.exists(file_path):
-            os.remove(file_path)
-
-    def delete_physical_file(self, document: Document) -> None:
-        """Delete every stored object a document owns.
-
-        Three object classes accumulate for one document:
-
-        1. the original upload (``storage_path``), honoring ``storage_backend``
-           (s3 / supabase / local disk);
-        2. the canonical DO-KB text mirror ``documents/{org}/{doc}.txt``; and
-        3. figure PNG crops under ``figures/{org}/{doc}/``.
-
-        Classes 2 and 3 are always written to S3/Spaces by the KB-ingest and
-        figure-extraction services (they upload via ``S3StorageHelper`` directly,
-        independent of the document's ``storage_backend``), so they are removed
-        from S3 whenever a client is available. Deleting only ``storage_path``
-        left them behind as retained user content after delete (audit finding
-        D6). Auxiliary cleanup is best-effort and never raises; the original
-        delete keeps its raise-on-failure contract so callers still log it as a
-        recoverable orphan.
-        """
-        original_error: Optional[Exception] = None
-        try:
-            self._delete_stored_object(
-                document.storage_backend, document.storage_path, document.file_path
-            )
-        except Exception as exc:  # re-raised below, AFTER aux cleanup runs
-            original_error = exc
-
-        # Run the derived-object cleanup regardless of the original delete's
-        # outcome, and never let it mask or replace the original error.
-        self._delete_auxiliary_objects(document)
-
-        if original_error is not None:
-            raise original_error
-
-    @staticmethod
-    def _s3_helper_or_none():
-        """An ``S3StorageHelper`` when S3/Spaces is configured, else ``None``.
-
-        The canonical text mirror and figure crops live on S3 regardless of the
-        document's ``storage_backend``, so their cleanup targets S3 whenever it
-        is available — NOT ``self.s3_helper``, which is ``None`` unless the
-        service's own backend is s3. A missing S3 config is not an error (those
-        object classes were never created without S3), so this returns ``None``
-        instead of raising (``S3StorageHelper.__init__`` raises ``RuntimeError``
-        when unconfigured).
-        """
-        try:
-            from src.core.s3_client import S3StorageHelper
-
-            return S3StorageHelper()
-        except Exception:
-            return None
-
-    def _delete_auxiliary_objects(self, document: Document) -> None:
-        """Best-effort delete of a document's canonical KB text mirror + figure
-        PNG crops from S3/Spaces.
-
-        Every key is derived strictly from the document row (its org id + id),
-        so this can only ever touch objects that belong to THIS document — never
-        an object a live document references. Never raises: each storage error
-        is logged and swallowed (an undeleted auxiliary object is a sweepable
-        orphan, surfaced by ``storage_reconcile``).
-        """
-        helper = self._s3_helper_or_none()
-        if helper is None:
-            return  # No S3 → these object classes never existed.
-
-        # Key derivations live in the dependency-light ``object_keys`` module, so
-        # this hot path derives them WITHOUT importing the heavy KB-ingest /
-        # figure-extraction (PDF/ML) packages, and can't drift from the writers.
-        from src.services.documents.object_keys import (
-            canonical_text_key,
-            figure_object_prefix,
-        )
-
-        doc_id = getattr(document, "id", "?")
-
-        # (2) Canonical DO-KB text mirror: documents/{org}/{doc}.txt.
-        try:
-            helper.delete_file(canonical_text_key(document))
-        except Exception:
-            logger.warning(
-                "Failed to delete canonical KB text object for document %s "
-                "(orphan, recoverable by storage_reconcile)",
-                doc_id,
-                exc_info=True,
-            )
-
-        # (3) Figure PNG crops: figures/{org}/{doc}/... — list the doc-scoped
-        #     prefix (it embeds the doc UUID, so it matches ONLY this document's
-        #     figures) and delete each object.
-        try:
-            for key in helper.list_objects(figure_object_prefix(document)):
-                helper.delete_file(key)
-        except Exception:
-            logger.warning(
-                "Failed to enumerate/delete figure objects for document %s "
-                "(orphan, recoverable by storage_reconcile)",
-                doc_id,
-                exc_info=True,
-            )
+        else:
+            if os.path.exists(document.file_path):
+                os.remove(document.file_path)
 
     async def delete_file(self, document: Document, user: User) -> bool:
-        """Delete file and update storage.
-
-        Mirrors the cascade of ``documents.delete_document``: this is the second
-        live delete surface for the same rows, and previously it soft-deleted
-        only the Document + quota — leaving the document's Entity rows live in
-        Postgres and its subgraph / DO KB data source orphaned forever (a
-        deleted doc that still surfaces in retrieval and graph results). Reap
-        all satellites the same way.
-        """
-        # Check permissions first — outside the try so a 403 propagates as-is
-        # instead of being wrapped into a FileStorageError.
-        if document.uploaded_by_user_id != user.id and not user.has_permission(
-            UserRole.ADMIN
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Can only delete your own files or require admin role",
-            )
-
-        # Capture ids before soft_delete / commit for the post-commit satellite
-        # cleanup (the ORM object's attributes stay readable, but be explicit).
-        document_id = str(document.id)
-        organization_id = str(document.organization_id)
-
-        # Make the DB the source of truth FIRST: soft-delete the record + its
-        # Entity rows + processing jobs and revert quota, then commit. Only after
-        # that succeeds do we remove the physical object. Deleting the object
-        # before the commit meant a commit failure rolled back the row while the
-        # storage object was already irreversibly gone — a live row pointing at a
-        # missing file (every later download / content / reprocess 403/404, quota
-        # still counted). With this order a failure leaves at worst a sweepable
-        # orphan object, never a live row whose backing file is gone.
+        """Delete file and update storage"""
         try:
-            from datetime import datetime
-
-            from src.models.entity import Entity
-
-            await self.db.execute(
-                update(Entity)
-                .where(Entity.document_id == document.id, Entity.is_deleted == False)
-                .values(is_deleted=True, deleted_at=datetime.utcnow())
-            )
-            await self.db.execute(
-                update(ProcessingJob)
-                .where(
-                    ProcessingJob.document_id == document.id,
-                    ProcessingJob.is_deleted == False,
+            # Check permissions
+            if document.uploaded_by_user_id != user.id and not user.has_permission(
+                UserRole.ADMIN
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Can only delete your own files or require admin role",
                 )
-                .values(is_deleted=True, deleted_at=datetime.utcnow())
-            )
 
+            # Delete physical file (local or Supabase)
+            self.delete_physical_file(document)
+
+            # Soft delete document record
             document.soft_delete()
-            await self.db.execute(
-                Organization.storage_usage_update(
-                    document.organization_id, -document.file_size_bytes
-                )
-            )
+
+            # Update organization storage usage
+            organization = document.organization
+            organization.update_storage_usage(-document.file_size_bytes)
             await self.db.commit()
+
+            return True
+
         except Exception as e:
             await self.db.rollback()
             raise FileStorageError(f"Failed to delete file: {str(e)}")
-
-        # Best-effort physical delete AFTER the commit. A failure here must NOT
-        # roll back the committed soft-delete — log it as a recoverable orphan.
-        try:
-            self.delete_physical_file(document)
-        except Exception as delete_error:
-            logger.warning(
-                "Soft-deleted document %s but failed to remove its storage "
-                "object (orphan, recoverable by a later sweep): %s",
-                document.id,
-                delete_error,
-                exc_info=True,
-            )
-
-        # Reap the DO KB data source + Neo4j subgraph (best-effort, post-commit,
-        # never blocks the delete) — same as documents.delete_document.
-        await self._cleanup_satellites_on_delete(document, document_id, organization_id)
-
-        return True
-
-    async def _cleanup_satellites_on_delete(
-        self, document: Document, document_id: str, organization_id: str
-    ) -> None:
-        """Best-effort removal of a deleted document's DO KB data source and
-        Neo4j subgraph. Each step is failure-isolated: a KB/Neo4j outage during
-        delete must never fail or block the user's delete (the Postgres rows are
-        already gone). Failures are logged as recoverable drift."""
-        # DO KB: unsync so the deleted doc stops surfacing in retrieval and stops
-        # leaking storage. unsync_document_from_kb no-ops when DO_KB is off or the
-        # doc has no data source, and never raises.
-        try:
-            if document.do_kb_data_source_uuid:
-                from src.services.do_kb import unsync_document_from_kb
-
-                await unsync_document_from_kb(self.db, document)
-        except Exception:  # noqa: BLE001
-            logger.warning(
-                "do_kb cleanup on file delete failed",
-                extra={"document_id": document_id},
-                exc_info=True,
-            )
-
-        # Neo4j: reap this document's relationships then its now-orphaned entity
-        # nodes (shared across docs — no blind DETACH DELETE), org-scoped. The KG
-        # service is synchronous, so offload to a worker thread.
-        try:
-            import asyncio
-
-            from src.services.knowledge_graph.knowledge_graph_service import (
-                KnowledgeGraphService,
-            )
-
-            await asyncio.to_thread(
-                lambda: KnowledgeGraphService().delete_document_graph(
-                    document_id, organization_id
-                )
-            )
-        except Exception:  # noqa: BLE001
-            logger.warning(
-                "knowledge-graph cleanup on file delete failed",
-                extra={"document_id": document_id},
-                exc_info=True,
-            )
 
     async def get_file_stats(self, organization_id: str) -> Dict[str, Any]:
         """Get file statistics for organization"""

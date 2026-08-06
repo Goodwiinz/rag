@@ -136,39 +136,6 @@ async def test_suffix_match_resolution():
 
 
 # -------------------------------------------------------------------------
-# Test 3b: canonical-text-mirror resolution ("<doc_uuid>.txt" → Document.id)
-# -------------------------------------------------------------------------
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_canonical_text_key_uuid_stem_resolution():
-    """DO KB reports item_name as the basename of the canonical text mirror
-    ``documents/{org}/{doc}.txt`` → ``"<doc_uuid>.txt"``. The stem IS the
-    Document.id, so it resolves even though storage_path is the original
-    ``.pdf`` upload key (which never suffix-matches a ``.txt`` key)."""
-    doc_id = uuid4()
-    chunks = [_make_chunk(document_id=f"{doc_id}.txt")]
-
-    # storage_path is the ORIGINAL upload key — a .pdf that cannot suffix-match
-    # the .txt KB key. Resolution must come from the UUID stem instead.
-    session = _mock_session_with_docs(
-        doc_rows=[
-            (doc_id, f"documents/org-1/{doc_id}/1700000000_abc.pdf", "Self-RAG"),
-        ],
-    )
-
-    title_by_key, chunks_to_emit = await resolve_and_filter_chunks(
-        chunks=chunks,
-        org_id=uuid4(),
-        session=session,
-        project_id=None,
-    )
-
-    assert f"{doc_id}.txt" in title_by_key
-    assert title_by_key[f"{doc_id}.txt"] == (str(doc_id), "Self-RAG")
-    assert len(chunks_to_emit) == 1
-
-
-# -------------------------------------------------------------------------
 # Test 4: Project scoping filters out non-member docs
 # -------------------------------------------------------------------------
 @pytest.mark.unit

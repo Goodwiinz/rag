@@ -20,19 +20,8 @@ export default async function DashboardLayout({
   // full shell for anonymous visitors and relied entirely on client-side
   // fetches failing. Validate the session on the server with getUser() (which
   // verifies the JWT with Supabase, not just the cookie) and redirect before
-  // any shell HTML is sent.
-  //
-  // This is the SOLE server-side auth gate for (dashboard) routes (AU8,
-  // 2026-07-16) — proxy.ts (root middleware) only refreshes the Supabase
-  // session cookie and sets the CSP nonce; it has no getUser()-gated
-  // redirect. (A prior version of this comment claimed a "root auth
-  // middleware (PR #561)" complement — PR #561 never touched proxy.ts or
-  // src/lib/supabase/middleware.ts, and the root middleware has never
-  // redirected unauthenticated requests since it was first added: the claim
-  // was stale/inaccurate, not a regression from a real removal.) Any new
-  // top-level route that should require auth MUST live under this
-  // (dashboard) layout (or add an equivalent getUser() guard of its own) —
-  // there is no middleware backstop.
+  // any shell HTML is sent. Defense-in-depth complement to the root auth
+  // middleware (PR #561).
   const supabase = await createClient();
   const {
     data: { user },

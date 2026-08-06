@@ -19,7 +19,7 @@ import { AxeBuilder } from '@axe-core/playwright';
 const TEST_CREDENTIALS = {
   admin: {
     email: 'admin@test.com',
-    password: 'admin123',
+    password: 'REDACTED',
   },
   user: {
     email: 'user@test.com',

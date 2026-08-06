@@ -48,12 +48,6 @@ class TokenData(BaseModel):
     # can reject CLI tokens minted before a per-user "revoked before" cutoff.
     issued_at: Optional[datetime] = None
     is_cli: bool = False
-    # Sign-up profile from Supabase ``user_metadata`` (see
-    # ``_extract_signup_metadata``). DISPLAY TEXT ONLY — client-controlled, so
-    # it must never influence role, permissions, org membership or tenant scope.
-    signup_first_name: Optional[str] = None
-    signup_last_name: Optional[str] = None
-    signup_organization_name: Optional[str] = None
 
 
 def _extract_forwarded_ip(headers: Any) -> Optional[str]:
@@ -154,54 +148,6 @@ def _get_supabase_jwks() -> Optional[Dict]:
         return None
 
 
-# Column limits the sign-up metadata has to fit (see src/models/user.py and
-# src/models/organization.py): users.first_name / last_name are String(100),
-# organizations.name is String(255).
-_SIGNUP_NAME_MAX_LENGTH = 100
-_SIGNUP_ORG_NAME_MAX_LENGTH = 255
-
-
-def _clean_metadata_string(value: Any, max_length: int) -> Optional[str]:
-    """Coerce one attacker-controlled metadata value into safe display text.
-
-    Anything that isn't a non-blank string (``None``, numbers, dicts, lists)
-    becomes ``None`` so the caller falls back to a derived value. A pydantic
-    ``TokenData`` field is ``Optional[str]`` and pydantic v2 does NOT coerce,
-    so letting a non-string through here would raise during token extraction
-    and 401 the user.
-    """
-    if not isinstance(value, str):
-        return None
-    cleaned = value.strip()
-    return cleaned[:max_length] or None
-
-
-def _extract_signup_metadata(payload: dict) -> Dict[str, Optional[str]]:
-    """Whitelist the sign-up fields the frontend writes to ``user_metadata``.
-
-    Supabase copies the client-supplied ``options.data`` of ``auth.signUp()``
-    verbatim into the ``user_metadata`` JWT claim, so ANY key in there is
-    attacker-controlled — a user can set ``role``/``organization_id`` at will.
-    We therefore take only the three display fields, truncated to their column
-    limits, and drop the rest at the boundary: nothing else can ride in.
-    Authorization keeps coming exclusively from ``app_metadata``.
-    """
-    user_metadata = payload.get("user_metadata")
-    if not isinstance(user_metadata, dict):
-        return {}
-    return {
-        "signup_first_name": _clean_metadata_string(
-            user_metadata.get("first_name"), _SIGNUP_NAME_MAX_LENGTH
-        ),
-        "signup_last_name": _clean_metadata_string(
-            user_metadata.get("last_name"), _SIGNUP_NAME_MAX_LENGTH
-        ),
-        "signup_organization_name": _clean_metadata_string(
-            user_metadata.get("organization_name"), _SIGNUP_ORG_NAME_MAX_LENGTH
-        ),
-    }
-
-
 def _extract_supabase_token_data(payload: dict) -> Optional[TokenData]:
     """Extract TokenData from a decoded Supabase JWT payload."""
     user_id = payload.get("sub")
@@ -213,12 +159,9 @@ def _extract_supabase_token_data(payload: dict) -> Optional[TokenData]:
         return TokenData(
             user_id=user_id,
             email=email,
-            # Honor an org claim if Supabase set one; otherwise JIT
-            # provisioning (ensure_user_and_org) resolves/creates one.
-            organization_id=app_metadata.get("organization_id"),
+            organization_id=None,  # Resolved in get_current_user
             role=role,
             exp=datetime.utcfromtimestamp(exp) if exp else None,
-            **_extract_signup_metadata(payload),
         )
     return None
 
@@ -249,7 +192,9 @@ def create_cli_token(
     rather than silently issuing tokens with a default-empty signing key.
     """
     if not settings.JWT_SECRET_KEY:
-        raise RuntimeError("JWT_SECRET_KEY must be configured to mint CLI tokens")
+        raise RuntimeError(
+            "JWT_SECRET_KEY must be configured to mint CLI tokens"
+        )
 
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=settings.CLI_TOKEN_EXPIRE_DAYS)
@@ -315,26 +260,15 @@ def verify_token(token: str) -> Optional[TokenData]:
         except JWTError:
             pass  # Fall through to Supabase paths
 
-    # Defense-in-depth (audit AU6): optionally pin the expected Supabase issuer.
-    # The signature already binds the token to this project's secret/JWKS, so
-    # this can't reject a *forged* token — it only guards against a same-secret
-    # token minted for a different Supabase project being replayed here.
-    # Opt-in via an EXACT SUPABASE_JWT_ISSUER (empty = skip). It is deliberately
-    # NOT derived from SUPABASE_URL: the hosted stack issues `<url>/auth/v1`
-    # while a bare GoTrue (CI/local) issues a different value, so a derived
-    # guess would reject every login in those environments.
-    supabase_issuer = settings.SUPABASE_JWT_ISSUER or None
-
     # Try Supabase JWT — HS256 with shared secret
     if settings.SUPABASE_JWT_SECRET:
         try:
-            decode_kwargs: Dict[str, Any] = {
-                "algorithms": ["HS256"],
-                "audience": "authenticated",
-            }
-            if supabase_issuer:
-                decode_kwargs["issuer"] = supabase_issuer
-            payload = jwt.decode(token, settings.SUPABASE_JWT_SECRET, **decode_kwargs)
+            payload = jwt.decode(
+                token,
+                settings.SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
             result = _extract_supabase_token_data(payload)
             if result:
                 return result
@@ -351,13 +285,12 @@ def verify_token(token: str) -> Optional[TokenData]:
                 for key_data in jwks_data["keys"]:
                     if key_data.get("kid") == kid or kid is None:
                         public_key = jwk.construct(key_data)
-                        decode_kwargs = {
-                            "algorithms": ["ES256"],
-                            "audience": "authenticated",
-                        }
-                        if supabase_issuer:
-                            decode_kwargs["issuer"] = supabase_issuer
-                        payload = jwt.decode(token, public_key, **decode_kwargs)
+                        payload = jwt.decode(
+                            token,
+                            public_key,
+                            algorithms=["ES256"],
+                            audience="authenticated",
+                        )
                         result = _extract_supabase_token_data(payload)
                         if result:
                             return result
@@ -389,21 +322,6 @@ def get_current_user_token(
         # Check if token is expired
         if token_data.exp and token_data.exp < datetime.utcnow():
             raise credentials_exception
-
-        # Hard max-age cap on CLI tokens, independent of the token's own `exp`
-        # claim. A CLI token minted under a previously larger
-        # CLI_TOKEN_EXPIRE_DAYS is still clamped to the *current* configured
-        # lifetime. This bounds exposure if the Redis revocation store loses a
-        # revoked-before cutoff (e.g. a flush, which reads as a miss and so
-        # allows): the token ages out within the cap instead of staying valid
-        # to its original exp. (audit D7)
-        if token_data.is_cli and token_data.issued_at is not None:
-            issued_at = token_data.issued_at
-            if issued_at.tzinfo is not None:
-                issued_at = issued_at.astimezone(timezone.utc).replace(tzinfo=None)
-            max_age = timedelta(days=settings.CLI_TOKEN_EXPIRE_DAYS)
-            if datetime.utcnow() - issued_at > max_age:
-                raise credentials_exception
 
         return token_data
 
@@ -491,8 +409,7 @@ def verify_sensitive_data_hash(data: str, hashed: str) -> bool:
 
 
 # Import RateLimiter implementations
-from src.core.rate_limit import InMemoryRateLimiter as RateLimiter
-from src.core.rate_limit import create_rate_limiter
+from src.core.rate_limit import create_rate_limiter, InMemoryRateLimiter as RateLimiter
 
 # Global rate limiter instance (will be initialized after settings import)
 # Use higher limits for development to avoid blocking during testing

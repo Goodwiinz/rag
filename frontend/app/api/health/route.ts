@@ -1,76 +1,20 @@
 /**
  * Next.js API Route for Health Check
  *
- * This route reports the health of the Next.js frontend itself and, when a
- * backend origin is configured, makes a best-effort probe of the backend
- * `/health` endpoint.
- *
- * On Vercel the frontend runs in a serverless runtime that cannot reach a
- * developer's `localhost:8000` — the previous hardcoded `http://localhost:8000`
- * probe was always meaningless there. We now resolve the backend origin from
- * `NEXT_PUBLIC_API_URL` (the canonical env var used by the API client) and skip
- * the probe entirely if it is unset or still points at localhost.
- *
- * The frontend liveness result is decoupled from backend reachability: this
- * route returns 200 whenever the frontend is serving, so an unreachable or
- * unhealthy backend never makes the frontend appear down to uptime checks.
+ * This route proxies health checks to the backend FastAPI service
+ * to provide a unified API endpoint for the Next.js frontend.
  */
 
-const BACKEND_PROBE_TIMEOUT_MS = 3000;
-
-/** Resolve the backend origin to probe, or null when none is usable. */
-function resolveBackendOrigin(): string | null {
-  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (!configured) {
-    return null;
-  }
-
-  let url: URL;
+export async function GET() {
   try {
-    url = new URL(configured);
-  } catch {
-    return null;
-  }
-
-  // A localhost origin is unreachable from the Vercel runtime — don't probe it.
-  const localHosts = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
-  if (localHosts.has(url.hostname)) {
-    return null;
-  }
-
-  return url.origin;
-}
-
-export async function GET(): Promise<Response> {
-  const frontend = {
-    framework: 'Next.js',
-    status: 'healthy' as const,
-  };
-
-  const backendOrigin = resolveBackendOrigin();
-
-  // No reachable backend configured (e.g. Vercel runtime with no public API
-  // origin): report the frontend as alive without a meaningless probe.
-  if (!backendOrigin) {
-    return Response.json({
-      status: 'healthy',
-      frontend,
-      backend: {
-        status: 'unknown',
-        detail:
-          'No reachable backend origin configured; backend health is not ' +
-          'probed from the frontend runtime.',
-      },
-      timestamp: new Date().toISOString(),
-    });
-  }
-
-  try {
-    const backendResponse = await fetch(`${backendOrigin}/health`, {
+    // Check backend health
+    const backendResponse = await fetch('http://localhost:8000/health', {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(BACKEND_PROBE_TIMEOUT_MS),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      // Add cache: no-store to ensure fresh checks
+      cache: 'no-store'
     });
 
     if (!backendResponse.ok) {
@@ -79,25 +23,33 @@ export async function GET(): Promise<Response> {
 
     const backendHealth = await backendResponse.json();
 
+    // Return combined health status
     return Response.json({
       status: 'healthy',
-      frontend,
+      frontend: {
+        framework: 'Next.js',
+        version: '14.2.33',
+        status: 'healthy'
+      },
       backend: backendHealth,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
-  } catch (error) {
-    console.error('Backend health probe failed:', error);
 
-    // The frontend is still serving, so it stays 200/healthy — only the
-    // backend sub-status reflects the failure.
+  } catch (error) {
+    console.error('Health check failed:', error);
+
     return Response.json({
-      status: 'healthy',
-      frontend,
+      status: 'unhealthy',
+      frontend: {
+        framework: 'Next.js',
+        version: '14.2.33',
+        status: 'healthy'
+      },
       backend: {
         status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       },
-      timestamp: new Date().toISOString(),
-    });
+      timestamp: new Date().toISOString()
+    }, { status: 503 });
   }
 }

@@ -2,7 +2,7 @@
 
 import os
 import tempfile
-from typing import List, Optional
+from typing import Optional
 
 import structlog
 
@@ -19,11 +19,7 @@ def get_s3_client():
     if _s3_client is not None:
         return _s3_client
 
-    if (
-        not settings.S3_ENDPOINT_URL
-        or not settings.S3_ACCESS_KEY
-        or not settings.S3_SECRET_KEY
-    ):
+    if not settings.S3_ENDPOINT_URL or not settings.S3_ACCESS_KEY or not settings.S3_SECRET_KEY:
         logger.warning(
             "s3_not_configured",
             msg="S3_ENDPOINT_URL, S3_ACCESS_KEY, or S3_SECRET_KEY not set",
@@ -119,44 +115,6 @@ class S3StorageHelper:
         except Exception as exc:
             self._log.error("s3_delete_failed", key=key, error=str(exc))
             return False
-
-    def object_exists(self, key: str) -> bool:
-        """Check whether an object exists (HEAD request).
-
-        Returns False only on a definitive 404/NoSuchKey. Any other error
-        (auth, network, 5xx) propagates — treating an outage as "missing"
-        would turn a broken backend into user-facing 404s.
-        """
-        from botocore.exceptions import ClientError
-
-        try:
-            self.client.head_object(Bucket=self.bucket, Key=key)
-            return True
-        except ClientError as exc:
-            code = exc.response.get("Error", {}).get("Code", "")
-            http_status = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
-            if code in ("404", "NoSuchKey", "NotFound") or http_status == 404:
-                return False
-            self._log.error("s3_head_failed", key=key, error=str(exc))
-            raise
-
-    def list_objects(self, prefix: str) -> List[str]:
-        """List every object key under ``prefix`` (transparently paginated).
-
-        Returns an empty list when nothing matches. Raises on a hard API/network
-        error so callers can decide whether to treat listing as best-effort
-        (the delete path swallows + logs; the reconcile job surfaces it).
-        """
-        self._log.debug("s3_list_start", prefix=prefix)
-        keys: List[str] = []
-        paginator = self.client.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
-            for obj in page.get("Contents", []):
-                key = obj.get("Key")
-                if key:
-                    keys.append(key)
-        self._log.debug("s3_list_complete", prefix=prefix, count=len(keys))
-        return keys
 
     def create_signed_url(self, key: str, expires_in: int = 900) -> str:
         """Create a presigned URL for temporary file access.

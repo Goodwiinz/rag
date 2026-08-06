@@ -454,7 +454,7 @@ export default function DesignSystemPage() {
                     interactive
                     role="button"
                     tabIndex={0}
-                    className="flex cursor-pointer justify-between px-5 py-4 shadow-none focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="flex cursor-pointer justify-between px-5 py-4 shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <div>
                       <p
@@ -609,7 +609,7 @@ export default function DesignSystemPage() {
                       <button
                         key={chip}
                         type="button"
-                        className="rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        className="rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         style={{
                           fontFamily: 'var(--nous-font-ui)',
                           borderColor: 'var(--nous-border-1)',

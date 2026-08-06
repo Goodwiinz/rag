@@ -34,10 +34,6 @@ celery_app = Celery(
         "src.tasks.summarize_thread_task",
         "src.tasks.evaluation_tasks",
         "src.tasks.research_tasks",
-        "src.tasks.agent_run_tasks",
-        "src.tasks.retention_tasks",
-        "src.tasks.reconcile_tasks",
-        "src.tasks.reconcile_jobs",
     ],
 )
 
@@ -50,24 +46,6 @@ if _redis_uses_tls:
 
 celery_app.conf.update(
     **_ssl_conf,
-    # Bound the publish path. Kombu's Redis transport takes its socket
-    # timeouts from broker_transport_options, NOT from
-    # broker_connection_timeout, so without these a blackholed broker (a DO
-    # Managed Redis partition or a hung TLS handshake — not the fast
-    # connection-refused case) falls through to OS TCP retries, ~130s per
-    # attempt. Any request thread that publishes inline would block for
-    # minutes. Paired with a bounded retry policy so a publish fails fast
-    # enough for the caller to be told.
-    broker_transport_options={
-        "socket_connect_timeout": 5,
-        "socket_timeout": 5,
-    },
-    task_publish_retry_policy={
-        "max_retries": 1,
-        "interval_start": 0,
-        "interval_step": 0.2,
-        "interval_max": 0.2,
-    },
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
@@ -97,13 +75,6 @@ celery_app.conf.update(
             "exchange": "low_priority",
             "routing_key": "low_priority",
         },
-        # Dedicated queue for AGENT_DISPATCH_BACKEND=celery turns (audit
-        # P1.3): agent turns must not sit behind heavy document-processing
-        # backlogs. The helm worker command consumes it (-Q ...,agent_runs).
-        "agent_runs": {
-            "exchange": "agent_runs",
-            "routing_key": "agent_runs",
-        },
     },
     task_routes={
         "src.tasks.document_processing_tasks.process_document_upload": {
@@ -114,50 +85,6 @@ celery_app.conf.update(
         },
         "src.tasks.document_processing_tasks.process_low_priority_document": {
             "queue": "low_priority",
-        },
-        "src.tasks.agent_run_tasks.run_agent_job": {
-            "queue": "agent_runs",
-        },
-    },
-    # Audit P1.4 sweepers (flag-gated at runtime by SWEEPERS_ENABLED; the
-    # tasks self-skip when disabled). Task modules merge additional entries
-    # via conf.beat_schedule.update(...) — this assignment runs first, at
-    # celery_app import time, so nothing is clobbered.
-    beat_schedule={
-        "sweep-stale-agent-runs": {
-            "task": "src.tasks.agent_run_tasks.sweep_stale_agent_runs",
-            "schedule": 600.0,  # every 10 min; stale threshold is 30 min
-        },
-        "sweep-stuck-processing-jobs": {
-            "task": "src.tasks.processing_tasks.sweep_stuck_processing_jobs",
-            "schedule": 900.0,  # every 15 min; stuck threshold is 30 min
-        },
-        # Audit D5 (P2.5) retention riders. Two-stage safe: no-op unless
-        # RETENTION_ENABLED, dry-run (log-only) unless RETENTION_APPLY=true.
-        "retention-purge-soft-deleted-threads": {
-            "task": "src.tasks.retention_tasks.purge_soft_deleted_threads",
-            "schedule": 86400.0,  # daily
-        },
-        "retention-purge-synthetic-threads": {
-            "task": "src.tasks.retention_tasks.purge_synthetic_threads",
-            "schedule": 86400.0,  # daily; closes the synthetic checkpoint leak
-        },
-        "retention-purge-append-only-events": {
-            "task": "src.tasks.retention_tasks.purge_append_only_events",
-            "schedule": 86400.0,  # daily
-        },
-        # Audit P2.3 (D1): satellite reconciler. Report-only by default
-        # (RECONCILER_APPLY=false); RECONCILER_ENABLED is the kill switch.
-        "reconcile-satellite-indexes": {
-            "task": "src.tasks.reconcile_tasks.reconcile_satellite_indexes",
-            "schedule": 1800.0,  # every 30 min; rate-capped per run
-        },
-        # Task 1.4: re-enqueue processing_jobs whose post-commit Celery dispatch
-        # was lost to a broker outage (PENDING/celery_task_id=NULL). Runs at the
-        # lost-job window (10 min), ahead of the 30-min stuck-job sweep.
-        "reconcile-lost-processing-jobs": {
-            "task": "src.tasks.reconcile_jobs.reconcile_lost_processing_jobs",
-            "schedule": 600.0,  # every 10 min
         },
     },
     task_default_retry_delay=60,

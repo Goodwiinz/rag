@@ -72,9 +72,7 @@ class Thread(BaseModel):
     token_count = Column(Integer, default=0, nullable=False)
 
     # Creator tracking
-    created_by_id = Column(
-        GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
+    created_by_id = Column(GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     # Project integration (optional)
     source_project_id = Column(
@@ -92,8 +90,8 @@ class Thread(BaseModel):
 
     # Database indexes for performance optimization
     __table_args__ = (
-        Index("idx_thread_conversation_status", "conversation_id", "status"),
-        Index("idx_thread_conversation_created", "conversation_id", "created_at"),
+        Index('idx_thread_conversation_status', 'conversation_id', 'status'),
+        Index('idx_thread_conversation_created', 'conversation_id', 'created_at'),
     )
 
     # Relationships
@@ -164,16 +162,8 @@ class Thread(BaseModel):
         if self.title:
             return self.title
 
-        # Accessing self.messages triggers a lazy load when the relationship
-        # isn't eager-loaded. Under the async engine that raises MissingGreenlet
-        # (-> 500), which is how an *untitled* thread broke link/list endpoints
-        # that build a title via `thread.title or thread.generate_title()`.
-        # Only consult messages when they're already loaded; otherwise fall
-        # back to an id-based title instead of forcing a query.
-        from sqlalchemy import inspect as sa_inspect
-
-        if "messages" not in sa_inspect(self).unloaded and self.messages:
-            from ..services.threads.thread_title_generator import generate_title_sync
+        if self.messages:
+            from ..services.thread_title_generator import generate_title_sync
             from .chat_message import MessageRole
 
             for msg in self.messages:

@@ -19,12 +19,6 @@ from sqlalchemy import event, inspect
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import validates
 
-from .enhanced_document import DocumentModality, ProcessingStage
-from .knowledge_graph import EntitySource, EntityType, RelationshipType
-from .processing import JobStatus, JobType
-from .rag_query import AnswerType, QueryType
-from .websocket_status import ConnectionStatus
-
 
 class ValidationRule:
     """Base class for validation rules"""
@@ -376,6 +370,13 @@ class CrossFieldRule(ValidationRule):
 
 
 # Business logic validation functions
+def validate_quota_usage(fields: Dict[str, Any]) -> bool:
+    """Validate that storage usage doesn't exceed quota"""
+    used = fields.get("storage_used_bytes", 0)
+    quota = fields.get("storage_quota_bytes", 0)
+    return used <= quota
+
+
 def validate_document_processing_status(fields: Dict[str, Any]) -> bool:
     """Validate logical processing status transitions"""
     status = fields.get("processing_status")
@@ -464,6 +465,16 @@ MODEL_VALIDATION_RULES = {
         RangeRule("confidence", min_value=0.0, max_value=1.0),
         RangeRule("weight", min_value=0.0, max_value=10.0),
         CrossFieldRule("valid_from", ["valid_to"], validate_relationship_dates),
+    ],
+    "UserQuota": [
+        RangeRule("storage_quota_bytes", min_value=0),
+        RangeRule("storage_used_bytes", min_value=0),
+        RangeRule("document_quota", min_value=0),
+        RangeRule("document_count", min_value=0),
+        FileSizeRule("max_file_size_bytes", 52428800),  # 50MB max
+        CrossFieldRule(
+            "storage_used_bytes", ["storage_quota_bytes"], validate_quota_usage
+        ),
     ],
     "ProcessingJob": [
         EnumRule("job_type", JobType),

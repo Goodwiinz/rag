@@ -20,15 +20,11 @@ describe('ChatHeader', () => {
     vi.useRealTimers();
   });
 
-  it('renders the conversation title', () => {
+  it('renders breadcrumb with Dashboard / Chat', () => {
     render(<ChatHeader />);
+    expect(screen.getByText('Dashboard /')).toBeInTheDocument();
     const chatElements = screen.getAllByText('Chat');
     expect(chatElements.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('renders a custom chat title when provided', () => {
-    render(<ChatHeader chatTitle="ArXiv Literature Review" />);
-    expect(screen.getByText('ArXiv Literature Review')).toBeInTheDocument();
   });
 
   it('does not include a workspace selector (moved to ChatSidebar)', () => {

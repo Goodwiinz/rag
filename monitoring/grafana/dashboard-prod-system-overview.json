@@ -95,6 +95,7 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
+          "expr": "up{job=~'rag-backend|rag-frontend|rag-postgres|rag-redis|rag-neo4j|rag-qdrant'}",
           "interval": "30s",
           "legendFormat": "{{ job }}",
           "refId": "A"

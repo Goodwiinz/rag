@@ -379,19 +379,42 @@ class TestPlannerGeneratesForComplexQuery:
         assert result.steps[1].depends_on == [1]
         assert result.steps[2].depends_on == [2]
 
+    async def test_check_complexity_returns_step_count(self):
+        """check_complexity should return the estimated step count."""
+        from src.services.agent.planner import ComplexityCheck, check_complexity
+
+        mock_structured_llm = MagicMock()
+        mock_structured_llm.ainvoke = AsyncMock(
+            return_value=ComplexityCheck(step_count=4)
+        )
+        mock_llm = MagicMock()
+        mock_llm.with_structured_output.return_value = mock_structured_llm
+
+        with patch(
+            "src.services.agent.planner._build_planner_llm",
+            return_value=mock_llm,
+        ):
+            step_count = await check_complexity(
+                query="Find papers, ingest them, add to project, and write a review",
+                tool_names=["search_arxiv", "ingest_arxiv_papers", "add_document_to_project", "create_draft"],
+                page_context={"type": "project", "project_id": "p-1"},
+            )
+
+        assert step_count == 4
+
     async def test_planner_node_skips_simple_queries(self):
-        """Planner node should skip planning for simple queries (empty plan)."""
-        from src.services.agent.planner import AgentPlan, make_planner_node
+        """Planner node should skip planning for simple queries (step_count < 3)."""
+        from src.services.agent.planner import make_planner_node
 
         planner_node = make_planner_node(
             tool_names=["search_arxiv", "search_documents"],
         )
 
-        # Mock generate_plan to return an empty plan (model judged it simple)
+        # Mock check_complexity to return a low step count
         with patch(
-            "src.services.agent.planner.generate_plan",
+            "src.services.agent.planner.check_complexity",
             new_callable=AsyncMock,
-            return_value=AgentPlan(steps=[]),
+            return_value=1,
         ):
             state = {
                 "messages": [HumanMessage(content="Find papers on transformers")],

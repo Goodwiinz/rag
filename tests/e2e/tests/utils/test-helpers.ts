@@ -452,7 +452,7 @@ export const TEST_DATA = {
   USERS: {
     ADMIN: {
       email: process.env.TEST_ADMIN_EMAIL || 'admin@test.com',
-      password: process.env.TEST_ADMIN_PASSWORD || 'admin123456',
+      password: process.env.TEST_ADMIN_PASSWORD || 'REDACTED456',
     },
     REGULAR: {
       email: process.env.TEST_USER_EMAIL || 'user@test.com',
@@ -460,7 +460,7 @@ export const TEST_DATA = {
     },
     ORG_ADMIN: {
       email: process.env.TEST_ORG_ADMIN_EMAIL || 'orgadmin@test.com',
-      password: process.env.TEST_ORG_ADMIN_PASSWORD || 'orgadmin123456',
+      password: process.env.TEST_ORG_ADMIN_PASSWORD || 'orgREDACTED456',
     },
   },
   ORGANIZATIONS: {

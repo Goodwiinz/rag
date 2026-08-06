@@ -504,6 +504,83 @@ check_redis() {
     fi
 }
 
+# Check Qdrant
+check_qdrant() {
+    log "Checking Qdrant vector store..."
+
+    # Check connectivity
+    check_step "Qdrant connectivity"
+    local response_time
+    response_time=$(measure_response_time "curl -f http://localhost:6333/health")
+
+    if [ $? -eq 0 ]; then
+        success "Qdrant is accessible (${response_time}ms)"
+        update_report "databases" "qdrant_connectivity" "passed" "Qdrant is accessible" "$response_time"
+    else
+        error "Qdrant is not accessible"
+        update_report "databases" "qdrant_connectivity" "failed" "Qdrant is not accessible" "$response_time"
+        return 1
+    fi
+
+    # Check collections
+    check_step "Qdrant collections"
+    local collection_info
+    collection_info=$(curl -s http://localhost:6333/collections 2>/dev/null)
+
+    if echo "$collection_info" | jq -e '.result.collections' &> /dev/null; then
+        local collection_count
+        collection_count=$(echo "$collection_info" | jq -r '.result.collections | length')
+
+        if [ "$collection_count" -gt 0 ]; then
+            success "Qdrant collections: $collection_count"
+            update_report "databases" "qdrant_collections" "passed" "Collections found: $collection_count" "0"
+        else
+            warning "Qdrant collections: $collection_count (may need setup)"
+            update_report "databases" "qdrant_collections" "warning" "No collections found" "0"
+        fi
+    else
+        warning "Could not retrieve Qdrant collections"
+        update_report "databases" "qdrant_collections" "warning" "Could not retrieve collections" "0"
+    fi
+
+    # Check cluster info
+    check_step "Qdrant cluster info"
+    local cluster_info
+    cluster_info=$(curl -s http://localhost:6333 2>/dev/null)
+
+    if echo "$cluster_info" | jq -e '.title' &> /dev/null; then
+        local version
+        version=$(echo "$cluster_info" | jq -r '.version')
+        success "Qdrant version: $version"
+        update_report "databases" "qdrant_version" "passed" "Version: $version" "0"
+    else
+        warning "Could not retrieve Qdrant cluster info"
+        update_report "databases" "qdrant_version" "warning" "Could not retrieve cluster info" "0"
+    fi
+
+    # Check collection sizes (if any collections exist)
+    if [ -n "$collection_info" ] && echo "$collection_info" | jq -e '.result.collections[0]' &> /dev/null; then
+        check_step "Qdrant collection sizes"
+        local total_points=0
+        local collection_names
+        collection_names=$(echo "$collection_info" | jq -r '.result.collections[].name')
+
+        for collection_name in $collection_names; do
+            local points_count
+            points_count=$(curl -s "http://localhost:6333/collections/$collection_name" | jq -r '.result.points_count // 0')
+            total_points=$((total_points + points_count))
+        done
+
+        if [ "$total_points" -gt 0 ]; then
+            success "Qdrant total points: $total_points"
+            update_report "databases" "qdrant_points" "passed" "Total points: $total_points" "0"
+        else
+            warning "Qdrant total points: $total_points (collections may be empty)"
+            update_report "databases" "qdrant_points" "warning" "No points found" "0"
+        fi
+    fi
+}
+
 # Check performance metrics
 check_performance_metrics() {
     log "Checking performance metrics..."
@@ -731,6 +808,7 @@ main() {
             check_postgresql
             check_neo4j
             check_redis
+            check_qdrant
             ;;
         "services")
             check_service_endpoints
@@ -745,6 +823,7 @@ main() {
             check_postgresql
             check_neo4j
             check_redis
+            check_qdrant
             if [ "$skip_performance" = false ]; then
                 check_performance_metrics
             fi

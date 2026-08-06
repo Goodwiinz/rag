@@ -616,11 +616,10 @@ class AnalyticsRecommendationGenerator:
                     )
                     for rec_type in RecommendationType
                 },
-                "avg_impact_score": (
-                    sum(r.impact_score for r in recommendations) / len(recommendations)
-                    if recommendations
-                    else 0
-                ),
+                "avg_impact_score": sum(r.impact_score for r in recommendations)
+                / len(recommendations)
+                if recommendations
+                else 0,
             },
             "generated_at": datetime.utcnow().isoformat(),
         }

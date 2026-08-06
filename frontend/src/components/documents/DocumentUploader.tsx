@@ -172,7 +172,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
       {validationErrors.length > 0 && (
         <div role="alert" className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
           <div className="flex items-start space-x-3">
-            <ExclamationTriangleIcon className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+            <ExclamationTriangleIcon className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <h4 className="text-sm font-medium text-destructive">
                 Upload Validation Errors
@@ -234,7 +234,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
 
           <button
             type="button"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
             onClick={(e) => {
               e.stopPropagation();
               fileInputRef.current?.click();

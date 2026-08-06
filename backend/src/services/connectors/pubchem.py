@@ -108,7 +108,9 @@ class PubChemConnector(ExternalDBConnector):
                 resp = await client.get(cids_url)
                 resp.raise_for_status()
                 cid_list = (
-                    resp.json().get("IdentifierList", {}).get("CID", [])[:max_results]
+                    resp.json()
+                    .get("IdentifierList", {})
+                    .get("CID", [])[:max_results]
                 )
                 if not cid_list:
                     return []
@@ -119,7 +121,9 @@ class PubChemConnector(ExternalDBConnector):
                 detail_resp = await client.get(detail_url)
                 detail_resp.raise_for_status()
 
-            compounds = detail_resp.json().get("PC_Compounds", [])
+            compounds = (
+                detail_resp.json().get("PC_Compounds", [])
+            )
             return [_parse_compound(c) for c in compounds]
 
         except httpx.HTTPStatusError as exc:
@@ -135,7 +139,7 @@ class PubChemConnector(ExternalDBConnector):
 
     async def fetch_by_id(self, record_id: str) -> Optional[ConnectorResult]:
         """Fetch a single compound by its CID."""
-        url = f"{_COMPOUND_URL}/cid/{urllib.parse.quote(record_id, safe='')}/JSON"
+        url = f"{_COMPOUND_URL}/cid/{record_id}/JSON"
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:

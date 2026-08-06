@@ -631,7 +631,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     return (
       <div className={cn('flex items-center justify-center h-96', className)}>
         <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-(--nous-sol) border-t-transparent mx-auto mb-4" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent mx-auto mb-4" />
           <p className="text-foreground">Loading knowledge graph...</p>
         </div>
       </div>
@@ -642,7 +642,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     return (
       <div className={cn('flex items-center justify-center h-96', className)}>
         <div className="text-center">
-          <div className="text-(--nous-mars) mb-4">
+          <div className="text-[var(--nous-mars)] mb-4">
             <InformationCircleIcon className="h-12 w-12 mx-auto" />
           </div>
           <p className="text-foreground">Failed to load knowledge graph</p>
@@ -839,7 +839,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
                       <div className="flex items-center mt-1">
                         <div className="w-full bg-muted rounded-full h-2">
                           <div
-                            className="bg-(--nous-sol) h-2 rounded-full"
+                            className="bg-[var(--nous-sol)] h-2 rounded-full"
                             style={{ width: `${entity.confidence * 100}%` }}
                           />
                         </div>

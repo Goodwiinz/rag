@@ -43,10 +43,6 @@ from src.models.graph import (
 logger = logging.getLogger(__name__)
 
 
-class RelationshipScopeError(RuntimeError):
-    """Raised when scoped relationship creation finds no endpoint pair."""
-
-
 def _parse_metadata(metadata_val) -> Dict[str, Any]:
     """Parse metadata from Neo4j (may be JSON string, Python repr, or dict)."""
     if not metadata_val or metadata_val == "{}":
@@ -725,107 +721,6 @@ class KnowledgeGraphService:
             logger.error(f"Error deleting entity {entity_id}: {e}")
             return False
 
-    def delete_document_graph(
-        self,
-        document_id: str,
-        organization_id: Optional[str] = None,
-    ) -> Tuple[int, int]:
-        """Best-effort reference-count deletion of a document's graph (audit D2).
-
-        Deleting a document soft-deletes its Postgres ``Entity`` rows but
-        historically left the mirrored Neo4j graph untouched, so a deleted
-        document's graph data orphaned forever.
-
-        :Entity nodes are NOT per-document: both creation paths MERGE on
-        ``(canonical_key, type, organization_id)`` — no document component — so
-        one node is *shared* by every document in the org that names the entity,
-        and ``e.source_document_id`` (set only ON CREATE) records merely the
-        FIRST creator. A node-anchored ``DETACH DELETE`` would therefore destroy
-        other documents' relationships whenever the deleted doc happened to be
-        the node's creator. Only RELATED_TO relationships carry true per-document
-        provenance (``r.source_document_id`` is part of their MERGE key).
-
-        So this deletes in two steps, inside one transaction:
-
-        1. DELETE this document's *relationships* (``r.source_document_id`` =
-           the doc id) — the per-document part of the graph.
-        2. DELETE only entity *nodes* that this document created
-           (``e.source_document_id``) AND that are now fully orphaned
-           (``COUNT { (e)--() } = 0`` — no remaining relationships from any
-           document; Neo4j 5.x syntax, dev runs 5.26). Plain ``DELETE`` (not
-           ``DETACH``) so if the orphan guard ever regresses, Neo4j raises on a
-           still-connected node instead of silently destroying shared data.
-
-        A node created by this doc but still connected via another doc survives
-        (that doc still references it) — its ``source_document_id`` then points
-        at a deleted document; harmless for reads, and a future reconciler can
-        re-stamp it. A node created by another doc keeps living even if all of
-        this doc's relationships to it are removed in step 1.
-
-        ``source_document_id`` is globally unique to one document in one org, so
-        both steps are already tenant-isolated; the ``organization_id``
-        predicates are defense-in-depth for property-based graph tenancy, kept
-        broad on legacy NULL-org nodes/edges so pre-backfill data for this doc
-        is still reaped. They are AND'd with the doc anchor (never OR — that
-        would widen the delete to the whole org's graph); this deliberately does
-        NOT reuse ``_entity_scope_predicate``, whose OR semantics are for read
-        breadth.
-
-        Returns ``(deleted_relationships, deleted_nodes)``. Raises on driver /
-        circuit breaker failure; callers isolate it (best-effort at the delete
-        endpoint).
-        """
-        params: Dict[str, Any] = {"source_document_id": str(document_id)}
-        rel_org_filter = ""
-        node_org_filter = ""
-        if organization_id is not None:
-            params["organization_id"] = str(organization_id)
-            rel_org_filter = (
-                "\n                    WHERE (r.organization_id = $organization_id"
-                "\n                        OR r.organization_id IS NULL)"
-            )
-            node_org_filter = (
-                "\n                          (e.organization_id = $organization_id"
-                "\n                        OR e.organization_id IS NULL)"
-                "\n                      AND"
-            )
-        # Step 1: this document's relationships (per-document provenance edges).
-        rel_query = f"""
-                    MATCH ()-[r:RELATED_TO {{source_document_id: $source_document_id}}]->(){rel_org_filter}
-                    DELETE r
-                    RETURN count(r) as deleted_count
-                    """
-        # Step 2: nodes this doc created that no document references any more.
-        # The COUNT {{ (e)--() }} = 0 orphan guard is load-bearing: without it,
-        # deleting a creator doc destroys nodes still wired to other docs.
-        node_query = f"""
-                    MATCH (e:Entity {{source_document_id: $source_document_id}})
-                    WHERE{node_org_filter} COUNT {{ (e)--() }} = 0
-                    DELETE e
-                    RETURN count(e) as deleted_count
-                    """
-
-        with self.get_session() as session:
-            # One explicit transaction: step 2's orphan check must observe
-            # step 1's deletions, and a failure between steps must not strand
-            # a half-cleaned graph (the Transaction context manager commits on
-            # clean exit, rolls back on error).
-            with session.begin_transaction() as tx:
-                rel_record = tx.run(rel_query, params).single()
-                deleted_relationships = rel_record["deleted_count"] if rel_record else 0
-                node_record = tx.run(node_query, params).single()
-                deleted_nodes = node_record["deleted_count"] if node_record else 0
-
-            logger.info(
-                "Deleted %d graph relationships and %d orphaned entities "
-                "for document %s (org=%s)",
-                deleted_relationships,
-                deleted_nodes,
-                document_id,
-                organization_id,
-            )
-            return deleted_relationships, deleted_nodes
-
     def search_entities(
         self,
         query: str,
@@ -1264,13 +1159,6 @@ class KnowledgeGraphService:
 
                 record = result.single()
                 if not record:
-                    scoped = bool(request.organization_id) or (
-                        source_document_ids is not None
-                    )
-                    if scoped:
-                        raise RelationshipScopeError(
-                            "create_relationship matched no in-scope endpoint pair"
-                        )
                     raise RuntimeError("Failed to create relationship")
 
                 # On MATCH the existing edge keeps its original id, so read it
@@ -1376,13 +1264,11 @@ class KnowledgeGraphService:
                             context=r.get("context"),
                             evidence=_parse_evidence(r.get("evidence", [])),
                             metadata=_parse_metadata(r.get("metadata", "{}")),
-                            source_document_id=r.get("source_document_id"),
-                            created_at=_convert_datetime(r.get("created_at")),
-                            updated_at=(
-                                _convert_datetime(r.get("updated_at"))
-                                if r.get("updated_at") is not None
-                                else None
+                            source_document_id=r.get(
+                                "source_document_id", r.get("source_paper")
                             ),
+                            created_at=r.get("created_at", datetime.utcnow()),
+                            updated_at=r.get("updated_at"),
                         )
                     )
 
@@ -1416,7 +1302,7 @@ class KnowledgeGraphService:
             context=r.get("context"),
             evidence=_parse_evidence(r.get("evidence", [])),
             metadata=_parse_metadata(r.get("metadata", "{}")),
-            source_document_id=r.get("source_document_id"),
+            source_document_id=r.get("source_document_id", r.get("source_paper")),
             created_at=self._to_native_dt(r.get("created_at")) or datetime.utcnow(),
             updated_at=self._to_native_dt(r.get("updated_at")),
         )
@@ -1477,7 +1363,7 @@ class KnowledgeGraphService:
             return []
         try:
             with self.get_session() as session:
-                conditions = ["(source.id IN $entity_ids OR target.id IN $entity_ids)"]
+                conditions = ["source.id IN $entity_ids"]
                 params: Dict[str, Any] = {"entity_ids": list(entity_ids)}
                 if organization_id is not None:
                     conditions.append("source.organization_id = $organization_id")
@@ -1526,7 +1412,7 @@ class KnowledgeGraphService:
                     else ""
                 )
                 query = f"""
-                    MATCH (source:Entity)-[r:RELATED_TO {{id: $relationship_id}}]->(target:Entity){where}
+                    MATCH (source:Entity)-[r:RELATED_TO {{id: $relationship_id}}]-(target:Entity){where}
                     RETURN r, source.id AS source_id, target.id AS target_id
                     """
 
@@ -1548,12 +1434,8 @@ class KnowledgeGraphService:
                     evidence=_parse_evidence(r.get("evidence", [])),
                     metadata=_parse_metadata(r.get("metadata", "{}")),
                     source_document_id=r.get("source_document_id"),
-                    created_at=_convert_datetime(r.get("created_at")),
-                    updated_at=(
-                        _convert_datetime(r.get("updated_at"))
-                        if r.get("updated_at") is not None
-                        else None
-                    ),
+                    created_at=r["created_at"],
+                    updated_at=r.get("updated_at"),
                 )
         except Exception as e:
             logger.error(f"Error retrieving relationship {relationship_id}: {e}")
@@ -2366,17 +2248,8 @@ class KnowledgeGraphService:
             logger.error(f"Error getting graph analytics: {e}")
             return GraphAnalytics()
 
-    def get_health_status(
-        self, organization_id: Optional[str] = None
-    ) -> GraphHealthStatus:
-        """Get health status of the graph database.
-
-        When ``organization_id`` is supplied the node/relationship counts (and
-        database size) are scoped to that tenant. These counts feed a
-        user-facing panel, so a global ``MATCH (n)`` would leak the whole
-        multi-tenant graph's size to every tenant. Called with no org only from
-        ops/standalone scripts, which keep the global counts.
-        """
+    def get_health_status(self) -> GraphHealthStatus:
+        """Get health status of the graph database"""
         start_time = time.time()
         try:
             with self.get_session() as session:
@@ -2389,28 +2262,12 @@ class KnowledgeGraphService:
                 version_result = session.run(
                     "CALL dbms.components() YIELD name, versions RETURN versions[0] as version"
                 ).single()
-                if organization_id:
-                    # Strict org-equality (no source_document_id fallback like
-                    # _entity_scope_predicate): this is a best-effort display
-                    # panel, and every deployed env is org-backfilled. New writes
-                    # always stamp organization_id, so counts stay accurate.
-                    node_count_result = session.run(
-                        "MATCH (e:Entity {organization_id: $org}) "
-                        "RETURN count(e) as count",
-                        org=organization_id,
-                    ).single()
-                    rel_count_result = session.run(
-                        "MATCH (:Entity {organization_id: $org})-[r]->"
-                        "(:Entity {organization_id: $org}) RETURN count(r) as count",
-                        org=organization_id,
-                    ).single()
-                else:
-                    node_count_result = session.run(
-                        "MATCH (n) RETURN count(n) as count"
-                    ).single()
-                    rel_count_result = session.run(
-                        "MATCH ()-[r]->() RETURN count(r) as count"
-                    ).single()
+                node_count_result = session.run(
+                    "MATCH (n) RETURN count(n) as count"
+                ).single()
+                rel_count_result = session.run(
+                    "MATCH ()-[r]->() RETURN count(r) as count"
+                ).single()
 
                 # Get indexes and constraints
                 index_result = session.run(
@@ -2486,11 +2343,6 @@ class KnowledgeGraphService:
                 except Exception as uptime_error:
                     logger.debug(f"Could not get uptime: {uptime_error}")
 
-                # Whole-DB store size is a cross-tenant signal; don't expose it
-                # on the per-tenant health panel.
-                if organization_id:
-                    database_size = None
-
                 return GraphHealthStatus(
                     status="healthy",
                     neo4j_version=(
@@ -2538,10 +2390,12 @@ class KnowledgeGraphService:
         Returns a SearchResponse-compatible object so the search API can treat
         knowledge-graph search identically to fulltext/vector search.
         """
+        from src.models.search_schemas import (
+            SearchResponse,
+            SearchResult as SearchResultModel,
+            SearchType as SearchTypeEnum,
+        )
         from src.models.document import DocumentType
-        from src.models.search_schemas import SearchResponse
-        from src.models.search_schemas import SearchResult as SearchResultModel
-        from src.models.search_schemas import SearchType as SearchTypeEnum
 
         start_time = time.time()
 
@@ -2563,15 +2417,8 @@ class KnowledgeGraphService:
         query_text = search_request.query if search_request else ""
         limit = getattr(search_request, "limit", 20)
 
-        # Pass organization_id directly, not only the derived doc-id list: if the
-        # doc-id lookup above threw, source_document_ids is None and passing only
-        # that would run unscoped across all tenants. The indexed organization_id
-        # equality is the primary scope.
         entities = self.search_entities(
-            query_text,
-            limit=limit,
-            source_document_ids=source_document_ids,
-            organization_id=organization_id,
+            query_text, limit=limit, source_document_ids=source_document_ids
         )
 
         results = []
@@ -2646,6 +2493,48 @@ class KnowledgeGraphService:
         except Exception as e:
             logger.error(f"Error in create_entity_node adapter: {e}")
             return None
+
+    def find_entity_node(self, name: str, entity_type: str) -> Optional[Dict[str, Any]]:
+        """Adapter for legacy callers that expect find_entity_node.
+
+        Returns {"id": ..., "name": ...} on match, None otherwise.
+        """
+        try:
+            entities = self.search_entities(
+                name, entity_types=[_safe_entity_type(entity_type)], limit=5
+            )
+            for entity in entities:
+                if entity.name.lower().strip() == name.lower().strip():
+                    return {"id": entity.id, "name": entity.name}
+            return None
+        except Exception as e:
+            logger.error(f"Error in find_entity_node adapter: {e}")
+            return None
+
+    def query_graph(
+        self, query: str, params: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """Adapter for multi-agent search callers that expect query_graph.
+
+        Performs an entity search and returns results as dicts rather than
+        executing raw Cypher (which would be an injection risk).
+        """
+        try:
+            limit = params.get("limit", 50) if params else 50
+            entities = self.search_entities(query, limit=limit)
+            return [
+                {
+                    "id": e.id,
+                    "name": e.name,
+                    "type": e.entity_type.value,
+                    "confidence": e.confidence_score,
+                    "source_document_id": e.source_document_id,
+                }
+                for e in entities
+            ]
+        except Exception as e:
+            logger.error(f"Error in query_graph adapter: {e}")
+            return []
 
 
 # Global instance

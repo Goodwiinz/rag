@@ -46,8 +46,6 @@ from src.services.agent.error_recovery import (
 )
 from src.services.agent.observability import track_node_execution
 from src.services.agent.state import AgentState
-from src.services.agent.tool_registry import ToolPolicyTag
-from src.services.agent.tools import TOOL_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +54,15 @@ logger = logging.getLogger(__name__)
 # Destructive-tool gate (consumed by ``interrupt_node``)
 # ---------------------------------------------------------------------------
 
-DESTRUCTIVE_TOOLS = frozenset(
-    descriptor.name
-    for descriptor in TOOL_REGISTRY.descriptors
-    if ToolPolicyTag.DESTRUCTIVE in descriptor.policy_tags
-)
+DESTRUCTIVE_TOOLS = {
+    "ingest_arxiv_papers",
+    "add_document_to_project",
+    "create_project",
+    "create_project_note",
+    "create_draft",
+    "execute_code",
+    "forget_memory",
+}
 
 
 _SENSITIVE_ARG_KEYS = {
@@ -115,14 +117,12 @@ def _scrub_tool_args(args: dict) -> dict:
 
 
 def _hitl_actor(config: RunnableConfig) -> tuple[str, str, str]:
-    """(user_id, org_id, thread_id) for audit logging, from the run config.
-
-    The configurable carries scalar ids only (audit B8) — never an ORM User.
-    """
+    """(user_id, org_id, thread_id) for audit logging, from the run config."""
     configurable = (config or {}).get("configurable", {}) if config else {}
+    cu = configurable.get("current_user")
     return (
-        str(configurable.get("user_id", "") or ""),
-        str(configurable.get("organization_id", "") or ""),
+        str(getattr(cu, "id", "") or ""),
+        str(getattr(cu, "organization_id", "") or ""),
         str(configurable.get("thread_id", "") or ""),
     )
 
@@ -240,9 +240,7 @@ async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
         return {}
 
     destructive_calls = [
-        tc
-        for tc in last_message.tool_calls
-        if TOOL_REGISTRY.has_policy(tc["name"], ToolPolicyTag.DESTRUCTIVE)
+        tc for tc in last_message.tool_calls if tc["name"] in DESTRUCTIVE_TOOLS
     ]
 
     if not destructive_calls:
@@ -285,19 +283,7 @@ async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
 
 TOOL_TIMEOUT_SECONDS = 30
 _SLOW_TOOL_TIMEOUT_SECONDS = 120  # ingest, draft generation, etc.
-# search_arxiv is in the slow tier because its worst-case internal path
-# exceeds the 30s default: 3s rate gate + 20s httpx timeout + 2s sleep +
-# a second attempt inside arxiv_service._make_request (~45-50s aggregate).
-# Dev traces 019f2a48-9083 / 019f2245-cf9d show every search_arxiv call
-# dying with TimeoutError at exactly 30s and the agent re-issuing the
-# same query 4x (steps 3/6/9/12) until the loop cap kills the turn. The
-# wall clock stays bounded by the service's internal timeouts; the 120s
-# cap is only the backstop.
-_SLOW_TOOLS = frozenset(
-    descriptor.name
-    for descriptor in TOOL_REGISTRY.descriptors
-    if ToolPolicyTag.SLOW in descriptor.policy_tags
-)
+_SLOW_TOOLS = {"ingest_arxiv_papers", "create_draft", "compare_documents"}
 
 # Tools that already handle their own retry/backoff internally. Outer
 # retry_transient stacks on top and amplifies wall-clock — trace 019e040b
@@ -305,11 +291,10 @@ _SLOW_TOOLS = frozenset(
 # wait_for) × 2 attempts + 1s backoff. arxiv_service.py has its own 429
 # loop + exponential backoff; ingest_arxiv_papers downloads with retry
 # (arxiv_service._download_pdf). One outer attempt is enough.
-_NO_OUTER_RETRY_TOOLS = frozenset(
-    descriptor.name
-    for descriptor in TOOL_REGISTRY.descriptors
-    if ToolPolicyTag.NO_OUTER_RETRY in descriptor.policy_tags
-)
+_NO_OUTER_RETRY_TOOLS = {
+    "search_arxiv",
+    "ingest_arxiv_papers",
+}
 
 # Wall-clock cap for any agent-LLM invocation (main llm_node + subgraph
 # LLM nodes). Without this, a stalled Azure/OpenAI socket leaves the node
@@ -422,35 +407,24 @@ async def _execute_single_tool(
     error_info: dict = {}
 
     timeout = (
-        _SLOW_TOOL_TIMEOUT_SECONDS
-        if TOOL_REGISTRY.has_policy(tool_name, ToolPolicyTag.SLOW)
-        else TOOL_TIMEOUT_SECONDS
+        _SLOW_TOOL_TIMEOUT_SECONDS if tool_name in _SLOW_TOOLS else TOOL_TIMEOUT_SECONDS
     )
 
     async with _get_tool_semaphore():
         try:
             configurable = config.get("configurable", {})
 
-            # Scalar identifiers only (audit B8) — the executor
-            # (tools_impl.execute_tool) opens its own tool_session() and
-            # re-loads the acting user org-scoped. Never pull a live
-            # AsyncSession / ORM User out of the LangGraph config.
-            user_id = str(configurable.get("user_id", "") or "")
-            organization_id = str(configurable.get("organization_id", "") or "")
-            thread_id = str(configurable.get("thread_id", "") or "")
-            runtime_snapshot_id = str(configurable.get("runtime_snapshot_id", "") or "")
-            project_id = str(configurable.get("project_id", "") or "")
+            current_user = configurable.get("current_user")
 
             async def _call_tool(args: dict):
                 return await asyncio.wait_for(
                     tool_executor(
                         tool_name=tool_name,
                         args=args,
-                        user_id=user_id,
-                        organization_id=organization_id,
-                        thread_id=thread_id,
-                        runtime_snapshot_id=runtime_snapshot_id,
-                        project_id=project_id,
+                        user_id=str(current_user.id) if current_user else "",
+                        db=configurable.get("db"),
+                        current_user=current_user,
+                        thread_id=configurable.get("thread_id") or "",
                     ),
                     timeout=timeout,
                 )
@@ -471,11 +445,7 @@ async def _execute_single_tool(
             # while keeping one safety-net retry for genuine transient blips.
             # Tools that retry internally (arxiv) skip the outer retry to
             # avoid 2× wall-clock amplification (trace 019e040b: 85.5s).
-            _outer_attempts = (
-                1
-                if TOOL_REGISTRY.has_policy(tool_name, ToolPolicyTag.NO_OUTER_RETRY)
-                else 2
-            )
+            _outer_attempts = 1 if tool_name in _NO_OUTER_RETRY_TOOLS else 2
             result = await retry_transient(
                 lambda: traced_call(tool_args),
                 max_attempts=_outer_attempts,
@@ -556,13 +526,9 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     # turn. The cached result is returned with a "[deduped...]" prefix so
     # the model sees both the data and a stop signal.
     from src.services.agent.tool_dedupe import (
-        FAILED_RETRY_THRESHOLD,
         build_deduped_execution_entry,
         build_deduped_tool_message,
-        build_failure_capped_execution_entry,
-        build_failure_capped_tool_message,
         find_cached_tool_results,
-        find_repeated_failures,
     )
 
     # Inject page_context project_id before computing dedupe keys so a repeat
@@ -572,22 +538,7 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
         _with_injected_project_id(tc, page_context) for tc in last_message.tool_calls
     ]
     cached = find_cached_tool_results(deduped_calls, state["messages"], tool_executions)
-    # Circuit breaker: identical (tool, args) that already FAILED twice this
-    # turn is not executed again — the model gets an explicit stop-retrying
-    # error instead (traces 019f2a48-9083 / 019f2245-cf9d: 4x identical
-    # retries per turn until the loop cap).
-    capped = {
-        tc_id: prior
-        for tc_id, prior in find_repeated_failures(
-            deduped_calls, state["messages"], tool_executions
-        ).items()
-        if tc_id not in cached
-    }
-    fresh_calls = [
-        tc
-        for tc in last_message.tool_calls
-        if tc["id"] not in cached and tc["id"] not in capped
-    ]
+    fresh_calls = [tc for tc in last_message.tool_calls if tc["id"] not in cached]
 
     # Execute all NEW tool calls concurrently with semaphore limiting
     tasks = [_execute_single_tool(tc, config, page_context) for tc in fresh_calls]
@@ -604,23 +555,6 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
             prior = cached[tc["id"]]
             tool_messages.append(build_deduped_tool_message(tc["id"], prior))
             tool_executions.append(build_deduped_execution_entry(tc["id"], tc, prior))
-            continue
-        if tc["id"] in capped:
-            prior = capped[tc["id"]]
-            # Counts toward the error ceiling: two identical failures mean
-            # the "transient" story is over for this turn.
-            error_count += 1
-            last_error = "repeated_failure: identical args already failed this turn"
-            any_failure = True
-            all_success = False
-            tool_messages.append(
-                build_failure_capped_tool_message(
-                    tc["id"], tc, prior, FAILED_RETRY_THRESHOLD
-                )
-            )
-            tool_executions.append(
-                build_failure_capped_execution_entry(tc["id"], tc, prior)
-            )
             continue
         r = fresh_by_id.get(tc["id"])
         if r is None:
@@ -687,20 +621,6 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     # When True, route_after_tool_node skips the compactor→llm re-plan loop
     # (saving ~8 s Azure p95) and goes straight to force_synthesis_node.
     tools_all_deduped: bool = len(fresh_calls) == 0 and len(cached) > 0
-    loaded_skill_versions = list(state.get("loaded_skill_versions", []))
-    for execution in tool_executions:
-        result = execution.get("result") if isinstance(execution, dict) else None
-        record = (
-            result.get("loaded_skill_version") if isinstance(result, dict) else None
-        )
-        if (
-            isinstance(record, dict)
-            and record.get("name")
-            and not any(
-                item.get("name") == record["name"] for item in loaded_skill_versions
-            )
-        ):
-            loaded_skill_versions.append(record)
 
     return {
         "messages": tool_messages,
@@ -710,7 +630,6 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
         "last_error_info": last_error_info,
         "tool_loop_count": state.get("tool_loop_count", 0) + 1,
         "tools_all_deduped": tools_all_deduped,
-        "loaded_skill_versions": loaded_skill_versions,
     }
 
 
@@ -730,12 +649,7 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         allowed_calls = []
         skipped_messages = []
         for tc in last_message.tool_calls:
-            descriptor = TOOL_REGISTRY.descriptor(tc["name"])
-            if (
-                tc["name"] in allowed_tool_names
-                and descriptor is not None
-                and descriptor.enabled
-            ):
+            if tc["name"] in allowed_tool_names:
                 allowed_calls.append(tc)
             else:
                 logger.warning(

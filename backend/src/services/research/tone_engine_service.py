@@ -18,7 +18,6 @@ class ToneEngineService:
 
     def __init__(self) -> None:
         import openai
-
         self._openai = openai
         api_key = settings.OPENAI_API_KEY or None
         self._client = openai.AsyncOpenAI(api_key=api_key) if api_key else None  # type: ignore[assignment]
@@ -37,9 +36,7 @@ class ToneEngineService:
         """Rewrite text with the specified tone."""
         system_prompt = TONE_PROMPTS.get(tone)
         if not system_prompt:
-            raise ValueError(
-                f"Unknown tone: {tone}. Valid: {list(TONE_PROMPTS.keys())}"
-            )
+            raise ValueError(f"Unknown tone: {tone}. Valid: {list(TONE_PROMPTS.keys())}")
 
         if self._client is None:
             raise RuntimeError("OpenAI API key is not configured")

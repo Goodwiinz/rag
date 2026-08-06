@@ -375,9 +375,9 @@ def get_user_analytics_summary(user_role: UserRole) -> Dict:
 
     return {
         "role": user_role.value,
-        "description": (
-            role_permissions.description if role_permissions else "No access"
-        ),
+        "description": role_permissions.description
+        if role_permissions
+        else "No access",
         "total_permissions": len(
             AnalyticsPermissionsChecker.get_role_permissions(user_role)
         ),

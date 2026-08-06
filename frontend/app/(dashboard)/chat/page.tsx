@@ -1,123 +1,1116 @@
 'use client';
 
-import { ChatSurface } from '@/components/chat/ChatSurface';
-import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
-import { Loader2 } from 'lucide-react';
+import { ChatInput, CitationPanel, WelcomeState } from '@/components/chat';
+import { ChatDialogs } from '@/components/chat/ChatDialogs';
+import { ChatHeader } from '@/components/chat/ChatHeader';
+import { ChatMessageList } from '@/components/chat/ChatMessageList';
+import { ChatSidebar } from '@/components/chat/ChatSidebar';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  getNewChatUrl,
+  getSelectedThreadUrl,
+} from '@/components/chat/shared/chatNavigation';
+import { enhancedDocumentService } from '@/services/enhancedDocumentService';
+import { Citation } from '@/utils/citationParser';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Activity, Loader2, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { Suspense, useCallback, useState } from 'react';
+import {
+  Fragment,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useChatSession } from '@/hooks/chat/useChatSession';
 import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
 import { useChatThreadActions } from '@/hooks/chat/useChatThreadActions';
-import { useSlashCommands } from '@/hooks/chat/useSlashCommands';
-import { useCitationPanel } from '@/hooks/chat/useCitationPanel';
-import { useChatDrawer } from '@/hooks/chat/useChatDrawer';
-import { useChatComposerActions } from '@/hooks/chat/useChatComposerActions';
-import type { Citation } from '@/utils/citationParser';
+import {
+  SLASH_COMMANDS,
+  type SlashCommandId,
+} from '@/components/chat/slashCommands';
+import type {
+  CommandAction,
+  CommandOutput,
+  CommandOutputItem,
+} from '@/components/chat/commandOutput';
+import { useProjectStore } from '@/store/projectStore';
+import { documentService } from '@/services/documentService';
+import { projectService } from '@/services/projectService';
+
+function relativeTime(ms: number): string {
+  const diff = Date.now() - ms;
+  if (diff < 60_000) return 'just now';
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(ms).toLocaleDateString();
+}
 
 // ============================================
-// MAIN PAGE COMPONENT — composition root. Every hook below owns its own
-// state/service calls; this component only wires their outputs together and
-// hands the whole thing to ChatSurface (Task 5.3). Route-level concerns only:
-// Suspense boundary (below) and the two navigation callbacks that need
-// next/navigation's router.
+// HITL HELPERS
+// ============================================
+
+interface ToolCallPreview {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+function extractToolCall(
+  confirmation: Record<string, unknown> | undefined
+): ToolCallPreview | null {
+  if (!confirmation) return null;
+  const flatName = confirmation.tool_name as string | undefined;
+  const flatArgs = (confirmation.tool_args ?? confirmation.args) as
+    | Record<string, unknown>
+    | undefined;
+  if (flatName) return { name: flatName, args: flatArgs ?? {} };
+  const tools = confirmation.tools as
+    | Array<{ name?: string; args?: Record<string, unknown> }>
+    | undefined;
+  const first = tools?.[0];
+  if (first?.name) return { name: first.name, args: first.args ?? {} };
+  return null;
+}
+
+function formatArgValue(value: unknown, max = 140): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'string') {
+    return value.length > max ? value.slice(0, max - 1) + '…' : value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  try {
+    const s = JSON.stringify(value);
+    return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  } catch {
+    return '[unserializable]';
+  }
+}
+
+// Shared loading skeleton for cold-load + thread-switch (on-brand bubble rows).
+function TranscriptSkeleton() {
+  return (
+    <div
+      className="mx-auto max-w-[var(--nous-chat-col)] space-y-8 p-6"
+      aria-busy="true"
+      aria-label="Loading conversation"
+    >
+      {[0, 1, 2].map((row) => (
+        <div
+          key={row}
+          className={
+            row % 2 === 0
+              ? 'flex flex-col items-start gap-2'
+              : 'flex flex-col items-end gap-2'
+          }
+        >
+          <Skeleton className="h-3 w-24 rounded-md bg-[var(--nous-bg-2)]" />
+          <Skeleton
+            className={
+              (row % 2 === 0 ? 'h-20 w-[80%]' : 'h-12 w-[55%]') +
+              ' rounded-xl bg-[var(--nous-bg-2)]'
+            }
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================
+// MAIN PAGE COMPONENT
 // ============================================
 
 function ChatPageContent() {
-  const session = useChatSession();
+  // Session / workspace / thread initialization (extracted hook)
+  const {
+    conversations,
+    setConversations,
+    activeConversationId,
+    setActiveConversationId,
+    messages,
+    setMessages,
+    workspace,
+    dbConversation,
+    isInitializing,
+    initError,
+    isLoadingMessages,
+    activeConversationIdRef,
+    isHydratedRef,
+    currentThreadIdFromStore,
+    setCurrentThread,
+    storeMessages,
+    addMessageToStore,
+    isAuthenticated,
+    activeThreadId,
+    displayedMessages,
+    loadOlderMessages,
+    messagePagination,
+    mapDbMessageToUiMessage,
+    loadThreadsFromDb,
+  } = useChatSession();
+
+  // RAG state
   const [enableRAG, setEnableRAG] = useState(true);
 
-  const streaming = useChatStreaming({
-    messages: session.messages,
-    displayedMessages: session.displayedMessages,
-    setMessages: session.setMessages,
-    conversations: session.conversations,
-    setConversations: session.setConversations,
-    dbConversation: session.dbConversation,
+  // Streaming / submit / HITL logic (extracted hook)
+  const {
+    input,
+    setInput,
+    isLoading,
+    handleSubmit,
+    handleStop,
+    pendingConfirmation,
+    isConfirming,
+    handleConfirmation,
+    chatInputRef,
+    storeIsStreaming,
+    storeStreamingContent,
+    storeIsRetrievingRag,
+    streamingTimestampRef,
+    selectedModel,
+    setSelectedModel,
+  } = useChatStreaming({
+    messages,
+    setMessages,
+    conversations,
+    setConversations,
+    activeConversationId,
+    setActiveConversationId,
+    activeConversationIdRef,
+    dbConversation,
+    isAuthenticated,
+    setCurrentThread,
+    addMessageToStore,
     enableRAG,
   });
 
-  const threadActions = useChatThreadActions({
-    conversations: session.conversations,
-    setConversations: session.setConversations,
-    activeThreadId: session.activeThreadId,
-    setCurrentThread: session.setCurrentThread,
+  // Rename/delete/bulk-delete thread action handlers and dialog state
+  const {
+    renameDialog,
+    setRenameDialog,
+    deleteDialog,
+    setDeleteDialog,
+    bulkDeleteDialog,
+    setBulkDeleteDialog,
+    handleRenameThread,
+    commitRename,
+    handleDeleteThread,
+    commitDeleteThread,
+    handleBulkDeleteThreads,
+    commitBulkDelete,
+  } = useChatThreadActions({
+    conversations,
+    setConversations,
+    activeConversationId,
+    setActiveConversationId,
+    activeConversationIdRef,
+    setMessages,
+    setCurrentThread,
   });
 
-  const drawer = useChatDrawer();
+  // Mobile sidebar drawer state
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  const citationPanel = useCitationPanel({
-    setInput: streaming.setInput,
-    chatInputRef: streaming.chatInputRef,
-  });
-
-  const composerActions = useChatComposerActions({
-    workspace: session.workspace,
-    setInput: streaming.setInput,
-    handleSubmit: streaming.handleSubmit,
-    isLoading: streaming.isLoading,
-    storeIsStreaming: streaming.storeIsStreaming,
-    displayedMessages: session.displayedMessages,
-  });
-
-  // Slash-command execution, project-context wiring, and the /new command
-  // the command vocabulary triggers. /retry and the plain send path delegate
-  // to useChatComposerActions.
-  const slashCommands = useSlashCommands({
-    input: streaming.input,
-    setInput: streaming.setInput,
-    handleSubmit: streaming.handleSubmit,
-    submit: composerActions.submit,
-    retryLast: composerActions.retryLast,
-    conversations: session.conversations,
-    activeThreadId: session.activeThreadId,
-    setCurrentThread: session.setCurrentThread,
-    chatInputRef: streaming.chatInputRef,
-  });
-
-  const router = useRouter();
-  const { activeThreadId, setCurrentThread } = session;
-  const { closeDrawer } = drawer;
-
-  // Stable across renders so ChatSidebar's React.memo holds on every composer
-  // keystroke (an inline closure re-rendered the sidebar per keystroke).
-  // Shared by both sidebars — closing the mobile drawer is an idempotent no-op
-  // on desktop, where it's already closed and hidden.
-  const handleSelectThread = useCallback(
-    (id: string) => {
-      if (id === activeThreadId) {
-        closeDrawer();
-        return;
-      }
-      setCurrentThread(id);
-      router.push(getSelectedThreadUrl(id));
-      closeDrawer();
-    },
-    [router, setCurrentThread, activeThreadId, closeDrawer]
+  // Citation panel state
+  const [isCitationPanelOpen, setIsCitationPanelOpen] = useState(false);
+  const [citationPanelCitations, setCitationPanelCitations] = useState<
+    Citation[]
+  >([]);
+  const [activeCitationId, setActiveCitationId] = useState<string | undefined>(
+    undefined
+  );
+  const [citationTraceId, setCitationTraceId] = useState<string | undefined>(
+    undefined
   );
 
-  const handleCitationDocumentClick = useCallback(
-    (citation: Citation) => {
-      if (citation.documentId) {
-        router.push(`/documents/${citation.documentId}`);
+  const router = useRouter();
+
+  // Listen for populate-chat-input events from Follow-up Suggestions
+  useEffect(() => {
+    const handlePopulateChatInput = (event: CustomEvent<string>) => {
+      if (event.detail) {
+        setInput(event.detail);
+        // Focus the textarea after populating
+        chatInputRef.current?.focus();
       }
+    };
+
+    window.addEventListener(
+      'populate-chat-input',
+      handlePopulateChatInput as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        'populate-chat-input',
+        handlePopulateChatInput as EventListener
+      );
+    };
+  }, [setInput, chatInputRef]);
+
+  const handleCitationClick = useCallback(
+    (citations: Citation[], clickedCitation: Citation, traceId?: string) => {
+      setCitationPanelCitations(citations);
+      setActiveCitationId(
+        clickedCitation.documentId || clickedCitation.externalReferenceId
+      );
+      setCitationTraceId(traceId);
+      setIsCitationPanelOpen(true);
+    },
+    []
+  );
+
+  // Insert a reference to a source into the composer (the panel "Cite" action).
+  const handleCiteSource = useCallback(
+    (citation: Citation) => {
+      setInput((cur) =>
+        cur ? `${cur} "${citation.title}"` : `"${citation.title}" `
+      );
+      chatInputRef.current?.focus();
+      setIsCitationPanelOpen(false);
+    },
+    [setInput, chatInputRef]
+  );
+
+  const handlePromptSelect = (prompt: string) => {
+    setInput(prompt);
+  };
+
+  // Upload files selected via the Paperclip attach control.
+  // Uses enhancedDocumentService (v1 /files/upload) since no workspace-scoped
+  // attach endpoint exists yet. Each upload is isolated via .catch so one
+  // failure does not cancel others.
+  const handleAttach = useCallback(
+    async (files: FileList) => {
+      if (!workspace) {
+        console.warn('[Chat] Cannot attach: no workspace');
+        return;
+      }
+      const uploads = Array.from(files).map((file) =>
+        enhancedDocumentService
+          .uploadDocument(file, {
+            title: file.name,
+            processing_priority: 'normal',
+          })
+          .then((result) => {
+            console.log(
+              '[Chat] Uploaded',
+              file.name,
+              '→',
+              result.response.document_id
+            );
+            return result;
+          })
+          .catch((err) => {
+            console.error('[Chat] Upload failed for', file.name, err);
+            return null;
+          })
+      );
+      await Promise.all(uploads);
+    },
+    [workspace]
+  );
+
+  const handleRegenerate = useCallback(
+    (assistantMessageIndex: number) => {
+      // Bug 1: bail BEFORE truncating messages if a stream is in flight.
+      // Otherwise `setMessages` clears the list but `handleSubmit`'s internal
+      // guard short-circuits, leaving the UI with no response.
+      if (isLoading || storeIsStreaming) return;
+      const priorUser = [...displayedMessages]
+        .slice(0, assistantMessageIndex)
+        .reverse()
+        .find((m) => m.role === 'user');
+      if (!priorUser) return;
+      setMessages((prev) => prev.slice(0, assistantMessageIndex));
+      setInput(priorUser.content);
+      // Bug 2: pass the content explicitly. `handleSubmit` reads `input` from
+      // its closure, and `setInput` above only schedules a state update — the
+      // deferred `handleSubmit` would otherwise see the stale pre-setInput value.
+      const contentToSend = priorUser.content;
+      setTimeout(() => handleSubmit(contentToSend), 0);
+    },
+    [displayedMessages, handleSubmit, isLoading, storeIsStreaming, setMessages]
+  );
+
+  // Start a fresh chat — shared by the sidebar "new" button and the /new command
+  const startNewChat = useCallback(() => {
+    setActiveConversationId(null);
+    activeConversationIdRef.current = null;
+    setMessages([]);
+    setCurrentThread(null);
+    router.push(getNewChatUrl());
+  }, [
+    router,
+    setActiveConversationId,
+    setMessages,
+    setCurrentThread,
+    activeConversationIdRef,
+  ]);
+
+  // Regenerate the most recent assistant response (the /retry command)
+  const retryLast = useCallback(() => {
+    const lastAssistantIdx = [...displayedMessages]
+      .map((m, i) => ({ role: m.role, i }))
+      .reverse()
+      .find((x) => x.role === 'assistant')?.i;
+    if (lastAssistantIdx !== undefined) handleRegenerate(lastAssistantIdx);
+  }, [displayedMessages, handleRegenerate]);
+
+  // ---- CLI slash-command output (ephemeral, in-chat) ----
+  // Lives in page state, never in the message arrays, so it is never sent to
+  // the agent or persisted. Cleared on thread change (effect below) and on send.
+  const [commandOutputs, setCommandOutputs] = useState<CommandOutput[]>([]);
+  const fetchProjects = useProjectStore((s) => s.fetchProjects);
+
+  useEffect(() => {
+    setCommandOutputs([]);
+  }, [activeThreadId]);
+
+  const appendOutput = useCallback((o: CommandOutput) => {
+    setCommandOutputs((prev) => [...prev, o]);
+  }, []);
+
+  const patchOutput = useCallback(
+    (id: string, patch: Partial<CommandOutput>) => {
+      setCommandOutputs((prev) =>
+        prev.map((o) => (o.id === id ? { ...o, ...patch } : o))
+      );
+    },
+    []
+  );
+
+  // Bind the chat to a project via the same ?projectId= param the context rail
+  // uses (the streaming hook reads it into page_context).
+  const handleSetProjectContext = useCallback(
+    (projectId: string) => {
+      const params = new URLSearchParams(window.location.search);
+      params.set('projectId', projectId);
+      router.replace(`/chat?${params.toString()}`);
     },
     [router]
   );
 
+  // Project-scoped memory commands. `/remember <fact>` saves a durable fact the
+  // agent recalls across every thread in the project; `/memories` lists them
+  // (tap a row to delete). The active project is the one the chat is bound to
+  // (?projectId=), falling back to the selected project in the store.
+  const runMemoryCommand = useCallback(
+    (kind: 'remember' | 'memories', content: string) => {
+      const now = Date.now();
+      const outId = `cmd-${now}-${Math.random().toString(36).slice(2, 8)}`;
+      const projectId =
+        new URLSearchParams(window.location.search).get('projectId') ||
+        useProjectStore.getState().currentProject?.id ||
+        null;
+
+      if (!projectId) {
+        appendOutput({
+          id: outId,
+          command: `/${kind}`,
+          timestamp: now,
+          status: 'ready',
+          lines: ['No project in context.'],
+          note: 'Set one with /projects, then try again.',
+        });
+        return;
+      }
+
+      if (kind === 'remember') {
+        const fact = content.trim();
+        if (!fact) {
+          appendOutput({
+            id: outId,
+            command: '/remember',
+            timestamp: now,
+            status: 'ready',
+            lines: ['Usage: /remember <fact>'],
+            note: 'e.g. /remember Always cite sources in APA style.',
+          });
+          return;
+        }
+        appendOutput({
+          id: outId,
+          command: '/remember',
+          timestamp: now,
+          status: 'loading',
+          lines: [],
+        });
+        void (async () => {
+          try {
+            await projectService.createMemory(projectId, fact, 'remember');
+            patchOutput(outId, {
+              status: 'ready',
+              lines: [`Saved to project memory: ${fact}`],
+              note: 'NOUS recalls this across every thread in this project.',
+            });
+          } catch {
+            patchOutput(outId, {
+              status: 'ready',
+              lines: ['Could not save memory.'],
+            });
+          }
+        })();
+        return;
+      }
+
+      // kind === 'memories'
+      appendOutput({
+        id: outId,
+        command: '/memories',
+        timestamp: now,
+        status: 'loading',
+        items: [],
+      });
+      void (async () => {
+        try {
+          const res = await projectService.listMemories(projectId);
+          const items: CommandOutputItem[] = (res.memories ?? []).map((m) => ({
+            key: m.id,
+            label: m.content,
+            meta: m.source === 'remember' ? 'remembered' : m.source,
+            action: { type: 'delete-memory', id: m.id, projectId },
+          }));
+          patchOutput(outId, {
+            status: 'ready',
+            items,
+            emptyText: 'No project memory yet.',
+            note: items.length ? 'Tap a memory to delete it.' : undefined,
+          });
+        } catch {
+          patchOutput(outId, {
+            status: 'ready',
+            items: [],
+            emptyText: 'Could not load memory.',
+          });
+        }
+      })();
+    },
+    [appendOutput, patchOutput]
+  );
+
+  // Run a slash command. Output prints into the chat transcript, CLI-style;
+  // nothing navigates away (except /new, which starts a fresh chat).
+  const handleSlashCommand = useCallback(
+    (id: SlashCommandId) => {
+      const now = Date.now();
+      const outId = `cmd-${now}-${Math.random().toString(36).slice(2, 8)}`;
+      switch (id) {
+        case 'new':
+          startNewChat();
+          return;
+        case 'retry':
+          retryLast();
+          return;
+        case 'clear':
+          setCommandOutputs([]);
+          setInput('');
+          return;
+        case 'summarize':
+        case 'keypoints':
+        case 'gaps':
+        case 'timeline': {
+          // Synthesis commands SEND a real, citation-asking research query over
+          // the current project sources (unlike /threads, which only prints
+          // in-chat output). Mirror submitMessage by clearing ephemeral command
+          // output first, then dispatch the templated prompt through the same
+          // send path retryLast/handleRegenerate use: setInput so the composer
+          // reflects what was sent, then a deferred handleSubmit(template) so it
+          // doesn't read the stale pre-setInput value from its closure.
+          const SYNTHESIS_TEMPLATES: Record<
+            'summarize' | 'keypoints' | 'gaps' | 'timeline',
+            string
+          > = {
+            summarize:
+              'Summarize the key findings across my sources, with citations.',
+            keypoints:
+              'List the key points from my sources as concise bullets, each with a citation.',
+            gaps: 'What gaps, open questions, or contradictions appear across my sources? Cite them.',
+            timeline:
+              'Build a chronological timeline of the developments described in my sources, with citations.',
+          };
+          const template = SYNTHESIS_TEMPLATES[id];
+          setCommandOutputs([]);
+          setInput(template);
+          setTimeout(() => handleSubmit(template), 0);
+          return;
+        }
+        case 'help':
+          appendOutput({
+            id: outId,
+            command: '/help',
+            timestamp: now,
+            status: 'ready',
+            lines: SLASH_COMMANDS.map((c) => `${c.label.padEnd(10)}${c.title}`),
+            note: 'Type / in the message box to autocomplete.',
+          });
+          return;
+        case 'threads': {
+          const items: CommandOutputItem[] = conversations.map((c) => ({
+            key: c.id,
+            label: c.title || 'Untitled',
+            meta: c.updatedAt ? relativeTime(c.updatedAt) : undefined,
+            active: c.id === activeConversationId,
+            action: { type: 'open-thread', id: c.id },
+          }));
+          appendOutput({
+            id: outId,
+            command: '/threads',
+            timestamp: now,
+            status: 'ready',
+            items,
+            emptyText: 'No threads yet.',
+            note: items.length ? 'Tap a thread to open it.' : undefined,
+          });
+          return;
+        }
+        case 'projects':
+          appendOutput({
+            id: outId,
+            command: '/projects',
+            timestamp: now,
+            status: 'loading',
+            items: [],
+          });
+          void (async () => {
+            try {
+              await fetchProjects({ limit: 20, project_status: 'active' });
+              const { projects, currentProject } = useProjectStore.getState();
+              const items: CommandOutputItem[] = projects.map((p) => ({
+                key: p.id,
+                label: p.name,
+                meta: `${p.document_count ?? 0} ${
+                  (p.document_count ?? 0) === 1 ? 'paper' : 'papers'
+                }`,
+                active: p.id === currentProject?.id,
+                action: { type: 'set-project', id: p.id, name: p.name },
+              }));
+              patchOutput(outId, {
+                status: 'ready',
+                items,
+                emptyText: 'No active projects.',
+                note: items.length
+                  ? 'Tap a project to use it as context.'
+                  : undefined,
+              });
+            } catch {
+              patchOutput(outId, {
+                status: 'ready',
+                items: [],
+                emptyText: 'Could not load projects.',
+              });
+            }
+          })();
+          return;
+        case 'papers':
+          appendOutput({
+            id: outId,
+            command: '/papers',
+            timestamp: now,
+            status: 'loading',
+            items: [],
+          });
+          void (async () => {
+            try {
+              // api.get() returns the raw body, so getDocuments resolves to
+              // { documents, pagination } directly (its APIResponse<> type
+              // annotation is wrong). Read .documents, not .data.documents.
+              const res = (await documentService.getDocuments(
+                1,
+                10
+              )) as unknown as {
+                documents?: Array<{
+                  id: string;
+                  title?: string;
+                  filename: string;
+                  processing_status?: string;
+                }>;
+              };
+              const docs = res?.documents ?? [];
+              const items: CommandOutputItem[] = docs.map((d) => ({
+                key: d.id,
+                label: d.title || d.filename,
+                meta: d.processing_status,
+                action: {
+                  type: 'cite-paper',
+                  id: d.id,
+                  title: d.title || d.filename,
+                },
+              }));
+              patchOutput(outId, {
+                status: 'ready',
+                items,
+                emptyText: 'No papers found.',
+                note: items.length
+                  ? 'Tap a paper to reference it in your message.'
+                  : undefined,
+              });
+            } catch {
+              patchOutput(outId, {
+                status: 'ready',
+                items: [],
+                emptyText: 'Could not load papers.',
+              });
+            }
+          })();
+          return;
+        case 'remember':
+          runMemoryCommand('remember', '');
+          return;
+        case 'memories':
+          runMemoryCommand('memories', '');
+          return;
+      }
+    },
+    [
+      startNewChat,
+      retryLast,
+      setInput,
+      handleSubmit,
+      conversations,
+      activeConversationId,
+      appendOutput,
+      patchOutput,
+      fetchProjects,
+      runMemoryCommand,
+    ]
+  );
+
+  // A tap on a clickable command-output row.
+  const handleCommandItemAction = useCallback(
+    (action: CommandAction) => {
+      switch (action.type) {
+        case 'open-thread':
+          setActiveConversationId(action.id);
+          activeConversationIdRef.current = action.id;
+          setCurrentThread(action.id);
+          router.push(getSelectedThreadUrl(action.id));
+          return;
+        case 'set-project':
+          handleSetProjectContext(action.id);
+          setCommandOutputs([
+            {
+              id: `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              command: '/projects',
+              timestamp: Date.now(),
+              status: 'ready',
+              lines: [`Project context set: ${action.name}`],
+            },
+          ]);
+          return;
+        case 'cite-paper':
+          setInput((cur) =>
+            cur ? `${cur} "${action.title}"` : `"${action.title}" `
+          );
+          chatInputRef.current?.focus();
+          return;
+        case 'delete-memory':
+          void (async () => {
+            try {
+              await projectService.deleteMemory(action.projectId, action.id);
+            } catch {
+              /* best-effort; re-list reflects the true state either way */
+            }
+            runMemoryCommand('memories', '');
+          })();
+          return;
+      }
+    },
+    [
+      router,
+      setActiveConversationId,
+      setCurrentThread,
+      activeConversationIdRef,
+      handleSetProjectContext,
+      setInput,
+      chatInputRef,
+      runMemoryCommand,
+    ]
+  );
+
+  // Clear ephemeral command output when a real message is sent. Slash commands
+  // that carry an argument (`/remember <fact>`) never open the autocomplete
+  // menu — they look like a normal message — so they're intercepted here on
+  // send instead of being dispatched to the agent.
+  const submitMessage = useCallback(() => {
+    const raw = input.trim();
+    const memMatch = raw.match(/^\/(remember|memories)\b\s*([\s\S]*)$/i);
+    if (memMatch) {
+      setInput('');
+      runMemoryCommand(
+        memMatch[1].toLowerCase() as 'remember' | 'memories',
+        memMatch[2]
+      );
+      return;
+    }
+    setCommandOutputs([]);
+    handleSubmit();
+  }, [input, setInput, handleSubmit, runMemoryCommand]);
+
+  // Mobile drawer: focus in on open, return focus on close, Escape to close.
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const drawerOpenerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (mobileSidebarOpen) {
+      drawerOpenerRef.current = document.activeElement as HTMLElement | null;
+      drawerRef.current?.focus();
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setMobileSidebarOpen(false);
+      };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+    }
+    drawerOpenerRef.current?.focus?.();
+  }, [mobileSidebarOpen]);
+
+  // HITL banner: move focus to Approve when it appears.
+  const approveRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (pendingConfirmation) approveRef.current?.focus();
+  }, [pendingConfirmation]);
+
   return (
-    <ChatSurface
-      session={session}
-      streaming={streaming}
-      threadActions={threadActions}
-      drawer={drawer}
-      citationPanel={citationPanel}
-      composerActions={composerActions}
-      slashCommands={slashCommands}
-      enableRAG={enableRAG}
-      setEnableRAG={setEnableRAG}
-      onSelectThread={handleSelectThread}
-      onCitationDocumentClick={handleCitationDocumentClick}
-    />
+    <div className="flex h-full w-full overflow-hidden bg-[var(--nous-bg-1)]">
+      {/* Mobile sidebar backdrop + drawer */}
+      <AnimatePresence>
+        {mobileSidebarOpen && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <motion.div
+              className="absolute inset-0 bg-[var(--nous-erebus)]/50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setMobileSidebarOpen(false)}
+            />
+            <motion.div
+              ref={drawerRef}
+              tabIndex={-1}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Chat history"
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute left-0 top-0 bottom-0 w-[min(280px,85vw)] bg-[var(--nous-bg-2)] border-r border-[var(--nous-border-1)] shadow-[var(--nous-shadow-lg)] outline-none"
+            >
+              <ChatSidebar
+                conversations={conversations}
+                activeId={activeConversationId}
+                onSelect={(id) => {
+                  setActiveConversationId(id);
+                  activeConversationIdRef.current = id;
+                  setCurrentThread(id);
+                  router.push(getSelectedThreadUrl(id));
+                  setMobileSidebarOpen(false);
+                }}
+                onNew={() => {
+                  startNewChat();
+                  setMobileSidebarOpen(false);
+                }}
+                onRename={handleRenameThread}
+                onDelete={handleDeleteThread}
+                onBulkDelete={handleBulkDeleteThreads}
+                currentWorkspace={workspace}
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Desktop sidebar */}
+      <div className="hidden md:block h-full shrink-0">
+        <ChatSidebar
+          conversations={conversations}
+          activeId={activeConversationId}
+          onSelect={(id) => {
+            setActiveConversationId(id);
+            activeConversationIdRef.current = id;
+            setCurrentThread(id);
+            router.push(getSelectedThreadUrl(id));
+          }}
+          onNew={startNewChat}
+          onRename={handleRenameThread}
+          onDelete={handleDeleteThread}
+          onBulkDelete={handleBulkDeleteThreads}
+          currentWorkspace={workspace}
+        />
+      </div>
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
+        <ChatHeader
+          messages={displayedMessages}
+          chatTitle={
+            conversations.find((c) => c.id === activeConversationId)?.title ||
+            'Chat'
+          }
+          onCopyAll={() => {
+            const text = displayedMessages
+              .map((m) => `[${m.role}] ${m.content}`)
+              .join('\n\n');
+            navigator.clipboard.writeText(text).catch(() => {});
+          }}
+          onMobileSidebarToggle={() => setMobileSidebarOpen((v) => !v)}
+        />
+
+        {/* Messages Area */}
+        {!isAuthenticated ? (
+          <div className="flex-1 relative min-h-0">
+            <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
+              <div className="h-full flex flex-col items-center justify-center p-8">
+                <div className="text-center" role="status">
+                  <Loader2 className="w-10 h-10 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
+                  <p
+                    className="text-sm text-[var(--nous-fg-3)] mt-2"
+                    style={{ fontFamily: 'var(--nous-font-ui)' }}
+                  >
+                    Authentication required. Redirecting...
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : isInitializing ? (
+          <div className="flex-1 relative min-h-0">
+            <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
+              <TranscriptSkeleton />
+            </div>
+          </div>
+        ) : initError ? (
+          <div className="flex-1 relative min-h-0">
+            <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
+              <div className="h-full flex flex-col items-center justify-center p-8">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-center max-w-md"
+                >
+                  <div className="relative w-16 h-16 mx-auto mb-6">
+                    <div className="absolute inset-0 rounded-full bg-[var(--nous-mars)]/10" />
+                    <div className="absolute inset-2 rounded-full border border-[var(--nous-mars)]/30 flex items-center justify-center">
+                      <Activity className="w-6 h-6 text-[var(--nous-mars)]" />
+                    </div>
+                  </div>
+                  <h2
+                    className="text-lg font-semibold text-[var(--nous-mars)] mb-3"
+                    style={{ fontFamily: 'var(--nous-font-ui)' }}
+                  >
+                    Connection error
+                  </h2>
+                  <p
+                    className="text-xs text-[var(--nous-fg-3)] mb-6 p-3 rounded-lg bg-[var(--nous-mars)]/5 border border-[var(--nous-mars)]/10"
+                    style={{ fontFamily: 'var(--nous-font-ui)' }}
+                  >
+                    {initError}
+                  </p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--nous-bg-2)] border border-[var(--nous-border-1)] text-[var(--nous-fg-1)] text-xs font-medium hover:border-[var(--nous-sol)]/30 transition-all"
+                    style={{ fontFamily: 'var(--nous-font-ui)' }}
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                    Retry connection
+                  </button>
+                </motion.div>
+              </div>
+            </div>
+          </div>
+        ) : isLoadingMessages ? (
+          <div className="flex-1 relative min-h-0">
+            <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
+              <TranscriptSkeleton />
+            </div>
+          </div>
+        ) : displayedMessages.length === 0 &&
+          commandOutputs.length === 0 &&
+          !storeIsStreaming ? (
+          <div className="flex-1 relative min-h-0">
+            <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
+              <WelcomeState
+                onPromptSelect={handlePromptSelect}
+                selectedModel="nous-agent"
+              />
+            </div>
+          </div>
+        ) : (
+          <ChatMessageList
+            messages={displayedMessages}
+            activeThreadId={activeThreadId}
+            isLoading={isLoading}
+            storeIsStreaming={storeIsStreaming}
+            storeStreamingContent={storeStreamingContent}
+            streamingTimestamp={streamingTimestampRef.current}
+            onRegenerate={handleRegenerate}
+            onCitationClick={handleCitationClick}
+            commandOutputs={commandOutputs}
+            onCommandItemAction={handleCommandItemAction}
+            isRetrievingRag={storeIsRetrievingRag}
+            onLoadOlder={
+              activeThreadId
+                ? () => loadOlderMessages(activeThreadId)
+                : undefined
+            }
+            hasMore={
+              activeThreadId
+                ? (messagePagination?.[activeThreadId]?.hasMore ?? false)
+                : false
+            }
+            isLoadingOlder={
+              activeThreadId
+                ? (messagePagination?.[activeThreadId]?.loadingOlder ?? false)
+                : false
+            }
+          />
+        )}
+
+        {/* HITL Confirmation Banner */}
+        {pendingConfirmation && (
+          <div
+            role="alertdialog"
+            aria-label="Approval needed"
+            aria-describedby="hitl-desc"
+            tabIndex={-1}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && !isConfirming)
+                handleConfirmation(false);
+            }}
+            className="mx-2 sm:mx-4 mb-2 p-3 sm:p-4 rounded-xl border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/5 outline-none"
+          >
+            <div className="mb-2 flex items-center gap-2">
+              <ShieldCheck
+                aria-hidden
+                className="h-4 w-4 text-[var(--nous-sol)]"
+                strokeWidth={1.8}
+              />
+              <p
+                className="text-sm font-medium text-[var(--nous-fg-2)]"
+                style={{ fontFamily: 'var(--nous-font-ui)' }}
+              >
+                Approval needed
+              </p>
+            </div>
+            {(() => {
+              const call = extractToolCall(pendingConfirmation.confirmation);
+              const argEntries = call ? Object.entries(call.args) : [];
+              return (
+                <>
+                  <p
+                    id="hitl-desc"
+                    className="text-sm leading-relaxed text-[var(--nous-fg-1)] mb-3"
+                    style={{ fontFamily: 'var(--nous-font-ui)' }}
+                  >
+                    The agent wants to run{' '}
+                    <span
+                      className="rounded bg-[var(--nous-sol-subtle)] px-1.5 py-0.5 text-[var(--nous-fg-accent)]"
+                      style={{ fontFamily: 'var(--nous-font-mono)' }}
+                    >
+                      {call?.name ?? 'this action'}
+                    </span>
+                    . Approve to let it continue, or Deny to stop.
+                  </p>
+                  {argEntries.length > 0 && (
+                    <dl
+                      className="mb-3 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]/60 p-3 text-xs"
+                      aria-label="Tool arguments"
+                    >
+                      {argEntries.map(([key, value]) => (
+                        <Fragment key={key}>
+                          <dt
+                            className="whitespace-nowrap text-[var(--nous-fg-3)]"
+                            style={{ fontFamily: 'var(--nous-font-mono)' }}
+                          >
+                            {key}
+                          </dt>
+                          <dd
+                            className="break-all text-[var(--nous-fg-2)]"
+                            style={{ fontFamily: 'var(--nous-font-mono)' }}
+                          >
+                            {formatArgValue(value)}
+                          </dd>
+                        </Fragment>
+                      ))}
+                    </dl>
+                  )}
+                </>
+              );
+            })()}
+            <div className="flex items-center gap-3">
+              <button
+                ref={approveRef}
+                onClick={() => handleConfirmation(true)}
+                disabled={isConfirming}
+                className="px-4 py-2 rounded-xl bg-[var(--nous-sol)] text-[var(--nous-erebus)] text-xs font-semibold hover:brightness-110 disabled:opacity-50 transition-all"
+                style={{ fontFamily: 'var(--nous-font-ui)' }}
+              >
+                {isConfirming ? 'Processing…' : 'Approve'}
+              </button>
+              <button
+                onClick={() => handleConfirmation(false)}
+                disabled={isConfirming}
+                className="px-4 py-2 rounded-xl border border-[var(--nous-mars)]/40 bg-[var(--nous-mars)]/5 text-[var(--nous-mars)] text-xs font-semibold hover:bg-[var(--nous-mars)]/10 disabled:opacity-50 transition-all"
+                style={{ fontFamily: 'var(--nous-font-ui)' }}
+              >
+                Deny
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Input Area */}
+        <ChatInput
+          value={input}
+          onChange={setInput}
+          onSubmit={submitMessage}
+          onStop={handleStop}
+          isLoading={isLoading || storeIsStreaming || !!pendingConfirmation}
+          enableRAG={enableRAG}
+          onRAGToggle={setEnableRAG}
+          isRAGLoading={storeIsRetrievingRag}
+          isStreaming={storeIsStreaming}
+          streamingContent={storeStreamingContent}
+          inputRef={chatInputRef}
+          onAttach={handleAttach}
+          selectedModelId={selectedModel}
+          onModelChange={setSelectedModel}
+          onCommand={handleSlashCommand}
+        />
+
+        {/* Citation Panel Sidebar */}
+        <CitationPanel
+          citations={citationPanelCitations}
+          isOpen={isCitationPanelOpen}
+          onClose={() => setIsCitationPanelOpen(false)}
+          onCitationClick={(citation) => {
+            if (citation.documentId) {
+              router.push(`/documents/${citation.documentId}`);
+            }
+          }}
+          onCite={handleCiteSource}
+          diagnosticsTraceId={citationTraceId}
+          activeCitationId={activeCitationId}
+        />
+      </div>
+
+      <ChatDialogs
+        renameDialog={renameDialog}
+        setRenameDialog={setRenameDialog}
+        commitRename={commitRename}
+        deleteDialog={deleteDialog}
+        setDeleteDialog={setDeleteDialog}
+        commitDeleteThread={commitDeleteThread}
+        bulkDeleteDialog={bulkDeleteDialog}
+        setBulkDeleteDialog={setBulkDeleteDialog}
+        commitBulkDelete={commitBulkDelete}
+      />
+    </div>
   );
 }
 
@@ -128,9 +1121,9 @@ export default function ChatPage() {
       fallback={
         <div className="flex-1 flex flex-col items-center justify-center p-8">
           <div className="text-center" role="status">
-            <Loader2 className="w-10 h-10 text-(--nous-sol) animate-spin mx-auto mb-4" />
+            <Loader2 className="w-10 h-10 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
             <p
-              className="text-sm text-(--nous-fg-3)"
+              className="text-sm text-[var(--nous-fg-3)]"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Loading chat...

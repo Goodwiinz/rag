@@ -94,9 +94,9 @@ class DocumentRealtimeService(BaseService):
         self._active_documents: Set[str] = set()
         self._document_progress: Dict[str, ProcessingProgress] = {}
         self._event_history: List[ProcessingEvent] = []
-        self._subscribers: Dict[str, Set[str]] = (
-            {}
-        )  # document_id -> set of connection_ids
+        self._subscribers: Dict[
+            str, Set[str]
+        ] = {}  # document_id -> set of connection_ids
         self._background_tasks: List[asyncio.Task] = []
 
         # Configuration
@@ -340,16 +340,12 @@ class DocumentRealtimeService(BaseService):
                     "document_title": document.title,
                     "document_filename": document.filename,
                     "document_type": document.document_type.value,
-                    "processing_started_at": (
-                        document.processing_started_at.isoformat()
-                        if document.processing_started_at
-                        else None
-                    ),
-                    "processing_completed_at": (
-                        document.processing_completed_at.isoformat()
-                        if document.processing_completed_at
-                        else None
-                    ),
+                    "processing_started_at": document.processing_started_at.isoformat()
+                    if document.processing_started_at
+                    else None,
+                    "processing_completed_at": document.processing_completed_at.isoformat()
+                    if document.processing_completed_at
+                    else None,
                     "retry_count": document.processing_retry_count,
                 },
             )
@@ -426,12 +422,12 @@ class DocumentRealtimeService(BaseService):
                     "total_steps": job.total_steps,
                     "completed_steps": job.completed_steps,
                     "error": error or job.error_message,
-                    "started_at": (
-                        job.started_at.isoformat() if job.started_at else None
-                    ),
-                    "completed_at": (
-                        job.completed_at.isoformat() if job.completed_at else None
-                    ),
+                    "started_at": job.started_at.isoformat()
+                    if job.started_at
+                    else None,
+                    "completed_at": job.completed_at.isoformat()
+                    if job.completed_at
+                    else None,
                     "duration_seconds": job.duration_seconds,
                     "retry_count": job.retry_count,
                 },
@@ -659,9 +655,9 @@ class DocumentRealtimeService(BaseService):
                         "metadata": event.metadata,
                     },
                     target_users=[event.user_id] if event.user_id else [],
-                    target_organizations=(
-                        [event.organization_id] if event.organization_id else []
-                    ),
+                    target_organizations=[event.organization_id]
+                    if event.organization_id
+                    else [],
                     priority=self._map_event_priority(event.event_type),
                 )
 

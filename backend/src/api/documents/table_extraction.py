@@ -9,11 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from structlog import get_logger
 
 from src.core.database import get_db
-from src.core.dependencies import get_current_organization, get_current_user
+from src.core.dependencies import get_current_organization
 from src.models.document import Document
 from src.models.organization import Organization
 from src.models.user import User
 from src.services.processing.table_extraction_service import TableExtractionService
+from src.core.dependencies import get_current_user
 
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/documents", tags=["table-extraction"])
@@ -74,7 +75,7 @@ async def extract_tables(
         )
 
     try:
-        tables = await _service.extract_tables_from_pdf(document)
+        tables = await _service.extract_tables_from_pdf(document.file_path)
     except Exception as exc:
         logger.error(
             "table_extraction_failed",
@@ -135,7 +136,7 @@ async def extract_region(
 
     try:
         result = await _service.extract_region(
-            document=document,
+            pdf_path=document.file_path,
             page=body.page,
             x1=body.x1,
             y1=body.y1,

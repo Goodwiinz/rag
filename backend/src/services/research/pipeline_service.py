@@ -18,7 +18,9 @@ class PipelineService:
     """Service for research pipeline CRUD and state transitions."""
 
     @staticmethod
-    async def get_or_create(db: AsyncSession, project_id: UUID) -> ResearchPipeline:
+    async def get_or_create(
+        db: AsyncSession, project_id: UUID
+    ) -> ResearchPipeline:
         """Get existing pipeline for a project, or create one."""
         result = await db.execute(
             select(ResearchPipeline).where(
@@ -102,7 +104,9 @@ class PipelineService:
         return pipeline
 
     @staticmethod
-    async def reset_pipeline(db: AsyncSession, project_id: UUID) -> ResearchPipeline:
+    async def reset_pipeline(
+        db: AsyncSession, project_id: UUID
+    ) -> ResearchPipeline:
         """Reset pipeline to initial state."""
         result = await db.execute(
             select(ResearchPipeline).where(

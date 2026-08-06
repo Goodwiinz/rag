@@ -155,7 +155,7 @@ const StatusGrid: React.FC<StatusGridProps> = ({
 
   if (compact) {
     return (
-      <Card className={cn('border-0 shadow-xs', className)}>
+      <Card className={cn('border-0 shadow-sm', className)}>
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -186,7 +186,7 @@ const StatusGrid: React.FC<StatusGridProps> = ({
                   onClick={() => onComponentClick?.(component)}
                 >
                   <config.icon
-                    className={cn('h-4 w-4 shrink-0', config.color)}
+                    className={cn('h-4 w-4 flex-shrink-0', config.color)}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-foreground truncate">
@@ -206,7 +206,7 @@ const StatusGrid: React.FC<StatusGridProps> = ({
   }
 
   return (
-    <Card className={cn('shadow-xs', className)}>
+    <Card className={cn('shadow-sm', className)}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -263,7 +263,7 @@ const StatusGrid: React.FC<StatusGridProps> = ({
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center space-x-2">
                     <config.icon
-                      className={cn('h-5 w-5 shrink-0', config.color)}
+                      className={cn('h-5 w-5 flex-shrink-0', config.color)}
                     />
                     <h3 className="font-semibold text-foreground">
                       {component.name}

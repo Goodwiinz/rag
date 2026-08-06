@@ -80,10 +80,7 @@ async def test_confirm_retries_on_first_aget_state_miss():
         graph_instances.append(g)
         return g
 
-    # Connected client — the confirm loop's keepalive wrapper checks
-    # is_disconnected() before each event, so True would (correctly) cancel
-    # the resumed run instead of letting it complete normally.
-    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
     body = SimpleNamespace(thread_id="thread-abc", confirmed=True, model="")
     current_user = Mock(id="user-1", organization_id="org-1")
 
@@ -104,14 +101,8 @@ async def test_confirm_retries_on_first_aget_state_miss():
             "src.services.agent.graph.compile_agent_graph",
             side_effect=fake_compile,
         ),
-        # Confirm path now persists the assistant row directly via the safe
-        # wrapper instead of the deprecated _persist_thread_messages shim.
         patch(
-            "src.services.agent.agent_execution_service._persist_assistant_message_safe",
-            new=AsyncMock(return_value="msg-1"),
-        ),
-        patch(
-            "src.api.agent.streaming._latest_user_client_message_id",
+            "src.api.agent.streaming._persist_thread_messages",
             new=AsyncMock(return_value=None),
         ),
     ):

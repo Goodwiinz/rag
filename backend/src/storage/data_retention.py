@@ -397,22 +397,22 @@ class DataRetentionManager:
                                 value = getattr(record, field)
                                 if value:
                                     if field == "ip_address":
-                                        update_data[field] = (
-                                            self.anonymizer.anonymize_ip(value)
-                                        )
+                                        update_data[
+                                            field
+                                        ] = self.anonymizer.anonymize_ip(value)
                                     elif field == "user_agent":
-                                        update_data[field] = (
-                                            self.anonymizer.anonymize_user_agent(value)
-                                        )
+                                        update_data[
+                                            field
+                                        ] = self.anonymizer.anonymize_user_agent(value)
                                     elif field == "referrer":
-                                        update_data[field] = (
-                                            self.anonymizer.anonymize_url(value)
-                                        )
+                                        update_data[
+                                            field
+                                        ] = self.anonymizer.anonymize_url(value)
                                     elif field == "geo_location":
-                                        update_data[field] = (
-                                            self.anonymizer.anonymize_geo_location(
-                                                value
-                                            )
+                                        update_data[
+                                            field
+                                        ] = self.anonymizer.anonymize_geo_location(
+                                            value
                                         )
 
                         # Update record
@@ -484,11 +484,9 @@ class DataRetentionManager:
                         "retention_days": policy.retention_days,
                         "action": policy.action.value,
                         "enabled": policy.enabled,
-                        "oldest_record": (
-                            result.oldest_date.isoformat()
-                            if result.oldest_date
-                            else None
-                        ),
+                        "oldest_record": result.oldest_date.isoformat()
+                        if result.oldest_date
+                        else None,
                         "total_records": result.total_count,
                         "expired_records": result.expired_count,
                         "cleanup_needed": result.expired_count > 0,
@@ -556,14 +554,12 @@ class DataRetentionManager:
                         "policy": policy.action.value,
                         "retention_days": policy.retention_days,
                         "violation_count": result.violation_count,
-                        "oldest_violation": (
-                            result.oldest_violation.isoformat()
-                            if result.oldest_violation
-                            else None
-                        ),
-                        "severity": (
-                            "high" if result.violation_count > 10000 else "medium"
-                        ),
+                        "oldest_violation": result.oldest_violation.isoformat()
+                        if result.oldest_violation
+                        else None,
+                        "severity": "high"
+                        if result.violation_count > 10000
+                        else "medium",
                     }
                     report["policy_violations"].append(violation)
 

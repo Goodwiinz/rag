@@ -50,14 +50,12 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
   const documentsLoading = useProjectStore((s) => s.documentsLoading);
   const removeDocument = useProjectStore((s) => s.removeDocument);
 
-  // Keyed by projectId (not a one-shot boolean) so a reused instance refetches
-  // on project navigation while still deduping StrictMode double-invokes.
-  const fetchedForRef = useRef<string | null>(null);
+  const fetchedRef = useRef(false);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [documentToRemove, setDocumentToRemove] = useState<string | null>(null);
   useEffect(() => {
-    if (fetchedForRef.current === projectId) return;
-    fetchedForRef.current = projectId;
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
     fetchPipeline(projectId);
   }, [projectId, fetchPipeline]);
 

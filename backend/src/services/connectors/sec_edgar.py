@@ -28,25 +28,11 @@ def _parse_filing(hit: Dict[str, Any]) -> ConnectorResult:
     source_data = hit.get("_source", hit)
 
     file_num = source_data.get("file_num", "")
-    cik = str(
-        source_data.get(
-            "entity_id",
-            (
-                source_data.get("ciks", [""])[0]
-                if isinstance(source_data.get("ciks"), list)
-                else ""
-            ),
-        )
-    )
+    cik = str(source_data.get("entity_id", source_data.get("ciks", [""])[0]
+                              if isinstance(source_data.get("ciks"), list) else ""))
     form_type = source_data.get("form_type", source_data.get("file_type", ""))
-    company = source_data.get(
-        "entity_name",
-        (
-            source_data.get("display_names", [""])[0]
-            if isinstance(source_data.get("display_names"), list)
-            else ""
-        ),
-    )
+    company = source_data.get("entity_name", source_data.get("display_names", [""])[0]
+                              if isinstance(source_data.get("display_names"), list) else "")
     date_filed = source_data.get("file_date", source_data.get("period_of_report", ""))
     accession = source_data.get("accession_no", source_data.get("_id", ""))
     description = source_data.get("file_description", "")
@@ -178,5 +164,7 @@ class SECEdgarConnector(ExternalDBConnector):
             )
             return None
         except Exception as exc:
-            logger.error("sec_edgar_fetch_error", error=str(exc), accession=record_id)
+            logger.error(
+                "sec_edgar_fetch_error", error=str(exc), accession=record_id
+            )
             return None

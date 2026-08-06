@@ -48,7 +48,7 @@ const MarkdownComponents = {
     </h3>
   ),
   blockquote: ({ children }: any) => (
-    <blockquote className="rounded-(--nous-radius-md) bg-(--nous-bg-2) px-4 py-2 my-4 italic text-muted-foreground">
+    <blockquote className="rounded-[var(--nous-radius-md)] bg-[var(--nous-bg-2)] px-4 py-2 my-4 italic text-muted-foreground">
       {children}
     </blockquote>
   ),

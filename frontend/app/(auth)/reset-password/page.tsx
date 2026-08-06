@@ -15,9 +15,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 
-// Last-resort guard only: the recovery session is resolved from getSession()
-// below, so this fires only if that promise never settles at all.
-const SESSION_TIMEOUT_MS = 20000;
+const SESSION_TIMEOUT_MS = 5000;
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -36,45 +34,15 @@ export default function ResetPasswordPage() {
     setMounted(true);
 
     const supabase = createClient();
-    let cancelled = false;
-
-    const markSessionReady = () => {
-      sessionDetected.current = true;
-      // A late PASSWORD_RECOVERY must win: without this, a recovery event that
-      // arrives after the timeout left "This link has expired" on screen for a
-      // link that is perfectly valid.
-      setSessionExpired(false);
-      setSessionReady(true);
-    };
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
-        markSessionReady();
+        sessionDetected.current = true;
+        setSessionReady(true);
       }
     });
-
-    // Drive the decision off the actual outcome instead of racing a clock:
-    // getSession() awaits the client's initialize step, which is what parses
-    // the recovery token out of the URL and stores the session. So a slow
-    // connection can no longer be reported as an expired link, and a
-    // PASSWORD_RECOVERY emitted before this component subscribed (the client
-    // is a shared singleton, created by AuthProvider on first paint) is no
-    // longer missed either.
-    void supabase.auth
-      .getSession()
-      .then(({ data: { session } }) => {
-        if (cancelled) return;
-        if (session) {
-          markSessionReady();
-        } else {
-          setSessionExpired(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setSessionExpired(true);
-      });
 
     const timeout = setTimeout(() => {
       if (!sessionDetected.current) {
@@ -83,7 +51,6 @@ export default function ResetPasswordPage() {
     }, SESSION_TIMEOUT_MS);
 
     return () => {
-      cancelled = true;
       subscription.unsubscribe();
       clearTimeout(timeout);
     };
@@ -126,9 +93,7 @@ export default function ResetPasswordPage() {
 
   if (!mounted) return null;
 
-  // sessionReady wins over sessionExpired: a recovery session that resolved
-  // late must not be masked by an earlier timeout verdict.
-  if (sessionExpired && !sessionReady) {
+  if (sessionExpired) {
     return (
       <div
         className="min-h-screen flex items-center justify-center px-6"
@@ -179,7 +144,7 @@ export default function ResetPasswordPage() {
             </p>
             <Link
               href="/forgot-password"
-              className="inline-flex items-center gap-2 py-2.5 px-5 rounded-lg text-sm font-medium transition-colors duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2"
+              className="inline-flex items-center gap-2 py-2.5 px-5 rounded-lg text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
               style={{
                 background: 'var(--nous-sol)',
                 color: 'var(--nous-erebus)',
@@ -379,7 +344,7 @@ export default function ResetPasswordPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-12 py-2.5 rounded-lg text-sm outline-hidden transition-colors duration-200 focus-visible:ring-2"
+                  className="w-full pl-11 pr-12 py-2.5 rounded-lg text-sm outline-none transition-colors duration-200 focus-visible:ring-2"
                   style={{
                     background: 'var(--nous-nyx)',
                     border: '1px solid var(--nous-shade)',
@@ -393,7 +358,7 @@ export default function ResetPasswordPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                   aria-pressed={showPassword}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 transition-colors duration-200 rounded-r-lg focus-visible:outline-hidden focus-visible:ring-2"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 transition-colors duration-200 rounded-r-lg focus-visible:outline-none focus-visible:ring-2"
                   style={{
                     color: 'var(--nous-dust)',
                     ['--tw-ring-color' as string]: 'var(--nous-sol)',
@@ -430,7 +395,7 @@ export default function ResetPasswordPage() {
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-11 pr-4 py-2.5 rounded-lg text-sm outline-hidden transition-colors duration-200 focus-visible:ring-2"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-lg text-sm outline-none transition-colors duration-200 focus-visible:ring-2"
                   style={{
                     background: 'var(--nous-nyx)',
                     border: '1px solid var(--nous-shade)',
@@ -447,7 +412,7 @@ export default function ResetPasswordPage() {
               disabled={isSubmitting}
               className={cn(
                 'w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium',
-                'transition-colors duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2',
+                'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
                 'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
               style={{
@@ -474,7 +439,7 @@ export default function ResetPasswordPage() {
           >
             <Link
               href="/login"
-              className="text-sm transition-colors duration-200 rounded focus-visible:outline-hidden focus-visible:ring-2"
+              className="text-sm transition-colors duration-200 rounded focus-visible:outline-none focus-visible:ring-2"
               style={{
                 color: 'var(--nous-sol)',
                 ['--tw-ring-color' as string]: 'var(--nous-sol)',

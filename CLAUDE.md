@@ -1,7 +1,7 @@
 # NOUS — Multimodal Intelligence Platform
 
-Next.js 16 + FastAPI + PostgreSQL / Neo4j / Redis. **Only `dev` is live** (ArgoCD auto-sync from `develop`, namespace `rag-dev`). `staging` + `production` ArgoCD apps were **retired 2026-04-29 (PR #442)** for cluster memory pressure (DO volume snapshots taken before deletion); their values files remain and the gitops workflow still bumps staging tags nothing consumes.
-Runs locally (no Docker; user runs backend/frontend manually) or deployed to the **DOKS cluster**:
+Next.js 15 + FastAPI + PostgreSQL / Neo4j / Redis. **`dev` + `staging` are live** (ArgoCD auto-sync from `develop`, gitops image bumps for both); **`production` is scaffolded** (`values-production.yaml`, `api.gen-text.app`, namespace `rag-production`) but not yet actively deployed/bumped. `dev` is the primary working env.
+Runs locally via `docker-compose.development.yml`, or deployed to the **DOKS cluster** — namespaces `rag-dev` / `rag-staging` / `rag-production`:
 Supabase (Postgres + auth), DO Managed Redis, DO Spaces, in-cluster Neo4j, Vercel frontend, ArgoCD auto-sync from `develop`.
 
 ## Development Workflow
@@ -10,24 +10,19 @@ Supabase (Postgres + auth), DO Managed Redis, DO Spaces, in-cluster Neo4j, Verce
 # Start services
 docker-compose -f docker-compose.development.yml up -d
 
-# Frontend (Node 24 + pnpm 10.18.2, corepack — no npm)
-cd frontend && pnpm dev
+# Frontend
+cd frontend && npm run dev
 
 # Backend (if not using Docker)
 cd backend && uvicorn src.main:app --reload --port 8000
 
-# Type-check / Test / Lint / Validate  (subshells: cwd stays at repo root)
-(cd frontend && pnpm type-check)
-(cd frontend && pnpm test)           # Frontend
+# Type-check / Test / Lint / Validate
+cd frontend && npm run type-check
+cd frontend && npm run test          # Frontend
 pytest tests/ --cov=src              # Backend
-(cd frontend && pnpm lint)
-(cd frontend && pnpm validate)       # lint + type-check + test
+cd frontend && npm run lint
+cd frontend && npm run validate      # lint + type-check + test
 ```
-
-Toolchain, quality-ratchet, and API-contract rules are enforced, not just
-documented here — see [`docs/engineering/`](docs/engineering/README.md) for
-the router/service boundaries, tenant-scope rules, chat state ownership,
-and the commands CI actually runs.
 
 ## Agent System (LangGraph)
 
@@ -54,7 +49,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Code Style
 
-- **Python**: Black (88), isort, mypy (CI-blocking on added files; full-tree advisory — see docs/engineering/backend.md), snake_case, structlog
+- **Python**: Black (88), isort, mypy strict, snake_case, structlog
 - **TypeScript**: Prettier, ESLint, strict mode, camelCase/PascalCase
 - **Imports**: `@/*` aliases for src/app paths
 - **Theme**: NOUS brand — Erebus `#0A0A0E`, Selene `#F7F7F5`, Sol `#D4A039` (accent). Inter headings, Source Serif 4 body. Clean, minimalist. shadcn/ui components.
@@ -83,7 +78,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Connections
 
-Only `dev` deploys via ArgoCD (staging/prod apps retired in #442, values scaffolding kept). Two ways to run `dev`:
+`dev` + `staging` deploy via ArgoCD (gitops bumps both); `production` is scaffolded (values + `rag-production` namespace) but not yet actively bumped. `dev` is the primary working env. Two ways to run `dev`:
 
 ### Local (`docker-compose.development.yml`)
 
@@ -111,37 +106,12 @@ Only `dev` deploys via ArgoCD (staging/prod apps retired in #442, values scaffol
 | Secrets        | **Infisical** operator       | envFrom `app-secrets`, `*-credentials`                                                                                                                           |
 | Retrieval/RAG  | PostgreSQL fulltext          | DO KB (`backend/src/services/do_kb/`) behind `DO_KB_ENABLED` (off)                                                                                               |
 
-> **Qdrant:** removed. Retrieval migrated Qdrant → DO KB; the app sets no `QDRANT_URL` and never queries Qdrant. The `knowledge-graph-analytics` chart never actually had a Qdrant subchart or pod template — only dead `qdrant.*` values, a never-called `qdrantUrl` helper, and networkpolicy residue, all dropped in #1043. Legacy non-ArgoCD charts/manifests (`deployment/helm/rag-system`, `infrastructure/kubernetes/manifests/databases.yaml`, monitoring/terraform/backup/CI/docker-compose) still carry Qdrant refs; not deployed, cleanup pending.
+> **Qdrant:** the Helm subchart still deploys a pod (`qdrant.enabled:true` in `values-dev.yaml`), but the app sets **no `QDRANT_URL`**, so `VectorService` can't connect (init connectivity check fails) and vector ops are disabled — Qdrant is never queried. Effectively unused; safe to drop the subchart.
 
 ## Branch Strategy
 
 - Feature branches from `develop`
 - PRs target `develop`
-
-## Working Agreement (Claude Code)
-
-Calibrated for Opus 5, which narrates, verifies, and delegates more than earlier
-models unless told otherwise.
-
-- **Answer first.** Lead with what happened or what you found; supporting detail
-  after. One sentence before the first tool call, then updates only on a real
-  finding or a change of direction.
-- **Scope.** Deliver what was asked, at the scope intended. Make routine
-  judgment calls yourself; check in only when different readings lead to
-  materially different work. If the request looks mistaken, say so in a sentence
-  and continue as asked rather than quietly narrowing or widening it.
-- **Verification is the commands in Development Workflow**, not extra passes.
-  `pnpm validate`, `pytest`, `scripts/ci/run_local_ci.sh` are the gate — don't
-  add self-review rounds or verifier subagents on top of them.
-- **Delegation** is for wide, genuinely independent sweeps (multi-file audits,
-  parallel bug hunts). One subagent beats three. Don't delegate what takes a
-  handful of tool calls, and don't spawn agents to check your own work.
-- **Written deliverables** (audit docs, PR bodies, `docs/`) cover the substance
-  without filler sections, redundant summaries, or boilerplate. Length follows
-  content — a two-line finding is a two-line finding.
-- **Corrections:** flag an earlier statement only when the error changes code,
-  conclusions, or decisions. Otherwise fix it and move on.
-- Keep responses and caveats short; most of the response goes to the answer.
 
 ## Design Context
 

@@ -6,7 +6,6 @@ import { AgentContextBar } from './AgentContextBar';
 import { AgentMessageList } from './AgentMessageList';
 import { AgentInput } from './AgentInput';
 import { AgentThreadList } from './AgentThreadList';
-import { AgentPlanPanel } from './AgentPlanPanel';
 import { useAgentChatStore } from '@/store/agentChatStore';
 
 interface AgentSidebarProps {
@@ -102,9 +101,6 @@ export function AgentSidebar({ onCollapse }: AgentSidebarProps) {
           disabled={isStreaming}
         />
       </div>
-
-      {/* Live execution-plan panel (collapses to nothing when no plan) */}
-      <AgentPlanPanel />
     </div>
   );
 }

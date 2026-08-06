@@ -132,7 +132,7 @@ environment:
 
 ```bash
 # In GitHub repo → Settings → Secrets → Actions
-DIGITALOCEAN_ACCESS_TOKEN=dop_v1_xxxxx
+DIGITALOCEAN_ACCESS_TOKEN=REDACTED_xxxxx
 ```
 
 ### 2. Create Kubernetes Namespaces

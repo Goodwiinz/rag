@@ -16,7 +16,6 @@
  */
 
 import { API_CONFIG, APIErrorClass, DEFAULT_HEADERS } from '@/types/api';
-import { parseErrorBody } from '@/utils/parseErrorBody';
 import { ZodSchema } from 'zod';
 
 // ============================================================================
@@ -41,35 +40,6 @@ export interface UploadOptions {
   metadata?: Record<string, string>;
 }
 
-function composeAbortSignals(signals: AbortSignal[]): {
-  signal: AbortSignal;
-  cleanup: () => void;
-} {
-  if (signals.length === 1) {
-    return { signal: signals[0], cleanup: () => undefined };
-  }
-
-  const controller = new AbortController();
-  const listeners = signals.map((source) => {
-    const relayAbort = () => controller.abort(source.reason);
-    if (source.aborted) {
-      relayAbort();
-    } else {
-      source.addEventListener('abort', relayAbort, { once: true });
-    }
-    return { source, relayAbort };
-  });
-
-  return {
-    signal: controller.signal,
-    cleanup: () => {
-      listeners.forEach(({ source, relayAbort }) => {
-        source.removeEventListener('abort', relayAbort);
-      });
-    },
-  };
-}
-
 // ============================================================================
 // Unified API Client
 // ============================================================================
@@ -78,6 +48,7 @@ export class APIClient {
   private baseURL: string;
   private token: string | null = null;
   private explicitToken: string | null = null;
+  private organizationId: string | null = null;
   private defaultTimeout: number;
 
   constructor(baseURL: string = API_CONFIG.BASE_URL) {
@@ -89,14 +60,16 @@ export class APIClient {
   // Authentication
   // --------------------------------------------------------------------------
 
-  setAuth(token: string): void {
+  setAuth(token: string, organizationId: string): void {
     this.explicitToken = token;
     this.token = token;
+    this.organizationId = organizationId;
   }
 
   clearAuth(): void {
     this.explicitToken = null;
     this.token = null;
+    this.organizationId = null;
   }
 
   /** Load auth from the CURRENT Supabase session before each request.
@@ -131,6 +104,8 @@ export class APIClient {
         data: { session },
       } = await supabase.auth.getSession();
       this.token = session?.access_token ?? null;
+      this.organizationId =
+        session?.user?.user_metadata?.organization_id ?? null;
     } catch (error) {
       console.warn('Failed to load auth from Supabase session:', error);
     }
@@ -143,6 +118,9 @@ export class APIClient {
 
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
+    }
+    if (this.organizationId) {
+      headers['X-Organization-ID'] = this.organizationId;
     }
 
     return headers;
@@ -170,17 +148,13 @@ export class APIClient {
         : `${this.baseURL}${endpoint}`;
 
     const controller = new AbortController();
-    const callerSignal = fetchOptions.signal;
-    const { signal, cleanup: cleanupAbortSignals } = composeAbortSignals(
-      callerSignal ? [callerSignal, controller.signal] : [controller.signal]
-    );
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
       const response = await fetch(url, {
         ...fetchOptions,
         headers: this.mergeHeaders(fetchOptions.headers, fetchOptions.body),
-        signal,
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
@@ -200,12 +174,7 @@ export class APIClient {
     } catch (error) {
       clearTimeout(timeoutId);
 
-      // Caller cancellation is control flow, not a timeout or retryable error.
-      if (callerSignal?.aborted) {
-        throw error;
-      }
-
-      // Handle the API client's own timeout abort.
+      // Handle abort error
       if ((error as Error).name === 'AbortError') {
         throw new APIErrorClass({
           message: 'Request timeout',
@@ -226,9 +195,6 @@ export class APIClient {
       }
 
       throw error;
-    } finally {
-      clearTimeout(timeoutId);
-      cleanupAbortSignals();
     }
   }
 
@@ -297,25 +263,6 @@ export class APIClient {
       method: 'POST',
       headers: this.bodyHeaders(data, options.headers),
       body: this.serializeBody(data),
-    });
-  }
-
-  /**
-   * POST for slow, non-idempotent operations (arXiv search/ingest/extract/track
-   * can each take minutes). Uses a 5-minute timeout and disables automatic
-   * retries: replaying a POST that already committed work server-side would
-   * duplicate ingests/extractions. Callers may still override `timeout` /
-   * `retries` explicitly via `options`.
-   */
-  async postWithLongTimeout<T>(
-    endpoint: string,
-    data?: unknown,
-    options: RequestConfig = {}
-  ): Promise<T> {
-    return this.post<T>(endpoint, data, {
-      timeout: 300000,
-      retries: 0,
-      ...options,
     });
   }
 
@@ -469,6 +416,9 @@ export class APIClient {
       if (this.token) {
         xhr.setRequestHeader('Authorization', `Bearer ${this.token}`);
       }
+      if (this.organizationId) {
+        xhr.setRequestHeader('X-Organization-ID', this.organizationId);
+      }
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -571,7 +521,7 @@ export class APIClient {
   private async handleErrorResponse(
     response: Response
   ): Promise<APIErrorClass> {
-    let errorData: unknown = {};
+    let errorData: Record<string, unknown> = {};
 
     try {
       errorData = await response.json();
@@ -579,22 +529,14 @@ export class APIClient {
       // Response body may not be JSON
     }
 
-    // The backend rewrites every error into the structured envelope
-    // `{ error: { message, status_code, type, details? } }`. Parse it so the
-    // user sees the real cause, and surface `type` so callers can branch on
-    // auth_error / rate_limit instead of only the raw HTTP status text.
-    const parsed = parseErrorBody(errorData, response.statusText);
-    const rawDetails =
-      typeof errorData === 'object' && errorData !== null
-        ? (errorData as Record<string, unknown>)
-        : undefined;
-
     return new APIErrorClass({
-      message: parsed.message,
+      message:
+        (errorData.detail as string) ||
+        (errorData.message as string) ||
+        response.statusText,
       status_code: response.status,
-      type: parsed.type ?? 'http_error',
-      details: parsed.details ?? rawDetails,
-      ...(parsed.silent !== undefined ? { silent: parsed.silent } : {}),
+      type: 'http_error',
+      details: errorData as Record<string, unknown>,
     });
   }
 

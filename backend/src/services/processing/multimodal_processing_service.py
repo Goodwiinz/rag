@@ -67,7 +67,6 @@ from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.processing import JobStatus, JobType, ProcessingJob
-from src.services.documents.storage_utils import local_file_for_document
 from src.services.embedding.embedding_service import EmbeddingService
 from src.services.processing.entity_extraction_service import EntityExtractionService
 
@@ -211,9 +210,17 @@ class MultimodalProcessingService:
             # Update document with processing results
             await self.update_document_with_results(document, processing_results)
 
-            # Finalize the job to MATCH the document outcome.
-            self._finalize_job(job, document, processing_results)
+            # Complete job
+            job.complete_job(
+                result={"processing_results": processing_results},
+                artifacts={"processed_files": self.get_processed_files(document)},
+                metrics={
+                    "processing_time_seconds": processing_results["processing_time"]
+                },
+            )
             self.db.commit()
+
+            logger.info(f"Document processing completed for {document.id}")
 
             return processing_results
 
@@ -252,9 +259,6 @@ class MultimodalProcessingService:
                 ProcessingStep("PDF Processing", self.process_pdf),
                 ProcessingStep(
                     "OCR Extraction", self.extract_text_with_ocr, required=False
-                ),
-                ProcessingStep(
-                    "Figure Extraction", self.extract_figures, required=False
                 ),
                 *common_steps,
             ]
@@ -295,6 +299,7 @@ class MultimodalProcessingService:
             if not OCR_AVAILABLE:
                 return {"error": "OCR libraries not available"}
 
+            file_path = document.file_path
             results = {
                 "text_content": "",
                 "page_count": 0,
@@ -302,51 +307,50 @@ class MultimodalProcessingService:
                 "metadata": {},
             }
 
-            with local_file_for_document(document) as file_path:
-                # Extract text using PyMuPDF
+            # Extract text using PyMuPDF
+            try:
+                pdf_document = fitz.open(file_path)
+                results["page_count"] = len(pdf_document)
+
+                text_content = []
+                for page_num in range(len(pdf_document)):
+                    page = pdf_document.load_page(page_num)
+                    text_content.append(page.get_text())
+
+                results["text_content"] = "\n".join(text_content)
+
+                # Extract metadata
+                metadata = pdf_document.metadata
+                results["metadata"] = {
+                    "title": metadata.get("title", ""),
+                    "author": metadata.get("author", ""),
+                    "subject": metadata.get("subject", ""),
+                    "creator": metadata.get("creator", ""),
+                    "producer": metadata.get("producer", ""),
+                    "creation_date": metadata.get("creationDate", ""),
+                    "modification_date": metadata.get("modDate", ""),
+                }
+
+                pdf_document.close()
+
+            except Exception as e:
+                logger.error(f"PyMuPDF processing failed: {str(e)}")
+
+                # Fallback to pdfplumber
                 try:
-                    pdf_document = fitz.open(file_path)
-                    results["page_count"] = len(pdf_document)
+                    import pdfplumber
 
-                    text_content = []
-                    for page_num in range(len(pdf_document)):
-                        page = pdf_document.load_page(page_num)
-                        text_content.append(page.get_text())
+                    with pdfplumber.open(file_path) as pdf:
+                        text_content = []
+                        for page in pdf.pages:
+                            text_content.append(page.extract_text())
 
-                    results["text_content"] = "\n".join(text_content)
+                        results["text_content"] = "\n".join(text_content)
+                        results["page_count"] = len(pdf.pages)
 
-                    # Extract metadata
-                    metadata = pdf_document.metadata
-                    results["metadata"] = {
-                        "title": metadata.get("title", ""),
-                        "author": metadata.get("author", ""),
-                        "subject": metadata.get("subject", ""),
-                        "creator": metadata.get("creator", ""),
-                        "producer": metadata.get("producer", ""),
-                        "creation_date": metadata.get("creationDate", ""),
-                        "modification_date": metadata.get("modDate", ""),
-                    }
-
-                    pdf_document.close()
-
-                except Exception as e:
-                    logger.error(f"PyMuPDF processing failed: {str(e)}")
-
-                    # Fallback to pdfplumber
-                    try:
-                        import pdfplumber
-
-                        with pdfplumber.open(file_path) as pdf:
-                            text_content = []
-                            for page in pdf.pages:
-                                text_content.append(page.extract_text())
-
-                            results["text_content"] = "\n".join(text_content)
-                            results["page_count"] = len(pdf.pages)
-
-                    except Exception as e2:
-                        logger.error(f"pdfplumber fallback failed: {str(e2)}")
-                        raise e
+                except Exception as e2:
+                    logger.error(f"pdfplumber fallback failed: {str(e2)}")
+                    raise e
 
             return results
 
@@ -362,81 +366,59 @@ class MultimodalProcessingService:
             if not OCR_AVAILABLE:
                 return {"error": "OCR not available"}
 
+            file_path = document.file_path
             results = {"ocr_text": "", "confidence_scores": [], "processing_time": 0}
 
             start_time = time.time()
 
-            with local_file_for_document(document) as file_path:
-                # Use pytesseract for OCR
-                try:
-                    import fitz
-                    import pytesseract
-                    from PIL import Image
+            # Use pytesseract for OCR
+            try:
+                import fitz
+                import pytesseract
+                from PIL import Image
 
-                    pdf_document = fitz.open(file_path)
-                    ocr_text_pages = []
+                pdf_document = fitz.open(file_path)
+                ocr_text_pages = []
 
-                    for page_num in range(len(pdf_document)):
-                        page = pdf_document.load_page(page_num)
+                for page_num in range(len(pdf_document)):
+                    page = pdf_document.load_page(page_num)
 
-                        # Convert page to image
-                        pix = page.get_pixmap(
-                            matrix=fitz.Matrix(2, 2)
-                        )  # 2x zoom for better OCR
-                        img_data = pix.tobytes("png")
+                    # Convert page to image
+                    pix = page.get_pixmap(
+                        matrix=fitz.Matrix(2, 2)
+                    )  # 2x zoom for better OCR
+                    img_data = pix.tobytes("png")
 
-                        # Perform OCR
-                        image = Image.open(io.BytesIO(img_data))
-                        text = pytesseract.image_to_string(image)
-                        confidence = pytesseract.image_to_data(
-                            image, output_type=pytesseract.Output.DICT
-                        )
+                    # Perform OCR
+                    image = Image.open(io.BytesIO(img_data))
+                    text = pytesseract.image_to_string(image)
+                    confidence = pytesseract.image_to_data(
+                        image, output_type=pytesseract.Output.DICT
+                    )
 
-                        ocr_text_pages.append(text)
+                    ocr_text_pages.append(text)
 
-                        # Calculate average confidence
-                        if confidence.get("conf"):
-                            avg_confidence = sum(
-                                conf["conf"] for conf in confidence["conf"] if conf > 0
-                            ) / len([c for c in confidence["conf"] if c > 0])
-                            results["confidence_scores"].append(avg_confidence)
+                    # Calculate average confidence
+                    if confidence.get("conf"):
+                        avg_confidence = sum(
+                            conf["conf"] for conf in confidence["conf"] if conf > 0
+                        ) / len([c for c in confidence["conf"] if c > 0])
+                        results["confidence_scores"].append(avg_confidence)
 
-                    results["ocr_text"] = "\n".join(ocr_text_pages)
-                    results["processing_time"] = time.time() - start_time
+                results["ocr_text"] = "\n".join(ocr_text_pages)
+                results["processing_time"] = time.time() - start_time
 
-                    pdf_document.close()
+                pdf_document.close()
 
-                except Exception as e:
-                    logger.error(f"OCR processing failed: {str(e)}")
-                    raise
+            except Exception as e:
+                logger.error(f"OCR processing failed: {str(e)}")
+                raise
 
             return results
 
         except Exception as e:
             logger.error(f"OCR extraction failed: {str(e)}")
             raise
-
-    async def extract_figures(
-        self, document: Document, job: ProcessingJob
-    ) -> Dict[str, Any]:
-        """Extract embedded raster figures + caption heuristics (flag-gated).
-
-        Reclaim-safe: ``extract_figures_for_document`` is idempotent — it
-        delete-before-inserts its ``MultimodalContent`` rows scoped to
-        (document_id, organization_id, extraction_method), so a stale-reclaim
-        replay of ``process_document`` (see ``process_document_upload``) REPLACES
-        the prior run's figure rows rather than appending duplicates (audit
-        #1138). This is the only SQL-row-persisting step in the pipeline.
-        """
-        from src.services.processing.figure_extraction_service import (
-            extract_figures_for_document,
-        )
-
-        if not settings.FIGURE_EXTRACTION_ENABLED:
-            return {"skipped": "disabled"}
-        result = extract_figures_for_document(self.db, document)
-        self.db.commit()
-        return result
 
     async def process_image(
         self, document: Document, job: ProcessingJob
@@ -446,9 +428,6 @@ class MultimodalProcessingService:
             if not IMAGE_PROCESSING_AVAILABLE:
                 return {"error": "Image processing libraries not available"}
 
-            # ponytail: same s3 file_path bug as process_pdf/extract_text_with_ocr
-            # (and the 7 other file_path sites below); fix when image/audio/video
-            # pipelines are actually live.
             file_path = document.file_path
             results = {
                 "width": 0,
@@ -851,16 +830,7 @@ class MultimodalProcessingService:
     async def extract_entities(
         self, document: Document, job: ProcessingJob
     ) -> Dict[str, Any]:
-        """Extract entities from document text.
-
-        Reclaim-safe by construction: this step returns transient ``Entity``
-        objects in its result payload and never ``db.add``s them, so a
-        stale-reclaim replay of ``process_document`` persists no duplicate
-        entity rows here. The row-persisting spaCy/regex entity pipeline lives
-        in ``processing_tasks.process_document_ingestion``, which is made
-        idempotent separately via ``_reset_pipeline_entities``
-        (delete-before-insert on the same document).
-        """
+        """Extract entities from document text"""
         try:
             if not self.entity_service:
                 self.entity_service = EntityExtractionService(self.db)
@@ -908,14 +878,7 @@ class MultimodalProcessingService:
     async def store_entities_in_knowledge_graph(
         self, document: Document, job: ProcessingJob
     ) -> Dict[str, Any]:
-        """Store extracted entities and relationships in the knowledge graph.
-
-        Reclaim-safe: writes land in Neo4j via
-        ``knowledge_graph_service.create_entity`` / ``create_relationship``,
-        both of which MERGE on a canonical identity key (not CREATE), so a
-        stale-reclaim replay converges onto the same nodes/edges instead of
-        duplicating them. This step writes no SQL rows.
-        """
+        """Store extracted entities and relationships in the knowledge graph"""
         try:
             import spacy
 
@@ -1270,37 +1233,6 @@ class MultimodalProcessingService:
                 "overall_score": 0.0,
             }
 
-    def _finalize_job(
-        self, job, document: Document, processing_results: Dict[str, Any]
-    ) -> None:
-        """Mark the ProcessingJob to match the document outcome.
-
-        Completing the job unconditionally marked it COMPLETED even when a step
-        failed and ``update_document_with_results`` set the document FAILED —
-        leaving a job=COMPLETED / document=FAILED split, so a client polling the
-        job status saw a false success. Fail the job when processing did not
-        succeed so the two statuses agree.
-        """
-        if processing_results["success"]:
-            job.complete_job(
-                result={"processing_results": processing_results},
-                artifacts={"processed_files": self.get_processed_files(document)},
-                metrics={
-                    "processing_time_seconds": processing_results["processing_time"]
-                },
-            )
-            logger.info(f"Document processing completed for {document.id}")
-        else:
-            job.fail_job(
-                error_message="; ".join(processing_results["errors"])
-                or "Document processing failed",
-                error_type="processing_error",
-            )
-            logger.warning(
-                f"Document processing failed for {document.id}: "
-                f"{processing_results['errors']}"
-            )
-
     async def update_document_with_results(
         self, document: Document, results: Dict[str, Any]
     ):
@@ -1311,19 +1243,6 @@ class MultimodalProcessingService:
                 "text_content"
             ):
                 document.content_text = results["text_extraction"]["text_content"]
-
-            # Merge figure captions in — must run after content_text is set
-            # above (pipeline A assigns content_text last, not inside the
-            # figure-extraction step itself).
-            captions = (results.get("figure_extraction") or {}).get("captions_text")
-            if captions:
-                from src.services.processing.figure_extraction_service import (
-                    merge_captions_into_text,
-                )
-
-                document.content_text = merge_captions_into_text(
-                    document.content_text, captions
-                )
 
             # Update processing status
             if results["success"]:

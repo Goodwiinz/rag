@@ -10,15 +10,14 @@ from copy import deepcopy
 from dataclasses import replace
 from typing import Any
 
-from src.cli.agent_api_client import (
-    AgentAPIClient,
-    AgentAPIClientError,
-    build_execute_payload,
-)
-from src.cli.agent_cli_renderer import render_event
+from src.cli.agent_api_client import AgentAPIClient
+from src.cli.agent_api_client import AgentAPIClientError
+from src.cli.agent_api_client import build_execute_payload
 from src.cli.auth_loader import resolve_cli_auth
 from src.cli.browser_auth import login_via_browser
-from src.cli.types import CLIEvent, CLISessionState
+from src.cli.agent_cli_renderer import render_event
+from src.cli.types import CLIEvent
+from src.cli.types import CLISessionState
 
 SUGGESTED_MODELS: tuple[str, ...] = ("model-router",)
 
@@ -205,9 +204,7 @@ async def run_turn(
         if event.type == "trace":
             trace_data = deepcopy(event.data)
             thread_id = str(trace_data.get("thread_id") or state.thread_id)
-            cli_session_id = str(
-                trace_data.get("cli_session_id") or state.cli_session_id
-            )
+            cli_session_id = str(trace_data.get("cli_session_id") or state.cli_session_id)
             state = replace(
                 state,
                 thread_id=thread_id,
@@ -279,6 +276,7 @@ async def async_main(
     client = AgentAPIClient(
         base_url=base_url,
         token=resolved_auth.token,
+        organization_id=resolved_auth.organization_id,
     )
 
     state = CLISessionState(debug=debug, cli_session_id=uuid.uuid4().hex)
@@ -310,7 +308,10 @@ async def async_main(
                     emit_line(str(exc))
                     continue
                 if login_result is not None:
-                    client.update_auth(login_result.token)
+                    client.update_auth(
+                        login_result.token,
+                        login_result.organization_id,
+                    )
                 continue
 
             if raw_input.strip().startswith("/"):
@@ -358,6 +359,7 @@ async def login_main(
     client = AgentAPIClient(
         base_url=base_url,
         token=resolved_auth.token,
+        organization_id=resolved_auth.organization_id,
     )
     try:
         try:
@@ -367,7 +369,7 @@ async def login_main(
             return 1
         if result is None:
             return 1
-        client.update_auth(result.token)
+        client.update_auth(result.token, result.organization_id)
         return 0
     finally:
         await client.aclose()
@@ -441,9 +443,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
 
-def apply_command(
-    state: CLISessionState, raw_input: str
-) -> tuple[CLISessionState, str]:
+def apply_command(state: CLISessionState, raw_input: str) -> tuple[CLISessionState, str]:
     text = raw_input.strip()
     if not text.startswith("/"):
         return state, ""
@@ -537,9 +537,7 @@ def apply_command(
         message = f"Model set to {choice}."
         if choice not in SUGGESTED_MODELS:
             suggested = ", ".join(SUGGESTED_MODELS)
-            message += (
-                f" Note: not in suggested list ({suggested}); the server may reject it."
-            )
+            message += f" Note: not in suggested list ({suggested}); the server may reject it."
         return (
             replace(
                 state,

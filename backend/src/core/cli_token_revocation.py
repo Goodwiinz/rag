@@ -6,23 +6,10 @@ be invalidated without deactivating the user. This module records, per user, a
 Redis timestamp before which all CLI tokens are considered revoked; the auth
 chokepoint (get_current_user) rejects a CLI token whose issued-at predates it.
 
-Design: revoke-all-for-user (no per-jti tracking). Availability semantics on a
-revocation-store failure are configurable (audit D7):
-
-* MISS (store reachable, no revoked-before cutoff for the user) -> ALLOW,
-  always. A plain miss must never break CLI auth platform-wide.
-* ERROR (store unreachable / Redis raises / no client) -> governed by
-  ``CLI_TOKEN_REVOCATION_FAIL_CLOSED``. Default False keeps the historical
-  FAIL-OPEN (allow) so a Redis outage never breaks CLI auth; flip to True to
-  FAIL-CLOSED (deny) so an outage or failover can no longer silently
-  un-revoke every revoked CLI token. Either way the unavailability is logged
-  loudly.
-
-A Redis *flush* wipes the cutoff key and thus reads as a MISS (not an error),
-so fail-closed alone cannot catch it; exposure from a lost cutoff is instead
-bounded by the CLI-token max-age cap enforced at the auth chokepoint
-(``get_current_user_token``) — the token ages out within the configured
-lifetime rather than staying valid forever.
+Design (approved): revoke-all-for-user (no per-jti tracking) + FAIL-OPEN — if
+Redis is unavailable the check passes (the token stays signature/exp valid), so
+a Redis outage never breaks CLI auth platform-wide; revocation is best-effort
+and effective as soon as Redis is reachable again.
 """
 
 from __future__ import annotations
@@ -92,60 +79,26 @@ async def revoke_user_cli_tokens(user_id: str) -> None:
         _reset_client()
 
 
-def _store_unavailable(user_id: str, reason: str) -> bool:
-    """Decide the verdict when the revocation store is UNREACHABLE (an error,
-    not a miss) and log the unavailability loudly.
+async def is_cli_token_revoked(
+    user_id: str, issued_at: Optional[datetime]
+) -> bool:
+    """True iff the CLI token (minted at ``issued_at``) has been revoked.
 
-    Returns the value ``is_cli_token_revoked`` should yield: ``True`` (treat as
-    revoked / deny) when ``CLI_TOKEN_REVOCATION_FAIL_CLOSED`` is set, else
-    ``False`` (fail-open / allow). Kept separate from a plain miss so a missing
-    key never denies. (audit D7)
-    """
-    fail_closed = bool(getattr(settings, "CLI_TOKEN_REVOCATION_FAIL_CLOSED", False))
-    if fail_closed:
-        logger.error(
-            "CLI revocation store unavailable (%s) for user %s; failing CLOSED "
-            "(denying token) per CLI_TOKEN_REVOCATION_FAIL_CLOSED",
-            reason,
-            user_id,
-        )
-        return True
-    logger.warning(
-        "CLI revocation store unavailable (%s) for user %s; failing OPEN "
-        "(allowing token). A revoked token would NOT be rejected while the "
-        "store is down — set CLI_TOKEN_REVOCATION_FAIL_CLOSED=true to harden.",
-        reason,
-        user_id,
-    )
-    return False
-
-
-async def is_cli_token_revoked(user_id: str, issued_at: Optional[datetime]) -> bool:
-    """True iff the CLI token (minted at ``issued_at``) should be rejected.
-
-    * ``issued_at is None`` -> False (nothing to compare; not revoked).
-    * MISS (store reachable, no cutoff key) -> False (not revoked).
-    * Token minted before the user's revoked-before cutoff -> True (revoked).
-    * ERROR (no Redis client / Redis raises) -> fail-open (False) by default,
-      or fail-closed (True) when ``CLI_TOKEN_REVOCATION_FAIL_CLOSED`` is set.
+    Fail-open: any Redis error / missing key / missing issued_at -> not revoked.
     """
     if issued_at is None:
         return False
     client = await _get_redis()
     if client is None:
-        return _store_unavailable(user_id, "no Redis client")
+        return False
     try:
         raw = await client.get(_KEY.format(user_id=user_id))
-    except Exception as e:  # noqa: BLE001 - error, not a miss
-        _reset_client()
-        return _store_unavailable(user_id, f"read failed: {e}")
-    if raw is None:
-        return False  # miss: no cutoff for this user -> not revoked
-    try:
+        if raw is None:
+            return False
         cutoff = int(raw)
-    except (TypeError, ValueError) as e:
-        # A corrupt cutoff value is a store fault, not a miss: treat as error.
+        iat = int(issued_at.replace(tzinfo=issued_at.tzinfo or timezone.utc).timestamp())
+        return iat < cutoff
+    except Exception as e:  # noqa: BLE001 - fail open
+        logger.warning("CLI revocation check failed for user %s: %s", user_id, e)
         _reset_client()
-        return _store_unavailable(user_id, f"corrupt cutoff {raw!r}: {e}")
-    iat = int(issued_at.replace(tzinfo=issued_at.tzinfo or timezone.utc).timestamp())
-    return iat < cutoff
+        return False

@@ -12,10 +12,8 @@ from uuid import UUID
 
 import structlog
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.database import AsyncSessionLocal
 from src.models.citation import Citation
 from src.models.document import Document
 from src.models.draft_citation import DraftCitation
@@ -31,7 +29,6 @@ class DraftGenerationStatus:
     ANALYZING = "analyzing"
     GENERATING = "generating"
     CITING = "citing"
-    REVIEWING = "reviewing"
     FINALIZING = "finalizing"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -109,7 +106,7 @@ class DraftGenerationService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self._openai_client, self._openai_model = self._init_openai_client()
+        self._openai_client = self._init_openai_client()
 
     async def generate_draft(
         self,
@@ -136,22 +133,8 @@ class DraftGenerationService:
         Returns:
             Generation status with task ID
         """
-        # Reuse an in-flight generation for this project instead of racing it
-        # for the same version number. ponytail: process-local pre-check; the
-        # uq_draft_version constraint (handled below) is the cross-process
-        # backstop.
-        active = self.get_latest_status(project_id, active_only=True)
-        if active:
-            return {
-                "task_id": active["task_id"],
-                "status": active["status"],
-                "message": "Draft generation already in progress",
-            }
-
         # Use MD5 for non-security task ID generation (usedforsecurity=False)
-        task_id = hashlib.md5(
-            f"{project_id}:{time.time()}".encode(), usedforsecurity=False
-        ).hexdigest()[:12]
+        task_id = hashlib.md5(f"{project_id}:{time.time()}".encode(), usedforsecurity=False).hexdigest()[:12]
 
         # Initialize status
         _generation_status[task_id] = {
@@ -184,29 +167,6 @@ class DraftGenerationService:
             "message": "Draft generation started",
         }
 
-    @staticmethod
-    def _build_project_documents_query(project_id, document_ids):
-        """Build the document-fetch query, always constrained to the project's
-        collection. With document_ids, results are the intersection of those ids
-        and the project's documents — foreign/other-org ids are dropped rather
-        than read (tenant isolation)."""
-        from src.models.collection import CollectionDocument
-
-        query = (
-            select(Document)
-            .join(CollectionDocument, Document.id == CollectionDocument.document_id)
-            .where(
-                CollectionDocument.collection_id == project_id,
-                # Soft-deleted docs keep their junction row; without this
-                # filter retracted/removed papers get synthesized into the
-                # draft and cited (sibling read paths already guard it).
-                Document.is_deleted.is_(False),
-            )
-        )
-        if document_ids:
-            query = query.where(Document.id.in_(document_ids))
-        return query
-
     async def _generate_draft_async(
         self,
         task_id: str,
@@ -223,64 +183,47 @@ class DraftGenerationService:
         document_count = 0
 
         try:
-            # Owns its own sessions: generate_draft() fire-and-forgets this
-            # coroutine and returns immediately, so the caller's session
-            # (self.db, request-scoped) is typically closed before this task's
-            # first DB call runs. Never use self.db in this method.
-            #
-            # Split into two session windows rather than one spanning the
-            # whole method: _build_draft_content's LLM call can take up to
-            # 60s, and holding a pooled connection idle for that long starved
-            # the pool. Window 1 only fetches the source documents; window 2
-            # (opened after the draft content is built) covers the citation
-            # reviewer, version lookup, and persistence/commit. Document rows
-            # stay usable across the gap: expire_on_commit=False (see
-            # src/core/database.py) means their already-loaded attributes
-            # survive session close.
-            async with AsyncSessionLocal() as db:
-                # Phase 1: Analyzing documents
+            # Phase 1: Analyzing documents
+            self._update_status(
+                task_id, DraftGenerationStatus.ANALYZING, 10, "Analyzing documents"
+            )
+
+            # Get documents for the project
+            if document_ids:
+                docs_query = select(Document).where(Document.id.in_(document_ids))
+            else:
+                # Get all documents in project through collection_documents
+                from src.models.collection import CollectionDocument
+
+                docs_query = (
+                    select(Document)
+                    .join(CollectionDocument, Document.id == CollectionDocument.document_id)
+                    .where(CollectionDocument.collection_id == project_id)
+                )
+
+            result = await self.db.execute(docs_query)
+            documents = result.scalars().all()
+            document_count = len(documents)
+
+            if not documents:
                 self._update_status(
-                    task_id,
-                    DraftGenerationStatus.ANALYZING,
-                    10,
-                    "Analyzing documents",
+                    task_id, DraftGenerationStatus.FAILED, 0, "No documents found"
                 )
-
-                # Get documents for the project. Always scope through the project's
-                # collection so a client-supplied document_ids list cannot pull in
-                # another org's (or another project's) documents — project_id is
-                # already verified as the caller's, and joining collection_documents
-                # drops any id not actually in this project. (Previously the
-                # document_ids branch fetched by id with no scope → cross-tenant
-                # document-content leak into the generated draft.)
-                docs_query = self._build_project_documents_query(
-                    project_id, document_ids
+                self._record_generation_metrics(
+                    status=DraftGenerationStatus.FAILED,
+                    num_documents=document_count,
                 )
-
-                result = await db.execute(docs_query)
-                documents = result.scalars().all()
-                document_count = len(documents)
-
-                if not documents:
-                    self._update_status(
-                        task_id, DraftGenerationStatus.FAILED, 0, "No documents found"
-                    )
-                    self._record_generation_metrics(
-                        status=DraftGenerationStatus.FAILED,
-                        num_documents=document_count,
-                    )
-                    return
+                return
 
             await asyncio.sleep(0.5)  # Simulate processing
 
-            # Phase 2: Generating content — no DB session held here; this is
-            # the ~60s LLM call the window split above exists for.
+            # Phase 2: Generating content
             self._update_status(
                 task_id, DraftGenerationStatus.GENERATING, 30, "Generating content"
             )
 
             # Build draft content
-            draft_content, used_fallback = await self._build_draft_content(
+            draft_content = await self._build_draft_content(
                 documents=documents,
                 themes=themes,
                 style=style,
@@ -303,121 +246,85 @@ class DraftGenerationService:
                 draft_content, documents
             )
 
-            async with AsyncSessionLocal() as db:
-                citation_review: Optional[Dict[str, Any]] = None
-                from src.core.config import settings
+            # Phase 4: Finalizing
+            self._update_status(
+                task_id, DraftGenerationStatus.FINALIZING, 90, "Finalizing draft"
+            )
 
-                if settings.DRAFT_CITATION_REVIEW_ENABLED and citations_data:
-                    self._update_status(
-                        task_id,
-                        DraftGenerationStatus.REVIEWING,
-                        85,
-                        "Verifying citations",
-                    )
-                    try:
-                        from src.services.research.citation_verification_service import (
-                            CitationVerificationService,
-                        )
+            # Get next version number
+            version_query = select(func.max(GeneratedDraft.version)).where(
+                GeneratedDraft.project_id == project_id
+            )
+            result = await self.db.execute(version_query)
+            max_version = result.scalar() or 0
+            new_version = max_version + 1
 
-                        citation_review = await CitationVerificationService(
-                            db
-                        ).verify_draft_citations(draft_content, documents)
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception as exc:
-                        # Reviewer failure must never fail the draft.
-                        logger.warning(
-                            "citation_review_failed", task_id=task_id, error=str(exc)
-                        )
-                        citation_review = {"error": str(exc)}
+            # Mark previous drafts as not current
+            await self.db.execute(
+                GeneratedDraft.__table__.update()
+                .where(GeneratedDraft.project_id == project_id)
+                .values(is_current=False)
+            )
 
-                # Phase 4: Finalizing
-                self._update_status(
-                    task_id, DraftGenerationStatus.FINALIZING, 90, "Finalizing draft"
+            # Create the draft
+            draft = GeneratedDraft(
+                project_id=project_id,
+                version=new_version,
+                title=f"Literature Review - {', '.join(themes[:3])}",
+                content=draft_content,
+                themes=themes,
+                word_count=len(draft_content.split()),
+                citation_count=len(citations_data),
+                generation_params={
+                    "style": style,
+                    "max_sections": max_sections,
+                    "include_abstract": include_abstract,
+                    "document_count": len(documents),
+                },
+                is_current=True,
+            )
+
+            self.db.add(draft)
+            await self.db.flush()
+
+            # Create draft citations
+            for idx, citation_data in enumerate(citations_data):
+                draft_citation = DraftCitation(
+                    draft_id=draft.id,
+                    citation_index=idx + 1,
+                    document_id=citation_data.get("document_id"),
+                    citation_id=citation_data.get("citation_id"),
+                    snippet=citation_data.get("snippet", ""),
+                    context=citation_data.get("context", ""),
                 )
+                self.db.add(draft_citation)
 
-                # Get next version number
-                version_query = select(func.max(GeneratedDraft.version)).where(
-                    GeneratedDraft.project_id == project_id
-                )
-                result = await db.execute(version_query)
-                max_version = result.scalar() or 0
-                new_version = max_version + 1
+            await self.db.commit()
 
-                # Mark previous drafts as not current
-                await db.execute(
-                    GeneratedDraft.__table__.update()
-                    .where(GeneratedDraft.project_id == project_id)
-                    .values(is_current=False)
-                )
+            # Mark complete
+            duration = time.time() - start_time
+            self._update_status(
+                task_id,
+                DraftGenerationStatus.COMPLETED,
+                100,
+                "Draft completed",
+                draft_id=str(draft.id),
+                duration=duration,
+            )
 
-                # Create the draft
-                draft = GeneratedDraft(
-                    project_id=project_id,
-                    version=new_version,
-                    title=f"Literature Review - {', '.join(themes[:3])}",
-                    content=draft_content,
-                    themes=themes,
-                    word_count=len(draft_content.split()),
-                    citation_count=len(citations_data),
-                    generation_params={
-                        "style": style,
-                        "max_sections": max_sections,
-                        "include_abstract": include_abstract,
-                        "document_count": len(documents),
-                        # Mark template-fallback drafts so a degraded
-                        # generation is distinguishable from a real one.
-                        **({"fallback_template": True} if used_fallback else {}),
-                        **(
-                            {"citation_review": citation_review}
-                            if citation_review is not None
-                            else {}
-                        ),
-                    },
-                    is_current=True,
-                )
-
-                db.add(draft)
-                await db.flush()
-
-                # Create draft citations
-                for idx, citation_data in enumerate(citations_data):
-                    draft_citation = DraftCitation(
-                        draft_id=draft.id,
-                        citation_index=idx + 1,
-                        document_id=citation_data.get("document_id"),
-                        citation_id=citation_data.get("citation_id"),
-                        snippet=citation_data.get("snippet", ""),
-                        context=citation_data.get("context", ""),
-                    )
-                    db.add(draft_citation)
-
-                await db.commit()
-
-                # Mark complete
-                duration = time.time() - start_time
-                self._update_status(
-                    task_id,
-                    DraftGenerationStatus.COMPLETED,
-                    100,
-                    "Draft completed",
-                    draft_id=str(draft.id),
-                    duration=duration,
-                )
-
-                logger.info(
-                    "draft_generated",
-                    project_id=str(project_id),
-                    draft_id=str(draft.id),
-                    version=new_version,
-                    word_count=draft.word_count,
-                    duration_seconds=duration,
-                )
-                self._record_generation_metrics(
-                    status=DraftGenerationStatus.COMPLETED,
-                    duration=duration,
-                    num_documents=document_count,
-                )
+            logger.info(
+                "draft_generated",
+                project_id=str(project_id),
+                draft_id=str(draft.id),
+                version=new_version,
+                word_count=draft.word_count,
+                duration_seconds=duration,
+            )
+            self._record_generation_metrics(
+                status=DraftGenerationStatus.COMPLETED,
+                duration=duration,
+                num_documents=document_count,
+            )
 
         except asyncio.CancelledError:
             self._update_status(
@@ -426,25 +333,6 @@ class DraftGenerationService:
             logger.info("draft_generation_cancelled", task_id=task_id)
             self._record_generation_metrics(
                 status=DraftGenerationStatus.CANCELLED,
-                duration=time.time() - start_time,
-                num_documents=document_count,
-            )
-
-        except IntegrityError as e:
-            # Lost the uq_draft_version race to a concurrent generation —
-            # surface a readable status instead of the raw psycopg error.
-            self._update_status(
-                task_id,
-                DraftGenerationStatus.FAILED,
-                0,
-                "Another draft generation for this project finished first. "
-                "Retry to generate a new version.",
-            )
-            logger.warning(
-                "draft_generation_version_conflict", task_id=task_id, error=str(e)
-            )
-            self._record_generation_metrics(
-                status=DraftGenerationStatus.FAILED,
                 duration=time.time() - start_time,
                 num_documents=document_count,
             )
@@ -461,19 +349,20 @@ class DraftGenerationService:
             )
 
     @staticmethod
-    def _init_openai_client() -> Tuple[Optional[Any], str]:
-        """Azure-first client selection (extraction_matrix pattern).
-        Returns (client, model); (None, "") when no key is configured →
-        template fallback."""
+    def _init_openai_client() -> Optional[Any]:
+        """Initialize OpenAI client if API key is available."""
         try:
-            from src.services.research.extraction_matrix_service import (
-                ExtractionMatrixService,
-            )
+            from src.core.config import settings
 
-            return ExtractionMatrixService._get_openai_client()
-        except Exception as exc:  # RuntimeError = no key configured
+            api_key = getattr(settings, "OPENAI_API_KEY", None)
+            if not api_key:
+                return None
+            import openai
+
+            return openai.AsyncOpenAI(api_key=api_key)
+        except Exception as exc:
             logger.warning("openai_client_init_failed", error=str(exc))
-            return None, ""
+            return None
 
     async def _build_draft_content(
         self,
@@ -482,21 +371,17 @@ class DraftGenerationService:
         style: str,
         max_sections: int,
         include_abstract: bool,
-    ) -> Tuple[str, bool]:
-        """Build draft content using LLM, falling back to template on failure.
-
-        Returns (content, used_fallback) so callers can mark degraded drafts.
-        """
+    ) -> str:
+        """Build draft content using LLM, falling back to template on failure."""
         if self._openai_client is not None:
             try:
-                content = await self._build_draft_with_llm(
+                return await self._build_draft_with_llm(
                     documents=documents,
                     themes=themes,
                     style=style,
                     max_sections=max_sections,
                     include_abstract=include_abstract,
                 )
-                return content, False
             except Exception as exc:
                 logger.warning(
                     "llm_draft_generation_failed",
@@ -504,15 +389,12 @@ class DraftGenerationService:
                     fallback="template",
                 )
 
-        return (
-            self._build_draft_template(
-                documents=documents,
-                themes=themes,
-                style=style,
-                max_sections=max_sections,
-                include_abstract=include_abstract,
-            ),
-            True,
+        return self._build_draft_template(
+            documents=documents,
+            themes=themes,
+            style=style,
+            max_sections=max_sections,
+            include_abstract=include_abstract,
         )
 
     async def _build_draft_with_llm(
@@ -536,9 +418,7 @@ class DraftGenerationService:
             title = doc.title or f"Untitled Document {idx}"
             doc_contexts.append(f'[Doc {idx}] "{title}" — {snippet}')
 
-        style_instruction = self._STYLE_PROMPTS.get(
-            style, self._STYLE_PROMPTS["academic"]
-        )
+        style_instruction = self._STYLE_PROMPTS.get(style, self._STYLE_PROMPTS["academic"])
         abstract_instruction = (
             "Include an Abstract section at the beginning."
             if include_abstract
@@ -565,22 +445,16 @@ class DraftGenerationService:
             + "\n\nGenerate the literature review now."
         )
 
-        create_kwargs: Dict[str, Any] = {
-            "model": self._openai_model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-        }
-        # gpt-5 family rejects temperature and max_tokens (Azure 400s);
-        # mirrors azure_openai_service.py's gpt-5 handling.
-        if self._openai_model.startswith("gpt-5"):
-            create_kwargs["max_completion_tokens"] = 4000
-        else:
-            create_kwargs["max_tokens"] = 4000
-            create_kwargs["temperature"] = 0.7
         response = await asyncio.wait_for(
-            self._openai_client.chat.completions.create(**create_kwargs),
+            self._openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.7,
+                max_tokens=4000,
+            ),
             timeout=60.0,
         )
 
@@ -769,9 +643,7 @@ Key takeaways include the importance of continued investigation and the potentia
             ]:
                 _generation_status[task_id]["status"] = DraftGenerationStatus.CANCELLED
                 _generation_status[task_id]["current_step"] = "Cancelled by user"
-                _generation_status[task_id][
-                    "updated_at"
-                ] = datetime.utcnow().isoformat()
+                _generation_status[task_id]["updated_at"] = datetime.utcnow().isoformat()
                 return True
         return False
 
@@ -960,17 +832,17 @@ Key takeaways include the importance of continued investigation and the potentia
                 "version": draft_a.version,
                 "word_count": draft_a.word_count,
                 "citation_count": draft_a.citation_count,
-                "created_at": (
-                    draft_a.created_at.isoformat() if draft_a.created_at else None
-                ),
+                "created_at": draft_a.created_at.isoformat()
+                if draft_a.created_at
+                else None,
             },
             "version_b": {
                 "version": draft_b.version,
                 "word_count": draft_b.word_count,
                 "citation_count": draft_b.citation_count,
-                "created_at": (
-                    draft_b.created_at.isoformat() if draft_b.created_at else None
-                ),
+                "created_at": draft_b.created_at.isoformat()
+                if draft_b.created_at
+                else None,
             },
             "word_count_diff": draft_b.word_count - draft_a.word_count,
             "citation_count_diff": draft_b.citation_count - draft_a.citation_count,

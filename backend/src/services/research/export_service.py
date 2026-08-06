@@ -485,9 +485,9 @@ class ExportService:
                     citations.append(
                         CitationExport(
                             id=str(cit.id),
-                            document_id=(
-                                str(cit.document_id) if cit.document_id else None
-                            ),
+                            document_id=str(cit.document_id)
+                            if cit.document_id
+                            else None,
                             external_reference_id=cit.external_reference_id,
                             document_title=cit.document_title,
                             document_type=cit.document_type,
@@ -506,16 +506,16 @@ class ExportService:
                     model_name=msg.model_name if options.include_metadata else None,
                     token_count=msg.token_count if options.include_metadata else 0,
                     latency_ms=msg.latency_ms if options.include_metadata else None,
-                    feedback_rating=(
-                        msg.feedback_rating if options.include_feedback else None
-                    ),
-                    feedback_text=(
-                        msg.feedback_text if options.include_feedback else None
-                    ),
+                    feedback_rating=msg.feedback_rating
+                    if options.include_feedback
+                    else None,
+                    feedback_text=msg.feedback_text
+                    if options.include_feedback
+                    else None,
                     citations=citations,
-                    has_attachments=(
-                        msg.has_attachments if options.include_attachments else False
-                    ),
+                    has_attachments=msg.has_attachments
+                    if options.include_attachments
+                    else False,
                 )
             )
 

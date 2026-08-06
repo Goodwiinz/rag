@@ -41,21 +41,16 @@ class BibliographyService:
         Returns:
             BibTeX key (e.g., "smith2023machine")
         """
-        # Use first author's last name. authors/document_title are nullable
-        # (external-reference citations may carry only a DOI/arXiv id) and an
-        # author entry may be an empty string — guard like the ieee/apa/mla
-        # formatters do.
+        # Use first author's last name
         first_author = ""
         if citation.authors and len(citation.authors) > 0:
-            author_words = (citation.authors[0] or "").split()
-            if author_words:
-                first_author = author_words[-1].lower()
+            first_author = citation.authors[0].split()[-1].lower()
 
         # Use year
         year = str(citation.year) if citation.year else "n.d."
 
         # Use first word of title
-        title_words = (citation.document_title or "").lower().split()
+        title_words = citation.document_title.lower().split()
         first_word = title_words[0] if title_words else "paper"
 
         # Remove special characters

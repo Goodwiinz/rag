@@ -17,6 +17,8 @@ services:
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
 
       # Vector Database Configuration (Cloud only)
+      - QDRANT_URL=${QDRANT_URL}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
 
       # Application Configuration
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
@@ -80,11 +82,9 @@ services:
   # Frontend Service
   frontend:
     build:
-      context: .
-      dockerfile: frontend/Dockerfile.prod
-      args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
     ports:
       - "3000:3000"
     environment:
@@ -184,6 +184,8 @@ services:
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
 
       # Vector Database Configuration (Cloud)
+      - QDRANT_URL=${QDRANT_URL}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
 
       # Application Configuration
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}

@@ -43,7 +43,7 @@ export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/multimodal_ra
 # Neo4j (self-hosted in-cluster; prod: bolt://neo4j.gen-text.app)
 export NEO4J_URI="bolt://localhost:7687"
 export NEO4J_USER="neo4j"
-export NEO4J_PASSWORD="neo4j_password_123"
+export NEO4J_PASSWORD="REDACTED"
 
 # DO Knowledge Base (replaces Qdrant for RAG retrieval; off by default, on in eval CI)
 export DO_KB_ENABLED="false"
@@ -52,7 +52,7 @@ export DO_KB_API_KEY="<do_kb_api_key>"
 
 # Redis
 # Dev: local container. Prod: DO Managed Redis (external endpoint).
-export REDIS_URL="redis://:redis_password_123@localhost:6379/0"
+export REDIS_URL="redis://:REDACTED@localhost:6379/0"
 ```
 
 ### Connection Details
@@ -246,10 +246,10 @@ psql -h localhost -p 5432 -U postgres -d multimodal_rag_dev -c "\dt"
 
 ```bash
 # Run Cypher setup
-cypher-shell -a bolt://localhost:7687 -u neo4j -p neo4j_password_123 -f database/init/02_neo4j_setup.cypher
+cypher-shell -a bolt://localhost:7687 -u neo4j -p REDACTED -f database/init/02_neo4j_setup.cypher
 
 # Verify nodes
-cypher-shell -a bolt://localhost:7687 -u neo4j -p neo4j_password_123 "MATCH (n) RETURN count(n) as node_count"
+cypher-shell -a bolt://localhost:7687 -u neo4j -p REDACTED "MATCH (n) RETURN count(n) as node_count"
 ```
 
 #### DO Knowledge Base
@@ -260,8 +260,8 @@ DO KB is provisioned and managed via the DigitalOcean console or API. No local s
 
 ```bash
 # Configure Redis
-redis-cli -h localhost -p 6379 -a redis_password_123 CONFIG SET maxmemory 256mb
-redis-cli -h localhost -p 6379 -a redis_password_123 CONFIG SET maxmemory-policy allkeys-lru
+redis-cli -h localhost -p 6379 -a REDACTED CONFIG SET maxmemory 256mb
+redis-cli -h localhost -p 6379 -a REDACTED CONFIG SET maxmemory-policy allkeys-lru
 ```
 
 ## Health Monitoring
@@ -308,10 +308,10 @@ DO KB health is monitored via the DigitalOcean dashboard. The backend's `DO_KB_E
 
 ```bash
 # Check connectivity
-redis-cli -h localhost -p 6379 -a redis_password_123 ping
+redis-cli -h localhost -p 6379 -a REDACTED ping
 
 # Check memory usage
-redis-cli -h localhost -p 6379 -a redis_password_123 info memory
+redis-cli -h localhost -p 6379 -a REDACTED info memory
 ```
 
 ## Performance Optimization
@@ -388,7 +388,7 @@ DO KB data is managed by DigitalOcean. Use the DO console or API snapshots for b
 
 ```bash
 # Backup
-redis-cli -h localhost -p 6379 -a redis_password_123 BGSAVE
+redis-cli -h localhost -p 6379 -a REDACTED BGSAVE
 
 # Restore
 redis-server --appendonly yes

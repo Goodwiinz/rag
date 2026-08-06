@@ -20,10 +20,11 @@ from src.services.agent.graph import memory_save_node
 
 
 def _config(thread_id: str = "thread-x") -> dict:
-    # Ids-only configurable (audit B8)
+    user = MagicMock()
+    user.id = "user-1"
     return {
         "configurable": {
-            "user_id": "user-1",
+            "current_user": user,
             "thread_id": thread_id,
         }
     }

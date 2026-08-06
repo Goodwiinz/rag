@@ -65,7 +65,7 @@ const defaultAssistants: Assistant[] = [
       'Code review',
       'Documentation',
     ],
-    color: 'from-(--nous-sol) to-(--nous-helios)',
+    color: 'from-[var(--nous-sol)] to-[var(--nous-helios)]',
   },
   {
     id: 'writing',
@@ -130,7 +130,7 @@ const AssistantCard = React.forwardRef<
           'hover:bg-white/20 dark:hover:bg-black/20',
           'hover:shadow-lg hover:shadow-orange-500/10',
           isSelected && [
-            'border-orange-400/50 bg-linear-to-r from-orange-500/10 to-amber-500/10',
+            'border-orange-400/50 bg-gradient-to-r from-orange-500/10 to-amber-500/10',
             'shadow-lg shadow-orange-500/20',
             'ring-2 ring-orange-400/50 ring-offset-2 ring-offset-background',
           ],
@@ -146,12 +146,12 @@ const AssistantCard = React.forwardRef<
             <Avatar className="h-12 w-12 ring-2 ring-background/50">
               <AvatarImage src={assistant.avatar} alt={assistant.name} />
               <AvatarFallback
-                className={`bg-linear-to-br ${assistant.color} text-white font-semibold`}
+                className={`bg-gradient-to-br ${assistant.color} text-white font-semibold`}
               >
                 {assistant.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-linear-to-br from-orange-400 to-amber-500 flex items-center justify-center">
+            <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center">
               <CategoryIcon className="h-2 w-2 text-white" />
             </div>
           </motion.div>
@@ -271,7 +271,7 @@ export function NewChatDialog({
         >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-2xl">
-              <div className="p-2 rounded-lg bg-linear-to-br from-orange-400 to-amber-500 text-white">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-orange-400 to-amber-500 text-white">
                 <Sparkles className="h-5 w-5" />
               </div>
               New Chat
@@ -294,7 +294,7 @@ export function NewChatDialog({
                   placeholder="Search assistants by name, capability, or category..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 h-12 bg-background/50 backdrop-blur-xs border-border/50 focus:border-orange-400/50 transition-colors"
+                  className="pl-10 h-12 bg-background/50 backdrop-blur-sm border-border/50 focus:border-orange-400/50 transition-colors"
                 />
                 {searchQuery && (
                   <Button
@@ -365,7 +365,7 @@ export function NewChatDialog({
               <Button
                 onClick={handleStartChat}
                 disabled={!selectedAssistant || isLoading}
-                className="w-full h-12 bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-lg shadow-orange-500/25 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-12 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-lg shadow-orange-500/25 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>

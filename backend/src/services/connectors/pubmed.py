@@ -46,7 +46,8 @@ def _parse_pubmed_article(article_elem: Any) -> Optional[ConnectorResult]:
         title = title_elem.text if title_elem is not None else f"PMID {pmid}"
 
         abstract_parts = [
-            (e.text or "") for e in article_elem.findall(".//Abstract/AbstractText")
+            (e.text or "")
+            for e in article_elem.findall(".//Abstract/AbstractText")
         ]
         abstract = " ".join(filter(None, abstract_parts))
 
@@ -134,7 +135,11 @@ class PubMedConnector(ExternalDBConnector):
             async with httpx.AsyncClient(timeout=30.0) as client:
                 search_resp = await client.get(_ESEARCH, params=params)
                 search_resp.raise_for_status()
-                pmids = search_resp.json().get("esearchresult", {}).get("idlist", [])
+                pmids = (
+                    search_resp.json()
+                    .get("esearchresult", {})
+                    .get("idlist", [])
+                )
                 if not pmids:
                     return []
 

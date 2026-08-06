@@ -1,13 +1,14 @@
 """
 Comprehensive health checking system for all components.
 """
-
 import asyncio
 import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
+import asyncpg
 import httpx
 import redis.asyncio as aioredis
 from neo4j import GraphDatabase
@@ -104,33 +105,11 @@ class HealthChecker:
                     response_time=0.0,
                 )
 
-            # Reuse the application's async SQLAlchemy engine instead of opening
-            # a fresh raw asyncpg connection per probe. Deployed dev runs behind
-            # Supabase's session-mode pooler (capped at 25 clients), already
-            # consumed by the app + celery engine pools; a per-probe
-            # ``asyncpg.connect()`` pushed it over the cap and readiness failed
-            # with "(EMAXCONNSESSION) max clients reached in session mode".
-            # Borrowing a pooled connection from ``async_engine`` adds zero extra
-            # pooler clients and respects the configured pool limits.
-            try:
-                from sqlalchemy import text
+            conn = await asyncpg.connect(database_url)
 
-                from src.core.database import async_engine
-            except Exception as import_err:
-                # Engine not importable/initialized yet (early boot). The engine
-                # is created at module import in src/core/database.py, so this
-                # path is only hit if that import itself fails. Degrade to
-                # UNKNOWN rather than a false UNHEALTHY — the pod is still
-                # starting, not broken.
-                return HealthCheckResult(
-                    component=component,
-                    status=HealthStatus.UNKNOWN,
-                    message=f"Database engine not initialized: {str(import_err)}",
-                    response_time=time.time() - start_time,
-                )
-
-            async with async_engine.connect() as conn:
-                result = await conn.scalar(text("SELECT 1"))
+            # Test basic query
+            result = await conn.fetchval("SELECT 1")
+            await conn.close()
 
             response_time = time.time() - start_time
 
@@ -179,14 +158,12 @@ class HealthChecker:
                     response_time=0.0,
                 )
 
-            # Build the client straight from the configured URL. The previous
-            # ``if not redis_url.startswith("redis://")`` guard corrupted the
-            # deployed ``rediss://`` (DO Managed Redis, TLS) URL by prepending
-            # "redis://", so from_url parsed the scheme token as the host and
-            # readiness failed with "Error -2 connecting to rediss:6379".
-            # ``from_url`` already understands redis:// / rediss:// (TLS) / auth,
-            # so pass the full URL through untouched.
-            redis = aioredis.from_url(
+            # Parse Redis URL properly using urlparse
+            if not redis_url.startswith("redis://"):
+                redis_url = f"redis://{redis_url}"
+
+            # Use aioredis.from_url with the full URL to handle all URL components
+            redis = await aioredis.from_url(
                 redis_url, encoding="utf-8", decode_responses=True
             )
 
@@ -322,9 +299,9 @@ class HealthChecker:
                     "https://api.anthropic.com/v1/messages", timeout=10.0
                 )
             results["anthropic"] = {
-                "status": (
-                    "healthy" if response.status_code in [200, 401] else "unhealthy"
-                ),  # 401 means API is up but auth failed
+                "status": "healthy"
+                if response.status_code in [200, 401]
+                else "unhealthy",  # 401 means API is up but auth failed
                 "response_time": response.elapsed.total_seconds(),
             }
         except Exception as e:
@@ -623,9 +600,9 @@ class HealthChecker:
                         timeout=10.0,
                     )
                 results["anthropic"] = {
-                    "status": (
-                        "healthy" if response.status_code in [200, 401] else "unhealthy"
-                    ),
+                    "status": "healthy"
+                    if response.status_code in [200, 401]
+                    else "unhealthy",
                     "response_time": response.elapsed.total_seconds(),
                 }
             except Exception as e:

@@ -7,12 +7,13 @@ and decrypt sensitive data using the core encryption utilities.
 
 import json
 import logging
-import os
 from typing import Any, Optional, Type, Union
 
 from sqlalchemy import TEXT, TypeDecorator
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import Mutable, MutableDict
+
+import os
 
 from ..core.encryption import (
     EncryptionError,

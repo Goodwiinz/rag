@@ -85,7 +85,7 @@ export function CreateProjectModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Transformer Architecture Survey"
-              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:border-primary"
+              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
               autoFocus
             />
           </div>
@@ -99,7 +99,7 @@ export function CreateProjectModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Brief description of the research project"
               rows={3}
-              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:border-primary resize-none"
+              className="w-full px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary resize-none"
             />
           </div>
         </div>

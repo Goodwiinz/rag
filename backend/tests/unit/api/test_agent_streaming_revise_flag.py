@@ -29,8 +29,6 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from tests.utils.agent_stream import frames_of_type, make_stream_request
-
 # ---------------------------------------------------------------------------
 # psycopg stub — prevents ImportError on hosts without libpq
 # (stream_event_generator does `from psycopg import OperationalError` lazily)
@@ -106,7 +104,7 @@ _COMMON_PATCHES = [
         AsyncMock(return_value=object()),
     ),
     (
-        "src.api.agent.streaming._persist_user_message_guarded",
+        "src.api.agent.streaming._persist_thread_messages",
         AsyncMock(return_value=None),
     ),
     (
@@ -129,7 +127,7 @@ def _collect_patches(graph):
 
 def _extract_reflection_payload(events: list[str]) -> dict:
     """Find the first ``event: reflection`` SSE frame and parse its JSON payload."""
-    reflection_events = frames_of_type(events, "reflection")
+    reflection_events = [e for e in events if e.startswith("event: reflection\n")]
     assert reflection_events, f"No reflection event in: {events}"
     return json.loads(reflection_events[0].split("data: ", 1)[1].strip())
 
@@ -146,7 +144,12 @@ async def test_stream_event_generator_revising_true_when_major_fail_under_budget
 
     graph = _make_reflection_graph(passed=False, severity="major", reflection_count=1)
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-revise")
+    body = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="hi")],
+        page_context={"type": "general"},
+        thread_id="thread-revise",
+        model=None,
+    )
     current_user = Mock(id="user-1", organization_id="org-1")
 
     patches = _collect_patches(graph)
@@ -174,7 +177,12 @@ async def test_stream_event_generator_revising_false_when_passed():
 
     graph = _make_reflection_graph(passed=True, severity="none", reflection_count=0)
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-pass")
+    body = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="hi")],
+        page_context={"type": "general"},
+        thread_id="thread-pass",
+        model=None,
+    )
     current_user = Mock(id="user-1", organization_id="org-1")
 
     patches = _collect_patches(graph)
@@ -201,7 +209,12 @@ async def test_stream_event_generator_revising_false_when_minor_severity():
 
     graph = _make_reflection_graph(passed=False, severity="minor", reflection_count=0)
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-minor")
+    body = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="hi")],
+        page_context={"type": "general"},
+        thread_id="thread-minor",
+        model=None,
+    )
     current_user = Mock(id="user-1", organization_id="org-1")
 
     patches = _collect_patches(graph)
@@ -227,7 +240,12 @@ async def test_stream_event_generator_revising_false_when_budget_exhausted():
 
     graph = _make_reflection_graph(passed=False, severity="major", reflection_count=2)
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-cap")
+    body = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="hi")],
+        page_context={"type": "general"},
+        thread_id="thread-cap",
+        model=None,
+    )
     current_user = Mock(id="user-1", organization_id="org-1")
 
     patches = _collect_patches(graph)

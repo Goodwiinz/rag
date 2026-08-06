@@ -201,10 +201,10 @@ class StatisticalSignificance(BaseModel):
         """Calculate Cohen's d effect size"""
         pooled_std = math.sqrt(
             (
-                (self.control_n - 1) * control_std**2
-                + (self.treatment_n - 1) * treatment_std**2
+                (control_n - 1) * control_std**2
+                + (treatment_n - 1) * treatment_std**2
             )
-            / (self.control_n + self.treatment_n - 2)
+            / (control_n + treatment_n - 2)
         )
         if pooled_std == 0:
             return 0.0

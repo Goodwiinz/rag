@@ -45,9 +45,7 @@ Nodes are namespaced per subgraph (e.g., `research_llm_node`) to avoid collision
 
 **Reflection.** Each subgraph compiles a `reflection_gate` from `make_reflection_gate()` with an `intent_filter`. Research and writing use `intent_filter={"research"}` / `intent_filter={"writing"}` so the gate evaluates their responses. The data subgraph uses `intent_filter={"research", "writing"}`, which excludes `knowledge_graph` — KG queries are treated as deterministic lookups and skip reflection evaluation.
 
-**Model selection.** Tool-decision turns use the **main** deployment via `_build_llm` (under `AGENT_MAIN_REASONING_EFFORT`); post-tool synthesis turns use `build_synthesis_llm` (cheap tier, `minimal` effort). The split is by *difficulty*, not by node: choosing which tool to call — and with what arguments — over an 8-loop path is the job model tier dominates, while narrating a returned tool result is not.
-
-This is the reverse of the original arrangement, which put tool decisions on `build_lightweight_llm`. That was a workaround for the main deployment being `model-router`, which hit the 30s timeout cap (trace 019e1da5); it stopped being true when the deployment changed, and the cheapest model was left making the hardest decision. Symptom: the research subgraph would answer "shall I ingest it?" in prose instead of calling `ingest_arxiv_papers`, on ~96% of dev runs. Raising `reasoning_effort` on the small tier fixed the symptom in an A/B (4/4 vs a ~4% base rate) — the tier assignment is the underlying cause.
+**Model selection.** Tool-decision turns use `build_lightweight_llm`; post-tool synthesis turns use `build_synthesis_llm`. This is a deliberate cost/latency trade-off; see inline comments in each `_llm_node` for the LangSmith trace references that motivated the split.
 
 ## System prompts
 
