@@ -7,8 +7,6 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 MARKER = "gho_000000000000000000000000000000000000"
 
 
