@@ -367,3 +367,117 @@ async def test_luna_failure_persists_streamed_partial_as_stopped(
     persist_assistant.assert_awaited_once()
     assert persist_assistant.await_args.kwargs["content"] == "partial"
     assert persist_assistant.await_args.kwargs["stopped"] is True
+
+
+class _CancelDuringEmitLuna:
+    """Second chunk's emit is where the cancel lands (see emit patch below)."""
+
+    async def astream(self, _messages, *, config=None):
+        yield AIMessageChunk(content="The ar")
+        yield AIMessageChunk(content="X")
+
+
+async def test_fast_path_cancel_links_partial_and_keeps_prefix(monkeypatch):
+    """Cancel inside the 2nd token's emit: persisted partial must stop at the
+    1st token (prefix invariant), and the run.cancelled payload must name the
+    stopped row (linkage invariant). Mirrors the graph-path guarantees from
+    PR #1350 (audit 2026-08-07, gap 2)."""
+    user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
+    thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4())
+
+    from src.api.agent import streaming as streaming_mod
+    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
+    from src.core.config import get_settings
+    from src.services.agent import agent_execution_service as jobs_mod
+    from src.services.agent import llm_factory
+
+    body = AgentExecuteRequest(
+        messages=[
+            AgentMessage(
+                role="user",
+                content="Explain why rainbows form",
+                client_message_id=uuid4(),
+            )
+        ],
+        page_context={"type": "chat"},
+        use_rag=False,
+        thread_id=str(thread.id),
+    )
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    settings = get_settings()
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_ENABLED", True)
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_MAX_INPUT_CHARS", 8_000)
+    monkeypatch.setattr(
+        llm_factory, "build_fast_path_llm", lambda: _CancelDuringEmitLuna()
+    )
+
+    fake_session = SimpleNamespace(close=AsyncMock())
+    persist_assistant = AsyncMock(return_value="partial-row-id")
+    finalize_calls: list[dict] = []
+
+    async def spy_finalize_run(*_args, **kwargs):
+        finalize_calls.append(kwargs)
+
+    real_emit = streaming_mod._SeqEmitter.emit
+
+    async def emit_then_cancel(self, event_type, data, *args, **kwargs):
+        if (
+            event_type == streaming_mod.AgentStreamEvent.TOKEN
+            and (data or {}).get("content") == "X"
+        ):
+            raise asyncio.CancelledError()
+        return await real_emit(self, event_type, data, *args, **kwargs)
+
+    with (
+        patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_session),
+        patch.object(streaming_mod, "_accept_eligible", return_value=False),
+        patch.object(
+            streaming_mod,
+            "_resolve_thread",
+            new=AsyncMock(return_value=(thread, str(thread.conversation_id))),
+        ),
+        patch.object(
+            streaming_mod,
+            "_persist_user_message_guarded",
+            new=AsyncMock(return_value=True),
+        ),
+        patch.object(
+            jobs_mod, "_persist_assistant_message_safe", new=persist_assistant
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "start_stream",
+            new=AsyncMock(return_value=None),
+        ),
+        patch.object(streaming_mod._SeqEmitter, "emit", emit_then_cancel),
+        patch.object(streaming_mod, "_finalize_run", spy_finalize_run),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            async for _event in streaming_mod.stream_event_generator(
+                body, request, user
+            ):
+                pass
+
+    # Prefix invariant: the chunk whose emit was cancelled must NOT be
+    # persisted — only the first, fully-buffered token.
+    persist_assistant.assert_awaited_once()
+    assert persist_assistant.await_args.kwargs["content"] == "The ar"
+    assert persist_assistant.await_args.kwargs["stopped"] is True
+
+    # Linkage invariant: the run.cancelled payload names the stopped row.
+    from src.services.agent.run_event_types import RunEventType, validate_payload
+
+    cancelled = [
+        c for c in finalize_calls if c.get("event_type") is RunEventType.RUN_CANCELLED
+    ]
+    assert cancelled, f"expected run.cancelled finalize, got {finalize_calls!r}"
+    # cancel_fast_path's own _finalize_run call is first and authoritative:
+    # its CancelledError re-raise also trips stream_event_generator's outer,
+    # route-agnostic CancelledError handler, which issues its own (unlinked)
+    # finalize call second. In production that second call is a no-op —
+    # finalize_submission's terminal-status guard and append_event's
+    # RunAlreadyTerminalError absorb it — but this spy bypasses that
+    # idempotency layer, so assert on the first, actually-persisted call.
+    payload = cancelled[0]["payload"]
+    assert payload.get("assistant_message_id") == "partial-row-id"
+    validate_payload(RunEventType.RUN_CANCELLED.value, payload)

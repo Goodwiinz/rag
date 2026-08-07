@@ -727,6 +727,20 @@ async def finalize_submission(
     }
     if status in TERMINAL_JOB_STATUSES:
         values["completed_at"] = now
+    # Project the transcript linkage onto the run row itself. Terminal
+    # payloads (run.completed / run.cancelled) carry the persisted assistant
+    # row id; without this the AgentRun.assistant_message_id FK stays NULL
+    # forever and consumers must dig through event JSONB. Guarded to valid
+    # UUIDs: the column is a GUID FK and unit-test doubles pass opaque ids.
+    raw_assistant_id = (payload or {}).get("assistant_message_id")
+    if raw_assistant_id:
+        try:
+            values["assistant_message_id"] = UUID(str(raw_assistant_id))
+        except (ValueError, AttributeError, TypeError):
+            logger.debug(
+                "finalize_submission: non-UUID assistant_message_id %r ignored",
+                raw_assistant_id,
+            )
     try:
         await db.execute(
             update(AgentRun)

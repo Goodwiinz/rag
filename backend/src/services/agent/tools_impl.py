@@ -1590,11 +1590,13 @@ async def _tool_search_documents(
         result = await db.execute(stmt)
         docs = result.scalars().all()
 
+        from src.services.agent._pii_redact import redact_pii
+
         return {
             "documents": [
                 {
                     "id": str(d.id),
-                    "title": d.title,
+                    "title": redact_pii(d.title) if d.title else d.title,
                     "type": d.document_type.value if d.document_type else None,
                     "status": (
                         d.processing_status.value if d.processing_status else None

@@ -313,13 +313,18 @@ async def _stream_luna_fast_path(
             db, current_user, request_body, tombstoned_out=tombstones
         )
 
+    # Declared here so cancel_fast_path can link the cancelled run to the
+    # stopped partial row it persists — same contract as the graph path.
+    persisted_partial_id: Optional[str] = None
+
     async def persist_partial() -> None:
+        nonlocal persisted_partial_id
         if assistant_saved:
             return
         partial = "".join(parts)
         if not partial:
             return
-        await _jobs_mod._persist_assistant_message_safe(
+        persisted_partial_id = await _jobs_mod._persist_assistant_message_safe(
             thread_id=resolved_thread_id,
             content=partial,
             model_name=deployment,
@@ -336,16 +341,22 @@ async def _stream_luna_fast_path(
         with contextlib.suppress(BaseException):
             await emitter.finish()
         with contextlib.suppress(BaseException):
+            cancelled_payload: Dict[str, Any] = {
+                "reason": "client_disconnected",
+                "request_id": emitter.trace_id,
+            }
+            # Link the run to the stopped partial row persisted just above,
+            # so a cancelled run can still name the message holding its
+            # output. Omitted when nothing streamed before the abort.
+            if persisted_partial_id:
+                cancelled_payload["assistant_message_id"] = persisted_partial_id
             await _finalize_run(
                 db,
                 acceptance,
                 current_user,
                 status=JobStatus.CANCELLED,
                 event_type=RunEventType.RUN_CANCELLED,
-                payload={
-                    "reason": "client_disconnected",
-                    "request_id": emitter.trace_id,
-                },
+                payload=cancelled_payload,
             )
 
     try:
@@ -384,11 +395,15 @@ async def _stream_luna_fast_path(
                         {"phase": "writing", "detail": "Luna is responding"},
                     )
                     writing_emitted = True
-                parts.append(text)
+                # Buffer BEFORE recording for persistence — same ordering
+                # invariant as the graph path: the stopped partial must stay
+                # a prefix of the buffered stream, so a cancellation inside
+                # this await can only lose the last chunk, never invent one.
                 frame = await emitter.emit(
                     AgentStreamEvent.TOKEN,
                     {"content": text},
                 )
+                parts.append(text)
                 if not client_disconnected:
                     yield frame
                 if await request.is_disconnected():

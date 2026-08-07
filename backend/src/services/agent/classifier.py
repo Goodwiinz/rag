@@ -463,6 +463,26 @@ async def classify_intent_with_fallback(
                 source="fallback",
             )
 
+        if (
+            llm_result.intent != "general"
+            and llm_result.confidence >= _SPECIALIZED_LLM_MIN_CONFIDENCE
+            and llm_result.confidence > keyword_result.confidence
+        ):
+            # Both signals are weak, but the LLM's specialized verdict is
+            # the stronger one. Returning the keyword hit here (the pre-#1305
+            # behavior for nonzero keyword scores) routes on the weaker
+            # evidence — e.g. a 0.5 keyword hit outvoting a 0.62 LLM verdict.
+            logger.info(
+                "Accepted specialised LLM intent '%s' at %.2f over keyword "
+                "'%s' at %.2f",
+                llm_result.intent,
+                llm_result.confidence,
+                keyword_result.intent,
+                keyword_result.confidence,
+                extra={"classifier_decision": "accepted_stronger_specialized"},
+            )
+            return llm_result
+
         logger.info(
             "LLM confidence %.2f < %.2f for ambiguous query, using keyword result",
             llm_result.confidence,

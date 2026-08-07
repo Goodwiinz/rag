@@ -561,6 +561,59 @@ class TestFallbackClassifier:
 
         assert route_by_intent({"intent": result.intent}) == "writing_subgraph"
 
+    async def test_stronger_specialized_llm_beats_weaker_keyword(self):
+        """Keyword 0.5 ('summarize' hits writing at score 2) vs LLM writing 0.62:
+        the LLM verdict is specialized, >= 0.60, and more confident — it must win
+        (audit 2026-08-07, gap 5; residual half of #1305)."""
+        from src.services.agent.classifier import (
+            ClassificationResult,
+            classify_intent_with_fallback,
+        )
+
+        llm_result = ClassificationResult(
+            intent="writing",
+            confidence=0.62,
+            reasoning="Summarization request.",
+            source="llm",
+        )
+
+        # "Summarize this paper" → keyword writing @ 0.5 (score 2), below 0.7,
+        # so the LLM escalation runs.
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+            return_value=llm_result,
+        ):
+            result = await classify_intent_with_fallback("Summarize this paper", {})
+
+        assert result.intent == "writing"
+        assert result.confidence == pytest.approx(0.62)
+        assert result.source == "llm"
+
+    async def test_stronger_keyword_still_beats_weaker_llm(self):
+        """Keyword above the LLM's confidence keeps winning — no regression."""
+        from src.services.agent.classifier import (
+            ClassificationResult,
+            classify_intent_with_fallback,
+        )
+
+        llm_result = ClassificationResult(
+            intent="research",
+            confidence=0.45,
+            reasoning="weak guess",
+            source="llm",
+        )
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+            return_value=llm_result,
+        ):
+            result = await classify_intent_with_fallback("Summarize this paper", {})
+
+        assert result.intent == "writing"
+        assert result.source == "keyword"
+
 
 # ---------------------------------------------------------------------------
 # Prior tool context (retry-routing fix)
