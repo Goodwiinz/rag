@@ -3,6 +3,7 @@
 Consumed only by tasks added after 2026-08-07; the three original tasks
 are digest-pinned and keep their inline copies.
 """
+
 import json
 import os
 import sys
@@ -45,7 +46,9 @@ def run_verifier_main(benchmark_id, gate_fn, report_extra_fn=None):
     try:
         inputs = load_inputs(
             os.environ.get("EVIDENCE_PATH", "/logs/agent/evidence.json"),
-            live_reader=gate_fn.live_reader if hasattr(gate_fn, "live_reader") else None,
+            live_reader=(
+                gate_fn.live_reader if hasattr(gate_fn, "live_reader") else None
+            ),
         )
         failures = gate_fn(inputs["evidence"], inputs["state"])
         report = {

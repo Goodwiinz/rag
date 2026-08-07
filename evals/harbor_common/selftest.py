@@ -3,6 +3,7 @@
 
 Run with: cd /root/rag-verify && python evals/harbor_common/selftest.py
 """
+
 from __future__ import annotations
 
 import json
@@ -39,7 +40,13 @@ def test_json_safe_nested_with_datetime() -> None:
     assert out["when"] == "2026-08-07T12:30:45Z", out["when"]
     assert out["naive"] == "2026-08-07T12:30:45Z", out["naive"]
     assert out["id"] == "00000000-0000-4000-8000-000000000101", out["id"]
-    assert out["nested"]["items"] == [1, "two", None, True, {"deep": "2026-08-07T12:30:45Z"}]
+    assert out["nested"]["items"] == [
+        1,
+        "two",
+        None,
+        True,
+        {"deep": "2026-08-07T12:30:45Z"},
+    ]
     assert out["tuple"] == [1, 2], out["tuple"]
     # Unknown objects degrade to str, never explode.
     assert isinstance(json_safe(object()), str)

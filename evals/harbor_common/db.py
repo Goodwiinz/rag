@@ -9,6 +9,7 @@ Every backend import (`src.core.*`, `src.models.*`) is deliberately made
 environment where the NOUS backend and its DB drivers are not installed, so
 that syntax/import checks and unit tests of the pure helpers can run anywhere.
 """
+
 from __future__ import annotations
 
 from typing import Any

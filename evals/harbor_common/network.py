@@ -5,6 +5,7 @@ digest-pinned and keep their inline copies. `validate_network_boundary` is the
 parameterized port of the probe block in
 `evals/agent-direct-project-action-v1/environment/run_agent.py`.
 """
+
 from __future__ import annotations
 
 import socket
@@ -98,8 +99,6 @@ async def validate_network_boundary(
         result[key] = outcome
         extra_results.append(outcome)
 
-    if not all(
-        [direct_blocked, allowed_reachable, unrelated_blocked, *extra_results]
-    ):
+    if not all([direct_blocked, allowed_reachable, unrelated_blocked, *extra_results]):
         raise InfrastructureFailure(f"network boundary check failed: {result}")
     return result

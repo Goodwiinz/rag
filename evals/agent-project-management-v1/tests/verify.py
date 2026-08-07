@@ -371,9 +371,7 @@ def check_milestone_order(evidence: dict[str, Any], failures: list[str]) -> None
     if read_back is None:
         failures.append(f"missing milestone {READ_BACK_TOOL}_success")
     elif approvals and read_back < max(approvals):
-        failures.append(
-            f"{READ_BACK_TOOL} succeeded before the last approved mutation"
-        )
+        failures.append(f"{READ_BACK_TOOL} succeeded before the last approved mutation")
 
 
 def check_no_mutation_before_approval(
@@ -402,7 +400,9 @@ def check_no_mutation_before_approval(
         ]
         approval_times = sorted(time for time in approvals if time is not None)
         for index, snapshot in enumerate(snapshots):
-            state = (snapshot or {}).get("state") if isinstance(snapshot, dict) else None
+            state = (
+                (snapshot or {}).get("state") if isinstance(snapshot, dict) else None
+            )
             if not isinstance(state, dict):
                 failures.append(
                     f"pre-approval snapshot {index + 1} carries no database state"
@@ -621,7 +621,9 @@ def db_snapshot(evidence: dict[str, Any], state: dict[str, Any]) -> dict[str, An
 
 
 def main() -> int:
-    return run_verifier_main(BENCHMARK_ID, objective_failures, report_extra_fn=db_snapshot)
+    return run_verifier_main(
+        BENCHMARK_ID, objective_failures, report_extra_fn=db_snapshot
+    )
 
 
 if __name__ == "__main__":

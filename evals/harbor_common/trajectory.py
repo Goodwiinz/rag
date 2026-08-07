@@ -7,6 +7,7 @@ tasks are digest-pinned and keep their inline copies. Ported from
 `langchain_core` is imported lazily inside the message helpers so this module
 imports cleanly without the agent runtime installed.
 """
+
 from __future__ import annotations
 
 import os
@@ -169,8 +170,7 @@ def build_atif_trajectory(
             "model_name": os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME"),
         },
         "steps": steps,
-        "notes": evidence.get("notes")
-        or "Production graph with an isolated database.",
+        "notes": evidence.get("notes") or "Production graph with an isolated database.",
         "final_metrics": {
             "total_prompt_tokens": usage.get("input_tokens", 0),
             "total_completion_tokens": usage.get("output_tokens", 0),

@@ -8,6 +8,7 @@ plus the `datetime` branch from the stream-cancel task's `run_agent.py`.
 The LangChain message branch is optional: this module stays importable (and
 selftestable) in environments without `langchain_core` installed.
 """
+
 from __future__ import annotations
 
 import dataclasses

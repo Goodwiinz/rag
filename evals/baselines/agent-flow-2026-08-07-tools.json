@@ -5,7 +5,7 @@
   "repository_revision": "261273129dbea6f646c9662566ff5a7eea61545a",
   "agent_revision": "261273129dbea6f646c9662566ff5a7eea61545a",
   "harbor_version": "0.6.6",
-  "harness_digest": "sha256:7fd77546becdc8b32890d0ca2e0d6f1cfee71ea27799731709abf218a8f11158",
+  "harness_digest": "sha256:f818775159d24bcf706aa32eb647d2edcf6098bf23f199050c30b39a6171fe15",
   "aggregate": {
     "capabilities": 1,
     "passed": 0,
