@@ -237,10 +237,6 @@ async def ingest_arxiv_papers(
         Optional[str],
         Field(
             description=(
-                # Deliberately does not name create_project: this tool is bound
-                # to writing as well as research, and create_project is
-                # research-only, so naming it points half the callers at a tool
-                # they cannot invoke.
                 "UUID of an existing project, as returned by list_projects. "
                 "NOT the project name — a name is rejected."
             )
