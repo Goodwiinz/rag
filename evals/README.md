@@ -15,6 +15,11 @@ records positive and negative network probes.
 | `agent-direct-project-action-v1` | Route, confirm, and execute a direct project action | Deterministic trajectory plus PostgreSQL state |
 | `rag-retrieval-safety-grounding-v1` | Safely postprocess, rerank, and synthesize noisy KB results | Deterministic safety/provenance gates plus isolated semantic judge |
 | `agent-stream-cancel-durability-v1` | Make client Stop terminal and durable at the production SSE API | Deterministic SSE, PostgreSQL, Redis, and resume checks |
+| `agent-project-management-v1` | Route, approve, and execute a multi-step project-management flow | Deterministic trajectory, HITL snapshots, and PostgreSQL state |
+
+Tasks added after 2026-08-07 import their adapter and verifier helpers from the
+shared `harbor_common/` package; the original three tasks keep their inline
+copies and stay pinned by their existing digests.
 
 The approved capability, Environment, and Harness contracts are under `specs/`.
 The pinned baseline and audit are in `baselines/agent-flow-2026-08-04.json` and

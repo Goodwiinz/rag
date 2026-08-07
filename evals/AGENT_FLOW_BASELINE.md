@@ -236,7 +236,7 @@ Harbor task lands and its calibration fixtures pass.
 | 11 | Long-run controls | later | `compactor_node`, `force_synthesis_node`, `reflection_gate`, iteration ledger |
 | 12 | Tenant isolation probes | next | cross-org probes against every read tool + RAG node |
 | 13 | Luna fast path | next | `fast_path.py` — cancel defects fixed in #1353; same invariants as capability 3 |
-| 14 | Project management | later | `list_projects`, `add_document_to_project`, `list_project_documents`, soft-delete visibility |
+| 14 | Project management | task landed | `create_project`, `add_document_to_project`, `create_project_note`, `list_project_documents` read-back, three-step HITL ordering (Harbor task `agent-project-management-v1`; awaiting first recorded run — soft-delete visibility still uncovered) |
 
 ### 5. arXiv research flow
 
@@ -325,10 +325,69 @@ that the terminal unique index absorbs — the durable event is the linked one.
 
 ### 14. Project management
 
-Objective gates: `list_projects` excludes soft-deleted rows (the nine-copy
-predicate sweep, #1285); `add_document_to_project` flushes before enqueueing
-KG jobs (no orphan on failure, #956); `list_project_documents` org-scoped;
-project counts match direct DB counts. Semantic: N/A.
+**Preconditions:** the seeded workspace
+(`00000000-0000-4000-8000-000000000503`) starts with zero projects, zero
+collection-document links, and zero project notes, and holds exactly one
+pre-loaded document `Seed Paper` (`00000000-0000-4000-8000-000000000505`) in
+org `00000000-0000-4000-8000-000000000501`. All three writes are in the
+production destructive set (`_nodes_tools.py:59` builds it from every
+descriptor tagged `ToolPolicyTag.DESTRUCTIVE`), so each must park an
+`interrupt()` before it runs — a run that never interrupts is a gate failure,
+not a fast completion.
+
+**Objective gates:**
+- No mutation lands before the approval that releases it. The load-bearing
+  proof is `evidence["database"]["before_approvals"]` — a row snapshot taken
+  immediately before each approval is sent (`environment/run_agent.py:365`) —
+  asserted as mutated rows ≤ approvals already granted across `collections`,
+  `collection_documents`, and `project_notes`
+  (`tests/verify.py:379-438`). The milestone comparison
+  (`<tool>_success` after `approval:<tool>`) is secondary: the adapter emits
+  success milestones after the drive loop returns, so it only catches a
+  doctored evidence file.
+- No unapproved destructive execution. Any tool in the mirrored destructive
+  registry outside the three the task sanctions is a failure outright, and any
+  successful execution whose name reads as a write (`create_`, `add_`,
+  `delete_`, `update_`, `ingest_`, … prefix sweep) must show an approved
+  interrupt (`tests/verify.py:441-472`).
+- Three HITL approvals, in order, with exact arguments: `create_project`
+  (`tools.py:351`) with `name="Tool Coverage Study"`;
+  `add_document_to_project` (`tools.py:326`) targeting the pre-loaded
+  `document_id`; `create_project_note` (`tools.py:380`) with
+  `title="Kickoff"` and the requested content. Each interrupt carries non-empty
+  args and an `approved_at` timestamp; interrupt and approval milestone indices
+  are both ascending in that order (`tests/verify.py:292-368`). Ordering is
+  asserted by index containment, never list equality — the adapter may append
+  additive milestones.
+- State exactness in PostgreSQL, read independently of the adapter: exactly
+  one non-deleted project named `Tool Coverage Study` in the seeded workspace,
+  exactly one `collection_documents` link to the seed document, exactly one
+  `Kickoff` note with the requested body, and the one pre-loaded document
+  unchanged (`tests/verify.py:475-531`). The adapter's own final counts must
+  equal the verifier's independent read (`tests/verify.py:534-546`) — the
+  fake-success shape is the target, so rows are the evidence, never a tool's
+  success flag.
+- Read-back: `list_project_documents` (`tools.py:449`) executed successfully
+  after the last approved mutation and its result contains the seed document
+  id (`tests/verify.py:549-577`).
+- Final message and termination: a non-empty user-visible final assistant
+  message naming both the project and the document, no pending tool calls left
+  on it, and `termination_reason = "completed"` (`tests/verify.py:580-597`).
+
+**Semantic gate:** N/A (counts as pass — the answer content this capability
+cares about is already gated objectively by the final-message name checks).
+
+**Coverage note:** this task exercises the create/attach/note/read-back path
+and the HITL ordering around it. It does **not** yet cover `list_projects`
+soft-delete visibility (the nine-copy predicate sweep, #1285),
+`add_document_to_project`'s flush-before-KG-enqueue ordering (no orphan on
+failure, #956), or cross-org scoping of `list_project_documents`
+(`tools.py:410`, `tools.py:449`) — those remain the next increments on this
+capability.
+
+**Status:** Harbor task landed (`evals/agent-project-management-v1`),
+calibration 1 pass + 1 wrong verified; awaiting first recorded baseline run —
+NOT YET GATED.
 
 **Sequencing note:** "next" tier = highest defect-density areas by repo
 history (fake-success writers, HITL, tenant scope, arXiv ingest). Build one

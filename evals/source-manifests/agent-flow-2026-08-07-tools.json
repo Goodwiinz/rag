@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "suite": "nous-agent-tools-v1",
+  "recorded_at": "",
+  "repository_revision": "261273129dbea6f646c9662566ff5a7eea61545a",
+  "agent_revision": "261273129dbea6f646c9662566ff5a7eea61545a",
+  "harbor_version": "0.6.6",
+  "harness": {
+    "import_path": "evals.harbor_agents.nous_production_agent:NousProductionAgent",
+    "aggregate_sha256": "7fd77546becdc8b32890d0ca2e0d6f1cfee71ea27799731709abf218a8f11158",
+    "files": [
+      {
+        "path": "evals/harbor_agents/__init__.py",
+        "sha256": "7ea3592f4ddb6560bba4e12af3a820e54ed73e5018ccd668d790ebd0d3ce53f9"
+      },
+      {
+        "path": "evals/harbor_agents/nous_production_agent.py",
+        "sha256": "577d865739738e566b983ec873421af315cecdfbbf10781f36ab1fd601ab7e8c"
+      },
+      {
+        "path": "evals/harbor_common/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "evals/harbor_common/db.py",
+        "sha256": "5f45c29cee232d30e719f2b717ff60b52adb3dfd11bfc26bc54d664b3a826da9"
+      },
+      {
+        "path": "evals/harbor_common/envelope.py",
+        "sha256": "45d614d445de2f00a6426c2636eb13a946d9638e3f4aa1c1d0a3479c29bac245"
+      },
+      {
+        "path": "evals/harbor_common/network.py",
+        "sha256": "2ab4fdd4a741b5d4d0e76c3058b752bc971c41aa3f3a23ad703910e2801fc9f4"
+      },
+      {
+        "path": "evals/harbor_common/selftest.py",
+        "sha256": "461e71ece8aeb34c84b56022ea2a18558115afa89ff3717d4d6f8f6ae4ea6dd0"
+      },
+      {
+        "path": "evals/harbor_common/serialization.py",
+        "sha256": "5da38a4b32517eae30f5bf95377ccf12752274202cddd61006dff8fc885c530f"
+      },
+      {
+        "path": "evals/harbor_common/trajectory.py",
+        "sha256": "d798a35614932f580b92e027db431c016c6530811dee598301abd93c969fb86b"
+      }
+    ]
+  },
+  "digest_algorithm": "SHA-256 of sorted shasum -a 256 lines using repository-relative paths; __pycache__ files excluded",
+  "task_digests": {
+    "agent-project-management-v1": "sha256:346246dc042fc7fd7be3b1812a5f6c2696be0795c99d7a25ecf5d9ace4f71638"
+  },
+  "invalidation_rule": "Any repository, task, or Harness digest change requires new run evidence and a new baseline declaration."
+}

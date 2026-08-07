@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "suite": "nous-agent-tools-v1",
+  "recorded_at": "",
+  "repository_revision": "261273129dbea6f646c9662566ff5a7eea61545a",
+  "agent_revision": "261273129dbea6f646c9662566ff5a7eea61545a",
+  "harbor_version": "0.6.6",
+  "harness_digest": "sha256:7fd77546becdc8b32890d0ca2e0d6f1cfee71ea27799731709abf218a8f11158",
+  "aggregate": {
+    "capabilities": 1,
+    "passed": 0,
+    "failed": 0,
+    "infrastructure_failures_in_baseline": 0,
+    "note": "No benchmark run has been recorded for this suite yet; the task, environment, and verifier have landed and the verifier calibration fixtures pass, but passed/failed stay 0 until a run is recorded."
+  },
+  "verifier_calibration": {
+    "agent-project-management-v1": {
+      "pass": 1,
+      "wrong-premature-mutation": 0
+    }
+  },
+  "benchmarks": [],
+  "evidence": {
+    "local_jobs_directory": "evals/jobs",
+    "retention": "keep until the evaluation is accepted, revised, or dropped",
+    "production_data_used": false,
+    "schema_bootstrap": "src.models.Base.metadata.create_all",
+    "schema_fidelity_limit": "fresh Alembic upgrade is broken at the pinned source"
+  }
+}
