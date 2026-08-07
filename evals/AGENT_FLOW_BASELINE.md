@@ -381,9 +381,9 @@ cares about is already gated objectively by the final-message name checks).
 and the HITL ordering around it. It does **not** yet cover `list_projects`
 soft-delete visibility (the nine-copy predicate sweep, #1285),
 `add_document_to_project`'s flush-before-KG-enqueue ordering (no orphan on
-failure, #956), or cross-org scoping of `list_project_documents`
-(`tools.py:410`, `tools.py:449`) — those remain the next increments on this
-capability.
+failure, #956), or cross-org scoping of `list_projects` (`tools.py:410`) and
+`list_project_documents` (`tools.py:449`) — those remain the next increments
+on this capability.
 
 **Status:** Harbor task landed (`evals/agent-project-management-v1`),
 calibration 1 pass + 1 wrong verified; awaiting first recorded baseline run —
