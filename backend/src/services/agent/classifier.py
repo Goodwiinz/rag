@@ -43,6 +43,15 @@ _LLM_CONFIDENCE_THRESHOLD = 0.7
 # avoid sending a user to a tool subset that cannot perform their request.
 _SPECIALIZED_LLM_MIN_CONFIDENCE = 0.60
 
+# A single keyword hit is not evidence of a specialised intent. Keyword
+# confidence is score/(score+2), so 0.34 admits score >= 2 (0.5) and rejects
+# score 1 (0.33) — the only band where one incidental word decides the route.
+#
+# Deliberately NOT reused from _SPECIALIZED_LLM_MIN_CONFIDENCE: keyword score
+# and LLM confidence are different scales, and 0.60 there would also reject
+# score 2, changing established routing ("Summarize this paper" scores 2).
+_WEAK_KEYWORD_MIN_CONFIDENCE = 0.34
+
 # Hard wall-clock cap on the LLM classifier call. Prevents a hung Azure
 # endpoint from blocking the agent turn — keyword fallback handles timeouts.
 _CLASSIFIER_LLM_TIMEOUT_SECONDS = 25.0  # bumped from 10s for headroom after
@@ -518,5 +527,45 @@ async def classify_intent_with_fallback(
             )
         else:
             logger.warning("LLM classifier failed, using keyword result: %s", exc)
+
+    # Every path that reaches here — weak LLM verdict, timeout, or LLM
+    # failure — falls back to a keyword result that was already too weak to
+    # short-circuit at _LLM_CONFIDENCE_THRESHOLD. The LLM branches above
+    # enforce an evidence bar before routing somewhere specialised; this one
+    # did not, so a single keyword hit could commit the turn.
+    #
+    # Measured: "…create a note in it titled 'Kickoff'…" scored 'writing' at
+    # 0.33 off one keyword in a 60-word project-management instruction and
+    # routed to writing_subgraph, whose tool set has no create_project or
+    # add_document_to_project — the turn could not complete at all
+    # (agent-project-management-v1, first recorded run).
+    #
+    # General is the safer target for a no-evidence guess: its tool set
+    # (descriptors_for_intent("general") in _nodes_llm) is a superset of each
+    # specialist route for shared tools, so a wrong general guess still has
+    # the tools a wrong specialist guess would be missing. It is NOT the full
+    # registry — a tool bound to no intent is unreachable from general too —
+    # so this is "fewer dead ends", not "always safe".
+    if (
+        keyword_result.intent != "general"
+        and keyword_result.confidence < _WEAK_KEYWORD_MIN_CONFIDENCE
+    ):
+        logger.info(
+            "Rejected weak keyword intent '%s' at %.2f: single-keyword evidence",
+            keyword_result.intent,
+            keyword_result.confidence,
+            extra={"classifier_decision": "rejected_weak_keyword"},
+        )
+        return ClassificationResult(
+            intent="general",
+            confidence=keyword_result.confidence,
+            reasoning=(
+                "Keyword evidence was insufficient for "
+                f"'{keyword_result.intent}' (confidence "
+                f"{keyword_result.confidence:.2f} < "
+                f"{_WEAK_KEYWORD_MIN_CONFIDENCE:.2f})."
+            ),
+            source="fallback",
+        )
 
     return keyword_result
