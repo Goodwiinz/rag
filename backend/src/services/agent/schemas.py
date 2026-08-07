@@ -125,6 +125,10 @@ class RetrievedContextResponse(BaseModel):
     title: str
     content: str
     score: float
+    # Provenance of `score`: "upstream" (DO KB native), "rank_proxy"
+    # (synthetic 1.0 - 0.05*rank), or "cohere" (reranked). None on the
+    # legacy hybrid path, which reports raw relevance only.
+    score_source: Optional[str] = None
 
 
 class ToolExecutionResponse(BaseModel):
