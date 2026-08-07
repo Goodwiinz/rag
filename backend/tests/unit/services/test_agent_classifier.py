@@ -614,6 +614,71 @@ class TestFallbackClassifier:
         assert result.intent == "writing"
         assert result.source == "keyword"
 
+    async def test_single_keyword_hit_falls_back_to_general(self):
+        """One incidental keyword must not commit the turn to a subgraph.
+
+        Regression for agent-project-management-v1: a project-management
+        instruction scored 'writing' at 0.33 off the single word "note" and
+        routed to writing_subgraph, which has no create_project /
+        add_document_to_project — the turn could not complete.
+        """
+        from src.services.agent.classifier import (
+            ClassificationResult,
+            classify_intent_keywords,
+            classify_intent_with_fallback,
+        )
+
+        query = (
+            'Create a research project named "Tool Coverage Study", then add '
+            'the pre-loaded document titled "Seed Paper" to it, create a note '
+            'in it titled "Kickoff", and finally list the project documents.'
+        )
+
+        # Guard the premise: this really is a single-keyword 'writing' hit.
+        assert classify_intent_keywords(query) == ClassificationResult(
+            intent="writing",
+            confidence=0.33,
+            reasoning="Keyword match (score 1) for intent 'writing'.",
+            source="keyword",
+        )
+
+        llm_result = ClassificationResult(
+            intent="writing",
+            confidence=0.4,
+            reasoning="weak guess",
+            source="llm",
+        )
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+            return_value=llm_result,
+        ):
+            result = await classify_intent_with_fallback(query, {})
+
+        assert result.intent == "general"
+        assert result.source == "fallback"
+
+    async def test_weak_keyword_floor_survives_llm_failure(self):
+        """The bar applies on the timeout/exception path too, not just the
+        weak-LLM path — all three converge on the same fallback."""
+        from src.services.agent.classifier import classify_intent_with_fallback
+
+        query = (
+            'Create a research project named "Tool Coverage Study", then add '
+            'the pre-loaded document titled "Seed Paper" to it, create a note '
+            'in it titled "Kickoff", and finally list the project documents.'
+        )
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("azure down"),
+        ):
+            result = await classify_intent_with_fallback(query, {})
+
+        assert result.intent == "general"
+
 
 # ---------------------------------------------------------------------------
 # Prior tool context (retry-routing fix)
