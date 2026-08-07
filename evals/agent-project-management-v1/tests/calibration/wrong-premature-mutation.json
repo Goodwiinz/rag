@@ -71,7 +71,7 @@
               "collection_documents": 0,
               "documents": 1,
               "project_notes": 0,
-              "projects": 0
+              "projects": 1
             },
             "documents": [
               {
@@ -82,7 +82,16 @@
               }
             ],
             "project_notes": [],
-            "projects": [],
+            "projects": [
+              {
+                "description": null,
+                "id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+                "is_deleted": false,
+                "name": "Tool Coverage Study",
+                "research_status": "active",
+                "workspace_id": "00000000-0000-4000-8000-000000000503"
+              }
+            ],
             "workspace_id": "00000000-0000-4000-8000-000000000503"
           }
         },

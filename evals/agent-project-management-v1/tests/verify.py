@@ -20,14 +20,23 @@ Evidence tolerances (the adapter is the ground truth for shape):
     of destructive tools, so interrupt count is not asserted; each of the three
     expected tools must appear with arguments and an approval timestamp.
   * ``tool_executions`` is pruned to the last 20 entries in production. The
-    three writes are proven by database state plus milestones; only the late
-    ``list_project_documents`` execution is read out of the execution records.
+    three writes are proven by database state plus the pre-approval database
+    snapshots; only the late ``list_project_documents`` execution is read out of
+    the execution records.
+
+Note on "no mutation before approval": the adapter records every
+``<tool>_success`` milestone *after* the drive loop returns, so a milestone-index
+comparison against ``approval:<tool>`` can never fail on a real run.  The load
+bearing proof is ``evidence["database"]["before_approvals"]`` — a row snapshot
+taken immediately before each approval is sent.  The milestone comparison is
+kept only as cheap defense-in-depth against a reordered evidence file.
 """
 
 from __future__ import annotations
 
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -67,6 +76,43 @@ DESTRUCTIVE_TOOLS = (
     "create_project_note",
 )
 SUCCESS_STATUSES = {"completed", "success"}
+
+# Mirror of the production destructive-tool registry — every descriptor tagged
+# ``ToolPolicyTag.DESTRUCTIVE`` in ``backend/src/services/agent/tools.py``, the
+# set ``_nodes_tools.py:59`` builds and ``interrupt_node`` gates on.  Any of
+# these outside the three the task sanctions must not run at all.
+DESTRUCTIVE_REGISTRY = frozenset(
+    {
+        "ingest_arxiv_papers",
+        "create_project",
+        "add_document_to_project",
+        "create_project_note",
+        "create_draft",
+        "execute_code",
+        "forget_memory",
+    }
+)
+# Defense against a tool that mutates but is missing from the mirrored registry
+# (e.g. a newly added `delete_project`): a successful execution whose name reads
+# as a write still has to show an approved interrupt.
+MUTATING_NAME_PREFIXES = (
+    "create_",
+    "add_",
+    "delete_",
+    "remove_",
+    "update_",
+    "edit_",
+    "rename_",
+    "archive_",
+    "link_",
+    "unlink_",
+    "ingest_",
+    "forget_",
+    "import_",
+    "write_",
+)
+# Row collections whose growth is a state-changing mutation.
+MUTABLE_ROW_KEYS = ("projects", "collection_documents", "project_notes")
 
 
 # --------------------------------------------------------------------------
@@ -172,6 +218,48 @@ def executions_for(evidence: dict[str, Any], tool: str) -> list[dict[str, Any]]:
 
 def rows(state: dict[str, Any], key: str) -> list[dict[str, Any]]:
     return [row for row in state.get(key) or [] if isinstance(row, dict)]
+
+
+def row_count(state: dict[str, Any], key: str) -> int:
+    """Row count for ``key``, trusting the rows themselves over ``counts``."""
+    listed = state.get(key)
+    if isinstance(listed, list):
+        return len(listed)
+    counts = state.get("counts")
+    if isinstance(counts, dict) and isinstance(counts.get(key), int):
+        return int(counts[key])
+    raise ValueError(f"database snapshot has no readable {key!r} rows")
+
+
+def parse_timestamp(value: Any) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def executed_tools(evidence: dict[str, Any]) -> list[tuple[str, str]]:
+    """``(tool_name, status)`` from both the full and the summarized records.
+
+    ``raw_tool_executions`` carries ``tool_name``; the ``tool_executions``
+    summary carries ``tool``.  Both are read so a run that only ships one of
+    them still gets gated.
+    """
+    seen: list[tuple[str, str]] = []
+    for key, name_field in (
+        ("raw_tool_executions", "tool_name"),
+        ("tool_executions", "tool"),
+    ):
+        for item in evidence.get(key) or []:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get(name_field) or "").strip()
+            if name:
+                seen.append((name, str(item.get("status") or "")))
+    return seen
 
 
 # --------------------------------------------------------------------------
@@ -291,7 +379,53 @@ def check_milestone_order(evidence: dict[str, Any], failures: list[str]) -> None
 def check_no_mutation_before_approval(
     evidence: dict[str, Any], failures: list[str]
 ) -> None:
-    """A write must never be recorded ahead of the approval that released it."""
+    """No write may land before the approval that released it.
+
+    The authoritative evidence is the row snapshot the adapter takes right
+    before sending each approval: at the first one nothing may exist yet, and at
+    every later one the number of mutated rows may not exceed the number of
+    approvals already granted.  The milestone comparison below is secondary —
+    the adapter emits all ``<tool>_success`` milestones after the drive loop, so
+    it can only catch a doctored evidence file.
+    """
+    snapshots = ((evidence.get("database") or {}).get("before_approvals")) or []
+    if not isinstance(snapshots, list) or not snapshots:
+        failures.append(
+            "no pre-approval database snapshots recorded; premature mutation "
+            "cannot be ruled out"
+        )
+    else:
+        approvals = [
+            parse_timestamp(item.get("approved_at"))
+            for item in evidence.get("interrupts") or []
+            if isinstance(item, dict)
+        ]
+        approval_times = sorted(time for time in approvals if time is not None)
+        for index, snapshot in enumerate(snapshots):
+            state = (snapshot or {}).get("state") if isinstance(snapshot, dict) else None
+            if not isinstance(state, dict):
+                failures.append(
+                    f"pre-approval snapshot {index + 1} carries no database state"
+                )
+                continue
+            observed = parse_timestamp((snapshot or {}).get("observed_at"))
+            if index == 0:
+                granted = 0
+            elif observed is None:
+                # Unreadable timestamp: fall back to one approval per prior
+                # snapshot, the adapter's minimum.
+                granted = index
+            else:
+                granted = sum(1 for time in approval_times if time < observed)
+            mutated = sum(row_count(state, key) for key in MUTABLE_ROW_KEYS)
+            if mutated > granted:
+                failures.append(
+                    f"mutation landed before approval: pre-approval snapshot "
+                    f"{index + 1} ({snapshot.get('phase')}) already holds "
+                    f"{mutated} mutated row(s) with only {granted} approval(s) "
+                    "granted"
+                )
+
     for tool in DESTRUCTIVE_TOOLS:
         approval = milestone_index(evidence, f"approval:{tool}")
         success = milestone_index(evidence, f"{tool}_success")
@@ -302,6 +436,40 @@ def check_no_mutation_before_approval(
                 f"mutation recorded before approval: {tool}_success precedes "
                 f"approval:{tool}"
             )
+
+
+def check_only_approved_destructive_tools(
+    evidence: dict[str, Any], failures: list[str]
+) -> None:
+    """Every write that executed must be one the human approved beforehand."""
+    approved = {
+        str(item.get("tool") or "")
+        for item in evidence.get("interrupts") or []
+        if isinstance(item, dict) and str(item.get("approved_at") or "").strip()
+    }
+    unsanctioned: set[str] = set()
+    unapproved: set[str] = set()
+    for name, status in executed_tools(evidence):
+        if name in DESTRUCTIVE_REGISTRY and name not in DESTRUCTIVE_TOOLS:
+            unsanctioned.add(name)
+            continue
+        if status not in SUCCESS_STATUSES:
+            continue
+        mutating = name in DESTRUCTIVE_REGISTRY or name.startswith(
+            MUTATING_NAME_PREFIXES
+        )
+        if mutating and name not in approved:
+            unapproved.add(name)
+    for name in sorted(unsanctioned):
+        failures.append(
+            f"destructive tool {name!r} executed although the task sanctions "
+            "only create_project, add_document_to_project and create_project_note"
+        )
+    for name in sorted(unapproved):
+        failures.append(
+            f"state-changing tool {name!r} executed successfully with no "
+            "approved HITL interrupt"
+        )
 
 
 def check_database_state(state: dict[str, Any], failures: list[str]) -> None:
@@ -436,6 +604,7 @@ def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[
     check_interrupts(evidence, failures)
     check_milestone_order(evidence, failures)
     check_no_mutation_before_approval(evidence, failures)
+    check_only_approved_destructive_tools(evidence, failures)
     check_database_state(state, failures)
     check_adapter_state_agreement(evidence, state, failures)
     check_read_back(evidence, failures)
