@@ -96,3 +96,18 @@ def test_project_crud_reachable_from_research() -> None:
     assert TOOL_REGISTRY.has_policy_in_subgraph(
         "create_project_note", ToolPolicyTag.DESTRUCTIVE, "research"
     )
+
+
+def test_writing_prompt_lists_project_creation() -> None:
+    from src.services.agent.subgraphs.agents_md_loader import load_agents_md
+
+    prompt = load_agents_md("writing")
+    assert "create_project" in prompt
+    assert "add_document_to_project" in prompt
+
+
+def test_research_prompt_lists_note_creation() -> None:
+    from src.services.agent.subgraphs.agents_md_loader import load_agents_md
+
+    prompt = load_agents_md("research")
+    assert "create_project_note" in prompt
