@@ -496,6 +496,8 @@ async def _legacy_hybrid_search_fallback(
             ),
             timeout=15.0,
         )
+        from src.services.agent._pii_redact import redact_pii
+
         contexts: List[dict] = []
         for i, result in enumerate(search_response.results[:5]):
             doc_id = getattr(result, "document_id", None)
@@ -508,8 +510,12 @@ async def _legacy_hybrid_search_fallback(
             contexts.append(
                 {
                     "document_id": str(doc_id) if doc_id else None,
-                    "title": title,
-                    "content": content[:3000],
+                    # Redact BEFORE the slice: a token straddling the 3000-char
+                    # boundary must not survive as a partial-but-matchable
+                    # prefix, and the DO KB branch already ships sanitized
+                    # text — this keeps the two paths equivalent.
+                    "title": redact_pii(title),
+                    "content": redact_pii(content)[:3000],
                     "score": float(score),
                 }
             )
