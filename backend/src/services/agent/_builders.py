@@ -46,16 +46,22 @@ logger = logging.getLogger(__name__)
 # Soft circuit breakers
 # ---------------------------------------------------------------------------
 
-# Lowered from 10 → 4. LangSmith showed slow general-intent roots (44-71s)
-# burned 5+ sequential LLM hops at ~5-10s each. Four iterations covers
-# plan → tool → refine → finalize; more is the agent re-running queries.
-# Research subgraph runs at 5 (MAX_RESEARCH_TOOL_LOOPS).
-MAX_TOOL_LOOPS = 4
+# Was 4 (down from 10 to stop 44-71s general roots re-running queries). Bumped
+# to 6: 4 cut off legitimate capability-complete flows on the general path,
+# which is the *tightest* ceiling in the system even though it is where
+# multi-tool tasks route (both subgraphs run higher — writing 8, research 5).
+# Measured on agent-project-management-v1: create_project → search_documents
+# (resolve a document by title) → add_document_to_project → create_project_note
+# → list_project_documents is 5 sequential calls, and at 4 the trailing read
+# was starved — force_synthesis_node fired and the model narrated a fabricated
+# list instead of executing it. 6 covers that flow with one spare; still well
+# short of a runaway.
+MAX_TOOL_LOOPS = 6
 MAX_ERRORS = 3
 
-# Derivation: 4 tool loops × 3 nodes (llm+tool+compactor) = 12, plus 6 fixed
+# Derivation: 6 tool loops × 3 nodes (llm+tool+compactor) = 18, plus 6 fixed
 # nodes (preprocessing, planner, interrupt, force_synthesis, reflection,
-# memory_save), plus 2 revise cycles × 3 nodes = 6 → ~24 in the worst case.
+# memory_save), plus 2 revise cycles × 3 nodes = 6 → ~30 in the worst case.
 # 50 leaves headroom for that while still cutting off a true runaway. We set it
 # explicitly because LangGraph's default varies by version across our pin
 # (langgraph>=0.4,<2.0): 25 on 0.4.x, 10007 on 1.0+ — neither is a safe default
