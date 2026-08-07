@@ -1,0 +1,1 @@
+Create a research project named "Tool Coverage Study", then add the pre-loaded document titled "Seed Paper" to it, create a note in it titled "Kickoff" with content "Track tool coverage benchmark progress.", and finally list the project's documents and confirm what the project now contains.

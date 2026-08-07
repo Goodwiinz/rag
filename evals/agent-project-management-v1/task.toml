@@ -1,0 +1,49 @@
+schema_version = "1.2"
+source = "git+https://github.com/Goodwiinz/rag.git@261273129dbea6f646c9662566ff5a7eea61545a"
+artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
+
+[task]
+name = "goodwiinz/agent-project-management-v1"
+description = "Create a project, attach an existing document, add a note, and read the project back, confirming each mutation."
+authors = [{ name = "Goodwiinz" }]
+keywords = ["langgraph", "projects", "notes", "hitl", "tools"]
+
+[metadata]
+benchmark_id = "agent-project-management-v1"
+source_revision = "261273129dbea6f646c9662566ff5a7eea61545a"
+agent_revision = "261273129dbea6f646c9662566ff5a7eea61545a"
+harbor_version = "0.6.6"
+base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
+
+[verifier]
+timeout_sec = 120.0
+
+[verifier.env]
+
+[agent]
+timeout_sec = 360.0
+
+[environment]
+build_timeout_sec = 1800.0
+os = "linux"
+cpus = 4
+memory_mb = 8192
+storage_mb = 20480
+gpus = 0
+# Harbor's network_mode:none would also sever the private database and Redis
+# network. Compose supplies the stricter useful boundary: main is attached only
+# to an internal network, while Squid is the sole public bridge and allowlists
+# the configured Azure model host.
+allow_internet = true
+mcp_servers = []
+workdir = "/app"
+
+[environment.env]
+AZURE_OPENAI_CHAT_ENDPOINT = "${AZURE_OPENAI_CHAT_ENDPOINT}"
+AZURE_OPENAI_CHAT_API_KEY = "${AZURE_OPENAI_CHAT_API_KEY}"
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME = "${AZURE_OPENAI_CHAT_DEPLOYMENT_NAME}"
+AZURE_OPENAI_CHAT_API_VERSION = "${AZURE_OPENAI_CHAT_API_VERSION}"
+AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT = "${AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT}"
+AZURE_OPENAI_SYNTHESIS_DEPLOYMENT = "${AZURE_OPENAI_SYNTHESIS_DEPLOYMENT:-}"
+
+[solution.env]
