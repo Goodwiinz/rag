@@ -219,6 +219,124 @@ baseline) blocks merge even if the downstream answer is correct.
 implemented in the harness and **excluded from the suite score** (see
 Capabilities preamble). The table above is the acceptance spec.
 
+## Coverage roadmap — full agent surface
+
+The gated suite (1–3) plus spec 4 covers routing, one mutation, one retrieval
+path, and cancellation. The agent's full surface is 23 tools across 4
+subgraphs, 10 root-graph nodes, HITL, memory, error recovery, and the fast
+path. Capabilities 5–12 below extend the gate to that surface. Each follows
+the same contract (5 trials, A/B/C scoring, manifest identity); promotion
+order is the tier column — a capability enters the suite score only when its
+Harbor task lands and its calibration fixtures pass.
+
+| # | Capability | Tier | Surface covered |
+| --- | --- | --- | --- |
+| 5 | arXiv research flow | next | `search_arxiv`, `ingest_arxiv_papers` (HITL), post-ingest `document_ids` handoff |
+| 6 | Writing flow | next | `create_draft` (HITL), `create_project_note`, `export_bibliography`, `compare_documents` |
+| 7 | Knowledge-graph flow | next | `extract_entities`, `search_knowledge_graph`, `explore_entity_neighborhood`, `find_entity_paths`, `get_graph_stats` |
+| 8 | HITL interrupt lifecycle | next | `interrupt_node`, confirm/reject/timeout, resume semantics |
+| 9 | Memory round-trip | later | `memory_retrieval` → `memory_save_node`, `forget_memory`, redaction at the memory boundary |
+| 10 | Error recovery | later | `error_recovery.py` taxonomy, tool-hint honouring, MAX_ERRORS, degraded final message |
+| 11 | Long-run controls | later | `compactor_node`, `force_synthesis_node`, `reflection_gate`, iteration ledger |
+| 12 | Tenant isolation probes | next | cross-org probes against every read tool + RAG node |
+| 13 | Luna fast path | blocked | `fast_path.py` — blocked on the cancel defects in "Open implementation gaps" |
+| 14 | Project management | later | `list_projects`, `add_document_to_project`, `list_project_documents`, soft-delete visibility |
+
+### 5. arXiv research flow
+
+Objective gates: `search_arxiv` returns results; `ingest_arxiv_papers` fires
+`interrupt()` before mutation; after approval, follow-up tool calls use the
+returned `document_ids` (UUIDs), never arXiv paper ids; ingested docs are
+org-scoped rows with non-null `storage_path`; long-timeout budget respected
+(arXiv endpoints are 5-min class). Semantic: answer cites ingested papers.
+Near-boundary: reject the interrupt → zero rows persisted.
+
+### 6. Writing flow
+
+Objective gates: `create_draft` and `create_project_note` fire `interrupt()`
+(destructive set); notes/drafts land as DB rows in the *requested* project
+(ownership verified via Workspace join — Collection has no `owner_id`);
+soft-deleted projects never offered as write targets; `export_bibliography`
+output parses (BibTeX/CSL). The fake-success shape is the primary target:
+**verify the artifact row exists, never the tool's success flag.**
+Semantic: draft/summary faithful to source documents.
+
+### 7. Knowledge-graph flow
+
+Objective gates: every KG tool result scoped to the caller's org (Neo4j
+queries carry the tenant filter); `explore_entity_neighborhood` /
+`find_entity_paths` return only entities reachable from org-owned documents;
+`get_graph_stats` counts match a direct Cypher count. Known trap: importing
+`knowledge_graph_service` binds the submodule, not the singleton — a dead
+hybrid-search path scores as C (infra) until fixed. Semantic: entity answer
+consistent with graph contents.
+
+### 8. HITL interrupt lifecycle
+
+Objective gates: interrupt payload names tool + args exactly; **reject**
+resumes the graph with zero mutations and a coherent final message; approval
+executes exactly once (no double-fire on re-confirm); `POST /confirm/{job_id}`
+on an already-resolved interrupt is a no-op with a stable status; cancel while
+parked leaves the interrupt re-deliverable (capability 3's confirm-path rule).
+Checkpoint URL is `postgresql://` (psycopg v3) — a `+asyncpg` URL is a C
+failure. Semantic: N/A.
+
+### 9. Memory round-trip
+
+Objective gates: a fact stated in turn N is retrievable in turn N+1 within the
+same thread (memory_save → memory_retrieval); `forget_memory` removes it;
+memory rows pass `redact_pii` before storage (`memory_store.py:132`); no
+cross-thread or cross-user memory bleed. Semantic: recalled fact used
+correctly, not hallucinated.
+
+### 10. Error recovery
+
+Objective gates: a tool returning declared `error_type`/`suggestion` hints has
+them honoured, not re-derived (#1288 regression); `transient` never declarable
+by tools; MAX_ERRORS terminates the loop with a degraded-but-streamed final
+message (pre-built AIMessages need the non-streamed-final fallback — an empty
+final render is a hard fail); every AIMessage with `tool_calls` has matching
+ToolMessages after sanitization. Semantic: degraded message states what
+failed, honestly.
+
+### 11. Long-run controls
+
+Objective gates: a conversation exceeding the compaction threshold triggers
+`compactor_node` without losing HITL state or tool linkage; loop-ceiling
+exhaustion routes through `force_synthesis_node` and still produces a final
+answer; `reflection_gate` decisions logged in the iteration ledger; no
+runaway: total loops ≤ ceiling + 1 forced-synthesis pass. Semantic: post-
+compaction answer still consistent with earlier turns.
+
+### 12. Tenant isolation probes
+
+Objective gates: for **every** read tool (documents, projects, KG, memory,
+suggestions) and the RAG node, a second-org fixture user issues the same
+query and receives zero rows/titles/ids belonging to org A; error messages
+leak no cross-tenant identifiers; probes run in the same trial batch so
+drift is caught per-release. This capability is pure objective — semantic
+N/A. Rationale: tenant leaks are NOUS's recurring defect class (#1219,
+#1292, hunt-6); the gate makes the sweep continuous instead of episodic.
+
+### 13. Luna fast path (blocked)
+
+Same invariants as capability 3 but on `fast_path.py`. Blocked until gaps 2
+(persist-before-emit, discarded row id) close; listing it here keeps the
+exclusion in capability 3 honest — the fast path must not stay untested
+forever because it is conveniently excluded.
+
+### 14. Project management
+
+Objective gates: `list_projects` excludes soft-deleted rows (the nine-copy
+predicate sweep, #1285); `add_document_to_project` flushes before enqueueing
+KG jobs (no orphan on failure, #956); `list_project_documents` org-scoped;
+project counts match direct DB counts. Semantic: N/A.
+
+**Sequencing note:** "next" tier = highest defect-density areas by repo
+history (fake-success writers, HITL, tenant scope, arXiv ingest). Build one
+Harbor task per capability; do not batch — each task needs its own digest,
+calibration fixtures (1 pass + 1 wrong), and manifest row before it can gate.
+
 ## Benchmark hygiene
 
 ### Pre-run
