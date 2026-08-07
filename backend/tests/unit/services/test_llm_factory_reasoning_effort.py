@@ -89,3 +89,16 @@ def test_tool_calling_variants_are_cached_separately(azure_mock: MagicMock) -> N
 
     assert azure_mock.call_count == 2
     assert _effort(azure_mock) == "<absent>"
+
+
+def test_default_lightweight_effort_is_accepted_by_every_deployment() -> None:
+    """The default must not be a value gpt-5.1+ rejects.
+
+    "minimal" 400s on gpt-5.6-luna ("Supported values are: 'none', 'low',
+    'medium', 'high', and 'xhigh'"), and _resolve_lightweight_deployment
+    falls back to the MAIN chat deployment when the lightweight override is
+    unset — so an all-luna setup would 400 on every classifier turn.
+    """
+    from src.core.config import Settings
+
+    assert Settings().AGENT_LIGHTWEIGHT_REASONING_EFFORT == "none"
