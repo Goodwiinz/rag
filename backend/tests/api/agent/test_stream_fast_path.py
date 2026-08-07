@@ -366,6 +366,7 @@ async def test_luna_failure_persists_streamed_partial_as_stopped(
     assert any("event: error" in event for event in events) is (not cancelled)
     persist_assistant.assert_awaited_once()
     assert persist_assistant.await_args.kwargs["content"] == "partial"
+    assert persist_assistant.await_args.kwargs["stopped"] is True
 
 
 class _CancelDuringEmitLuna:
@@ -480,4 +481,3 @@ async def test_fast_path_cancel_links_partial_and_keeps_prefix(monkeypatch):
     payload = cancelled[0]["payload"]
     assert payload.get("assistant_message_id") == "partial-row-id"
     validate_payload(RunEventType.RUN_CANCELLED.value, payload)
-    assert persist_assistant.await_args.kwargs["stopped"] is True
