@@ -547,6 +547,18 @@ async def run_benchmark() -> dict[str, Any]:
         },
         "plan": json_safe(final_values.get("plan") or []),
         "interrupts": interrupts,
+        # ``harbor_common.trajectory`` copies the singular ``interrupt`` key
+        # straight into ``extra``.  Publish a truthful summary alias of
+        # ``interrupts`` so the shipped trajectory never records ``null`` for a
+        # run that actually paused for human approval.
+        "interrupt": (
+            {
+                "count": len(interrupts),
+                "tools": [item.get("tool") for item in interrupts],
+            }
+            if interrupts
+            else None
+        ),
         "approval": {
             "count": len(interrupts),
             "text": APPROVAL_TEXT if interrupts else None,

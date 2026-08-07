@@ -217,6 +217,14 @@
       }
     },
     "instruction": "Create a research project named \"Tool Coverage Study\", then add the pre-loaded document titled \"Seed Paper\" to it, create a note in it titled \"Kickoff\" with content \"Track tool coverage benchmark progress.\", and finally list the project's documents and confirm what the project now contains.",
+    "interrupt": {
+      "count": 3,
+      "tools": [
+        "create_project",
+        "add_document_to_project",
+        "create_project_note"
+      ]
+    },
     "interrupts": [
       {
         "approved_at": "2026-08-07T12:00:14Z",

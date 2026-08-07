@@ -47,9 +47,9 @@
       }
     ]
   },
-  "digest_algorithm": "SHA-256 of sorted shasum -a 256 lines using repository-relative paths; __pycache__ files excluded",
+  "digest_algorithm": "SHA-256 of shasum -a 256 lines sorted by repository-relative path (sort -k2); __pycache__ files excluded",
   "task_digests": {
-    "agent-project-management-v1": "sha256:346246dc042fc7fd7be3b1812a5f6c2696be0795c99d7a25ecf5d9ace4f71638"
+    "agent-project-management-v1": "sha256:e58e86b4984a4890017b7447068642216b64497152d14be82bc1f0fd2f7d4ef5"
   },
   "invalidation_rule": "Any repository, task, or Harness digest change requires new run evidence and a new baseline declaration."
 }
