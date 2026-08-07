@@ -136,13 +136,11 @@ measures an unexercised code path.
 - Near-miss negatives (`ghx_`, `gh_`, under-length bodies) are NOT redacted
   (covered by `backend/tests/services/agent/test_pii_redact.py::TestRedactPII::test_leaves_non_token_lookalikes_intact`).
 
-**Known gaps (tracked, not gated):** the Postgres hybrid-fallback contexts and
-`search_documents` tool results are returned unredacted
-(`_nodes_rag.py:495-515`, `tools_impl.py:1594-1606`), and both feed the system
-prompt / SSE `rag.context` frame / persisted citations verbatim. The "any
-model-visible context" scope is therefore aspirational today: only the DO KB
-branch is enforced. Closing this is an implementation work item, not a spec
-change.
+**Known gaps — closed by #1353:** the Postgres hybrid-fallback contexts and
+`search_documents` tool results now pass `redact_pii` before the model
+boundary, so the "any model-visible context" scope is enforced on both
+retrieval paths, not just the DO KB branch. The preconditions above still
+apply for exercising the DO KB branch specifically.
 
 **Semantic gate:** Answer supported by retrieved context per independent judge.
 
@@ -150,12 +148,10 @@ change.
 
 **Preconditions:** the turn must be accepted with a durable run
 (`_accept_eligible` true; confirm-path `active_run` non-null) — otherwise zero
-terminal events is correct behaviour, not a violation. The Luna fast path
-must be **excluded** (gate `AGENT_FAST_PATH_ENABLED=false` for this task, or
-use fast-path-ineligible prompts): the fast path appends to the persist buffer
-*before* `emitter.emit()` and discards the persisted row id on cancel
-(`streaming.py:316-397`), so it currently violates both the prefix and the
-linkage invariants by construction. Tracked as an implementation gap.
+terminal events is correct behaviour, not a violation. The Luna fast path's
+prefix and linkage defects were fixed in #1353 (emit-before-append ordering,
+`assistant_message_id` in the cancel payload), so fast-path-eligible prompts
+are no longer excluded by construction — capability 13 covers them.
 
 **Objective gates (current harness: first-token position only; harness v2
 target: 3 positions — first-token, mid-stream, 95th-percentile partial
@@ -239,7 +235,7 @@ Harbor task lands and its calibration fixtures pass.
 | 10 | Error recovery | later | `error_recovery.py` taxonomy, tool-hint honouring, MAX_ERRORS, degraded final message |
 | 11 | Long-run controls | later | `compactor_node`, `force_synthesis_node`, `reflection_gate`, iteration ledger |
 | 12 | Tenant isolation probes | next | cross-org probes against every read tool + RAG node |
-| 13 | Luna fast path | blocked | `fast_path.py` — blocked on the cancel defects in "Open implementation gaps" |
+| 13 | Luna fast path | next | `fast_path.py` — cancel defects fixed in #1353; same invariants as capability 3 |
 | 14 | Project management | later | `list_projects`, `add_document_to_project`, `list_project_documents`, soft-delete visibility |
 
 ### 5. arXiv research flow
@@ -318,12 +314,14 @@ drift is caught per-release. This capability is pure objective — semantic
 N/A. Rationale: tenant leaks are NOUS's recurring defect class (#1219,
 #1292, hunt-6); the gate makes the sweep continuous instead of episodic.
 
-### 13. Luna fast path (blocked)
+### 13. Luna fast path
 
-Same invariants as capability 3 but on `fast_path.py`. Blocked until gaps 2
-(persist-before-emit, discarded row id) close; listing it here keeps the
-exclusion in capability 3 honest — the fast path must not stay untested
-forever because it is conveniently excluded.
+Same invariants as capability 3 but on the fast-path route. Unblocked by
+#1353 (emit-before-append ordering + cancel linkage now match the graph
+path); regression-tested at the unit level by
+`test_fast_path_cancel_links_partial_and_keeps_prefix`. Known tolerance: the
+outer route-agnostic handler fires a second unlinked `run.cancelled` finalize
+that the terminal unique index absorbs — the durable event is the linked one.
 
 ### 14. Project management
 
@@ -392,19 +390,28 @@ fast path retains both defect shapes (see capability 3 preconditions). The
 
 ## Open implementation gaps (from the 2026-08-07 source audit)
 
-Tracked here so the gate's aspirational rows have owners; none of these are
-spec bugs:
+All five closed by PR #1353 (kept for history):
 
-1. Postgres hybrid-fallback contexts and `search_documents` results bypass
-   `redact_pii` (`_nodes_rag.py:495-515`, `tools_impl.py:1594-1606`).
-2. Luna fast path: persist-before-emit ordering and discarded persisted-row id
-   on cancel (`streaming.py:316-397`).
-3. `AgentRun.assistant_message_id` column is dead — either wire it from the
-   `run.cancelled`/`run.completed` payloads or drop it.
-4. `score_source` is dropped from `AgentExecuteResponse.retrieved_contexts`
-   and not persisted on citations.
-5. Weak-but-nonzero keyword hits override sub-0.7 LLM verdicts
-   (`classifier.py:466-470`) — the residual half of the #1305 fix.
+1. ~~Postgres hybrid-fallback contexts and `search_documents` results bypass
+   `redact_pii`~~ — fixed in #1353: both paths redact before the model
+   boundary (hybrid redacts before the 3000-char slice).
+2. ~~Luna fast path: persist-before-emit ordering and discarded persisted-row
+   id on cancel~~ — fixed in #1353: fast path now matches the graph path's
+   prefix + linkage invariants. (Pre-existing residual, noted in the fast-path
+   cancel test: the outer route-agnostic handler issues a second unlinked
+   `run.cancelled` finalize, absorbed by `uq_agent_run_events_one_terminal`.)
+3. ~~`AgentRun.assistant_message_id` column is dead~~ — fixed in #1353:
+   `finalize_submission` projects the id from terminal payloads onto the run
+   row (UUID-guarded).
+4. ~~`score_source` dropped from `AgentExecuteResponse.retrieved_contexts`~~ —
+   fixed in #1353. Note: the field surfaces in runtime job-result payloads and
+   the SSE `rag.context` frame; it does NOT appear in `openapi.json` because
+   `AgentExecuteResponse` is not any route's `response_model` (job-based API).
+   Still not persisted on citations (accepted).
+5. ~~Weak-but-nonzero keyword hits override sub-0.7 LLM verdicts~~ — fixed in
+   #1353: a specialized LLM verdict ≥ 0.60 that is more confident than the
+   keyword hit now wins; ties and stronger keyword hits keep the keyword
+   result.
 
 ## Comparison contract
 
