@@ -143,6 +143,9 @@ Query: "What does our knowledge base say about transformer attention?"
 Query: "Search our docs for RLHF"
 → intent: research, confidence: 0.93, reasoning: "Document corpus search — research."
 
+Query: "Create a project named X, add the paper titled Y to it, write a note in it, then list its documents"
+→ intent: general, confidence: 0.92, reasoning: "Multi-step project management spanning create + attach + note + list — needs the full tool set, which only the general route binds."
+
 Query: "Hello, can you help me?"
 → intent: general, confidence: 0.85, reasoning: "Greeting with no specific task."
 
@@ -160,6 +163,7 @@ Previous tool: ingest_arxiv_papers (status: skipped)
 - "create a note summarizing..." → writing (NOT general)
 - "import papers" or "ingest" → research (ingestion pipeline)
 - Short retry phrases ("try again", "retry", "do it", "again") inherit the intent of the previous tool call when one is shown below.
+- Multi-step "create a project AND add/note/list" → general (spans research + writing tools; a single specialist route is missing some)
 
 ## Page context
 {page_context_text}
