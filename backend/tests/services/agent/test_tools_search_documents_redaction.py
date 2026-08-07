@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 MARKER = "gho_000000000000000000000000000000000000"
@@ -30,7 +31,9 @@ async def test_search_documents_redacts_titles() -> None:
     db = SimpleNamespace(execute=AsyncMock(return_value=result_proxy))
     current_user = SimpleNamespace(organization_id="org-1")
 
-    result = await _tool_search_documents({"query": "creds"}, db, current_user)
+    result = await _tool_search_documents(
+        {"query": "creds"}, db, cast(Any, current_user)
+    )
 
     assert "error" not in result
     assert MARKER not in result["documents"][0]["title"]

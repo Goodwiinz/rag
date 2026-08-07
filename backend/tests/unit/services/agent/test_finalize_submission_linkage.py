@@ -15,7 +15,7 @@ from src.services.agent.run_event_types import RunEventType
 from src.shared.enums import JobStatus
 
 
-def _spy_db():
+def _spy_db() -> SimpleNamespace:
     db = SimpleNamespace(
         execute=AsyncMock(),
         commit=AsyncMock(),
@@ -24,14 +24,16 @@ def _spy_db():
     return db
 
 
-def _update_values(db) -> dict:
+def _update_values(db: SimpleNamespace) -> dict[str, object]:
     stmt = db.execute.await_args_list[0].args[0]
     # stmt._values holds unresolved BindParameter objects on this SQLAlchemy
     # version (not literal values) — compile to get the resolved params.
     return dict(stmt.compile().params)
 
 
-async def test_finalize_writes_assistant_message_id_from_payload(monkeypatch):
+async def test_finalize_writes_assistant_message_id_from_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import src.services.agent.agent_submission_service as svc
 
     monkeypatch.setattr(svc, "append_event", AsyncMock())
@@ -51,7 +53,9 @@ async def test_finalize_writes_assistant_message_id_from_payload(monkeypatch):
     assert str(values.get("assistant_message_id")) == message_id
 
 
-async def test_finalize_skips_non_uuid_assistant_message_id(monkeypatch):
+async def test_finalize_skips_non_uuid_assistant_message_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import src.services.agent.agent_submission_service as svc
 
     monkeypatch.setattr(svc, "append_event", AsyncMock())
@@ -69,7 +73,9 @@ async def test_finalize_skips_non_uuid_assistant_message_id(monkeypatch):
     assert "assistant_message_id" not in _update_values(db)
 
 
-async def test_finalize_without_payload_leaves_column_untouched(monkeypatch):
+async def test_finalize_without_payload_leaves_column_untouched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import src.services.agent.agent_submission_service as svc
 
     monkeypatch.setattr(svc, "append_event", AsyncMock())
