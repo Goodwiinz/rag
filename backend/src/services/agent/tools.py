@@ -924,8 +924,14 @@ TOOL_REGISTRY = ToolRegistry(
             name="create_project",
             tool=create_project,
             intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
-            subgraphs=frozenset({AgentSubgraph.RESEARCH}),
-            subgraph_positions=((AgentSubgraph.RESEARCH, 4),),
+            # Writing too: a note/draft needs a project that may not exist
+            # yet. HITL unchanged — the DESTRUCTIVE tag still fires the
+            # confirm gate regardless of which subgraph binds the tool.
+            subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.WRITING}),
+            subgraph_positions=(
+                (AgentSubgraph.RESEARCH, 4),
+                (AgentSubgraph.WRITING, 9),
+            ),
             policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
         ),
         ToolDescriptor(
@@ -953,16 +959,27 @@ TOOL_REGISTRY = ToolRegistry(
             name="add_document_to_project",
             tool=add_document_to_project,
             intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
-            subgraphs=frozenset({AgentSubgraph.RESEARCH}),
-            subgraph_positions=((AgentSubgraph.RESEARCH, 6),),
+            # Writing too: same "create project -> add document -> note"
+            # flow needs this step reachable without a subgraph hop.
+            subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.WRITING}),
+            subgraph_positions=(
+                (AgentSubgraph.RESEARCH, 6),
+                (AgentSubgraph.WRITING, 10),
+            ),
             policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
         ),
         ToolDescriptor(
             name="create_project_note",
             tool=create_project_note,
             intents=frozenset({AgentIntent.WRITING, AgentIntent.GENERAL}),
-            subgraphs=frozenset({AgentSubgraph.WRITING}),
-            subgraph_positions=((AgentSubgraph.WRITING, 1),),
+            # Research too: ACTION_INTENT_OVERRIDES routes "create a project"
+            # to research at confidence 1.0, so the note step of the same
+            # flow must be reachable there without a subgraph hop.
+            subgraphs=frozenset({AgentSubgraph.WRITING, AgentSubgraph.RESEARCH}),
+            subgraph_positions=(
+                (AgentSubgraph.WRITING, 1),
+                (AgentSubgraph.RESEARCH, 8),
+            ),
             policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
         ),
         ToolDescriptor(
