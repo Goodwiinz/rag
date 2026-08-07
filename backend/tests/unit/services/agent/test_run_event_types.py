@@ -225,6 +225,38 @@ def test_cancellation_payload_accepts_bounded_request_id(event_type: str) -> Non
         validate_payload(event_type, {"request_id": request_id, "prompt": "secret"})
 
 
+def test_cancelled_payload_carries_the_stopped_assistant_row() -> None:
+    """A cancelled run must be able to name the partial row holding its output.
+
+    ``run.completed`` has always carried ``assistant_message_id``; ``run.cancelled``
+    did not, and because payloads are ``extra="forbid"`` the cancellation path
+    could not pass one even when it had it. Every cancelled run therefore left
+    ``AgentRun.assistant_message_id`` null while a stopped partial row existed
+    (evals/AGENT_FLOW_BASELINE.md, P1 — 3/3 trials).
+    """
+    assistant_id = str(uuid.uuid4())
+
+    assert validate_payload(
+        "run.cancelled",
+        {
+            "reason": "client_disconnected",
+            "request_id": "trace-1",
+            "assistant_message_id": assistant_id,
+        },
+    ) == {
+        "reason": "client_disconnected",
+        "request_id": "trace-1",
+        "assistant_message_id": assistant_id,
+    }
+
+
+def test_cancelled_payload_assistant_message_id_is_optional() -> None:
+    """Nothing streamed before the abort means no partial row to link."""
+    assert validate_payload("run.cancelled", {"reason": "client_disconnected"}) == {
+        "reason": "client_disconnected"
+    }
+
+
 def test_unknown_type_payload_is_rejected_by_validate() -> None:
     with pytest.raises(ValueError):
         validate_payload("not.a.type", {})

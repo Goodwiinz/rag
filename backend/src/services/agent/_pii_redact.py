@@ -33,11 +33,17 @@ _UUID_RE: Final = re.compile(
 # postgres://user:pass@host:port/db or postgresql:// variant.
 _PG_URL_RE: Final = re.compile(r"\bpostgres(?:ql)?://\S+\b")
 # Bearer tokens / API keys: JWT, OpenAI (sk-proj-), Anthropic (sk-ant-),
-# GitHub PAT (ghp_, gho_, github_pat_).
+# GitHub (ghp_ PAT, gho_ OAuth, ghu_ user-to-server, ghs_ server-to-server,
+# ghr_ refresh, github_pat_ fine-grained).
+# The prefix class is the full GitHub family on purpose: it previously read
+# ``gh[ps]_`` while this comment already claimed OAuth coverage, and a live
+# ``gho_`` marker reached model-visible retrieval context as a result
+# (evals/AGENT_FLOW_BASELINE.md, P1). Keep the letters enumerated rather than
+# widening to ``gh\w_`` so unrelated ``gh``-prefixed identifiers stay intact.
 _TOKEN_RE: Final = re.compile(
     r"\b(?:eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_.-]{20,}"  # JWT
     r"|sk-(?:proj|ant)-[A-Za-z0-9_-]{20,}"  # OpenAI / Anthropic
-    r"|gh[ps]_[A-Za-z0-9]{30,}"  # GitHub PAT / OAuth
+    r"|gh[oprsu]_[A-Za-z0-9]{30,}"  # GitHub PAT / OAuth / user / server / refresh
     r"|github_pat_[A-Za-z0-9_]{30,})\b"
 )
 

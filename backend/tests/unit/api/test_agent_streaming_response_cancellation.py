@@ -208,6 +208,9 @@ async def test_streaming_response_abort_finalizes_cancelled_without_completion(
     assert finalize_call.kwargs["payload"] == {
         "reason": "client_disconnected",
         "request_id": request_id,
+        # The cancellation path persists the stopped partial inline and links
+        # the cancelled run to it (persist returns ``partial-message`` above).
+        "assistant_message_id": "partial-message",
     }
     bodies = b"".join(
         message.get("body", b"")

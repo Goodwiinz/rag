@@ -177,6 +177,12 @@ class RunFailedPayload(_Payload):
 class RunCancelledPayload(_Payload):
     reason: str | None = Field(default=None, max_length=200)
     request_id: str | None = Field(default=None, max_length=128)
+    # Same linkage ``run.completed`` carries: a cancelled run still persists a
+    # stopped partial assistant row, and without this field the durable run
+    # cannot name it (payloads are extra="forbid", so the cancellation path
+    # could not pass one even when it had it). None when nothing streamed
+    # before the abort, i.e. when there is no partial row to point at.
+    assistant_message_id: str | None = None
 
 
 PAYLOAD_MODELS: dict[RunEventType, type[_Payload]] = {

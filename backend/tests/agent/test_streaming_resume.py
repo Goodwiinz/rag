@@ -353,6 +353,9 @@ async def test_buffered_disconnect_cancels_and_persists_partial(monkeypatch):
     assert finalize.await_args.kwargs["payload"] == {
         "reason": "client_disconnected",
         "request_id": request_id,
+        # The cancellation path persists the stopped partial inline and links
+        # the cancelled run to it (persist returns ``row-1`` above).
+        "assistant_message_id": "row-1",
     }
 
 

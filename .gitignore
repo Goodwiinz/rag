@@ -165,6 +165,7 @@ temp/
 # Testing
 .coverage
 .pytest_cache/
+.mypy_cache/
 .hypothesis/
 htmlcov/
 
