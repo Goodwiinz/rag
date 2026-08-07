@@ -536,8 +536,12 @@ async def classify_intent_with_fallback(
     # add_document_to_project — the turn could not complete at all
     # (agent-project-management-v1, first recorded run).
     #
-    # General is the safe target: llm_node binds ALL_TOOLS, so a wrong guess
-    # there costs tokens, not capability.
+    # General is the safer target for a no-evidence guess: its tool set
+    # (descriptors_for_intent("general") in _nodes_llm) is a superset of each
+    # specialist route for shared tools, so a wrong general guess still has
+    # the tools a wrong specialist guess would be missing. It is NOT the full
+    # registry — a tool bound to no intent is unreachable from general too —
+    # so this is "fewer dead ends", not "always safe".
     if (
         keyword_result.intent != "general"
         and keyword_result.confidence < _WEAK_KEYWORD_MIN_CONFIDENCE
