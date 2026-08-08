@@ -63,6 +63,8 @@ interface ChatTranscriptStateProps {
   storeIsRetrievingRag: boolean;
   onPromptSelect: (prompt: string) => void;
   onRegenerate: (assistantMessageIndex: number) => void;
+  /** True while a regenerate cannot be accepted (a turn is in flight). */
+  retryDisabled?: boolean;
   onEditUserMessage: (userMessageIndex: number, newContent: string) => void;
   /** True while a resend cannot be accepted (a turn is in flight). Threaded to
    * the inline message editor so a save can't be silently discarded. */
@@ -112,6 +114,7 @@ export function ChatTranscriptState({
   storeIsRetrievingRag,
   onPromptSelect,
   onRegenerate,
+  retryDisabled,
   onEditUserMessage,
   editDisabled,
   onCitationClick,
@@ -218,6 +221,7 @@ export function ChatTranscriptState({
       storeIsStreaming={isStreamingThisThread}
       storeStreamingContent={isStreamingThisThread ? storeStreamingContent : ''}
       onRegenerate={onRegenerate}
+      retryDisabled={retryDisabled}
       onEditUserMessage={onEditUserMessage}
       editDisabled={editDisabled}
       onCitationClick={onCitationClick}

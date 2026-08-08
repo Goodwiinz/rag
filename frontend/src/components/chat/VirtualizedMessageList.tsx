@@ -41,6 +41,8 @@ interface VirtualizedMessageListProps {
   isLoading: boolean;
   storeIsStreaming: boolean;
   onRegenerate: (index: number) => void;
+  /** True while a regenerate cannot be accepted (a turn is in flight). */
+  retryDisabled?: boolean;
   onEditUserMessage?: (index: number, newContent: string) => void;
   /** True while a resend cannot be accepted (a turn is in flight). */
   editDisabled?: boolean;
@@ -63,6 +65,8 @@ interface RowData {
   storeIsStreaming: boolean;
   isLoading: boolean;
   onRegenerate: (index: number) => void;
+  /** True while a regenerate cannot be accepted (a turn is in flight). */
+  retryDisabled?: boolean;
   onEditUserMessage?: (index: number, newContent: string) => void;
   /** True while a resend cannot be accepted (a turn is in flight). */
   editDisabled?: boolean;
@@ -93,6 +97,7 @@ const MessageRow = memo(function MessageRow({ index, style, data }: RowProps) {
     storeIsStreaming,
     isLoading,
     onRegenerate,
+    retryDisabled,
     onEditUserMessage,
     editDisabled,
     onCitationClick,
@@ -149,6 +154,7 @@ const MessageRow = memo(function MessageRow({ index, style, data }: RowProps) {
           onRetry={
             message.role === 'assistant' ? () => onRegenerate(index) : undefined
           }
+          retryDisabled={retryDisabled}
           onEdit={
             message.role === 'user' && onEditUserMessage
               ? (content) => onEditUserMessage(index, content)
@@ -191,6 +197,7 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
   isLoading,
   storeIsStreaming,
   onRegenerate,
+  retryDisabled,
   onEditUserMessage,
   editDisabled,
   onCitationClick,
@@ -321,6 +328,7 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
       storeIsStreaming,
       isLoading,
       onRegenerate,
+      retryDisabled,
       onEditUserMessage,
       editDisabled,
       onCitationClick,
@@ -335,6 +343,7 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
       storeIsStreaming,
       isLoading,
       onRegenerate,
+      retryDisabled,
       onEditUserMessage,
       editDisabled,
       onCitationClick,

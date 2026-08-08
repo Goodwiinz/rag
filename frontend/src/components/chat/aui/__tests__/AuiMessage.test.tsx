@@ -15,6 +15,7 @@ import {
   AuiMessages,
   AuiMessageByIndex,
   MessageByIndexBoundary,
+  RETRY_UNAVAILABLE_REASON,
 } from '../AuiMessage';
 
 const noop = vi.fn();
@@ -553,6 +554,43 @@ describe('AuiUserMessage inline edit-and-resend', () => {
         screen.getByRole('button', { name: /edit and resend/i })
       )
     );
+  });
+});
+
+describe('AuiAssistantMessage retry', () => {
+  // AuiAssistantMessage reads message scope off ThreadPrimitive.MessageByIndex
+  // context (mounting it directly throws "does not have a 'message'
+  // property"), so this drives it the same way the edit-and-resend tests
+  // above drive AuiUserMessage: through AuiMessageByIndex inside a real
+  // ChatRuntimeProvider, revealing the autohiding action bar via hover.
+  it('disables Regenerate with a reason while a turn is in flight', async () => {
+    const assistantMessage = makeChatPageMessage({
+      id: 'a1',
+      role: 'assistant',
+      content: 'answer',
+      timestamp: 1,
+    });
+    render(
+      <ChatRuntimeProvider
+        messages={[assistantMessage]}
+        isRunning={false}
+        onSend={noop}
+        onCancel={noop}
+      >
+        <AuiMessageByIndex
+          index={0}
+          message={assistantMessage}
+          onRetry={vi.fn()}
+          retryDisabled
+        />
+      </ChatRuntimeProvider>
+    );
+    fireEvent.mouseEnter(document.querySelector('[data-role="assistant"]')!);
+    const btn = await screen.findByRole('button', {
+      name: 'Regenerate response',
+    });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', RETRY_UNAVAILABLE_REASON);
   });
 });
 
