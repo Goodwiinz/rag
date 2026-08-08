@@ -44,6 +44,13 @@ const WS_CACHE_KEY = 'default-workspace-object';
 const WS_CACHE_AT_KEY = 'default-workspace-cached-at';
 const WS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+// Collapses concurrent getOrCreateDefaultWorkspace callers onto one promise.
+// The chat layout (useChatPersistence) and the chat page (useChatSession)
+// both bootstrap the workspace on mount; without this, each does an
+// independent listWorkspaces()->[]->createWorkspace() and a fresh user gets
+// two "My Workspace" rows plus duplicate conversations.
+let _defaultWorkspaceInFlight: Promise<ApiWorkspace> | null = null;
+
 /** Clear all workspace service caches (localStorage). Called on auth errors. */
 export function clearWorkspaceServiceCache(): void {
   if (typeof window !== 'undefined') {
@@ -53,6 +60,7 @@ export function clearWorkspaceServiceCache(): void {
     localStorage.removeItem('default-conversation-id');
     localStorage.removeItem('chat-storage');
   }
+  _defaultWorkspaceInFlight = null;
 }
 
 // ============================================================================
@@ -347,6 +355,14 @@ export const workspaceService = {
   // ============================================================================
 
   async getOrCreateDefaultWorkspace(): Promise<ApiWorkspace> {
+    if (_defaultWorkspaceInFlight) return _defaultWorkspaceInFlight;
+    _defaultWorkspaceInFlight = this._resolveDefaultWorkspace().finally(() => {
+      _defaultWorkspaceInFlight = null;
+    });
+    return _defaultWorkspaceInFlight;
+  },
+
+  async _resolveDefaultWorkspace(): Promise<ApiWorkspace> {
     const cacheWorkspace = (ws: ApiWorkspace) => {
       if (typeof window !== 'undefined') {
         localStorage.setItem(WS_CACHE_KEY, JSON.stringify(ws));
