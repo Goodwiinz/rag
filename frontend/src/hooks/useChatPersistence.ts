@@ -483,7 +483,19 @@ export function useChatPersistence(): UseChatPersistenceReturn {
 
         const threadsState = useChatStore.getState();
         const conversationThreads = threadsState.threads[conversationId] || [];
-        if (conversationThreads.length > 0 && !threadsState.currentThreadId) {
+        // An explicit "new chat" (?new=1) must land on a blank composer.
+        // useChatSession already honors this; without the same check here
+        // this hook writes a stale thread id into the store, and the next
+        // send appends to that previous thread instead of starting a new
+        // one (and the URL never becomes ?thread=).
+        const isNewChat =
+          typeof window !== 'undefined' &&
+          new URLSearchParams(window.location.search).get('new') === '1';
+        if (
+          conversationThreads.length > 0 &&
+          !threadsState.currentThreadId &&
+          !isNewChat
+        ) {
           const firstThread = conversationThreads[0];
           debugLog(
             '[useChatPersistence] Selecting first thread:',
