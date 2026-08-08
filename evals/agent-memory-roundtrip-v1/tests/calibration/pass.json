@@ -255,7 +255,13 @@
       "query": "xyzzy-no-such-benchmark-topic-000901",
       "result": {
         "deleted": 0,
-        "matches": [],
+        "matches": [
+          {
+            "key": "a1b2c3d4e5f6",
+            "score": null,
+            "query": "my api key rotation date is <date>"
+          }
+        ],
         "status": "completed"
       }
     },

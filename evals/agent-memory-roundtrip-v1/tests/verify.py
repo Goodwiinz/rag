@@ -248,10 +248,16 @@ def check_near_boundary(evidence: dict[str, Any], failures: list[str]) -> None:
             f"instead of an empty success: {result.get('error')!r} — the "
             "memory fake-success trap"
         )
-    if result.get("deleted") != 0 or result.get("matches") != []:
+    # Assert deleted==0 only. `matches` is the search-candidate list, not
+    # deletions: on an unindexed (Cohere-off) store asearch ignores the query
+    # and returns namespace rows ORDER BY updated_at DESC, so a genuine no-match
+    # forget still surfaces leftover candidates (turn-2/turn-3 memories) with
+    # deleted=0. Requiring matches==[] would false-fail every live run.
+    if result.get("deleted") != 0:
         failures.append(
-            f"near-boundary forget_memory expected deleted=0/matches=[], got "
-            f"deleted={result.get('deleted')!r} matches={result.get('matches')!r}"
+            f"near-boundary forget_memory expected deleted=0, got "
+            f"deleted={result.get('deleted')!r} (matches is candidates, not "
+            f"deletions: {result.get('matches')!r})"
         )
     if result.get("status") != "completed":
         failures.append(
