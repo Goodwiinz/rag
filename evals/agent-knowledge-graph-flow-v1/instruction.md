@@ -1,0 +1,1 @@
+Search our knowledge graph for the entity "Elena Vasquez", explore her neighborhood of connected entities and relationships, and pull the current knowledge graph statistics. Then tell me who she is connected to and summarize what the graph shows.
