@@ -144,6 +144,10 @@ export interface ChatActions {
   createConversation: (
     data: ConversationCreate
   ) => Promise<Conversation | null>;
+  registerConversation: (
+    conversation: Conversation,
+    workspaceId: string
+  ) => void;
   updateConversation: (
     id: string,
     data: ConversationUpdate
