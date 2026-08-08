@@ -164,6 +164,11 @@ services:
       DEBUG: "false"
       LOG_LEVEL: WARNING
       CORS_ORIGINS: http://localhost:3000,http://frontend:3000
+      # The frontend's server-side Next.js rewrite (/api/v2/* -> BACKEND_URL)
+      # proxies with Host: backend, so TrustedHostMiddleware must allow the
+      # compose service name — otherwise every relative-URL call (workspaceService)
+      # gets 400 "Invalid host header" and /chat renders "Connection error".
+      TRUSTED_HOSTS: localhost,127.0.0.1,testserver,backend,frontend
       ENABLE_AI_PROCESSING: "false"
       # Disable features that require external services
       OPENAI_API_KEY: ""
