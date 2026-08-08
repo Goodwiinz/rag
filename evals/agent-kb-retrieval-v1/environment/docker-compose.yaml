@@ -1,0 +1,110 @@
+services:
+  main:
+    build:
+      context: ../../..
+      dockerfile: evals/agent-kb-retrieval-v1/environment/Dockerfile
+    platform: linux/amd64
+    environment:
+      DATABASE_URL: postgresql://benchmark:benchmark-local-only@postgres:5432/benchmark
+      ENVIRONMENT: benchmark
+      SECRET_KEY: benchmark-secret-key-only-000000000000000000000000
+      JWT_SECRET_KEY: benchmark-jwt-key-only-000000000000000000000000000
+      ENCRYPTION_MASTER_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      AZURE_OPENAI_CHAT_ENDPOINT: ${AZURE_OPENAI_CHAT_ENDPOINT}
+      AZURE_OPENAI_CHAT_API_KEY: ${AZURE_OPENAI_CHAT_API_KEY}
+      AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: ${AZURE_OPENAI_CHAT_DEPLOYMENT_NAME}
+      AZURE_OPENAI_CHAT_API_VERSION: ${AZURE_OPENAI_CHAT_API_VERSION}
+      AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT: ${AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT}
+      AZURE_OPENAI_SYNTHESIS_DEPLOYMENT: ${AZURE_OPENAI_SYNTHESIS_DEPLOYMENT:-}
+      HTTPS_PROXY: http://egress-proxy:3128
+      HTTP_PROXY: http://egress-proxy:3128
+      NO_PROXY: postgres,mock-services,egress-proxy,localhost,127.0.0.1
+      LANGCHAIN_TRACING_V2: "false"
+      LANGSMITH_TRACING: "false"
+      LANGSMITH_API_KEY: ""
+      LANGCHAIN_API_KEY: ""
+      REDIS_URL: ""
+      DO_KB_ENABLED: "true"
+      DO_KB_PRIMARY_READ: "true"
+      DO_API_TOKEN: benchmark-do-token
+      DO_KB_REGION: benchmark-region
+      DO_KB_PROJECT_ID: benchmark-project
+      DO_KB_EMBEDDING_MODEL_UUID: benchmark-embedding-model
+      DO_KB_API_HOST: http://mock-services:8080
+      DO_KB_RETRIEVE_HOST: http://mock-services:8080
+      DO_KB_DEFAULT_TOP_K: "8"
+      DO_KB_RETRIEVE_TIMEOUT_SECONDS: "3"
+      AGENT_DOKB_COHERE_RERANK: "false"
+      COHERE_RERANK_API_KEY: ""
+      COHERE_EMBED_API_KEY: ""
+      AGENT_ITERATIVE_RETRIEVAL: "false"
+      AGENT_USE_RESPONSES_API: "false"
+      AGENT_PARALLEL_TOOL_CALLS: "false"
+      AGENT_LLM_MAX_RETRIES: "1"
+      AGENT_LLM_REQUEST_TIMEOUT: "45"
+      AGENT_LIGHTWEIGHT_REQUEST_TIMEOUT: "30"
+      DB_ASYNC_POOL_SIZE: "2"
+      DB_ASYNC_MAX_OVERFLOW: "2"
+      DB_SYNC_POOL_SIZE: "1"
+      DB_SYNC_MAX_OVERFLOW: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-services:
+        condition: service_healthy
+      egress-proxy:
+        condition: service_healthy
+    networks:
+      - benchmark-internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import langgraph, langchain_openai, sqlalchemy"]
+      interval: 5s
+      timeout: 20s
+      retries: 20
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: benchmark
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark-local-only
+    networks:
+      - benchmark-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark -d benchmark"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  mock-services:
+    build:
+      context: ./mock_services
+    environment:
+      DO_BENCHMARK_TOKEN: benchmark-do-token
+    networks:
+      - benchmark-internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2).read()"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  egress-proxy:
+    build:
+      context: ./proxy
+    environment:
+      AZURE_OPENAI_CHAT_ENDPOINT: ${AZURE_OPENAI_CHAT_ENDPOINT}
+    networks:
+      - benchmark-internal
+      - egress-public
+    healthcheck:
+      test: ["CMD-SHELL", "squid -k check"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+networks:
+  benchmark-internal:
+    internal: true
+  egress-public: {}

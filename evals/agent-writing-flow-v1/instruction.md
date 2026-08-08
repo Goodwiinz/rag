@@ -1,0 +1,1 @@
+In the currently open project, compare the two documents titled "Graph Neural Networks for Molecular Property Prediction" and "Attention Mechanisms in Transformer Architectures", then create a literature review draft on the theme "neural architectures for scientific discovery", and finally export the bibliography for both documents in IEEE format.

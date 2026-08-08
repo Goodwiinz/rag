@@ -1,0 +1,17 @@
+{
+  "expected_project_name": "Tool Coverage Writing Study",
+  "doc1_title": "Graph Neural Networks for Molecular Property Prediction",
+  "doc2_title": "Attention Mechanisms in Transformer Architectures",
+  "sources": [
+    {
+      "title": "Graph Neural Networks for Molecular Property Prediction",
+      "text": "This survey reviews message-passing graph neural networks applied to molecular property prediction, covering atom/bond featurization, permutation-invariant aggregation, and benchmark results on quantum-chemistry datasets. Key theme: structured relational inductive bias improves sample efficiency over sequence-based encodings for molecules."
+    },
+    {
+      "title": "Attention Mechanisms in Transformer Architectures",
+      "text": "This survey reviews scaled dot-product self-attention and multi-head attention in transformer architectures, covering positional encoding schemes and the quadratic cost of full sequence attention. Key theme: learned, content-dependent weighting outperforms fixed convolutional receptive fields for long-range dependencies in sequences."
+    }
+  ],
+  "expected_dissimilarity": "one document uses graph-structured relational inductive bias (message passing over molecular graphs); the other uses learned content-dependent attention over sequences with no explicit graph structure",
+  "allowed_bibliography_formats": ["bibtex", "apa", "ieee", "mla"]
+}

@@ -1,0 +1,53 @@
+schema_version = "1.2"
+source = "git+https://github.com/Goodwiinz/rag.git@b67ebbf1b067d5f5b1e74299535244e58df41a68"
+artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
+
+[task]
+name = "goodwiinz/agent-writing-flow-v1"
+description = "Compare two seeded documents, generate a literature-review draft, and export a bibliography, confirming HITL ordering and grounded output."
+authors = [{ name = "Goodwiinz" }]
+keywords = ["langgraph", "writing", "drafts", "bibliography", "hitl", "tools", "judge"]
+
+[metadata]
+benchmark_id = "agent-writing-flow-v1"
+source_revision = "b67ebbf1b067d5f5b1e74299535244e58df41a68"
+agent_revision = "b67ebbf1b067d5f5b1e74299535244e58df41a68"
+harbor_version = "0.6.6"
+base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
+
+[verifier]
+timeout_sec = 120.0
+
+[verifier.env]
+HARBOR_JUDGE_ENDPOINT = "${HARBOR_JUDGE_ENDPOINT}"
+HARBOR_JUDGE_API_KEY = "${HARBOR_JUDGE_API_KEY}"
+HARBOR_JUDGE_MODEL = "${HARBOR_JUDGE_MODEL}"
+HARBOR_JUDGE_API_VERSION = "${HARBOR_JUDGE_API_VERSION}"
+
+[agent]
+timeout_sec = 360.0
+
+[environment]
+build_timeout_sec = 1800.0
+os = "linux"
+cpus = 4
+memory_mb = 8192
+storage_mb = 20480
+gpus = 0
+# Harbor's network_mode:none would also sever the private database network.
+# Compose supplies the stricter useful boundary: main is attached only to an
+# internal network, while Squid is the sole public bridge and allowlists the
+# configured Azure model host.
+allow_internet = true
+mcp_servers = []
+workdir = "/app"
+
+[environment.env]
+AZURE_OPENAI_CHAT_ENDPOINT = "${AZURE_OPENAI_CHAT_ENDPOINT}"
+AZURE_OPENAI_CHAT_API_KEY = "${AZURE_OPENAI_CHAT_API_KEY}"
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME = "${AZURE_OPENAI_CHAT_DEPLOYMENT_NAME}"
+AZURE_OPENAI_CHAT_API_VERSION = "${AZURE_OPENAI_CHAT_API_VERSION}"
+AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT = "${AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT}"
+AZURE_OPENAI_SYNTHESIS_DEPLOYMENT = "${AZURE_OPENAI_SYNTHESIS_DEPLOYMENT:-}"
+
+[solution.env]
