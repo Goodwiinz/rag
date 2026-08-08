@@ -1,0 +1,24 @@
+{
+  "benchmark_id": "agent-arxiv-research-flow-v1",
+  "papers": [
+    {
+      "id": "2401.10001",
+      "title": "Deterministic Retrieval Benchmarks for Agentic Search",
+      "pdf_sha256": "19c12a6131fb79ba1244399b292f5c92fc14e2b7a75ceb0a9a5b192cd298e7b2"
+    },
+    {
+      "id": "2401.10002",
+      "title": "Cache-Aware Tooling for Autonomous Research Agents",
+      "pdf_sha256": "8d83811c3266e59f13ac4019ea9235f103825bc0cdcea653e63706ce1c151174"
+    }
+  ],
+  "requested_paper_ids": ["2401.10001", "2401.10002"],
+  "organization_id": "00000000-0000-4000-8000-000000001001",
+  "user_id": "00000000-0000-4000-8000-000000001002",
+  "workspace_id": "00000000-0000-4000-8000-000000001003",
+  "project_id": "00000000-0000-4000-8000-000000001004",
+  "thread_id": "00000000-0000-4000-8000-000000001005",
+  "redis_key_prefix": "arxiv:search:",
+  "redis_stale_ttl_seconds": 1800,
+  "redis_ttl_jitter_fraction": 0.15
+}

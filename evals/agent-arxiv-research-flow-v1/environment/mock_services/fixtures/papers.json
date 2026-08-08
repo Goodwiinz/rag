@@ -1,0 +1,28 @@
+{
+  "papers": [
+    {
+      "id": "2401.10001",
+      "versioned_id": "2401.10001v1",
+      "title": "Deterministic Retrieval Benchmarks for Agentic Search",
+      "authors": ["Ada Bench", "Grace Fixture"],
+      "abstract": "A deterministic benchmark corpus for evaluating agentic search and ingestion tool coverage, with fixed retrieval and caching behavior suitable for reproducible verification.",
+      "published": "2024-01-15T00:00:00Z",
+      "updated": "2024-01-15T00:00:00Z",
+      "categories": ["cs.IR", "cs.AI"],
+      "pdf_filename": "2401.10001.pdf",
+      "pdf_sha256": "19c12a6131fb79ba1244399b292f5c92fc14e2b7a75ceb0a9a5b192cd298e7b2"
+    },
+    {
+      "id": "2401.10002",
+      "versioned_id": "2401.10002v1",
+      "title": "Cache-Aware Tooling for Autonomous Research Agents",
+      "authors": ["Rae Cache", "Lin Redis"],
+      "abstract": "An analysis of cache-aware tool design for autonomous research agents, covering shared cache keys, TTL bands, and stale-serving fallbacks under rate-limited upstream APIs.",
+      "published": "2024-01-16T00:00:00Z",
+      "updated": "2024-01-16T00:00:00Z",
+      "categories": ["cs.AI", "cs.DC"],
+      "pdf_filename": "2401.10002.pdf",
+      "pdf_sha256": "8d83811c3266e59f13ac4019ea9235f103825bc0cdcea653e63706ce1c151174"
+    }
+  ]
+}
