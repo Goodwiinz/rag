@@ -126,6 +126,14 @@ export function useChatSession(): UseChatSessionReturn {
   const messagesRef = useRef(messages);
   const localMessagesThreadIdRef = useRef<string | null>(null);
   const isHydratedRef = useRef(false);
+  // Serializes the init effect. Auth-session churn (repeated getUser refreshes)
+  // can re-fire the effect while a first init is still awaiting workspace/
+  // conversation creation; without this, two concurrent
+  // getOrCreateDefaultWorkspace calls both see an empty list and each POST a
+  // new workspace. The duplicate-create re-renders the chat surface mid-mount,
+  // which drops the user's first Send (the click lands on a remounting
+  // composer). Bail if an init is already in flight.
+  const initInFlightRef = useRef(false);
 
   // ---- Auth ----
   const { isAuthenticated } = useAuthStore();
@@ -510,6 +518,18 @@ export function useChatSession(): UseChatSessionReturn {
         return;
       }
 
+      // A prior init for this mount is still awaiting workspace/conversation
+      // creation. Re-entering now would issue a second getOrCreateDefaultWorkspace
+      // against the same empty list and duplicate-create. Let the in-flight run
+      // finish and own the session.
+      if (initInFlightRef.current) {
+        console.log('[Chat] Init already in flight, skipping duplicate run');
+        settled = true;
+        clearTimeout(watchdog);
+        return;
+      }
+      initInFlightRef.current = true;
+
       setIsInitializing(true);
       setInitError(null);
       // The watchdog (above) may set a provisional "taking too long" error at
@@ -742,6 +762,9 @@ export function useChatSession(): UseChatSessionReturn {
           error instanceof Error ? error.message : 'Failed to load chat data'
         );
       } finally {
+        // Release the in-flight latch so a genuine re-init (e.g. real auth
+        // change) can run once this one has fully settled.
+        initInFlightRef.current = false;
         // Init settled (success or handled error): stand down the watchdog so a
         // slow-but-successful load doesn't flip to the timeout error.
         if (!settled) {
