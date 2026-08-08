@@ -2266,6 +2266,38 @@ async def _tool_summarize_document(
         return {"error": f"Summarization failed: {str(e)}"}
 
 
+#: Per-document character budget sent to the comparison model.
+_COMPARE_DOCUMENTS_TEXT_LIMIT = 4000
+
+
+def _compare_documents_system_prompt(comparison_type: str) -> str:
+    """Grounding contract for the comparison model.
+
+    Without the second paragraph the model answers from subject-matter
+    knowledge rather than the supplied text: the agent-writing-flow-v1
+    benchmark caught it asserting GNN oversmoothing, difficulty with
+    long-range molecular interactions, and benchmark/dataset discussion that
+    appear in neither compared document, which fails the grounding rubric on
+    every trial. Document text is truncated, so the model is also told not to
+    read absence as evidence.
+    """
+    return (
+        "You are a research assistant. Compare the following documents "
+        f"({comparison_type} comparison). Identify similarities, differences, "
+        "and key themes across them. Be structured and concise.\n\n"
+        "Ground every statement in the supplied document text. Do not "
+        "introduce facts, limitations, benchmarks, metrics, or technical "
+        "claims that the text does not state, and do not draw on outside "
+        "knowledge of the subject matter however well established it is. "
+        "Attribute each point to the document that supports it, and never "
+        "attribute a point to a document that does not state it. Where the "
+        "supplied text is too thin to support a comparison, say the text does "
+        "not cover it rather than filling the gap. The text is truncated to "
+        f"{_COMPARE_DOCUMENTS_TEXT_LIMIT} characters per document, so treat a "
+        "missing detail as unknown, not as absent from the source."
+    )
+
+
 async def _tool_compare_documents(
     args: Dict[str, Any],
     db: Optional[AsyncSession],
@@ -2338,7 +2370,7 @@ async def _tool_compare_documents(
                 {
                     "id": str(doc.id),
                     "title": doc.title or "Untitled",
-                    "text": text[:4000],
+                    "text": text[:_COMPARE_DOCUMENTS_TEXT_LIMIT],
                 }
             )
 
@@ -2353,7 +2385,7 @@ async def _tool_compare_documents(
             response = await llm.ainvoke(
                 [
                     SystemMessage(
-                        content=f"You are a research assistant. Compare the following documents ({comparison_type} comparison). Identify similarities, differences, and key themes across them. Be structured and concise."
+                        content=_compare_documents_system_prompt(comparison_type)
                     ),
                     HumanMessage(content=docs_content),
                 ]
