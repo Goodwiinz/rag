@@ -1,0 +1,17 @@
+Status: approved
+
+Capability: persist a durable fact told by the user into long-term memory, recall it on a later turn, and forget it only after an explicit human-approved destructive action — proving the full write/recall/delete roundtrip rather than any single leg of it.
+
+Request: turn 1 (the task instruction) — `Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.` Turn 2 (adapter-scripted) — `What contact email do you have on file for my arXiv research?` Turn 3 (adapter-scripted) — `Please forget what I told you about my arXiv research contact email.`
+
+Initial conditions: one fixed synthetic organization, user, and workspace; a single fresh thread with no prior memory rows for the user. The adapter sends `Yes, forget it.` only after an authentic HITL confirmation request is observed on turn 3.
+
+Why this requires the capability: success requires the production `memory_save_node` to actually persist the fact (its embed+write is dispatched as a fire-and-forget background task, so persistence must be proven, not assumed), `memory_retrieval_node` to surface it on the next turn, and the destructive `forget_memory` tool — which carries no top-level intent and is bound to the model only through the same ALL_TOOLS fallback LangGraph's own state-update API exercises — to pause for approval and only then delete it. A prose-only "I'll remember" or "I've forgotten" cannot change the independent store state.
+
+Pass iff: the turn-1 fact lands in the Postgres-backed memory store with the raw email redacted at the save boundary (the stored value never contains the literal address); turn 2's memory retrieval surfaces the saved row and produces a user-visible answer; turn 3's `forget_memory` executes exactly once, behind one approved HITL interrupt, with a snapshot taken immediately before approval proving the row was still present (no premature deletion) and the row gone afterward; the deletion took the substring-match fallback path (no Cohere index configured); a forget query matching nothing returns an empty success (`deleted: 0, matches: []`), not an error; and no memory ever reaches a second user's namespace. Semantic scope: N/A — this capability is fully deterministic (store presence/absence, redaction, and interrupt ordering); the roadmap's cap-9 semantic-gate line is reconciled by the design doc, which scopes semantic judging to capability 7 only.
+
+Verifier: deterministic trajectory and store-state checks. No LLM judge — Layer B is not applicable to this capability.
+
+Verifier evidence: the turn-1 classification and the stored memory value (for the redaction check); turn-2 `user_memories` and final message; the turn-3 interrupt payload, its approval, and a pre-approval store read; the post-approval store read and the `forget_memory` tool result; the near-boundary no-match probe result; and independent reads of the second user's memory namespace.
+
+Accepted alternatives: any internal wording the model chooses for its turn-1 acknowledgement, turn-2 recall answer, or turn-3 confirmation is accepted — only the store's actual state and the interrupt/approval ordering are graded. The exact `forget_memory` query argument the model chooses is not fixed, only that it deletes the turn-1 row.
