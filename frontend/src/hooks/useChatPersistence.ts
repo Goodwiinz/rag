@@ -541,7 +541,6 @@ export function useChatPersistence(): UseChatPersistenceReturn {
     loadThreads,
     setCurrentConversation,
     setCurrentThread,
-    createConversation,
     registerConversation,
   ]);
 
