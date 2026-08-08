@@ -2,7 +2,7 @@ Status: approved
 
 Entrypoint: `src.services.agent.graph.compile_agent_graph`, invoked by a Harbor adapter with the same `AgentState`, configurable identifiers, checkpointer, and `Command(resume=...)` semantics used by production.
 
-Source: repository revision `2c5e7a824cf29c3a15f52c3c1e94e3d6e2b4b9a1` (`feat/tool-coverage-bench-plan4`, cut off `develop`).
+Source: repository revision `2c5e7a828377d9b648d2ba709bb3d9c4e9f275d7` (`feat/tool-coverage-bench-plan4`, cut off `develop`).
 
 Preserved behavior: production classifier and intent routing into the research subgraph; the research subgraph's direct-arXiv-search fast path, planner, and HITL interrupt; production tool registry and `search_arxiv`/`ingest_arxiv_papers` implementations, including the impl-level result cap, the two-layer (in-process + Redis) search cache, the shared arXiv rate gate, and the `store_arxiv_pdf` object-storage layer; per-turn tool deduplication; compaction; reflection; model selection, retries, and stopping.
 

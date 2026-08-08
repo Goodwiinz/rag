@@ -37,7 +37,7 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-arxiv-research-flow-v1"
-SOURCE_REVISION = "2c5e7a824cf29c3a15f52c3c1e94e3d6e2b4b9a1"
+SOURCE_REVISION = "2c5e7a828377d9b648d2ba709bb3d9c4e9f275d7"
 AGENT_REVISION = SOURCE_REVISION
 APPROVAL_TEXT = "Yes, ingest them."
 
