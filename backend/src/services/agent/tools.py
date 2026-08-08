@@ -1105,8 +1105,16 @@ TOOL_REGISTRY = ToolRegistry(
         ),
         ToolDescriptor(
             name="forget_memory",
+            # GENERAL so the tool is actually reachable. With intents=∅ it was
+            # bound only to the unknown-intent ALL_TOOLS path, which the live
+            # graph never takes: classify_intent_with_fallback is Literal-typed
+            # to the four real intents and _get_tools_for_intent returns
+            # ALL_TOOLS only for an intent OUTSIDE AgentIntent — so forget_memory
+            # was uncallable in production. GENERAL is its natural home ("forget
+            # what I told you about X" carries no research/writing/KG signal);
+            # DESTRUCTIVE keeps it behind the HITL interrupt.
             tool=forget_memory,
-            intents=frozenset(),
+            intents=frozenset({AgentIntent.GENERAL}),
             subgraphs=frozenset(),
             policy_tags=frozenset(
                 {ToolPolicyTag.DESTRUCTIVE, ToolPolicyTag.CONTEXT_FREE}

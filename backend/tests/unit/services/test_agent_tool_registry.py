@@ -276,6 +276,7 @@ class TestProductionToolRegistryParity:
                 "create_project_note",
                 "summarize_document",
                 "search_knowledge_graph",
+                "forget_memory",
             },
         }
         expected_subgraphs = {
@@ -385,6 +386,33 @@ class TestProductionToolRegistryParity:
         assert "do_kb_retrieve" in {
             item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("research")
         }
+
+    def test_forget_memory_is_reachable_via_general_route(self) -> None:
+        """forget_memory must be bound to a real intent, not orphaned.
+
+        With intents=∅ + subgraphs=∅ it was reachable only via the
+        unknown-intent ALL_TOOLS path, which the live graph never takes
+        (classify_intent_with_fallback is Literal-typed to the four real
+        intents; _get_tools_for_intent returns ALL_TOOLS only for an intent
+        OUTSIDE AgentIntent). That made it uncallable in production. GENERAL is
+        the fix; DESTRUCTIVE keeps it HITL-gated.
+        """
+        from src.services.agent._nodes_llm import _get_tools_for_intent
+        from src.services.agent.tool_registry import ToolPolicyTag
+        from src.services.agent.tools import TOOL_REGISTRY
+
+        assert "forget_memory" in {
+            item.name for item in TOOL_REGISTRY.descriptors_for_intent("general")
+        }
+        # the actual runtime binding the general route uses
+        assert "forget_memory" in {
+            tool.name for tool in _get_tools_for_intent("general")
+        }
+        # still destructive -> still behind the HITL interrupt
+        assert (
+            ToolPolicyTag.DESTRUCTIVE
+            in TOOL_REGISTRY.descriptor("forget_memory").policy_tags
+        )
 
     def test_policy_tags_keep_legacy_execution_policy(self) -> None:
         from src.services.agent.tool_registry import ToolPolicyTag
