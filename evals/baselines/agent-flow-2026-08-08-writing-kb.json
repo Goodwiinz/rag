@@ -1,17 +1,17 @@
 {
   "schema_version": "1.0",
   "suite": "nous-agent-tools-v1",
-  "recorded_at": "",
-  "repository_revision": "7bdf8bc6d300ddefa2c0c6da20c9b0f8b7bc129f",
-  "agent_revision": "7bdf8bc6d300ddefa2c0c6da20c9b0f8b7bc129f",
+  "recorded_at": "2026-08-08",
+  "repository_revision": "b67ebbf1b067d5f5b1e74299535244e58df41a68",
+  "agent_revision": "b67ebbf1b067d5f5b1e74299535244e58df41a68",
   "harbor_version": "0.6.6",
   "harness_digest": "sha256:e774f94291041ac010765090a8d9c2e8fea7ae22493819ff0efabba578f3fb6b",
   "aggregate": {
     "capabilities": 2,
-    "passed": 0,
-    "failed": 0,
+    "passed": 1,
+    "failed": 1,
     "infrastructure_failures_in_baseline": 0,
-    "note": "awaits first recorded run"
+    "note": "5 trials per capability. agent-kb-retrieval-v1 passed 5/5 and is gated. agent-writing-flow-v1 failed 5/5 on the semantic layer and is NOT gated; see its failure_analysis."
   },
   "verifier_calibration": {
     "agent-writing-flow-v1": {
@@ -23,12 +23,119 @@
       "wrong": 1
     }
   },
-  "benchmarks": [],
+  "benchmarks": [
+    {
+      "id": "agent-kb-retrieval-v1",
+      "job": "agent-kb-retrieval-v1-09aa986a-base5",
+      "trial": "agent-kb-retrieval-v1__qM9yCeE",
+      "task_digest": "sha256:2a84bffcfea2c24e2cbf93a6eecbbdf0ab0d6ba889a5abb5401b65f82d1158e8",
+      "reward": 1,
+      "passed": true,
+      "attempts": 5,
+      "passes": 5,
+      "agent_elapsed_ms": 29203,
+      "tokens": {
+        "input": 57049,
+        "output": 5449,
+        "cache": 50432
+      },
+      "observations": {
+        "intent": "research",
+        "intent_confidence": 0.98,
+        "classifier_source": "llm",
+        "tool_sequence": ["search_documents", "do_kb_retrieve"],
+        "tool_failures": 0,
+        "judge_supported": true,
+        "network_boundary_proven": true,
+        "termination_reason": "completed"
+      },
+      "failures": [],
+      "trials": [
+        "agent-kb-retrieval-v1__qM9yCeE",
+        "agent-kb-retrieval-v1__kf4EZP4",
+        "agent-kb-retrieval-v1__Z5Y6BKK",
+        "agent-kb-retrieval-v1__y3JqRDV",
+        "agent-kb-retrieval-v1__Hc5SHXG"
+      ]
+    },
+    {
+      "id": "agent-writing-flow-v1",
+      "job": "agent-writing-flow-v1-481700d9-base5",
+      "trial": "agent-writing-flow-v1__hcjPV8n",
+      "task_digest": "sha256:0e80a47295a6b8068f533c2ca9dc1ae5072809820d384798d697e426afbb0c36",
+      "reward": 0,
+      "passed": false,
+      "attempts": 5,
+      "passes": 0,
+      "agent_elapsed_ms": 55185,
+      "tokens": {
+        "input": 229962,
+        "output": 10518,
+        "cache": 194048
+      },
+      "observations": {
+        "intent": "writing",
+        "tool_sequence": [
+          "list_project_documents",
+          "list_projects",
+          "search_arxiv",
+          "list_project_documents",
+          "compare_documents",
+          "create_draft",
+          "export_bibliography"
+        ],
+        "tool_failures": 0,
+        "hitl_interrupt": true,
+        "judge_supported": true,
+        "network_boundary_proven": true,
+        "termination_reason": "completed"
+      },
+      "failures": [
+        "semantic judge found contradictions (5/5 trials)",
+        "semantic judge found unsupported material claims (5/5 trials)",
+        "missing milestone export_bibliography_success (1/5 trials)",
+        "no successful export_bibliography execution was observed (1/5 trials)",
+        "destructive tool 'create_project_note' executed although the task sanctions only create_draft (1/5 trials)"
+      ],
+      "failure_analysis": {
+        "dominant_gate": "semantic",
+        "summary": "The judge receives compare_documents' generated prose as part of candidate_answer (tests/verify.py run_judge). That production tool extrapolates domain knowledge absent from both seeded documents -- GNN oversmoothing, difficulty with long-range molecular interactions, and benchmark/dataset discussion attributed to the attention survey -- so the grounding rubric fires on every trial. The trusted payload is complete: truth.json sources match the seeded Document.content_text verbatim, so this is not a missing-context artifact.",
+        "objective_layer": "Layer A passed in 3/5 trials; the 2 objective misses (a skipped export_bibliography, and one unsanctioned create_project_note) are independent nondeterminism, not the reason the capability is ungated.",
+        "verdict": "Real product finding, not a harness defect: compare_documents is not grounded in the documents it compares."
+      },
+      "trials": [
+        "agent-writing-flow-v1__hcjPV8n",
+        "agent-writing-flow-v1__MzN8iN4",
+        "agent-writing-flow-v1__XSDRvW7",
+        "agent-writing-flow-v1__bdwEWja",
+        "agent-writing-flow-v1__cZutY2v"
+      ]
+    }
+  ],
   "evidence": {
     "local_jobs_directory": "evals/jobs",
     "retention": "keep until the evaluation is accepted, revised, or dropped",
     "production_data_used": false,
     "schema_bootstrap": "src.models.Base.metadata.create_all",
-    "schema_fidelity_limit": "fresh Alembic upgrade is broken at the pinned source"
+    "schema_fidelity_limit": "fresh Alembic upgrade is broken at the pinned source",
+    "harness_models": {
+      "chat_deployment": "gpt-5.6-luna",
+      "lightweight_deployment": "gpt-5.6-luna",
+      "judge_deployment": "gpt-4.1",
+      "api_version": "2024-12-01-preview",
+      "note": "Judge deployment differs from the harness chat deployment; gpt-5 deployments fail the Azure Responses API version gate. Judge credentials are supplied through [verifier.env] only and are never present in the agent container's environment."
+    },
+    "excluded_runs": [
+      {
+        "job": "agent-writing-flow-v1-481700d9-judgefix",
+        "trial": "agent-writing-flow-v1__gtQUkod",
+        "reason": "InfrastructureFailure: judge did not return a JSON object (RewardFileNotFoundError). Per evals/README.md a judge failure is infrastructure and is not scored as agent reward 0. Not reproducible on replay of the same evidence."
+      },
+      {
+        "job": "agent-writing-flow-v1-481700d9",
+        "trial": "agent-writing-flow-v1__fLbPcXp",
+        "reason": "Pre-fix run. The judge's trusted payload omitted the seeded citation metadata, so faithful export_bibliography output was scored as fabricated. Superseded by the fix in this branch."
+      }
+    ]
   }
 }
