@@ -18,11 +18,16 @@ records positive and negative network probes.
 | `agent-project-management-v1` | Route, approve, and execute a multi-step project-management flow | Deterministic trajectory, HITL snapshots, and PostgreSQL state |
 | `agent-writing-flow-v1` | Compare documents, draft (HITL, async fake-success trap), and export a bibliography | Deterministic trajectory, HITL snapshots, PostgreSQL state, and an isolated semantic judge |
 | `agent-kb-retrieval-v1` | Search indexed documents, then retrieve and cite grounded guidance from the org knowledge base | Deterministic trajectory, mock-KB auth/network probes, and an isolated semantic judge |
+| `agent-knowledge-graph-flow-v1` | Search, explore neighborhood, and pull stats from a real Neo4j knowledge graph, tenant-scoped | Deterministic trajectory, independent Cypher cross-check, and an isolated semantic judge |
+| `agent-memory-roundtrip-v1` | State a fact, recall it next turn, then `forget_memory` (HITL) and prove it's gone | Deterministic trajectory, redaction and no-bleed checks, PostgreSQL store state (no judge — semantic N/A) |
 
-`agent-writing-flow-v1` and `agent-kb-retrieval-v1` are judge-gated: Layer B
+`agent-writing-flow-v1`, `agent-kb-retrieval-v1`, and
+`agent-knowledge-graph-flow-v1` are judge-gated: Layer B
 (`harbor_common.judge.run_semantic_judge`) only runs after every Layer A
-(deterministic) check passes, and both are NOT YET GATED in
-`AGENT_FLOW_BASELINE.md` — awaiting their first recorded run.
+(deterministic) check passes. `agent-memory-roundtrip-v1` is deterministic-only
+(semantic N/A). All four are NOT YET GATED in `AGENT_FLOW_BASELINE.md` —
+awaiting their first recorded run. `agent-knowledge-graph-flow-v1` additionally
+requires a real `neo4j:5` container (see its `docker-compose.yaml`), not a mock.
 
 Tasks added after 2026-08-07 import their adapter and verifier helpers from the
 shared `harbor_common/` package; the original three tasks keep their inline
