@@ -301,6 +301,7 @@ export function useChatPersistence(): UseChatPersistenceReturn {
     loadMessages,
     createThread,
     createConversation,
+    registerConversation,
     sendMessage: storeSendMessage,
     setCurrentWorkspace,
     setCurrentConversation,
@@ -329,6 +330,7 @@ export function useChatPersistence(): UseChatPersistenceReturn {
       loadMessages: s.loadMessages,
       createThread: s.createThread,
       createConversation: s.createConversation,
+      registerConversation: s.registerConversation,
       sendMessage: s.sendMessage,
       setCurrentWorkspace: s.setCurrentWorkspace,
       setCurrentConversation: s.setCurrentConversation,
@@ -458,6 +460,10 @@ export function useChatPersistence(): UseChatPersistenceReturn {
             // `_initCompleted = false` with no retry path for other waiters.
             throw new Error('Failed to create default conversation');
           }
+          // The helper talks to the API directly, bypassing the store's
+          // createConversation — index it so the sidebar and the reverse
+          // lookup see it, exactly as a store-side create would have.
+          registerConversation(newConv, state.currentWorkspaceId);
           conversationId = newConv.id;
           setCurrentConversation(newConv.id);
         }
@@ -536,6 +542,7 @@ export function useChatPersistence(): UseChatPersistenceReturn {
     setCurrentConversation,
     setCurrentThread,
     createConversation,
+    registerConversation,
   ]);
 
   // Create new chat (thread)
