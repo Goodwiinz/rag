@@ -626,8 +626,9 @@ the same mechanism and same product gap as capability 16. The routing fix
 restoring these tools is landing on `develop` in **PR #1365**; the pinned
 benchmark image (`3a436b2-r1`) predates it. When the suite re-pins to an image
 containing the fix, switch this task to live classification and re-record.
-Only 2 of 11 connectors (`pubmed`, `fred`) are doubled; the remaining 8
-keyless connectors are deliberately not exercised — the instruction pins
+Only 2 of 11 connectors (`pubmed`, `fred`) are doubled; the remaining 9
+connectors (7 keyless, 2 key-gated: alpha_vantage, cosmic) are deliberately
+not exercised — the instruction pins
 `connector=` explicitly to avoid an un-doubled fan-out via the no-connector
 `list_available()` default (`tools_impl.py:3026`).
 
