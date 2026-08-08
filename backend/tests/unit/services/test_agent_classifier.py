@@ -614,6 +614,15 @@ class TestFallbackClassifier:
         assert result.intent == "writing"
         assert result.source == "keyword"
 
+    async def test_multi_action_project_instruction_prompt_has_example(self):
+        """The classifier prompt must teach the multi-action project shape so
+        the healthy LLM path stops over-routing capability-14 to writing."""
+        from src.services.agent.classifier import _CLASSIFIER_SYSTEM_PROMPT
+
+        p = _CLASSIFIER_SYSTEM_PROMPT.lower()
+        assert "create a project named" in p
+        assert "general" in p
+
     async def test_single_keyword_hit_falls_back_to_general(self):
         """One incidental keyword must not commit the turn to a subgraph.
 

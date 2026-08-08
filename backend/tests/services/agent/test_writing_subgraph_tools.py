@@ -61,3 +61,53 @@ def test_writing_tool_surface_unchanged_for_core_tools() -> None:
         "compare_documents",
     }
     assert expected_core.issubset(set(WRITING_TOOL_NAMES_LIST))
+
+
+def test_project_crud_reachable_from_writing() -> None:
+    """capability-14: writing must be able to complete the full flow."""
+    from src.services.agent.subgraphs.writing_agent import (
+        WRITING_DESTRUCTIVE_TOOLS,
+        WRITING_TOOL_NAMES_LIST,
+    )
+    from src.services.agent.tool_registry import ToolPolicyTag
+    from src.services.agent.tools import TOOL_REGISTRY
+
+    for name in ("create_project", "add_document_to_project"):
+        assert name in WRITING_TOOL_NAMES_LIST, f"{name} missing from writing"
+        assert name in WRITING_DESTRUCTIVE_TOOLS, f"{name} lost HITL in writing"
+        # Pin the exact function the runtime interrupt gate calls, not just
+        # the sibling frozenset — this is what _factory.py checks per tool_call.
+        assert TOOL_REGISTRY.has_policy_in_subgraph(
+            name, ToolPolicyTag.DESTRUCTIVE, "writing"
+        )
+
+
+def test_project_crud_reachable_from_research() -> None:
+    """capability-14 symmetric half: research must also be able to note."""
+    from src.services.agent.subgraphs.research_agent import (
+        RESEARCH_DESTRUCTIVE_TOOLS,
+        RESEARCH_TOOL_NAMES_LIST,
+    )
+    from src.services.agent.tool_registry import ToolPolicyTag
+    from src.services.agent.tools import TOOL_REGISTRY
+
+    assert "create_project_note" in RESEARCH_TOOL_NAMES_LIST
+    assert "create_project_note" in RESEARCH_DESTRUCTIVE_TOOLS
+    assert TOOL_REGISTRY.has_policy_in_subgraph(
+        "create_project_note", ToolPolicyTag.DESTRUCTIVE, "research"
+    )
+
+
+def test_writing_prompt_lists_project_creation() -> None:
+    from src.services.agent.subgraphs.agents_md_loader import load_agents_md
+
+    prompt = load_agents_md("writing")
+    assert "create_project" in prompt
+    assert "add_document_to_project" in prompt
+
+
+def test_research_prompt_lists_note_creation() -> None:
+    from src.services.agent.subgraphs.agents_md_loader import load_agents_md
+
+    prompt = load_agents_md("research")
+    assert "create_project_note" in prompt

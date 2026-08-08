@@ -288,6 +288,7 @@ class TestProductionToolRegistryParity:
                 "list_projects",
                 "add_document_to_project",
                 "list_project_documents",
+                "create_project_note",
             },
             "writing": {
                 "create_draft",
@@ -304,6 +305,8 @@ class TestProductionToolRegistryParity:
                 # summarize_document is writing-only and its recoverable hint
                 # names this tool; without the binding the advice is dead.
                 "list_project_documents",
+                "create_project",
+                "add_document_to_project",
             },
             "data": {
                 # list_project_documents' _missing_project_error names this.
@@ -338,6 +341,7 @@ class TestProductionToolRegistryParity:
             "list_projects",
             "add_document_to_project",
             "list_project_documents",
+            "create_project_note",
         ]
         assert [
             item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("writing")
@@ -352,6 +356,8 @@ class TestProductionToolRegistryParity:
             # Appended at positions 7 and 8 so the existing order is untouched.
             "list_projects",
             "list_project_documents",
+            "create_project",
+            "add_document_to_project",
         ]
         assert [
             item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("data")
