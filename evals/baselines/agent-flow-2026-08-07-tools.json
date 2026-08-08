@@ -1,17 +1,17 @@
 {
   "schema_version": "1.0",
   "suite": "nous-agent-tools-v1",
-  "recorded_at": "",
-  "repository_revision": "261273129dbea6f646c9662566ff5a7eea61545a",
-  "agent_revision": "261273129dbea6f646c9662566ff5a7eea61545a",
+  "recorded_at": "2026-08-08T00:12:21Z",
+  "repository_revision": "79af897feca3b48586c69b7d45fcdf2089ac9f41",
+  "agent_revision": "79af897feca3b48586c69b7d45fcdf2089ac9f41",
   "harbor_version": "0.6.6",
   "harness_digest": "sha256:f818775159d24bcf706aa32eb647d2edcf6098bf23f199050c30b39a6171fe15",
   "aggregate": {
     "capabilities": 1,
-    "passed": 0,
+    "passed": 1,
     "failed": 0,
     "infrastructure_failures_in_baseline": 0,
-    "note": "No benchmark run has been recorded for this suite yet; the task, environment, and verifier have landed and the verifier calibration fixtures pass, but passed/failed stay 0 until a run is recorded."
+    "note": "Recorded against develop@79af897f, which carries the four fixes that make capability 14 completable (#1356 weak-keyword floor, #1357 reasoning_effort default, #1358 cross-bound project CRUD + MAX_TOOL_LOOPS 6, #1355 synthesis knob). Run executed the merged tree (this task branch + develop) with dev-faithful Azure deployments (lightweight gpt-5-nano, synthesis gpt-5-mini, chat overridden to gpt-5.6-luna to match the live rag-dev pod). Reward 1.0, verifier passed, failures empty."
   },
   "verifier_calibration": {
     "agent-project-management-v1": {
@@ -19,7 +19,28 @@
       "wrong-premature-mutation": 0
     }
   },
-  "benchmarks": [],
+  "benchmarks": [
+    {
+      "benchmark_id": "agent-project-management-v1",
+      "capability": 14,
+      "reward": 1.0,
+      "passed": true,
+      "trials": 1,
+      "exceptions": 0,
+      "verifier_failures": [],
+      "hitl_approvals": 3,
+      "tools_executed": [
+        "create_project",
+        "search_documents",
+        "add_document_to_project",
+        "create_project_note",
+        "list_project_documents"
+      ],
+      "route": "general",
+      "harbor_job": "agent-project-management-v1-baseline2",
+      "recorded_at": "2026-08-08T00:12:21Z"
+    }
+  ],
   "evidence": {
     "local_jobs_directory": "evals/jobs",
     "retention": "keep until the evaluation is accepted, revised, or dropped",

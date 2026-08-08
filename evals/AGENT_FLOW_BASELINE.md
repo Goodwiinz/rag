@@ -385,9 +385,13 @@ failure, #956), or cross-org scoping of `list_projects` (`tools.py:410`) and
 `list_project_documents` (`tools.py:449`) — those remain the next increments
 on this capability.
 
-**Status:** Harbor task landed (`evals/agent-project-management-v1`),
-calibration 1 pass + 1 wrong verified; awaiting first recorded baseline run —
-NOT YET GATED.
+**Status:** GATED. Harbor task landed (`evals/agent-project-management-v1`),
+calibration 1 pass + 1 wrong verified, and first baseline run recorded 2026-08-08
+against develop@79af897f (reward 1.0, verifier passed, 3 HITL approvals, all five
+tools executed via the general route). See
+`baselines/agent-flow-2026-08-07-tools.json`. The run needed four develop fixes
+to pass — #1356, #1357, #1358, #1355 — none of which the pinned source
+(261273129) carried; the capability was genuinely broken until they landed.
 
 **Sequencing note:** "next" tier = highest defect-density areas by repo
 history (fake-success writers, HITL, tenant scope, arXiv ingest). Build one
