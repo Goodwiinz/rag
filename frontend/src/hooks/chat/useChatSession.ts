@@ -11,7 +11,10 @@ import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView'
 import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
 import { ChatConversation } from '@/hooks/chat/chatTypes';
 import { upsertConversationFromThread } from '@/components/chat/shared/threadConversationState';
-import { workspaceService } from '@/services/workspaceService';
+import {
+  clearWorkspaceServiceCache,
+  workspaceService,
+} from '@/services/workspaceService';
 import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -443,11 +446,10 @@ export function useChatSession(): UseChatSessionReturn {
           console.warn(
             '[Chat] Conversation not found (404) - clearing stale data'
           );
-          // Clear stale localStorage data
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('default-workspace-id');
-            localStorage.removeItem('default-conversation-id');
-          }
+          // Clear the service's own warm cache too (WS_CACHE_KEY etc.), not
+          // just our warm-start ids — otherwise the next bootstrap re-fetches
+          // the dead workspace from the stale cached object.
+          clearWorkspaceServiceCache();
           return { ok: false, threadCount: 0 }; // Signal to caller to retry with fresh data
         }
 
@@ -726,10 +728,10 @@ export function useChatSession(): UseChatSessionReturn {
         const err = error as { response?: { status?: number } };
         if (err?.response?.status === 404) {
           console.warn('[Chat] Stale data detected, clearing and retrying...');
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('default-workspace-id');
-            localStorage.removeItem('default-conversation-id');
-          }
+          // Clear the service's own warm cache too (WS_CACHE_KEY etc.), not
+          // just our warm-start ids — otherwise the next bootstrap re-fetches
+          // the dead workspace from the stale cached object.
+          clearWorkspaceServiceCache();
           try {
             const ws = await workspaceService.getOrCreateDefaultWorkspace();
             setWorkspace(ws);
