@@ -1,0 +1,20 @@
+{
+  "doc1_title": "API Rate Limit Policy",
+  "doc2_title": "Webhook Retry Policy",
+  "kb_uuid": "benchmark-kb-0701",
+  "sources": [
+    {
+      "title": "API Rate Limit Policy",
+      "text": "Effective 2026, API requests are limited to 120 requests per minute per API key. Requests beyond the limit receive HTTP 429 with a Retry-After header. Limits are enforced per organization, not per user."
+    },
+    {
+      "title": "Webhook Retry Policy",
+      "text": "Webhook deliveries are retried up to 3 times with exponential backoff starting at 30 seconds. This policy governs delivery retries only and does not define API request rate limits."
+    }
+  ],
+  "expected_answer_facts": [
+    "120 requests per minute per API key",
+    "HTTP 429 with a Retry-After header",
+    "limits are enforced per organization"
+  ]
+}
