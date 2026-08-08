@@ -227,7 +227,7 @@ Harbor task lands and its calibration fixtures pass.
 
 | # | Capability | Tier | Surface covered |
 | --- | --- | --- | --- |
-| 5 | arXiv research flow | next | `search_arxiv`, `ingest_arxiv_papers` (HITL), post-ingest `document_ids` handoff |
+| 5 | arXiv research flow | task landed | `search_arxiv`, `ingest_arxiv_papers` (HITL), post-ingest `document_ids` handoff (Harbor task `agent-arxiv-research-flow-v1`; awaiting first recorded run) |
 | 6 | Writing flow | task landed | `create_draft` (HITL), `export_bibliography`, `compare_documents` (Harbor task `agent-writing-flow-v1`; awaiting first recorded run — `create_project_note` still uncovered) |
 | 7 | Knowledge-graph flow | next | `extract_entities`, `search_knowledge_graph`, `explore_entity_neighborhood`, `find_entity_paths`, `get_graph_stats` |
 | 8 | HITL interrupt lifecycle | next | `interrupt_node`, confirm/reject/timeout, resume semantics |
@@ -238,15 +238,57 @@ Harbor task lands and its calibration fixtures pass.
 | 13 | Luna fast path | next | `fast_path.py` — cancel defects fixed in #1353; same invariants as capability 3 |
 | 14 | Project management | task landed | `create_project`, `add_document_to_project`, `create_project_note`, `list_project_documents` read-back, three-step HITL ordering (Harbor task `agent-project-management-v1`; awaiting first recorded run — soft-delete visibility still uncovered) |
 | 15 | Knowledge-base retrieval | task landed | `search_documents`, `do_kb_retrieve` (Harbor task `agent-kb-retrieval-v1`; awaiting first recorded run — `summarize_document` deferred, see coverage note) |
+| 16 | Code execution | task landed | `execute_code` (HITL), E2B wire double, fabricated-execution guard (Harbor task `agent-code-execution-v1`; awaiting first recorded run — live-unreachable in production routing, see coverage note) |
+| 17 | External databases | task landed | `list_external_databases`, `search_external_database`, 11-connector registry (3 key-gated), fabricated-result trap (Harbor task `agent-external-databases-v1`; awaiting first recorded run — live-unreachable in production routing, see coverage note) |
 
 ### 5. arXiv research flow
 
-Objective gates: `search_arxiv` returns results; `ingest_arxiv_papers` fires
-`interrupt()` before mutation; after approval, follow-up tool calls use the
-returned `document_ids` (UUIDs), never arXiv paper ids; ingested docs are
-org-scoped rows with non-null `storage_path`; long-timeout budget respected
-(arXiv endpoints are 5-min class). Semantic: answer cites ingested papers.
-Near-boundary: reject the interrupt → zero rows persisted.
+**Preconditions:** UUID block `10xx` — org `00000000-0000-4000-8000-000000001001`,
+user `…001002`, workspace `…001003`, project `…001004`, thread `…001005`.
+Fixture arXiv IDs are plain arXiv-shaped strings (`2401.10001`, `2401.10002`, …)
+recorded in `tests/truth.json`. `search_arxiv`/`ingest_arxiv_papers` are both
+RESEARCH-bound (`tools.py:863-878`, `tools.py:879-895`) and reachable via live
+classification — no sentinel-intent workaround needed for this task.
+
+**Objective gates:**
+- `search_arxiv` executes and returns ≤ 5 results (impl hard-cap, not the
+  wrapper's 50 — `tools_impl.py:1027`); results ⊆ the fixture set
+  (`tests/verify.py:239-278`, `check_search`).
+- `ingest_arxiv_papers` is DESTRUCTIVE (`tools.py:890`) and fires `interrupt()`
+  before any row is written; the pre-approval DB snapshot shows zero ingested
+  document rows, approval follows, post-approval rows exist
+  (`tests/verify.py:310-358`, `check_hitl_ordering`).
+- Post-approval, the result's `document_ids` are valid UUIDs, never arXiv
+  paper ids (`tools_impl.py:1530-1542`); independent psycopg read confirms
+  org-scoped `documents` rows with `processing_status='COMPLETED'`,
+  `checksum_sha256` matching the fixture PDF, and a project link row
+  (`tests/verify.py:358-436`, `check_ingest_result` / `check_database_state`).
+- Storage: file exists at `UPLOAD_DIR/documents/<org>/<doc_id>/<filename>`
+  with bytes matching `checksum_sha256` (`storage.py:69-77`;
+  `tests/verify.py:436-463`, `check_storage`).
+- Redis L2 cache: `arxiv:search:<sha1>` key present, `0 < TTL ≤ 1800`
+  (`_ARXIV_CACHE_STALE_TTL`, `tools_impl.py:798`); a second identical search
+  returns `cached: true` with no second mock query event
+  (`tests/verify.py:463-491`, `check_redis`).
+- Mock-service events: every PDF fetch targets a requested fixture id, no
+  unexpected hosts (`tests/verify.py:278-310`, `check_mock_events`).
+
+**Coverage note:** this task exercises one search + one 2-paper ingest (HITL)
++ the redis cache-hit path in a single trial. It does **not** cover the
+`>10`-batch truncation-vs-rejection boundary beyond the near-boundary trial
+(11-ID batch asserts truncation to 10 per the wrapper's silent `[:10]` cap,
+`tools.py:259-261` — not the impl's dead `>10` error at `tools_impl.py:1174`),
+and the invalid-`project_id` near-boundary trial is scoped to asserting the
+classified `error_type: "invalid_project_id"` surfaces and the agent recovers
+— it does not exercise every malformed-`project_id` shape. Both are
+deliberately narrow near-boundary probes, not exhaustive input-fuzzing.
+
+**Semantic gate:** N/A (design doc §Layer B) — counts as pass. The flow's
+correctness is fully covered by the objective gates above (document identity,
+HITL ordering, cache behavior); there is no free-text answer requiring a
+judge.
+
+**Status:** NOT YET GATED — awaits first recorded run.
 
 ### 6. Writing flow
 
@@ -498,6 +540,99 @@ force a pass rather than resolve the routing question. Also not yet covered:
 cross-org scoping of either tool (capability 12 covers tenant probes
 generally, not this task specifically) and the Postgres hybrid-search
 fallback path when DO KB is unavailable.
+
+**Status:** NOT YET GATED — awaits first recorded run.
+
+### 16. Code execution
+
+**Preconditions:** UUID block `11xx` — org `00000000-0000-4000-8000-000000001101`,
+user `…001102`, workspace `…001103`, thread `…001104`. `execute_code` has
+`subgraphs=∅` (`tools.py:1076-1082`) — research/kg intent turns never bind it
+(subgraph routing binds by subgraph, not intent), so this task drives the turn
+via the sentinel-intent `aupdate_state` workaround onto the general path's
+`ALL_TOOLS` binding, identical to the plan-3 memory-task precedent.
+
+**Objective gates:**
+- Observed `intent` in evidence equals the injected sentinel (routing-workaround
+  comparison identity, `env_flags.routing_workaround = "sentinel_intent"`)
+  (`tests/verify.py:146-159`, `check_sentinel_routing`).
+- `execute_code` is DESTRUCTIVE (`tools.py:1076-1082`) and fires the
+  root-graph `interrupt_node`; pre-approval mock-event snapshot shows no
+  execute request reached the E2B double before approval, exactly one sandbox
+  created (`tests/verify.py:171-202`, `check_hitl_ordering`).
+- Tool result `exit_code == 0`; `stdout` contains the SHA-256 digest of
+  `"nous-benchmark-1101"`, independently recomputed by the verifier and
+  asserted against both `stdout` and the final assistant message — grounding
+  without a judge (`tests/verify.py:226-259`, `check_execution_result`).
+- Execution count ≤ `MAX_EXECUTIONS_PER_RUN` (5) (`e2b_sandbox_manager.py:53`).
+- No unsanctioned destructive tool executes (`tests/verify.py:202-226`).
+
+**Coverage note:** `execute_code` is a **production dead tool in the pinned
+benchmark image** (`registry.digitalocean.com/ragsystemregistry/backend:3a436b2-r1`)
+— it is not reachable via live intent classification under any research/kg
+turn (subgraph routing binds by subgraph; `execute_code` has `subgraphs=∅`,
+`tools.py:1076-1082`). This task reaches it only via the sentinel-intent
+`aupdate_state` workaround, recorded as an `env_flags` comparison identity,
+not a claim of live reachability. A routing fix restoring `execute_code` to a
+subgraph binding is landing on `develop` in **PR #1365**, but the pinned
+benchmark image (`3a436b2-r1`) predates it — when the suite re-pins to an
+image containing the fix, switch this task to live classification and
+re-record. The E2B double genuinely executes submitted Python in a
+subprocess inside the mock container (real stdout for deterministic code);
+if the wire-protocol spike had found the SDK's streaming/auth handshake
+unreproducible, the binding fallback is an honest env-gate (verifier exit 2,
+infra-degraded, never a fake pass) — not exercised here since the double
+proved feasible.
+
+**Semantic gate:** N/A (design doc §Layer B) — counts as pass. Correctness is
+the recomputed-digest grounding check above, not a free-text judgment.
+
+**Status:** NOT YET GATED — awaits first recorded run.
+
+### 17. External databases
+
+**Preconditions:** UUID block `12xx` — org `00000000-0000-4000-8000-000000001201`,
+user `…001202`, workspace `…001203`, thread `…001204`. `search_external_database`
+and `list_external_databases` both have `intents=∅`, `subgraphs=∅`
+(`tools.py:1083-1096`) — unreachable via any live classification, general
+included. This task drives the turn via the same sentinel-intent `aupdate_state`
+workaround as capability 16.
+
+**Objective gates:**
+- Observed `intent` equals the injected sentinel
+  (`tests/verify.py:156-169`, `check_sentinel_routing`).
+- Neither tool is destructive; no HITL interrupt occurs — a paused graph is
+  itself a gate failure (`tests/verify.py:180-194`, `check_no_hitl`).
+- `list_external_databases`: `total == 11`; `fred.available == true`;
+  `alpha_vantage` and `cosmic` `available == false` with
+  `requires_api_key == true` (only the 3 key-gated connectors, per
+  `base.py:109-116` + registry — corrects the design doc's "9 unavailable")
+  (`tests/verify.py:194-238`, `check_list_external_databases`).
+- Both searches execute with `connector` explicit, `max_results ≤ 20` (impl
+  cap, `tools_impl.py:2997`); result rows ⊆ fixtures, `content` truncated to
+  300 chars (`tools_impl.py:3052`); the FRED event carries the benchmark
+  `api_key` query param (`tests/verify.py:238-283`, `check_search_results`).
+- Mock events: no query the double never served; final message's claims are
+  contained in the doubled results — deterministic containment, not judged
+  (`tests/verify.py:283-318`, `check_mock_events` / `check_final_message`).
+
+**Coverage note:** `search_external_database` and `list_external_databases`
+are **production dead tools in the pinned benchmark image** — both have
+`intents=∅` and `subgraphs=∅` (`tools.py:1083-1096`), so neither the general
+path's per-intent binding nor any subgraph ever exposes them under live
+classification. This task reaches them only via the sentinel-intent
+`aupdate_state` workaround (`env_flags.routing_workaround = "sentinel_intent"`),
+the same mechanism and same product gap as capability 16. The routing fix
+restoring these tools is landing on `develop` in **PR #1365**; the pinned
+benchmark image (`3a436b2-r1`) predates it. When the suite re-pins to an image
+containing the fix, switch this task to live classification and re-record.
+Only 2 of 11 connectors (`pubmed`, `fred`) are doubled; the remaining 8
+keyless connectors are deliberately not exercised — the instruction pins
+`connector=` explicitly to avoid an un-doubled fan-out via the no-connector
+`list_available()` default (`tools_impl.py:3026`).
+
+**Semantic gate:** N/A (design doc §Layer B) — counts as pass. Correctness is
+the deterministic fixture-containment check above, not a free-text judgment.
 
 **Status:** NOT YET GATED — awaits first recorded run.
 
