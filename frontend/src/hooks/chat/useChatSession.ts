@@ -195,7 +195,14 @@ export function useChatSession(): UseChatSessionReturn {
   // Pagination: load older messages for a thread (prepends to the store list).
   const loadOlderMessages = useCallback(
     async (threadId: string) => {
-      await storeLoadOlderMessages(threadId);
+      try {
+        await storeLoadOlderMessages(threadId);
+      } catch (error) {
+        // Mirror loadMoreThreads: a failed pagination fetch must not be an
+        // unhandled rejection with zero feedback.
+        console.error('[Chat] Failed to load older messages:', error);
+        toast.error('Could not load older messages. Please try again.');
+      }
     },
     [storeLoadOlderMessages]
   );
@@ -423,7 +430,13 @@ export function useChatSession(): UseChatSessionReturn {
             // requested thread falls outside the first sidebar page.
             setCurrentThread(null);
           }
-        } else if (uiConversations.length > 0) {
+        } else if (
+          uiConversations.length > 0 &&
+          !useChatStore.getState().currentThreadId
+        ) {
+          // Mirror the guard every other selection write in this file uses:
+          // if the layout hook (useChatPersistence) has already picked a
+          // thread, don't stomp it with our independently-fetched first row.
           const selectedConversation = uiConversations[0];
           setCurrentThread(selectedConversation.id);
           // Keep the URL in sync with the auto-selection: a bare /chat URL
