@@ -505,16 +505,38 @@ class Settings(BaseSettings):
     #       -> 400 "Unsupported value: 'reasoning_effort' does not support
     #          'minimal' with this model."
     #
-    # So this default is a migration hazard twice over: it breaks on any
-    # gpt-5.1+ deployment, and _resolve_lightweight_deployment() falls back to
-    # the MAIN chat deployment when AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT is
-    # unset. On a gpt-5.6-only setup that fallback is fatal on every classifier
-    # turn. "none" is the value to use there — the only one measured working
-    # across all three deployments.
+    # "none" is the default because it is the only value measured working on
+    # all three deployments. "minimal" was the previous default and is a
+    # migration hazard twice over: it breaks on any gpt-5.1+ deployment, and
+    # _resolve_lightweight_deployment() falls back to the MAIN chat deployment
+    # when AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT is unset — so a gpt-5.6-only
+    # setup 400s on every classifier turn with nothing in the config naming
+    # the offending model.
+    #
+    # Reproduced end to end 2026-08-07 (agent-project-management-v1 Harbor run
+    # with every role pointed at gpt-5.6-luna): BadRequestError out of
+    # force_synthesis_node, whole turn lost.
     #
     # Related: Azure documents that parallel tool calls are unsupported when
-    # reasoning_effort is "minimal", which AGENT_PARALLEL_TOOL_CALLS assumes.
-    AGENT_LIGHTWEIGHT_REASONING_EFFORT: str = "minimal"
+    # reasoning_effort is "minimal", which AGENT_PARALLEL_TOOL_CALLS assumes;
+    # "none" sidesteps that coupling too.
+    AGENT_LIGHTWEIGHT_REASONING_EFFORT: str = "none"
+
+    # Synthesis-only override. Unset (None) inherits
+    # AGENT_LIGHTWEIGHT_REASONING_EFFORT, so leaving it alone is a no-op —
+    # existing single-knob deployments keep their current behaviour.
+    #
+    # Set it when prose synthesis needs to think harder than a classifier
+    # does. The same per-generation value rules apply as above; on rag-dev's
+    # gpt-5.6-luna that means "none" | "low" | "medium" | "high" | "xhigh"
+    # and NOT "minimal".
+    #
+    # Only the two prose-only call sites can actually use this — both named
+    # force_synthesis_node, in _nodes_llm and in subgraphs/_factory. The
+    # four post-tool callers pass tool_calling=True, and
+    # _reasoning_effort_for drops the kwarg for them on Chat Completions —
+    # they need AGENT_USE_RESPONSES_API before any value here reaches Azure.
+    AGENT_SYNTHESIS_REASONING_EFFORT: Optional[str] = None
 
     # Bound Azure LLM call wall-clock to prevent model-router hangs. LangSmith
     # has observed traces with end_time=null blocking root for 70s+. Default
