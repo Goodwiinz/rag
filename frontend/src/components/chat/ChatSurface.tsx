@@ -356,10 +356,19 @@ export function ChatSurface({
             value={input}
             onChange={setInput}
             onSubmit={() => {
-              if (isSessionInteractive) submitMessage();
+              if (isSessionInteractive) {
+                submitMessage();
+              } else {
+                console.warn('[Chat] Send ignored: session not interactive', {
+                  isAuthenticated,
+                  isInitializing,
+                  initError,
+                });
+              }
             }}
             onStop={handleStop}
             isLoading={isBusy}
+            disabled={!isSessionInteractive}
             enableRAG={enableRAG}
             onRAGToggle={setEnableRAG}
             inputRef={chatInputRef}
