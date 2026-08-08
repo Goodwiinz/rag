@@ -1,0 +1,108 @@
+services:
+  main:
+    build:
+      context: ../../..
+      dockerfile: evals/agent-code-execution-v1/environment/Dockerfile
+    platform: linux/amd64
+    environment:
+      DATABASE_URL: postgresql://benchmark:benchmark-local-only@postgres:5432/benchmark
+      ENVIRONMENT: benchmark
+      SECRET_KEY: benchmark-secret-key-only-000000000000000000000000
+      JWT_SECRET_KEY: benchmark-jwt-key-only-000000000000000000000000000
+      ENCRYPTION_MASTER_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      AZURE_OPENAI_CHAT_ENDPOINT: ${AZURE_OPENAI_CHAT_ENDPOINT}
+      AZURE_OPENAI_CHAT_API_KEY: ${AZURE_OPENAI_CHAT_API_KEY}
+      AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: ${AZURE_OPENAI_CHAT_DEPLOYMENT_NAME}
+      AZURE_OPENAI_CHAT_API_VERSION: ${AZURE_OPENAI_CHAT_API_VERSION}
+      AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT: ${AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT}
+      AZURE_OPENAI_SYNTHESIS_DEPLOYMENT: ${AZURE_OPENAI_SYNTHESIS_DEPLOYMENT:-}
+      HTTPS_PROXY: http://egress-proxy:3128
+      HTTP_PROXY: http://egress-proxy:3128
+      NO_PROXY: postgres,mock-services,egress-proxy,localhost,127.0.0.1
+      LANGCHAIN_TRACING_V2: "false"
+      LANGSMITH_TRACING: "false"
+      LANGSMITH_API_KEY: ""
+      LANGCHAIN_API_KEY: ""
+      COHERE_API_KEY: ""
+      DO_KB_API_TOKEN: ""
+      DO_KB_ENABLED: "false"
+      STORAGE_BACKEND: local
+      UPLOAD_DIR: /benchmark/uploads
+      AGENT_USE_RESPONSES_API: "false"
+      AGENT_PARALLEL_TOOL_CALLS: "false"
+      AGENT_LLM_MAX_RETRIES: "1"
+      AGENT_LLM_REQUEST_TIMEOUT: "45"
+      AGENT_LIGHTWEIGHT_REQUEST_TIMEOUT: "30"
+      DB_ASYNC_POOL_SIZE: "2"
+      DB_ASYNC_MAX_OVERFLOW: "2"
+      DB_SYNC_POOL_SIZE: "1"
+      DB_SYNC_MAX_OVERFLOW: "1"
+      # E2B SDK 2.7.0 ConnectionConfig reads these directly (Landmine 2 spike):
+      # the sandbox-lifecycle API (create/kill) is redirected here. The
+      # jupyter/execute route does NOT honor E2B_SANDBOX_URL (SDK gap found
+      # during the spike) — the adapter patches
+      # e2b_code_interpreter.code_interpreter_async.AsyncSandbox._jupyter_url
+      # directly for that seam; see harness.md Fidelity limits.
+      E2B_API_URL: http://mock-services:8080
+      E2B_SANDBOX_URL: http://mock-services:8080
+      E2B_API_KEY: benchmark-token
+      E2B_VALIDATE_API_KEY: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-services:
+        condition: service_healthy
+      egress-proxy:
+        condition: service_healthy
+    networks:
+      - benchmark-internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import langgraph, langchain_openai, sqlalchemy, e2b_code_interpreter"]
+      interval: 5s
+      timeout: 20s
+      retries: 20
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: benchmark
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark-local-only
+    networks:
+      - benchmark-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark -d benchmark"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  mock-services:
+    build:
+      context: ./mock_services
+    networks:
+      - benchmark-internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2).read()"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  egress-proxy:
+    build:
+      context: ./proxy
+    environment:
+      AZURE_OPENAI_CHAT_ENDPOINT: ${AZURE_OPENAI_CHAT_ENDPOINT}
+    networks:
+      - benchmark-internal
+      - egress-public
+    healthcheck:
+      test: ["CMD-SHELL", "squid -k check"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+networks:
+  benchmark-internal:
+    internal: true
+  egress-public: {}
