@@ -1,0 +1,673 @@
+{
+  "evidence": {
+    "agent_revision": "261273129dbea6f646c9662566ff5a7eea61545a",
+    "approval": {
+      "count": 3,
+      "resume": {
+        "confirmed": true
+      },
+      "text": "Yes, go ahead."
+    },
+    "benchmark_id": "agent-project-management-v1",
+    "classification": {
+      "confidence": 0.94,
+      "intent": "research",
+      "probe_reasoning": "Multi-step project management request.",
+      "source_probe": "llm"
+    },
+    "completed_at": "2026-08-07T12:01:07Z",
+    "database": {
+      "after": {
+        "collection_documents": [
+          {
+            "collection_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+            "document_id": "00000000-0000-4000-8000-000000000505",
+            "id": "9b2d4e60-71a3-4c8f-9d21-6e5b0a7c3f03",
+            "sort_order": 0
+          }
+        ],
+        "counts": {
+          "collection_documents": 1,
+          "documents": 1,
+          "project_notes": 1,
+          "projects": 1
+        },
+        "documents": [
+          {
+            "id": "00000000-0000-4000-8000-000000000505",
+            "is_deleted": false,
+            "organization_id": "00000000-0000-4000-8000-000000000501",
+            "title": "Seed Paper"
+          }
+        ],
+        "project_notes": [
+          {
+            "content": "Track tool coverage benchmark progress.",
+            "id": "5c1e9d84-2b77-4f1a-8f30-9a0c6d3e4b02",
+            "project_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+            "title": "Kickoff",
+            "user_id": "00000000-0000-4000-8000-000000000502"
+          }
+        ],
+        "projects": [
+          {
+            "description": null,
+            "id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+            "is_deleted": false,
+            "name": "Tool Coverage Study",
+            "research_status": "active",
+            "workspace_id": "00000000-0000-4000-8000-000000000503"
+          }
+        ],
+        "workspace_id": "00000000-0000-4000-8000-000000000503"
+      },
+      "before_approvals": [
+        {
+          "observed_at": "2026-08-07T12:00:13Z",
+          "phase": "before_approval:1",
+          "state": {
+            "collection_documents": [],
+            "counts": {
+              "collection_documents": 0,
+              "documents": 1,
+              "project_notes": 0,
+              "projects": 1
+            },
+            "documents": [
+              {
+                "id": "00000000-0000-4000-8000-000000000505",
+                "is_deleted": false,
+                "organization_id": "00000000-0000-4000-8000-000000000501",
+                "title": "Seed Paper"
+              }
+            ],
+            "project_notes": [],
+            "projects": [
+              {
+                "description": null,
+                "id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+                "is_deleted": false,
+                "name": "Tool Coverage Study",
+                "research_status": "active",
+                "workspace_id": "00000000-0000-4000-8000-000000000503"
+              }
+            ],
+            "workspace_id": "00000000-0000-4000-8000-000000000503"
+          }
+        },
+        {
+          "observed_at": "2026-08-07T12:00:28Z",
+          "phase": "before_approval:2",
+          "state": {
+            "collection_documents": [],
+            "counts": {
+              "collection_documents": 0,
+              "documents": 1,
+              "project_notes": 0,
+              "projects": 1
+            },
+            "documents": [
+              {
+                "id": "00000000-0000-4000-8000-000000000505",
+                "is_deleted": false,
+                "organization_id": "00000000-0000-4000-8000-000000000501",
+                "title": "Seed Paper"
+              }
+            ],
+            "project_notes": [],
+            "projects": [
+              {
+                "description": null,
+                "id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+                "is_deleted": false,
+                "name": "Tool Coverage Study",
+                "research_status": "active",
+                "workspace_id": "00000000-0000-4000-8000-000000000503"
+              }
+            ],
+            "workspace_id": "00000000-0000-4000-8000-000000000503"
+          }
+        },
+        {
+          "observed_at": "2026-08-07T12:00:43Z",
+          "phase": "before_approval:3",
+          "state": {
+            "collection_documents": [
+              {
+                "collection_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+                "document_id": "00000000-0000-4000-8000-000000000505",
+                "id": "9b2d4e60-71a3-4c8f-9d21-6e5b0a7c3f03",
+                "sort_order": 0
+              }
+            ],
+            "counts": {
+              "collection_documents": 1,
+              "documents": 1,
+              "project_notes": 0,
+              "projects": 1
+            },
+            "documents": [
+              {
+                "id": "00000000-0000-4000-8000-000000000505",
+                "is_deleted": false,
+                "organization_id": "00000000-0000-4000-8000-000000000501",
+                "title": "Seed Paper"
+              }
+            ],
+            "project_notes": [],
+            "projects": [
+              {
+                "description": null,
+                "id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+                "is_deleted": false,
+                "name": "Tool Coverage Study",
+                "research_status": "active",
+                "workspace_id": "00000000-0000-4000-8000-000000000503"
+              }
+            ],
+            "workspace_id": "00000000-0000-4000-8000-000000000503"
+          }
+        }
+      ],
+      "bootstrap": "src.models.Base.metadata.create_all",
+      "initial": {
+        "collection_documents": [],
+        "counts": {
+          "collection_documents": 0,
+          "documents": 1,
+          "project_notes": 0,
+          "projects": 0
+        },
+        "documents": [
+          {
+            "id": "00000000-0000-4000-8000-000000000505",
+            "is_deleted": false,
+            "organization_id": "00000000-0000-4000-8000-000000000501",
+            "title": "Seed Paper"
+          }
+        ],
+        "project_notes": [],
+        "projects": [],
+        "workspace_id": "00000000-0000-4000-8000-000000000503"
+      }
+    },
+    "elapsed_ms": 67412,
+    "events": [
+      {
+        "observed_at": "2026-08-07T12:00:12Z",
+        "phase": "initial",
+        "sequence": 2,
+        "update": {
+          "rag_node": {
+            "rag_context": []
+          }
+        }
+      },
+      {
+        "observed_at": "2026-08-07T12:00:58Z",
+        "phase": "resume:3",
+        "sequence": 12,
+        "update": {
+          "memory_save": {}
+        }
+      }
+    ],
+    "final_assistant_message": {
+      "content": "Done. The project \"Tool Coverage Study\" now contains one document, \"Seed Paper\", and one note titled \"Kickoff\" recording the benchmark progress.",
+      "id": "msg-10",
+      "response_metadata": {
+        "finish_reason": "stop"
+      },
+      "tool_calls": [],
+      "type": "ai",
+      "usage_metadata": {
+        "input_tokens": 2480,
+        "output_tokens": 88
+      }
+    },
+    "instruction": "Create a research project named \"Tool Coverage Study\", then add the pre-loaded document titled \"Seed Paper\" to it, create a note in it titled \"Kickoff\" with content \"Track tool coverage benchmark progress.\", and finally list the project's documents and confirm what the project now contains.",
+    "interrupt": {
+      "count": 3,
+      "tools": [
+        "create_project",
+        "add_document_to_project",
+        "create_project_note"
+      ]
+    },
+    "interrupts": [
+      {
+        "approved_at": "2026-08-07T12:00:14Z",
+        "args": {
+          "name": "Tool Coverage Study"
+        },
+        "tool": "create_project"
+      },
+      {
+        "approved_at": "2026-08-07T12:00:29Z",
+        "args": {
+          "document_id": "00000000-0000-4000-8000-000000000505",
+          "project_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01"
+        },
+        "tool": "add_document_to_project"
+      },
+      {
+        "approved_at": "2026-08-07T12:00:44Z",
+        "args": {
+          "content": "Track tool coverage benchmark progress.",
+          "project_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+          "title": "Kickoff"
+        },
+        "tool": "create_project_note"
+      }
+    ],
+    "messages": [
+      {
+        "content": "Create a research project named \"Tool Coverage Study\", then add the pre-loaded document titled \"Seed Paper\" to it, create a note in it titled \"Kickoff\" with content \"Track tool coverage benchmark progress.\", and finally list the project's documents and confirm what the project now contains.",
+        "id": "msg-1",
+        "type": "human"
+      },
+      {
+        "content": "",
+        "id": "msg-2",
+        "response_metadata": {
+          "finish_reason": "tool_calls"
+        },
+        "tool_calls": [
+          {
+            "args": {
+              "name": "Tool Coverage Study"
+            },
+            "id": "call_create_project",
+            "name": "create_project"
+          }
+        ],
+        "type": "ai",
+        "usage_metadata": {
+          "input_tokens": 1820,
+          "output_tokens": 46
+        }
+      },
+      {
+        "content": "{\"status\": \"success\", \"project_id\": \"3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01\", \"name\": \"Tool Coverage Study\", \"workspace_id\": \"00000000-0000-4000-8000-000000000503\", \"message\": \"Created project 'Tool Coverage Study'.\"}",
+        "id": "msg-3",
+        "status": "success",
+        "tool_call_id": "call_create_project",
+        "type": "tool"
+      },
+      {
+        "content": "",
+        "id": "msg-4",
+        "response_metadata": {
+          "finish_reason": "tool_calls"
+        },
+        "tool_calls": [
+          {
+            "args": {
+              "document_id": "00000000-0000-4000-8000-000000000505",
+              "project_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01"
+            },
+            "id": "call_add_document",
+            "name": "add_document_to_project"
+          }
+        ],
+        "type": "ai",
+        "usage_metadata": {
+          "input_tokens": 2010,
+          "output_tokens": 52
+        }
+      },
+      {
+        "content": "{\"status\": \"success\", \"message\": \"Added document 'Seed Paper' to project 'Tool Coverage Study'.\", \"document_id\": \"00000000-0000-4000-8000-000000000505\", \"project_id\": \"3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01\"}",
+        "id": "msg-5",
+        "status": "success",
+        "tool_call_id": "call_add_document",
+        "type": "tool"
+      },
+      {
+        "content": "",
+        "id": "msg-6",
+        "response_metadata": {
+          "finish_reason": "tool_calls"
+        },
+        "tool_calls": [
+          {
+            "args": {
+              "content": "Track tool coverage benchmark progress.",
+              "project_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+              "title": "Kickoff"
+            },
+            "id": "call_create_note",
+            "name": "create_project_note"
+          }
+        ],
+        "type": "ai",
+        "usage_metadata": {
+          "input_tokens": 2190,
+          "output_tokens": 61
+        }
+      },
+      {
+        "content": "{\"status\": \"success\", \"note_id\": \"5c1e9d84-2b77-4f1a-8f30-9a0c6d3e4b02\", \"title\": \"Kickoff\", \"project_name\": \"Tool Coverage Study\", \"message\": \"Created note 'Kickoff' in project 'Tool Coverage Study'.\"}",
+        "id": "msg-7",
+        "status": "success",
+        "tool_call_id": "call_create_note",
+        "type": "tool"
+      },
+      {
+        "content": "",
+        "id": "msg-8",
+        "response_metadata": {
+          "finish_reason": "tool_calls"
+        },
+        "tool_calls": [
+          {
+            "args": {
+              "project_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01"
+            },
+            "id": "call_list_project_documents",
+            "name": "list_project_documents"
+          }
+        ],
+        "type": "ai",
+        "usage_metadata": {
+          "input_tokens": 2360,
+          "output_tokens": 40
+        }
+      },
+      {
+        "content": "{\"project_name\": \"Tool Coverage Study\", \"documents\": [{\"id\": \"00000000-0000-4000-8000-000000000505\", \"title\": \"Seed Paper\", \"type\": \"text\", \"status\": \"completed\"}], \"total\": 1, \"returned\": 1, \"limit\": 100, \"offset\": 0, \"has_more\": false}",
+        "id": "msg-9",
+        "status": "success",
+        "tool_call_id": "call_list_project_documents",
+        "type": "tool"
+      },
+      {
+        "content": "Done. The project \"Tool Coverage Study\" now contains one document, \"Seed Paper\", and one note titled \"Kickoff\" recording the benchmark progress.",
+        "id": "msg-10",
+        "response_metadata": {
+          "finish_reason": "stop"
+        },
+        "tool_calls": [],
+        "type": "ai",
+        "usage_metadata": {
+          "input_tokens": 2480,
+          "output_tokens": 88
+        }
+      }
+    ],
+    "milestones": [
+      {
+        "milestone": "instruction",
+        "observed_at": "2026-08-07T12:00:00Z",
+        "sequence": 1
+      },
+      {
+        "milestone": "interrupt:create_project",
+        "observed_at": "2026-08-07T12:00:04Z",
+        "sequence": 4
+      },
+      {
+        "milestone": "create_project_success",
+        "observed_at": "2026-08-07T12:00:08Z",
+        "sequence": 7
+      },
+      {
+        "milestone": "approval:create_project",
+        "observed_at": "2026-08-07T12:00:12Z",
+        "sequence": 10
+      },
+      {
+        "milestone": "interrupt:add_document_to_project",
+        "observed_at": "2026-08-07T12:00:16Z",
+        "sequence": 13
+      },
+      {
+        "milestone": "approval:add_document_to_project",
+        "observed_at": "2026-08-07T12:00:20Z",
+        "sequence": 16
+      },
+      {
+        "milestone": "interrupt:create_project_note",
+        "observed_at": "2026-08-07T12:00:24Z",
+        "sequence": 19
+      },
+      {
+        "milestone": "approval:create_project_note",
+        "observed_at": "2026-08-07T12:00:28Z",
+        "sequence": 22
+      },
+      {
+        "milestone": "add_document_to_project_success",
+        "observed_at": "2026-08-07T12:00:32Z",
+        "sequence": 25
+      },
+      {
+        "milestone": "create_project_note_success",
+        "observed_at": "2026-08-07T12:00:36Z",
+        "sequence": 28
+      },
+      {
+        "milestone": "list_project_documents_success",
+        "observed_at": "2026-08-07T12:00:40Z",
+        "sequence": 31
+      },
+      {
+        "milestone": "final_assistant_message",
+        "observed_at": "2026-08-07T12:00:44Z",
+        "sequence": 34
+      }
+    ],
+    "model_usage": {
+      "cache_tokens": 0,
+      "input_tokens": 10860,
+      "output_tokens": 287
+    },
+    "network_boundary": {
+      "approved_model_host_reachable_via_proxy": true,
+      "direct_public_socket_blocked": true,
+      "probe_details": {
+        "direct_socket_target": "1.1.1.1:443",
+        "proxy": "http://proxy:3128"
+      },
+      "unrelated_https_blocked_by_proxy": true
+    },
+    "notes": "Production graph with an isolated database and three sequential post-interrupt approvals.",
+    "pending_interrupt_after_resume": null,
+    "plan": [
+      "create_project",
+      "add_document_to_project",
+      "create_project_note",
+      "list_project_documents"
+    ],
+    "raw_tool_executions": [
+      {
+        "args": {
+          "name": "Tool Coverage Study"
+        },
+        "duration_ms": 141,
+        "id": "call_create_project",
+        "result": {
+          "message": "Created project 'Tool Coverage Study'.",
+          "name": "Tool Coverage Study",
+          "project_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+          "status": "success",
+          "workspace_id": "00000000-0000-4000-8000-000000000503"
+        },
+        "status": "completed",
+        "tool_display_name": "Create Project",
+        "tool_name": "create_project"
+      },
+      {
+        "args": {
+          "document_id": "00000000-0000-4000-8000-000000000505",
+          "project_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01"
+        },
+        "duration_ms": 96,
+        "id": "call_add_document",
+        "result": {
+          "document_id": "00000000-0000-4000-8000-000000000505",
+          "message": "Added document 'Seed Paper' to project 'Tool Coverage Study'.",
+          "project_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+          "status": "success"
+        },
+        "status": "completed",
+        "tool_display_name": "Add Document To Project",
+        "tool_name": "add_document_to_project"
+      },
+      {
+        "args": {
+          "content": "Track tool coverage benchmark progress.",
+          "project_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+          "title": "Kickoff"
+        },
+        "duration_ms": 88,
+        "id": "call_create_note",
+        "result": {
+          "message": "Created note 'Kickoff' in project 'Tool Coverage Study'.",
+          "note_id": "5c1e9d84-2b77-4f1a-8f30-9a0c6d3e4b02",
+          "project_name": "Tool Coverage Study",
+          "status": "success",
+          "title": "Kickoff"
+        },
+        "status": "completed",
+        "tool_display_name": "Create Project Note",
+        "tool_name": "create_project_note"
+      },
+      {
+        "args": {
+          "project_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01"
+        },
+        "duration_ms": 63,
+        "id": "call_list_project_documents",
+        "result": {
+          "documents": [
+            {
+              "id": "00000000-0000-4000-8000-000000000505",
+              "status": "completed",
+              "title": "Seed Paper",
+              "type": "text"
+            }
+          ],
+          "has_more": false,
+          "limit": 100,
+          "offset": 0,
+          "project_name": "Tool Coverage Study",
+          "returned": 1,
+          "total": 1
+        },
+        "status": "completed",
+        "tool_display_name": "List Project Documents",
+        "tool_name": "list_project_documents"
+      }
+    ],
+    "schema_version": "1.0",
+    "source_revision": "261273129dbea6f646c9662566ff5a7eea61545a",
+    "started_at": "2026-08-07T12:00:00Z",
+    "suppress_observation_for": [
+      "create_project",
+      "add_document_to_project",
+      "create_project_note"
+    ],
+    "synthetic_actor": {
+      "expected_project_name": "Tool Coverage Study",
+      "organization_id": "00000000-0000-4000-8000-000000000501",
+      "seed_document_id": "00000000-0000-4000-8000-000000000505",
+      "seed_document_title": "Seed Paper",
+      "thread_id": "00000000-0000-4000-8000-000000000504",
+      "user_id": "00000000-0000-4000-8000-000000000502",
+      "workspace_id": "00000000-0000-4000-8000-000000000503"
+    },
+    "termination_reason": "completed",
+    "tool_executions": [
+      {
+        "result_keys": [
+          "message",
+          "name",
+          "project_id",
+          "status",
+          "workspace_id"
+        ],
+        "status": "completed",
+        "tool": "create_project"
+      },
+      {
+        "result_keys": [
+          "document_id",
+          "message",
+          "project_id",
+          "status"
+        ],
+        "status": "completed",
+        "tool": "add_document_to_project"
+      },
+      {
+        "result_keys": [
+          "message",
+          "note_id",
+          "project_name",
+          "status",
+          "title"
+        ],
+        "status": "completed",
+        "tool": "create_project_note"
+      },
+      {
+        "result_keys": [
+          "documents",
+          "has_more",
+          "limit",
+          "offset",
+          "project_name",
+          "returned",
+          "total"
+        ],
+        "status": "completed",
+        "tool": "list_project_documents"
+      }
+    ]
+  },
+  "state": {
+    "collection_documents": [
+      {
+        "collection_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+        "document_id": "00000000-0000-4000-8000-000000000505",
+        "id": "9b2d4e60-71a3-4c8f-9d21-6e5b0a7c3f03",
+        "sort_order": 0
+      }
+    ],
+    "counts": {
+      "collection_documents": 1,
+      "documents": 1,
+      "project_notes": 1,
+      "projects": 1
+    },
+    "documents": [
+      {
+        "id": "00000000-0000-4000-8000-000000000505",
+        "is_deleted": false,
+        "organization_id": "00000000-0000-4000-8000-000000000501",
+        "title": "Seed Paper"
+      }
+    ],
+    "project_notes": [
+      {
+        "content": "Track tool coverage benchmark progress.",
+        "id": "5c1e9d84-2b77-4f1a-8f30-9a0c6d3e4b02",
+        "project_id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+        "title": "Kickoff",
+        "user_id": "00000000-0000-4000-8000-000000000502"
+      }
+    ],
+    "projects": [
+      {
+        "description": null,
+        "id": "3f6f1a2c-0e2b-4c53-9a4d-2d5f7c9b1e01",
+        "is_deleted": false,
+        "name": "Tool Coverage Study",
+        "research_status": "active",
+        "workspace_id": "00000000-0000-4000-8000-000000000503"
+      }
+    ],
+    "workspace_id": "00000000-0000-4000-8000-000000000503"
+  }
+}
