@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
   "suite": "nous-agent-tools-v1",
-  "recorded_at": "",
-  "repository_revision": "7bdf8bc6d300ddefa2c0c6da20c9b0f8b7bc129f",
-  "agent_revision": "7bdf8bc6d300ddefa2c0c6da20c9b0f8b7bc129f",
+  "recorded_at": "2026-08-08",
+  "repository_revision": "b67ebbf1b067d5f5b1e74299535244e58df41a68",
+  "agent_revision": "b67ebbf1b067d5f5b1e74299535244e58df41a68",
   "harbor_version": "0.6.6",
   "harness": {
     "import_path": "evals.harbor_agents.nous_production_agent:NousProductionAgent",
@@ -65,9 +65,9 @@
   },
   "digest_algorithm": "SHA-256 of shasum -a 256 lines sorted by repository-relative path (sort -k2); __pycache__ files excluded",
   "task_digests": {
-    "agent-writing-flow-v1": "sha256:fcca92518eb89bb0f58f7a2fa28f0382ec01e3edc24f224c93fc5a379eef8fd6",
+    "agent-writing-flow-v1": "sha256:0e80a47295a6b8068f533c2ca9dc1ae5072809820d384798d697e426afbb0c36",
     "agent-kb-retrieval-v1": "sha256:2a84bffcfea2c24e2cbf93a6eecbbdf0ab0d6ba889a5abb5401b65f82d1158e8"
   },
   "invalidation_rule": "Any repository, task, or Harness digest change requires new run evidence and a new baseline declaration.",
-  "digest_reproducibility_note": "Computed locally via macOS shasum on 2026-08-07 develop@7bdf8bc6. Per plan Risk 4, these digests are not guaranteed to reproduce byte-for-byte inside the Linux verify container (line-ending / filesystem-ordering variance observed for plan 1's task digests); the recorded-run step (Task 6) recomputes and finalizes against the container, not this checkout."
+  "digest_reproducibility_note": "Recomputed on 2026-08-08 at bench branch commit 09aa986a with the recipe above. The agent-kb-retrieval-v1 digest reproduced the pre-run value byte-for-byte, which validates the recipe; agent-writing-flow-v1 moved because tests/truth.json and tests/verify.py changed in that commit."
 }
