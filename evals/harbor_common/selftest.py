@@ -21,6 +21,7 @@ from evals.harbor_common.envelope import (  # noqa: E402
     load_inputs,
     run_verifier_main,
 )
+from evals.harbor_common.judge import run_semantic_judge  # noqa: E402
 from evals.harbor_common.serialization import json_safe, utc_now  # noqa: E402
 
 
@@ -150,6 +151,74 @@ def test_run_verifier_main(tmp: Path) -> None:
         os.environ.pop("BENCHMARK_CALIBRATION_FIXTURE", None)
 
 
+class _StubResponse:
+    def __init__(self, content: str) -> None:
+        self.content = content
+
+
+class _StubClient:
+    def __init__(self, content: str) -> None:
+        self._content = content
+
+    def invoke(self, messages):  # noqa: ANN001 - test stub, signature matches usage
+        return _StubResponse(self._content)
+
+
+def test_run_semantic_judge() -> None:
+    verdict_json = (
+        '{"supported": true, "contradictions": [], '
+        '"unsupported_material_claims": [], "reason": "ok"}'
+    )
+    result = run_semantic_judge(
+        question="q",
+        trusted_sources=["source a"],
+        candidate_answer="answer",
+        rubric="rubric text",
+        _client_factory=lambda: _StubClient(verdict_json),
+    )
+    assert result["supported"] is True, result
+
+    raised = False
+    try:
+        run_semantic_judge(
+            question="q",
+            trusted_sources=["source a"],
+            candidate_answer="answer",
+            rubric="rubric text",
+            _client_factory=lambda: _StubClient("I think it is fine"),
+        )
+    except InfrastructureFailure:
+        raised = True
+    assert raised, "malformed (non-JSON) verdict must raise InfrastructureFailure"
+
+    env_vars = (
+        "HARBOR_JUDGE_ENDPOINT",
+        "HARBOR_JUDGE_API_KEY",
+        "HARBOR_JUDGE_MODEL",
+        "HARBOR_JUDGE_API_VERSION",
+    )
+    saved = {name: os.environ.pop(name, None) for name in env_vars}
+    for name in env_vars[:-1]:
+        os.environ[name] = "x"
+    try:
+        raised = False
+        try:
+            run_semantic_judge(
+                question="q",
+                trusted_sources=["source a"],
+                candidate_answer="answer",
+                rubric="rubric text",
+            )
+        except InfrastructureFailure:
+            raised = True
+        assert raised, "missing HARBOR_JUDGE_* env var must raise InfrastructureFailure"
+    finally:
+        for name, value in saved.items():
+            os.environ.pop(name, None)
+            if value is not None:
+                os.environ[name] = value
+
+
 def main() -> None:
     test_json_safe_nested_with_datetime()
     test_utc_now()
@@ -158,6 +227,7 @@ def main() -> None:
         test_load_inputs_fixture_path(tmp)
         test_load_inputs_live_path(tmp)
         test_run_verifier_main(tmp)
+    test_run_semantic_judge()
     print("selftest ok")
 
 
