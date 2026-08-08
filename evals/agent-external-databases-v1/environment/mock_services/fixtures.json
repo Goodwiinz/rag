@@ -1,0 +1,51 @@
+{
+  "pubmed": {
+    "term_hint": "telomere shortening senescent cells",
+    "pmids": ["39012345", "39012346"],
+    "articles": [
+      {
+        "pmid": "39012345",
+        "title": "Telomere shortening drives replicative senescence in human fibroblasts",
+        "abstract": "We show that progressive telomere attrition triggers a persistent DNA damage response that establishes replicative senescence in cultured human fibroblasts.",
+        "journal": "Journal of Cell Biology",
+        "authors": [["Alvarez", "M"], ["Chen", "Y"]],
+        "pub_year": "2025",
+        "doi": "10.1000/benchmark.39012345"
+      },
+      {
+        "pmid": "39012346",
+        "title": "Senolytic clearance of telomere-shortened cells restores tissue regeneration",
+        "abstract": "Pharmacological clearance of cells with critically short telomeres improved regenerative capacity in aged mouse skeletal muscle.",
+        "journal": "Nature Aging",
+        "authors": [["Okafor", "T"]],
+        "pub_year": "2024",
+        "doi": "10.1000/benchmark.39012346"
+      }
+    ]
+  },
+  "fred": {
+    "term_hint": "unemployment rate",
+    "series": [
+      {
+        "id": "UNRATE",
+        "title": "Unemployment Rate",
+        "frequency": "Monthly",
+        "units": "Percent",
+        "seasonal_adjustment": "Seasonally Adjusted",
+        "notes": "Benchmark fixture series describing the U.S. unemployment rate.",
+        "observation_start": "1948-01-01",
+        "observation_end": "2026-07-01"
+      },
+      {
+        "id": "UNRATENSA",
+        "title": "Unemployment Rate, Not Seasonally Adjusted",
+        "frequency": "Monthly",
+        "units": "Percent",
+        "seasonal_adjustment": "Not Seasonally Adjusted",
+        "notes": "Benchmark fixture series, unadjusted variant.",
+        "observation_start": "1948-01-01",
+        "observation_end": "2026-07-01"
+      }
+    ]
+  }
+}

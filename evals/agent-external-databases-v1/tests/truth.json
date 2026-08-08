@@ -1,0 +1,25 @@
+{
+  "benchmark_id": "agent-external-databases-v1",
+  "organization_id": "00000000-0000-4000-8000-000000001201",
+  "user_id": "00000000-0000-4000-8000-000000001202",
+  "workspace_id": "00000000-0000-4000-8000-000000001203",
+  "thread_id": "00000000-0000-4000-8000-000000001204",
+  "sentinel_intent": "benchmark_all_tools",
+  "total_connectors": 11,
+  "key_gated_connectors": ["fred", "alpha_vantage", "cosmic"],
+  "keyless_connectors": [
+    "pubmed",
+    "uniprot",
+    "chembl",
+    "pubchem",
+    "sec_edgar",
+    "zinc",
+    "clinical_trials",
+    "bioservices"
+  ],
+  "available_key_gated_connectors": ["fred"],
+  "unavailable_key_gated_connectors": ["alpha_vantage", "cosmic"],
+  "max_results_impl_cap": 20,
+  "pubmed_pmids": ["39012345", "39012346"],
+  "fred_series_ids": ["UNRATE", "UNRATENSA"]
+}
