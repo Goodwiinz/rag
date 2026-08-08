@@ -304,20 +304,22 @@ def build_synthesis_llm(
         streaming=True,
         request_timeout=resolved_timeout,
         use_responses_api=use_responses_api,
-        # Shares AGENT_LIGHTWEIGHT_REASONING_EFFORT ("minimal") with the
-        # lightweight tier on purpose: every caller here is prose or a short
-        # classification, and "minimal" is the right setting for them. Add
-        # AGENT_SYNTHESIS_REASONING_EFFORT only if synthesis quality
-        # measurably regresses; a knob for a value that should not vary is
-        # debt.
+        # Defaults to the lightweight tier's effort — most callers here are
+        # prose or a short classification. AGENT_SYNTHESIS_REASONING_EFFORT
+        # decouples the two when synthesis needs to think harder than a
+        # classifier; unset keeps the previous single-knob behaviour.
         #
         # Not every caller is prose-only, though: the post-tool synthesis
         # turns in llm_node and the three subgraphs bind the intent's tool
         # set to this model so the loop can still take another step. Those
         # pass tool_calling=True and give up the effort setting — Azure
         # rejects tools + reasoning_effort. See _reasoning_effort_for.
+        # Raising the knob does nothing for those four until
+        # AGENT_USE_RESPONSES_API is on.
         reasoning_effort=_reasoning_effort_for(
-            settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT, tool_calling=tool_calling
+            settings.AGENT_SYNTHESIS_REASONING_EFFORT
+            or settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT,
+            tool_calling=tool_calling,
         ),
     )
     _SYNTHESIS_LLM_CACHE[key] = llm

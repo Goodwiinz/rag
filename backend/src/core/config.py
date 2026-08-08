@@ -522,6 +522,22 @@ class Settings(BaseSettings):
     # "none" sidesteps that coupling too.
     AGENT_LIGHTWEIGHT_REASONING_EFFORT: str = "none"
 
+    # Synthesis-only override. Unset (None) inherits
+    # AGENT_LIGHTWEIGHT_REASONING_EFFORT, so leaving it alone is a no-op —
+    # existing single-knob deployments keep their current behaviour.
+    #
+    # Set it when prose synthesis needs to think harder than a classifier
+    # does. The same per-generation value rules apply as above; on rag-dev's
+    # gpt-5.6-luna that means "none" | "low" | "medium" | "high" | "xhigh"
+    # and NOT "minimal".
+    #
+    # Only the two prose-only call sites can actually use this — both named
+    # force_synthesis_node, in _nodes_llm and in subgraphs/_factory. The
+    # four post-tool callers pass tool_calling=True, and
+    # _reasoning_effort_for drops the kwarg for them on Chat Completions —
+    # they need AGENT_USE_RESPONSES_API before any value here reaches Azure.
+    AGENT_SYNTHESIS_REASONING_EFFORT: Optional[str] = None
+
     # Bound Azure LLM call wall-clock to prevent model-router hangs. LangSmith
     # has observed traces with end_time=null blocking root for 70s+. Default
     # 60s for main agent LLM (synthesis can be long), 30s for lightweight

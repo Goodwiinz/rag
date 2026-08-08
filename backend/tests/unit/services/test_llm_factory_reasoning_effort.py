@@ -80,6 +80,40 @@ def test_effort_kept_for_prose_and_classification(
     assert _effort(azure_mock) == "minimal"
 
 
+def test_synthesis_override_raises_effort_above_lightweight(
+    azure_mock: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AGENT_SYNTHESIS_REASONING_EFFORT decouples synthesis from the
+    classifier tier; lightweight keeps its own value."""
+    from src.services.agent import llm_factory
+
+    monkeypatch.setattr(
+        llm_factory.get_settings(), "AGENT_SYNTHESIS_REASONING_EFFORT", "high"
+    )
+
+    llm_factory.build_synthesis_llm()
+    assert _effort(azure_mock) == "high"
+
+    llm_factory.build_lightweight_llm()
+    assert _effort(azure_mock) == "minimal"
+
+
+def test_synthesis_override_still_dropped_when_tools_are_bound(
+    azure_mock: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The override does not defeat the Azure 400 guard — raising it is a
+    no-op for the four post-tool callers until the Responses API is on."""
+    from src.services.agent import llm_factory
+
+    monkeypatch.setattr(
+        llm_factory.get_settings(), "AGENT_SYNTHESIS_REASONING_EFFORT", "high"
+    )
+
+    llm_factory.build_synthesis_llm(tool_calling=True)
+
+    assert _effort(azure_mock) == "<absent>"
+
+
 def test_tool_calling_variants_are_cached_separately(azure_mock: MagicMock) -> None:
     """The flag is part of the cache key, else the first caller wins."""
     from src.services.agent import llm_factory
