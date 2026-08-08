@@ -26,12 +26,6 @@ def run_semantic_judge(
     trusted_sources,
     candidate_answer: str,
     rubric: str,
-    verdict_keys: tuple = (
-        "supported",
-        "contradictions",
-        "unsupported_material_claims",
-        "reason",
-    ),
     _client_factory=None,
 ) -> dict:
     if _client_factory is None:

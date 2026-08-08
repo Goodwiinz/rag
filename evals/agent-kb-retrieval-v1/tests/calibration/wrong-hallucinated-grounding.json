@@ -16,11 +16,24 @@
       {
         "tool_name": "search_documents",
         "status": "completed",
-        "args": { "query": "API Rate Limit Policy", "max_results": 10 },
+        "args": {
+          "query": "API Rate Limit Policy",
+          "max_results": 10
+        },
         "result": {
           "documents": [
-            { "id": "00000000-0000-4000-8000-000000000704", "title": "API Rate Limit Policy", "type": "text", "status": "completed" },
-            { "id": "00000000-0000-4000-8000-000000000705", "title": "Webhook Retry Policy", "type": "text", "status": "completed" }
+            {
+              "id": "00000000-0000-4000-8000-000000000704",
+              "title": "API Rate Limit Policy",
+              "type": "text",
+              "status": "completed"
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000705",
+              "title": "Webhook Retry Policy",
+              "type": "text",
+              "status": "completed"
+            }
           ],
           "total": 2,
           "query": "API Rate Limit Policy"
@@ -29,12 +42,15 @@
       {
         "tool_name": "do_kb_retrieve",
         "status": "completed",
-        "args": { "query": "current API rate limit guidance", "top_k": 5 },
+        "args": {
+          "query": "current API rate limit guidance",
+          "top_k": 5
+        },
         "result": {
           "source": "do_kb",
           "chunks": [
             {
-              "text": "The current API rate limit is 100 requests per minute per API key. Bursts above the limit receive HTTP 429 with a Retry-After header.",
+              "text": "Effective 2026, API requests are limited to 120 requests per minute per API key. Requests beyond the limit receive HTTP 429 with a Retry-After header. Limits are enforced per organization, not per user.",
               "score": 0.94,
               "document_id": "00000000-0000-4000-8000-000000000704",
               "title": "API Rate Limit Policy",
@@ -48,7 +64,12 @@
       }
     ],
     "environment_events": [
-      { "kind": "do_retrieve", "authorization_valid": true, "accepted": true, "kb_uuid": "benchmark-kb-0701" }
+      {
+        "kind": "do_retrieve",
+        "authorization_valid": true,
+        "accepted": true,
+        "kb_uuid": "benchmark-kb-0701"
+      }
     ],
     "final_assistant_message": {
       "content": "We have \"API Rate Limit Policy\" on file. The current guidance: the API rate limit is 500 requests per minute per API key with a 10,000 request daily quota (source: API Rate Limit Policy).",
@@ -56,21 +77,35 @@
     },
     "kb_fixture": {
       "records": [
-        { "title": "API Rate Limit Policy", "text": "The current API rate limit is 100 requests per minute per API key. Bursts above the limit receive HTTP 429 with a Retry-After header." }
+        {
+          "title": "API Rate Limit Policy",
+          "text": "Effective 2026, API requests are limited to 120 requests per minute per API key. Requests beyond the limit receive HTTP 429 with a Retry-After header. Limits are enforced per organization, not per user."
+        }
       ]
     },
     "_judge_stub_verdict": {
       "supported": false,
-      "contradictions": ["Answer states 500 req/min; the chunk says 100 req/min."],
-      "unsupported_material_claims": ["500 requests per minute", "10,000 request daily quota"],
-      "reason": "The answer states a rate limit and a daily quota that do not appear in the returned chunk, and contradicts the stated 100 req/min limit."
+      "contradictions": [
+        "Answer states 500 req/min; the chunk says 120 req/min."
+      ],
+      "unsupported_material_claims": [
+        "500 requests per minute",
+        "10,000 request daily quota"
+      ],
+      "reason": "The answer states a rate limit and a daily quota that do not appear in the returned chunk, and contradicts the stated 120 req/min limit."
     }
   },
   "state": {
     "kb_uuid": "benchmark-kb-0701",
     "documents": [
-      { "id": "00000000-0000-4000-8000-000000000704", "is_deleted": false },
-      { "id": "00000000-0000-4000-8000-000000000705", "is_deleted": false }
+      {
+        "id": "00000000-0000-4000-8000-000000000704",
+        "is_deleted": false
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000705",
+        "is_deleted": false
+      }
     ]
   }
 }

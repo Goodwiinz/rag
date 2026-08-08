@@ -672,6 +672,33 @@ class _StubJudgeClient:
         return _StubJudgeResponse(json.dumps(self._verdict))
 
 
+def load_truth_sources() -> list[dict[str, Any]]:
+    """The two source documents' full text, for the judge's grounding check.
+
+    The rubric asks whether the comparison is grounded in the source documents
+    (not a generic abstract restatement) — impossible from titles alone. Read
+    the seeded texts from truth.json (container path first, then alongside this
+    file for standalone calibration).
+    """
+    for path in (
+        "/tests/truth.json",
+        os.path.join(os.path.dirname(__file__), "truth.json"),
+    ):
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                truth = json.load(fh)
+        except FileNotFoundError:
+            continue
+        sources = truth.get("sources")
+        if isinstance(sources, list):
+            return [
+                {"title": s.get("title"), "text": s.get("text")}
+                for s in sources
+                if isinstance(s, dict)
+            ]
+    return []
+
+
 def run_judge(evidence: dict[str, Any]) -> dict[str, Any]:
     answer = str((evidence.get("final_assistant_message") or {}).get("content") or "")
     comparison = ""
@@ -684,16 +711,19 @@ def run_judge(evidence: dict[str, Any]) -> dict[str, Any]:
         {"final_assistant_message": answer, "compare_documents_result": comparison},
         sort_keys=True,
     )
-    stub_verdict = evidence.get("_judge_stub_verdict")
+    # The stub is honored ONLY in calibration mode; a live evidence file cannot
+    # self-certify Layer B by carrying a _judge_stub_verdict.
+    stub_verdict = (
+        evidence.get("_judge_stub_verdict")
+        if os.environ.get("BENCHMARK_CALIBRATION_FIXTURE")
+        else None
+    )
     client_factory = (
         (lambda: _StubJudgeClient(stub_verdict)) if stub_verdict is not None else None
     )
     return run_semantic_judge(
         question=EXPECTED_INSTRUCTION,
-        trusted_sources=[
-            {"title": DOC1_TITLE},
-            {"title": DOC2_TITLE},
-        ],
+        trusted_sources=load_truth_sources(),
         candidate_answer=candidate_answer,
         rubric=JUDGE_RUBRIC,
         _client_factory=client_factory,

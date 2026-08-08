@@ -7,7 +7,7 @@
   "harbor_version": "0.6.6",
   "harness": {
     "import_path": "evals.harbor_agents.nous_production_agent:NousProductionAgent",
-    "aggregate_sha256": "9782a27acd83cdb1dcd79d6493edc4ee7ebd5b6b356a8cd22c3c83678f76afdd",
+    "aggregate_sha256": "e774f94291041ac010765090a8d9c2e8fea7ae22493819ff0efabba578f3fb6b",
     "files": [
       {
         "path": "evals/harbor_agents/__init__.py",
@@ -31,7 +31,7 @@
       },
       {
         "path": "evals/harbor_common/judge.py",
-        "sha256": "7a03b463c4ec4dbad9f8be1f814ab16d05e8f080591e2700289a055b0f477726"
+        "sha256": "6c841708872c46e06d89166d11db4cbf71bc69ba9aae05642b87d8c5f05753ee"
       },
       {
         "path": "evals/harbor_common/network.py",
@@ -65,8 +65,8 @@
   },
   "digest_algorithm": "SHA-256 of shasum -a 256 lines sorted by repository-relative path (sort -k2); __pycache__ files excluded",
   "task_digests": {
-    "agent-writing-flow-v1": "sha256:4c99159d040af8a2d7ad27400f08d09c3371a624d946d805cab96725eee04fac",
-    "agent-kb-retrieval-v1": "sha256:faa62b2ad3d3ad87d8c8e9a13f2902bb5f32906068b8d844711750f17a6a76e9"
+    "agent-writing-flow-v1": "sha256:fcca92518eb89bb0f58f7a2fa28f0382ec01e3edc24f224c93fc5a379eef8fd6",
+    "agent-kb-retrieval-v1": "sha256:2a84bffcfea2c24e2cbf93a6eecbbdf0ab0d6ba889a5abb5401b65f82d1158e8"
   },
   "invalidation_rule": "Any repository, task, or Harness digest change requires new run evidence and a new baseline declaration.",
   "digest_reproducibility_note": "Computed locally via macOS shasum on 2026-08-07 develop@7bdf8bc6. Per plan Risk 4, these digests are not guaranteed to reproduce byte-for-byte inside the Linux verify container (line-ending / filesystem-ordering variance observed for plan 1's task digests); the recorded-run step (Task 6) recomputes and finalizes against the container, not this checkout."

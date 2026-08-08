@@ -208,9 +208,13 @@ def check_search_documents(evidence: dict[str, Any], failures: list[str]) -> Non
         return
     execution = (evidence.get("raw_tool_executions") or [])[index]
     args = execution.get("args") or {}
+    # max_results is optional (impl default 10, wrapper clamps to <=50). A
+    # correct agent that omits it is fine; gate only a model-supplied
+    # out-of-range value, else a bare search_documents(query=...) false-fails.
     max_results = args.get("max_results")
-    if not isinstance(max_results, int) or not (
-        1 <= max_results <= SEARCH_MAX_RESULTS_CAP
+    if max_results is not None and (
+        not isinstance(max_results, int)
+        or not (1 <= max_results <= SEARCH_MAX_RESULTS_CAP)
     ):
         failures.append(
             f"{SEARCH_TOOL} args max_results={max_results!r} outside the impl "
@@ -233,9 +237,12 @@ def check_do_kb_retrieve(evidence: dict[str, Any], failures: list[str]) -> None:
         return
     execution = (evidence.get("raw_tool_executions") or [])[index]
     args = execution.get("args") or {}
+    # top_k is optional (impl default 8, clamped to [1,20]). Gate only a
+    # model-supplied out-of-range value; omission is a correct trajectory.
     top_k = args.get("top_k")
-    if not isinstance(top_k, int) or not (
-        RETRIEVE_TOP_K_MIN <= top_k <= RETRIEVE_TOP_K_MAX
+    if top_k is not None and (
+        not isinstance(top_k, int)
+        or not (RETRIEVE_TOP_K_MIN <= top_k <= RETRIEVE_TOP_K_MAX)
     ):
         failures.append(
             f"{RETRIEVE_TOOL} args top_k={top_k!r} outside the impl cap "
@@ -389,37 +396,40 @@ class _StubJudgeClient:
         return _StubJudgeResponse(json.dumps(self._verdict))
 
 
-def trusted_sources(evidence: dict[str, Any]) -> list[dict[str, Any]]:
-    fixture = evidence.get("kb_fixture") or {}
-    records = fixture.get("records") if isinstance(fixture, dict) else None
-    if not isinstance(records, list):
-        return []
-    return [
-        {"title": record.get("title"), "text": record.get("text")}
-        for record in records
-        if isinstance(record, dict)
-    ]
+def retrieved_chunks(evidence: dict[str, Any]) -> list[Any]:
+    for execution in executions_for(evidence, RETRIEVE_TOOL):
+        result = execution.get("result") or {}
+        if isinstance(result, dict) and isinstance(result.get("chunks"), list):
+            return result["chunks"]
+    return []
 
 
 def run_judge(evidence: dict[str, Any]) -> dict[str, Any]:
     answer = str((evidence.get("final_assistant_message") or {}).get("content") or "")
-    retrieved_chunks: list[Any] = []
-    for execution in executions_for(evidence, RETRIEVE_TOOL):
-        result = execution.get("result") or {}
-        if isinstance(result, dict) and isinstance(result.get("chunks"), list):
-            retrieved_chunks = result["chunks"]
-            break
+    chunks = retrieved_chunks(evidence)
+    # Trusted sources are ONLY the chunks the retrieval returned, per task.md
+    # ("The judge receives only the returned chunks as trusted sources"). Using
+    # the whole mock corpus would let an empty-retrieval answer invent a real
+    # corpus figure and still read as grounded. An empty marker keeps the
+    # rubric's "if empty, say so" branch judgeable.
+    sources = chunks if chunks else [{"note": "retrieval returned no chunks"}]
     candidate_answer = json.dumps(
-        {"final_assistant_message": answer, "do_kb_retrieve_chunks": retrieved_chunks},
+        {"final_assistant_message": answer, "do_kb_retrieve_chunks": chunks},
         sort_keys=True,
     )
-    stub_verdict = evidence.get("_judge_stub_verdict")
+    # The stub is honored ONLY in calibration mode; a live evidence file cannot
+    # self-certify Layer B by carrying a _judge_stub_verdict.
+    stub_verdict = (
+        evidence.get("_judge_stub_verdict")
+        if os.environ.get("BENCHMARK_CALIBRATION_FIXTURE")
+        else None
+    )
     client_factory = (
         (lambda: _StubJudgeClient(stub_verdict)) if stub_verdict is not None else None
     )
     return run_semantic_judge(
         question=EXPECTED_INSTRUCTION,
-        trusted_sources=trusted_sources(evidence),
+        trusted_sources=sources,
         candidate_answer=candidate_answer,
         rubric=JUDGE_RUBRIC,
         _client_factory=client_factory,
