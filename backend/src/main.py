@@ -503,16 +503,14 @@ app.add_middleware(MultiTenancyMiddleware)
 # Probe paths (incl. /health/readiness) are exempted from host validation via
 # PROBE_EXEMPT_PATHS; see src/core/probes.py. A missing readiness exemption
 # would 400 every readiness probe and flap all pods out of the LB.
+# The allow-list is settings.TRUSTED_HOSTS (comma-separated) so an environment
+# can add the hostname it is actually reached on — a server-side Next.js rewrite
+# forwards the DESTINATION host, which is how CI's `backend` service name ends up
+# in the Host header.
 if not settings.DEBUG:
     app.add_middleware(
         ProbeAwareTrustedHostMiddleware,
-        allowed_hosts=[
-            "localhost",
-            "127.0.0.1",
-            "testserver",
-            "*.gen-text.app",
-            "*.svc.cluster.local",
-        ],
+        allowed_hosts=settings.trusted_hosts_list,
     )
 
 

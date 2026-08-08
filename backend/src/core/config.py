@@ -154,6 +154,22 @@ class Settings(BaseSettings):
     CORS_EXPOSE_HEADERS: str = "X-Request-ID,X-Correlation-ID,X-Process-Time"
     CORS_MAX_AGE: int = 86400  # 24 hours preflight cache
 
+    # Host header allow-list for TrustedHostMiddleware (production only; see
+    # main.py). Comma-separated so an environment can add its own hostname
+    # without editing app code: a server-side Next.js rewrite proxies with the
+    # DESTINATION host in the Host header, so any deployment that reaches the
+    # backend through a rewrite must allow-list that hostname (CI compose does
+    # this for the `backend` service name). Starlette strips the port before
+    # matching, so entries never carry one.
+    TRUSTED_HOSTS: str = (
+        "localhost,127.0.0.1,testserver,*.gen-text.app,*.svc.cluster.local"
+    )
+
+    @property
+    def trusted_hosts_list(self) -> List[str]:
+        """Parse TRUSTED_HOSTS string into a list."""
+        return [h.strip() for h in self.TRUSTED_HOSTS.split(",") if h.strip()]
+
     @property
     def cors_origins_list(self) -> List[str]:
         """Parse CORS_ORIGINS string into a list."""
