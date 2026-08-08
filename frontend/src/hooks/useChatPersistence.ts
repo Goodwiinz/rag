@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { useShallow } from 'zustand/react/shallow';
 import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
+import { workspaceService } from '@/services/workspaceService';
 import {
   ChatMessage,
   MessageRole,
@@ -446,10 +447,12 @@ export function useChatPersistence(): UseChatPersistenceReturn {
           debugLog(
             '[useChatPersistence] No conversations, creating new one...'
           );
-          const newConv = await createConversation({
-            workspace_id: state.currentWorkspaceId,
-            title: 'New Chat',
-          });
+          // Go through the deduped helper: useChatSession bootstraps the same
+          // default conversation concurrently, and an unguarded create here
+          // produced a second "New Chat" for every fresh user.
+          const newConv = await workspaceService.getOrCreateDefaultConversation(
+            state.currentWorkspaceId
+          );
           if (!newConv) {
             // Surface this as a real failure instead of silently locking in
             // `_initCompleted = false` with no retry path for other waiters.

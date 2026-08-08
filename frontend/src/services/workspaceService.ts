@@ -51,6 +51,13 @@ const WS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 // two "My Workspace" rows plus duplicate conversations.
 let _defaultWorkspaceInFlight: Promise<ApiWorkspace> | null = null;
 
+// Collapses concurrent getOrCreateDefaultConversation callers (per workspace)
+// onto one promise. useChatSession and useChatPersistence both bootstrap the
+// default conversation on mount; without this, each does an independent
+// listConversations()->[]->createConversation() and a fresh user gets two
+// "New Chat" conversations plus divergent hook state.
+const _defaultConversationInFlight = new Map<string, Promise<ApiConversation>>();
+
 /** Clear all workspace service caches (localStorage). Called on auth errors. */
 export function clearWorkspaceServiceCache(): void {
   if (typeof window !== 'undefined') {
@@ -61,6 +68,7 @@ export function clearWorkspaceServiceCache(): void {
     localStorage.removeItem('chat-storage');
   }
   _defaultWorkspaceInFlight = null;
+  _defaultConversationInFlight.clear();
 }
 
 // ============================================================================
@@ -475,6 +483,20 @@ export const workspaceService = {
   // ============================================================================
 
   async getOrCreateDefaultConversation(
+    workspaceId: string
+  ): Promise<ApiConversation> {
+    const existing = _defaultConversationInFlight.get(workspaceId);
+    if (existing) return existing;
+    const inFlight = this._resolveDefaultConversation(workspaceId).finally(
+      () => {
+        _defaultConversationInFlight.delete(workspaceId);
+      }
+    );
+    _defaultConversationInFlight.set(workspaceId, inFlight);
+    return inFlight;
+  },
+
+  async _resolveDefaultConversation(
     workspaceId: string
   ): Promise<ApiConversation> {
     const cacheConversationId = (id: string) => {
