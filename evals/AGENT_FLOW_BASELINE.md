@@ -228,7 +228,7 @@ Harbor task lands and its calibration fixtures pass.
 | # | Capability | Tier | Surface covered |
 | --- | --- | --- | --- |
 | 5 | arXiv research flow | next | `search_arxiv`, `ingest_arxiv_papers` (HITL), post-ingest `document_ids` handoff |
-| 6 | Writing flow | next | `create_draft` (HITL), `create_project_note`, `export_bibliography`, `compare_documents` |
+| 6 | Writing flow | task landed | `create_draft` (HITL), `export_bibliography`, `compare_documents` (Harbor task `agent-writing-flow-v1`; awaiting first recorded run — `create_project_note` still uncovered) |
 | 7 | Knowledge-graph flow | next | `extract_entities`, `search_knowledge_graph`, `explore_entity_neighborhood`, `find_entity_paths`, `get_graph_stats` |
 | 8 | HITL interrupt lifecycle | next | `interrupt_node`, confirm/reject/timeout, resume semantics |
 | 9 | Memory round-trip | later | `memory_retrieval` → `memory_save_node`, `forget_memory`, redaction at the memory boundary |
@@ -237,6 +237,7 @@ Harbor task lands and its calibration fixtures pass.
 | 12 | Tenant isolation probes | next | cross-org probes against every read tool + RAG node |
 | 13 | Luna fast path | next | `fast_path.py` — cancel defects fixed in #1353; same invariants as capability 3 |
 | 14 | Project management | task landed | `create_project`, `add_document_to_project`, `create_project_note`, `list_project_documents` read-back, three-step HITL ordering (Harbor task `agent-project-management-v1`; awaiting first recorded run — soft-delete visibility still uncovered) |
+| 15 | Knowledge-base retrieval | task landed | `search_documents`, `do_kb_retrieve` (Harbor task `agent-kb-retrieval-v1`; awaiting first recorded run — `summarize_document` deferred, see coverage note) |
 
 ### 5. arXiv research flow
 
@@ -249,13 +250,71 @@ Near-boundary: reject the interrupt → zero rows persisted.
 
 ### 6. Writing flow
 
-Objective gates: `create_draft` and `create_project_note` fire `interrupt()`
-(destructive set); notes/drafts land as DB rows in the *requested* project
-(ownership verified via Workspace join — Collection has no `owner_id`);
-soft-deleted projects never offered as write targets; `export_bibliography`
-output parses (BibTeX/CSL). The fake-success shape is the primary target:
-**verify the artifact row exists, never the tool's success flag.**
-Semantic: draft/summary faithful to source documents.
+**Preconditions:** the seeded workspace (`00000000-0000-4000-8000-000000000603`)
+in org `00000000-0000-4000-8000-000000000601` holds one active project
+`Tool Coverage Writing Study` (`00000000-0000-4000-8000-000000000604`) with
+exactly two pre-loaded, non-deleted documents already attached: `Graph Neural
+Networks for Molecular Property Prediction`
+(`00000000-0000-4000-8000-000000000605`) and `Attention Mechanisms in
+Transformer Architectures` (`00000000-0000-4000-8000-000000000606`).
+`create_draft` is the sole destructive tool in scope (`tools.py:633`); it
+fires `interrupt()` before any generation is enqueued, and its async shape
+(`DraftGenerationService.generate_draft` returns a `task_id` + non-terminal
+status from a fire-and-forget background task) is the fake-success trap this
+capability targets — a result claiming a terminal status or carrying draft
+content is fabricated evidence, not a completed synchronous draft.
+`compare_documents` (`tools.py:498`) and `export_bibliography`
+(`tools.py:661`) are non-destructive and execute directly with no interrupt
+of their own.
+
+**Objective gates:**
+- No mutation lands before the approval that releases it. The load-bearing
+  proof is `evidence["database"]["before_approvals"][0]` — a row snapshot
+  taken immediately before the single approval is sent — asserted as zero
+  `generated_drafts` rows for the seeded project
+  (`tests/verify.py:435-465`). The `create_draft_success` milestone is
+  secondary and only catches a doctored evidence file
+  (`tests/verify.py:382-413`).
+- `create_draft`'s result carries a `task_id` and a non-terminal
+  `DraftGenerationStatus` (`pending`/`analyzing`/`generating`/`citing`/
+  `reviewing`), never `content`, `generated_draft_id`, `draft_id`, or
+  `version` — a terminal status or artifact key this soon means the result
+  was fabricated to look synchronous (`tests/verify.py:467-507`).
+- Real call order proven over `raw_tool_executions` positions (not the
+  post-loop success milestones, which the adapter always appends after
+  `approval:create_draft` regardless of actual order): `compare_documents` <
+  `create_draft` < `export_bibliography` (`tests/verify.py:415-433`).
+- `compare_documents` targets exactly the two seeded `document_ids` within
+  the impl's 5-document cap; an over-cap near-boundary call must fail with
+  the impl's exact cap message, classified `fatal` (no `TOOL_ERROR_HINTS`
+  entry or keyword fallback matches it) — verified against
+  `backend/src/services/agent/error_recovery.py`
+  (`tests/verify.py:288-360`).
+- `export_bibliography` targets exactly the two seeded documents in the
+  requested format and returns non-empty bibliography text
+  (`tests/verify.py:509-538`).
+- No unapproved or unsanctioned destructive execution — any destructive-set
+  tool besides `create_draft` is a failure outright
+  (`tests/verify.py:540-568`).
+- State exactness in PostgreSQL, read independently of the adapter: the
+  seeded project remains present and active, and exactly the two seeded
+  documents remain present and non-deleted; the adapter's own final document
+  set must equal the verifier's independent read
+  (`tests/verify.py:570-611`).
+- Final message and termination: a non-empty user-visible final assistant
+  message, no pending tool calls, `termination_reason = "completed"`
+  (`tests/verify.py:613-625`).
+
+**Semantic gate:** draft/summary faithful to the two source documents
+(`harbor_common/judge.py`, folded in only after every objective check runs).
+
+**Coverage note:** this task exercises compare → draft (HITL) → export in
+one trial and the async-draft fake-success trap. It does not yet cover
+`create_project_note`, ownership verification via the Workspace join
+(Collection has no `owner_id`), or soft-deleted projects being excluded as
+write targets — those remain the next increments on this capability.
+
+**Status:** NOT YET GATED — awaits first recorded run.
 
 ### 7. Knowledge-graph flow
 
@@ -392,6 +451,55 @@ tools executed via the general route). See
 `baselines/agent-flow-2026-08-07-tools.json`. The run needed four develop fixes
 to pass — #1356, #1357, #1358, #1355 — none of which the pinned source
 (261273129) carried; the capability was genuinely broken until they landed.
+
+### 15. Knowledge-base retrieval
+
+**Preconditions:** the seeded org (`00000000-0000-4000-8000-000000000701`)
+has a provisioned `do_kb_uuid` and holds exactly two non-deleted documents:
+`API Rate Limit Policy` (`00000000-0000-4000-8000-000000000704`) and
+`Webhook Retry Policy` (`00000000-0000-4000-8000-000000000705`). No tool in
+scope for this task is destructive, so no interrupt is expected — a paused
+graph is itself a gate failure.
+
+**Objective gates:**
+- `search_documents` (`tools.py:272`) executes within its `max_results` cap
+  and surfaces the seeded `API Rate Limit Policy` document
+  (`tests/verify.py:204-220`).
+- `do_kb_retrieve` (`tools.py:293`, impl `tools_impl.py:1616`) executes
+  within its `top_k` cap and returns `source: "do_kb"` with a `chunks` list.
+  `reason: "disabled"` or `reason: "not_provisioned"` is a Layer A failure
+  (environment misconfiguration), not a legitimate empty result; a
+  zero-`chunks` success must never carry a fabricated `error` field — the
+  retrieval fake-success trap this capability targets
+  (`tests/verify.py:229-267`).
+- Real call order: `search_documents` before `do_kb_retrieve`
+  (`tests/verify.py:270-280`).
+- No destructive tool executes; this task sanctions only `search_documents`
+  and `do_kb_retrieve` (`tests/verify.py:282-289`).
+- The mock DO KB service recorded at least one `do_retrieve` request with a
+  valid Bearer authorization header (`tests/verify.py:291-310`).
+- No pending HITL interrupt on exit (`tests/verify.py:312-318`).
+- State exactness in PostgreSQL, read independently of the adapter: org
+  `do_kb_uuid` matches, and exactly the two seeded documents remain present
+  and non-deleted (`tests/verify.py:320-334`).
+- Final message and termination: a non-empty user-visible final assistant
+  message, no pending tool calls, `termination_reason = "completed"`
+  (`tests/verify.py:336-348`).
+
+**Semantic gate:** answer summarizes only what `do_kb_retrieve` actually
+returned, citing the source — grounding is judged, not assumed
+(`harbor_common/judge.py`, folded in only after every objective check runs).
+
+**Coverage note:** scope decision (plan Task 3 Risk 1): this task covers
+`search_documents` + `do_kb_retrieve` only. `summarize_document` is deferred
+— it sits on the writing/general routing side rather than the research-only,
+empty-intent path these two tools share, and cross-binding it here would
+force a pass rather than resolve the routing question. Also not yet covered:
+cross-org scoping of either tool (capability 12 covers tenant probes
+generally, not this task specifically) and the Postgres hybrid-search
+fallback path when DO KB is unavailable.
+
+**Status:** NOT YET GATED — awaits first recorded run.
 
 **Sequencing note:** "next" tier = highest defect-density areas by repo
 history (fake-success writers, HITL, tenant scope, arXiv ingest). Build one

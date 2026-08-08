@@ -16,6 +16,13 @@ records positive and negative network probes.
 | `rag-retrieval-safety-grounding-v1` | Safely postprocess, rerank, and synthesize noisy KB results | Deterministic safety/provenance gates plus isolated semantic judge |
 | `agent-stream-cancel-durability-v1` | Make client Stop terminal and durable at the production SSE API | Deterministic SSE, PostgreSQL, Redis, and resume checks |
 | `agent-project-management-v1` | Route, approve, and execute a multi-step project-management flow | Deterministic trajectory, HITL snapshots, and PostgreSQL state |
+| `agent-writing-flow-v1` | Compare documents, draft (HITL, async fake-success trap), and export a bibliography | Deterministic trajectory, HITL snapshots, PostgreSQL state, and an isolated semantic judge |
+| `agent-kb-retrieval-v1` | Search indexed documents, then retrieve and cite grounded guidance from the org knowledge base | Deterministic trajectory, mock-KB auth/network probes, and an isolated semantic judge |
+
+`agent-writing-flow-v1` and `agent-kb-retrieval-v1` are judge-gated: Layer B
+(`harbor_common.judge.run_semantic_judge`) only runs after every Layer A
+(deterministic) check passes, and both are NOT YET GATED in
+`AGENT_FLOW_BASELINE.md` — awaiting their first recorded run.
 
 Tasks added after 2026-08-07 import their adapter and verifier helpers from the
 shared `harbor_common/` package; the original three tasks keep their inline
@@ -44,7 +51,8 @@ harbor run \
   --yes
 ```
 
-Replace the task path and job name for the other two benchmarks. Do not reuse a
+Replace the task path and job name for the other benchmarks (including
+`agent-writing-flow-v1` and `agent-kb-retrieval-v1`). Do not reuse a
 prior score after the task digest, repository revision, or Harness digest in
 `source-manifests/` changes. An adapter, dependency, credential, reset, timeout,
 judge, or verifier failure is infrastructure and must not be scored as agent
