@@ -954,11 +954,21 @@ export function useChatStreaming(
       historyOverride?: ChatPageMessage[],
       supersedesClientMessageId?: string
     ) => {
-      if (submitLockRef.current) return;
+      if (submitLockRef.current) {
+        console.warn('[Chat] Send ignored: submit already in flight');
+        return;
+      }
       const rawContent =
         typeof contentOverride === 'string' ? contentOverride : input;
       const content = rawContent.trim();
-      if (!content || isLoading || storeIsStreaming) return;
+      if (!content || isLoading || storeIsStreaming) {
+        console.warn('[Chat] Send ignored by submit guard', {
+          empty: !content,
+          isLoading,
+          storeIsStreaming,
+        });
+        return;
+      }
       submitLockRef.current = true;
 
       // Create the idempotency/runtime identity before the optimistic bubble.
