@@ -66,7 +66,7 @@
   "digest_algorithm": "SHA-256 of shasum -a 256 lines sorted by repository-relative path (sort -k2); __pycache__ files excluded",
   "task_digests": {
     "agent-knowledge-graph-flow-v1": "sha256:9ac2e52c0ae33ac8d021bec654f2ba178211d1a5cfc197c0f502fc253e2a679b",
-    "agent-memory-roundtrip-v1": "sha256:c9de094e7aea2936df4fc35aa43ea17358d841b824641c9fee21190cdb707922"
+    "agent-memory-roundtrip-v1": "sha256:4c5944f3865e7bcae8d74c3fbeafb8b5efea398a2f4b193c70abf9d44ae28c98"
   },
   "invalidation_rule": "Any repository, task, or Harness digest change requires new run evidence and a new baseline declaration.",
   "digest_reproducibility_note": "Computed locally via macOS shasum on 2026-08-08 develop@68836644. Per plan Risk 4, these digests are not guaranteed to reproduce byte-for-byte inside the Linux verify container (line-ending / filesystem-ordering variance observed for plan 1's task digests); the recorded-run step (Task 5) recomputes and finalizes against the container, not this checkout."

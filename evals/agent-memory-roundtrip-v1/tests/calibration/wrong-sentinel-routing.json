@@ -13,7 +13,7 @@
       "turn1_intent": "research",
       "turn1_probe_intent": "research",
       "turn1_probe_source": "keyword",
-      "turn3_intent": "general",
+      "turn3_intent": "memory_management",
       "turn3_probe_intent": "general",
       "turn3_probe_source": "keyword"
     },
@@ -29,6 +29,7 @@
       "allow_memory_fallback": "false",
       "cohere_configured": false,
       "environment": "benchmark",
+      "routing_workaround": "sentinel_intent",
       "store_choice": "postgres-unindexed (Cohere off -> substring-match forget fallback)"
     },
     "events": [
@@ -52,7 +53,7 @@
           "matches": [
             {
               "key": "a1b2c3d4e5f6",
-              "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+              "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
               "score": 0.0
             }
           ],
@@ -91,7 +92,7 @@
       "value_after_turn1": {
         "created_at": "2026-08-08T12:00:05Z",
         "intent": "research",
-        "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+        "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
         "thread_id": "00000000-0000-4000-8000-000000000904",
         "tools_used": [],
         "turn_index": 1
@@ -257,7 +258,13 @@
       "query": "xyzzy-no-such-benchmark-topic-000901",
       "result": {
         "deleted": 0,
-        "matches": [],
+        "matches": [
+          {
+            "key": "a1b2c3d4e5f6",
+            "query": "my api key rotation date is <date>",
+            "score": null
+          }
+        ],
         "status": "completed"
       }
     },
@@ -276,7 +283,7 @@
       ],
       "second_user_search_hits": []
     },
-    "notes": "Production graph, one thread, three turns, all three driven as real HumanMessage turns through live classification. Turn 3 reaches forget_memory because it now legitimately binds on AgentIntent.GENERAL (develop 03091c65) - no checkpoint seeding or sentinel intent.",
+    "notes": "Regression fixture: reproduces the retired sentinel-intent routing workaround (env_flags.routing_workaround='sentinel_intent', turn-3 intent forced to the old 'memory_management' sentinel via graph.aupdate_state) that this task's adapter no longer performs. Must fail check_real_routing.",
     "pending_interrupt_after_resume": null,
     "postapproval_memory_present": false,
     "preapproval_snapshot": {
@@ -284,7 +291,7 @@
       "memory_value": {
         "created_at": "2026-08-08T12:00:05Z",
         "intent": "research",
-        "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+        "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
         "thread_id": "00000000-0000-4000-8000-000000000904",
         "tools_used": [],
         "turn_index": 1
@@ -316,7 +323,7 @@
           "matches": [
             {
               "key": "a1b2c3d4e5f6",
-              "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+              "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
               "score": 0.0
             }
           ],
@@ -338,7 +345,7 @@
           "value": {
             "created_at": "2026-08-08T12:00:05Z",
             "intent": "research",
-            "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+            "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
             "thread_id": "00000000-0000-4000-8000-000000000904",
             "tools_used": [],
             "turn_index": 1

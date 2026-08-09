@@ -52,7 +52,7 @@
           "matches": [
             {
               "key": "a1b2c3d4e5f6",
-              "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+              "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
               "score": 0.0
             }
           ],
@@ -91,7 +91,7 @@
       "value_after_turn1": {
         "created_at": "2026-08-08T12:00:05Z",
         "intent": "research",
-        "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+        "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
         "thread_id": "00000000-0000-4000-8000-000000000904",
         "tools_used": [],
         "turn_index": 1
@@ -133,11 +133,6 @@
           "input_tokens": 950,
           "output_tokens": 25
         }
-      },
-      {
-        "content": "Please forget the recovery contact email you have on file for me.",
-        "id": "msg-5",
-        "type": "human"
       },
       {
         "content": "",
@@ -203,11 +198,6 @@
         "sequence": 4
       },
       {
-        "milestone": "turn3_completed",
-        "observed_at": "2026-08-08T12:00:30Z",
-        "sequence": 5
-      },
-      {
         "milestone": "turn3_interrupt",
         "observed_at": "2026-08-08T12:00:31Z",
         "sequence": 6
@@ -257,7 +247,13 @@
       "query": "xyzzy-no-such-benchmark-topic-000901",
       "result": {
         "deleted": 0,
-        "matches": [],
+        "matches": [
+          {
+            "key": "a1b2c3d4e5f6",
+            "query": "my api key rotation date is <date>",
+            "score": null
+          }
+        ],
         "status": "completed"
       }
     },
@@ -276,7 +272,7 @@
       ],
       "second_user_search_hits": []
     },
-    "notes": "Production graph, one thread, three turns, all three driven as real HumanMessage turns through live classification. Turn 3 reaches forget_memory because it now legitimately binds on AgentIntent.GENERAL (develop 03091c65) - no checkpoint seeding or sentinel intent.",
+    "notes": "Regression fixture: reproduces the false-pass Opus found in review \u2014 turn-3 HumanMessage, the turn3_completed milestone, and the turn3_instruction key are all stripped, leaving only a leftover 'general' intent from an earlier turn in graph state. Every other gate (including check_real_routing) is satisfiable without turn 3 ever having been sent. Must fail check_turn3_sent.",
     "pending_interrupt_after_resume": null,
     "postapproval_memory_present": false,
     "preapproval_snapshot": {
@@ -284,7 +280,7 @@
       "memory_value": {
         "created_at": "2026-08-08T12:00:05Z",
         "intent": "research",
-        "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+        "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
         "thread_id": "00000000-0000-4000-8000-000000000904",
         "tools_used": [],
         "turn_index": 1
@@ -316,7 +312,7 @@
           "matches": [
             {
               "key": "a1b2c3d4e5f6",
-              "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+              "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
               "score": 0.0
             }
           ],
@@ -338,7 +334,7 @@
           "value": {
             "created_at": "2026-08-08T12:00:05Z",
             "intent": "research",
-            "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+            "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
             "thread_id": "00000000-0000-4000-8000-000000000904",
             "tools_used": [],
             "turn_index": 1
@@ -346,8 +342,7 @@
         }
       ]
     },
-    "turn2_instruction": "What contact email do you have on file for my arXiv research?",
-    "turn3_instruction": "Please forget the recovery contact email you have on file for me."
+    "turn2_instruction": "What contact email do you have on file for my arXiv research?"
   },
   "state": {
     "user_id": "00000000-0000-4000-8000-000000000902",

@@ -7,21 +7,19 @@ Three turns, one thread: state a durable fact, recall it, then forget it.
   the store for the deterministic key the node computes
   (``md5(f"{thread_id}:{turn_index}:{content[:100]}")[:12]``) — never a fixed
   sleep (landmine 4).
-- ``forget_memory`` carries ``intents=frozenset()`` and ``subgraphs=frozenset()``
-  (verified empirically against ``TOOL_REGISTRY`` — no classified intent
-  (research/writing/knowledge_graph/general) ever binds it; it is only present
-  in ``ALL_TOOLS``, the ``_get_tools_for_intent`` fallback for an intent string
-  outside ``AgentIntent``). Since ``classify_intent_with_fallback`` is
-  Literal-typed and always returns one of those four values, that fallback is
-  unreachable through live chat. Turn 3 reaches it the same way LangGraph's
-  own time-travel API does: ``graph.aupdate_state(..., as_node=
-  "preprocessing_node")`` writes a sentinel intent into the checkpoint as if
-  ``preprocessing_node`` had produced it (mirroring the per-turn resets that
-  node performs), then ``astream(None, config)`` resumes the graph from
-  ``route_by_intent`` — a real LangGraph API, not a monkeypatch — so
-  ``llm_node`` binds ``ALL_TOOLS`` and the *production* ``interrupt_node`` /
-  ``tool_node`` handle the resulting destructive call exactly as they would
-  for any other tool (landmine 5).
+- ``forget_memory`` used to carry ``intents=frozenset()`` and
+  ``subgraphs=frozenset()``, so no classified intent ever bound it and this
+  adapter had to force the tool into scope with
+  ``graph.aupdate_state(..., as_node="preprocessing_node")`` and a sentinel
+  ``intent`` string outside ``AgentIntent``. That gap was closed on
+  ``develop`` (commit ``fe76f434``, re-landed at ``03091c65``):
+  ``forget_memory`` now carries ``intents=frozenset({AgentIntent.GENERAL})``,
+  so a real user turn that ``classify_intent_with_fallback`` routes to
+  ``general`` binds it through production's own ``_get_tools_for_intent``.
+  Turn 3 below is therefore a plain ``HumanMessage`` sent the same way turns
+  1 and 2 are — no checkpoint seeding, no sentinel — and the resulting
+  ``interrupt_node``/``tool_node`` handling of the destructive call is
+  unmodified production code (former landmine 5, now retired).
 """
 
 from __future__ import annotations
@@ -50,8 +48,8 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-memory-roundtrip-v1"
-SOURCE_REVISION = "b1165862ff0ba2021a0a5a3a206a0fd253a6d9a2"
-AGENT_REVISION = "b1165862ff0ba2021a0a5a3a206a0fd253a6d9a2"
+SOURCE_REVISION = "03091c6534971d83a35bf941af3077a2e35a987b"
+AGENT_REVISION = "03091c6534971d83a35bf941af3077a2e35a987b"
 APPROVAL_TEXT = "Yes, forget it."
 
 # Byte-identical across instruction.md / run_agent.py / verify.py. Turn 1 only
@@ -61,17 +59,18 @@ EXPECTED_INSTRUCTION = (
     "contact email is jordan.avery@example.com."
 )
 TURN2_INSTRUCTION = "What contact email do you have on file for my arXiv research?"
-TURN3_INSTRUCTION = (
-    "Please forget what I told you about my arXiv research contact email."
-)
+# Deliberately avoids "arxiv" and "paper"/"papers" — those are weighted
+# keywords for the "research" intent bucket (backend/src/services/agent/
+# _prompts.py's INTENT_KEYWORDS: arxiv=2, paper=1, papers=1; "research" is
+# the intent's name, not itself a keyword) and forget_memory only binds on
+# "general". This wording keyword-scores 0 across every intent bucket (falls
+# to "general" even if the LLM classifier is unavailable), so turn 3 reaches
+# forget_memory through the real "general" route rather than accidentally
+# landing on "research".
+TURN3_INSTRUCTION = "Please forget the recovery contact email you have on file for me."
 
 CONTACT_EMAIL = "jordan.avery@example.com"
 REDACTED_EMAIL_SENTINEL = "<email>"
-
-# Any string outside AgentIntent ("research"/"writing"/"knowledge_graph"/
-# "general") — forces the ALL_TOOLS fallback in _get_tools_for_intent so
-# forget_memory (subgraphs=frozenset(), intents=frozenset()) is bindable.
-FORGET_TURN_SENTINEL_INTENT = "memory_management"
 
 # A query guaranteed to substring-miss every stored memory value — the
 # near-boundary "fake success" probe (empty deletion is a success, not an
@@ -347,36 +346,28 @@ async def run_benchmark() -> dict[str, Any]:
     record_milestone(milestones, sequence, "turn2_completed")
 
     # ---------------------------------------------------------------
-    # Turn 3 — forget, via the ALL_TOOLS sentinel-intent path (landmine 5).
+    # Turn 3 — forget, via real classification. No checkpoint seeding, no
+    # sentinel: forget_memory now binds on AgentIntent.GENERAL in production
+    # (develop 03091c65), and TURN3_INSTRUCTION is worded to keyword-score 0
+    # research/writing/knowledge_graph so classification lands on "general"
+    # the same way live chat would.
     # ---------------------------------------------------------------
-    await graph.aupdate_state(
-        config,
-        {
-            # Mirrors preprocessing_node's own per-turn reset dict
-            # (_nodes_classify.py) plus the sentinel intent that routes
-            # llm_node to ALL_TOOLS instead of a curated per-intent subset.
-            "intent": FORGET_TURN_SENTINEL_INTENT,
-            "intent_confidence": 1.0,
-            "messages": [HumanMessage(content=TURN3_INSTRUCTION)],
-            "plan": [],
-            "reflection_count": 0,
-            "_reflection_result": None,
-            "tool_loop_count": 0,
-            "error_count": 0,
-            "last_error": "",
-            "last_error_info": {},
-            "user_confirmed": False,
-            "pending_confirmation": {},
-            "compaction_count": 0,
-            "_force_synthesis_fired": False,
-            "retrieved_contexts": [],
-        },
-        as_node="preprocessing_node",
+    turn3_classification_probe = await classify_intent_with_fallback(
+        TURN3_INSTRUCTION, {}
     )
-    record_milestone(milestones, sequence, "turn3_state_injected")
-    await collect_updates(graph, None, config, "turn3", events, sequence)
+    await collect_updates(
+        graph,
+        {"messages": [HumanMessage(content=TURN3_INSTRUCTION)]},
+        config,
+        "turn3",
+        events,
+        sequence,
+    )
+    record_milestone(milestones, sequence, "turn3_completed")
 
     paused_snapshot = await graph.aget_state(config)
+    turn3_values = dict(getattr(paused_snapshot, "values", {}) or {})
+    turn3_intent = turn3_values.get("intent")
     interrupt_payload = extract_interrupt(paused_snapshot)
     record_milestone(milestones, sequence, "turn3_interrupt")
 
@@ -472,7 +463,9 @@ async def run_benchmark() -> dict[str, Any]:
             "turn1_intent": turn1_intent,
             "turn1_probe_intent": getattr(turn1_classification_probe, "intent", None),
             "turn1_probe_source": getattr(turn1_classification_probe, "source", None),
-            "turn3_forced_intent": FORGET_TURN_SENTINEL_INTENT,
+            "turn3_intent": turn3_intent,
+            "turn3_probe_intent": getattr(turn3_classification_probe, "intent", None),
+            "turn3_probe_source": getattr(turn3_classification_probe, "source", None),
         },
         "memory": {
             "namespace": list(namespace),
@@ -516,10 +509,12 @@ async def run_benchmark() -> dict[str, Any]:
         "milestones": milestones,
         "suppress_observation_for": ["forget_memory"],
         "notes": (
-            "Production graph, one thread, three turns. Turn 3 reaches "
-            "forget_memory via graph.aupdate_state(as_node='preprocessing_node') "
-            "to force the ALL_TOOLS fallback intent path; the interrupt_node/"
-            "tool_node/HITL machinery afterward is unmodified production code."
+            "Production graph, one thread, three turns, all three driven as "
+            "real HumanMessage turns through live classification. Turn 3 "
+            "reaches forget_memory because it now legitimately binds on "
+            "AgentIntent.GENERAL (develop 03091c65) — no checkpoint seeding "
+            "or sentinel intent; the interrupt_node/tool_node/HITL machinery "
+            "is unmodified production code."
         ),
         "semantic": "N/A (deterministic; design doc reconciliation, see task.md)",
         "final_assistant_message": final_message,
