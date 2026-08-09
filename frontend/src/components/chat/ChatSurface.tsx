@@ -342,6 +342,7 @@ export function ChatSurface({
             onRegenerate={(index) => {
               if (isSessionInteractive) handleRegenerate(index);
             }}
+            retryDisabled={!isSessionInteractive || isBusy}
             onEditUserMessage={(index, content) => {
               if (canSubmitEdit) handleEditUserMessage(index, content);
             }}

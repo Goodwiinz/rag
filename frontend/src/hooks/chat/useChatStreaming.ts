@@ -970,195 +970,203 @@ export function useChatStreaming(
         return;
       }
       submitLockRef.current = true;
-
-      // Create the idempotency/runtime identity before the optimistic bubble.
-      // The backend stores this on the user row and derives the assistant row's
-      // client id with the same UUIDv5 contract below.
-      const turnClientMessageId = crypto.randomUUID();
-      const assistantRuntimeId = uuidv5(
-        `nous-assistant:${turnClientMessageId}`,
-        uuidv5.URL
-      );
-      const userMessage: ChatPageMessage = {
-        runtimeId: turnClientMessageId,
-        // Same value as runtimeId here, but recorded explicitly so an edit of
-        // this still-optimistic turn can supersede it without guessing.
-        clientMessageId: turnClientMessageId,
-        source: 'optimistic',
-        role: 'user',
-        content,
-        timestamp: Date.now(),
-      };
-
-      // CX2: build the turn from the RECONCILED view (local ∪ store) — the
-      // local array is empty during the lazy-load window after a thread
-      // switch, and submitting from it silently dropped the whole history.
-      const requestHistory = historyOverride ?? displayedMessages;
-      const requestMessages = [...requestHistory, userMessage];
-      // Local state contains only rows the canonical page has not yet
-      // absorbed. A retry/next send clears local-only error rows while keeping
-      // still-unreconciled optimistic identities visible. Regeneration passes
-      // an explicit history prefix, so optimistic rows after its cutoff must
-      // not leak back into the regenerated request or local overlay.
-      const retainedRuntimeIds = historyOverride
-        ? new Set(requestHistory.map((message) => message.runtimeId))
-        : null;
-      const newMessages = [
-        ...messages.filter(
-          (message) =>
-            message.source === 'optimistic' &&
-            (!retainedRuntimeIds || retainedRuntimeIds.has(message.runtimeId))
-        ),
-        userMessage,
-      ];
-      setMessages(newMessages);
-      setInput('');
-      setIsLoading(true);
-
-      // Create new thread if needed (when no active conversation).
-      // Read from ref first (synchronous, immune to React batching), then
-      // state, then Zustand store as final fallback.
-      let currentConversationId = useChatStore.getState().currentThreadId;
-      let currentThreadId = currentConversationId;
-
-      if (!currentConversationId) {
-        try {
-          // Warm-start resolves dbConversation off the paint path. A user can
-          // begin a fresh chat before that request settles, so recover it here
-          // before creating the thread instead of streaming with no thread ID.
-          let threadConversation = dbConversation;
-          if (!threadConversation) {
-            const defaultWorkspace =
-              await workspaceService.getOrCreateDefaultWorkspace();
-            threadConversation =
-              await workspaceService.getOrCreateDefaultConversation(
-                defaultWorkspace.id
-              );
-          }
-
-          const dynamicTitle = generateConversationTitle(content);
-          console.log(
-            '[Chat] Creating new thread in database with title:',
-            dynamicTitle
-          );
-          const newThread = await workspaceService.createThread(
-            buildThreadCreateRequest({
-              conversationId: threadConversation.id,
-              title: dynamicTitle,
-              projectId: boundProjectId,
-            })
-          );
-
-          // Register in the chat store: the binding selectors and
-          // setThreadProjectBinding read store.threads, and without this the
-          // thread is invisible there until the next full loadThreads — a
-          // project attached to it would be silently dropped from the UI.
-          useChatStore.getState().registerThread(newThread);
-
-          currentConversationId = newThread.id;
-          currentThreadId = newThread.id;
-
-          const newConv: ChatConversation = {
-            id: newThread.id,
-            title: newThread.title || dynamicTitle,
-            messages: [],
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            threadId: newThread.id,
-            conversationId: threadConversation.id,
-            previewText: content,
-            messageCount: 1,
-          };
-
-          setConversations((prev) => [newConv, ...prev]);
-          useChatStore.getState().setCurrentThread(newConv.id);
-          queueMicrotask(() =>
-            router.replace(getSelectedThreadUrl(newThread.id))
-          );
-          console.log('[Chat] Created new thread:', newThread.id);
-        } catch (error) {
-          console.error('[Chat] Failed to create thread:', error);
-          // Roll back the optimistic turn: the user message was appended and
-          // the composer cleared before this call. Without this the bubble
-          // ghosts (never sent, gone on reload) and the typed text is lost.
-          // Restore both and tell the user, so they can retry.
-          setMessages(messages);
-          setInput(content);
-          toast.error('Could not start the conversation. Please try again.');
-          submitLockRef.current = false;
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // Stream via Agent (LangGraph) backend.
-      // The workspace thread IS the agent thread (server-canonical).
-      const existingAgentThreadId = currentThreadId || undefined;
-      console.log(
-        '[Chat] Starting agent stream, workspace thread:',
-        currentThreadId,
-        'agent thread:',
-        existingAgentThreadId
-      );
-
-      if (currentThreadId) {
-        useAgentActivityStore
-          .getState()
-          .startRun(currentThreadId, deriveAgentName(), deriveTask(content));
-      }
-
       try {
-        await runStreamTurn({
+
+        // Create the idempotency/runtime identity before the optimistic bubble.
+        // The backend stores this on the user row and derives the assistant row's
+        // client id with the same UUIDv5 contract below.
+        const turnClientMessageId = crypto.randomUUID();
+        const assistantRuntimeId = uuidv5(
+          `nous-assistant:${turnClientMessageId}`,
+          uuidv5.URL
+        );
+        const userMessage: ChatPageMessage = {
+          runtimeId: turnClientMessageId,
+          // Same value as runtimeId here, but recorded explicitly so an edit of
+          // this still-optimistic turn can supersede it without guessing.
+          clientMessageId: turnClientMessageId,
+          source: 'optimistic',
+          role: 'user',
+          content,
+          timestamp: Date.now(),
+        };
+
+        // CX2: build the turn from the RECONCILED view (local ∪ store) — the
+        // local array is empty during the lazy-load window after a thread
+        // switch, and submitting from it silently dropped the whole history.
+        const requestHistory = historyOverride ?? displayedMessages;
+        const requestMessages = [...requestHistory, userMessage];
+        // Local state contains only rows the canonical page has not yet
+        // absorbed. A retry/next send clears local-only error rows while keeping
+        // still-unreconciled optimistic identities visible. Regeneration passes
+        // an explicit history prefix, so optimistic rows after its cutoff must
+        // not leak back into the regenerated request or local overlay.
+        const retainedRuntimeIds = historyOverride
+          ? new Set(requestHistory.map((message) => message.runtimeId))
+          : null;
+        const newMessages = [
+          ...messages.filter(
+            (message) =>
+              message.source === 'optimistic' &&
+              (!retainedRuntimeIds || retainedRuntimeIds.has(message.runtimeId))
+          ),
+          userMessage,
+        ];
+        setMessages(newMessages);
+        setInput('');
+        setIsLoading(true);
+
+        // Create new thread if needed (when no active conversation).
+        // Read from ref first (synchronous, immune to React batching), then
+        // state, then Zustand store as final fallback.
+        let currentConversationId = useChatStore.getState().currentThreadId;
+        let currentThreadId = currentConversationId;
+
+        if (!currentConversationId) {
+          try {
+            // Warm-start resolves dbConversation off the paint path. A user can
+            // begin a fresh chat before that request settles, so recover it here
+            // before creating the thread instead of streaming with no thread ID.
+            let threadConversation = dbConversation;
+            if (!threadConversation) {
+              const defaultWorkspace =
+                await workspaceService.getOrCreateDefaultWorkspace();
+              threadConversation =
+                await workspaceService.getOrCreateDefaultConversation(
+                  defaultWorkspace.id
+                );
+            }
+
+            const dynamicTitle = generateConversationTitle(content);
+            console.log(
+              '[Chat] Creating new thread in database with title:',
+              dynamicTitle
+            );
+            const newThread = await workspaceService.createThread(
+              buildThreadCreateRequest({
+                conversationId: threadConversation.id,
+                title: dynamicTitle,
+                projectId: boundProjectId,
+              })
+            );
+
+            // Register in the chat store: the binding selectors and
+            // setThreadProjectBinding read store.threads, and without this the
+            // thread is invisible there until the next full loadThreads — a
+            // project attached to it would be silently dropped from the UI.
+            useChatStore.getState().registerThread(newThread);
+
+            currentConversationId = newThread.id;
+            currentThreadId = newThread.id;
+
+            const newConv: ChatConversation = {
+              id: newThread.id,
+              title: newThread.title || dynamicTitle,
+              messages: [],
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+              threadId: newThread.id,
+              conversationId: threadConversation.id,
+              previewText: content,
+              messageCount: 1,
+            };
+
+            setConversations((prev) => [newConv, ...prev]);
+            useChatStore.getState().setCurrentThread(newConv.id);
+            queueMicrotask(() =>
+              router.replace(getSelectedThreadUrl(newThread.id))
+            );
+            console.log('[Chat] Created new thread:', newThread.id);
+          } catch (error) {
+            console.error('[Chat] Failed to create thread:', error);
+            // Roll back the optimistic turn: the user message was appended and
+            // the composer cleared before this call. Without this the bubble
+            // ghosts (never sent, gone on reload) and the typed text is lost.
+            // Restore both and tell the user, so they can retry.
+            setMessages(messages);
+            setInput(content);
+            toast.error('Could not start the conversation. Please try again.');
+            submitLockRef.current = false;
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // Stream via Agent (LangGraph) backend.
+        // The workspace thread IS the agent thread (server-canonical).
+        const existingAgentThreadId = currentThreadId || undefined;
+        console.log(
+          '[Chat] Starting agent stream, workspace thread:',
           currentThreadId,
-          currentConversationId,
-          newMessages,
-          assistantRuntimeId,
-          start: (streamCallbacks, signal) =>
-            agentChatService.streamMessage(
-              {
-                messages: requestMessages
-                  .filter((message) => message.source !== 'local-only')
-                  .map((m, i, agentMessages) => ({
-                    role: m.role,
-                    content: m.content,
-                    // Idempotency key rides on the user turn being sent (the
-                    // last message) — server-canonical only.
-                    ...(turnClientMessageId &&
-                    i === agentMessages.length - 1 &&
-                    m.role === 'user'
-                      ? { client_message_id: turnClientMessageId }
-                      : {}),
-                  })),
-                page_context: {
-                  type: boundProjectId ? 'project' : 'chat',
-                  ...(boundProjectId && {
-                    project_id: boundProjectId,
-                    project_name: resolvedProjectName || '',
-                  }),
-                  // The project is bound to the WORKSPACE thread, but this
-                  // stream runs on a separate agent thread. The backend uses
-                  // this id to resolve (and durably adopt) the bound project
-                  // when the URL param has been dropped by thread navigation.
-                  ...(currentThreadId && {
-                    metadata: { workspace_thread_id: currentThreadId },
-                  }),
+          'agent thread:',
+          existingAgentThreadId
+        );
+
+        if (currentThreadId) {
+          useAgentActivityStore
+            .getState()
+            .startRun(currentThreadId, deriveAgentName(), deriveTask(content));
+        }
+
+        try {
+          await runStreamTurn({
+            currentThreadId,
+            currentConversationId,
+            newMessages,
+            assistantRuntimeId,
+            start: (streamCallbacks, signal) =>
+              agentChatService.streamMessage(
+                {
+                  messages: requestMessages
+                    .filter((message) => message.source !== 'local-only')
+                    .map((m, i, agentMessages) => ({
+                      role: m.role,
+                      content: m.content,
+                      // Idempotency key rides on the user turn being sent (the
+                      // last message) — server-canonical only.
+                      ...(turnClientMessageId &&
+                      i === agentMessages.length - 1 &&
+                      m.role === 'user'
+                        ? { client_message_id: turnClientMessageId }
+                        : {}),
+                    })),
+                  page_context: {
+                    type: boundProjectId ? 'project' : 'chat',
+                    ...(boundProjectId && {
+                      project_id: boundProjectId,
+                      project_name: resolvedProjectName || '',
+                    }),
+                    // The project is bound to the WORKSPACE thread, but this
+                    // stream runs on a separate agent thread. The backend uses
+                    // this id to resolve (and durably adopt) the bound project
+                    // when the URL param has been dropped by thread navigation.
+                    ...(currentThreadId && {
+                      metadata: { workspace_thread_id: currentThreadId },
+                    }),
+                  },
+                  use_rag: enableRAG,
+                  thread_id: existingAgentThreadId,
+                  // Edit-and-resend turns only: omitted entirely otherwise (and
+                  // when the edited turn was never persisted with a cmid).
+                  ...(supersedesClientMessageId
+                    ? {
+                        supersedes_client_message_id: supersedesClientMessageId,
+                      }
+                    : {}),
                 },
-                use_rag: enableRAG,
-                thread_id: existingAgentThreadId,
-                // Edit-and-resend turns only: omitted entirely otherwise (and
-                // when the edited turn was never persisted with a cmid).
-                ...(supersedesClientMessageId
-                  ? {
-                      supersedes_client_message_id: supersedesClientMessageId,
-                    }
-                  : {}),
-              },
-              streamCallbacks,
-              signal
-            ),
-        });
-      } finally {
+                streamCallbacks,
+                signal
+              ),
+          });
+        } finally {
+          submitLockRef.current = false;
+        }
+      } catch (err) {
+        // A throw between lock-set and the inner try/finally used to leave
+        // the lock stuck true (Send dead until remount). Reset and rethrow.
         submitLockRef.current = false;
+        setIsLoading(false);
+        throw err;
       }
     },
     [
@@ -1339,420 +1347,430 @@ export function useChatStreaming(
       )
         return;
       confirmLockRef.current = true;
-      // The confirm resume is async; the user can still switch threads while it
-      // streams. Gate every local setMessages below on the confirmation's
-      // thread still being displayed — the resumed answer is persisted
-      // server-side regardless, so a skipped local write is not lost (mirrors
-      // handleSubmit's isTurnDisplayed guard).
-      const isConfirmDisplayed = () =>
-        confirmationBelongsToThread(
-          pendingConfirmation,
-          useChatStore.getState().currentThreadId
-        );
-      const confirmationThreadId =
-        pendingConfirmation.workspaceThreadId || null;
-      const confirmationDiagnostic = (terminalReason: string) => ({
-        terminalReason,
-        localCount: messages.length,
-        completedInBackground: !isConfirmDisplayed(),
-      });
-      const reconcileConfirmationUser = (terminalReason: string) =>
-        confirmationThreadId
-          ? useChatStore.getState().refreshMessages(
-              confirmationThreadId,
-              pendingConfirmation.userRuntimeId
-                ? {
-                    runtimeId: pendingConfirmation.userRuntimeId,
-                    diagnostic: confirmationDiagnostic(terminalReason),
-                  }
-                : undefined
-            )
-          : Promise.resolve(false);
-      const reconcileConfirmationAssistant = (
-        done: {
+      try {
+        // The confirm resume is async; the user can still switch threads while it
+        // streams. Gate every local setMessages below on the confirmation's
+        // thread still being displayed — the resumed answer is persisted
+        // server-side regardless, so a skipped local write is not lost (mirrors
+        // handleSubmit's isTurnDisplayed guard).
+        const isConfirmDisplayed = () =>
+          confirmationBelongsToThread(
+            pendingConfirmation,
+            useChatStore.getState().currentThreadId
+          );
+        const confirmationThreadId =
+          pendingConfirmation.workspaceThreadId || null;
+        const confirmationDiagnostic = (terminalReason: string) => ({
+          terminalReason,
+          localCount: messages.length,
+          completedInBackground: !isConfirmDisplayed(),
+        });
+        const reconcileConfirmationUser = (terminalReason: string) =>
+          confirmationThreadId
+            ? useChatStore.getState().refreshMessages(
+                confirmationThreadId,
+                pendingConfirmation.userRuntimeId
+                  ? {
+                      runtimeId: pendingConfirmation.userRuntimeId,
+                      diagnostic: confirmationDiagnostic(terminalReason),
+                    }
+                  : undefined
+              )
+            : Promise.resolve(false);
+        const reconcileConfirmationAssistant = (
+          done: {
+            assistant_message_id?: string | null;
+            client_message_id?: string | null;
+          },
+          terminalReason: string
+        ) =>
+          confirmationThreadId
+            ? useChatStore.getState().refreshMessages(confirmationThreadId, {
+                persistedId: done.assistant_message_id ?? undefined,
+                runtimeId:
+                  done.client_message_id ??
+                  pendingConfirmation.assistantRuntimeId,
+                diagnostic: confirmationDiagnostic(terminalReason),
+              })
+            : Promise.resolve(false);
+        if (confirmationThreadId) {
+          useChatStore.getState().markMessagesStale(confirmationThreadId);
+        }
+        setIsConfirming(true);
+        const confirmStart = Date.now();
+        // Track tool steps for the resumed turn exactly like handleSubmit —
+        // seed with the pre-interrupt steps so the live bubble and the
+        // committed message both show the whole turn's tools, not just the
+        // post-confirm ones (previously none rendered until a page reload).
+        const confirmSteps: ActivityStep[] = [
+          ...(pendingConfirmation.steps ?? []),
+        ];
+        const confirmToolStartTimes = new Map<string, number>();
+        // Pre-interrupt provenance carried on the confirmation — the interrupt
+        // exit cleared the live streaming state, so restore it here.
+        const carriedCitations = pendingConfirmation.citations ?? [];
+        let confirmPlan: PlanStep[] = [...(pendingConfirmation.plan ?? [])];
+        // CX5: the confirm-resume path is a SEPARATE live-stream owner from
+        // runStreamTurn (a resumed HITL turn belongs to the confirmation's
+        // workspace thread, which may differ from whatever thread is
+        // currently displayed) — stamp it the same way.
+        useChatStore.setState({
+          isStreaming: true,
+          streamingContent: '',
+          streamingSteps: [...confirmSteps],
+          streamingCitations: carriedCitations,
+          streamingElapsedMs: null,
+          streamingPhase: 'accepted',
+          streamingThreadId: pendingConfirmation.workspaceThreadId || null,
+        });
+
+        let confirmContent = '';
+        // Post-confirm retrieval contexts (the resumed turn can run RAG); the
+        // confirm parser previously dropped rag_context entirely, so a
+        // confirmed action's sources never reached the UI (sync-audit gap 2).
+        // Committed alongside the carried pre-interrupt citations.
+        let resumeCitations: Array<Record<string, unknown>> = [];
+        // Token usage emitted by the confirm path (backend fires event: usage
+        // before done). Without capturing this, confirmed turns showed no token
+        // cost — inconsistent with the main stream.
+        let confirmTokenUsage: { input: number; output: number } | null = null;
+        // A resumed turn can hit ANOTHER destructive tool (nested interrupt):
+        // the backend emits a fresh `confirmation` and ends the stream without
+        // `done`. Captured here so `finally` re-arms the banner instead of
+        // clearing it — previously the event was dropped and the graph was
+        // left interrupted with no way to resume from the UI.
+        let nestedConfirmation: PendingConfirmation | null = null;
+        let confirmThrew = false;
+        // Set when onDone/onError committed a bubble — the post-stream abort
+        // path below must not double-commit.
+        let confirmCommitted = false;
+        let confirmHadError = false;
+        let confirmDoneIds: {
           assistant_message_id?: string | null;
           client_message_id?: string | null;
-        },
-        terminalReason: string
-      ) =>
-        confirmationThreadId
-          ? useChatStore.getState().refreshMessages(confirmationThreadId, {
-              persistedId: done.assistant_message_id ?? undefined,
-              runtimeId:
-                done.client_message_id ??
-                pendingConfirmation.assistantRuntimeId,
-              diagnostic: confirmationDiagnostic(terminalReason),
-            })
-          : Promise.resolve(false);
-      if (confirmationThreadId) {
-        useChatStore.getState().markMessagesStale(confirmationThreadId);
-      }
-      setIsConfirming(true);
-      const confirmStart = Date.now();
-      // Track tool steps for the resumed turn exactly like handleSubmit —
-      // seed with the pre-interrupt steps so the live bubble and the
-      // committed message both show the whole turn's tools, not just the
-      // post-confirm ones (previously none rendered until a page reload).
-      const confirmSteps: ActivityStep[] = [
-        ...(pendingConfirmation.steps ?? []),
-      ];
-      const confirmToolStartTimes = new Map<string, number>();
-      // Pre-interrupt provenance carried on the confirmation — the interrupt
-      // exit cleared the live streaming state, so restore it here.
-      const carriedCitations = pendingConfirmation.citations ?? [];
-      let confirmPlan: PlanStep[] = [...(pendingConfirmation.plan ?? [])];
-      // CX5: the confirm-resume path is a SEPARATE live-stream owner from
-      // runStreamTurn (a resumed HITL turn belongs to the confirmation's
-      // workspace thread, which may differ from whatever thread is
-      // currently displayed) — stamp it the same way.
-      useChatStore.setState({
-        isStreaming: true,
-        streamingContent: '',
-        streamingSteps: [...confirmSteps],
-        streamingCitations: carriedCitations,
-        streamingElapsedMs: null,
-        streamingPhase: 'accepted',
-        streamingThreadId: pendingConfirmation.workspaceThreadId || null,
-      });
+        } = {};
+        const confirmMessages = [...messages];
+        const confirmRuntimeId =
+          pendingConfirmation.assistantRuntimeId ?? crypto.randomUUID();
 
-      let confirmContent = '';
-      // Post-confirm retrieval contexts (the resumed turn can run RAG); the
-      // confirm parser previously dropped rag_context entirely, so a
-      // confirmed action's sources never reached the UI (sync-audit gap 2).
-      // Committed alongside the carried pre-interrupt citations.
-      let resumeCitations: Array<Record<string, unknown>> = [];
-      // Token usage emitted by the confirm path (backend fires event: usage
-      // before done). Without capturing this, confirmed turns showed no token
-      // cost — inconsistent with the main stream.
-      let confirmTokenUsage: { input: number; output: number } | null = null;
-      // A resumed turn can hit ANOTHER destructive tool (nested interrupt):
-      // the backend emits a fresh `confirmation` and ends the stream without
-      // `done`. Captured here so `finally` re-arms the banner instead of
-      // clearing it — previously the event was dropped and the graph was
-      // left interrupted with no way to resume from the UI.
-      let nestedConfirmation: PendingConfirmation | null = null;
-      let confirmThrew = false;
-      // Set when onDone/onError committed a bubble — the post-stream abort
-      // path below must not double-commit.
-      let confirmCommitted = false;
-      let confirmHadError = false;
-      let confirmDoneIds: {
-        assistant_message_id?: string | null;
-        client_message_id?: string | null;
-      } = {};
-      const confirmMessages = [...messages];
-      const confirmRuntimeId =
-        pendingConfirmation.assistantRuntimeId ?? crypto.randomUUID();
-
-      const buildConfirmMessage = (
-        content: string,
-        stopped: boolean
-      ): ChatPageMessage => {
-        const allCitations = [...carriedCitations, ...resumeCitations];
-        return {
-          runtimeId: confirmRuntimeId,
-          source: 'optimistic',
-          role: 'assistant',
-          content,
-          timestamp: Date.now(),
-          ...(allCitations.length > 0
-            ? { citations: allCitations.map(normalizeCitation) }
-            : {}),
-          ...(confirmSteps.length > 0
-            ? { toolExecutions: [...confirmSteps] }
-            : {}),
-          ...(confirmPlan.length > 0 ? { plan: [...confirmPlan] } : {}),
-          metadata: {
-            responseTimeMs: Date.now() - confirmStart,
-            ...(stopped ? { stopped: true } : {}),
-            ...(confirmTokenUsage ? { tokenUsage: confirmTokenUsage } : {}),
-            ...(confirmSteps.length > 0
-              ? { toolsUsed: confirmSteps.map((s) => s.label) }
+        const buildConfirmMessage = (
+          content: string,
+          stopped: boolean
+        ): ChatPageMessage => {
+          const allCitations = [...carriedCitations, ...resumeCitations];
+          return {
+            runtimeId: confirmRuntimeId,
+            source: 'optimistic',
+            role: 'assistant',
+            content,
+            timestamp: Date.now(),
+            ...(allCitations.length > 0
+              ? { citations: allCitations.map(normalizeCitation) }
               : {}),
-          },
+            ...(confirmSteps.length > 0
+              ? { toolExecutions: [...confirmSteps] }
+              : {}),
+            ...(confirmPlan.length > 0 ? { plan: [...confirmPlan] } : {}),
+            metadata: {
+              responseTimeMs: Date.now() - confirmStart,
+              ...(stopped ? { stopped: true } : {}),
+              ...(confirmTokenUsage ? { tokenUsage: confirmTokenUsage } : {}),
+              ...(confirmSteps.length > 0
+                ? { toolsUsed: confirmSteps.map((s) => s.label) }
+                : {}),
+            },
+          };
         };
-      };
 
-      const confirmAbort = new AbortController();
-      abortControllerRef.current = confirmAbort;
+        const confirmAbort = new AbortController();
+        abortControllerRef.current = confirmAbort;
 
-      try {
-        await agentChatService.streamConfirm(
-          { thread_id: pendingConfirmation.threadId, confirmed },
-          {
-            onToken: (content) => {
-              confirmContent += content;
-              pendingStreamContentRef.current = confirmContent;
-              if (streamingRafRef.current === null) {
-                streamingRafRef.current = requestAnimationFrame(() => {
-                  streamingRafRef.current = null;
-                  if (pendingStreamContentRef.current !== null) {
-                    useChatStore.setState({
-                      streamingContent: pendingStreamContentRef.current,
-                      isRetrievingRag: false,
-                    });
-                    pendingStreamContentRef.current = null;
-                  }
-                });
-              }
-            },
-            onHeartbeat: (elapsedMs) => {
-              useChatStore.setState({ streamingElapsedMs: elapsedMs });
-            },
-            onStatus: (phase) => {
-              useChatStore.setState({ streamingPhase: phase });
-            },
-            // Same resume-cursor bookkeeping as the primary stream. Without
-            // it the cursor froze at whatever seq the pre-interrupt turn
-            // reached, so a disconnect mid-resume replayed the buffer from a
-            // stale position instead of continuing after the last seen frame.
-            onSeq: (seq) => {
-              const seqThreadId = pendingConfirmation.workspaceThreadId;
-              if (!seqThreadId) return;
-              pendingSeqRef.current = { threadId: seqThreadId, seq };
-              if (seqRafRef.current === null) {
-                seqRafRef.current = requestAnimationFrame(() => {
-                  seqRafRef.current = null;
-                  const p = pendingSeqRef.current;
-                  pendingSeqRef.current = null;
-                  if (p) {
-                    useAgentActivityStore
-                      .getState()
-                      .setStreamSeq(p.threadId, p.seq);
-                  }
-                });
-              }
-            },
-            onToolStart: (tool, args) => {
-              useAgentActivityStore
-                .getState()
-                .pushToolStart(pendingConfirmation.workspaceThreadId, tool);
-              confirmToolStartTimes.set(tool, Date.now());
-              confirmSteps.push({
-                tool,
-                label: toolLabel(tool),
-                status: 'running',
-                argsSummary: summarizeToolArgs(args),
-                ...(args && typeof args === 'object' ? { args } : {}),
-              });
-              useChatStore.setState({ streamingSteps: [...confirmSteps] });
-            },
-            onToolEnd: (tool, result, isError) => {
-              useAgentActivityStore
-                .getState()
-                .pushToolEnd(
-                  pendingConfirmation.workspaceThreadId,
-                  tool,
-                  !isError
-                );
-              // HITL-confirmed tools are exactly the mutating ones (ingest,
-              // create_note, create_draft) — refresh the rail here too.
-              invalidateProjectDataForTool(tool, isError);
-              const startTime = confirmToolStartTimes.get(tool);
-              const durationMs = startTime ? Date.now() - startTime : undefined;
-              const idx = [...confirmSteps]
-                .map((s, i) => ({ s, i }))
-                .reverse()
-                .find(({ s }) => s.tool === tool && s.status === 'running')?.i;
-              if (idx !== undefined) {
-                confirmSteps[idx] = {
-                  ...confirmSteps[idx],
-                  status: isError ? 'error' : 'done',
-                  durationMs,
-                  resultSummary: summarizeToolResult(result),
-                };
-              }
-              useChatStore.setState({ streamingSteps: [...confirmSteps] });
-            },
-            onRagContext: (contexts) => {
-              resumeCitations = contexts;
-              useChatStore.setState({
-                streamingCitations: [...carriedCitations, ...contexts],
-                isRetrievingRag: false,
-              });
-            },
-            onPlan: (steps) => {
-              confirmPlan = toTurnPlan(steps);
-              const items = toActivityPlanItems(steps);
-              if (pendingConfirmation.workspaceThreadId && items.length > 0) {
+        try {
+          await agentChatService.streamConfirm(
+            { thread_id: pendingConfirmation.threadId, confirmed },
+            {
+              onToken: (content) => {
+                confirmContent += content;
+                pendingStreamContentRef.current = confirmContent;
+                if (streamingRafRef.current === null) {
+                  streamingRafRef.current = requestAnimationFrame(() => {
+                    streamingRafRef.current = null;
+                    if (pendingStreamContentRef.current !== null) {
+                      useChatStore.setState({
+                        streamingContent: pendingStreamContentRef.current,
+                        isRetrievingRag: false,
+                      });
+                      pendingStreamContentRef.current = null;
+                    }
+                  });
+                }
+              },
+              onHeartbeat: (elapsedMs) => {
+                useChatStore.setState({ streamingElapsedMs: elapsedMs });
+              },
+              onStatus: (phase) => {
+                useChatStore.setState({ streamingPhase: phase });
+              },
+              // Same resume-cursor bookkeeping as the primary stream. Without
+              // it the cursor froze at whatever seq the pre-interrupt turn
+              // reached, so a disconnect mid-resume replayed the buffer from a
+              // stale position instead of continuing after the last seen frame.
+              onSeq: (seq) => {
+                const seqThreadId = pendingConfirmation.workspaceThreadId;
+                if (!seqThreadId) return;
+                pendingSeqRef.current = { threadId: seqThreadId, seq };
+                if (seqRafRef.current === null) {
+                  seqRafRef.current = requestAnimationFrame(() => {
+                    seqRafRef.current = null;
+                    const p = pendingSeqRef.current;
+                    pendingSeqRef.current = null;
+                    if (p) {
+                      useAgentActivityStore
+                        .getState()
+                        .setStreamSeq(p.threadId, p.seq);
+                    }
+                  });
+                }
+              },
+              onToolStart: (tool, args) => {
                 useAgentActivityStore
                   .getState()
-                  .setPlan(pendingConfirmation.workspaceThreadId, items);
-              }
-            },
-            onConfirmation: (threadId, confirmation) => {
-              nestedConfirmation = {
-                threadId,
-                workspaceThreadId: pendingConfirmation.workspaceThreadId,
-                confirmation,
-                steps: confirmSteps.filter((s) => s.status !== 'running'),
-                plan: [...confirmPlan],
-                citations: [...carriedCitations, ...resumeCitations],
-                userRuntimeId: pendingConfirmation.userRuntimeId,
-                assistantRuntimeId: pendingConfirmation.assistantRuntimeId,
-              };
-            },
-            onUsage: (inputTokens, outputTokens) => {
-              confirmTokenUsage = { input: inputTokens, output: outputTokens };
-            },
-            onReflection: (_passed, _issues, _round, revising) => {
-              if (!revising) return;
-              confirmContent = '';
-              pendingStreamContentRef.current = '';
-              useChatStore.setState({ streamingContent: '' });
-            },
-            onDone: (payload) => {
-              confirmDoneIds = payload ?? {};
-              if (confirmContent.trim()) {
-                const baseMessage = buildConfirmMessage(confirmContent, false);
-                // The done payload carries the graph state's tool executions
-                // (parsed results, real durations) for the WHOLE turn —
-                // richer than the live SSE summaries, and identical to what
-                // a reload would show. Prefer them when present.
-                const serverSteps = mapDbToolExecutions(
-                  payload?.tool_executions as DbToolExecution[] | undefined
-                );
+                  .pushToolStart(pendingConfirmation.workspaceThreadId, tool);
+                confirmToolStartTimes.set(tool, Date.now());
+                confirmSteps.push({
+                  tool,
+                  label: toolLabel(tool),
+                  status: 'running',
+                  argsSummary: summarizeToolArgs(args),
+                  ...(args && typeof args === 'object' ? { args } : {}),
+                });
+                useChatStore.setState({ streamingSteps: [...confirmSteps] });
+              },
+              onToolEnd: (tool, result, isError) => {
+                useAgentActivityStore
+                  .getState()
+                  .pushToolEnd(
+                    pendingConfirmation.workspaceThreadId,
+                    tool,
+                    !isError
+                  );
+                // HITL-confirmed tools are exactly the mutating ones (ingest,
+                // create_note, create_draft) — refresh the rail here too.
+                invalidateProjectDataForTool(tool, isError);
+                const startTime = confirmToolStartTimes.get(tool);
+                const durationMs = startTime ? Date.now() - startTime : undefined;
+                const idx = [...confirmSteps]
+                  .map((s, i) => ({ s, i }))
+                  .reverse()
+                  .find(({ s }) => s.tool === tool && s.status === 'running')?.i;
+                if (idx !== undefined) {
+                  confirmSteps[idx] = {
+                    ...confirmSteps[idx],
+                    status: isError ? 'error' : 'done',
+                    durationMs,
+                    resultSummary: summarizeToolResult(result),
+                  };
+                }
+                useChatStore.setState({ streamingSteps: [...confirmSteps] });
+              },
+              onRagContext: (contexts) => {
+                resumeCitations = contexts;
+                useChatStore.setState({
+                  streamingCitations: [...carriedCitations, ...contexts],
+                  isRetrievingRag: false,
+                });
+              },
+              onPlan: (steps) => {
+                confirmPlan = toTurnPlan(steps);
+                const items = toActivityPlanItems(steps);
+                if (pendingConfirmation.workspaceThreadId && items.length > 0) {
+                  useAgentActivityStore
+                    .getState()
+                    .setPlan(pendingConfirmation.workspaceThreadId, items);
+                }
+              },
+              onConfirmation: (threadId, confirmation) => {
+                nestedConfirmation = {
+                  threadId,
+                  workspaceThreadId: pendingConfirmation.workspaceThreadId,
+                  confirmation,
+                  steps: confirmSteps.filter((s) => s.status !== 'running'),
+                  plan: [...confirmPlan],
+                  citations: [...carriedCitations, ...resumeCitations],
+                  userRuntimeId: pendingConfirmation.userRuntimeId,
+                  assistantRuntimeId: pendingConfirmation.assistantRuntimeId,
+                };
+              },
+              onUsage: (inputTokens, outputTokens) => {
+                confirmTokenUsage = { input: inputTokens, output: outputTokens };
+              },
+              onReflection: (_passed, _issues, _round, revising) => {
+                if (!revising) return;
+                confirmContent = '';
+                pendingStreamContentRef.current = '';
+                useChatStore.setState({ streamingContent: '' });
+              },
+              onDone: (payload) => {
+                confirmDoneIds = payload ?? {};
+                if (confirmContent.trim()) {
+                  const baseMessage = buildConfirmMessage(confirmContent, false);
+                  // The done payload carries the graph state's tool executions
+                  // (parsed results, real durations) for the WHOLE turn —
+                  // richer than the live SSE summaries, and identical to what
+                  // a reload would show. Prefer them when present.
+                  const serverSteps = mapDbToolExecutions(
+                    payload?.tool_executions as DbToolExecution[] | undefined
+                  );
+                  const msg: ChatPageMessage = {
+                    ...baseMessage,
+                    ...(payload?.assistant_message_id
+                      ? { id: payload.assistant_message_id }
+                      : {}),
+                    ...(serverSteps && serverSteps.length > 0
+                      ? {
+                          toolExecutions: serverSteps,
+                          metadata: {
+                            ...baseMessage.metadata,
+                            toolsUsed: serverSteps.map((s) => s.label),
+                          },
+                        }
+                      : {}),
+                  };
+                  confirmCommitted = true;
+                  if (isConfirmDisplayed())
+                    setMessages([...confirmMessages, msg]);
+                }
+              },
+              onError: (error, category) => {
+                confirmHadError = true;
+                // The confirm path used to commit a PLAIN content bubble for a
+                // failure — no `error` block, so no Retry affordance and no
+                // category. Same shape as the main stream now: server category
+                // when the frame carried one, client fallback otherwise.
                 const msg: ChatPageMessage = {
-                  ...baseMessage,
-                  ...(payload?.assistant_message_id
-                    ? { id: payload.assistant_message_id }
-                    : {}),
-                  ...(serverSteps && serverSteps.length > 0
-                    ? {
-                        toolExecutions: serverSteps,
-                        metadata: {
-                          ...baseMessage.metadata,
-                          toolsUsed: serverSteps.map((s) => s.label),
-                        },
-                      }
-                    : {}),
+                  runtimeId: crypto.randomUUID(),
+                  source: 'local-only',
+                  role: 'assistant',
+                  content: `Confirmation error: ${error}`,
+                  timestamp: Date.now(),
+                  error: {
+                    message:
+                      'This confirmation failed to complete. Please try again.',
+                    category: category ?? 'stream-error',
+                  },
                 };
                 confirmCommitted = true;
-                if (isConfirmDisplayed())
-                  setMessages([...confirmMessages, msg]);
-              }
+                if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
+              },
             },
-            onError: (error, category) => {
-              confirmHadError = true;
-              // The confirm path used to commit a PLAIN content bubble for a
-              // failure — no `error` block, so no Retry affordance and no
-              // category. Same shape as the main stream now: server category
-              // when the frame carried one, client fallback otherwise.
-              const msg: ChatPageMessage = {
-                runtimeId: crypto.randomUUID(),
-                source: 'local-only',
-                role: 'assistant',
-                content: `Confirmation error: ${error}`,
-                timestamp: Date.now(),
-                error: {
-                  message:
-                    'This confirmation failed to complete. Please try again.',
-                  category: category ?? 'stream-error',
-                },
-              };
-              confirmCommitted = true;
-              if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
-            },
-          },
-          confirmAbort.signal
-        );
+            confirmAbort.signal
+          );
 
-        // User hit Stop mid-resume: the abort swallows the stream so onDone
-        // never fires — commit the partial answer tagged `stopped`, like
-        // handleSubmit does. The backend's disconnect branch persists the
-        // same partial server-side, so reload reconciles.
-        if (
-          !confirmCommitted &&
-          stoppedByUserRef.current &&
-          confirmContent.trim()
-        ) {
-          confirmCommitted = true;
-          if (isConfirmDisplayed())
-            setMessages([
-              ...confirmMessages,
-              buildConfirmMessage(confirmContent, true),
-            ]);
-        }
-        if (nestedConfirmation || confirmHadError) {
-          await reconcileConfirmationUser(
-            nestedConfirmation ? 'confirmation-paused' : 'confirmation-error'
+          // User hit Stop mid-resume: the abort swallows the stream so onDone
+          // never fires — commit the partial answer tagged `stopped`, like
+          // handleSubmit does. The backend's disconnect branch persists the
+          // same partial server-side, so reload reconciles.
+          if (
+            !confirmCommitted &&
+            stoppedByUserRef.current &&
+            confirmContent.trim()
+          ) {
+            confirmCommitted = true;
+            if (isConfirmDisplayed())
+              setMessages([
+                ...confirmMessages,
+                buildConfirmMessage(confirmContent, true),
+              ]);
+          }
+          if (nestedConfirmation || confirmHadError) {
+            await reconcileConfirmationUser(
+              nestedConfirmation ? 'confirmation-paused' : 'confirmation-error'
+            );
+          } else {
+            await reconcileConfirmationAssistant(
+              confirmDoneIds,
+              stoppedByUserRef.current
+                ? 'confirmation-stopped'
+                : confirmed
+                  ? 'confirmation-approved'
+                  : 'confirmation-rejected'
+            );
+          }
+        } catch (err) {
+          const errorMessage =
+            err instanceof Error
+              ? err.message
+              : 'Network error during confirmation';
+          const msg: ChatPageMessage = {
+            runtimeId: crypto.randomUUID(),
+            source: 'local-only',
+            role: 'assistant',
+            content: `Confirmation failed: ${errorMessage}`,
+            timestamp: Date.now(),
+          };
+          if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
+          confirmThrew = true;
+          await reconcileConfirmationUser('confirmation-exception');
+        } finally {
+          // Close out the agent activity rail — the interrupt left the run
+          // "running" and neither onDone (confirm path) nor handleStop
+          // (activeRunThreadRef is null here) ever finished it (round-3 M1).
+          // A nested interrupt keeps the run open: the turn isn't over.
+          // A failed attempt leaves the graph interrupted, so the run is not
+          // over either — only finish it when the turn genuinely ended.
+          const confirmFailed = confirmHadError || confirmThrew;
+          if (
+            !nestedConfirmation &&
+            !confirmFailed &&
+            pendingConfirmation.workspaceThreadId
+          ) {
+            useAgentActivityStore
+              .getState()
+              .finishRun(
+                pendingConfirmation.workspaceThreadId,
+                stoppedByUserRef.current ? 'stopped' : 'done'
+              );
+          }
+          // A nested interrupt re-arms the banner with the new confirmation
+          // (carrying the turn's accumulated provenance).
+          //
+          // On failure KEEP the current gate. Clearing it on a 500 or a dropped
+          // connection stranded the backend: the graph stays interrupted, the
+          // card disappears, and the only remaining move is to retype — which
+          // discards the interrupt server-side ("Abandoned HITL interrupt
+          // silently dropped"). Retaining it lets the user press Approve again,
+          // and handleStop is the escape hatch if they'd rather abandon it.
+          setPendingConfirmation(
+            nestedConfirmation ?? (confirmFailed ? pendingConfirmation : null)
           );
-        } else {
-          await reconcileConfirmationAssistant(
-            confirmDoneIds,
-            stoppedByUserRef.current
-              ? 'confirmation-stopped'
-              : confirmed
-                ? 'confirmation-approved'
-                : 'confirmation-rejected'
-          );
+          setIsConfirming(false);
+          confirmLockRef.current = false;
+          stoppedByUserRef.current = false;
+          // The confirm stream shares streamingRafRef/pendingStreamContentRef
+          // with handleSubmit's onToken throttle. A token that lands just
+          // before completion schedules a rAF that would otherwise fire AFTER
+          // this reset and resurrect stale streamingContent into the store.
+          if (streamingRafRef.current !== null) {
+            cancelAnimationFrame(streamingRafRef.current);
+            streamingRafRef.current = null;
+          }
+          pendingStreamContentRef.current = null;
+          useChatStore.setState({
+            isStreaming: false,
+            streamingContent: '',
+            streamingSteps: [],
+            streamingCitations: [],
+            streamingThreadId: null,
+          });
         }
       } catch (err) {
-        const errorMessage =
-          err instanceof Error
-            ? err.message
-            : 'Network error during confirmation';
-        const msg: ChatPageMessage = {
-          runtimeId: crypto.randomUUID(),
-          source: 'local-only',
-          role: 'assistant',
-          content: `Confirmation failed: ${errorMessage}`,
-          timestamp: Date.now(),
-        };
-        if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
-        confirmThrew = true;
-        await reconcileConfirmationUser('confirmation-exception');
-      } finally {
-        // Close out the agent activity rail — the interrupt left the run
-        // "running" and neither onDone (confirm path) nor handleStop
-        // (activeRunThreadRef is null here) ever finished it (round-3 M1).
-        // A nested interrupt keeps the run open: the turn isn't over.
-        // A failed attempt leaves the graph interrupted, so the run is not
-        // over either — only finish it when the turn genuinely ended.
-        const confirmFailed = confirmHadError || confirmThrew;
-        if (
-          !nestedConfirmation &&
-          !confirmFailed &&
-          pendingConfirmation.workspaceThreadId
-        ) {
-          useAgentActivityStore
-            .getState()
-            .finishRun(
-              pendingConfirmation.workspaceThreadId,
-              stoppedByUserRef.current ? 'stopped' : 'done'
-            );
-        }
-        // A nested interrupt re-arms the banner with the new confirmation
-        // (carrying the turn's accumulated provenance).
-        //
-        // On failure KEEP the current gate. Clearing it on a 500 or a dropped
-        // connection stranded the backend: the graph stays interrupted, the
-        // card disappears, and the only remaining move is to retype — which
-        // discards the interrupt server-side ("Abandoned HITL interrupt
-        // silently dropped"). Retaining it lets the user press Approve again,
-        // and handleStop is the escape hatch if they'd rather abandon it.
-        setPendingConfirmation(
-          nestedConfirmation ?? (confirmFailed ? pendingConfirmation : null)
-        );
-        setIsConfirming(false);
+        // A throw between lock-set and the try/finally used to leave the
+        // lock stuck true (Approve/Deny dead until remount). Reset and
+        // rethrow — mirrors the existing finally's confirmLockRef/isConfirming
+        // resets so behavior for previously-observed errors is unchanged.
         confirmLockRef.current = false;
-        stoppedByUserRef.current = false;
-        // The confirm stream shares streamingRafRef/pendingStreamContentRef
-        // with handleSubmit's onToken throttle. A token that lands just
-        // before completion schedules a rAF that would otherwise fire AFTER
-        // this reset and resurrect stale streamingContent into the store.
-        if (streamingRafRef.current !== null) {
-          cancelAnimationFrame(streamingRafRef.current);
-          streamingRafRef.current = null;
-        }
-        pendingStreamContentRef.current = null;
-        useChatStore.setState({
-          isStreaming: false,
-          streamingContent: '',
-          streamingSteps: [],
-          streamingCitations: [],
-          streamingThreadId: null,
-        });
+        setIsConfirming(false);
+        throw err;
       }
     },
     [pendingConfirmation, messages, setMessages, invalidateProjectDataForTool]
