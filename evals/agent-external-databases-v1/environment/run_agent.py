@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
 """Run the external-databases benchmark against the production LangGraph graph.
 
-``search_external_database`` and ``list_external_databases`` are unreachable
-via live intent classification on the pinned image: both have
-``intents=frozenset()`` and ``subgraphs=frozenset()`` (``tools.py:1083-1096``)
-— dead metadata under subgraph-scoped routing, in the same boat as
-``execute_code`` (see "Routing reality" in the plan). This adapter reuses
-Task 2's sentinel-intent workaround verbatim: it seeds the checkpoint as if
-``preprocessing_node`` had just produced a non-``AgentIntent`` intent via
-``aupdate_state(..., as_node="preprocessing_node")``, so ``route_by_intent``
-falls through to the general path and ``_get_tools_for_intent`` binds
-``ALL_TOOLS`` (``_nodes_llm.py:122-127``). Production tool implementations,
-``tool_node``, and connector registry all run unmodified; only the routing
-entry point is synthesized.
+``search_external_database`` and ``list_external_databases`` are bound to the
+general intent on the current develop source. This adapter sends a real user
+turn through production classification; the explicit tool names
+deterministically select their general route. The adapter records the observed
+checkpoint intent and never seeds or asserts routing state.
 
 Neither tool is DESTRUCTIVE (both are CONTEXT_FREE), so — unlike Task 2 —
 this turn never interrupts: no HITL approval is exercised or expected.
@@ -43,13 +36,13 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-external-databases-v1"
-SOURCE_REVISION = "c19b1aeafa50507e9aa827eac966b1c6dece446c"
+SOURCE_REVISION = "38ef8876c4d63596817c670895bb8991246bbb80"
 AGENT_REVISION = SOURCE_REVISION
 
 INSTRUCTION_TEXT = (
     "First call list_external_databases to see which external database "
     "connectors are available. Then call search_external_database with "
-    'connector="pubmed" for research on "telomere shortening senescent '
+    'connector="pubmed" for the topic "telomere shortening senescent '
     'cells", and call search_external_database with connector="fred" for '
     'the economic series "unemployment rate". Report what you found from '
     "each source."
@@ -60,8 +53,6 @@ ORG_ID = UUID("00000000-0000-4000-8000-000000001201")
 USER_ID = UUID("00000000-0000-4000-8000-000000001202")
 WORKSPACE_ID = UUID("00000000-0000-4000-8000-000000001203")
 THREAD_ID = "00000000-0000-4000-8000-000000001204"
-
-SENTINEL_INTENT = "benchmark_all_tools"
 
 MOCK_HOST = "http://mock-services:8080"
 
@@ -191,26 +182,30 @@ async def run_benchmark() -> dict[str, Any]:
     milestones: list[dict[str, Any]] = []
     record_milestone(milestones, sequence, "instruction")
 
-    # Sentinel-intent seed: write the checkpoint as if `preprocessing_node`
-    # had just run and classified this turn to a non-AgentIntent string.
-    # `route_by_intent` then falls through to `llm_node`, which binds
-    # ALL_TOOLS for any intent outside the classifier's Literal type
-    # (Routing reality, Consequence 2 — same mechanics as Task 2).
-    seed_state = initial_agent_state(
-        instruction,
-        THREAD_ID,
-        user_id=str(USER_ID),
-        intent=SENTINEL_INTENT,
+    from src.services.agent.classifier import (
+        classify_intent_keywords,
+        classify_intent_with_fallback,
     )
-    await graph.aupdate_state(config, seed_state, as_node="preprocessing_node")
-    record_milestone(milestones, sequence, "sentinel_state_seeded")
+
+    keyword_probe = classify_intent_keywords(instruction)
+    classification_probe = await classify_intent_with_fallback(instruction, {})
+    pre_turn_snapshot = await graph.aget_state(config)
+    pre_turn_values = dict(getattr(pre_turn_snapshot, "values", {}) or {})
+    pre_turn_messages = list(pre_turn_values.get("messages") or [])
+    pre_turn_message_ids = sorted(
+        str(getattr(message, "id", "") or "")
+        for message in pre_turn_messages
+        if str(getattr(message, "id", "") or "")
+    )
+    record_milestone(milestones, sequence, "pre_turn_snapshot")
 
     sequence[0] += 1
-    async for event in graph.astream(None, config=config, stream_mode="updates"):
+    graph_input = initial_agent_state(instruction, THREAD_ID, user_id=str(USER_ID))
+    async for event in graph.astream(graph_input, config=config, stream_mode="updates"):
         events.append(
             {
                 "sequence": sequence[0],
-                "phase": "sentinel:initial",
+                "phase": "turn:initial",
                 "observed_at": utc_now(),
                 "update": json_safe(event),
             }
@@ -221,6 +216,16 @@ async def run_benchmark() -> dict[str, Any]:
     final_values = dict(getattr(final_snapshot, "values", {}) or {})
 
     messages = list(final_values.get("messages") or [])
+    current_turn_human_message_ids = sorted(
+        str(getattr(message, "id", "") or "")
+        for message in messages
+        if (
+            str(getattr(message, "id", "") or "").strip()
+            and str(getattr(message, "id", "") or "") not in pre_turn_message_ids
+            and getattr(message, "type", "") == "human"
+            and getattr(message, "content", "") == instruction
+        )
+    )
     tool_executions = list(final_values.get("tool_executions") or [])
     list_executions = tool_executions_for(tool_executions, "list_external_databases")
     search_executions = tool_executions_for(tool_executions, "search_external_database")
@@ -231,6 +236,7 @@ async def run_benchmark() -> dict[str, Any]:
 
     pending_interrupt = bool(getattr(final_snapshot, "next", ()))
     termination_reason = "incomplete" if pending_interrupt else "completed"
+    record_milestone(milestones, sequence, "turn:completed")
 
     return {
         "schema_version": "1.0",
@@ -246,9 +252,18 @@ async def run_benchmark() -> dict[str, Any]:
             "workspace_id": str(WORKSPACE_ID),
             "thread_id": THREAD_ID,
         },
-        "env_flags": {"routing_workaround": "sentinel_intent"},
-        "sentinel_intent": SENTINEL_INTENT,
         "observed_intent": final_values.get("intent"),
+        "classification": {
+            "keyword_intent": keyword_probe.intent,
+            "keyword_confidence": keyword_probe.confidence,
+            "keyword_source": keyword_probe.source,
+            "probe_intent": getattr(classification_probe, "intent", None),
+            "probe_source": getattr(classification_probe, "source", None),
+            "observed_intent": final_values.get("intent"),
+        },
+        "pre_turn_message_count": len(pre_turn_messages),
+        "pre_turn_message_ids": pre_turn_message_ids,
+        "current_turn_human_message_ids": current_turn_human_message_ids,
         "connector_patch": connector_patch,
         "network_boundary": network_boundary,
         # Neither tool is DESTRUCTIVE (both CONTEXT_FREE) — this turn never
@@ -264,11 +279,8 @@ async def run_benchmark() -> dict[str, Any]:
         "suppress_observation_for": [],
         "notes": (
             "Production graph with an isolated database, a PubMed + FRED "
-            "connector protocol double, and the sentinel-intent routing "
-            "workaround (search_external_database/list_external_databases "
-            "are otherwise unreachable via live classification on this "
-            "pinned image). Neither tool is destructive, so no HITL "
-            "approval is exercised."
+            "connector protocol double and real general-intent routing. "
+            "Neither tool is destructive, so no HITL approval is exercised."
         ),
         "final_assistant_message": final_message,
         "termination_reason": termination_reason,

@@ -24,8 +24,8 @@
       "probe_source": "keyword",
       "observed_intent": "research"
     },
-    "pre_turn_message_ids": [],
-    "pre_turn_message_count": 0,
+    "pre_turn_message_ids": ["msg-1"],
+    "pre_turn_message_count": 1,
     "current_turn_human_message_ids": ["msg-1"],
     "e2b_patch": {
       "E2B_API_URL": "http://mock-services:8080",
@@ -58,14 +58,7 @@
       "resume": { "confirmed": true }
     },
     "pending_interrupt_after_resume": null,
-    "mock_events_before_approval": [
-      {
-        "sequence": 1,
-        "type": "create",
-        "sandbox_id": "sbx-0001",
-        "template": "code-interpreter-v1"
-      }
-    ],
+    "mock_events_before_approval": [],
     "mock_events": [
       {
         "sequence": 1,

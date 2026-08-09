@@ -22,8 +22,8 @@
       "probe_source": "keyword",
       "observed_intent": "general"
     },
-    "pre_turn_message_ids": [],
-    "pre_turn_message_count": 0,
+    "pre_turn_message_ids": ["msg-1"],
+    "pre_turn_message_count": 1,
     "current_turn_human_message_ids": ["msg-1"],
     "connector_patch": {
       "pubmed_esearch_patched_to": "http://mock-services:8080/entrez/eutils/esearch.fcgi",
@@ -556,7 +556,7 @@
     "notes": "Production graph with an isolated database, a PubMed + FRED connector protocol double, and real general-intent routing. Neither tool is destructive, so no HITL approval is exercised.",
     "final_assistant_message": {
       "type": "ai",
-      "content": "The PubMed search on telomere shortening senescent cells returned \"Telomere shortening drives replicative senescence in human fibroblasts\" and \"Senolytic clearance of telomere-shortened cells restores tissue regeneration\". The FRED search returned series UNRATE.",
+      "content": "The PubMed search on telomere shortening senescent cells returned \"Telomere shortening drives replicative senescence in human fibroblasts\" and \"Senolytic clearance of telomere-shortened cells restores tissue regeneration\". The FRED search for unemployment rate returned the \"Unemployment Rate\" series (UNRATE).",
       "tool_calls": []
     },
     "termination_reason": "completed",
