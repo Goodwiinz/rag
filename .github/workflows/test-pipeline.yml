@@ -1017,6 +1017,7 @@ jobs:
             -e SUPABASE_JWT_SECRET=ci-test-supabase-jwt-secret-not-for-prod-use \
             -e ENCRYPTION_MASTER_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
             -e CORS_ORIGINS=http://localhost:3000,http://frontend:3000 \
+            -e TRUSTED_HOSTS=localhost,127.0.0.1,testserver,backend,frontend \
             -e ENABLE_AI_PROCESSING=false \
             -e SEED_ADMIN_PASSWORD=admin123 \
             -e SEED_DEMO_PASSWORD=demo123 \

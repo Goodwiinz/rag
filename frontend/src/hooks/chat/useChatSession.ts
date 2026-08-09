@@ -11,7 +11,10 @@ import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView'
 import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
 import { ChatConversation } from '@/hooks/chat/chatTypes';
 import { upsertConversationFromThread } from '@/components/chat/shared/threadConversationState';
-import { workspaceService } from '@/services/workspaceService';
+import {
+  clearWorkspaceServiceCache,
+  workspaceService,
+} from '@/services/workspaceService';
 import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -126,6 +129,14 @@ export function useChatSession(): UseChatSessionReturn {
   const messagesRef = useRef(messages);
   const localMessagesThreadIdRef = useRef<string | null>(null);
   const isHydratedRef = useRef(false);
+  // Serializes the init effect. Auth-session churn (repeated getUser refreshes)
+  // can re-fire the effect while a first init is still awaiting workspace/
+  // conversation creation; without this, two concurrent
+  // getOrCreateDefaultWorkspace calls both see an empty list and each POST a
+  // new workspace. The duplicate-create re-renders the chat surface mid-mount,
+  // which drops the user's first Send (the click lands on a remounting
+  // composer). Bail if an init is already in flight.
+  const initInFlightRef = useRef(false);
 
   // ---- Auth ----
   const { isAuthenticated } = useAuthStore();
@@ -184,7 +195,14 @@ export function useChatSession(): UseChatSessionReturn {
   // Pagination: load older messages for a thread (prepends to the store list).
   const loadOlderMessages = useCallback(
     async (threadId: string) => {
-      await storeLoadOlderMessages(threadId);
+      try {
+        await storeLoadOlderMessages(threadId);
+      } catch (error) {
+        // Mirror loadMoreThreads: a failed pagination fetch must not be an
+        // unhandled rejection with zero feedback.
+        console.error('[Chat] Failed to load older messages:', error);
+        toast.error('Could not load older messages. Please try again.');
+      }
     },
     [storeLoadOlderMessages]
   );
@@ -412,7 +430,13 @@ export function useChatSession(): UseChatSessionReturn {
             // requested thread falls outside the first sidebar page.
             setCurrentThread(null);
           }
-        } else if (uiConversations.length > 0) {
+        } else if (
+          uiConversations.length > 0 &&
+          !useChatStore.getState().currentThreadId
+        ) {
+          // Mirror the guard every other selection write in this file uses:
+          // if the layout hook (useChatPersistence) has already picked a
+          // thread, don't stomp it with our independently-fetched first row.
           const selectedConversation = uiConversations[0];
           setCurrentThread(selectedConversation.id);
           // Keep the URL in sync with the auto-selection: a bare /chat URL
@@ -435,11 +459,10 @@ export function useChatSession(): UseChatSessionReturn {
           console.warn(
             '[Chat] Conversation not found (404) - clearing stale data'
           );
-          // Clear stale localStorage data
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('default-workspace-id');
-            localStorage.removeItem('default-conversation-id');
-          }
+          // Clear the service's own warm cache too (WS_CACHE_KEY etc.), not
+          // just our warm-start ids — otherwise the next bootstrap re-fetches
+          // the dead workspace from the stale cached object.
+          clearWorkspaceServiceCache();
           return { ok: false, threadCount: 0 }; // Signal to caller to retry with fresh data
         }
 
@@ -509,6 +532,18 @@ export function useChatSession(): UseChatSessionReturn {
         setIsInitializing(false);
         return;
       }
+
+      // A prior init for this mount is still awaiting workspace/conversation
+      // creation. Re-entering now would issue a second getOrCreateDefaultWorkspace
+      // against the same empty list and duplicate-create. Let the in-flight run
+      // finish and own the session.
+      if (initInFlightRef.current) {
+        console.log('[Chat] Init already in flight, skipping duplicate run');
+        settled = true;
+        clearTimeout(watchdog);
+        return;
+      }
+      initInFlightRef.current = true;
 
       setIsInitializing(true);
       setInitError(null);
@@ -706,10 +741,10 @@ export function useChatSession(): UseChatSessionReturn {
         const err = error as { response?: { status?: number } };
         if (err?.response?.status === 404) {
           console.warn('[Chat] Stale data detected, clearing and retrying...');
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('default-workspace-id');
-            localStorage.removeItem('default-conversation-id');
-          }
+          // Clear the service's own warm cache too (WS_CACHE_KEY etc.), not
+          // just our warm-start ids — otherwise the next bootstrap re-fetches
+          // the dead workspace from the stale cached object.
+          clearWorkspaceServiceCache();
           try {
             const ws = await workspaceService.getOrCreateDefaultWorkspace();
             setWorkspace(ws);
@@ -742,6 +777,9 @@ export function useChatSession(): UseChatSessionReturn {
           error instanceof Error ? error.message : 'Failed to load chat data'
         );
       } finally {
+        // Release the in-flight latch so a genuine re-init (e.g. real auth
+        // change) can run once this one has fully settled.
+        initInFlightRef.current = false;
         // Init settled (success or handled error): stand down the watchdog so a
         // slow-but-successful load doesn't flip to the timeout error.
         if (!settled) {

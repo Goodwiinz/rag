@@ -92,9 +92,14 @@ test.describe("Chat thread switching @regression", () => {
     await page.waitForURL(/\/chat\?new=1/, { timeout: 15000 });
 
     // Rapid switch happened before Alpha's delayed reply arrived: the blank
-    // composer must show nothing from thread A.
+    // composer must show nothing from thread A. Scope to the message
+    // transcript — thread A now legitimately exists, so its title/preview
+    // appear in the sidebar conversation list, which an unscoped getByText
+    // would (correctly) match.
     await expect(page.locator("[data-runtime-id]")).toHaveCount(0);
-    await expect(page.getByText(alphaMarker)).toHaveCount(0);
+    await expect(
+      page.locator("[data-role]").filter({ hasText: alphaMarker }),
+    ).toHaveCount(0);
 
     // --- Turn B: a second thread, fast response. ---
     await composer.fill(`Bravo marker ${bravoMarker}`);
@@ -113,8 +118,11 @@ test.describe("Chat thread switching @regression", () => {
     await alphaResponse;
 
     // … and confirm it still never rendered into the thread B view that's
-    // currently displayed.
-    await expect(page.getByText(alphaMarker)).toHaveCount(0);
+    // currently displayed. Scope to the transcript for the same reason as
+    // above — thread A's sidebar entry is expected and must not fail this.
+    await expect(
+      page.locator("[data-role]").filter({ hasText: alphaMarker }),
+    ).toHaveCount(0);
     await expect(
       page
         .locator('[data-role="assistant"]')

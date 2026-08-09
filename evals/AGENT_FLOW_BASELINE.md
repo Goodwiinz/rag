@@ -314,7 +314,20 @@ one trial and the async-draft fake-success trap. It does not yet cover
 (Collection has no `owner_id`), or soft-deleted projects being excluded as
 write targets — those remain the next increments on this capability.
 
-**Status:** NOT YET GATED — awaits first recorded run.
+**Status:** NOT GATED — first recorded run taken 2026-08-08 (5 trials,
+`evals/baselines/agent-flow-2026-08-08-writing-kb.json`), result 0/5. Layer A
+passed in 3/5 trials; the capability is held out of the gated suite by Layer B,
+which failed 5/5 on both `contradictions` and `unsupported_material_claims`.
+
+The judge scores `compare_documents`' generated prose, not only the final
+assistant message (`tests/verify.py::run_judge`). That tool extrapolates
+domain knowledge present in neither seeded document — GNN oversmoothing,
+difficulty with long-range molecular interactions, and benchmark/dataset
+discussion attributed to the attention survey — so the grounding rubric fires
+every trial. The trusted payload is complete (`truth.json` sources match the
+seeded `Document.content_text` verbatim), so this is a real product finding
+about `compare_documents` grounding, not a harness gap. Gating this capability
+requires fixing the tool, not relaxing the rubric.
 
 ### 7. Knowledge-graph flow
 
@@ -591,7 +604,12 @@ cross-org scoping of either tool (capability 12 covers tenant probes
 generally, not this task specifically) and the Postgres hybrid-search
 fallback path when DO KB is unavailable.
 
-**Status:** NOT YET GATED — awaits first recorded run.
+**Status:** GATED. First recorded run 2026-08-08 (5 trials,
+`evals/baselines/agent-flow-2026-08-08-writing-kb.json`), result 5/5 with zero
+infrastructure failures. Every trial routed `research` (confidence 0.98), ran
+`search_documents` → `do_kb_retrieve` with no tool failures, terminated
+`completed`, and proved the network boundary on all three probes. Verifier
+calibration holds at 2 pass / 1 wrong.
 
 **Sequencing note:** "next" tier = highest defect-density areas by repo
 history (fake-success writers, HITL, tenant scope, arXiv ingest). Build one

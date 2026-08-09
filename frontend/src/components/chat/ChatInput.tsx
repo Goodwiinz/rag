@@ -30,6 +30,9 @@ interface ChatInputProps {
   onSubmit: () => void;
   onStop: () => void;
   isLoading: boolean;
+  /** Hard-disables the composer without swapping Send for Stop — used while
+   * the session is still initializing, when a submit would be dropped. */
+  disabled?: boolean;
   enableRAG: boolean;
   onRAGToggle: (enabled: boolean) => void;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
@@ -73,6 +76,7 @@ export function ChatInput({
   onSubmit,
   onStop,
   isLoading,
+  disabled = false,
   enableRAG,
   onRAGToggle,
   inputRef,
@@ -239,22 +243,36 @@ export function ChatInput({
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!isLoading && value.trim() && !isOverLimit) {
+      if (!isDisabled && value.trim() && !isOverLimit) {
         onSubmit();
         clearAttachments();
+      } else {
+        console.warn('[Chat] Composer Enter swallowed', {
+          isLoading,
+          disabled,
+          empty: !value.trim(),
+          isOverLimit,
+        });
       }
     }
   };
 
   const handleComposerSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
-    if (!isLoading && value.trim() && !isOverLimit) {
+    if (!isDisabled && value.trim() && !isOverLimit) {
       onSubmit();
       clearAttachments();
+    } else {
+      console.warn('[Chat] Composer submit swallowed', {
+        isLoading,
+        disabled,
+        empty: !value.trim(),
+        isOverLimit,
+      });
     }
   };
 
-  const isDisabled = isLoading;
+  const isDisabled = isLoading || disabled;
   const charCount = value.length;
   const maxChars = 4000;
   const fillPct = Math.min(100, Math.round((charCount / maxChars) * 100));

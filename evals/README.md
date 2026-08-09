@@ -25,9 +25,22 @@ records positive and negative network probes.
 `agent-knowledge-graph-flow-v1` are judge-gated: Layer B
 (`harbor_common.judge.run_semantic_judge`) only runs after every Layer A
 (deterministic) check passes. `agent-memory-roundtrip-v1` is deterministic-only
-(semantic N/A). All four are NOT YET GATED in `AGENT_FLOW_BASELINE.md` —
-awaiting their first recorded run. `agent-knowledge-graph-flow-v1` additionally
-requires a real `neo4j:5` container (see its `docker-compose.yaml`), not a mock.
+(semantic N/A). `agent-writing-flow-v1` and `agent-kb-retrieval-v1` took their
+first recorded run on 2026-08-08 (5 trials each,
+`baselines/agent-flow-2026-08-08-writing-kb.json`): `agent-kb-retrieval-v1`
+passed 5/5 and is now **GATED**; `agent-writing-flow-v1` failed 5/5 at Layer B
+and stays **NOT GATED** — `compare_documents` states domain claims that neither
+source document supports, so the grounding rubric fires on every trial.
+`agent-knowledge-graph-flow-v1` and `agent-memory-roundtrip-v1` are NOT YET
+GATED in `AGENT_FLOW_BASELINE.md` — awaiting their first recorded run.
+`agent-knowledge-graph-flow-v1` additionally requires a real `neo4j:5`
+container (see its `docker-compose.yaml`), not a mock.
+
+The judge needs `HARBOR_JUDGE_ENDPOINT`, `HARBOR_JUDGE_API_KEY`,
+`HARBOR_JUDGE_MODEL`, and `HARBOR_JUDGE_API_VERSION`. They are declared in
+`[verifier.env]` only and must never appear in `[environment.env]`, or the
+agent under test could reach the judge. Use a `gpt-4.1`-class deployment: gpt-5
+deployments fail the Azure Responses API version gate.
 
 Tasks added after 2026-08-07 import their adapter and verifier helpers from the
 shared `harbor_common/` package; the original three tasks keep their inline

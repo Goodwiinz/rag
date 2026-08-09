@@ -78,10 +78,12 @@ test.describe("Chat HITL approval gate @regression", () => {
     await composer.fill(`Ingest an arXiv paper for me: ${TOOL_NAME}`);
     await page.getByRole("button", { name: /^Send/ }).click();
 
-    await expect(
-      page.getByRole("alertdialog", { name: "Approval needed" }),
-    ).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(TOOL_NAME)).toBeVisible();
+    const banner = page.getByRole("alertdialog", { name: "Approval needed" });
+    await expect(banner).toBeVisible({ timeout: 15000 });
+    // Scope the tool-name assertion to the banner: the prompt we typed echoes
+    // `ingest_arxiv` back in the transcript, so an unscoped getByText matches
+    // both the user bubble and the banner's tool chip (strict-mode violation).
+    await expect(banner.getByText(TOOL_NAME)).toBeVisible();
   }
 
   test("approving the gate resumes the turn and clears the banner", async ({

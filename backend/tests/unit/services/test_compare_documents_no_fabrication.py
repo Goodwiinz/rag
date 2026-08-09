@@ -50,3 +50,44 @@ async def test_llm_failure_returns_error_not_fabricated_success():
     assert "error" in result
     assert "comparison" not in result
     assert "retrieved successfully" not in str(result).lower()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_comparison_prompt_constrains_the_model_to_the_supplied_text():
+    """The system message must carry the grounding contract.
+
+    agent-writing-flow-v1 failed its semantic gate on 5/5 trials because the
+    comparison model answered from subject-matter knowledge (GNN
+    oversmoothing, long-range interaction limits, benchmark discussion) that
+    neither compared document stated. The constraint lives in the system
+    message, so that is what this pins.
+    """
+    user = MagicMock()
+    user.organization_id = "org-1"
+    db = MagicMock()
+
+    docs = {"docA": _doc("idA", "A"), "docB": _doc("idB", "B")}
+    llm = MagicMock()
+    response = MagicMock()
+    response.content = "a grounded comparison"
+    llm.ainvoke = AsyncMock(return_value=response)
+
+    with (
+        patch("src.services.documents.file_service.FileService"),
+        patch(
+            "src.services.agent.tools_impl._resolve_document_id",
+            new=AsyncMock(side_effect=lambda raw, *a, **k: docs.get(raw)),
+        ),
+        patch("src.services.agent.tools_impl._get_tool_llm", return_value=llm),
+    ):
+        result = await _tool_compare_documents(
+            {"document_ids": ["docA", "docB"], "type": "general"}, db, user
+        )
+
+    assert result["comparison"] == "a grounded comparison"
+
+    system_message = llm.ainvoke.await_args.args[0][0].content
+    assert "Ground every statement in the supplied document text" in system_message
+    assert "do not draw on outside knowledge" in system_message
+    assert "treat a missing detail as unknown" in system_message

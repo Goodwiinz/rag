@@ -679,6 +679,13 @@ def load_truth_sources() -> list[dict[str, Any]]:
     (not a generic abstract restatement) — impossible from titles alone. Read
     the seeded texts from truth.json (container path first, then alongside this
     file for standalone calibration).
+
+    Citation metadata (authors/year/DOI) is part of the trusted payload because
+    the task *requires* `export_bibliography`, whose output legitimately carries
+    the seeded `document_metadata` (see environment/run_agent.py). Passing only
+    title+text made the rubric's "no fabricated citation details" clause fire on
+    every faithful answer -- calibration never caught it because the fixtures
+    carry a `_judge_stub_verdict` and so never call the live judge.
     """
     for path in (
         "/tests/truth.json",
@@ -692,7 +699,13 @@ def load_truth_sources() -> list[dict[str, Any]]:
         sources = truth.get("sources")
         if isinstance(sources, list):
             return [
-                {"title": s.get("title"), "text": s.get("text")}
+                {
+                    "title": s.get("title"),
+                    "text": s.get("text"),
+                    "authors": s.get("authors"),
+                    "year": s.get("year"),
+                    "doi": s.get("doi"),
+                }
                 for s in sources
                 if isinstance(s, dict)
             ]
