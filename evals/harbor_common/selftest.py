@@ -16,6 +16,7 @@ from uuid import UUID
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from evals.harbor_common import judge as judge_module  # noqa: E402
 from evals.harbor_common.envelope import (  # noqa: E402
     InfrastructureFailure,
     load_inputs,
@@ -176,6 +177,71 @@ class _SequenceStubClient:
         return _StubResponse(self._contents.pop(0))
 
 
+class _FakeBadRequest(Exception):
+    """Simulates an OpenAI/Azure SDK exception exposing a real status_code,
+    the way openai.BadRequestError does -- status-based detection should be
+    preferred over substring sniffing."""
+
+    status_code = 400
+
+
+class _RejectingClient:
+    """A client that always rejects, used to simulate a deployment that does
+    not support JSON mode."""
+
+    def __init__(self, exc: Exception, calls: list[str]) -> None:
+        self._exc = exc
+        self._calls = calls
+
+    def invoke(self, messages):  # noqa: ANN001 - test stub, signature matches usage
+        self._calls.append("invoke")
+        raise self._exc
+
+
+class _FlakyThenGoodClient:
+    """Raises a transport exception N times, then returns good content."""
+
+    def __init__(
+        self, exc: Exception, failures: int, content: str, calls: list[str]
+    ) -> None:
+        self._exc = exc
+        self._failures = failures
+        self._content = content
+        self._calls = calls
+
+    def invoke(self, messages):  # noqa: ANN001 - test stub, signature matches usage
+        self._calls.append("invoke")
+        if self._failures > 0:
+            self._failures -= 1
+            raise self._exc
+        return _StubResponse(self._content)
+
+
+class _AlwaysFailingClient:
+    def __init__(self, exc: Exception, calls: list[str]) -> None:
+        self._exc = exc
+        self._calls = calls
+
+    def invoke(self, messages):  # noqa: ANN001 - test stub, signature matches usage
+        self._calls.append("invoke")
+        raise self._exc
+
+
+def _json_mode_factory(good_content: str, construction_log: list, invoke_calls: list):
+    """A `_client_factory` that opts into the env-path JSON-mode protocol
+    (accepts `json_object`) and rejects with a 400 the first time it is
+    asked for a JSON-mode client, so the fallback path gets exercised."""
+
+    def factory(*, json_object: bool):
+        construction_log.append(json_object)
+        if json_object:
+            invoke_calls.append("construction-rejected")
+            raise _FakeBadRequest("bad request: unknown_parameter")
+        return _StubClient(good_content)
+
+    return factory
+
+
 def test_run_semantic_judge() -> None:
     verdict_json = (
         '{"supported": true, "contradictions": [], '
@@ -220,6 +286,122 @@ def test_run_semantic_judge() -> None:
     assert len(calls) == 2, f"expected one retry, got {len(calls)} calls"
     assert calls[1] > calls[0], "retry must append the corrective reminder message"
 
+    # (a) JSON-mode rejection on the first (construction-time) call falls
+    # back to prompt-only enforcement and succeeds -- without consuming a
+    # parse attempt. Only one real completion (`invoke`) should happen: the
+    # rejected client's constructor call doesn't even reach invoke, and the
+    # fallback client's single call is the one that produces the verdict.
+    construction_log: list = []
+    invoke_calls: list = []
+    result = run_semantic_judge(
+        question="q",
+        trusted_sources=["source a"],
+        candidate_answer="answer",
+        rubric="rubric text",
+        _client_factory=_json_mode_factory(
+            verdict_json, construction_log, invoke_calls
+        ),
+    )
+    assert result["supported"] is True, result
+    assert construction_log == [True, False], (
+        f"expected json-mode client built and rejected, then rebuilt without "
+        f"it, got {construction_log}"
+    )
+    assert invoke_calls == ["construction-rejected"], (
+        "the json-mode client should be rejected at construction time, "
+        "before invoke() is ever reachable"
+    )
+
+    # (a-variant) rejection surfaces from client.invoke() rather than from
+    # construction -- same fallback, same "no parse attempt consumed" rule.
+    class _RejectOnInvokeFactory:
+        def __init__(self) -> None:
+            self.calls: list[bool] = []
+
+        def __call__(self, *, json_object: bool):
+            self.calls.append(json_object)
+            if json_object:
+                return _RejectingClient(
+                    _FakeBadRequest("bad request: unknown_parameter"), []
+                )
+            return _SequenceStubClient([verdict_json], [])
+
+    factory = _RejectOnInvokeFactory()
+    result = run_semantic_judge(
+        question="q",
+        trusted_sources=["source a"],
+        candidate_answer="answer",
+        rubric="rubric text",
+        _client_factory=factory,
+    )
+    assert result["supported"] is True, result
+    assert factory.calls == [True, False], factory.calls
+
+    # (b) the wall-clock deadline guard trips -> InfrastructureFailure naming
+    # budget exhaustion. Force it deterministically (no real sleeping) by
+    # shrinking the module's budget constant below one request_timeout.
+    saved_budget = judge_module._JUDGE_BUDGET_SEC
+    judge_module._JUDGE_BUDGET_SEC = 1  # less than _JUDGE_REQUEST_TIMEOUT
+    try:
+        never_called: list = []
+
+        def _factory_never_called():
+            never_called.append(1)
+            return _StubClient(verdict_json)
+
+        raised = False
+        try:
+            run_semantic_judge(
+                question="q",
+                trusted_sources=["source a"],
+                candidate_answer="answer",
+                rubric="rubric text",
+                _client_factory=_factory_never_called,
+            )
+        except InfrastructureFailure as exc:
+            raised = True
+            assert "budget" in str(exc).lower(), str(exc)
+        assert raised, "shrunken budget must raise InfrastructureFailure"
+        assert never_called == [], "budget guard must trip before any client call"
+    finally:
+        judge_module._JUDGE_BUDGET_SEC = saved_budget
+
+    # (c) a transport exception (unrelated to JSON mode) followed by success
+    # recovers, and does not raise.
+    calls_c: list = []
+    result = run_semantic_judge(
+        question="q",
+        trusted_sources=["source a"],
+        candidate_answer="answer",
+        rubric="rubric text",
+        _client_factory=lambda: _FlakyThenGoodClient(
+            ConnectionError("connection reset"), 1, verdict_json, calls_c
+        ),
+    )
+    assert result["supported"] is True, result
+    assert len(calls_c) == 2, f"expected one transport retry, got {calls_c}"
+
+    # A transport exception on the final allowed attempt still ends as
+    # InfrastructureFailure (not, say, an infinite loop or a misreported
+    # "unusable verdict" attempt count).
+    calls_final: list = []
+    raised = False
+    try:
+        run_semantic_judge(
+            question="q",
+            trusted_sources=["source a"],
+            candidate_answer="answer",
+            rubric="rubric text",
+            _client_factory=lambda: _AlwaysFailingClient(
+                ConnectionError("connection reset"), calls_final
+            ),
+        )
+    except InfrastructureFailure as exc:
+        raised = True
+        assert "final attempt" in str(exc), str(exc)
+    assert raised, "persistent transport failure must raise InfrastructureFailure"
+    assert len(calls_final) == judge_module._MAX_JUDGE_ATTEMPTS, calls_final
+
     env_vars = (
         "HARBOR_JUDGE_ENDPOINT",
         "HARBOR_JUDGE_API_KEY",
@@ -248,6 +430,97 @@ def test_run_semantic_judge() -> None:
                 os.environ[name] = value
 
 
+class _ListContentResponse:
+    """Simulates langchain-openai>=1.0's list-shaped `AIMessage.content`."""
+
+    def __init__(self, blocks: list[dict]) -> None:
+        self.content = blocks
+
+
+class _ListContentClient:
+    def __init__(self, blocks: list[dict]) -> None:
+        self._blocks = blocks
+
+    def invoke(self, messages):  # noqa: ANN001 - test stub, signature matches usage
+        return _ListContentResponse(self._blocks)
+
+
+def test_extract_text_from_content_blocks() -> None:
+    # str content: unchanged (existing behavior).
+    assert judge_module._extract_text(_StubResponse("hello")) == "hello"
+
+    # list-shaped content (langchain-openai>=1.0 AIMessage.content blocks):
+    # must be joined from the "text" fields, not str()'d into a repr.
+    verdict_json = (
+        '{"supported": true, "contradictions": [], '
+        '"unsupported_material_claims": [], "reason": "ok"}'
+    )
+    blocks = [{"type": "text", "text": verdict_json}]
+    assert judge_module._extract_text(_ListContentResponse(blocks)) == verdict_json
+
+    result = run_semantic_judge(
+        question="q",
+        trusted_sources=["source a"],
+        candidate_answer="answer",
+        rubric="rubric text",
+        _client_factory=lambda: _ListContentClient(blocks),
+    )
+    assert result["supported"] is True, result
+
+    # a `.text` attribute/callable, when present, is preferred outright.
+    class _WithTextAttr:
+        content = [{"type": "text", "text": "ignored"}]
+        text = "preferred"
+
+    assert judge_module._extract_text(_WithTextAttr()) == "preferred"
+
+    class _WithTextMethod:
+        content = [{"type": "text", "text": "ignored"}]
+
+        def text(self):
+            return "preferred-callable"
+
+    assert judge_module._extract_text(_WithTextMethod()) == "preferred-callable"
+
+
+def test_retry_reminder_includes_offending_reply() -> None:
+    # Finding 7: the retry reminder must include a capped snippet of the
+    # actual offending reply, since each request is stateless and the model
+    # cannot see "your previous reply" without it being restated.
+    verdict_json = (
+        '{"supported": true, "contradictions": [], '
+        '"unsupported_material_claims": [], "reason": "ok"}'
+    )
+    long_bad_reply = "not json " * 40  # > _RETRY_SNIPPET_MAX_CHARS
+    captured: list = []
+
+    class _CapturingClient:
+        def __init__(self) -> None:
+            self._replies = [long_bad_reply, verdict_json]
+
+        def invoke(self, messages):  # noqa: ANN001
+            captured.append([m.content for m in messages])
+            return _StubResponse(self._replies.pop(0))
+
+    result = run_semantic_judge(
+        question="q",
+        trusted_sources=["source a"],
+        candidate_answer="answer",
+        rubric="rubric text",
+        _client_factory=lambda: _CapturingClient(),
+    )
+    assert result["supported"] is True, result
+    assert len(captured) == 2, captured
+    retry_message = captured[1][-1]
+    assert "previous reply" in retry_message, retry_message
+    # The reminder must actually quote (a capped prefix of) the bad reply,
+    # not just gesture at it.
+    assert long_bad_reply[:50] in retry_message, retry_message
+    assert (
+        len(retry_message) < len(long_bad_reply) + 400
+    ), "reminder must cap the quoted snippet, not embed the full reply"
+
+
 def main() -> None:
     test_json_safe_nested_with_datetime()
     test_utc_now()
@@ -257,6 +530,8 @@ def main() -> None:
         test_load_inputs_live_path(tmp)
         test_run_verifier_main(tmp)
     test_run_semantic_judge()
+    test_extract_text_from_content_blocks()
+    test_retry_reminder_includes_offending_reply()
     print("selftest ok")
 
 
