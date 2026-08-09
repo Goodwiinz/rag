@@ -33,12 +33,20 @@ def _active_key(thread_id: str) -> str:
     return f"agent:stream:active:{thread_id}"
 
 
-async def start_stream(thread_id: str) -> str:
-    """Mint a stream id and mark it as the thread's active run."""
+def _run_key(run_id: str) -> str:
+    return f"agent:stream:run:{run_id}"
+
+
+async def start_stream(thread_id: str, *, run_id: str | None = None) -> str:
+    """Mint a stream id and optionally correlate it to a durable run."""
     stream_id = str(uuid.uuid4())
     redis = await get_redis()
     if redis is not None:
         await redis.set(_active_key(thread_id), stream_id, ex=_TTL_SECONDS)
+        if run_id is not None:
+            # Kept after finish so an idempotent POST retry can attach to this
+            # exact run even after a newer turn starts on the same thread.
+            await redis.set(_run_key(run_id), stream_id, ex=_TTL_SECONDS)
     return stream_id
 
 
@@ -71,6 +79,14 @@ async def active_stream_id(thread_id: str) -> str | None:
     if redis is None:
         return None
     return await redis.get(_active_key(thread_id))
+
+
+async def stream_id_for_run(run_id: str) -> str | None:
+    """Return the replay-buffer id correlated to a durable run."""
+    redis = await get_redis()
+    if redis is None:
+        return None
+    return await redis.get(_run_key(run_id))
 
 
 async def finish_stream(thread_id: str, stream_id: str) -> None:

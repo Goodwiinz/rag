@@ -109,11 +109,13 @@ async def test_append_and_read_after_filters_by_seq(fake_redis):
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_active_pointer_lifecycle(fake_redis):
-    sid = await stream_buffer.start_stream("thread-1")
+    sid = await stream_buffer.start_stream("thread-1", run_id="run-1")
     assert await stream_buffer.active_stream_id("thread-1") == sid
+    assert await stream_buffer.stream_id_for_run("run-1") == sid
 
     await stream_buffer.finish_stream("thread-1", sid)
     assert await stream_buffer.active_stream_id("thread-1") is None
+    assert await stream_buffer.stream_id_for_run("run-1") == sid
 
 
 @pytest.mark.unit

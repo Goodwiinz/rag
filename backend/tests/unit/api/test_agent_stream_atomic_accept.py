@@ -23,7 +23,7 @@ import uuid
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from sqlalchemy import event, func, select
@@ -34,6 +34,8 @@ from src.models.agent_run import AgentRun
 from src.models.agent_run_event import AgentRunEvent
 from src.models.chat_message import ChatMessage
 from src.models.thread import Thread
+from src.services.agent.agent_submission_service import AcceptedSubmission
+from src.services.agent.stream_buffer import BufferedFrame
 from src.shared.enums import AgentOutboxStatus, JobStatus
 from tests.utils.agent_stream import frames_of_type, make_stream_request, sse_data
 
@@ -308,3 +310,72 @@ async def test_accepted_frame_precedes_every_other_frame(
     assert first["schema_version"] == "1.0"
     assert first["sequence"] == 1
     assert frames[0].startswith("id: 1\n"), "the resume cursor line must survive"
+
+
+@pytest.mark.asyncio
+async def test_replayed_submission_does_not_dispatch_again(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """An idempotent retry attaches to the existing run and stops there."""
+    from src.api.agent import streaming as streaming_mod
+
+    replayed = AcceptedSubmission(
+        run_id=str(uuid.uuid4()),
+        thread_id=str(THREAD_ID),
+        user_message_id=str(uuid.uuid4()),
+        outbox_id=str(uuid.uuid4()),
+        idempotency_key="agent-stream:retry",
+        replayed=True,
+    )
+    classify = Mock(side_effect=AssertionError("replay reached route selection"))
+    compile_graph = Mock(side_effect=AssertionError("replay reached LangGraph"))
+    buffered = [
+        BufferedFrame(
+            seq=2,
+            frame='id: 2\nevent: token\ndata: {"content": "original"}\n\n',
+        ),
+        BufferedFrame(
+            seq=3,
+            frame='id: 3\nevent: done\ndata: {"status": "complete"}\n\n',
+        ),
+    ]
+
+    frames = await _drive_stream(
+        session_factory,
+        extra_patches=(
+            patch.object(
+                streaming_mod,
+                "accept_submission",
+                new=AsyncMock(return_value=replayed),
+            ),
+            patch(
+                "src.services.agent.fast_path.classify_fast_path_turn",
+                new=classify,
+            ),
+            patch(
+                "src.services.agent.graph.compile_agent_graph",
+                new=compile_graph,
+            ),
+            patch.object(
+                streaming_mod._stream_buffer,
+                "stream_id_for_run",
+                new=AsyncMock(return_value="existing-stream"),
+                create=True,
+            ),
+            patch.object(
+                streaming_mod._stream_buffer,
+                "read_after",
+                new=AsyncMock(return_value=buffered),
+            ),
+        ),
+    )
+
+    accepted = _accepted_frames(frames)
+    assert len(accepted) == 1
+    assert accepted[0]["run_id"] == replayed.run_id
+    assert accepted[0]["replayed"] is True
+    assert not frames_of_type(frames, "error")
+    assert sse_data(frames_of_type(frames, "token")[0])["content"] == "original"
+    assert frames_of_type(frames, "done")
+    classify.assert_not_called()
+    compile_graph.assert_not_called()

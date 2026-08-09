@@ -249,6 +249,84 @@ async def test_get_run_orgless_caller_matches_only_orgless_row(session_factory):
         )
 
 
+async def test_get_awaiting_confirmation_run_is_tenant_scoped_and_parked(
+    session_factory,
+):
+    thread_id = uuid.uuid4()
+    active_job_id = _job_id()
+    async with session_factory() as db:
+        await svc.upsert_run(
+            db,
+            job_id=active_job_id,
+            status=JobStatus.AWAITING_CONFIRMATION,
+            organization_id=ORG_A,
+            user_id=USER_A,
+            thread_id=thread_id,
+        )
+
+        found = await svc.get_awaiting_confirmation_run_for_thread(
+            db,
+            thread_id=thread_id,
+            organization_id=ORG_A,
+            user_id=USER_A,
+        )
+        assert found is not None and found.job_id == active_job_id
+
+        assert (
+            await svc.get_awaiting_confirmation_run_for_thread(
+                db,
+                thread_id=thread_id,
+                organization_id=ORG_B,
+                user_id=USER_A,
+            )
+            is None
+        )
+        assert (
+            await svc.get_awaiting_confirmation_run_for_thread(
+                db,
+                thread_id=thread_id,
+                organization_id=ORG_A,
+                user_id=USER_B,
+            )
+            is None
+        )
+
+        await svc.upsert_run(
+            db,
+            job_id=active_job_id,
+            status=JobStatus.RUNNING,
+        )
+        assert (
+            await svc.get_awaiting_confirmation_run_for_thread(
+                db,
+                thread_id=thread_id,
+                organization_id=ORG_A,
+                user_id=USER_A,
+            )
+            is None
+        )
+        await svc.upsert_run(
+            db,
+            job_id=active_job_id,
+            status=JobStatus.AWAITING_CONFIRMATION,
+        )
+
+        await svc.upsert_run(
+            db,
+            job_id=active_job_id,
+            status=JobStatus.COMPLETED,
+        )
+        assert (
+            await svc.get_awaiting_confirmation_run_for_thread(
+                db,
+                thread_id=thread_id,
+                organization_id=ORG_A,
+                user_id=USER_A,
+            )
+            is None
+        )
+
+
 # ---------------------------------------------------------------------------
 # claim_lease / release_lease / list_stale_runs (sweeper API)
 # ---------------------------------------------------------------------------

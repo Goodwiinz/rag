@@ -437,7 +437,14 @@ class LLMEntityExtractionService:
                     SystemMessage(content=system_prompt),
                     HumanMessage(content=EXTRACTION_USER_TEMPLATE.format(text=chunk)),
                 ]
-                response = await self._llm.ainvoke(messages)
+                response = await self._llm.ainvoke(
+                    messages,
+                    config={
+                        "run_name": "entity_extraction_chunk",
+                        "tags": ["component:entity-extraction"],
+                        "metadata": {"component": "entity_extraction"},
+                    },
+                )
                 self._breaker.record_success()
                 return parse_llm_response(response.content)
             except Exception:

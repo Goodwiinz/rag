@@ -269,6 +269,10 @@ class TestLLMEntityExtractionService:
         assert result.entities[0].name == "LoopMDM"
         assert result.error is None
 
+        invoke_config = mock_llm.ainvoke.await_args.kwargs["config"]
+        assert invoke_config["run_name"] == "entity_extraction_chunk"
+        assert "component:entity-extraction" in invoke_config["tags"]
+
     @pytest.mark.asyncio
     async def test_partial_results_on_chunk_failure(self, service):
         svc, mock_llm = service

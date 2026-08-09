@@ -214,6 +214,35 @@ async def get_run(
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
+async def get_awaiting_confirmation_run_for_thread(
+    db: AsyncSession,
+    *,
+    thread_id: Any,
+    organization_id: Any,
+    user_id: Any,
+) -> Optional[AgentRun]:
+    """Return the tenant-owned run parked for confirmation on a thread.
+
+    HITL confirmation requests carry a thread id rather than a run id. This
+    lookup reconnects the resume stream to the original durable lifecycle
+    while preserving the same mandatory organization/user scoping as
+    ``get_run``. Invalid identifiers fail closed instead of querying for
+    nullable ownership fields.
+    """
+    thread_uuid = _coerce_uuid(thread_id)
+    user_uuid = _coerce_uuid(user_id)
+    if thread_uuid is None or user_uuid is None:
+        return None
+
+    stmt = select(AgentRun).where(
+        AgentRun.thread_id == thread_uuid,
+        AgentRun.organization_id == _coerce_uuid(organization_id),
+        AgentRun.user_id == user_uuid,
+        AgentRun.status == JobStatus.AWAITING_CONFIRMATION.value,
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
 async def get_run_by_idempotency_key(
     db: AsyncSession,
     idempotency_key: str,

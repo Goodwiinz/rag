@@ -12,10 +12,14 @@ Covers three bugs fixed in this PR:
      canonical mode so the client can reconcile its optimistic bubble.
 """
 
+import asyncio
+from contextlib import ExitStack
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+
+from src.shared.enums import JobStatus
 
 
 @pytest.fixture(autouse=True)
@@ -42,6 +46,282 @@ def _make_snapshot(*, user_id="user-1", plan=None):
     )
 
 
+def _confirm_context(streaming_mod, agent_run_service, graph, finalize, lookup):
+    return (
+        patch(
+            "src.services.agent.observability.configure_langsmith",
+            return_value=None,
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            return_value=graph,
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "start_stream",
+            new=AsyncMock(side_effect=RuntimeError("redis unavailable")),
+        ),
+        patch.object(
+            agent_run_service,
+            "get_awaiting_confirmation_run_for_thread",
+            new=lookup,
+        ),
+        patch.object(streaming_mod, "finalize_submission", new=finalize),
+    )
+
+
+@pytest.mark.asyncio
+async def test_confirm_completion_finalizes_original_durable_run():
+    """Resume must transition the parked AgentRun back to running, then terminal."""
+    from src.api.agent import streaming as streaming_mod
+    from src.services.agent import agent_run_service
+
+    snapshot = _make_snapshot()
+    fake_db = AsyncMock()
+    fake_db.close = AsyncMock()
+    active_run = SimpleNamespace(job_id="run-1")
+    lookup = AsyncMock(return_value=active_run)
+    finalize = AsyncMock()
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    body = SimpleNamespace(
+        thread_id="11111111-1111-1111-1111-111111111111",
+        confirmed=True,
+        model="gpt-5.6-luna",
+    )
+    current_user = Mock(id="user-1", organization_id="org-1")
+
+    with (
+        patch(
+            "src.services.agent.observability.configure_langsmith",
+            return_value=None,
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            return_value=_FakeGraph(snapshot),
+        ),
+        patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_db),
+        patch.object(
+            agent_run_service,
+            "get_awaiting_confirmation_run_for_thread",
+            new=lookup,
+            create=True,
+        ),
+        patch.object(streaming_mod, "finalize_submission", new=finalize),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "start_stream",
+            new=AsyncMock(side_effect=RuntimeError("redis unavailable")),
+        ),
+        patch.object(
+            streaming_mod._jobs_mod,
+            "_persist_assistant_message_safe",
+            new=AsyncMock(return_value="assistant-msg-1"),
+        ),
+        patch.object(
+            streaming_mod,
+            "_latest_user_client_message_id",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
+        async for _ in streaming_mod.stream_confirm_event_generator(
+            body, request, current_user
+        ):
+            pass
+
+    lookup.assert_awaited_once_with(
+        fake_db,
+        thread_id=body.thread_id,
+        organization_id=current_user.organization_id,
+        user_id=current_user.id,
+    )
+    statuses = [call.kwargs["status"] for call in finalize.await_args_list]
+    assert statuses == [JobStatus.RUNNING, JobStatus.COMPLETED]
+    assert finalize.await_args_list[-1].kwargs["run_id"] == active_run.job_id
+
+
+@pytest.mark.asyncio
+async def test_confirm_nested_interrupt_reparks_original_durable_run():
+    from src.api.agent import streaming as streaming_mod
+    from src.services.agent import agent_run_service
+
+    nested = _make_snapshot()
+    nested.tasks = (
+        SimpleNamespace(
+            interrupts=[SimpleNamespace(value={"action": "approve_next_step"})]
+        ),
+    )
+    graph = _SequencedGraph(_make_snapshot(), nested)
+    fake_db = AsyncMock()
+    fake_db.close = AsyncMock()
+    lookup = AsyncMock(return_value=SimpleNamespace(job_id="run-1"))
+    finalize = AsyncMock()
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    body = SimpleNamespace(
+        thread_id="11111111-1111-1111-1111-111111111111",
+        confirmed=True,
+        model="gpt-5.6-luna",
+    )
+    current_user = Mock(id="user-1", organization_id="org-1")
+
+    contexts = _confirm_context(
+        streaming_mod, agent_run_service, graph, finalize, lookup
+    )
+    with ExitStack() as stack:
+        for context in contexts:
+            stack.enter_context(context)
+        stack.enter_context(
+            patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_db)
+        )
+        async for _ in streaming_mod.stream_confirm_event_generator(
+            body, request, current_user
+        ):
+            pass
+
+    statuses = [call.kwargs["status"] for call in finalize.await_args_list]
+    assert statuses == [JobStatus.RUNNING, JobStatus.AWAITING_CONFIRMATION]
+
+
+@pytest.mark.asyncio
+async def test_confirm_failure_finalizes_original_durable_run():
+    from src.api.agent import streaming as streaming_mod
+    from src.services.agent import agent_run_service
+
+    graph = _FailingGraph(_make_snapshot())
+    fake_db = AsyncMock()
+    fake_db.close = AsyncMock()
+    lookup = AsyncMock(return_value=SimpleNamespace(job_id="run-1"))
+    finalize = AsyncMock()
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    body = SimpleNamespace(
+        thread_id="11111111-1111-1111-1111-111111111111",
+        confirmed=True,
+        model="gpt-5.6-luna",
+    )
+    current_user = Mock(id="user-1", organization_id="org-1")
+
+    contexts = _confirm_context(
+        streaming_mod, agent_run_service, graph, finalize, lookup
+    )
+    with ExitStack() as stack:
+        for context in contexts:
+            stack.enter_context(context)
+        stack.enter_context(
+            patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_db)
+        )
+        async for _ in streaming_mod.stream_confirm_event_generator(
+            body, request, current_user
+        ):
+            pass
+
+    statuses = [call.kwargs["status"] for call in finalize.await_args_list]
+    assert statuses == [JobStatus.RUNNING, JobStatus.FAILED]
+
+
+@pytest.mark.asyncio
+async def test_confirm_pre_resume_failure_keeps_run_parked_for_retry():
+    from src.api.agent import streaming as streaming_mod
+    from src.services.agent import agent_run_service
+
+    graph = _ImmediateFailingGraph(_make_snapshot())
+    fake_db = AsyncMock()
+    fake_db.close = AsyncMock()
+    lookup = AsyncMock(return_value=SimpleNamespace(job_id="run-1"))
+    finalize = AsyncMock()
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    body = SimpleNamespace(
+        thread_id="11111111-1111-1111-1111-111111111111",
+        confirmed=True,
+        model="gpt-5.6-luna",
+    )
+    current_user = Mock(id="user-1", organization_id="org-1")
+
+    contexts = _confirm_context(
+        streaming_mod, agent_run_service, graph, finalize, lookup
+    )
+    with ExitStack() as stack:
+        for context in contexts:
+            stack.enter_context(context)
+        stack.enter_context(
+            patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_db)
+        )
+        async for _ in streaming_mod.stream_confirm_event_generator(
+            body, request, current_user
+        ):
+            pass
+
+    statuses = [call.kwargs["status"] for call in finalize.await_args_list]
+    assert statuses == [JobStatus.RUNNING, JobStatus.AWAITING_CONFIRMATION]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("emit_event", "expected_status"),
+    [
+        (False, JobStatus.AWAITING_CONFIRMATION),
+        (True, JobStatus.CANCELLED),
+    ],
+)
+async def test_confirm_task_cancellation_closes_graph_and_finalizes_run(
+    emit_event, expected_status
+):
+    from src.api.agent import streaming as streaming_mod
+    from src.services.agent import agent_run_service
+
+    graph = _CancellableGraph(_make_snapshot(), emit_event=emit_event)
+    fake_db = AsyncMock()
+    fake_db.close = AsyncMock()
+    lookup = AsyncMock(return_value=SimpleNamespace(job_id="run-1"))
+    finalize = AsyncMock()
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    body = SimpleNamespace(
+        thread_id="11111111-1111-1111-1111-111111111111",
+        confirmed=True,
+        model="gpt-5.6-luna",
+    )
+    current_user = Mock(id="user-1", organization_id="org-1")
+
+    async def drain():
+        async for _ in streaming_mod.stream_confirm_event_generator(
+            body, request, current_user
+        ):
+            pass
+
+    contexts = _confirm_context(
+        streaming_mod, agent_run_service, graph, finalize, lookup
+    )
+    with ExitStack() as stack:
+        for context in contexts:
+            stack.enter_context(context)
+        stack.enter_context(
+            patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_db)
+        )
+        task = asyncio.create_task(drain())
+        await asyncio.wait_for(graph.waiting.wait(), timeout=1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    statuses = [call.kwargs["status"] for call in finalize.await_args_list]
+    assert statuses == [JobStatus.RUNNING, expected_status]
+    assert graph.aclosed is True
+
+
 class _FakeGraph:
     def __init__(self, snapshot):
         self._snapshot = snapshot
@@ -53,6 +333,52 @@ class _FakeGraph:
 
     async def aget_state(self, config):
         return self._snapshot
+
+    async def aclose(self):
+        self.aclosed = True
+
+
+class _SequencedGraph(_FakeGraph):
+    def __init__(self, *snapshots):
+        super().__init__(snapshots[-1])
+        self._snapshots = iter(snapshots)
+
+    async def aget_state(self, config):
+        return next(self._snapshots)
+
+
+class _FailingGraph(_FakeGraph):
+    async def astream_events(self, *args, **kwargs):
+        yield {"event": "on_chat_model_stream", "data": {}}
+        raise RuntimeError("resume failed")
+
+
+class _ImmediateFailingGraph(_FakeGraph):
+    async def astream_events(self, *args, **kwargs):
+        raise RuntimeError("resume failed before first event")
+        yield  # pragma: no cover
+
+
+class _CancellableGraph(_FakeGraph):
+    def __init__(self, snapshot, *, emit_event):
+        super().__init__(snapshot)
+        self.emit_event = emit_event
+        self.emitted = False
+        self.waiting = asyncio.Event()
+
+    def astream_events(self, *args, **kwargs):
+        return self
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self.emit_event and not self.emitted:
+            self.emitted = True
+            return {"event": "on_chat_model_stream", "data": {}}
+        self.waiting.set()
+        await asyncio.Event().wait()
+        raise StopAsyncIteration  # pragma: no cover
 
     async def aclose(self):
         self.aclosed = True
