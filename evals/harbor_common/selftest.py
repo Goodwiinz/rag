@@ -164,6 +164,18 @@ class _StubClient:
         return _StubResponse(self._content)
 
 
+class _SequenceStubClient:
+    """Returns each queued content once, so a retry sees a different reply."""
+
+    def __init__(self, contents: list[str], calls: list[int]) -> None:
+        self._contents = list(contents)
+        self._calls = calls
+
+    def invoke(self, messages):  # noqa: ANN001 - test stub, signature matches usage
+        self._calls.append(len(messages))
+        return _StubResponse(self._contents.pop(0))
+
+
 def test_run_semantic_judge() -> None:
     verdict_json = (
         '{"supported": true, "contradictions": [], '
@@ -190,6 +202,23 @@ def test_run_semantic_judge() -> None:
     except InfrastructureFailure:
         raised = True
     assert raised, "malformed (non-JSON) verdict must raise InfrastructureFailure"
+
+    # A single unparseable completion must NOT void the trial: the judge is
+    # sampled, so the retry usually parses. Before this, one stray prose reply
+    # cost a whole recorded trial as an infrastructure failure.
+    calls: list[int] = []
+    recovered = run_semantic_judge(
+        question="q",
+        trusted_sources=["source a"],
+        candidate_answer="answer",
+        rubric="rubric text",
+        _client_factory=lambda: _SequenceStubClient(
+            ["no json here", verdict_json], calls
+        ),
+    )
+    assert recovered["supported"] is True, recovered
+    assert len(calls) == 2, f"expected one retry, got {len(calls)} calls"
+    assert calls[1] > calls[0], "retry must append the corrective reminder message"
 
     env_vars = (
         "HARBOR_JUDGE_ENDPOINT",
