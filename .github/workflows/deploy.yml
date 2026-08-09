@@ -1,8 +1,9 @@
 name: Deploy to DigitalOcean Kubernetes
 
 on:
-  # Legacy staging/production path: manual only. Dev is released through
-  # release-dev.yml and Argo CD; do not add a workflow_run trigger here.
+  # Legacy staging/production path: manual only. Automatic dev release
+  # (release-dev.yml) was removed as never-bootstrapped; dev images are no
+  # longer built on develop pushes. Do not add a workflow_run trigger here.
   workflow_dispatch:
     inputs:
       environment:

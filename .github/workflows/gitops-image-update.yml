@@ -1,8 +1,9 @@
 name: GitOps Image Update
 
-# Dev promotion is owned exclusively by release-dev.yml. This workflow keeps
-# only the retired production manual operation; it cannot participate in an
-# automatic Docker -> GitOps chain or write to develop.
+# Automatic dev promotion (release-dev.yml) was removed as never-bootstrapped
+# (see .github/workflows/README.md). This workflow only keeps the retired
+# production manual operation below; it cannot participate in an automatic
+# Docker -> GitOps chain or write to develop.
 on:
   workflow_dispatch:
     inputs:
@@ -25,8 +26,8 @@ permissions:
   contents: write
 
 jobs:
-  # Production promotion is also manual. The production deployment path is
-  # outside the dev exact-SHA release repair.
+  # Production promotion is also manual and unrelated to the (now-removed)
+  # dev exact-SHA release path.
   promote-to-production:
     name: Promote to Production
     runs-on: ubuntu-latest

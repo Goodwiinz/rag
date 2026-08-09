@@ -1,5 +1,10 @@
 name: Docker Build
 
+# This workflow currently has no caller: release-dev.yml (its only automatic
+# caller) was removed as never-bootstrapped (see .github/workflows/README.md).
+# It is workflow_call/workflow_dispatch-only, so it never self-triggers and
+# costs nothing sitting idle. Kept as a manual diagnostics path and as the
+# reusable build step for a future, deliberately reintroduced dev release.
 on:
   workflow_call:
     inputs:
