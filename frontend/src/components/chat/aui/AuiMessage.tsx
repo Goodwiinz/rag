@@ -183,11 +183,14 @@ function MessageError(): ReactElement {
 function MessageActions({
   assistant,
   onRetry,
+  retryDisabled,
   onEdit,
   editButtonRef,
 }: {
   assistant?: boolean;
   onRetry?: () => void;
+  /** True while a regenerate cannot be accepted (a turn is in flight). */
+  retryDisabled?: boolean;
   /** Enter edit-and-resend mode for a user message (user messages only). */
   onEdit?: () => void;
   /** Focus target the inline editor returns to on cancel/save. */
@@ -225,9 +228,10 @@ function MessageActions({
         <button
           type="button"
           onClick={onRetry}
+          disabled={retryDisabled}
           className="nous-msg-action"
           aria-label="Regenerate response"
-          title="Regenerate response"
+          title={retryDisabled ? RETRY_UNAVAILABLE_REASON : 'Regenerate response'}
         >
           <RotateCcw className="h-3.5 w-3.5" />
         </button>
@@ -245,6 +249,9 @@ function MessageActions({
 }
 
 export const EDIT_UNAVAILABLE_REASON =
+  'Wait for the current response to finish';
+
+export const RETRY_UNAVAILABLE_REASON =
   'Wait for the current response to finish';
 
 export function AuiUserMessage({
@@ -548,6 +555,7 @@ const NON_RETRYABLE_ERROR_CATEGORIES: ReadonlySet<string> = new Set([
 export function AuiAssistantMessage({
   message,
   onRetry,
+  retryDisabled,
   onCitationClick,
 }: {
   /** Source ChatPageMessage for the committed turn. Drives the provenance
@@ -556,6 +564,8 @@ export function AuiAssistantMessage({
    * absent (e.g. plain AuiMessages usage), falls back to primitive text. */
   message?: ChatPageMessage;
   onRetry?: () => void;
+  /** True while a regenerate cannot be accepted (a turn is in flight). */
+  retryDisabled?: boolean;
   onCitationClick?: OnCitationClick;
 }): ReactElement {
   const allCitations = useMemo(
@@ -642,7 +652,9 @@ export function AuiAssistantMessage({
               <button
                 type="button"
                 onClick={onRetry}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-(--nous-border-1) bg-(--nous-bg-2) px-3 py-1.5 text-[12px] font-medium text-(--nous-fg-1) transition-colors hover:border-(--nous-sol)/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
+                disabled={retryDisabled}
+                title={retryDisabled ? RETRY_UNAVAILABLE_REASON : undefined}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-(--nous-border-1) bg-(--nous-bg-2) px-3 py-1.5 text-[12px] font-medium text-(--nous-fg-1) transition-colors hover:border-(--nous-sol)/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol) disabled:opacity-50"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Retry
@@ -684,7 +696,11 @@ export function AuiAssistantMessage({
             onCitationClick={onCitationClick}
           />
         )}
-        <MessageActions assistant onRetry={onRetry} />
+        <MessageActions
+          assistant
+          onRetry={onRetry}
+          retryDisabled={retryDisabled}
+        />
         {/* Per-response feedback — only for persisted (server-canonical)
          * assistant turns; optimistic/local-only rows have no id to PATCH. */}
         {message?.id ? (
@@ -756,6 +772,7 @@ export class MessageByIndexBoundary extends React.Component<
 interface BoundMessageContextValue {
   message?: ChatPageMessage;
   onRetry?: () => void;
+  retryDisabled?: boolean;
   onEdit?: (newContent: string) => void;
   editDisabled?: boolean;
   onCitationClick?: OnCitationClick;
@@ -775,11 +792,13 @@ function BoundUserMessage(): ReactElement {
 }
 
 function BoundAssistantMessage(): ReactElement {
-  const { message, onRetry, onCitationClick } = useContext(BoundMessageContext);
+  const { message, onRetry, retryDisabled, onCitationClick } =
+    useContext(BoundMessageContext);
   return (
     <AuiAssistantMessage
       message={message}
       onRetry={onRetry}
+      retryDisabled={retryDisabled}
       onCitationClick={onCitationClick}
     />
   );
@@ -798,6 +817,7 @@ export function AuiMessageByIndex({
   index,
   message,
   onRetry,
+  retryDisabled,
   onEdit,
   editDisabled,
   onCitationClick,
@@ -807,6 +827,8 @@ export function AuiMessageByIndex({
    * renderer can show plan/strip/citations from the committed data. */
   message?: ChatPageMessage;
   onRetry?: () => void;
+  /** True while a regenerate cannot be accepted (a turn is in flight). */
+  retryDisabled?: boolean;
   /** Edit-and-resend handler for user messages at this index. */
   onEdit?: (newContent: string) => void;
   /** True while a resend cannot be accepted (a turn is in flight). */
@@ -824,8 +846,15 @@ export function AuiMessageByIndex({
   // changes, and it travels by context so a message refresh re-renders the
   // subtree instead of remounting it.
   const bindings = useMemo<BoundMessageContextValue>(
-    () => ({ message, onRetry, onEdit, editDisabled, onCitationClick }),
-    [message, onRetry, onEdit, editDisabled, onCitationClick]
+    () => ({
+      message,
+      onRetry,
+      retryDisabled,
+      onEdit,
+      editDisabled,
+      onCitationClick,
+    }),
+    [message, onRetry, retryDisabled, onEdit, editDisabled, onCitationClick]
   );
 
   if (index >= runtimeMessageCount) return null;

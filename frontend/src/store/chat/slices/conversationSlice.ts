@@ -19,6 +19,10 @@ export interface ConversationSlice {
   createConversation: (
     data: ConversationCreate
   ) => Promise<Conversation | null>;
+  registerConversation: (
+    conversation: Conversation,
+    workspaceId: string
+  ) => void;
   updateConversation: (
     id: string,
     data: ConversationUpdate
@@ -116,6 +120,21 @@ export const createConversationSlice: ChatSliceCreator<ConversationSlice> = (
         loadConversationsRequestTokens.delete(workspaceId);
       }
     }
+  },
+
+  // Index a conversation the store did not create itself. A conversation
+  // obtained from workspaceService.getOrCreateDefaultConversation (the deduped
+  // bootstrap helper) never passes through createConversation, so without this
+  // it is missing from `conversations[workspaceId]` and from the reverse index
+  // — the sidebar renders no conversation and lookups by id miss.
+  registerConversation: (conversation, workspaceId) => {
+    set((state) => {
+      const list = (state.conversations[workspaceId] ??= []);
+      if (!list.some((c) => c.id === conversation.id)) {
+        list.unshift(conversation);
+      }
+      state.conversationToWorkspace[conversation.id] = workspaceId;
+    });
   },
 
   createConversation: async (data) => {

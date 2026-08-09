@@ -18,14 +18,32 @@ records positive and negative network probes.
 | `agent-project-management-v1` | Route, approve, and execute a multi-step project-management flow | Deterministic trajectory, HITL snapshots, and PostgreSQL state |
 | `agent-writing-flow-v1` | Compare documents, draft (HITL, async fake-success trap), and export a bibliography | Deterministic trajectory, HITL snapshots, PostgreSQL state, and an isolated semantic judge |
 | `agent-kb-retrieval-v1` | Search indexed documents, then retrieve and cite grounded guidance from the org knowledge base | Deterministic trajectory, mock-KB auth/network probes, and an isolated semantic judge |
+| `agent-knowledge-graph-flow-v1` | Search, explore neighborhood, and pull stats from a real Neo4j knowledge graph, tenant-scoped | Deterministic trajectory, independent Cypher cross-check, and an isolated semantic judge |
+| `agent-memory-roundtrip-v1` | State a fact, recall it next turn, then `forget_memory` (HITL) and prove it's gone | Deterministic trajectory, redaction and no-bleed checks, PostgreSQL store state (no judge — semantic N/A) |
 | `agent-arxiv-research-flow-v1` | Search arXiv against a protocol double, prove the shared Redis result cache, and ingest two papers behind one HITL approval | Deterministic trajectory, HITL snapshots, PostgreSQL/Redis/storage state |
 | `agent-code-execution-v1` | Execute Python against an E2B wire double behind one HITL approval | Deterministic trajectory, HITL snapshots, recomputed-digest grounding (no judge) |
 | `agent-external-databases-v1` | List and search the 11-connector external-database registry against a protocol double | Deterministic trajectory, connector-registry state, fixture-containment check (no judge) |
 
-`agent-writing-flow-v1` and `agent-kb-retrieval-v1` are judge-gated: Layer B
+`agent-writing-flow-v1`, `agent-kb-retrieval-v1`, and
+`agent-knowledge-graph-flow-v1` are judge-gated: Layer B
 (`harbor_common.judge.run_semantic_judge`) only runs after every Layer A
-(deterministic) check passes, and both are NOT YET GATED in
-`AGENT_FLOW_BASELINE.md` — awaiting their first recorded run.
+(deterministic) check passes. `agent-memory-roundtrip-v1` is deterministic-only
+(semantic N/A). `agent-writing-flow-v1` and `agent-kb-retrieval-v1` took their
+first recorded run on 2026-08-08 (5 trials each,
+`baselines/agent-flow-2026-08-08-writing-kb.json`): `agent-kb-retrieval-v1`
+passed 5/5 and is now **GATED**; `agent-writing-flow-v1` failed 5/5 at Layer B
+and stays **NOT GATED** — `compare_documents` states domain claims that neither
+source document supports, so the grounding rubric fires on every trial.
+`agent-knowledge-graph-flow-v1` and `agent-memory-roundtrip-v1` are NOT YET
+GATED in `AGENT_FLOW_BASELINE.md` — awaiting their first recorded run.
+`agent-knowledge-graph-flow-v1` additionally requires a real `neo4j:5`
+container (see its `docker-compose.yaml`), not a mock.
+
+The judge needs `HARBOR_JUDGE_ENDPOINT`, `HARBOR_JUDGE_API_KEY`,
+`HARBOR_JUDGE_MODEL`, and `HARBOR_JUDGE_API_VERSION`. They are declared in
+`[verifier.env]` only and must never appear in `[environment.env]`, or the
+agent under test could reach the judge. Use a `gpt-4.1`-class deployment: gpt-5
+deployments fail the Azure Responses API version gate.
 
 `agent-arxiv-research-flow-v1`, `agent-code-execution-v1`, and
 `agent-external-databases-v1` are all semantic = N/A (no judge anywhere in

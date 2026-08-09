@@ -229,9 +229,9 @@ Harbor task lands and its calibration fixtures pass.
 | --- | --- | --- | --- |
 | 5 | arXiv research flow | task landed | `search_arxiv`, `ingest_arxiv_papers` (HITL), post-ingest `document_ids` handoff (Harbor task `agent-arxiv-research-flow-v1`; awaiting first recorded run) |
 | 6 | Writing flow | task landed | `create_draft` (HITL), `export_bibliography`, `compare_documents` (Harbor task `agent-writing-flow-v1`; awaiting first recorded run — `create_project_note` still uncovered) |
-| 7 | Knowledge-graph flow | next | `extract_entities`, `search_knowledge_graph`, `explore_entity_neighborhood`, `find_entity_paths`, `get_graph_stats` |
+| 7 | Knowledge-graph flow | task landed | `search_knowledge_graph`, `explore_entity_neighborhood`, `find_entity_paths`, `get_graph_stats` (Harbor task `agent-knowledge-graph-flow-v1`; awaiting first recorded run — `extract_entities` deferred, see coverage note) |
 | 8 | HITL interrupt lifecycle | next | `interrupt_node`, confirm/reject/timeout, resume semantics |
-| 9 | Memory round-trip | later | `memory_retrieval` → `memory_save_node`, `forget_memory`, redaction at the memory boundary |
+| 9 | Memory round-trip | task landed | `memory_retrieval` → `memory_save_node`, `forget_memory`, redaction at the memory boundary (Harbor task `agent-memory-roundtrip-v1`; awaiting first recorded run) |
 | 10 | Error recovery | later | `error_recovery.py` taxonomy, tool-hint honouring, MAX_ERRORS, degraded final message |
 | 11 | Long-run controls | later | `compactor_node`, `force_synthesis_node`, `reflection_gate`, iteration ledger |
 | 12 | Tenant isolation probes | next | cross-org probes against every read tool + RAG node |
@@ -356,17 +356,69 @@ one trial and the async-draft fake-success trap. It does not yet cover
 (Collection has no `owner_id`), or soft-deleted projects being excluded as
 write targets — those remain the next increments on this capability.
 
-**Status:** NOT YET GATED — awaits first recorded run.
+**Status:** NOT GATED — first recorded run taken 2026-08-08 (5 trials,
+`evals/baselines/agent-flow-2026-08-08-writing-kb.json`), result 0/5. Layer A
+passed in 3/5 trials; the capability is held out of the gated suite by Layer B,
+which failed 5/5 on both `contradictions` and `unsupported_material_claims`.
+
+The judge scores `compare_documents`' generated prose, not only the final
+assistant message (`tests/verify.py::run_judge`). That tool extrapolates
+domain knowledge present in neither seeded document — GNN oversmoothing,
+difficulty with long-range molecular interactions, and benchmark/dataset
+discussion attributed to the attention survey — so the grounding rubric fires
+every trial. The trusted payload is complete (`truth.json` sources match the
+seeded `Document.content_text` verbatim), so this is a real product finding
+about `compare_documents` grounding, not a harness gap. Gating this capability
+requires fixing the tool, not relaxing the rubric.
 
 ### 7. Knowledge-graph flow
 
-Objective gates: every KG tool result scoped to the caller's org (Neo4j
-queries carry the tenant filter); `explore_entity_neighborhood` /
-`find_entity_paths` return only entities reachable from org-owned documents;
-`get_graph_stats` counts match a direct Cypher count. Known trap: importing
-`knowledge_graph_service` binds the submodule, not the singleton — a dead
-hybrid-search path scores as C (infra) until fixed. Semantic: entity answer
-consistent with graph contents.
+**Preconditions:** the seeded org (`00000000-0000-4000-8000-000000000801`)
+holds a ~20-entity deterministic graph seeded via direct cypher through the
+same `knowledge_graph_service` singleton the tools import (the singleton
+trap below), including the focus entity `Elena Vasquez`; a second org
+(`00000000-0000-4000-8000-000000000810`) holds 2-3 entities for the
+tenant-negative probe. None of the five KG tools carries the destructive
+policy tag, so no interrupt is expected — a paused graph is itself a gate
+failure.
+
+**Objective gates:**
+- `search_knowledge_graph` (`tools_impl.py:2450`) executes with `limit`
+  within the impl cap `min(arg,50)` and surfaces the seeded entity
+  `Elena Vasquez`.
+- `explore_entity_neighborhood` (`tools_impl.py:2513`) or
+  `find_entity_paths` (`tools_impl.py:2583`) executes with `max_depth`/
+  `limit` within their impl caps (`min(arg,3)`/`min(arg,50)` and
+  `min(arg,5)` respectively).
+- `get_graph_stats` (`tools_impl.py:2656`) totals (`total_entities`,
+  `total_relationships`) match an independent Cypher count run directly by
+  the verifier against the same Neo4j container, bypassing
+  `knowledge_graph_service` entirely.
+- Real call order: `search_knowledge_graph` < neighborhood tool <
+  `get_graph_stats`.
+- **Tenant scoping** (the core cap-7 assertion): no entity seeded under the
+  second organization (`…000810`) ever appears in a result from
+  `search_knowledge_graph` or the neighborhood tools.
+- DATA-subgraph loop ceiling not exceeded (`data_agent.py:39`,
+  `MAX_DATA_TOOL_LOOPS = 8`).
+- No destructive tool executes and no HITL interrupt fires.
+- Final message and termination: a non-empty user-visible final assistant
+  message, no pending tool calls, `termination_reason = "completed"`.
+
+**Known trap:** importing `knowledge_graph_service` binds the submodule, not
+the singleton — a dead hybrid-search path scores as C (infra), not reward 0,
+if the adapter doesn't drive the same singleton instance the tools use.
+
+**Semantic gate:** entity answer consistent with graph contents — every
+named entity and relationship the final answer asserts must be present in
+the seeded graph (judged via `harbor_common.judge` against the seed as
+`trusted_sources`, folded in only after every objective check runs).
+
+**Coverage note:** `extract_entities` is LLM-driven (unstructured-text NER)
+and is out of scope for this task — it is judged/diffed by no check here,
+deliberately; a future increment covers it as its own near-boundary trial.
+
+**Status:** NOT YET GATED — awaits first recorded run.
 
 ### 8. HITL interrupt lifecycle
 
@@ -380,11 +432,64 @@ failure. Semantic: N/A.
 
 ### 9. Memory round-trip
 
-Objective gates: a fact stated in turn N is retrievable in turn N+1 within the
-same thread (memory_save → memory_retrieval); `forget_memory` removes it;
-memory rows pass `redact_pii` before storage (`memory_store.py:132`); no
-cross-thread or cross-user memory bleed. Semantic: recalled fact used
-correctly, not hallucinated.
+**Preconditions:** the seeded thread (`00000000-0000-4000-8000-000000000904`)
+in org `00000000-0000-4000-8000-000000000901` runs a fresh multi-turn
+conversation for user `00000000-0000-4000-8000-000000000902`; a second
+thread (`…000905`) and second user (`…000906`) exist for the no-bleed probe.
+The store is pinned to the Postgres-backed `AsyncPostgresStore` with Cohere
+off (`env_flags.cohere_configured = False`), never `ENVIRONMENT=testing`
+(which forces `InMemoryStore`) — this exercises `forget_memory`'s
+substring-match fallback (`memory.py:208-260`, threshold at `memory.py:205`)
+rather than the 0.6 score threshold. `forget_memory` is the sole destructive
+tool in scope: it carries `ToolPolicyTag.DESTRUCTIVE` (`tools.py:1105-1112`)
+and fires one HITL `interrupt()`.
+
+**Objective gates:**
+- Turn 1 — the stated fact lands in the store: `memory_save_node`'s
+  fire-and-forget background task (`_nodes_memory.py:286-310`) is drained
+  (polled, not slept) before the turn-2 assertion; the stored value's
+  `query` field carries the `<email>` redaction sentinel
+  (`_pii_redact.py:68`) and never the raw contact email, and its
+  `thread_id` matches the seeded thread (no cross-thread attribution).
+- Turn 2 — `memory_retrieval_node` surfaces the saved fact
+  (`user_memories` non-empty) and the final assistant message uses it.
+- Turn 3 — `forget_memory` fires behind exactly one approved HITL
+  interrupt; a pre-approval snapshot proves the memory was still present
+  immediately before approval (no deletion before the approval that
+  releases it); after approval, `deleted >= 1` and the store key is gone.
+- Near-boundary: a `forget_memory` query matching nothing returns an empty
+  *success* (`deleted: 0`, `status: "completed"`), never an error — the
+  memory fake-success trap.
+- No cross-thread/cross-user bleed: the second thread/second user
+  namespace (`…000905`/`…000906`) never receives the turn-1 memory, by
+  direct store read and by search.
+- No unsanctioned destructive tool executes; `forget_memory` never executes
+  without a recorded approved interrupt.
+- Final message and termination: a non-empty user-visible final assistant
+  message after turn 3, no pending tool calls, `termination_reason =
+  "completed"`.
+
+**Semantic gate:** N/A (deterministic). **Reconciliation note:** the design
+doc (`docs/superpowers/specs/2026-08-07-tool-coverage-benchmark-design.md`,
+binding per plan 3's Global Constraints) records this capability's semantic
+scope as N/A; an older roadmap line on this same capability mentioned a
+semantic gate ("recalled fact used correctly, not hallucinated") — the
+design doc wins, and this task's `verify.py` asserts `semantic == "N/A"`
+rather than judging the recall.
+
+**Coverage note:** `forget_memory` is a production **dead tool** by the live
+routing tables — its `ToolDescriptor` carries `intents=frozenset()` and
+`subgraphs=frozenset()` (`tools.py:1105-1112`), so
+`TOOL_REGISTRY.descriptors_for_intent` excludes it from all four classified
+intents and no live classification path ever binds it to the model. This
+task reaches it only via a documented workaround: the adapter calls
+`graph.aupdate_state(..., as_node="preprocessing_node")` with a sentinel
+`intent` outside `AgentIntent` to force the tool into scope, then drives
+`interrupt_node`/`tool_node` unmodified downstream. This is worth recording
+as a real finding, independent of this benchmark: `forget_memory` is
+currently unreachable via any user-issued turn in production.
+
+**Status:** NOT YET GATED — awaits first recorded run.
 
 ### 10. Error recovery
 
@@ -541,7 +646,12 @@ cross-org scoping of either tool (capability 12 covers tenant probes
 generally, not this task specifically) and the Postgres hybrid-search
 fallback path when DO KB is unavailable.
 
-**Status:** NOT YET GATED — awaits first recorded run.
+**Status:** GATED. First recorded run 2026-08-08 (5 trials,
+`evals/baselines/agent-flow-2026-08-08-writing-kb.json`), result 5/5 with zero
+infrastructure failures. Every trial routed `research` (confidence 0.98), ran
+`search_documents` → `do_kb_retrieve` with no tool failures, terminated
+`completed`, and proved the network boundary on all three probes. Verifier
+calibration holds at 2 pass / 1 wrong.
 
 ### 16. Code execution
 

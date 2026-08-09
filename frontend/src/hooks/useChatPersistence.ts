@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { useShallow } from 'zustand/react/shallow';
 import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
+import { workspaceService } from '@/services/workspaceService';
 import {
   ChatMessage,
   MessageRole,
@@ -300,6 +301,7 @@ export function useChatPersistence(): UseChatPersistenceReturn {
     loadMessages,
     createThread,
     createConversation,
+    registerConversation,
     sendMessage: storeSendMessage,
     setCurrentWorkspace,
     setCurrentConversation,
@@ -328,6 +330,7 @@ export function useChatPersistence(): UseChatPersistenceReturn {
       loadMessages: s.loadMessages,
       createThread: s.createThread,
       createConversation: s.createConversation,
+      registerConversation: s.registerConversation,
       sendMessage: s.sendMessage,
       setCurrentWorkspace: s.setCurrentWorkspace,
       setCurrentConversation: s.setCurrentConversation,
@@ -446,15 +449,21 @@ export function useChatPersistence(): UseChatPersistenceReturn {
           debugLog(
             '[useChatPersistence] No conversations, creating new one...'
           );
-          const newConv = await createConversation({
-            workspace_id: state.currentWorkspaceId,
-            title: 'New Chat',
-          });
+          // Go through the deduped helper: useChatSession bootstraps the same
+          // default conversation concurrently, and an unguarded create here
+          // produced a second "New Chat" for every fresh user.
+          const newConv = await workspaceService.getOrCreateDefaultConversation(
+            state.currentWorkspaceId
+          );
           if (!newConv) {
             // Surface this as a real failure instead of silently locking in
             // `_initCompleted = false` with no retry path for other waiters.
             throw new Error('Failed to create default conversation');
           }
+          // The helper talks to the API directly, bypassing the store's
+          // createConversation — index it so the sidebar and the reverse
+          // lookup see it, exactly as a store-side create would have.
+          registerConversation(newConv, state.currentWorkspaceId);
           conversationId = newConv.id;
           setCurrentConversation(newConv.id);
         }
@@ -474,7 +483,19 @@ export function useChatPersistence(): UseChatPersistenceReturn {
 
         const threadsState = useChatStore.getState();
         const conversationThreads = threadsState.threads[conversationId] || [];
-        if (conversationThreads.length > 0 && !threadsState.currentThreadId) {
+        // An explicit "new chat" (?new=1) must land on a blank composer.
+        // useChatSession already honors this; without the same check here
+        // this hook writes a stale thread id into the store, and the next
+        // send appends to that previous thread instead of starting a new
+        // one (and the URL never becomes ?thread=).
+        const isNewChat =
+          typeof window !== 'undefined' &&
+          new URLSearchParams(window.location.search).get('new') === '1';
+        if (
+          conversationThreads.length > 0 &&
+          !threadsState.currentThreadId &&
+          !isNewChat
+        ) {
           const firstThread = conversationThreads[0];
           debugLog(
             '[useChatPersistence] Selecting first thread:',
@@ -532,7 +553,7 @@ export function useChatPersistence(): UseChatPersistenceReturn {
     loadThreads,
     setCurrentConversation,
     setCurrentThread,
-    createConversation,
+    registerConversation,
   ]);
 
   // Create new chat (thread)

@@ -48,4 +48,6 @@ paths = [
   '''(^|/)test-results/''',
   '''(^|/)scripts/data/arxiv/''',
   '''(^|/)infrastructure/terraform/terraform\.tfvars\.example$''',
+  # Eval fixtures carry synthetic secret-shaped strings by design (redaction tests)
+  '''(^|/)evals/[^/]+/tests/.*\.json$''',
 ]

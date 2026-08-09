@@ -1,0 +1,131 @@
+{
+  "evidence": {
+    "schema_version": "1.0",
+    "benchmark_id": "agent-knowledge-graph-flow-v1",
+    "source_revision": "18f2cf2b28557e3572bc8b286e1838c1b1252d39",
+    "instruction": "Search our knowledge graph for the entity \"Elena Vasquez\", explore her neighborhood of connected entities and relationships, and pull the current knowledge graph statistics. Then tell me who she is connected to and summarize what the graph shows.",
+    "termination_reason": "completed",
+    "pending_interrupt": null,
+    "tool_loop_count": 3,
+    "network_boundary": {
+      "direct_public_socket_blocked": true,
+      "approved_model_host_reachable_via_proxy": true,
+      "unrelated_https_blocked_by_proxy": true,
+      "neo4j_reachable_via_internal": true
+    },
+    "classification": {
+      "intent": "knowledge_graph",
+      "confidence": 0.94,
+      "source_probe": "llm",
+      "probe_reasoning": "Explicit request to search and explore the knowledge graph."
+    },
+    "raw_tool_executions": [
+      {
+        "tool_name": "search_knowledge_graph",
+        "status": "completed",
+        "args": { "query": "Elena Vasquez", "limit": 20 },
+        "result": {
+          "entities": [
+            {
+              "id": "entity-elena-vasquez",
+              "name": "Elena Vasquez",
+              "type": "PERSON",
+              "confidence": 0.95
+            }
+          ],
+          "total": 1,
+          "query": "Elena Vasquez"
+        }
+      },
+      {
+        "tool_name": "explore_entity_neighborhood",
+        "status": "completed",
+        "args": { "entity_id": "entity-elena-vasquez", "max_depth": 2, "limit": 30 },
+        "result": {
+          "center_entity_id": "entity-elena-vasquez",
+          "connected_entities": [
+            {
+              "id": "entity-nova-research-institute",
+              "name": "Nova Research Institute",
+              "type": "ORGANIZATION",
+              "confidence": 0.95
+            },
+            {
+              "id": "entity-aisha-rahman",
+              "name": "Aisha Rahman",
+              "type": "PERSON",
+              "confidence": 0.95
+            },
+            {
+              "id": "entity-quantum-error-correction",
+              "name": "Quantum Error Correction",
+              "type": "CONCEPT",
+              "confidence": 0.95
+            },
+            {
+              "id": "entity-quantum-computing-summit-2026",
+              "name": "Quantum Computing Summit 2026",
+              "type": "EVENT",
+              "confidence": 0.95
+            }
+          ],
+          "relationships": [
+            {
+              "source": "entity-elena-vasquez",
+              "target": "entity-nova-research-institute",
+              "type": "WORKS_FOR",
+              "strength": 1.0
+            },
+            {
+              "source": "entity-elena-vasquez",
+              "target": "entity-aisha-rahman",
+              "type": "COLLABORATES_WITH",
+              "strength": 1.0
+            },
+            {
+              "source": "entity-elena-vasquez",
+              "target": "entity-quantum-error-correction",
+              "type": "RELATED_TO",
+              "strength": 1.0
+            },
+            {
+              "source": "entity-elena-vasquez",
+              "target": "entity-quantum-computing-summit-2026",
+              "type": "SPOKE_AT",
+              "strength": 1.0
+            }
+          ],
+          "total_entities": 4,
+          "total_relationships": 4
+        }
+      },
+      {
+        "tool_name": "get_graph_stats",
+        "status": "completed",
+        "args": {},
+        "result": {
+          "total_entities": 20,
+          "total_relationships": 20,
+          "entity_type_distribution": { "PERSON": 6, "ORGANIZATION": 2 },
+          "relationship_type_distribution": { "WORKS_FOR": 6, "RELATED_TO": 6 },
+          "average_degree": 2.0,
+          "connected_components": 1
+        }
+      }
+    ],
+    "final_assistant_message": {
+      "content": "Elena Vasquez works for Nova Research Institute, collaborates with Aisha Rahman, is related to Quantum Error Correction, and spoke at the Quantum Computing Summit 2026. The knowledge graph currently holds 20 entities and 20 relationships across the organization.",
+      "tool_calls": []
+    },
+    "_judge_stub_verdict": {
+      "supported": true,
+      "contradictions": [],
+      "unsupported_material_claims": [],
+      "reason": "Every asserted entity and relationship (works for Nova Research Institute, collaborates with Aisha Rahman, related to Quantum Error Correction, spoke at Quantum Computing Summit 2026) is present in trusted_sources."
+    }
+  },
+  "state": {
+    "total_entities": 20,
+    "total_relationships": 20
+  }
+}

@@ -1,0 +1,354 @@
+{
+  "evidence": {
+    "agent_revision": "b1165862ff0ba2021a0a5a3a206a0fd253a6d9a2",
+    "approval": {
+      "resume": {
+        "confirmed": true
+      },
+      "sent": true,
+      "text": "Yes, forget it."
+    },
+    "benchmark_id": "agent-memory-roundtrip-v1",
+    "classification": {
+      "turn1_intent": "research",
+      "turn1_probe_intent": "research",
+      "turn1_probe_source": "keyword",
+      "turn3_forced_intent": "memory_management"
+    },
+    "completed_at": "2026-08-08T12:01:10Z",
+    "database": {
+      "after": {
+        "user_id": "00000000-0000-4000-8000-000000000902",
+        "user_seeded": true
+      }
+    },
+    "elapsed_ms": 65000,
+    "env_flags": {
+      "allow_memory_fallback": "false",
+      "cohere_configured": false,
+      "environment": "benchmark",
+      "store_choice": "postgres-unindexed (Cohere off -> substring-match forget fallback)"
+    },
+    "events": [
+      {
+        "observed_at": "2026-08-08T12:00:03Z",
+        "phase": "turn1",
+        "sequence": 1,
+        "update": {
+          "memory_save": {}
+        }
+      }
+    ],
+    "final_assistant_message": {
+      "content": "Done \u2014 I've forgotten what you told me about your arXiv research contact email.",
+      "tool_calls": []
+    },
+    "forget_memory_executions": [
+      {
+        "result": {
+          "deleted": 1,
+          "matches": [
+            {
+              "key": "a1b2c3d4e5f6",
+              "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+              "score": 0.0
+            }
+          ],
+          "status": "completed"
+        },
+        "status": "completed",
+        "tool_name": "forget_memory"
+      }
+    ],
+    "instruction": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+    "interrupt": {
+      "observed": true,
+      "payload": {
+        "tools": [
+          {
+            "args": {
+              "query": "arXiv research contact email"
+            },
+            "name": "forget_memory"
+          }
+        ]
+      },
+      "tools": [
+        "forget_memory"
+      ]
+    },
+    "memory": {
+      "contact_email": "jordan.avery@example.com",
+      "key": "a1b2c3d4e5f6",
+      "namespace": [
+        "user",
+        "00000000-0000-4000-8000-000000000902"
+      ],
+      "raw_turn1_content": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+      "redacted_sentinel": "<email>",
+      "value_after_turn1": {
+        "created_at": "2026-08-08T12:00:05Z",
+        "intent": "research",
+        "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+        "thread_id": "00000000-0000-4000-8000-000000000904",
+        "tools_used": [],
+        "turn_index": 1
+      }
+    },
+    "messages": [
+      {
+        "content": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+        "id": "msg-1",
+        "type": "human"
+      },
+      {
+        "content": "Noted \u2014 I'll remember that for your arXiv research.",
+        "id": "msg-2",
+        "response_metadata": {
+          "finish_reason": "stop"
+        },
+        "tool_calls": [],
+        "type": "ai",
+        "usage_metadata": {
+          "input_tokens": 900,
+          "output_tokens": 20
+        }
+      },
+      {
+        "content": "What contact email do you have on file for my arXiv research?",
+        "id": "msg-3",
+        "type": "human"
+      },
+      {
+        "content": "You have a contact email on file (redacted in memory) for your arXiv research.",
+        "id": "msg-4",
+        "response_metadata": {
+          "finish_reason": "stop"
+        },
+        "tool_calls": [],
+        "type": "ai",
+        "usage_metadata": {
+          "input_tokens": 950,
+          "output_tokens": 25
+        }
+      },
+      {
+        "content": "Please forget what I told you about my arXiv research contact email.",
+        "id": "msg-5",
+        "type": "human"
+      },
+      {
+        "content": "",
+        "id": "msg-6",
+        "response_metadata": {
+          "finish_reason": "tool_calls"
+        },
+        "tool_calls": [
+          {
+            "args": {
+              "query": "arXiv research contact email"
+            },
+            "id": "call-forget-1",
+            "name": "forget_memory"
+          }
+        ],
+        "type": "ai",
+        "usage_metadata": {
+          "input_tokens": 1000,
+          "output_tokens": 15
+        }
+      },
+      {
+        "content": "{\"status\": \"completed\", \"deleted\": 1, \"matches\": []}",
+        "id": "msg-7",
+        "status": "success",
+        "tool_call_id": "call-forget-1",
+        "type": "tool"
+      },
+      {
+        "content": "Done \u2014 I've forgotten what you told me about your arXiv research contact email.",
+        "id": "msg-9",
+        "response_metadata": {
+          "finish_reason": "stop"
+        },
+        "tool_calls": [],
+        "type": "ai",
+        "usage_metadata": {
+          "input_tokens": 1100,
+          "output_tokens": 22
+        }
+      }
+    ],
+    "milestones": [
+      {
+        "milestone": "instruction",
+        "observed_at": "2026-08-08T12:00:00Z",
+        "sequence": 1
+      },
+      {
+        "milestone": "turn1_completed",
+        "observed_at": "2026-08-08T12:00:05Z",
+        "sequence": 2
+      },
+      {
+        "milestone": "memory_drained",
+        "observed_at": "2026-08-08T12:00:06Z",
+        "sequence": 3
+      },
+      {
+        "milestone": "turn2_completed",
+        "observed_at": "2026-08-08T12:00:20Z",
+        "sequence": 4
+      },
+      {
+        "milestone": "turn3_state_injected",
+        "observed_at": "2026-08-08T12:00:30Z",
+        "sequence": 5
+      },
+      {
+        "milestone": "turn3_interrupt",
+        "observed_at": "2026-08-08T12:00:31Z",
+        "sequence": 6
+      },
+      {
+        "milestone": "preapproval_snapshot",
+        "observed_at": "2026-08-08T12:00:32Z",
+        "sequence": 7
+      },
+      {
+        "milestone": "approval:forget_memory",
+        "observed_at": "2026-08-08T12:00:33Z",
+        "sequence": 8
+      },
+      {
+        "milestone": "forget_memory_success",
+        "observed_at": "2026-08-08T12:00:45Z",
+        "sequence": 9
+      },
+      {
+        "milestone": "postapproval_read",
+        "observed_at": "2026-08-08T12:00:46Z",
+        "sequence": 10
+      },
+      {
+        "milestone": "final_assistant_message",
+        "observed_at": "2026-08-08T12:00:47Z",
+        "sequence": 11
+      },
+      {
+        "milestone": "near_boundary_probe",
+        "observed_at": "2026-08-08T12:00:48Z",
+        "sequence": 12
+      },
+      {
+        "milestone": "no_bleed_probe",
+        "observed_at": "2026-08-08T12:00:49Z",
+        "sequence": 13
+      }
+    ],
+    "model_usage": {
+      "cache_tokens": 0,
+      "input_tokens": 3950,
+      "output_tokens": 82
+    },
+    "near_boundary_probe": {
+      "query": "xyzzy-no-such-benchmark-topic-000901",
+      "result": {
+        "deleted": 0,
+        "matches": [],
+        "status": "completed"
+      }
+    },
+    "network_boundary": {
+      "approved_model_host_reachable_via_proxy": true,
+      "approved_model_probe_status": 404,
+      "direct_public_socket_blocked": true,
+      "unrelated_https_blocked_by_proxy": true,
+      "unrelated_probe_status": 403
+    },
+    "no_bleed": {
+      "second_user_direct_key_hit": false,
+      "second_user_namespace": [
+        "user",
+        "00000000-0000-4000-8000-000000000906"
+      ],
+      "second_user_search_hits": []
+    },
+    "notes": "Production graph, one thread, three turns. Turn 3 reaches forget_memory via graph.aupdate_state(as_node='preprocessing_node').",
+    "pending_interrupt_after_resume": null,
+    "postapproval_memory_present": false,
+    "preapproval_snapshot": {
+      "memory_present": true,
+      "memory_value": {
+        "created_at": "2026-08-08T12:00:05Z",
+        "intent": "research",
+        "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+        "thread_id": "00000000-0000-4000-8000-000000000904",
+        "tools_used": [],
+        "turn_index": 1
+      },
+      "observed_at": "2026-08-08T12:00:50Z",
+      "phase": "before_approval"
+    },
+    "schema_version": "1.0",
+    "semantic": "N/A (deterministic; design doc reconciliation, see task.md)",
+    "source_revision": "b1165862ff0ba2021a0a5a3a206a0fd253a6d9a2",
+    "started_at": "2026-08-08T12:00:00Z",
+    "store_backend": "AsyncPostgresStore",
+    "suppress_observation_for": [
+      "forget_memory"
+    ],
+    "synthetic_actor": {
+      "organization_id": "00000000-0000-4000-8000-000000000901",
+      "second_thread_id": "00000000-0000-4000-8000-000000000905",
+      "second_user_id": "00000000-0000-4000-8000-000000000906",
+      "thread_id": "00000000-0000-4000-8000-000000000904",
+      "user_id": "00000000-0000-4000-8000-000000000902",
+      "workspace_id": "00000000-0000-4000-8000-000000000903"
+    },
+    "termination_reason": "completed",
+    "tool_executions": [
+      {
+        "result": {
+          "deleted": 1,
+          "matches": [
+            {
+              "key": "a1b2c3d4e5f6",
+              "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+              "score": 0.0
+            }
+          ],
+          "status": "completed"
+        },
+        "status": "completed",
+        "tool_name": "forget_memory"
+      }
+    ],
+    "turn2": {
+      "final_assistant_message": {
+        "content": "You have a contact email on file (redacted in memory) for your arXiv research.",
+        "tool_calls": []
+      },
+      "user_memories": [
+        {
+          "key": "a1b2c3d4e5f6",
+          "score": 0.0,
+          "value": {
+            "created_at": "2026-08-08T12:00:05Z",
+            "intent": "research",
+            "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+            "thread_id": "00000000-0000-4000-8000-000000000904",
+            "tools_used": [],
+            "turn_index": 1
+          }
+        }
+      ]
+    },
+    "turn2_instruction": "What contact email do you have on file for my arXiv research?",
+    "turn3_instruction": "Please forget what I told you about my arXiv research contact email."
+  },
+  "state": {
+    "user_id": "00000000-0000-4000-8000-000000000902",
+    "user_seeded": true
+  }
+}
