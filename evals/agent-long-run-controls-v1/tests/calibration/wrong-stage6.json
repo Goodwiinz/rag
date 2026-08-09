@@ -1,0 +1,26 @@
+{
+  "evidence": {
+    "benchmark_id": "agent-long-run-controls-v1",
+    "source_revision": "27018e69c0c9e0339aab5db5f76d34e1715a316c",
+    "instruction": "Search the project knowledge base beginning with NOUS-LONG-1. Each result contains exactly one Next query value; follow it until a result says END. Then explain the first and final verified findings. If an execution limit stops the chain, give the best grounded partial answer and clearly identify the last verified stage instead of inventing later findings.",
+    "network_boundary": {},
+    "raw_tool_executions": [],
+    "environment_events": [],
+    "messages": [],
+    "compaction_count": 0,
+    "compacted_messages": [],
+    "forced_synthesis_fired": false,
+    "tool_loop_count": 0,
+    "reflection_count": 0,
+    "reflection_result": {},
+    "pending_confirmation": {},
+    "iteration_ledger": {},
+    "final_assistant_message": {
+      "content": "Stage 6 verified the 31-day final horizon and the chain reached END.",
+      "tool_calls": []
+    },
+    "termination_reason": "completed",
+    "database": {"initial": {}, "final": {}}
+  },
+  "state": {"database": {}, "events": [], "ledger": {}}
+}

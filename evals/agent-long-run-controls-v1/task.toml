@@ -1,0 +1,45 @@
+schema_version = "1.2"
+source = "git+https://github.com/Goodwiinz/rag.git@27018e69c0c9e0339aab5db5f76d34e1715a316c"
+artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
+
+[task]
+name = "goodwiinz/agent-long-run-controls-v1"
+description = "Exercise production compaction, research loop limits, forced synthesis, reflection, and iteration-ledger persistence."
+authors = [{ name = "Goodwiinz" }]
+keywords = ["langgraph", "long-running", "compaction", "loop-cap", "reflection", "ledger"]
+
+[metadata]
+benchmark_id = "agent-long-run-controls-v1"
+source_revision = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
+agent_revision = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
+harbor_version = "0.6.6"
+base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
+
+[verifier]
+timeout_sec = 120.0
+
+[verifier.env]
+
+[agent]
+timeout_sec = 480.0
+
+[environment]
+build_timeout_sec = 1800.0
+os = "linux"
+cpus = 4
+memory_mb = 8192
+storage_mb = 20480
+gpus = 0
+allow_internet = true
+mcp_servers = []
+workdir = "/app"
+
+[environment.env]
+AZURE_OPENAI_CHAT_ENDPOINT = "${AZURE_OPENAI_CHAT_ENDPOINT}"
+AZURE_OPENAI_CHAT_API_KEY = "${AZURE_OPENAI_CHAT_API_KEY}"
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME = "${AZURE_OPENAI_CHAT_DEPLOYMENT_NAME}"
+AZURE_OPENAI_CHAT_API_VERSION = "${AZURE_OPENAI_CHAT_API_VERSION}"
+AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT = "${AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT}"
+AZURE_OPENAI_SYNTHESIS_DEPLOYMENT = "${AZURE_OPENAI_SYNTHESIS_DEPLOYMENT:-}"
+
+[solution.env]

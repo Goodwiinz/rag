@@ -22,8 +22,8 @@ from langgraph.types import Command
 from sqlalchemy import func, select
 
 BENCHMARK_ID = "agent-direct-project-action-v1"
-SOURCE_REVISION = "6e618d0fb5874fa262b783345000f1496e52d7c7"
-AGENT_REVISION = "756367d7b015c7e2b2d2b6d69092feb9e3dd0c40"
+SOURCE_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
+AGENT_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
 APPROVAL_TEXT = "Yes, create it."
 EXPECTED_INSTRUCTION = "Create a project named The Discovery Note."
 EXPECTED_PROJECT_NAME = "The Discovery Note"

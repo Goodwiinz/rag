@@ -51,7 +51,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.judge import run_semantic_judge
 
 BENCHMARK_ID = "agent-kb-retrieval-v1"
-EXPECTED_SOURCE_REVISION = "b67ebbf1b067d5f5b1e74299535244e58df41a68"
+EXPECTED_SOURCE_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
 EXPECTED_INSTRUCTION = (
     'Search my documents for a file titled "API Rate Limit Policy" to confirm '
     "we have it on file, then use the organization knowledge base to retrieve "
