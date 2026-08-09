@@ -60,9 +60,7 @@ spec:
                 {{- toYaml .Values.backend.envFrom | nindent 16 }}
                 {{- end }}
               env:
-                {{- if .Values.backend.env }}
-                {{- toYaml .Values.backend.env | nindent 16 }}
-                {{- end }}
+                {{- include "knowledge-graph-analytics.mergedEnv" (dict "base" .Values.backend.env "override" .Values.syntheticTraffic.env) | nindent 16 }}
                 # Ensure PYTHONPATH and ENVIRONMENT are always set even if
                 # backend.env is overridden in a future values file.
                 - name: ENVIRONMENT

@@ -460,7 +460,7 @@ class Settings(BaseSettings):
     AGENT_FAST_PATH_REQUEST_TIMEOUT: float = 20.0
 
     # gpt-5 reasoning_effort knobs. Lower = faster.
-    # Accepted values: "minimal" | "low" | "medium" | "high"
+    # Accepted values: "none" | "minimal" | "low" | "medium" | "high"
     # Defaults tuned for fast responses; raise to "medium" for tougher tasks.
     AGENT_MAIN_REASONING_EFFORT: str = "low"
     # Governs classify / plan / reflect / compact / synthesis only — never a
