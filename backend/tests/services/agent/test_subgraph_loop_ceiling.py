@@ -231,6 +231,10 @@ async def test_writing_force_synthesis_strips_tool_calls_and_synthesizes():
     assert not any(
         getattr(m, "tool_calls", None) for m in captured["messages"]
     )
+    prompt = captured["messages"][0].content
+    assert "unanswered tool request was not executed" in prompt
+    assert "execution limit stopped the remaining work" in prompt
+    assert "emit tool-call syntax" in prompt
 
 
 @pytest.mark.unit
