@@ -476,7 +476,7 @@ class Settings(BaseSettings):
     AGENT_FAST_PATH_REQUEST_TIMEOUT: float = 20.0
 
     # gpt-5 reasoning_effort knobs. Lower = faster.
-    # Accepted values: "minimal" | "low" | "medium" | "high"
+    # Accepted values: "none" | "minimal" | "low" | "medium" | "high"
     # Defaults tuned for fast responses; raise to "medium" for tougher tasks.
     #
     # Forwarded ONLY when AGENT_USE_RESPONSES_API is on. On Chat Completions
