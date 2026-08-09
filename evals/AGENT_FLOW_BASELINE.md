@@ -234,7 +234,7 @@ Harbor task lands and its calibration fixtures pass.
 | 9 | Memory round-trip | task landed | `memory_retrieval` → `memory_save_node`, `forget_memory`, redaction at the memory boundary (Harbor task `agent-memory-roundtrip-v1`; awaiting first recorded run) |
 | 10 | Error recovery | later | `error_recovery.py` taxonomy, tool-hint honouring, MAX_ERRORS, degraded final message |
 | 11 | Long-run controls | later | `compactor_node`, `force_synthesis_node`, `reflection_gate`, iteration ledger |
-| 12 | Tenant isolation probes | next | cross-org probes against every read tool + RAG node |
+| 12 | Tenant isolation probes | task landed | cross-org probes against every read tool + RAG node (Harbor task `agent-tenant-isolation-v1`; awaiting first recorded run) |
 | 13 | Luna fast path | next | `fast_path.py` — cancel defects fixed in #1353; same invariants as capability 3 |
 | 14 | Project management | task landed | `create_project`, `add_document_to_project`, `create_project_note`, `list_project_documents` read-back, three-step HITL ordering (Harbor task `agent-project-management-v1`; awaiting first recorded run — soft-delete visibility still uncovered) |
 | 15 | Knowledge-base retrieval | task landed | `search_documents`, `do_kb_retrieve` (Harbor task `agent-kb-retrieval-v1`; awaiting first recorded run — `summarize_document` deferred, see coverage note) |
@@ -570,13 +570,75 @@ compaction answer still consistent with earlier turns.
 
 ### 12. Tenant isolation probes
 
-Objective gates: for **every** read tool (documents, projects, KG, memory,
-suggestions) and the RAG node, a second-org fixture user issues the same
-query and receives zero rows/titles/ids belonging to org A; error messages
-leak no cross-tenant identifiers; probes run in the same trial batch so
-drift is caught per-release. This capability is pure objective — semantic
-N/A. Rationale: tenant leaks are NOUS's recurring defect class (#1219,
-#1292, hunt-6); the gate makes the sweep continuous instead of episodic.
+**Preconditions:** two disjoint synthetic organizations, one process, one
+trial. Org A (`00000000-0000-4000-8000-000000000801`/`…0802`/`…0803`) holds
+exactly one of each fixture kind: one document, one project (with the
+document attached), a 2-entity/1-relationship Neo4j graph, one saved
+long-term memory, and one project-skill-catalog row. Org B
+(`…0810`/`…0811`/`…0812`) mirrors the disjoint-second-org shape plan 3's
+`agent-knowledge-graph-flow-v1` established (`OTHER_ORG_ID`) and holds none
+of it.
+
+**The enumerated read surface (12 probes)**, determined from
+`backend/src/services/agent/tool_registry.py`/`tools.py`/`tools_impl.py`/
+`_nodes_rag.py`/`_nodes_memory.py` rather than assumed:
+`search_documents`, `summarize_document`, `compare_documents` (documents);
+`list_projects`, `list_project_documents` (projects);
+`search_knowledge_graph`, `explore_entity_neighborhood`,
+`find_entity_paths`, `get_graph_stats` (knowledge graph);
+`memory_retrieval_node` (memory — a graph node, not a LangChain tool, keyed
+by `user_id` rather than `organization_id`); `load_project_skill`
+(suggestions — **the current registry has no tool literally named
+"suggestions"**; this is the nearest read-only per-project catalog surface
+and is used in its place, reported as a deviation, not silently
+substituted); and `rag_node` (`_nodes_rag.py` — the RAG node itself,
+distinct from the `do_kb_retrieve`/`search_documents` tool wrappers).
+
+**Objective gates:**
+- Gate 1 — for every one of the 12 probes, org B issues the identical query
+  (same free-text query, or org A's real just-seeded id for id-shaped
+  tools) and receives **zero** rows/titles/ids belonging to org A.
+- Gate 2 — error messages leak **no** cross-tenant identifier: no org-A
+  UUID, title, or filename appears in any `error` string recorded for any
+  probe.
+- Gate 3 — all 12 probes run in the **same trial batch** (one
+  `evidence.probes` list, one seeded tenant pair, one process), and the
+  verifier asserts the recorded probe **count and id set** match the
+  declared 12 exactly — a tool added later without a matching probe, or a
+  probe silently dropped, is a coverage hole and fails this gate.
+
+**The critical anti-false-pass design point:** an empty database makes
+"perfect isolation" and "total breakage" look identical to org B — both
+return zero rows. So for every probe the verifier first asserts org A's own
+query returned at least one row that is actually org A's seeded data; only
+then does it evaluate org B's identical query for a leak. A probe whose
+org-A side returns nothing is an **infrastructure failure**
+(`InfrastructureFailure`, verifier exit 2), never a gate pass and never a
+gate failure — proven by the dedicated `infra-empty-org-a.json` calibration
+fixture.
+
+**Semantic gate:** N/A — every probe is a deterministic row/id comparison.
+Rationale: tenant leaks are NOUS's recurring defect class (#1219, #1292,
+hunt-6); the gate makes the sweep continuous instead of episodic.
+
+**Coverage note:** probes call tool/node implementation functions directly
+with a synthetic session/user rather than driving full LangGraph turns with
+LLM tool selection — the property under test (server-side tenant scoping in
+the data-access layer) is identical either way, but this is not a claim
+about routing or prompt-following. `search_arxiv`, `ingest_arxiv_papers`,
+`search_external_database`, `list_external_databases` (no per-org data to
+leak), DO KB's own primary-read path (disabled in this environment; the
+`rag_node` probe exercises the Postgres hybrid-search fallback only), and
+every write/destructive tool are out of scope for this read-isolation sweep.
+
+**Status:** NOT GATED — Harbor task landed
+(`evals/agent-tenant-isolation-v1`), calibration verified locally (1 pass +
+4 `wrong-*` fixtures — leaked row, leaked error identifier (UUID), leaked
+error identifier (title/filename only, no UUID — the regression test for
+the gate-2 whole-value matching fix), coverage-hole missing probe — each
+exit 10, plus 1 `infra-*` fixture for the empty-org-A false-pass guard,
+exit 2 not 10), awaits first recorded run. See
+`source-manifests/agent-flow-2026-08-09-tenant-isolation.json`.
 
 ### 13. Luna fast path
 
