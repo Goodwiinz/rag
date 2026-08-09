@@ -490,6 +490,37 @@ class TestFallbackClassifier:
         assert route_by_intent({"intent": result.intent}) == "research_subgraph"
         assert "create_project" in RESEARCH_TOOL_NAMES_LIST
 
+    @pytest.mark.parametrize(
+        "query, expected_intent",
+        [
+            (
+                "Use Python to find the SHA-256 hex digest of the exact string "
+                '"nous-benchmark-1101" and report the digest.',
+                "research",
+            ),
+            (
+                "First call list_external_databases, then call "
+                "search_external_database for PubMed and FRED.",
+                "general",
+            ),
+        ],
+    )
+    async def test_explicit_tool_requests_skip_llm(
+        self, query: str, expected_intent: str
+    ):
+        """Explicit tool requests must route to the intent that exposes them."""
+        from src.services.agent.classifier import classify_intent_with_fallback
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+        ) as mock_llm:
+            result = await classify_intent_with_fallback(query, {"type": "unknown"})
+
+        mock_llm.assert_not_called()
+        assert result.intent == expected_intent
+        assert result.source == "action_override"
+
     async def test_project_creation_override_uses_whole_phrase_matching(self):
         """Words containing an override phrase must not be routed as project creation."""
         from src.services.agent.classifier import classify_intent_with_fallback

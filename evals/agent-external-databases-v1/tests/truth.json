@@ -4,7 +4,6 @@
   "user_id": "00000000-0000-4000-8000-000000001202",
   "workspace_id": "00000000-0000-4000-8000-000000001203",
   "thread_id": "00000000-0000-4000-8000-000000001204",
-  "sentinel_intent": "benchmark_all_tools",
   "total_connectors": 11,
   "key_gated_connectors": ["fred", "alpha_vantage", "cosmic"],
   "keyless_connectors": [

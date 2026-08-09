@@ -15,7 +15,9 @@
       "workspace_id": "00000000-0000-4000-8000-000000001103",
       "thread_id": "00000000-0000-4000-8000-000000001104"
     },
-    "observed_intent": "research",
+    "env_flags": { "routing_workaround": "sentinel_intent" },
+    "sentinel_intent": "benchmark_all_tools",
+    "observed_intent": "benchmark_all_tools",
     "classification": {
       "keyword_intent": "research",
       "keyword_confidence": 0.5,
@@ -58,14 +60,7 @@
       "resume": { "confirmed": true }
     },
     "pending_interrupt_after_resume": null,
-    "mock_events_before_approval": [
-      {
-        "sequence": 1,
-        "type": "create",
-        "sandbox_id": "sbx-0001",
-        "template": "code-interpreter-v1"
-      }
-    ],
+    "mock_events_before_approval": [],
     "mock_events": [
       {
         "sequence": 1,
