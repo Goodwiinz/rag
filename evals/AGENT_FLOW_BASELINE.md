@@ -230,7 +230,7 @@ Harbor task lands and its calibration fixtures pass.
 | 5 | arXiv research flow | task landed | `search_arxiv`, `ingest_arxiv_papers` (HITL), post-ingest `document_ids` handoff (Harbor task `agent-arxiv-research-flow-v1`; awaiting first recorded run) |
 | 6 | Writing flow | task landed | `create_draft` (HITL), `export_bibliography`, `compare_documents` (Harbor task `agent-writing-flow-v1`; awaiting first recorded run — `create_project_note` still uncovered) |
 | 7 | Knowledge-graph flow | task landed | `search_knowledge_graph`, `explore_entity_neighborhood`, `find_entity_paths`, `get_graph_stats` (Harbor task `agent-knowledge-graph-flow-v1`; awaiting first recorded run — `extract_entities` deferred, see coverage note) |
-| 8 | HITL interrupt lifecycle | next | `interrupt_node`, confirm/reject/timeout, resume semantics |
+| 8 | HITL interrupt lifecycle | task landed | `interrupt_node`, confirm/reject/timeout, resume semantics (Harbor task `agent-hitl-lifecycle-v1`; awaiting first recorded run) |
 | 9 | Memory round-trip | task landed | `memory_retrieval` → `memory_save_node`, `forget_memory`, redaction at the memory boundary (Harbor task `agent-memory-roundtrip-v1`; awaiting first recorded run) |
 | 10 | Error recovery | later | `error_recovery.py` taxonomy, tool-hint honouring, MAX_ERRORS, degraded final message |
 | 11 | Long-run controls | later | `compactor_node`, `force_synthesis_node`, `reflection_gate`, iteration ledger |
@@ -422,13 +422,71 @@ deliberately; a future increment covers it as its own near-boundary trial.
 
 ### 8. HITL interrupt lifecycle
 
-Objective gates: interrupt payload names tool + args exactly; **reject**
-resumes the graph with zero mutations and a coherent final message; approval
-executes exactly once (no double-fire on re-confirm); `POST /confirm/{job_id}`
-on an already-resolved interrupt is a no-op with a stable status; cancel while
-parked leaves the interrupt re-deliverable (capability 3's confirm-path rule).
-Checkpoint URL is `postgresql://` (psycopg v3) — a `+asyncpg` URL is a C
-failure. Semantic: N/A.
+**Preconditions:** one synthetic organization/user/workspace
+(`00000000-0000-4000-8000-000000000801/…0802/…0803`) with zero `projects`
+rows. Four independent single-turn sessions, each driving `create_project`
+(the same tool capability 14 exercises, so tool selection is not the
+variable under test) through the real job API — `POST /execute`,
+`GET /jobs/{job_id}`, `POST /confirm/{job_id}` — rather than by driving the
+LangGraph graph object directly, because gate 4's "stable status on an
+already-resolved confirm" is a property of the job store's Redis-backed
+compare-and-set (`job_store.py:compare_and_set_status`), not of the graph
+alone.
+
+**Objective gates:**
+- Gate 1 — the interrupt payload built by `interrupt_node`
+  (`_nodes_tools.py:236`) names the tool and its arguments **exactly**: the
+  recorded `{"name": ..., "args": {...}}` block is compared by value against
+  the tool call the graph actually queued, never by substring match.
+- Gate 2 — **reject** (`confirmed: false`) resumes the graph with **zero
+  mutations**: the `projects` row count for the seeded workspace is
+  unchanged, verified by the verifier's own independent read (authoritative
+  over the adapter's own snapshot — a leaked row fails the gate even if the
+  adapter's self-reported counts claim otherwise), plus a coherent non-empty
+  final assistant message.
+- Gate 3 — **approval executes exactly once**: the single confirm produces
+  exactly one mutation row (`rows_after - rows_before == 1`) and exactly one
+  `create_project` tool-execution record.
+- Gate 4 — `POST /confirm/{job_id}` on an **already-resolved** interrupt is a
+  no-op with a **stable** status. Production behavior
+  (`execute.py:confirm_agent_action`) has no 200/no-op success path for a
+  resolved job: `_validate_confirmable_job` returns `409 "Job is not
+  awaiting confirmation"` once `job.status != AWAITING_CONFIRMATION`, and if
+  a race let a second caller past that check, the atomic
+  `compare_and_set_status` CAS returns `"conflict"` and produces the same
+  409. The gate is stated over that shape — every repeat call returns the
+  **same** HTTP status as every other repeat call, and none of them changes
+  the row count.
+- Gate 5 — **cancel while parked** leaves the interrupt **re-deliverable**:
+  polling a parked job without confirming must keep returning the identical
+  `confirmation` payload (same tool, same args) on every poll — capability
+  3's confirm-path idempotency rule, restated for the job-poll transport.
+- Gate 6 (infrastructure, not a lifecycle gate) — the checkpointer's
+  connection string, read via
+  `src.services.agent.checkpointer.get_db_uri()`, must be `postgresql://`
+  (psycopg v3). A `postgresql+asyncpg://` URL is an **infrastructure
+  failure** (verifier exit 2): it means the environment wired the wrong
+  driver, not that the agent behaved incorrectly, so it must never be scored
+  as gate failure (exit 10).
+
+**Semantic gate:** N/A (counts as pass) — none of the four phases produces a
+judgeable answer.
+
+**Coverage note:** this task covers the interrupt/confirm/reject/cancel
+state machine around one destructive tool (`create_project`). It does not
+yet cover interrupts on the other destructive tools
+(`add_document_to_project`, `create_project_note`, `create_draft`,
+`ingest_arxiv_papers`, `execute_code`, `forget_memory`), a batched interrupt
+carrying more than one tool call, or multi-worker races on the confirm
+compare-and-set (this task's environment runs a single FastAPI process and a
+single Redis instance) — those remain the next increments on this
+capability.
+
+**Status:** NOT GATED — Harbor task landed
+(`evals/agent-hitl-lifecycle-v1`), calibration verified locally (1 pass +
+5 `wrong-*` fixtures, one per lifecycle gate 1-5, each isolating exactly one
+gate + 1 `infra-*` fixture for gate 6, exit 2 not 10), awaits first recorded
+run. See `source-manifests/agent-flow-2026-08-09-hitl-lifecycle.json`.
 
 ### 9. Memory round-trip
 
