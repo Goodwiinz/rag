@@ -235,7 +235,7 @@ Harbor task lands and its calibration fixtures pass.
 | 10 | Error recovery | later | `error_recovery.py` taxonomy, tool-hint honouring, MAX_ERRORS, degraded final message |
 | 11 | Long-run controls | later | `compactor_node`, `force_synthesis_node`, `reflection_gate`, iteration ledger |
 | 12 | Tenant isolation probes | task landed | cross-org probes against every read tool + RAG node (Harbor task `agent-tenant-isolation-v1`; awaiting first recorded run) |
-| 13 | Luna fast path | next | `fast_path.py` — cancel defects fixed in #1353; same invariants as capability 3 |
+| 13 | Luna fast path | task landed | `fast_path.py` — cancel defects fixed in #1353; same invariants as capability 3 (Harbor task `agent-fast-path-cancel-v1`; awaiting first recorded run) |
 | 14 | Project management | task landed | `create_project`, `add_document_to_project`, `create_project_note`, `list_project_documents` read-back, three-step HITL ordering (Harbor task `agent-project-management-v1`; awaiting first recorded run — soft-delete visibility still uncovered) |
 | 15 | Knowledge-base retrieval | task landed | `search_documents`, `do_kb_retrieve` (Harbor task `agent-kb-retrieval-v1`; awaiting first recorded run — `summarize_document` deferred, see coverage note) |
 | 16 | Code execution | task landed | `execute_code` (HITL), E2B wire double, fabricated-execution guard (Harbor task `agent-code-execution-v1`; awaiting first recorded run — live-unreachable in production routing, see coverage note) |
