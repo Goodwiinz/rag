@@ -291,7 +291,9 @@ def check_partial_persisted(
 
     run = state.get("run") or {}
     if run.get("status") != "cancelled":
-        failures.append(f"AgentRun status was {run.get('status')!r}, expected cancelled")
+        failures.append(
+            f"AgentRun status was {run.get('status')!r}, expected cancelled"
+        )
 
 
 def check_cancel_linkage(
@@ -445,7 +447,9 @@ def db_snapshot(evidence: dict[str, Any], state: dict[str, Any]) -> dict[str, An
 
 
 def main() -> int:
-    return run_verifier_main(BENCHMARK_ID, objective_failures, report_extra_fn=db_snapshot)
+    return run_verifier_main(
+        BENCHMARK_ID, objective_failures, report_extra_fn=db_snapshot
+    )
 
 
 if __name__ == "__main__":

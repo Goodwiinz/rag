@@ -2,12 +2,12 @@
   "schema_version": "1.0",
   "suite": "nous-agent-tools-v1",
   "recorded_at": "",
-  "repository_revision": "dfa09a815d8b88edb658b530921e73023c183ef5",
-  "agent_revision": "dfa09a815d8b88edb658b530921e73023c183ef5",
+  "repository_revision": "668ef4e11914e47fdc0f0c5c90874bae4f8c37c2",
+  "agent_revision": "668ef4e11914e47fdc0f0c5c90874bae4f8c37c2",
   "harbor_version": "0.6.6",
   "harness": {
     "import_path": "evals.harbor_agents.nous_production_agent:NousProductionAgent",
-    "aggregate_sha256": "e774f94291041ac010765090a8d9c2e8fea7ae22493819ff0efabba578f3fb6b",
+    "aggregate_sha256": "44e79155efd98e5b2bf487f5423186d88ad1ecbcd3a8793a212c0c8907808942",
     "files": [
       {
         "path": "evals/harbor_agents/__init__.py",
@@ -31,7 +31,7 @@
       },
       {
         "path": "evals/harbor_common/judge.py",
-        "sha256": "6c841708872c46e06d89166d11db4cbf71bc69ba9aae05642b87d8c5f05753ee"
+        "sha256": "fed222cbcf8ede3e77d8e1787da2e8468041e2b25e16fbb867bd63180dc041cd"
       },
       {
         "path": "evals/harbor_common/network.py",
@@ -39,7 +39,7 @@
       },
       {
         "path": "evals/harbor_common/selftest.py",
-        "sha256": "a5bae9b4a2ca079e45bd8328f3b77d14dfcb5078a872eb9a15c541e62a9cfbb0"
+        "sha256": "22cad5a7ba9f611ce39a30b4e552881a192e12b4b9777fd89fa6eb21ea930d14"
       },
       {
         "path": "evals/harbor_common/serialization.py",
@@ -65,7 +65,7 @@
   },
   "digest_algorithm": "SHA-256 of shasum -a 256 lines sorted by repository-relative path (sort -k2); __pycache__ files excluded",
   "task_digests": {
-    "agent-hitl-lifecycle-v1": "sha256:8422839383b62093b0c40d7df01edbe4e855be73e3cf6a5c41cb2f76b345136f"
+    "agent-hitl-lifecycle-v1": "sha256:341d659eccf43e52fc2a3001ca7580e04cd820c041d4f295f67b208b2a4daeee"
   },
   "invalidation_rule": "Any repository, task, or Harness digest change requires new run evidence and a new baseline declaration.",
   "digest_reproducibility_note": "Computed locally via Linux shasum in the plan-5 worktree on 2026-08-09 at develop-derived commit dfa09a81. Per plan 4's Risk 4, these digests are not guaranteed to reproduce byte-for-byte inside the Harbor verify container; the recorded-run step recomputes and finalizes against the container, not this checkout. This is a NOT GATED task — no run has been recorded yet."

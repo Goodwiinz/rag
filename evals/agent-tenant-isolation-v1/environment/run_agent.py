@@ -195,7 +195,13 @@ def leak_vocabulary() -> list[str]:
     value substring match, tokens under 6 characters ignored to avoid
     common-word false positives).
     """
-    return [DOCUMENT_TITLE, DOCUMENT_FILENAME, PROJECT_NAME, ENTITY_1_NAME, ENTITY_2_NAME]
+    return [
+        DOCUMENT_TITLE,
+        DOCUMENT_FILENAME,
+        PROJECT_NAME,
+        ENTITY_1_NAME,
+        ENTITY_2_NAME,
+    ]
 
 
 def _seed_org_a_graph_sync() -> dict[str, str]:
@@ -263,7 +269,9 @@ async def seed_org_a_graph() -> dict[str, str]:
             f"neo4j org-A seed failed: {type(exc).__name__}: {exc}"
         ) from exc
     try:
-        queryable = await asyncio.to_thread(_verify_seed_queryable_sync, ids["entity_1"])
+        queryable = await asyncio.to_thread(
+            _verify_seed_queryable_sync, ids["entity_1"]
+        )
     except Exception as exc:
         raise InfrastructureFailure(
             f"landmine-1 seed-queryable self-check failed: {type(exc).__name__}: {exc}"
@@ -292,7 +300,9 @@ async def seed_org_a_skill(project_id: UUID) -> str:
 # ---------------------------------------------------------------------------
 # probes
 # ---------------------------------------------------------------------------
-def _rows_from_documents_payload(payload: dict[str, Any], seed: dict[str, str]) -> list[str]:
+def _rows_from_documents_payload(
+    payload: dict[str, Any], seed: dict[str, str]
+) -> list[str]:
     rows = []
     for doc in payload.get("documents") or []:
         if not isinstance(doc, dict):
@@ -375,7 +385,10 @@ async def probe_list_projects(seed: dict[str, str]) -> dict[str, Any]:
         for project in payload.get("projects") or []:
             if not isinstance(project, dict):
                 continue
-            if project.get("id") == seed["project_id"] or project.get("name") == PROJECT_NAME:
+            if (
+                project.get("id") == seed["project_id"]
+                or project.get("name") == PROJECT_NAME
+            ):
                 found.append(project.get("id") or project.get("name"))
         return found
 
@@ -393,7 +406,9 @@ async def probe_list_project_documents(seed: dict[str, str]) -> dict[str, Any]:
     def rows(payload: dict[str, Any]) -> list[str]:
         if payload.get("error"):
             return []
-        return [d.get("id") for d in (payload.get("documents") or []) if isinstance(d, dict)]
+        return [
+            d.get("id") for d in (payload.get("documents") or []) if isinstance(d, dict)
+        ]
 
     return await _run_probe(
         "projects.list_project_documents",
@@ -416,7 +431,10 @@ async def probe_search_knowledge_graph(seed: dict[str, str]) -> dict[str, Any]:
         for entity in payload.get("entities") or []:
             if not isinstance(entity, dict):
                 continue
-            if entity.get("id") == seed["entity_id"] or entity.get("name") == ENTITY_1_NAME:
+            if (
+                entity.get("id") == seed["entity_id"]
+                or entity.get("name") == ENTITY_1_NAME
+            ):
                 found.append(entity.get("id") or entity.get("name"))
         return found
 
@@ -476,7 +494,10 @@ async def probe_find_entity_paths(seed: dict[str, str]) -> dict[str, Any]:
     return await _run_probe(
         "knowledge_graph.find_entity_paths",
         "knowledge_graph",
-        {"source_entity_id": seed["entity_id"], "target_entity_id": seed["entity_id_2"]},
+        {
+            "source_entity_id": seed["entity_id"],
+            "target_entity_id": seed["entity_id_2"],
+        },
         seed,
         call,
         rows,
@@ -495,7 +516,13 @@ async def probe_get_graph_stats(seed: dict[str, str]) -> dict[str, Any]:
         return [f"total_entities={total}"] if total else []
 
     return await _run_probe(
-        "knowledge_graph.get_graph_stats", "knowledge_graph", {}, seed, call, rows, needs_db=False
+        "knowledge_graph.get_graph_stats",
+        "knowledge_graph",
+        {},
+        seed,
+        call,
+        rows,
+        needs_db=False,
     )
 
 
@@ -510,13 +537,17 @@ async def probe_memory_retrieval(seed: dict[str, str]) -> dict[str, Any]:
         return await search_memories(store, str(user_id), MEMORY_FRAGMENT, limit=5)
 
     a_memories = await search(USER_A_ID)
-    a_rows = [m.get("query") for m in a_memories if MEMORY_FRAGMENT in str(m.get("query", ""))]
+    a_rows = [
+        m.get("query") for m in a_memories if MEMORY_FRAGMENT in str(m.get("query", ""))
+    ]
 
     error = None
     try:
         b_memories = await search(USER_B_ID)
         b_rows = [
-            m.get("query") for m in b_memories if MEMORY_FRAGMENT in str(m.get("query", ""))
+            m.get("query")
+            for m in b_memories
+            if MEMORY_FRAGMENT in str(m.get("query", ""))
         ]
     except Exception as exc:  # noqa: BLE001 - captured as probe evidence, not raised
         b_rows = []
@@ -554,9 +585,11 @@ async def probe_load_project_skill(seed: dict[str, str]) -> dict[str, Any]:
 
     async with AsyncSessionLocal() as db_a:
         a_result = await call(USER_A_ID, db_a)
-    a_rows = [seed["skill_id"]] if not a_result.get("error") and not a_result.get(
-        "error_type"
-    ) else []
+    a_rows = (
+        [seed["skill_id"]]
+        if not a_result.get("error") and not a_result.get("error_type")
+        else []
+    )
 
     error = None
     try:
@@ -728,25 +761,19 @@ async def independent_relational_snapshot() -> dict[str, Any]:
 
     async with AsyncSessionLocal() as session:
         documents = (
-            (
-                await session.execute(
-                    select(Document.id, Document.organization_id).where(
-                        Document.is_deleted == False  # noqa: E712
-                    )
+            await session.execute(
+                select(Document.id, Document.organization_id).where(
+                    Document.is_deleted == False  # noqa: E712
                 )
             )
-            .all()
-        )
+        ).all()
         collections = (
-            (
-                await session.execute(
-                    select(Collection.id, Collection.workspace_id).where(
-                        Collection.is_deleted == False  # noqa: E712
-                    )
+            await session.execute(
+                select(Collection.id, Collection.workspace_id).where(
+                    Collection.is_deleted == False  # noqa: E712
                 )
             )
-            .all()
-        )
+        ).all()
     return {
         "document_count": len(documents),
         "collection_count": len(collections),

@@ -142,7 +142,9 @@ def require_keys(evidence: dict[str, Any]) -> None:
 
 def check_checkpointer_scheme(evidence: dict[str, Any]) -> None:
     """Gate 6 — a wrong driver scheme is an infrastructure failure, not a gate."""
-    scheme = str((evidence.get("checkpointer") or {}).get("db_uri_scheme") or "").strip()
+    scheme = str(
+        (evidence.get("checkpointer") or {}).get("db_uri_scheme") or ""
+    ).strip()
     if not scheme:
         raise InfrastructureFailure("evidence missing checkpointer.db_uri_scheme")
     if scheme != "postgresql":
@@ -203,7 +205,9 @@ def check_gate1_interrupt_exact(evidence: dict[str, Any], failures: list[str]) -
         interrupt = phase.get(interrupt_key) or {}
         tools = interrupt.get("tools") if isinstance(interrupt, dict) else None
         matched = isinstance(tools, list) and any(
-            isinstance(item, dict) and item.get("name") == tool and item.get("args") == args
+            isinstance(item, dict)
+            and item.get("name") == tool
+            and item.get("args") == args
             for item in tools
         )
         if not matched:
@@ -233,7 +237,9 @@ def check_gate2_reject_zero_mutation(
             f"{name!r} after reject (expected zero — authoritative over the "
             "adapter's own snapshot)"
         )
-    message = str((reject.get("final_assistant_message") or {}).get("content") or "").strip()
+    message = str(
+        (reject.get("final_assistant_message") or {}).get("content") or ""
+    ).strip()
     if not message:
         failures.append("reject: no coherent non-empty final assistant message")
 
@@ -265,7 +271,9 @@ def check_gate4_confirm_replay_stable(
     """Gate 4 — confirm on an already-resolved interrupt is a stable no-op."""
     approve = evidence["phases"]["approve_once"]
     attempts = evidence["phases"]["reconfirm_resolved"].get("attempts") or []
-    statuses = {attempt.get("http_status") for attempt in attempts if isinstance(attempt, dict)}
+    statuses = {
+        attempt.get("http_status") for attempt in attempts if isinstance(attempt, dict)
+    }
     if len(statuses) != 1:
         failures.append(
             "reconfirm_resolved: confirm-on-resolved did not return a stable "
@@ -321,7 +329,11 @@ def check_final_state_agreement(
     )
     checks = (
         ((approve.get("args") or {}).get("name"), approve_final, "approve_once"),
-        ((reject.get("args") or {}).get("name"), reject.get("rows_after_reject"), "reject"),
+        (
+            (reject.get("args") or {}).get("name"),
+            reject.get("rows_after_reject"),
+            "reject",
+        ),
         (
             (cancel.get("args") or {}).get("name"),
             (cancel.get("resumed_after_cancel") or {}).get("rows_after"),
@@ -341,7 +353,9 @@ def check_final_state_agreement(
 
 def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[str]:
     require_keys(evidence)
-    check_checkpointer_scheme(evidence)  # gate 6: raises InfrastructureFailure, never a gate failure
+    check_checkpointer_scheme(
+        evidence
+    )  # gate 6: raises InfrastructureFailure, never a gate failure
 
     failures: list[str] = []
     check_identity(evidence, failures)
@@ -364,7 +378,9 @@ def db_snapshot(evidence: dict[str, Any], state: dict[str, Any]) -> dict[str, An
 
 
 def main() -> int:
-    return run_verifier_main(BENCHMARK_ID, objective_failures, report_extra_fn=db_snapshot)
+    return run_verifier_main(
+        BENCHMARK_ID, objective_failures, report_extra_fn=db_snapshot
+    )
 
 
 if __name__ == "__main__":

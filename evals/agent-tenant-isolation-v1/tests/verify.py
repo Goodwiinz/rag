@@ -270,7 +270,9 @@ def check_no_leaked_identifiers(evidence: dict[str, Any], failures: list[str]) -
 
 def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[str]:
     require_keys(evidence)  # raises InfrastructureFailure on structural defects
-    check_org_a_nonempty(evidence)  # raises InfrastructureFailure — the false-pass guard
+    check_org_a_nonempty(
+        evidence
+    )  # raises InfrastructureFailure — the false-pass guard
 
     failures: list[str] = []
     check_identity(evidence, failures)
@@ -290,7 +292,9 @@ def db_snapshot(evidence: dict[str, Any], state: dict[str, Any]) -> dict[str, An
 
 
 def main() -> int:
-    return run_verifier_main(BENCHMARK_ID, objective_failures, report_extra_fn=db_snapshot)
+    return run_verifier_main(
+        BENCHMARK_ID, objective_failures, report_extra_fn=db_snapshot
+    )
 
 
 if __name__ == "__main__":

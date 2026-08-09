@@ -24,7 +24,7 @@ import time
 import traceback
 from pathlib import Path
 from typing import Any
-from uuid import UUID, uuid5, NAMESPACE_URL
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 import httpx
 
@@ -43,7 +43,9 @@ WORKSPACE_ID = UUID("00000000-0000-4000-8000-000000000d03")
 CONVERSATION_ID = UUID("00000000-0000-4000-8000-000000000d04")
 THREAD_ID = UUID("00000000-0000-4000-8000-000000000d05")
 CLIENT_MESSAGE_ID = UUID("00000000-0000-4000-8000-000000000d06")
-ASSISTANT_CLIENT_MESSAGE_ID = uuid5(NAMESPACE_URL, f"nous-assistant:{CLIENT_MESSAGE_ID}")
+ASSISTANT_CLIENT_MESSAGE_ID = uuid5(
+    NAMESPACE_URL, f"nous-assistant:{CLIENT_MESSAGE_ID}"
+)
 REQUEST_ID = "harbor-fast-path-cancel-000000000d0b"
 
 EXPECTED_INSTRUCTION = "Explain why the sky appears blue in one sentence."
@@ -115,9 +117,15 @@ async def initial_counts() -> dict[str, Any]:
 
     async with AsyncSessionLocal() as session:
         return {
-            "agent_runs": int(await session.scalar(select(func.count(AgentRun.job_id))) or 0),
-            "run_events": int(await session.scalar(select(func.count(AgentRunEvent.id))) or 0),
-            "chat_messages": int(await session.scalar(select(func.count(ChatMessage.id))) or 0),
+            "agent_runs": int(
+                await session.scalar(select(func.count(AgentRun.job_id))) or 0
+            ),
+            "run_events": int(
+                await session.scalar(select(func.count(AgentRunEvent.id))) or 0
+            ),
+            "chat_messages": int(
+                await session.scalar(select(func.count(ChatMessage.id))) or 0
+            ),
         }
 
 
@@ -191,6 +199,7 @@ def check_routing_eligible() -> dict[str, Any]:
     spending a real model turn on it -- an ineligible instruction would make
     this whole task moot (nothing fast-path-specific to verify)."""
     from langchain_core.messages import HumanMessage
+
     from src.core.config import get_settings
     from src.services.agent.fast_path import classify_fast_path_turn
 
@@ -360,7 +369,11 @@ def token_log_from_frames(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
             content = str(data.get("content") or "")
             if content:
                 entries.append(
-                    {"content": content, "emit_completed": True, "appended_to_partial": True}
+                    {
+                        "content": content,
+                        "emit_completed": True,
+                        "appended_to_partial": True,
+                    }
                 )
     return entries
 
@@ -496,7 +509,9 @@ def finalize_attempts_from_events(
 async def run_benchmark() -> dict[str, Any]:
     started_at = utc_now()
     started = time.monotonic()
-    instruction = os.environ.get("HARBOR_INSTRUCTION", "").strip() or EXPECTED_INSTRUCTION
+    instruction = (
+        os.environ.get("HARBOR_INSTRUCTION", "").strip() or EXPECTED_INSTRUCTION
+    )
     if instruction != EXPECTED_INSTRUCTION:
         raise InfrastructureFailure("instruction contract drift")
 
@@ -544,7 +559,9 @@ async def run_benchmark() -> dict[str, Any]:
             "assistant_client_message_id": str(ASSISTANT_CLIENT_MESSAGE_ID),
         }
         assistant_rows = [
-            m for m in (observed_db.get("messages") or []) if m.get("role") == "assistant"
+            m
+            for m in (observed_db.get("messages") or [])
+            if m.get("role") == "assistant"
         ]
         persisted_partial = next(
             (m for m in assistant_rows if m.get("id") == partial_id),

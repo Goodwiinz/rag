@@ -161,13 +161,18 @@ async def stop_application(
 # --------------------------------------------------------------------------
 # job API driving
 # --------------------------------------------------------------------------
-async def create_job(client: httpx.AsyncClient, headers: dict[str, str], name: str) -> str:
+async def create_job(
+    client: httpx.AsyncClient, headers: dict[str, str], name: str
+) -> str:
     response = await client.post(
         f"{APP_URL}/api/v1/agent/execute",
         headers=headers,
         json={
             "messages": [
-                {"role": "user", "content": f'Create a research project named "{name}".'}
+                {
+                    "role": "user",
+                    "content": f'Create a research project named "{name}".',
+                }
             ],
             "use_rag": False,
         },
@@ -189,7 +194,9 @@ async def poll_job(
     deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
     last_body: dict[str, Any] = {}
     while time.monotonic() < deadline:
-        response = await client.get(f"{APP_URL}/api/v1/agent/jobs/{job_id}", headers=headers)
+        response = await client.get(
+            f"{APP_URL}/api/v1/agent/jobs/{job_id}", headers=headers
+        )
         if response.status_code != 200:
             raise InfrastructureFailure(
                 f"/jobs/{job_id} returned HTTP {response.status_code}: {response.text[:300]}"
@@ -231,7 +238,9 @@ def final_message(job_body: dict[str, Any]) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 # phases
 # --------------------------------------------------------------------------
-async def run_approve_once(client: httpx.AsyncClient, headers: dict[str, str]) -> dict[str, Any]:
+async def run_approve_once(
+    client: httpx.AsyncClient, headers: dict[str, str]
+) -> dict[str, Any]:
     job_id = await create_job(client, headers, APPROVE_PROJECT_NAME)
     parked = await poll_job(client, headers, job_id, until="awaiting_confirmation")
     interrupt = json_safe(parked.get("confirmation") or {})
@@ -264,7 +273,9 @@ async def run_approve_once(client: httpx.AsyncClient, headers: dict[str, str]) -
     }
 
 
-async def run_reject(client: httpx.AsyncClient, headers: dict[str, str]) -> dict[str, Any]:
+async def run_reject(
+    client: httpx.AsyncClient, headers: dict[str, str]
+) -> dict[str, Any]:
     job_id = await create_job(client, headers, REJECT_PROJECT_NAME)
     parked = await poll_job(client, headers, job_id, until="awaiting_confirmation")
     interrupt = json_safe(parked.get("confirmation") or {})
@@ -357,7 +368,9 @@ async def run_benchmark() -> dict[str, Any]:
     from src.services.agent.checkpointer import get_db_uri
 
     checkpoint_uri = get_db_uri()
-    checkpoint_scheme = checkpoint_uri.split("://", 1)[0] if "://" in checkpoint_uri else ""
+    checkpoint_scheme = (
+        checkpoint_uri.split("://", 1)[0] if "://" in checkpoint_uri else ""
+    )
 
     process: asyncio.subprocess.Process | None = None
     log_handle: Any | None = None
@@ -379,7 +392,9 @@ async def run_benchmark() -> dict[str, Any]:
         async with httpx.AsyncClient(trust_env=False, timeout=30) as client:
             approve_once = await run_approve_once(client, headers)
             reject = await run_reject(client, headers)
-            reconfirm_resolved = await run_reconfirm_resolved(client, headers, approve_once)
+            reconfirm_resolved = await run_reconfirm_resolved(
+                client, headers, approve_once
+            )
             cancel_while_parked = await run_cancel_while_parked(client, headers)
     finally:
         app_exit_code = await stop_application(process, log_handle)
