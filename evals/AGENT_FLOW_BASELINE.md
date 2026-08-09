@@ -161,7 +161,7 @@ length):**
 | --- | --- |
 | Timing | Disconnect *detection* ≤ 10 s (`_SSE_KEEPALIVE_SECONDS` polling path; immediate on the ASGI-cancel path), full terminalization within 15 s of disconnect |
 | Terminal event | Exactly one terminal run event (`uq_agent_run_events_one_terminal` partial unique index enforces this DB-side). It is `run.cancelled` when the abort precedes the `done` frame; an abort *after* `done` legitimately leaves `run.completed` (first-writer-wins) — harness v2's late-cancel position must tolerate that |
-| Partial link | The `run.cancelled` **event payload** carries `assistant_message_id` pointing at the stopped partial row (`agent_run_events.payload->>'assistant_message_id'`). Absent when nothing streamed before the abort. Note: the `AgentRun.assistant_message_id` *column* is never written by any code path and stays NULL — do not assert on it |
+| Partial link | The `run.cancelled` **event payload** carries `assistant_message_id` pointing at the stopped partial row (`agent_run_events.payload->>'assistant_message_id'`). Absent when nothing streamed before the abort. The `AgentRun.assistant_message_id` *column* is also populated — `finalize_submission` (`backend/src/services/agent/agent_submission_service.py:696-753`, shared by every route) projects `payload.assistant_message_id` onto it — fixed by #1353 (see "Open implementation gaps" item 3); `agent-stream-cancel-durability-v1/tests/verify.py:442` already asserts this column, and capability 13's verifier asserts it too |
 | Prefix | Persisted partial is an exact prefix of the buffered stream (`len(persisted) <= len(buffered)`). Assumes Redis buffering succeeded per chunk — `emit()` swallows append failures, so a prefix violation with no cancellation involved indicates a buffering fault, which scores as C (infra), not A |
 | Redis cleanup | Active pointer key deleted. The replay list key survives under its 3600 s TTL **by design** — it is expected post-run state, not a stale-key violation |
 | Resume safety | Resume after cancel of a plain `/stream` turn returns HTTP 204. Cancelling a `/stream/confirm` resume leaves the HITL interrupt parked in the checkpoint, and resume then returns **200 + a re-delivered `confirmation` frame** — assert that, not 204. Either way: zero new model/tool starts (the resume path is a pure read — ownership SELECT, Redis reads, `graph.aget_state`) |
@@ -230,12 +230,12 @@ Harbor task lands and its calibration fixtures pass.
 | 5 | arXiv research flow | task landed | `search_arxiv`, `ingest_arxiv_papers` (HITL), post-ingest `document_ids` handoff (Harbor task `agent-arxiv-research-flow-v1`; awaiting first recorded run) |
 | 6 | Writing flow | task landed | `create_draft` (HITL), `export_bibliography`, `compare_documents` (Harbor task `agent-writing-flow-v1`; awaiting first recorded run — `create_project_note` still uncovered) |
 | 7 | Knowledge-graph flow | task landed | `search_knowledge_graph`, `explore_entity_neighborhood`, `find_entity_paths`, `get_graph_stats` (Harbor task `agent-knowledge-graph-flow-v1`; awaiting first recorded run — `extract_entities` deferred, see coverage note) |
-| 8 | HITL interrupt lifecycle | next | `interrupt_node`, confirm/reject/timeout, resume semantics |
+| 8 | HITL interrupt lifecycle | task landed | `interrupt_node`, confirm/reject/timeout, resume semantics (Harbor task `agent-hitl-lifecycle-v1`; awaiting first recorded run) |
 | 9 | Memory round-trip | task landed | `memory_retrieval` → `memory_save_node`, `forget_memory`, redaction at the memory boundary (Harbor task `agent-memory-roundtrip-v1`; awaiting first recorded run) |
 | 10 | Error recovery | later | `error_recovery.py` taxonomy, tool-hint honouring, MAX_ERRORS, degraded final message |
 | 11 | Long-run controls | later | `compactor_node`, `force_synthesis_node`, `reflection_gate`, iteration ledger |
-| 12 | Tenant isolation probes | next | cross-org probes against every read tool + RAG node |
-| 13 | Luna fast path | next | `fast_path.py` — cancel defects fixed in #1353; same invariants as capability 3 |
+| 12 | Tenant isolation probes | task landed | cross-org probes against every read tool + RAG node (Harbor task `agent-tenant-isolation-v1`; awaiting first recorded run) |
+| 13 | Luna fast path | task landed | `fast_path.py` — cancel defects fixed in #1353; same invariants as capability 3 (Harbor task `agent-fast-path-cancel-v1`; awaiting first recorded run) |
 | 14 | Project management | task landed | `create_project`, `add_document_to_project`, `create_project_note`, `list_project_documents` read-back, three-step HITL ordering (Harbor task `agent-project-management-v1`; awaiting first recorded run — soft-delete visibility still uncovered) |
 | 15 | Knowledge-base retrieval | task landed | `search_documents`, `do_kb_retrieve` (Harbor task `agent-kb-retrieval-v1`; awaiting first recorded run — `summarize_document` deferred, see coverage note) |
 | 16 | Code execution | task landed | `execute_code` (HITL), E2B wire double, fabricated-execution guard (Harbor task `agent-code-execution-v1`; awaiting first recorded run — live-unreachable in production routing, see coverage note) |
@@ -422,13 +422,71 @@ deliberately; a future increment covers it as its own near-boundary trial.
 
 ### 8. HITL interrupt lifecycle
 
-Objective gates: interrupt payload names tool + args exactly; **reject**
-resumes the graph with zero mutations and a coherent final message; approval
-executes exactly once (no double-fire on re-confirm); `POST /confirm/{job_id}`
-on an already-resolved interrupt is a no-op with a stable status; cancel while
-parked leaves the interrupt re-deliverable (capability 3's confirm-path rule).
-Checkpoint URL is `postgresql://` (psycopg v3) — a `+asyncpg` URL is a C
-failure. Semantic: N/A.
+**Preconditions:** one synthetic organization/user/workspace
+(`00000000-0000-4000-8000-000000000801/…0802/…0803`) with zero `projects`
+rows. Four independent single-turn sessions, each driving `create_project`
+(the same tool capability 14 exercises, so tool selection is not the
+variable under test) through the real job API — `POST /execute`,
+`GET /jobs/{job_id}`, `POST /confirm/{job_id}` — rather than by driving the
+LangGraph graph object directly, because gate 4's "stable status on an
+already-resolved confirm" is a property of the job store's Redis-backed
+compare-and-set (`job_store.py:compare_and_set_status`), not of the graph
+alone.
+
+**Objective gates:**
+- Gate 1 — the interrupt payload built by `interrupt_node`
+  (`_nodes_tools.py:236`) names the tool and its arguments **exactly**: the
+  recorded `{"name": ..., "args": {...}}` block is compared by value against
+  the tool call the graph actually queued, never by substring match.
+- Gate 2 — **reject** (`confirmed: false`) resumes the graph with **zero
+  mutations**: the `projects` row count for the seeded workspace is
+  unchanged, verified by the verifier's own independent read (authoritative
+  over the adapter's own snapshot — a leaked row fails the gate even if the
+  adapter's self-reported counts claim otherwise), plus a coherent non-empty
+  final assistant message.
+- Gate 3 — **approval executes exactly once**: the single confirm produces
+  exactly one mutation row (`rows_after - rows_before == 1`) and exactly one
+  `create_project` tool-execution record.
+- Gate 4 — `POST /confirm/{job_id}` on an **already-resolved** interrupt is a
+  no-op with a **stable** status. Production behavior
+  (`execute.py:confirm_agent_action`) has no 200/no-op success path for a
+  resolved job: `_validate_confirmable_job` returns `409 "Job is not
+  awaiting confirmation"` once `job.status != AWAITING_CONFIRMATION`, and if
+  a race let a second caller past that check, the atomic
+  `compare_and_set_status` CAS returns `"conflict"` and produces the same
+  409. The gate is stated over that shape — every repeat call returns the
+  **same** HTTP status as every other repeat call, and none of them changes
+  the row count.
+- Gate 5 — **cancel while parked** leaves the interrupt **re-deliverable**:
+  polling a parked job without confirming must keep returning the identical
+  `confirmation` payload (same tool, same args) on every poll — capability
+  3's confirm-path idempotency rule, restated for the job-poll transport.
+- Gate 6 (infrastructure, not a lifecycle gate) — the checkpointer's
+  connection string, read via
+  `src.services.agent.checkpointer.get_db_uri()`, must be `postgresql://`
+  (psycopg v3). A `postgresql+asyncpg://` URL is an **infrastructure
+  failure** (verifier exit 2): it means the environment wired the wrong
+  driver, not that the agent behaved incorrectly, so it must never be scored
+  as gate failure (exit 10).
+
+**Semantic gate:** N/A (counts as pass) — none of the four phases produces a
+judgeable answer.
+
+**Coverage note:** this task covers the interrupt/confirm/reject/cancel
+state machine around one destructive tool (`create_project`). It does not
+yet cover interrupts on the other destructive tools
+(`add_document_to_project`, `create_project_note`, `create_draft`,
+`ingest_arxiv_papers`, `execute_code`, `forget_memory`), a batched interrupt
+carrying more than one tool call, or multi-worker races on the confirm
+compare-and-set (this task's environment runs a single FastAPI process and a
+single Redis instance) — those remain the next increments on this
+capability.
+
+**Status:** NOT GATED — Harbor task landed
+(`evals/agent-hitl-lifecycle-v1`), calibration verified locally (1 pass +
+5 `wrong-*` fixtures, one per lifecycle gate 1-5, each isolating exactly one
+gate + 1 `infra-*` fixture for gate 6, exit 2 not 10), awaits first recorded
+run. See `source-manifests/agent-flow-2026-08-09-hitl-lifecycle.json`.
 
 ### 9. Memory round-trip
 
@@ -512,22 +570,144 @@ compaction answer still consistent with earlier turns.
 
 ### 12. Tenant isolation probes
 
-Objective gates: for **every** read tool (documents, projects, KG, memory,
-suggestions) and the RAG node, a second-org fixture user issues the same
-query and receives zero rows/titles/ids belonging to org A; error messages
-leak no cross-tenant identifiers; probes run in the same trial batch so
-drift is caught per-release. This capability is pure objective — semantic
-N/A. Rationale: tenant leaks are NOUS's recurring defect class (#1219,
-#1292, hunt-6); the gate makes the sweep continuous instead of episodic.
+**Preconditions:** two disjoint synthetic organizations, one process, one
+trial. Org A (`00000000-0000-4000-8000-000000000801`/`…0802`/`…0803`) holds
+exactly one of each fixture kind: one document, one project (with the
+document attached), a 2-entity/1-relationship Neo4j graph, one saved
+long-term memory, and one project-skill-catalog row. Org B
+(`…0810`/`…0811`/`…0812`) mirrors the disjoint-second-org shape plan 3's
+`agent-knowledge-graph-flow-v1` established (`OTHER_ORG_ID`) and holds none
+of it.
+
+**The enumerated read surface (12 probes)**, determined from
+`backend/src/services/agent/tool_registry.py`/`tools.py`/`tools_impl.py`/
+`_nodes_rag.py`/`_nodes_memory.py` rather than assumed:
+`search_documents`, `summarize_document`, `compare_documents` (documents);
+`list_projects`, `list_project_documents` (projects);
+`search_knowledge_graph`, `explore_entity_neighborhood`,
+`find_entity_paths`, `get_graph_stats` (knowledge graph);
+`memory_retrieval_node` (memory — a graph node, not a LangChain tool, keyed
+by `user_id` rather than `organization_id`); `load_project_skill`
+(suggestions — **the current registry has no tool literally named
+"suggestions"**; this is the nearest read-only per-project catalog surface
+and is used in its place, reported as a deviation, not silently
+substituted); and `rag_node` (`_nodes_rag.py` — the RAG node itself,
+distinct from the `do_kb_retrieve`/`search_documents` tool wrappers).
+
+**Objective gates:**
+- Gate 1 — for every one of the 12 probes, org B issues the identical query
+  (same free-text query, or org A's real just-seeded id for id-shaped
+  tools) and receives **zero** rows/titles/ids belonging to org A.
+- Gate 2 — error messages leak **no** cross-tenant identifier: no org-A
+  UUID, title, or filename appears in any `error` string recorded for any
+  probe.
+- Gate 3 — all 12 probes run in the **same trial batch** (one
+  `evidence.probes` list, one seeded tenant pair, one process), and the
+  verifier asserts the recorded probe **count and id set** match the
+  declared 12 exactly — a tool added later without a matching probe, or a
+  probe silently dropped, is a coverage hole and fails this gate.
+
+**The critical anti-false-pass design point:** an empty database makes
+"perfect isolation" and "total breakage" look identical to org B — both
+return zero rows. So for every probe the verifier first asserts org A's own
+query returned at least one row that is actually org A's seeded data; only
+then does it evaluate org B's identical query for a leak. A probe whose
+org-A side returns nothing is an **infrastructure failure**
+(`InfrastructureFailure`, verifier exit 2), never a gate pass and never a
+gate failure — proven by the dedicated `infra-empty-org-a.json` calibration
+fixture.
+
+**Semantic gate:** N/A — every probe is a deterministic row/id comparison.
+Rationale: tenant leaks are NOUS's recurring defect class (#1219, #1292,
+hunt-6); the gate makes the sweep continuous instead of episodic.
+
+**Coverage note:** probes call tool/node implementation functions directly
+with a synthetic session/user rather than driving full LangGraph turns with
+LLM tool selection — the property under test (server-side tenant scoping in
+the data-access layer) is identical either way, but this is not a claim
+about routing or prompt-following. `search_arxiv`, `ingest_arxiv_papers`,
+`search_external_database`, `list_external_databases` (no per-org data to
+leak), DO KB's own primary-read path (disabled in this environment; the
+`rag_node` probe exercises the Postgres hybrid-search fallback only), and
+every write/destructive tool are out of scope for this read-isolation sweep.
+
+**Status:** NOT GATED — Harbor task landed
+(`evals/agent-tenant-isolation-v1`), calibration verified locally (1 pass +
+4 `wrong-*` fixtures — leaked row, leaked error identifier (UUID), leaked
+error identifier (title/filename only, no UUID — the regression test for
+the gate-2 whole-value matching fix), coverage-hole missing probe — each
+exit 10, plus 1 `infra-*` fixture for the empty-org-A false-pass guard,
+exit 2 not 10), awaits first recorded run. See
+`source-manifests/agent-flow-2026-08-09-tenant-isolation.json`.
 
 ### 13. Luna fast path
 
-Same invariants as capability 3 but on the fast-path route. Unblocked by
-#1353 (emit-before-append ordering + cancel linkage now match the graph
-path); regression-tested at the unit level by
-`test_fast_path_cancel_links_partial_and_keeps_prefix`. Known tolerance: the
-outer route-agnostic handler fires a second unlinked `run.cancelled` finalize
-that the terminal unique index absorbs — the durable event is the linked one.
+**Preconditions:** one synthetic org/user/workspace/conversation/thread
+(`00000000-0000-4000-8000-000000000d01`…`…0d05`), `AGENT_FAST_PATH_ENABLED=true`.
+The submitted instruction must be fast-path eligible
+(`classify_fast_path_turn(...).eligible is True`) — an ineligible instruction
+never enters the route under test and is an `InfrastructureFailure`, not a
+gate outcome. Same invariants as capability 3 ("Stream cancellation
+durability") but applied to the fast-path route
+(`backend/src/services/agent/fast_path.py` +
+`backend/src/api/agent/streaming.py:_stream_luna_fast_path`) instead of the
+LangGraph route. Unblocked by #1353 (emit-before-append ordering + cancel
+linkage now match the graph path); regression-tested at the unit level by
+`test_fast_path_cancel_links_partial_and_keeps_prefix`.
+
+**Objective gates:**
+- Gate 1 — emit-before-append ordering: a model chunk's text may be appended
+  to the in-memory partial only after its SSE emit has completed; a
+  cancellation raised inside the emit must never let that chunk's text reach
+  the persisted partial.
+- Gate 2 — cancel linkage: the durable terminal `run.cancelled` event's
+  payload carries `assistant_message_id` equal to the id of the persisted
+  partial row. Gate 2 also asserts the `AgentRun.assistant_message_id`
+  column — this mirrors capability 3's own verifier
+  (`agent-stream-cancel-durability-v1/tests/verify.py:442`), not a
+  fast-path novelty: both routes share `finalize_submission`, which
+  projects `payload.assistant_message_id` onto that column for any route
+  (see the corrected capability-3 table row above).
+- Gate 3 — the stopped partial row is durably persisted (non-empty content,
+  `stopped=true`) and the `AgentRun.status` is `cancelled`.
+- Gate 4 — prefix retained: persisted content equals exactly the
+  concatenation, in order, of every chunk whose emit completed and was
+  appended.
+
+**The known, correct tolerance (verbatim, not a defect):** the fast path's
+own `CancelledError` handler (`cancel_fast_path`) issues the FIRST, linked
+`run.cancelled` finalize; that `CancelledError` also trips
+`stream_event_generator`'s outer, route-agnostic `CancelledError` handler,
+which issues a SECOND, unlinked `run.cancelled` finalize. In production the
+second call is a no-op — `finalize_submission`'s terminal-status guard and
+`append_event`'s `RunAlreadyTerminalError` (backed by the
+`uq_agent_run_events_one_terminal` partial unique index) absorb it, so the
+durable ledger holds exactly one terminal event, ever. The verifier MUST
+PASS when it sees one linked finalize plus at most one absorbed unlinked
+duplicate, and MUST FAIL when the linked event is missing (even if the
+unlinked one is present) — a verifier that treats the duplicate itself as a
+failure would fail every honest run.
+
+**Semantic gate:** N/A (counts as pass — no answer to judge on cancellation,
+same rationale as capability 3).
+
+**Fidelity limit:** the harness can only disconnect the HTTP client between
+SSE frames — it cannot reproduce the exact mid-`emitter.emit()` cancellation
+race the unit-level regression constructs by monkeypatching
+`_SeqEmitter.emit`. The emit-before-append gate is still fully exercised at
+the verifier level (the adapter records its own before/after instrumentation
+per chunk) and the mid-emit race is covered directly by the
+`wrong-emit-after-append.json` calibration fixture, not by the live run —
+this task is calibration-verified, not run-verified (see the plan's
+Verification section).
+
+**Status:** NOT GATED — Harbor task landed
+(`evals/agent-fast-path-cancel-v1`), calibration verified locally (1 pass +
+4 `wrong-*` fixtures — unlinked-only durable event, lost prefix,
+emit-after-append ordering, an internally-contradictory unlinked
+self-report — each exit 10, plus 1 `infra-*` fixture for a missing evidence
+key, exit 2 not 10), awaits first recorded run. See
+`source-manifests/agent-flow-2026-08-09-fast-path-cancel.json`.
 
 ### 14. Project management
 

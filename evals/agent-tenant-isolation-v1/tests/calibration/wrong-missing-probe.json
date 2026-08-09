@@ -1,0 +1,192 @@
+{
+  "evidence": {
+    "agent_revision": "0519617d0f76421384e800e630a1633d43668472",
+    "benchmark_id": "agent-tenant-isolation-v1",
+    "completed_at": "2026-08-09T12:01:40Z",
+    "elapsed_ms": 18230,
+    "leak_vocabulary": [
+      "Org A Confidential Report",
+      "org-a-confidential-report.pdf",
+      "Org A Research Project",
+      "Org A Principal Investigator",
+      "Org A Research Lab"
+    ],
+    "model_usage": {
+      "cache_tokens": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    "network_boundary": {
+      "approved_model_host_reachable_via_proxy": true,
+      "direct_public_socket_blocked": true,
+      "unrelated_https_blocked_by_proxy": true
+    },
+    "notes": "12-probe tenant-isolation matrix calibration fixture.",
+    "probes": [
+      {
+        "category": "documents",
+        "org_a_rows": [
+          "00000000-0000-4000-8000-0000000008a1"
+        ],
+        "org_b_error": null,
+        "org_b_rows": [],
+        "probe_id": "documents.search_documents",
+        "query": {
+          "query": "Org A Confid"
+        }
+      },
+      {
+        "category": "documents",
+        "org_a_rows": [
+          "00000000-0000-4000-8000-0000000008a1"
+        ],
+        "org_b_error": null,
+        "org_b_rows": [],
+        "probe_id": "documents.summarize_document",
+        "query": {
+          "document_id": "00000000-0000-4000-8000-0000000008a1"
+        }
+      },
+      {
+        "category": "documents",
+        "org_a_rows": [
+          "00000000-0000-4000-8000-0000000008a1"
+        ],
+        "org_b_error": null,
+        "org_b_rows": [],
+        "probe_id": "documents.compare_documents",
+        "query": {
+          "document_ids": [
+            "00000000-0000-4000-8000-0000000008a1",
+            "00000000-0000-4000-8000-0000000008a1"
+          ]
+        }
+      },
+      {
+        "category": "projects",
+        "org_a_rows": [
+          "00000000-0000-4000-8000-0000000008a2"
+        ],
+        "org_b_error": null,
+        "org_b_rows": [],
+        "probe_id": "projects.list_projects",
+        "query": {}
+      },
+      {
+        "category": "projects",
+        "org_a_rows": [
+          "00000000-0000-4000-8000-0000000008a1"
+        ],
+        "org_b_error": null,
+        "org_b_rows": [],
+        "probe_id": "projects.list_project_documents",
+        "query": {
+          "project_id": "00000000-0000-4000-8000-0000000008a2"
+        }
+      },
+      {
+        "category": "knowledge_graph",
+        "org_a_rows": [
+          "entity-org-a-principal-investigator"
+        ],
+        "org_b_error": null,
+        "org_b_rows": [],
+        "probe_id": "knowledge_graph.search_knowledge_graph",
+        "query": {
+          "query": "Org A Principal Investigator"
+        }
+      },
+      {
+        "category": "knowledge_graph",
+        "org_a_rows": [
+          "entity-org-a-principal-investigator"
+        ],
+        "org_b_error": null,
+        "org_b_rows": [],
+        "probe_id": "knowledge_graph.explore_entity_neighborhood",
+        "query": {
+          "entity_id": "entity-org-a-principal-investigator"
+        }
+      },
+      {
+        "category": "knowledge_graph",
+        "org_a_rows": [
+          "entity-org-a-principal-investigator"
+        ],
+        "org_b_error": null,
+        "org_b_rows": [],
+        "probe_id": "knowledge_graph.find_entity_paths",
+        "query": {
+          "source_entity_id": "entity-org-a-principal-investigator",
+          "target_entity_id": "entity-org-a-research-lab"
+        }
+      },
+      {
+        "category": "knowledge_graph",
+        "org_a_rows": [
+          "total_entities=2"
+        ],
+        "org_b_error": null,
+        "org_b_rows": [],
+        "probe_id": "knowledge_graph.get_graph_stats",
+        "query": {}
+      },
+      {
+        "category": "memory",
+        "org_a_rows": [
+          "budget planning note: org-a-eyes-only-budget-figure"
+        ],
+        "org_b_error": null,
+        "org_b_rows": [],
+        "probe_id": "memory.memory_retrieval_node",
+        "query": {
+          "fragment": "org-a-eyes-only-budget-figure"
+        }
+      },
+      {
+        "category": "rag",
+        "org_a_rows": [
+          "00000000-0000-4000-8000-0000000008a1"
+        ],
+        "org_b_error": null,
+        "org_b_rows": [],
+        "probe_id": "rag.rag_node",
+        "query": {
+          "instruction": "Tell me about Org A Confidential Report"
+        }
+      }
+    ],
+    "relational_snapshot": {
+      "collection_count": 1,
+      "document_count": 1
+    },
+    "schema_version": "1.0",
+    "seed": {
+      "document_id": "00000000-0000-4000-8000-0000000008a1",
+      "entity_id": "entity-org-a-principal-investigator",
+      "entity_id_2": "entity-org-a-research-lab",
+      "memory_fragment": "org-a-eyes-only-budget-figure",
+      "project_id": "00000000-0000-4000-8000-0000000008a2",
+      "skill_id": "skill:00000000-0000-4000-8000-0000000008a2:tenant-isolation-benchmark"
+    },
+    "source_revision": "0519617d0f76421384e800e630a1633d43668472",
+    "started_at": "2026-08-09T12:00:00Z",
+    "synthetic_actor": {
+      "org_a": {
+        "organization_id": "00000000-0000-4000-8000-000000000801",
+        "user_id": "00000000-0000-4000-8000-000000000802",
+        "workspace_id": "00000000-0000-4000-8000-000000000803"
+      },
+      "org_b": {
+        "organization_id": "00000000-0000-4000-8000-000000000810",
+        "user_id": "00000000-0000-4000-8000-000000000811",
+        "workspace_id": "00000000-0000-4000-8000-000000000812"
+      }
+    },
+    "termination_reason": "completed"
+  },
+  "state": {
+    "collection_count": 1,
+    "document_count": 1
+  }
+}

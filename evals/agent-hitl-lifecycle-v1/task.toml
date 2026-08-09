@@ -1,0 +1,49 @@
+schema_version = "1.2"
+source = "git+https://github.com/Goodwiinz/rag.git@668ef4e11914e47fdc0f0c5c90874bae4f8c37c2"
+artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
+
+[task]
+name = "goodwiinz/agent-hitl-lifecycle-v1"
+description = "Exercise the HITL interrupt lifecycle itself — approve-once, reject, re-confirm-resolved, and cancel-while-parked — through the production job confirm API."
+authors = [{ name = "Goodwiinz" }]
+keywords = ["langgraph", "hitl", "interrupt", "confirm", "tools"]
+
+[metadata]
+benchmark_id = "agent-hitl-lifecycle-v1"
+source_revision = "668ef4e11914e47fdc0f0c5c90874bae4f8c37c2"
+agent_revision = "dfa09a815d8b88edb658b530921e73023c183ef5"
+harbor_version = "0.6.6"
+base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
+
+[verifier]
+timeout_sec = 120.0
+
+[verifier.env]
+
+[agent]
+timeout_sec = 360.0
+
+[environment]
+build_timeout_sec = 1800.0
+os = "linux"
+cpus = 4
+memory_mb = 8192
+storage_mb = 20480
+gpus = 0
+# Harbor's network_mode:none would also sever the private database/Redis
+# network. Compose supplies the stricter useful boundary: main is attached
+# only to an internal network, while Squid is the sole public bridge and
+# allowlists the configured Azure model host.
+allow_internet = true
+mcp_servers = []
+workdir = "/app"
+
+[environment.env]
+AZURE_OPENAI_CHAT_ENDPOINT = "${AZURE_OPENAI_CHAT_ENDPOINT}"
+AZURE_OPENAI_CHAT_API_KEY = "${AZURE_OPENAI_CHAT_API_KEY}"
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME = "${AZURE_OPENAI_CHAT_DEPLOYMENT_NAME}"
+AZURE_OPENAI_CHAT_API_VERSION = "${AZURE_OPENAI_CHAT_API_VERSION}"
+AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT = "${AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT}"
+AZURE_OPENAI_SYNTHESIS_DEPLOYMENT = "${AZURE_OPENAI_SYNTHESIS_DEPLOYMENT:-}"
+
+[solution.env]

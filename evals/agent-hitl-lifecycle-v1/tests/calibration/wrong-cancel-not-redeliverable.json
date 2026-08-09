@@ -1,0 +1,151 @@
+{
+  "evidence": {
+    "agent_revision": "dfa09a815d8b88edb658b530921e73023c183ef5",
+    "benchmark_id": "agent-hitl-lifecycle-v1",
+    "checkpointer": {
+      "db_uri_scheme": "postgresql"
+    },
+    "completed_at": "2026-08-09T12:02:10Z",
+    "elapsed_ms": 41230,
+    "model_usage": {
+      "cache_tokens": 0,
+      "input_tokens": 4200,
+      "output_tokens": 260
+    },
+    "network_boundary": {
+      "approved_model_host_reachable_via_proxy": true,
+      "direct_public_socket_blocked": true,
+      "unrelated_https_blocked_by_proxy": true
+    },
+    "phases": {
+      "approve_once": {
+        "args": {
+          "name": "HITL Approve And Reconfirm"
+        },
+        "final_assistant_message": {
+          "content": "Done. I've created the project \"HITL Approve And Reconfirm\"."
+        },
+        "interrupt": {
+          "message": "The agent wants to execute 1 action(s) that modify your data. Please confirm.",
+          "tools": [
+            {
+              "args": {
+                "name": "HITL Approve And Reconfirm"
+              },
+              "name": "create_project"
+            }
+          ]
+        },
+        "job_id": "10000000-0000-4000-8000-000000000001",
+        "rows_after_approval": 1,
+        "rows_before_approval": 0,
+        "tool": "create_project",
+        "tool_execution_count_after_approval": 1
+      },
+      "cancel_while_parked": {
+        "args": {
+          "name": "HITL Cancel While Parked"
+        },
+        "interrupt_first": {
+          "message": "The agent wants to execute 1 action(s) that modify your data. Please confirm.",
+          "tools": [
+            {
+              "args": {
+                "name": "HITL Cancel While Parked"
+              },
+              "name": "create_project"
+            }
+          ]
+        },
+        "job_id": "10000000-0000-4000-8000-000000000003",
+        "polls": [
+          {
+            "message": "The agent wants to execute 1 action(s) that modify your data. Please confirm.",
+            "tools": [
+              {
+                "args": {
+                  "name": "HITL Cancel While Parked"
+                },
+                "name": "create_project"
+              }
+            ]
+          },
+          {
+            "message": "The agent wants to execute 1 action(s) that modify your data. Please confirm.",
+            "tools": [
+              {
+                "args": {
+                  "name": "HITL Cancel While Parked (drifted)"
+                },
+                "name": "create_project"
+              }
+            ]
+          }
+        ],
+        "resumed_after_cancel": {
+          "rows_after": 1
+        },
+        "tool": "create_project"
+      },
+      "reconfirm_resolved": {
+        "attempts": [
+          {
+            "http_status": 409,
+            "rows_after": 1
+          },
+          {
+            "http_status": 409,
+            "rows_after": 1
+          }
+        ],
+        "job_id": "10000000-0000-4000-8000-000000000001"
+      },
+      "reject": {
+        "args": {
+          "name": "HITL Reject Path"
+        },
+        "final_assistant_message": {
+          "content": "Action cancelled by user. Let me know if you'd like to proceed differently."
+        },
+        "interrupt": {
+          "message": "The agent wants to execute 1 action(s) that modify your data. Please confirm.",
+          "tools": [
+            {
+              "args": {
+                "name": "HITL Reject Path"
+              },
+              "name": "create_project"
+            }
+          ]
+        },
+        "job_id": "10000000-0000-4000-8000-000000000002",
+        "rows_after_reject": 0,
+        "rows_before_reject": 0,
+        "tool": "create_project"
+      }
+    },
+    "schema_version": "1.0",
+    "source_revision": "dfa09a815d8b88edb658b530921e73023c183ef5",
+    "started_at": "2026-08-09T12:00:00Z",
+    "synthetic_actor": {
+      "organization_id": "00000000-0000-4000-8000-000000000801",
+      "user_id": "00000000-0000-4000-8000-000000000802",
+      "workspace_id": "00000000-0000-4000-8000-000000000803"
+    },
+    "termination_reason": "completed"
+  },
+  "state": {
+    "projects": [
+      {
+        "is_deleted": false,
+        "name": "HITL Approve And Reconfirm",
+        "workspace_id": "00000000-0000-4000-8000-000000000803"
+      },
+      {
+        "is_deleted": false,
+        "name": "HITL Cancel While Parked",
+        "workspace_id": "00000000-0000-4000-8000-000000000803"
+      }
+    ]
+  }
+}
