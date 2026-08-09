@@ -83,6 +83,10 @@ INTENT_PRIORITY = ["writing", "knowledge_graph", "research"]
 # Deterministic user actions that must reach the subgraph exposing the
 # corresponding tool, without waiting on probabilistic classification.
 ACTION_INTENT_OVERRIDES = (
+    ("use python", "research"),
+    ("execute_code", "research"),
+    ("search_external_database", "general"),
+    ("list_external_databases", "general"),
     ("create a project", "research"),
     ("create project", "research"),
     ("new project", "research"),
