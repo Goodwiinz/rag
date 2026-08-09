@@ -1075,22 +1075,44 @@ TOOL_REGISTRY = ToolRegistry(
         ),
         ToolDescriptor(
             name="execute_code",
+            # RESEARCH subgraph only, not DATA. intents={RESEARCH, KNOWLEDGE_GRAPH}
+            # were dead metadata: research/data subgraphs bind tools by
+            # descriptors_for_subgraph (subgraph membership), never by intent —
+            # only the general path's llm_node consults intents, and it's only
+            # reached for GENERAL (route_by_intent sends research/writing/
+            # knowledge_graph straight to their subgraphs). With subgraphs=∅ this
+            # tool was in no subgraph and thus uncallable in production. DATA is
+            # not an option: it has has_interrupt=False (no destructive tools by
+            # design — see data_agent.py docstring), so a DESTRUCTIVE tool bound
+            # there would execute code with no HITL confirmation. RESEARCH has
+            # has_interrupt=True, and should_continue's interrupt check
+            # (has_policy_in_subgraph(..., DESTRUCTIVE, "research")) fires for any
+            # tool call in that subgraph's set — so binding here keeps execute_code
+            # behind the confirmation gate.
             tool=execute_code,
-            intents=frozenset({AgentIntent.RESEARCH, AgentIntent.KNOWLEDGE_GRAPH}),
-            subgraphs=frozenset(),
+            intents=frozenset({AgentIntent.RESEARCH}),
+            subgraphs=frozenset({AgentSubgraph.RESEARCH}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 9),),
             policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
         ),
         ToolDescriptor(
             name="search_external_database",
+            # GENERAL so the tool is reachable — same dead-metadata pattern as
+            # forget_memory (51fd5adc): intents=∅ + subgraphs=∅ meant this was
+            # bound only to the unknown-intent ALL_TOOLS path the live graph
+            # never takes. A connector lookup carries no research/writing/KG
+            # signal, so GENERAL is its natural home. CONTEXT_FREE is unchanged.
             tool=search_external_database,
-            intents=frozenset(),
+            intents=frozenset({AgentIntent.GENERAL}),
             subgraphs=frozenset(),
             policy_tags=frozenset({ToolPolicyTag.CONTEXT_FREE}),
         ),
         ToolDescriptor(
             name="list_external_databases",
+            # Same fix, same reasoning as search_external_database above:
+            # GENERAL makes it reachable; read-only, so no destructive tag needed.
             tool=list_external_databases,
-            intents=frozenset(),
+            intents=frozenset({AgentIntent.GENERAL}),
             subgraphs=frozenset(),
             policy_tags=frozenset({ToolPolicyTag.CONTEXT_FREE}),
         ),
