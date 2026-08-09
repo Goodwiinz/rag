@@ -232,8 +232,8 @@ Harbor task lands and its calibration fixtures pass.
 | 7 | Knowledge-graph flow | task landed | `search_knowledge_graph`, `explore_entity_neighborhood`, `find_entity_paths`, `get_graph_stats` (Harbor task `agent-knowledge-graph-flow-v1`; awaiting first recorded run — `extract_entities` deferred, see coverage note) |
 | 8 | HITL interrupt lifecycle | task landed | `interrupt_node`, confirm/reject/timeout, resume semantics (Harbor task `agent-hitl-lifecycle-v1`; awaiting first recorded run) |
 | 9 | Memory round-trip | task landed | `memory_retrieval` → `memory_save_node`, `forget_memory`, redaction at the memory boundary (Harbor task `agent-memory-roundtrip-v1`; awaiting first recorded run) |
-| 10 | Error recovery | later | `error_recovery.py` taxonomy, tool-hint honouring, MAX_ERRORS, degraded final message |
-| 11 | Long-run controls | later | `compactor_node`, `force_synthesis_node`, `reflection_gate`, iteration ledger |
+| 10 | Error recovery | task landed | `error_recovery.py` taxonomy, tool-hint honouring, MAX_ERRORS, degraded final message (`agent-error-recovery-v1`) |
+| 11 | Long-run controls | task landed | `compactor_node`, `force_synthesis_node`, `reflection_gate`, iteration ledger (`agent-long-run-controls-v1`) |
 | 12 | Tenant isolation probes | task landed | cross-org probes against every read tool + RAG node (Harbor task `agent-tenant-isolation-v1`; awaiting first recorded run) |
 | 13 | Luna fast path | task landed | `fast_path.py` — cancel defects fixed in #1353; same invariants as capability 3 (Harbor task `agent-fast-path-cancel-v1`; awaiting first recorded run) |
 | 14 | Project management | task landed | `create_project`, `add_document_to_project`, `create_project_note`, `list_project_documents` read-back, three-step HITL ordering (Harbor task `agent-project-management-v1`; awaiting first recorded run — soft-delete visibility still uncovered) |

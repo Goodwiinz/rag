@@ -1,0 +1,10 @@
+{
+  "benchmark_id": "agent-error-recovery-v1",
+  "project_id": "00000000-0000-4000-8000-000000001001",
+  "document_id": "00000000-0000-4000-8000-000000001002",
+  "missing_document_id": "00000000-0000-4000-8000-0000000010ff",
+  "source": {
+    "title": "Sparse Attention Tradeoffs",
+    "text": "Sparse Attention Tradeoffs. In a controlled 64k-token benchmark, block-sparse attention reduced peak memory use by 37 percent and improved throughput by 22 percent compared with full attention. Accuracy on long-range retrieval fell by 2 percentage points. The study used one synthetic scientific corpus, so the authors caution that the efficiency gains may not generalize to other domains."
+  }
+}

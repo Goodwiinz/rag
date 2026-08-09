@@ -23,6 +23,12 @@ records positive and negative network probes.
 | `agent-arxiv-research-flow-v1` | Search arXiv against a protocol double, prove the shared Redis result cache, and ingest two papers behind one HITL approval | Deterministic trajectory, HITL snapshots, PostgreSQL/Redis/storage state |
 | `agent-code-execution-v1` | Execute Python against an E2B wire double behind one HITL approval | Deterministic trajectory, HITL snapshots, recomputed-digest grounding (no judge) |
 | `agent-external-databases-v1` | List and search the 11-connector external-database registry against a protocol double | Deterministic trajectory, connector-registry state, fixture-containment check (no judge) |
+| `agent-error-recovery-v1` | Follow recoverable tool guidance, then stop repeated failures honestly | Deterministic error/counter gates plus an isolated semantic judge |
+| `agent-long-run-controls-v1` | Compact a sequential retrieval chain and synthesize truthfully at the loop limit | Deterministic chain, compaction, ledger, and final-answer gates |
+| `agent-project-skill-runtime-v1` | Freeze an approved project-skill version across activation drift and HITL resume | Deterministic version/hash, snapshot, HITL, and PostgreSQL state |
+| `agent-fast-path-cancel-v1` | Keep fast-path cancellation terminal and prefix-safe | Deterministic stream and durability checks |
+| `agent-hitl-lifecycle-v1` | Preserve confirm, reject, timeout, and replay semantics | Deterministic interrupt, mutation, and idempotency checks |
+| `agent-tenant-isolation-v1` | Reject cross-tenant probes across agent read paths | Deterministic tenant-state and leakage checks |
 
 `agent-writing-flow-v1`, `agent-kb-retrieval-v1`, and
 `agent-knowledge-graph-flow-v1` are judge-gated: Layer B
