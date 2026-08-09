@@ -263,7 +263,6 @@ class TestProductionToolRegistryParity:
                 "find_entity_paths",
                 "get_graph_stats",
                 "search_documents",
-                "execute_code",
             },
             "general": {
                 "search_arxiv",
@@ -277,6 +276,8 @@ class TestProductionToolRegistryParity:
                 "summarize_document",
                 "search_knowledge_graph",
                 "forget_memory",
+                "search_external_database",
+                "list_external_databases",
             },
         }
         expected_subgraphs = {
@@ -290,6 +291,7 @@ class TestProductionToolRegistryParity:
                 "add_document_to_project",
                 "list_project_documents",
                 "create_project_note",
+                "execute_code",
             },
             "writing": {
                 "create_draft",
@@ -343,6 +345,8 @@ class TestProductionToolRegistryParity:
             "add_document_to_project",
             "list_project_documents",
             "create_project_note",
+            # Appended at position 9 so the existing order is untouched.
+            "execute_code",
         ]
         assert [
             item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("writing")
@@ -413,6 +417,57 @@ class TestProductionToolRegistryParity:
             ToolPolicyTag.DESTRUCTIVE
             in TOOL_REGISTRY.descriptor("forget_memory").policy_tags
         )
+
+    def test_execute_code_is_reachable_via_research_subgraph(self) -> None:
+        """execute_code must be bound to a subgraph, not just an intent.
+
+        With subgraphs=∅ it was in no subgraph's tool set, so the research/data
+        specialist LLM nodes (which bind ``descriptors_for_subgraph``, not
+        intents) could never see it, and the general path only handles GENERAL
+        intent — making it uncallable in production despite carrying
+        intents={RESEARCH, KNOWLEDGE_GRAPH}. RESEARCH subgraph membership is the
+        fix, not DATA: data_agent has ``has_interrupt=False`` (no destructive
+        tools by design), so a DESTRUCTIVE tool bound there would run with no
+        HITL confirmation. RESEARCH has ``has_interrupt=True``, and its
+        ``should_continue`` interrupt check keys off subgraph-scoped policy tags
+        (``has_policy_in_subgraph``), so execute_code stays gated there.
+        """
+        from src.services.agent.tool_registry import ToolPolicyTag
+        from src.services.agent.tools import TOOL_REGISTRY
+
+        assert "execute_code" in {
+            item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("research")
+        }
+        # not reachable via data — that subgraph has no HITL interrupt node
+        assert "execute_code" not in {
+            item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("data")
+        }
+        # still destructive -> still behind research's HITL interrupt
+        assert (
+            ToolPolicyTag.DESTRUCTIVE
+            in TOOL_REGISTRY.descriptor("execute_code").policy_tags
+        )
+        assert TOOL_REGISTRY.has_policy_in_subgraph(
+            "execute_code", ToolPolicyTag.DESTRUCTIVE, "research"
+        )
+
+    def test_external_database_connectors_are_reachable_via_general_route(
+        self,
+    ) -> None:
+        """search_external_database/list_external_databases must reach a route.
+
+        Same dead-metadata pattern as forget_memory (51fd5adc): intents=∅ +
+        subgraphs=∅ meant both were reachable only via the unknown-intent
+        ALL_TOOLS path the live graph never takes. GENERAL is the fix.
+        """
+        from src.services.agent._nodes_llm import _get_tools_for_intent
+        from src.services.agent.tools import TOOL_REGISTRY
+
+        for name in ("search_external_database", "list_external_databases"):
+            assert name in {
+                item.name for item in TOOL_REGISTRY.descriptors_for_intent("general")
+            }
+            assert name in {tool.name for tool in _get_tools_for_intent("general")}
 
     def test_policy_tags_keep_legacy_execution_policy(self) -> None:
         from src.services.agent.tool_registry import ToolPolicyTag
