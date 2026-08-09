@@ -1,0 +1,62 @@
+{
+  "organization_id": "00000000-0000-4000-8000-000000000801",
+  "other_organization_id": "00000000-0000-4000-8000-000000000810",
+  "focus_entity": { "name": "Elena Vasquez", "type": "PERSON" },
+  "entity_count": 20,
+  "relationship_count": 20,
+  "entities": [
+    { "name": "Elena Vasquez", "type": "PERSON" },
+    { "name": "Marcus Chen", "type": "PERSON" },
+    { "name": "Aisha Rahman", "type": "PERSON" },
+    { "name": "Liam O'Connor", "type": "PERSON" },
+    { "name": "Priya Nair", "type": "PERSON" },
+    { "name": "Tomas Berg", "type": "PERSON" },
+    { "name": "Nova Research Institute", "type": "ORGANIZATION" },
+    { "name": "Helion Labs", "type": "ORGANIZATION" },
+    { "name": "Quantum Error Correction", "type": "CONCEPT" },
+    { "name": "Topological Qubits", "type": "CONCEPT" },
+    { "name": "Reinforcement Learning", "type": "CONCEPT" },
+    { "name": "Protein Folding", "type": "CONCEPT" },
+    { "name": "Surface Code Simulator", "type": "TECHNOLOGY" },
+    { "name": "AlphaFold Pipeline", "type": "TECHNOLOGY" },
+    { "name": "OpenQASM", "type": "TECHNOLOGY" },
+    { "name": "QubitForge SDK", "type": "PRODUCT" },
+    { "name": "Helion Cloud Platform", "type": "PRODUCT" },
+    { "name": "Fault-Tolerant Quantum Computing Survey", "type": "RESEARCH" },
+    { "name": "Quantum Computing Summit 2026", "type": "EVENT" },
+    { "name": "Boston", "type": "LOCATION" }
+  ],
+  "relationships": [
+    { "source": "Elena Vasquez", "type": "WORKS_FOR", "target": "Nova Research Institute" },
+    { "source": "Marcus Chen", "type": "WORKS_FOR", "target": "Nova Research Institute" },
+    { "source": "Priya Nair", "type": "WORKS_FOR", "target": "Nova Research Institute" },
+    { "source": "Aisha Rahman", "type": "WORKS_FOR", "target": "Helion Labs" },
+    { "source": "Liam O'Connor", "type": "WORKS_FOR", "target": "Helion Labs" },
+    { "source": "Tomas Berg", "type": "WORKS_FOR", "target": "Helion Labs" },
+    { "source": "Elena Vasquez", "type": "COLLABORATES_WITH", "target": "Aisha Rahman" },
+    { "source": "Elena Vasquez", "type": "RELATED_TO", "target": "Quantum Error Correction" },
+    { "source": "Marcus Chen", "type": "RELATED_TO", "target": "Topological Qubits" },
+    { "source": "Aisha Rahman", "type": "RELATED_TO", "target": "Protein Folding" },
+    { "source": "Liam O'Connor", "type": "RELATED_TO", "target": "Reinforcement Learning" },
+    { "source": "Priya Nair", "type": "RELATED_TO", "target": "OpenQASM" },
+    { "source": "Nova Research Institute", "type": "OWNS", "target": "QubitForge SDK" },
+    { "source": "Helion Labs", "type": "OWNS", "target": "Helion Cloud Platform" },
+    { "source": "Surface Code Simulator", "type": "PART_OF", "target": "QubitForge SDK" },
+    { "source": "AlphaFold Pipeline", "type": "PART_OF", "target": "Helion Cloud Platform" },
+    { "source": "Quantum Error Correction", "type": "RELATED_TO", "target": "Topological Qubits" },
+    { "source": "Fault-Tolerant Quantum Computing Survey", "type": "CITED", "target": "Quantum Error Correction" },
+    { "source": "Elena Vasquez", "type": "SPOKE_AT", "target": "Quantum Computing Summit 2026" },
+    { "source": "Quantum Computing Summit 2026", "type": "LOCATED_IN", "target": "Boston" }
+  ],
+  "elena_vasquez_neighborhood": [
+    "Elena Vasquez works for Nova Research Institute",
+    "Elena Vasquez collaborates with Aisha Rahman",
+    "Elena Vasquez is related to Quantum Error Correction",
+    "Elena Vasquez spoke at Quantum Computing Summit 2026"
+  ],
+  "other_org_entities": [
+    { "name": "Nadia Kessler", "type": "PERSON" },
+    { "name": "Reyfield Analytics", "type": "ORGANIZATION" },
+    { "name": "Predictive Churn Modeling", "type": "CONCEPT" }
+  ]
+}
