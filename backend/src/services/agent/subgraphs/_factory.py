@@ -199,7 +199,17 @@ def make_specialist_subgraph(
         sanitized = _sanitize_messages(messages)
         base_prompt = prompt_builder()
         addendum = synthesis_addendum.format(count=state.get("tool_loop_count", 0))
-        full = [SystemMessage(content=base_prompt + addendum)] + sanitized
+        limit_contract = (
+            "\n\nThe unanswered tool request was not executed because the "
+            "per-turn execution limit was reached. Do not claim it ran, infer "
+            "its result, emit tool-call syntax, or promise to run it next. "
+            "Answer the user's original request from completed tool results "
+            "only. State that the execution limit stopped the remaining work "
+            "and identify the last completed or verified result."
+        )
+        full = [
+            SystemMessage(content=base_prompt + addendum + limit_contract)
+        ] + sanitized
 
         llm_client = build_synthesis_llm(max_tokens=4096)
         # No bind_tools — force a pure text response.
