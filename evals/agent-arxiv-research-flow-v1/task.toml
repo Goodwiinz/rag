@@ -1,0 +1,49 @@
+schema_version = "1.2"
+source = "git+https://github.com/Goodwiinz/rag.git@2c5e7a828377d9b648d2ba709bb3d9c4e9f275d7"
+artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
+
+[task]
+name = "goodwiinz/agent-arxiv-research-flow-v1"
+description = "Search arXiv against a protocol double, prove the shared Redis result cache, and ingest two papers behind one HITL approval."
+authors = [{ name = "Goodwiinz" }]
+keywords = ["langgraph", "arxiv", "research", "redis", "hitl", "tools"]
+
+[metadata]
+benchmark_id = "agent-arxiv-research-flow-v1"
+source_revision = "2c5e7a828377d9b648d2ba709bb3d9c4e9f275d7"
+agent_revision = "2c5e7a828377d9b648d2ba709bb3d9c4e9f275d7"
+harbor_version = "0.6.6"
+base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
+
+[verifier]
+timeout_sec = 120.0
+
+[verifier.env]
+
+[agent]
+timeout_sec = 360.0
+
+[environment]
+build_timeout_sec = 1800.0
+os = "linux"
+cpus = 4
+memory_mb = 8192
+storage_mb = 20480
+gpus = 0
+# Harbor's network_mode:none would also sever the private database, Redis,
+# and mock-services network. Compose supplies the stricter useful boundary:
+# main is attached only to an internal network, while Squid is the sole
+# public bridge and allowlists the configured Azure model host.
+allow_internet = true
+mcp_servers = []
+workdir = "/app"
+
+[environment.env]
+AZURE_OPENAI_CHAT_ENDPOINT = "${AZURE_OPENAI_CHAT_ENDPOINT}"
+AZURE_OPENAI_CHAT_API_KEY = "${AZURE_OPENAI_CHAT_API_KEY}"
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME = "${AZURE_OPENAI_CHAT_DEPLOYMENT_NAME}"
+AZURE_OPENAI_CHAT_API_VERSION = "${AZURE_OPENAI_CHAT_API_VERSION}"
+AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT = "${AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT}"
+AZURE_OPENAI_SYNTHESIS_DEPLOYMENT = "${AZURE_OPENAI_SYNTHESIS_DEPLOYMENT:-}"
+
+[solution.env]

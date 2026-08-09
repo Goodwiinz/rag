@@ -1,0 +1,1 @@
+First call list_external_databases to see which external database connectors are available. Then call search_external_database with connector="pubmed" for research on "telomere shortening senescent cells", and call search_external_database with connector="fred" for the economic series "unemployment rate". Report what you found from each source.

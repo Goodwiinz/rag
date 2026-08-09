@@ -1,0 +1,172 @@
+{
+  "evidence": {
+    "schema_version": "1.0",
+    "benchmark_id": "agent-code-execution-v1",
+    "source_revision": "7c6abb336c4eaf2ed6d53bd9f78b32b82a7a3b23",
+    "agent_revision": "7c6abb336c4eaf2ed6d53bd9f78b32b82a7a3b23",
+    "started_at": "2026-08-08T00:00:00Z",
+    "completed_at": "2026-08-08T00:00:20Z",
+    "instruction": "Run Python to compute the SHA-256 hex digest of the exact string \"nous-benchmark-1101\" and report the digest.",
+    "target_string": "nous-benchmark-1101",
+    "expected_digest": "9cffe075cdbb999913d0b7c4b0c9aa47ad7757c6b3dee8c31b2ce84866b1b5f2",
+    "synthetic_actor": {
+      "organization_id": "00000000-0000-4000-8000-000000001101",
+      "user_id": "00000000-0000-4000-8000-000000001102",
+      "workspace_id": "00000000-0000-4000-8000-000000001103",
+      "thread_id": "00000000-0000-4000-8000-000000001104"
+    },
+    "env_flags": { "routing_workaround": "sentinel_intent" },
+    "sentinel_intent": "benchmark_all_tools",
+    "observed_intent": "benchmark_all_tools",
+    "e2b_patch": {
+      "E2B_API_URL": "http://mock-services:8080",
+      "E2B_SANDBOX_URL": "http://mock-services:8080",
+      "jupyter_url_patched_to": "http://mock-services:8080"
+    },
+    "network_boundary": {
+      "direct_public_socket_blocked": true,
+      "approved_model_host_reachable_via_proxy": true,
+      "approved_model_probe_status": 200,
+      "unrelated_https_blocked_by_proxy": true,
+      "unrelated_probe_status": 403,
+      "private_mock_services_reachable": true
+    },
+    "interrupts": [
+      {
+        "tool": "execute_code",
+        "args": {
+          "code": "import hashlib\nprint(hashlib.sha256('nous-benchmark-1101'.encode()).hexdigest())",
+          "description": "Compute the SHA-256 digest of the benchmark string.",
+          "language": "python"
+        },
+        "approved_at": "2026-08-08T00:00:10Z"
+      }
+    ],
+    "interrupt": { "count": 1, "tools": ["execute_code"] },
+    "approval": {
+      "count": 1,
+      "text": "Yes, run it.",
+      "resume": { "confirmed": true }
+    },
+    "pending_interrupt_after_resume": null,
+    "mock_events_before_approval": [],
+    "mock_events": [
+      {
+        "sequence": 1,
+        "type": "create",
+        "sandbox_id": "sbx-0001",
+        "template": "code-interpreter-v1"
+      },
+      {
+        "sequence": 2,
+        "type": "execute",
+        "code": "import subprocess; subprocess.check_call(['pip', 'install', '-q', 'numpy', 'pandas', 'matplotlib', 'scipy', 'scikit-learn', 'seaborn'])",
+        "language": null
+      },
+      {
+        "sequence": 3,
+        "type": "execute_result",
+        "exit_code": 1,
+        "stdout_bytes": 0,
+        "stderr_bytes": 120
+      },
+      {
+        "sequence": 4,
+        "type": "execute",
+        "code": "import hashlib\nprint(hashlib.sha256('nous-benchmark-1101'.encode()).hexdigest())",
+        "language": "python"
+      },
+      {
+        "sequence": 5,
+        "type": "execute_result",
+        "exit_code": 0,
+        "stdout_bytes": 65,
+        "stderr_bytes": 0
+      },
+      {
+        "sequence": 6,
+        "type": "kill",
+        "sandbox_id": "sbx-0001"
+      }
+    ],
+    "execute_code_executions": [
+      {
+        "tool_name": "execute_code",
+        "status": "completed",
+        "result": {
+          "status": "success",
+          "stdout": "9cffe075cdbb999913d0b7c4b0c9aa47ad7757c6b3dee8c31b2ce84866b1b5f2\n",
+          "stderr": "",
+          "exit_code": 0,
+          "execution_time_ms": 340,
+          "description": "Compute the SHA-256 digest of the benchmark string."
+        }
+      }
+    ],
+    "tool_executions": [
+      {
+        "tool_name": "execute_code",
+        "status": "completed",
+        "result": {
+          "status": "success",
+          "stdout": "9cffe075cdbb999913d0b7c4b0c9aa47ad7757c6b3dee8c31b2ce84866b1b5f2\n",
+          "stderr": "",
+          "exit_code": 0,
+          "execution_time_ms": 340,
+          "description": "Compute the SHA-256 digest of the benchmark string."
+        }
+      }
+    ],
+    "messages": [
+      { "type": "human", "content": "Run Python to compute the SHA-256 hex digest of the exact string \"nous-benchmark-1101\" and report the digest." },
+      {
+        "type": "ai",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "call_1",
+            "name": "execute_code",
+            "args": {
+              "code": "import hashlib\nprint(hashlib.sha256('nous-benchmark-1101'.encode()).hexdigest())",
+              "description": "Compute the SHA-256 digest of the benchmark string.",
+              "language": "python"
+            }
+          }
+        ]
+      },
+      {
+        "type": "tool",
+        "tool_call_id": "call_1",
+        "content": "{\"status\": \"success\", \"stdout\": \"9cffe075cdbb999913d0b7c4b0c9aa47ad7757c6b3dee8c31b2ce84866b1b5f2\\n\", \"exit_code\": 0}"
+      },
+      {
+        "type": "ai",
+        "content": "The SHA-256 digest of \"nous-benchmark-1101\" is 9cffe075cdbb999913d0b7c4b0c9aa47ad7757c6b3dee8c31b2ce84866b1b5f2.",
+        "tool_calls": []
+      }
+    ],
+    "events": [],
+    "milestones": [
+      { "milestone": "instruction", "sequence": 1, "observed_at": "2026-08-08T00:00:00Z" },
+      { "milestone": "sentinel_state_seeded", "sequence": 2, "observed_at": "2026-08-08T00:00:01Z" },
+      { "milestone": "interrupt:execute_code", "sequence": 3, "observed_at": "2026-08-08T00:00:05Z" },
+      { "milestone": "preapproval_mock_events_read", "sequence": 4, "observed_at": "2026-08-08T00:00:06Z" },
+      { "milestone": "approval:execute_code", "sequence": 5, "observed_at": "2026-08-08T00:00:10Z" },
+      { "milestone": "sandbox_cleanup", "sequence": 6, "observed_at": "2026-08-08T00:00:19Z" },
+      { "milestone": "final_assistant_message", "sequence": 7, "observed_at": "2026-08-08T00:00:20Z" }
+    ],
+    "suppress_observation_for": [],
+    "notes": "Production graph with an isolated database, an E2B sandbox-lifecycle + jupyter-execute protocol double, the sentinel-intent routing workaround, and one post-interrupt approval.",
+    "final_assistant_message": {
+      "type": "ai",
+      "content": "The SHA-256 digest of \"nous-benchmark-1101\" is 9cffe075cdbb999913d0b7c4b0c9aa47ad7757c6b3dee8c31b2ce84866b1b5f2.",
+      "tool_calls": []
+    },
+    "termination_reason": "completed",
+    "model_usage": { "input_tokens": 1200, "output_tokens": 90, "cache_tokens": 0 },
+    "elapsed_ms": 20000
+  },
+  "state": {
+    "mock_events": []
+  }
+}

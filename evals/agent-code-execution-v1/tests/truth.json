@@ -1,0 +1,11 @@
+{
+  "benchmark_id": "agent-code-execution-v1",
+  "organization_id": "00000000-0000-4000-8000-000000001101",
+  "user_id": "00000000-0000-4000-8000-000000001102",
+  "workspace_id": "00000000-0000-4000-8000-000000001103",
+  "thread_id": "00000000-0000-4000-8000-000000001104",
+  "sentinel_intent": "benchmark_all_tools",
+  "target_string": "nous-benchmark-1101",
+  "expected_sha256": "9cffe075cdbb999913d0b7c4b0c9aa47ad7757c6b3dee8c31b2ce84866b1b5f2",
+  "max_executions_per_run": 5
+}
