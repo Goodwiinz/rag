@@ -161,7 +161,7 @@ length):**
 | --- | --- |
 | Timing | Disconnect *detection* ≤ 10 s (`_SSE_KEEPALIVE_SECONDS` polling path; immediate on the ASGI-cancel path), full terminalization within 15 s of disconnect |
 | Terminal event | Exactly one terminal run event (`uq_agent_run_events_one_terminal` partial unique index enforces this DB-side). It is `run.cancelled` when the abort precedes the `done` frame; an abort *after* `done` legitimately leaves `run.completed` (first-writer-wins) — harness v2's late-cancel position must tolerate that |
-| Partial link | The `run.cancelled` **event payload** carries `assistant_message_id` pointing at the stopped partial row (`agent_run_events.payload->>'assistant_message_id'`). Absent when nothing streamed before the abort. Note: the `AgentRun.assistant_message_id` *column* is never written by any code path and stays NULL — do not assert on it |
+| Partial link | The `run.cancelled` **event payload** carries `assistant_message_id` pointing at the stopped partial row (`agent_run_events.payload->>'assistant_message_id'`). Absent when nothing streamed before the abort. The `AgentRun.assistant_message_id` *column* is also populated — `finalize_submission` (`backend/src/services/agent/agent_submission_service.py:696-753`, shared by every route) projects `payload.assistant_message_id` onto it — fixed by #1353 (see "Open implementation gaps" item 3); `agent-stream-cancel-durability-v1/tests/verify.py:442` already asserts this column, and capability 13's verifier asserts it too |
 | Prefix | Persisted partial is an exact prefix of the buffered stream (`len(persisted) <= len(buffered)`). Assumes Redis buffering succeeded per chunk — `emit()` swallows append failures, so a prefix violation with no cancellation involved indicates a buffering fault, which scores as C (infra), not A |
 | Redis cleanup | Active pointer key deleted. The replay list key survives under its 3600 s TTL **by design** — it is expected post-run state, not a stale-key violation |
 | Resume safety | Resume after cancel of a plain `/stream` turn returns HTTP 204. Cancelling a `/stream/confirm` resume leaves the HITL interrupt parked in the checkpoint, and resume then returns **200 + a re-delivered `confirmation` frame** — assert that, not 204. Either way: zero new model/tool starts (the resume path is a pure read — ownership SELECT, Redis reads, `graph.aget_state`) |
@@ -642,12 +642,72 @@ exit 2 not 10), awaits first recorded run. See
 
 ### 13. Luna fast path
 
-Same invariants as capability 3 but on the fast-path route. Unblocked by
-#1353 (emit-before-append ordering + cancel linkage now match the graph
-path); regression-tested at the unit level by
-`test_fast_path_cancel_links_partial_and_keeps_prefix`. Known tolerance: the
-outer route-agnostic handler fires a second unlinked `run.cancelled` finalize
-that the terminal unique index absorbs — the durable event is the linked one.
+**Preconditions:** one synthetic org/user/workspace/conversation/thread
+(`00000000-0000-4000-8000-000000000d01`…`…0d05`), `AGENT_FAST_PATH_ENABLED=true`.
+The submitted instruction must be fast-path eligible
+(`classify_fast_path_turn(...).eligible is True`) — an ineligible instruction
+never enters the route under test and is an `InfrastructureFailure`, not a
+gate outcome. Same invariants as capability 3 ("Stream cancellation
+durability") but applied to the fast-path route
+(`backend/src/services/agent/fast_path.py` +
+`backend/src/api/agent/streaming.py:_stream_luna_fast_path`) instead of the
+LangGraph route. Unblocked by #1353 (emit-before-append ordering + cancel
+linkage now match the graph path); regression-tested at the unit level by
+`test_fast_path_cancel_links_partial_and_keeps_prefix`.
+
+**Objective gates:**
+- Gate 1 — emit-before-append ordering: a model chunk's text may be appended
+  to the in-memory partial only after its SSE emit has completed; a
+  cancellation raised inside the emit must never let that chunk's text reach
+  the persisted partial.
+- Gate 2 — cancel linkage: the durable terminal `run.cancelled` event's
+  payload carries `assistant_message_id` equal to the id of the persisted
+  partial row. Gate 2 also asserts the `AgentRun.assistant_message_id`
+  column — this mirrors capability 3's own verifier
+  (`agent-stream-cancel-durability-v1/tests/verify.py:442`), not a
+  fast-path novelty: both routes share `finalize_submission`, which
+  projects `payload.assistant_message_id` onto that column for any route
+  (see the corrected capability-3 table row above).
+- Gate 3 — the stopped partial row is durably persisted (non-empty content,
+  `stopped=true`) and the `AgentRun.status` is `cancelled`.
+- Gate 4 — prefix retained: persisted content equals exactly the
+  concatenation, in order, of every chunk whose emit completed and was
+  appended.
+
+**The known, correct tolerance (verbatim, not a defect):** the fast path's
+own `CancelledError` handler (`cancel_fast_path`) issues the FIRST, linked
+`run.cancelled` finalize; that `CancelledError` also trips
+`stream_event_generator`'s outer, route-agnostic `CancelledError` handler,
+which issues a SECOND, unlinked `run.cancelled` finalize. In production the
+second call is a no-op — `finalize_submission`'s terminal-status guard and
+`append_event`'s `RunAlreadyTerminalError` (backed by the
+`uq_agent_run_events_one_terminal` partial unique index) absorb it, so the
+durable ledger holds exactly one terminal event, ever. The verifier MUST
+PASS when it sees one linked finalize plus at most one absorbed unlinked
+duplicate, and MUST FAIL when the linked event is missing (even if the
+unlinked one is present) — a verifier that treats the duplicate itself as a
+failure would fail every honest run.
+
+**Semantic gate:** N/A (counts as pass — no answer to judge on cancellation,
+same rationale as capability 3).
+
+**Fidelity limit:** the harness can only disconnect the HTTP client between
+SSE frames — it cannot reproduce the exact mid-`emitter.emit()` cancellation
+race the unit-level regression constructs by monkeypatching
+`_SeqEmitter.emit`. The emit-before-append gate is still fully exercised at
+the verifier level (the adapter records its own before/after instrumentation
+per chunk) and the mid-emit race is covered directly by the
+`wrong-emit-after-append.json` calibration fixture, not by the live run —
+this task is calibration-verified, not run-verified (see the plan's
+Verification section).
+
+**Status:** NOT GATED — Harbor task landed
+(`evals/agent-fast-path-cancel-v1`), calibration verified locally (1 pass +
+4 `wrong-*` fixtures — unlinked-only durable event, lost prefix,
+emit-after-append ordering, an internally-contradictory unlinked
+self-report — each exit 10, plus 1 `infra-*` fixture for a missing evidence
+key, exit 2 not 10), awaits first recorded run. See
+`source-manifests/agent-flow-2026-08-09-fast-path-cancel.json`.
 
 ### 14. Project management
 

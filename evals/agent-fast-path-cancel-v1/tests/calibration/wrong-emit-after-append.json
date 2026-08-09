@@ -1,0 +1,199 @@
+{
+  "evidence": {
+    "accepted": {
+      "assistant_client_message_id": "00000000-0000-4000-8000-000000000d0a",
+      "client_message_id": "00000000-0000-4000-8000-000000000d06",
+      "run_id": "00000000-0000-4000-8000-000000000d08",
+      "thread_id": "00000000-0000-4000-8000-000000000d05",
+      "user_message_id": "00000000-0000-4000-8000-000000000d07"
+    },
+    "agent_revision": "fff861e9a7b74a584924b47fac6b19d2265d5e61",
+    "application": {
+      "ready": true,
+      "shutdown_exit_code": 0,
+      "status_code": 200
+    },
+    "benchmark_id": "agent-fast-path-cancel-v1",
+    "completed_at": "2026-08-09T10:00:05Z",
+    "disconnect": {
+      "bound_ms": 10000,
+      "completed_at": "2026-08-09T10:00:04.910Z",
+      "initiated_at": "2026-08-09T10:00:04.900Z",
+      "terminal_observed_within_bound": true,
+      "terminalization_elapsed_ms": 250
+    },
+    "elapsed_ms": 5150,
+    "finalize_attempts": [
+      {
+        "event_type": "run.cancelled",
+        "linked": true,
+        "payload": {
+          "assistant_message_id": "00000000-0000-4000-8000-000000000d09",
+          "reason": "client_disconnected",
+          "request_id": "harbor-fast-path-cancel-000000000d0b"
+        },
+        "source": "fast_path_inner"
+      },
+      {
+        "event_type": "run.cancelled",
+        "linked": false,
+        "payload": {
+          "reason": "client_disconnected",
+          "request_id": "harbor-fast-path-cancel-000000000d0b"
+        },
+        "source": "outer_route_agnostic"
+      }
+    ],
+    "instruction": "Explain why the sky appears blue in one sentence.",
+    "model_usage": {
+      "cache_tokens": 0,
+      "input_tokens": 20,
+      "output_tokens": 2
+    },
+    "network_boundary": {
+      "approved_model_host_reachable_via_proxy": true,
+      "direct_public_socket_blocked": true,
+      "private_fastapi_reachable": true,
+      "private_postgres_reachable": true,
+      "private_redis_reachable": true,
+      "unrelated_https_blocked_by_proxy": true
+    },
+    "persisted_partial": {
+      "client_message_id": "00000000-0000-4000-8000-000000000d0a",
+      "content": "X",
+      "id": "00000000-0000-4000-8000-000000000d09",
+      "stopped": true,
+      "thread_id": "00000000-0000-4000-8000-000000000d05"
+    },
+    "routing": {
+      "eligible": true,
+      "reason": "ungrounded_generation"
+    },
+    "schema_version": "1.0",
+    "source_revision": "fff861e9a7b74a584924b47fac6b19d2265d5e61",
+    "sse": {
+      "first_token": {
+        "data": {
+          "content": "X",
+          "sequence": 3
+        },
+        "event": "token",
+        "id": "3"
+      },
+      "frames": [
+        {
+          "data": {
+            "phase": "accepted",
+            "run_id": "00000000-0000-4000-8000-000000000d08",
+            "sequence": 1
+          },
+          "event": "status",
+          "id": "1"
+        },
+        {
+          "data": {
+            "detail": "Using the direct Luna path",
+            "phase": "routing",
+            "sequence": 2
+          },
+          "event": "status",
+          "id": "2"
+        },
+        {
+          "data": {
+            "content": "X",
+            "sequence": 3
+          },
+          "event": "token",
+          "id": "3"
+        }
+      ],
+      "response": {
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8"
+        },
+        "status_code": 200
+      }
+    },
+    "started_at": "2026-08-09T10:00:00Z",
+    "synthetic_actor": {
+      "conversation_id": "00000000-0000-4000-8000-000000000d04",
+      "organization_id": "00000000-0000-4000-8000-000000000d01",
+      "thread_id": "00000000-0000-4000-8000-000000000d05",
+      "user_id": "00000000-0000-4000-8000-000000000d02",
+      "workspace_id": "00000000-0000-4000-8000-000000000d03"
+    },
+    "termination_reason": "cancelled",
+    "token_log": [
+      {
+        "appended_to_partial": true,
+        "content": "X",
+        "emit_completed": false
+      }
+    ]
+  },
+  "state": {
+    "events": [
+      {
+        "created_at": "2026-08-09T10:00:00.100Z",
+        "event_type": "run.created",
+        "id": "00000000-0000-4000-8000-000000000d10",
+        "payload": {},
+        "run_id": "00000000-0000-4000-8000-000000000d08",
+        "seq": 1
+      },
+      {
+        "created_at": "2026-08-09T10:00:00.200Z",
+        "event_type": "run.started",
+        "id": "00000000-0000-4000-8000-000000000d11",
+        "payload": {},
+        "run_id": "00000000-0000-4000-8000-000000000d08",
+        "seq": 2
+      },
+      {
+        "created_at": "2026-08-09T10:00:05.100Z",
+        "event_type": "run.cancelled",
+        "id": "00000000-0000-4000-8000-000000000d12",
+        "payload": {
+          "assistant_message_id": "00000000-0000-4000-8000-000000000d09",
+          "reason": "client_disconnected",
+          "request_id": "harbor-fast-path-cancel-000000000d0b"
+        },
+        "run_id": "00000000-0000-4000-8000-000000000d08",
+        "seq": 3
+      }
+    ],
+    "messages": [
+      {
+        "client_message_id": "00000000-0000-4000-8000-000000000d06",
+        "content": "Explain why the sky appears blue in one sentence.",
+        "id": "00000000-0000-4000-8000-000000000d07",
+        "role": "user",
+        "stopped": false,
+        "thread_id": "00000000-0000-4000-8000-000000000d05"
+      },
+      {
+        "client_message_id": "00000000-0000-4000-8000-000000000d0a",
+        "content": "X",
+        "id": "00000000-0000-4000-8000-000000000d09",
+        "role": "assistant",
+        "stopped": true,
+        "thread_id": "00000000-0000-4000-8000-000000000d05"
+      }
+    ],
+    "run": {
+      "assistant_message_id": "00000000-0000-4000-8000-000000000d09",
+      "client_message_id": "00000000-0000-4000-8000-000000000d06",
+      "completed_at": "2026-08-09T10:00:05.100Z",
+      "error": null,
+      "error_code": null,
+      "job_id": "00000000-0000-4000-8000-000000000d08",
+      "last_event_seq": 3,
+      "organization_id": "00000000-0000-4000-8000-000000000d01",
+      "status": "cancelled",
+      "thread_id": "00000000-0000-4000-8000-000000000d05",
+      "user_id": "00000000-0000-4000-8000-000000000d02"
+    },
+    "run_count_for_thread": 1
+  }
+}
