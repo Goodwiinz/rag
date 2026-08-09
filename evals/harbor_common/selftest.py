@@ -16,12 +16,12 @@ from uuid import UUID
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from evals.harbor_common import judge as judge_module  # noqa: E402
 from evals.harbor_common.envelope import (  # noqa: E402
     InfrastructureFailure,
     load_inputs,
     run_verifier_main,
 )
-from evals.harbor_common import judge as judge_module  # noqa: E402
 from evals.harbor_common.judge import run_semantic_judge  # noqa: E402
 from evals.harbor_common.serialization import json_safe, utc_now  # noqa: E402
 
@@ -201,7 +201,9 @@ class _RejectingClient:
 class _FlakyThenGoodClient:
     """Raises a transport exception N times, then returns good content."""
 
-    def __init__(self, exc: Exception, failures: int, content: str, calls: list[str]) -> None:
+    def __init__(
+        self, exc: Exception, failures: int, content: str, calls: list[str]
+    ) -> None:
         self._exc = exc
         self._failures = failures
         self._content = content
@@ -296,7 +298,9 @@ def test_run_semantic_judge() -> None:
         trusted_sources=["source a"],
         candidate_answer="answer",
         rubric="rubric text",
-        _client_factory=_json_mode_factory(verdict_json, construction_log, invoke_calls),
+        _client_factory=_json_mode_factory(
+            verdict_json, construction_log, invoke_calls
+        ),
     )
     assert result["supported"] is True, result
     assert construction_log == [True, False], (
@@ -512,9 +516,9 @@ def test_retry_reminder_includes_offending_reply() -> None:
     # The reminder must actually quote (a capped prefix of) the bad reply,
     # not just gesture at it.
     assert long_bad_reply[:50] in retry_message, retry_message
-    assert len(retry_message) < len(long_bad_reply) + 400, (
-        "reminder must cap the quoted snippet, not embed the full reply"
-    )
+    assert (
+        len(retry_message) < len(long_bad_reply) + 400
+    ), "reminder must cap the quoted snippet, not embed the full reply"
 
 
 def main() -> None:
