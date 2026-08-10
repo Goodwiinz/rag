@@ -58,6 +58,7 @@ REQUIRED_EVIDENCE_KEYS = (
     "accepted",
     "token_log",
     "finalize_attempts",
+    "captured_stream_id",
     "server_token_log",
     "server_replay_buffers",
     "persisted_partial",
@@ -216,6 +217,11 @@ def require_keys(evidence: dict[str, Any], state: dict[str, Any]) -> None:
                     f"evidence.server_replay_buffers[{index}] missing {key!r}"
                 )
 
+    if not isinstance(evidence["captured_stream_id"], str) or not evidence[
+        "captured_stream_id"
+    ]:
+        raise InfrastructureFailure("evidence.captured_stream_id must be non-empty text")
+
     finalize_attempts = evidence["finalize_attempts"]
     if not isinstance(finalize_attempts, list) or not finalize_attempts:
         raise InfrastructureFailure(
@@ -308,15 +314,16 @@ def check_prefix_retained(evidence: dict[str, Any], failures: list[str]) -> None
         return
 
     buffer = replay_buffers[0]
-    expected_key = f"agent:stream:{buffer.get('stream_id')}"
-    if buffer.get("key") != expected_key:
-        failures.append("Redis replay buffer key does not match its stream id")
+    captured_stream_id = evidence["captured_stream_id"]
+    expected_key = f"agent:stream:{captured_stream_id}"
+    if buffer.get("stream_id") != captured_stream_id or buffer.get("key") != expected_key:
+        failures.append("Redis replay buffer does not match the captured current stream id")
     if not isinstance(buffer.get("ttl_seconds"), int) or buffer["ttl_seconds"] <= 0:
         failures.append("Redis replay buffer has no positive TTL")
 
     entries = buffer.get("entries") or []
     if any(
-        not isinstance(entry, dict) or not isinstance(entry.get("seq"), int)
+        not isinstance(entry, dict) or type(entry.get("seq")) is not int
         for entry in entries
     ):
         failures.append("Redis replay buffer contains malformed entries")
@@ -335,11 +342,25 @@ def check_prefix_retained(evidence: dict[str, Any], failures: list[str]) -> None
         failures.append("Redis replay buffer contains a later done completion")
 
     accepted = evidence["accepted"]
-    for frame in frames:
+    for entry, frame in zip(entries, frames):
         data = frame.get("data")
+        try:
+            frame_sequence = int(str(frame.get("id")))
+        except (TypeError, ValueError):
+            failures.append("Redis replay frame has a non-integer SSE id")
+            continue
         if (
             not isinstance(data, dict)
-            or data.get("trace_id") != REQUEST_ID
+            or type(data.get("sequence")) is not int
+            or entry["seq"] != frame_sequence
+            or entry["seq"] != data["sequence"]
+        ):
+            failures.append(
+                "Redis replay wrapper seq, SSE id, and data.sequence must match"
+            )
+            continue
+        if (
+            data.get("trace_id") != REQUEST_ID
             or data.get("thread_id") != accepted.get("thread_id")
         ):
             failures.append("Redis replay buffer is not bound to the current run")

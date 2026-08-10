@@ -55,7 +55,7 @@
         "ttl_seconds": 3599,
         "entries": [
           {"seq": 2, "parsed_frame": {"id": "2", "event": "status", "data": {"phase": "routing", "sequence": 2, "trace_id": "harbor-fast-path-cancel-000000000d0b", "thread_id": "00000000-0000-4000-8000-000000000d05", "route": "luna"}}},
-          {"seq": 3, "parsed_frame": {"id": "3", "event": "token", "data": {"content": "The ar", "sequence": 3, "trace_id": "harbor-fast-path-cancel-000000000d0b", "thread_id": "00000000-0000-4000-8000-000000000d05", "route": "luna"}}},
+          {"seq": 3, "parsed_frame": {"id": "30", "event": "token", "data": {"content": "The ar", "sequence": 3, "trace_id": "harbor-fast-path-cancel-000000000d0b", "thread_id": "00000000-0000-4000-8000-000000000d05", "route": "luna"}}},
           {"seq": 4, "parsed_frame": {"id": "4", "event": "token", "data": {"content": " ray", "sequence": 4, "trace_id": "harbor-fast-path-cancel-000000000d0b", "thread_id": "00000000-0000-4000-8000-000000000d05", "route": "luna"}}}
         ]
       }

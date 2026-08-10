@@ -267,6 +267,7 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
     frames: list[dict[str, Any]] = []
     response_meta: dict[str, Any] = {}
     first_token: dict[str, Any] | None = None
+    captured_stream_id: str | None = None
     disconnect_initiated_at: str | None = None
     disconnect_completed_at: str | None = None
     disconnect_monotonic: float | None = None
@@ -314,6 +315,7 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
                         )
                         if parsed.get("event") == "token" and content:
                             first_token = observed
+                            captured_stream_id = await capture_active_stream_id()
                             disconnect_initiated_at = utc_now()
                             disconnect_monotonic = time.monotonic()
                             await response.aclose()
@@ -324,7 +326,7 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
                     f"no non-empty assistant token within {TOKEN_TIMEOUT_SECONDS:.0f}s"
                 ) from exc
 
-    if first_token is None or disconnect_monotonic is None:
+    if first_token is None or disconnect_monotonic is None or not captured_stream_id:
         raise InfrastructureFailure(
             f"stream ended without a non-empty assistant token; "
             f"events={[frame.get('event') for frame in frames]}"
@@ -334,6 +336,7 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
         "response": response_meta,
         "frames": frames,
         "first_token": first_token,
+        "captured_stream_id": captured_stream_id,
         "disconnect": {
             "initiated_at": disconnect_initiated_at,
             "completed_at": disconnect_completed_at,
@@ -355,7 +358,9 @@ def accepted_run_id(frames: list[dict[str, Any]]) -> str | None:
     return None
 
 
-def token_log_from_frames(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def token_log_from_frames(
+    frames: list[dict[str, Any]], *, client_observation: bool = False
+) -> list[dict[str, Any]]:
     """Normalize token frames from either the client or Redis replay log."""
     entries = []
     for frame in frames:
@@ -363,56 +368,60 @@ def token_log_from_frames(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if frame.get("event") == "token" and isinstance(data, dict):
             content = str(data.get("content") or "")
             if content:
-                entries.append(
-                    {
-                        "content": content,
-                        "sequence": data.get("sequence"),
-                        "emit_completed": True,
-                        "appended_to_partial": True,
-                    }
-                )
+                entry = {"content": content, "sequence": data.get("sequence")}
+                if client_observation:
+                    entry.update(
+                        {"emit_completed": True, "appended_to_partial": True}
+                    )
+                entries.append(entry)
     return entries
 
 
-async def redis_snapshot() -> dict[str, Any]:
-    """Read only the current request's server-side replay buffer."""
+async def capture_active_stream_id() -> str:
+    import redis.asyncio as aioredis
+
+    client = aioredis.from_url(os.environ["REDIS_URL"], decode_responses=True)
+    try:
+        stream_id = await client.get(f"agent:stream:active:{THREAD_ID}")
+        if not stream_id:
+            raise InfrastructureFailure("current Redis active stream pointer is missing")
+        return str(stream_id)
+    except InfrastructureFailure:
+        raise
+    except Exception as exc:
+        raise InfrastructureFailure(
+            f"isolated Redis active-stream read failed: {type(exc).__name__}"
+        ) from exc
+    finally:
+        await client.aclose()
+
+
+async def redis_snapshot(stream_id: str) -> dict[str, Any]:
+    """Read exactly the replay buffer captured before this client disconnected."""
     import redis.asyncio as aioredis
 
     client = aioredis.from_url(os.environ["REDIS_URL"], decode_responses=True)
     try:
         if not await client.ping():
             raise InfrastructureFailure("Redis ping returned false")
-        keys = sorted(await client.keys("agent:stream:*"))
-        buffers: list[dict[str, Any]] = []
-        for key in keys:
-            if key.startswith("agent:stream:active:"):
-                continue
-            entries: list[dict[str, Any]] = []
-            for raw in await client.lrange(key, 0, -1):
-                try:
-                    item = json.loads(raw)
-                    item["parsed_frame"] = parse_sse_text(
-                        str(item.get("frame") or "")
-                    )
-                    entries.append(json_safe(item))
-                except (TypeError, ValueError, json.JSONDecodeError):
-                    entries.append({"malformed": True, "raw": str(raw)[:1000]})
-            if not any(
-                isinstance((entry.get("parsed_frame") or {}).get("data"), dict)
-                and (entry["parsed_frame"]["data"].get("trace_id") == REQUEST_ID)
-                and (entry["parsed_frame"]["data"].get("thread_id") == str(THREAD_ID))
-                for entry in entries
-            ):
-                continue
-            buffers.append(
-                {
-                    "key": key,
-                    "stream_id": key.removeprefix("agent:stream:"),
-                    "ttl_seconds": await client.ttl(key),
-                    "entries": entries,
-                }
-            )
-        return {"buffers": buffers}
+        key = f"agent:stream:{stream_id}"
+        raw_entries = await client.lrange(key, 0, -1)
+        if not raw_entries:
+            raise InfrastructureFailure("captured Redis replay buffer is missing")
+        entries: list[dict[str, Any]] = []
+        for raw in raw_entries:
+            try:
+                item = json.loads(raw)
+                item["parsed_frame"] = parse_sse_text(str(item.get("frame") or ""))
+                entries.append(json_safe(item))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                entries.append({"malformed": True, "raw": str(raw)[:1000]})
+        return {
+            "key": key,
+            "stream_id": stream_id,
+            "ttl_seconds": await client.ttl(key),
+            "entries": entries,
+        }
     except InfrastructureFailure:
         raise
     except Exception as exc:
@@ -592,11 +601,10 @@ async def run_benchmark() -> dict[str, Any]:
         run_id = accepted_run_id(frames)
         observed_db = await wait_for_terminal(run_id)
         await asyncio.sleep(0.2)
-        observed_redis = await redis_snapshot()
+        observed_redis = await redis_snapshot(streamed["captured_stream_id"])
         redis_frames = [
             entry["parsed_frame"]
-            for buffer in observed_redis["buffers"]
-            for entry in buffer["entries"]
+            for entry in observed_redis["entries"]
             if isinstance(entry.get("parsed_frame"), dict)
         ]
 
@@ -645,9 +653,10 @@ async def run_benchmark() -> dict[str, Any]:
                 "frames": frames,
                 "first_token": streamed["first_token"],
             },
-            "token_log": token_log_from_frames(frames),
+            "token_log": token_log_from_frames(frames, client_observation=True),
             "server_token_log": token_log_from_frames(redis_frames),
-            "server_replay_buffers": observed_redis["buffers"],
+            "captured_stream_id": streamed["captured_stream_id"],
+            "server_replay_buffers": [observed_redis],
             "disconnect": {
                 "initiated_at": streamed["disconnect"]["initiated_at"],
                 "completed_at": streamed["disconnect"]["completed_at"],
