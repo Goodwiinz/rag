@@ -2716,7 +2716,6 @@ async def _tool_get_graph_stats(
             "entity_type_distribution": analytics.entity_type_counts,
             "relationship_type_distribution": analytics.relationship_type_counts,
             "average_degree": round(analytics.average_degree, 2),
-            "connected_components": analytics.connected_components,
         }
     except Exception as e:
         logger.error("get_graph_stats tool failed", exc_info=e)

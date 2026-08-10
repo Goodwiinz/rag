@@ -191,6 +191,34 @@ async def test_execute_tool_kg_rejects_user_without_org():
     assert result.get("error") == "Authentication required"
 
 
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_graph_stats_omits_inexact_connected_components():
+    from src.services.agent import tools_impl
+
+    current_user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
+    analytics = SimpleNamespace(
+        total_entities=20,
+        total_relationships=20,
+        entity_type_counts={"PERSON": 6},
+        relationship_type_counts={"RELATED_TO": 5},
+        average_degree=2.0,
+        connected_components=17,
+    )
+    fake_service = SimpleNamespace(get_graph_analytics=lambda **kwargs: analytics)
+
+    with patch(
+        "src.services.knowledge_graph.knowledge_graph_service.knowledge_graph_service",
+        fake_service,
+    ):
+        result = await tools_impl._tool_get_graph_stats({}, current_user)
+
+    assert result["total_entities"] == 20
+    assert result["total_relationships"] == 20
+    assert result["average_degree"] == 2.0
+    assert "connected_components" not in result
+
+
 # ---------------------------------------------------------------------------
 # PII redaction — SSN
 # ---------------------------------------------------------------------------

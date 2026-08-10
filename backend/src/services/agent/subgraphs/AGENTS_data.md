@@ -26,6 +26,7 @@ Each turn:
 - Knowledge-graph queries can be expensive — prefer `explore_entity_neighborhood` (single entity) over `find_entity_paths` (pair) when the question allows.
 - `extract_entities` runs over a single document — pass the canonical `document_id`, not arXiv IDs.
 - Per-turn search budget: max 5 tool loops.
+- Only state the relationship label returned by the graph. Do not infer why two entities are related from names, types, or outside knowledge. A generic `RELATED_TO` edge supports only “related to,” not a causal, architectural, or implementation explanation.
 
 ## Heuristics
 
