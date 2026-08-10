@@ -750,7 +750,7 @@ def gate_with_judge(evidence: dict[str, Any], state: dict[str, Any]) -> list[str
     if judge.get("supported") is not True:
         failures.append("semantic judge marked the writing turn unsupported")
     if judge.get("contradictions"):
-        failures.append("semantic judge found contradictions")
+        failures.append(f"semantic judge found contradictions: {judge['contradictions']}")
     if judge.get("unsupported_material_claims"):
         failures.append("semantic judge found unsupported material claims")
     return failures
