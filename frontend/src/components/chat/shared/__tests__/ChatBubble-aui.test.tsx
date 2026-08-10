@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { ChatBubble } from '../ChatBubble';
 import type { ActivityStep } from '../cloudMessageView';
 
@@ -27,5 +27,9 @@ describe('ChatBubble tool-call rendering', () => {
     );
 
     expect(document.querySelector('[data-slot="aui-tool-parts"]')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: /used 1 tool/i })
+    ).toHaveAttribute('aria-expanded', 'false');
+    expect(document.querySelectorAll('.nous-tool-strip')).toHaveLength(0);
   });
 });

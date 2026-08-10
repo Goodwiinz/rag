@@ -3,13 +3,7 @@
 import { cn } from '@/lib/utils';
 import { completeStreamingMarkdown } from '@/lib/markdown-utils';
 import { getReferencedCitations, type Citation } from '@/utils/citationParser';
-import {
-  Check,
-  Clock,
-  Copy,
-  RefreshCw,
-  Sparkles,
-} from 'lucide-react';
+import { Check, Clock, Copy, RefreshCw, Sparkles } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import React, { useMemo, useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
@@ -189,7 +183,7 @@ export const ChatBubble = React.memo(function ChatBubble({
         )}
 
         {/* Tool strip — only when we have something to show */}
-        {!isUser && !isStreaming && !isTyping && (
+        {!isUser && !isStreaming && !isTyping && activitySteps.length === 0 && (
           <ToolStrip
             toolsUsed={stripToolsUsed}
             sourcesCount={stripSourcesCount}
@@ -225,6 +219,13 @@ export const ChatBubble = React.memo(function ChatBubble({
                 messageId={message.id ?? `idx-${_index}`}
                 steps={activitySteps}
                 isStreaming={Boolean(isStreaming)}
+                summary={{
+                  toolsUsed: stripToolsUsed,
+                  sourcesCount: stripSourcesCount,
+                  responseTimeMs: stripResponseMs,
+                  stopped: message.metadata?.stopped,
+                  tokenUsage: message.metadata?.tokenUsage,
+                }}
               />
             )}
 

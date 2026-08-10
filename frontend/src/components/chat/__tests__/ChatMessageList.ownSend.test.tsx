@@ -77,7 +77,11 @@ async function scrollAway(view: ReturnType<typeof render>): Promise<void> {
   container.scrollTop = 0;
   fireEvent.scroll(container);
   await waitFor(() =>
-    expect(within(view.container).getByText('New messages')).toBeTruthy()
+    expect(
+      within(view.container).getByRole('button', {
+        name: 'Jump to latest message',
+      })
+    ).toBeTruthy()
   );
 }
 
@@ -102,7 +106,11 @@ describe('ChatMessageList auto-scroll while scrolled away', () => {
     );
 
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
-    expect(within(view.container).queryByText('New messages')).toBeNull();
+    expect(
+      within(view.container).queryByRole('button', {
+        name: 'Jump to latest message',
+      })
+    ).toBeNull();
   });
 
   it('still respects the guard for content the user did not initiate', async () => {
@@ -127,6 +135,26 @@ describe('ChatMessageList auto-scroll while scrolled away', () => {
     // negative.
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(scrollIntoView).not.toHaveBeenCalled();
-    expect(within(view.container).getByText('New messages')).toBeTruthy();
+    expect(
+      within(view.container).getByRole('button', {
+        name: 'Jump to latest message',
+      })
+    ).toBeTruthy();
+  });
+
+  it('keeps the jump control in the transcript gutter and reserves clearance below messages', async () => {
+    const view = render(tree(history));
+    await scrollAway(view);
+
+    const button = within(view.container).getByRole('button', {
+      name: 'Jump to latest message',
+    });
+    expect(button.closest('[data-slot="jump-to-latest"]')).toHaveClass(
+      'right-3',
+      'sm:right-6'
+    );
+    expect(
+      view.container.querySelector('[data-slot="transcript-content"]')
+    ).toHaveClass('pb-20', 'sm:pb-24');
   });
 });

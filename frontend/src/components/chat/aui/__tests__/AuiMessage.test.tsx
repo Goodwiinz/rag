@@ -101,7 +101,7 @@ describe('AuiMessage', () => {
     expect(screen.getByText('PDF')).toBeInTheDocument();
   });
 
-  it('renders tool-call parts with the shared ToolFallback UI', () => {
+  it('renders tool-call parts in one grouped disclosure without a duplicate strip', () => {
     renderMessages([
       {
         id: 'a1',
@@ -120,10 +120,18 @@ describe('AuiMessage', () => {
       },
     ]);
 
+    const disclosure = screen.getByRole('button', { name: /used 1 tool/i });
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(document.querySelectorAll('.nous-tool-strip')).toHaveLength(0);
     expect(
-      document.querySelector('[data-slot="tool-fallback-root"]')
-    ).toBeTruthy();
+      document.querySelectorAll('[data-slot="aui-tool-parts"]')
+    ).toHaveLength(1);
+
+    fireEvent.click(disclosure);
     expect(screen.getByText(/search_arxiv/)).toBeInTheDocument();
+    expect(
+      document.querySelectorAll('[data-slot="tool-fallback-root"]')
+    ).toHaveLength(1);
   });
 
   it('adds an autohiding action bar inside MessagePrimitive.Root for hover-driven controls', async () => {
@@ -543,7 +551,9 @@ describe('AuiUserMessage inline edit-and-resend', () => {
     fireEvent.keyDown(textarea, { key: 'Escape' });
 
     await waitFor(() =>
-      expect(screen.queryByLabelText('Edit your message')).not.toBeInTheDocument()
+      expect(
+        screen.queryByLabelText('Edit your message')
+      ).not.toBeInTheDocument()
     );
     // Without an explicit restore, unmounting the focused textarea drops
     // focus to <body> and keyboard users lose their place. The trigger is a

@@ -11,7 +11,6 @@ import React, {
 } from 'react';
 import { VariableSizeList as List } from 'react-window';
 import { motion } from 'framer-motion';
-import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { ChatBubble } from '@/components/chat/shared/ChatBubble';
 import { AuiMessageByIndex } from '@/components/chat/aui/AuiMessage';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
@@ -89,7 +88,6 @@ const MessageRow = memo(function MessageRow({ index, style, data }: RowProps) {
     messages,
     lastIndex,
     isNewMessage,
-    activeThreadId,
     storeIsStreaming,
     isLoading,
     onRegenerate,
@@ -126,9 +124,6 @@ const MessageRow = memo(function MessageRow({ index, style, data }: RowProps) {
 
   const bubble = (
     <>
-      {message.role === 'assistant' && isLast && !storeIsStreaming && (
-        <InlineAgentSummary threadId={activeThreadId} />
-      )}
       {isLast &&
       isLoading &&
       !storeIsStreaming &&

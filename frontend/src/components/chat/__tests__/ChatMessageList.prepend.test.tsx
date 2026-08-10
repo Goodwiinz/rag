@@ -101,7 +101,11 @@ describe('ChatMessageList prepend scroll compensation', () => {
     });
     scroller.scrollTop = 50;
     fireEvent.scroll(scroller);
-    await waitFor(() => expect(screen.getByText('New messages')).toBeTruthy());
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Jump to latest message' })
+      ).toBeTruthy()
+    );
 
     rerender(
       <ChatMessageList

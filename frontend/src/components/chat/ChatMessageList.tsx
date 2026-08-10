@@ -10,7 +10,6 @@ import React, {
 } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
-import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { ChatBubble } from '@/components/chat/shared/ChatBubble';
 import { AuiMessageByIndex } from '@/components/chat/aui/AuiMessage';
 import { VirtualizedMessageList } from '@/components/chat/VirtualizedMessageList';
@@ -258,9 +257,6 @@ export const ChatMessageList = React.memo(function ChatMessageList({
 
         const bubble = (
           <>
-            {message.role === 'assistant' && isLast && !storeIsStreaming && (
-              <InlineAgentSummary threadId={activeThreadId} />
-            )}
             {isLast &&
             isLoading &&
             !storeIsStreaming &&
@@ -328,7 +324,6 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       lastIndex,
       isNewMessage,
       storeIsStreaming,
-      activeThreadId,
       isLoading,
       onRegenerate,
       onEditUserMessage,
@@ -347,7 +342,10 @@ export const ChatMessageList = React.memo(function ChatMessageList({
         aria-label="Conversation transcript"
         className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar"
       >
-        <div className="max-w-(--nous-chat-col) mx-auto pt-3 sm:pt-4 px-2 sm:px-4 pb-4 sm:pb-6">
+        <div
+          data-slot="transcript-content"
+          className="max-w-(--nous-chat-col) mx-auto px-2 pt-3 pb-20 sm:px-4 sm:pt-4 sm:pb-24"
+        >
           {/* Load older messages indicator */}
           {!isVirtualized &&
             hasMore &&
@@ -417,17 +415,21 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       {/* Scroll to bottom button */}
       <AnimatePresence>
         {showScrollButton && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+          <div
+            data-slot="jump-to-latest"
+            className="absolute right-3 bottom-3 z-50 pointer-events-none sm:right-6"
+          >
             <motion.button
               initial={{ opacity: 0, y: 10, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.9 }}
               onClick={scrollToBottom}
+              aria-label="Jump to latest message"
               className="flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto sm:gap-2 sm:px-4 sm:py-2 rounded-full bg-(--nous-sol) text-(--nous-erebus) text-xs font-semibold shadow-md hover:shadow-lg transition-all pointer-events-auto"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               <ArrowDown className="w-4 h-4" />
-              <span className="hidden sm:inline">New messages</span>
+              <span className="hidden sm:inline">Latest</span>
             </motion.button>
           </div>
         )}

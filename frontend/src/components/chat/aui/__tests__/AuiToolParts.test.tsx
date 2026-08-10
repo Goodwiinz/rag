@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { AuiToolParts } from '../AuiToolParts';
 import type { ActivityStep } from '@/components/chat/shared/cloudMessageView';
 
@@ -14,12 +14,29 @@ const doneStep: ActivityStep = {
 };
 
 describe('AuiToolParts', () => {
-  it('renders a ToolFallback row per tool execution', () => {
-    render(<AuiToolParts messageId="m1" steps={[doneStep]} isStreaming={false} />);
-    expect(
-      document.querySelector('[data-slot="aui-tool-parts"]')
-    ).toBeTruthy();
+  it('consolidates settled tool activity into one collapsed disclosure', () => {
+    const steps: ActivityStep[] = [
+      doneStep,
+      {
+        tool: 'ingest_paper',
+        label: 'Ingesting',
+        status: 'error',
+        resultSummary: 'timeout',
+      },
+    ];
+    render(<AuiToolParts messageId="m1" steps={steps} isStreaming={false} />);
+    expect(document.querySelector('[data-slot="aui-tool-parts"]')).toBeTruthy();
+    const disclosure = screen.getByRole('button', { name: /used 2 tools/i });
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText(/search_arxiv/)).not.toBeInTheDocument();
+
+    fireEvent.click(disclosure);
+
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText(/search_arxiv/)).toBeInTheDocument();
+    expect(
+      document.querySelectorAll('[data-slot="tool-fallback-root"]')
+    ).toHaveLength(2);
   });
 
   it('renders nothing for empty steps', () => {
@@ -36,6 +53,9 @@ describe('AuiToolParts', () => {
       status: 'running',
     };
     render(<AuiToolParts messageId="m1" steps={[running]} isStreaming />);
+    expect(
+      screen.getByRole('button', { name: /using 1 tool/i })
+    ).toHaveAttribute('aria-expanded', 'true');
     // running status spins the trigger icon
     expect(
       document.querySelector(
@@ -50,9 +70,8 @@ describe('AuiToolParts', () => {
       label: 'Searching arXiv',
       status: 'running',
     };
-    render(
-      <AuiToolParts messageId="m1" steps={[stale]} isStreaming={false} />
-    );
+    render(<AuiToolParts messageId="m1" steps={[stale]} isStreaming={false} />);
+    fireEvent.click(screen.getByRole('button', { name: /used 1 tool/i }));
     // cancelled renders the "Cancelled tool" label, not a spinner
     expect(screen.getByText(/Cancelled tool/)).toBeInTheDocument();
     expect(
@@ -65,9 +84,15 @@ describe('AuiToolParts', () => {
   it('renders one row per step', () => {
     const steps: ActivityStep[] = [
       doneStep,
-      { tool: 'ingest_paper', label: 'Ingesting', status: 'error', resultSummary: 'timeout' },
+      {
+        tool: 'ingest_paper',
+        label: 'Ingesting',
+        status: 'error',
+        resultSummary: 'timeout',
+      },
     ];
     render(<AuiToolParts messageId="m1" steps={steps} isStreaming={false} />);
+    fireEvent.click(screen.getByRole('button', { name: /used 2 tools/i }));
     expect(
       document.querySelectorAll('[data-slot="tool-fallback-root"]')
     ).toHaveLength(2);

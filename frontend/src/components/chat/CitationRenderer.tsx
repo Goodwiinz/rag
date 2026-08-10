@@ -76,18 +76,14 @@ export function CitationRenderer({
 
   if (!hasInlineCitations) {
     return (
-      <div
-        className={cn('prose prose-sm dark:prose-invert max-w-none', className)}
-      >
+      <div className={cn('nous-markdown w-full max-w-none', className)}>
         <ChatMarkdown content={content} />
       </div>
     );
   }
 
   return (
-    <div
-      className={cn('prose prose-sm dark:prose-invert max-w-none', className)}
-    >
+    <div className={cn('nous-markdown w-full max-w-none', className)}>
       {chunks.map((chunk, chunkIndex) => {
         if (chunk.type === 'code') {
           return (

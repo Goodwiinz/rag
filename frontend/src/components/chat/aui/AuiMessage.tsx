@@ -17,6 +17,7 @@ import {
   MessagePrimitive,
   ThreadPrimitive,
   useThread,
+  type MessagePartState,
 } from '@assistant-ui/react';
 import {
   AlertTriangle,
@@ -35,9 +36,11 @@ import { ToolFallback } from '@/components/assistant-ui/tool-fallback';
 import { CitationRenderer } from '@/components/chat/CitationRenderer';
 import { ChatInlinePlan } from '@/components/chat/shared/ChatInlinePlan';
 import { CitationChips } from '@/components/chat/shared/CitationChips';
-import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { MessageFeedback } from '@/components/chat/shared/MessageFeedback';
-import { AuiToolParts } from '@/components/chat/aui/AuiToolParts';
+import {
+  AuiToolParts,
+  ToolActivityDisclosure,
+} from '@/components/chat/aui/AuiToolParts';
 import {
   ToolStrip,
   getToolStripProps,
@@ -46,8 +49,15 @@ import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView'
 import { completeStreamingMarkdown } from '@/lib/markdown-utils';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/store/chat-store';
-import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { getReferencedCitations, type Citation } from '@/utils/citationParser';
+import { HITL_APPROVAL_TOOL } from './hitlConstants';
+
+const groupRuntimeToolActivity = (
+  part: MessagePartState
+): readonly ['group-tool-activity'] | [] =>
+  part.type === 'tool-call' && part.toolName !== HITL_APPROVAL_TOOL
+    ? (['group-tool-activity'] as const)
+    : [];
 
 export type OnCitationClick = (
   citations: Citation[],
@@ -92,13 +102,58 @@ function FilePart({ filename }: { filename?: string }): ReactElement {
 function MessageParts({
   assistant,
   assistantText,
+  groupedToolActivity,
 }: {
   assistant?: boolean;
   /** When provided, replaces the plain text part for assistant messages —
    * used to route committed content through CitationRenderer (markdown +
    * clickable inline citations) instead of raw MessagePartPrimitive.Text. */
   assistantText?: ReactNode;
+  /** Non-HITL tool calls are rendered once by AuiToolParts above the body. */
+  groupedToolActivity?: boolean;
 }): ReactElement {
+  // Generic AuiMessages usage has no ChatPageMessage metadata to pre-render.
+  // Group the runtime's consecutive non-HITL tool parts directly so this path
+  // still exposes one transcript-level disclosure. Approval UI remains a
+  // standalone actionable part.
+  if (assistant && !groupedToolActivity) {
+    return (
+      <>
+        <MessagePrimitive.GroupedParts
+          groupBy={groupRuntimeToolActivity}
+          indicator="never"
+        >
+          {({ part, children }) => {
+            switch (part.type) {
+              case 'group-tool-activity':
+                return (
+                  <ToolActivityDisclosure
+                    count={part.indices.length}
+                    isStreaming={part.status.type === 'running'}
+                  >
+                    {children}
+                  </ToolActivityDisclosure>
+                );
+              case 'text':
+                if (assistantText !== undefined) return <>{assistantText}</>;
+                return <TextPart className="font-serif" />;
+              case 'image':
+                return <ImagePart />;
+              case 'file':
+                return <FilePart filename={part.filename} />;
+              case 'tool-call':
+                return part.toolUI ?? <ToolFallback {...part} />;
+              case 'data':
+                return part.dataRendererUI ?? null;
+              default:
+                return null;
+            }
+          }}
+        </MessagePrimitive.GroupedParts>
+      </>
+    );
+  }
+
   return (
     <MessagePrimitive.Parts>
       {({ part }) => {
@@ -115,6 +170,13 @@ function MessageParts({
           case 'file':
             return <FilePart filename={part.filename} />;
           case 'tool-call':
+            if (
+              assistant &&
+              groupedToolActivity &&
+              part.toolName !== HITL_APPROVAL_TOOL
+            ) {
+              return null;
+            }
             return part.toolUI ?? <ToolFallback {...part} />;
           case 'data':
             return part.dataRendererUI ?? null;
@@ -461,7 +523,6 @@ function AuiStreamingBody(): ReactElement {
   const elapsedMs = useChatStore((s) => s.streamingElapsedMs);
   const streamingPhase = useChatStore((s) => s.streamingPhase);
   const streamingCitations = useChatStore((s) => s.streamingCitations);
-  const threadId = useAgentActivityStore((s) => s.currentThreadId);
   const phaseLabel = streamingPhase
     ? {
         accepted: 'Starting',
@@ -477,7 +538,6 @@ function AuiStreamingBody(): ReactElement {
 
   return (
     <>
-      <InlineAgentSummary threadId={threadId} />
       {streamingCitations.length > 0 && (
         <div
           role="status"
@@ -573,6 +633,10 @@ export function AuiAssistantMessage({
   // sources, even if the AI didn't use [Doc N] markers.
   const visibleCitations =
     inlineCitations.length > 0 ? inlineCitations : allCitations;
+  const activitySteps = message?.toolExecutions ?? [];
+  const toolSummary = message
+    ? getToolStripProps(message, visibleCitations.length)
+    : undefined;
 
   const assistantText = message ? (
     <CitationRenderer
@@ -667,13 +731,25 @@ export function AuiAssistantMessage({
             toolExecutions={message.toolExecutions}
           />
         )}
-        {/* Tool strip — tools/sources/time/tokens/stopped */}
-        {message && (
-          <ToolStrip {...getToolStripProps(message, visibleCitations.length)} />
-        )}
+        {/* One disclosure owns tool activity and its metadata. Turns without
+            executions keep the compact metadata-only strip. */}
+        {message && activitySteps.length > 0 ? (
+          <AuiToolParts
+            messageId={message.runtimeId}
+            steps={activitySteps}
+            isStreaming={false}
+            summary={toolSummary}
+          />
+        ) : message ? (
+          <ToolStrip {...toolSummary} />
+        ) : null}
         <MessageAttachments />
         <div className="nous-chat-body space-y-2">
-          <MessageParts assistant assistantText={assistantText} />
+          <MessageParts
+            assistant
+            assistantText={assistantText}
+            groupedToolActivity={activitySteps.length > 0}
+          />
         </div>
         <MessageError />
         {/* Citations footer chips — provenance over assertion */}

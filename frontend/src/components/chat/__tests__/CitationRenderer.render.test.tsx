@@ -44,6 +44,64 @@ describe('CitationRenderer — plain path (no citation markers)', () => {
     ).toBeInTheDocument();
   });
 
+  it('applies an explicit visual hierarchy to prose elements', () => {
+    const content = [
+      '## Results',
+      '',
+      'A compact paragraph with **important context**.',
+      '',
+      '- Vector search',
+      '- Graph retrieval',
+      '',
+      '> Prefer the smallest useful retrieval surface.',
+    ].join('\n');
+
+    const { container } = render(<CitationRenderer content={content} />);
+
+    expect(container.firstElementChild).toHaveClass('nous-markdown');
+    expect(container.firstElementChild).not.toHaveClass('prose');
+    expect(screen.getByRole('heading', { level: 2 })).toHaveClass(
+      'font-(family-name:--nous-font-heading)',
+      'text-[1.25rem]'
+    );
+    expect(container.querySelector('p')).toHaveClass('max-w-[72ch]');
+    expect(container.querySelector('ul')).toHaveClass(
+      'max-w-[72ch]',
+      'list-disc'
+    );
+    expect(container.querySelector('blockquote')).toHaveClass(
+      'max-w-[72ch]',
+      'border-l-2'
+    );
+    expect(container.querySelector('strong')).toHaveClass('font-semibold');
+  });
+
+  it('constrains prose independently while rich content keeps the full message width', () => {
+    const content = [
+      'Readable prose stays narrow.',
+      '',
+      '| Model | Score |',
+      '| --- | --- |',
+      '| BERT | 82.1 |',
+      '',
+      '```',
+      'a very wide code sample',
+      '```',
+    ].join('\n');
+
+    const { container } = render(<CitationRenderer content={content} />);
+
+    expect(container.querySelector('p')).toHaveClass('max-w-[72ch]');
+    const tableScroll = container.querySelector(
+      '[data-slot="markdown-table-scroll"]'
+    );
+    expect(tableScroll).toHaveClass('w-full', 'max-w-full');
+    expect(tableScroll).not.toHaveClass('max-w-[72ch]');
+    expect(
+      container.querySelector('[data-slot="markdown-code-block"]')
+    ).toHaveClass('w-full', 'max-w-full');
+  });
+
   it('renders GFM tables', () => {
     const table = '| Model | Score |\n| --- | --- |\n| BERT | 82.1 |';
     render(<CitationRenderer content={table} />);

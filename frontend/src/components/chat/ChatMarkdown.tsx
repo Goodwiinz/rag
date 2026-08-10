@@ -13,7 +13,7 @@ const SyntaxHighlighter = dynamic(
     ),
   {
     loading: () => (
-      <pre className="p-4 rounded-lg bg-(--nous-bg-1) text-xs font-mono overflow-x-auto">
+      <pre className="w-full max-w-full overflow-x-auto rounded-lg bg-(--nous-bg-1) p-4 font-mono text-xs">
         <code>Loading...</code>
       </pre>
     ),
@@ -58,19 +58,97 @@ function extractCodeChild(children: React.ReactNode): {
  * NOUS pill styling.
  */
 const baseComponents: Components = {
+  h1({ children }) {
+    return (
+      <h1 className="mt-8 mb-3 max-w-[72ch] font-(family-name:--nous-font-heading) text-[1.5rem] leading-tight font-semibold tracking-[-0.02em] text-(--nous-fg-1) first:mt-0">
+        {children}
+      </h1>
+    );
+  },
+  h2({ children }) {
+    return (
+      <h2 className="mt-7 mb-2.5 max-w-[72ch] font-(family-name:--nous-font-heading) text-[1.25rem] leading-snug font-semibold tracking-[-0.015em] text-(--nous-fg-1) first:mt-0">
+        {children}
+      </h2>
+    );
+  },
+  h3({ children }) {
+    return (
+      <h3 className="mt-6 mb-2 max-w-[72ch] font-(family-name:--nous-font-heading) text-[1.0625rem] leading-snug font-semibold text-(--nous-fg-1) first:mt-0">
+        {children}
+      </h3>
+    );
+  },
+  h4({ children }) {
+    return (
+      <h4 className="mt-5 mb-1.5 max-w-[72ch] font-(family-name:--nous-font-heading) text-[0.9375rem] leading-snug font-semibold text-(--nous-fg-2) first:mt-0">
+        {children}
+      </h4>
+    );
+  },
+  p({ children }) {
+    return (
+      <p className="my-3 max-w-[72ch] text-[15px] leading-7 text-(--nous-fg-1) first:mt-0 last:mb-0">
+        {children}
+      </p>
+    );
+  },
+  ul({ children }) {
+    return (
+      <ul className="my-3 max-w-[72ch] list-disc space-y-1 pl-6 marker:text-(--nous-sol)">
+        {children}
+      </ul>
+    );
+  },
+  ol({ children }) {
+    return (
+      <ol className="my-3 max-w-[72ch] list-decimal space-y-1 pl-6 marker:font-medium marker:text-(--nous-fg-2)">
+        {children}
+      </ol>
+    );
+  },
+  li({ children }) {
+    return <li className="pl-1 text-[15px] leading-7">{children}</li>;
+  },
+  blockquote({ children }) {
+    return (
+      <blockquote className="my-4 max-w-[72ch] border-l-2 border-(--nous-sol)/50 pl-4 text-(--nous-fg-2) italic">
+        {children}
+      </blockquote>
+    );
+  },
+  strong({ children }) {
+    return (
+      <strong className="font-semibold text-(--nous-fg-1)">{children}</strong>
+    );
+  },
+  em({ children }) {
+    return <em className="italic text-(--nous-fg-2)">{children}</em>;
+  },
+  hr() {
+    return <hr className="my-6 max-w-[72ch] border-(--nous-border-1)" />;
+  },
   pre({ children }) {
     const { className, value } = extractCodeChild(children);
     const match = /language-(\w+)/.exec(className);
     const code = value.replace(/\n$/, '');
     if (match) {
       return (
-        <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div">
-          {code}
-        </SyntaxHighlighter>
+        <div
+          data-slot="markdown-code-block"
+          className="my-4 w-full max-w-full overflow-x-auto rounded-lg"
+        >
+          <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div">
+            {code}
+          </SyntaxHighlighter>
+        </div>
       );
     }
     return (
-      <pre className="p-4 rounded-lg bg-(--nous-bg-1) text-xs font-mono overflow-x-auto">
+      <pre
+        data-slot="markdown-code-block"
+        className="my-4 w-full max-w-full overflow-x-auto rounded-lg bg-(--nous-bg-1) p-4 font-mono text-xs"
+      >
         <code>{code}</code>
       </pre>
     );
@@ -101,9 +179,31 @@ const baseComponents: Components = {
   // the chat column layout.
   table({ children }) {
     return (
-      <div className="overflow-x-auto">
-        <table>{children}</table>
+      <div
+        data-slot="markdown-table-scroll"
+        className="my-4 w-full max-w-full overflow-x-auto rounded-lg border border-(--nous-border-1)"
+      >
+        <table className="w-full min-w-[32rem] border-collapse text-left text-[13px]">
+          {children}
+        </table>
       </div>
+    );
+  },
+  thead({ children }) {
+    return <thead className="bg-(--nous-bg-2)">{children}</thead>;
+  },
+  th({ children }) {
+    return (
+      <th className="border-b border-(--nous-border-1) px-3 py-2 font-semibold text-(--nous-fg-1)">
+        {children}
+      </th>
+    );
+  },
+  td({ children }) {
+    return (
+      <td className="border-b border-(--nous-border-1)/70 px-3 py-2 align-top text-(--nous-fg-2) last:border-b-0">
+        {children}
+      </td>
     );
   },
 };
