@@ -442,6 +442,7 @@ def trusted_sources() -> list[dict[str, Any]]:
     sources.extend(
         {"kind": "relationship", **row} for row in TRUTH.get("relationships", [])
     )
+    sources.append({"kind": "graph_stats", **TRUTH["graph_stats"]})
     return sources
 
 

@@ -4,6 +4,10 @@
   "focus_entity": { "name": "Elena Vasquez", "type": "PERSON" },
   "entity_count": 20,
   "relationship_count": 20,
+  "graph_stats": {
+    "total_entities": 20,
+    "total_relationships": 20
+  },
   "entities": [
     { "name": "Elena Vasquez", "type": "PERSON" },
     { "name": "Marcus Chen", "type": "PERSON" },

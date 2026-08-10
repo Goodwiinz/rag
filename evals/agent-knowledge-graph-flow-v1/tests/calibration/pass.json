@@ -108,8 +108,7 @@
           "total_relationships": 20,
           "entity_type_distribution": { "PERSON": 6, "ORGANIZATION": 2 },
           "relationship_type_distribution": { "WORKS_FOR": 6, "RELATED_TO": 6 },
-          "average_degree": 2.0,
-          "connected_components": 1
+          "average_degree": 2.0
         }
       }
     ],
