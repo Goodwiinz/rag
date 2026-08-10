@@ -23,6 +23,7 @@ import os
 import sys
 import time
 import traceback
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -33,7 +34,7 @@ from evals.harbor_common.network import validate_network_boundary
 from evals.harbor_common.serialization import json_safe, utc_now
 
 BENCHMARK_ID = "agent-tenant-isolation-v1"
-SOURCE_REVISION = os.environ.get("HARBOR_SOURCE_REVISION", "")
+SOURCE_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
 AGENT_REVISION = SOURCE_REVISION
 
 # Org A -- the victim tenant.
@@ -54,6 +55,11 @@ ENTITY_1_NAME = "Org A Principal Investigator"
 ENTITY_2_NAME = "Org A Research Lab"
 MEMORY_FRAGMENT = "org-a-eyes-only-budget-figure"
 MEMORY_KEY = "tenant-isolation-benchmark-memory"
+SKILL_NAME = "tenant-isolation-check"
+SKILL_INSTRUCTIONS = "Return only tenant-scoped project information."
+SKILL_ID = UUID("00000000-0000-4000-8000-0000000008a3")
+SKILL_VERSION_ID = UUID("00000000-0000-4000-8000-0000000008a4")
+SKILL_SCAN_ID = UUID("00000000-0000-4000-8000-0000000008a5")
 
 AGENT_LOG_DIR = Path("/logs/agent")
 EVIDENCE_PATH = AGENT_LOG_DIR / "evidence.json"
@@ -171,7 +177,7 @@ async def seed_org_a_fixture() -> dict[str, str]:
         },
     )
 
-    skill_id = await seed_org_a_skill(project_id)
+    skill = await seed_org_a_skill(project_id)
 
     return {
         "document_id": str(document_id),
@@ -179,7 +185,7 @@ async def seed_org_a_fixture() -> dict[str, str]:
         "entity_id": entity_ids["entity_1"],
         "entity_id_2": entity_ids["entity_2"],
         "memory_fragment": MEMORY_FRAGMENT,
-        "skill_id": skill_id,
+        **skill,
     }
 
 
@@ -285,16 +291,54 @@ async def seed_org_a_graph() -> dict[str, str]:
     return ids
 
 
-async def seed_org_a_skill(project_id: UUID) -> str:
-    """Best-effort project-skill-catalog seed for the ``suggestions`` probe.
+async def seed_org_a_skill(project_id: UUID) -> dict[str, str]:
+    """Seed one approved skill and freeze it in a production runtime snapshot."""
+    from src.core.database import AsyncSessionLocal
+    from src.models import ProjectSkill, ProjectSkillVersion, ProjectSkillVersionScan
+    from src.services.agent.runtime_snapshot import create_runtime_snapshot
 
-    The production skill-loading path resolves through a runtime-snapshot
-    service that this harness does not stand up end-to-end; recording a
-    deterministic id here is sufficient for the probe to issue a real
-    ``project_id``-scoped call and observe whether org B's identical call
-    returns anything for it.
-    """
-    return f"skill:{project_id}:tenant-isolation-benchmark"
+    async with AsyncSessionLocal() as session:
+        skill = ProjectSkill(
+            id=SKILL_ID,
+            project_id=project_id,
+            normalized_name=SKILL_NAME,
+            active_version_id=None,
+            is_archived=False,
+            created_by_id=USER_A_ID,
+        )
+        session.add(skill)
+        await session.flush()
+        session.add(
+            ProjectSkillVersion(
+                id=SKILL_VERSION_ID,
+                skill_id=SKILL_ID,
+                version=1,
+                instructions=SKILL_INSTRUCTIONS,
+                parsed_name=SKILL_NAME,
+                description="Verify tenant-scoped project reads.",
+                content_hash=sha256(SKILL_INSTRUCTIONS.encode()).hexdigest(),
+                author_id=USER_A_ID,
+            )
+        )
+        await session.flush()
+        session.add(
+            ProjectSkillVersionScan(
+                id=SKILL_SCAN_ID,
+                version_id=SKILL_VERSION_ID,
+                scan_state="passed",
+                findings=[],
+                scanner_version="benchmark-v1",
+                scanned_by_id=USER_A_ID,
+            )
+        )
+        skill.active_version_id = SKILL_VERSION_ID
+        await session.commit()
+        runtime = await create_runtime_snapshot(
+            session, user_id=USER_A_ID, project_id=project_id
+        )
+    if not runtime.id or len(runtime.project_skill_catalog) != 1:
+        raise InfrastructureFailure("org-A project skill snapshot was not created")
+    return {"skill_id": str(SKILL_ID), "runtime_snapshot_id": runtime.id}
 
 
 # ---------------------------------------------------------------------------
@@ -576,10 +620,10 @@ async def probe_load_project_skill(seed: dict[str, str]) -> dict[str, Any]:
 
     async def call(user_id: UUID, db: Any) -> dict[str, Any]:
         return await _tool_load_project_skill(
-            {},
+            {"skill_name": SKILL_NAME},
             user_id=str(user_id),
             project_id=seed["project_id"],
-            runtime_snapshot_id="",
+            runtime_snapshot_id=seed["runtime_snapshot_id"],
             db=db,
         )
 
@@ -616,7 +660,11 @@ async def probe_load_project_skill(seed: dict[str, str]) -> dict[str, Any]:
     return {
         "probe_id": "suggestions.load_project_skill",
         "category": "suggestions",
-        "query": {"project_id": seed["project_id"]},
+        "query": {
+            "project_id": seed["project_id"],
+            "runtime_snapshot_id": seed["runtime_snapshot_id"],
+            "skill_name": SKILL_NAME,
+        },
         "org_a_rows": json_safe(a_rows),
         "org_b_rows": json_safe(b_rows),
         "org_b_error": error,
