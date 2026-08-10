@@ -538,16 +538,18 @@ async def probe_memory_retrieval(seed: dict[str, str]) -> dict[str, Any]:
 
     a_memories = await search(USER_A_ID)
     a_rows = [
-        m.get("query") for m in a_memories if MEMORY_FRAGMENT in str(m.get("query", ""))
+        m["value"]["query"]
+        for m in a_memories
+        if MEMORY_FRAGMENT in str((m.get("value") or {}).get("query", ""))
     ]
 
     error = None
     try:
         b_memories = await search(USER_B_ID)
         b_rows = [
-            m.get("query")
+            m["value"]["query"]
             for m in b_memories
-            if MEMORY_FRAGMENT in str(m.get("query", ""))
+            if MEMORY_FRAGMENT in str((m.get("value") or {}).get("query", ""))
         ]
     except Exception as exc:  # noqa: BLE001 - captured as probe evidence, not raised
         b_rows = []
