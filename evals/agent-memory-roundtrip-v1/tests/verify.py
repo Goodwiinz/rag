@@ -58,9 +58,7 @@ EXPECTED_INSTRUCTION = (
 # every other gate, including check_real_routing. Pinning the instruction
 # text plus proving a matching human message exists (check_turn3_sent below)
 # closes that false-pass path.
-EXPECTED_TURN3_INSTRUCTION = (
-    "Please forget the recovery contact email you have on file for me."
-)
+EXPECTED_TURN3_INSTRUCTION = "Forget my saved contact email."
 
 # The four real classifier outputs (backend/src/services/agent/classifier.py
 # IntentType). Only GENERAL legitimately binds forget_memory today
@@ -173,8 +171,8 @@ def check_real_routing(evidence: dict[str, Any], failures: list[str]) -> None:
     A verifier that still accepted the sentinel shape would pass a run that
     never exercised production classification — the exact false-pass class
     this task exists to catch, so this gate fails loudly on either signal of
-    the old workaround: an ``env_flags.routing_workaround`` marker, or the
-    retired sentinel intent value itself.
+    the old workaround: an ``env_flags.routing_workaround`` marker, a retired
+    sentinel intent, or a missing turn-3 ``preprocessing_node`` stream update.
     """
     env_flags = evidence.get("env_flags") or {}
     if "routing_workaround" in env_flags:
@@ -187,6 +185,29 @@ def check_real_routing(evidence: dict[str, Any], failures: list[str]) -> None:
 
     classification = evidence.get("classification") or {}
     intent = classification.get("turn3_intent")
+    preprocessing_update = None
+    for event in evidence.get("events") or []:
+        if not isinstance(event, dict) or event.get("phase") != "turn3":
+            continue
+        update = event.get("update")
+        if not isinstance(update, dict):
+            continue
+        candidate = update.get("preprocessing_node")
+        if isinstance(candidate, dict):
+            preprocessing_update = candidate
+            break
+
+    if preprocessing_update is None:
+        failures.append(
+            "no turn-3 preprocessing_node stream update — the observed intent "
+            "could have been checkpoint-injected instead of classified"
+        )
+    elif preprocessing_update.get("intent") != intent:
+        failures.append(
+            "turn-3 preprocessing_node intent does not match the observed "
+            f"checkpoint intent: {preprocessing_update.get('intent')!r} != {intent!r}"
+        )
+
     if intent == RETIRED_SENTINEL_INTENT:
         failures.append(
             f"turn-3 intent={intent!r} matches the retired sentinel value "
@@ -206,17 +227,8 @@ def check_real_routing(evidence: dict[str, Any], failures: list[str]) -> None:
             "intent that should never have bound it"
         )
 
-    # NOTE on the turn-3 probe (classification.turn3_probe_intent): it is
-    # deliberately NOT cross-checked against `intent` here as a failure
-    # condition. classify_intent_with_fallback(TURN3_INSTRUCTION, {}) omits
-    # previous_turn, while the live graph classifies with turn 2's assistant
-    # reply as previous_turn (which mentions arXiv) — different inputs, so
-    # the probe and the OBSERVED graph-state intent can legitimately
-    # disagree without indicating a bad run. What must hold — and is
-    # enforced above — is that the observed intent (read from graph state,
-    # never the adapter's self-reported probe) is real and legitimately
-    # binds forget_memory. Divergence is still recorded, not silently
-    # dropped: see snapshot_extra's "turn3_classification_divergence".
+    # The probe is visibility only. The raw graph-stream update above, not an
+    # adapter-authored probe, proves preprocessing produced the observed intent.
 
 
 def check_turn3_sent(evidence: dict[str, Any], failures: list[str]) -> None:

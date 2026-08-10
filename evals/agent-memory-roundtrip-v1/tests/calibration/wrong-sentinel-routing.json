@@ -15,7 +15,7 @@
       "turn1_probe_source": "keyword",
       "turn3_intent": "memory_management",
       "turn3_probe_intent": "general",
-      "turn3_probe_source": "keyword"
+      "turn3_probe_source": "shortcut"
     },
     "completed_at": "2026-08-08T12:01:10Z",
     "database": {
@@ -39,6 +39,17 @@
         "sequence": 1,
         "update": {
           "memory_save": {}
+        }
+      },
+      {
+        "observed_at": "2026-08-08T12:00:45Z",
+        "phase": "turn3",
+        "sequence": 5,
+        "update": {
+          "preprocessing_node": {
+            "intent": "memory_management",
+            "intent_confidence": 1.0
+          }
         }
       }
     ],
@@ -136,7 +147,7 @@
         }
       },
       {
-        "content": "Please forget the recovery contact email you have on file for me.",
+        "content": "Forget my saved contact email.",
         "id": "msg-5",
         "type": "human"
       },
@@ -354,7 +365,7 @@
       ]
     },
     "turn2_instruction": "What contact email do you have on file for my arXiv research?",
-    "turn3_instruction": "Please forget the recovery contact email you have on file for me."
+    "turn3_instruction": "Forget my saved contact email."
   },
   "state": {
     "user_id": "00000000-0000-4000-8000-000000000902",

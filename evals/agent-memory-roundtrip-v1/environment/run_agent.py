@@ -59,15 +59,10 @@ EXPECTED_INSTRUCTION = (
     "contact email is jordan.avery@example.com."
 )
 TURN2_INSTRUCTION = "What contact email do you have on file for my arXiv research?"
-# Deliberately avoids "arxiv" and "paper"/"papers" — those are weighted
-# keywords for the "research" intent bucket (backend/src/services/agent/
-# _prompts.py's INTENT_KEYWORDS: arxiv=2, paper=1, papers=1; "research" is
-# the intent's name, not itself a keyword) and forget_memory only binds on
-# "general". This wording keyword-scores 0 across every intent bucket (falls
-# to "general" even if the LLM classifier is unavailable), so turn 3 reaches
-# forget_memory through the real "general" route rather than accidentally
-# landing on "research".
-TURN3_INSTRUCTION = "Please forget the recovery contact email you have on file for me."
+# Five zero-keyword words. Combined with the enforced no-prior-tool condition
+# below, this takes classify_intent_with_fallback's <8-word shortcut to
+# ``general`` before the LLM can see turn 2's arXiv-containing reply.
+TURN3_INSTRUCTION = "Forget my saved contact email."
 
 CONTACT_EMAIL = "jordan.avery@example.com"
 REDACTED_EMAIL_SENTINEL = "<email>"
@@ -340,17 +335,21 @@ async def run_benchmark() -> dict[str, Any]:
         )
     turn2_values = dict(getattr(turn2_snapshot, "values", {}) or {})
     turn2_user_memories = json_safe(turn2_values.get("user_memories") or [])
-    turn2_final_message = final_assistant_message(
-        list(turn2_values.get("messages") or [])
-    )
+    turn2_messages = list(turn2_values.get("messages") or [])
+    if any(getattr(message, "tool_calls", None) for message in turn2_messages):
+        raise InfrastructureFailure(
+            "turn 2 emitted a tool call; turn 3 requires no prior-tool context "
+            "for deterministic general routing"
+        )
+    turn2_final_message = final_assistant_message(turn2_messages)
     record_milestone(milestones, sequence, "turn2_completed")
 
     # ---------------------------------------------------------------
     # Turn 3 — forget, via real classification. No checkpoint seeding, no
     # sentinel: forget_memory now binds on AgentIntent.GENERAL in production
-    # (develop 03091c65), and TURN3_INSTRUCTION is worded to keyword-score 0
-    # research/writing/knowledge_graph so classification lands on "general"
-    # the same way live chat would.
+    # (develop 03091c65). TURN3_INSTRUCTION has five zero-keyword words and
+    # turn 2 emitted no tool call, so production's <8-word shortcut selects
+    # "general" without consulting the prior arXiv-containing reply.
     # ---------------------------------------------------------------
     turn3_classification_probe = await classify_intent_with_fallback(
         TURN3_INSTRUCTION, {}

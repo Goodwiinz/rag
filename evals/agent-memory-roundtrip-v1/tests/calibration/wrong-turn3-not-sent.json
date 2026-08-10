@@ -15,7 +15,7 @@
       "turn1_probe_source": "keyword",
       "turn3_intent": "general",
       "turn3_probe_intent": "general",
-      "turn3_probe_source": "keyword"
+      "turn3_probe_source": "shortcut"
     },
     "completed_at": "2026-08-08T12:01:10Z",
     "database": {
@@ -38,6 +38,17 @@
         "sequence": 1,
         "update": {
           "memory_save": {}
+        }
+      },
+      {
+        "observed_at": "2026-08-08T12:00:45Z",
+        "phase": "turn3",
+        "sequence": 5,
+        "update": {
+          "preprocessing_node": {
+            "intent": "general",
+            "intent_confidence": 0.5
+          }
         }
       }
     ],

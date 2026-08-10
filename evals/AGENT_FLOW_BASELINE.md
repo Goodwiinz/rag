@@ -504,10 +504,11 @@ and fires one HITL `interrupt()`. As of develop `03091c65` (commit
 `fe76f434` re-landed), `forget_memory` binds live on
 `intents=frozenset({AgentIntent.GENERAL})` — the sentinel-intent
 `aupdate_state` workaround this section used to describe has been removed;
-turn 3 is now a plain user turn through real classification, worded to avoid
-the "research"-bucket keyword collision — no "arxiv" or "paper"/"papers",
-the weighted `INTENT_KEYWORDS` for that bucket — so it lands on `general`
-(`run_agent.py`'s `TURN3_INSTRUCTION`).
+turn 3 is now a plain user turn through real classification. Its five-word,
+zero-keyword wording plus the adapter's turn-2-no-tool guard takes the
+classifier's deterministic short-query path to `general`, so the prior reply's
+`arXiv` text cannot pull it into `research` (`run_agent.py`'s
+`TURN3_INSTRUCTION`).
 
 **Objective gates:**
 - Turn 3 was an actual user turn, not evidence stripped or forged to fake
@@ -520,17 +521,14 @@ the weighted `INTENT_KEYWORDS` for that bucket — so it lands on `general`
   looking `general` intent left over from an earlier turn and satisfy every
   other gate.
 - Turn 3 reaches `forget_memory` through genuine production routing: no
-  `env_flags.routing_workaround` is present, and the OBSERVED `intent` (read
-  from graph state, not the adapter's own classification probe) is a real
-  `AgentIntent` member that legitimately binds `forget_memory` (only
-  `general` does, per the live `TOOL_REGISTRY`) — never the retired sentinel
-  value `"memory_management"` (`tests/verify.py`, `check_real_routing`). The
-  turn-3 probe (`classification.turn3_probe_intent`) is recorded and
-  cross-checked for visibility but is not itself gated: it omits
-  `previous_turn`, while the live graph classifies with turn 2's reply as
-  `previous_turn` (which mentions arXiv), so probe/observed divergence is
-  expected and non-fatal — only the observed intent's legitimacy is scored
-  (`snapshot_extra`'s `turn3_classification_divergence`).
+  `env_flags.routing_workaround` is present; the OBSERVED checkpoint `intent`
+  is a real `AgentIntent` member that legitimately binds `forget_memory` (only
+  `general` does, per the live `TOOL_REGISTRY`) and never the retired sentinel
+  value `"memory_management"`; and the raw `turn3` `preprocessing_node` stream
+  update reports the same intent. The last condition rejects an
+  `aupdate_state(..., as_node="preprocessing_node")` general-intent injection
+  that could otherwise satisfy the checkpoint-only gate
+  (`tests/verify.py`, `check_real_routing`). The probe remains visibility-only.
 - Turn 1 — the stated fact lands in the store: `memory_save_node`'s
   fire-and-forget background task (`_nodes_memory.py:286-310`) is drained
   (polled, not slept) before the turn-2 assertion; the stored value's
