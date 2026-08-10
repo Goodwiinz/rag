@@ -513,7 +513,14 @@ async def run_benchmark() -> dict[str, Any]:
         else "completed" if not getattr(final_snapshot, "next", ()) else "incomplete"
     )
 
-    search_executions = tool_executions_for(tool_executions, "search_arxiv")
+    search_executions = [
+        *tool_executions_for(tool_executions_after_search_1, "search_arxiv"),
+        *tool_executions_for(tool_executions_after_search_2, "search_arxiv"),
+    ]
+    if len(search_executions) != 2:
+        raise InfrastructureFailure(
+            f"expected two search_arxiv executions, observed {len(search_executions)}"
+        )
     ingest_executions = tool_executions_for(tool_executions, "ingest_arxiv_papers")
 
     return {
