@@ -41,10 +41,23 @@
       "first_token": {"id": "3", "event": "token", "data": {"content": "The ar", "sequence": 3}}
     },
     "token_log": [
-      {"content": "The ar", "emit_completed": true, "appended_to_partial": true}
+      {"content": "The ar", "sequence": 3, "emit_completed": true, "appended_to_partial": true}
     ],
     "server_token_log": [
-      {"content": "The ar", "emit_completed": true, "appended_to_partial": true}
+      {"content": "The ar", "sequence": 3},
+      {"content": " ray", "sequence": 4}
+    ],
+    "server_replay_buffers": [
+      {
+        "key": "agent:stream:11111111-1111-4111-8111-111111111111",
+        "stream_id": "11111111-1111-4111-8111-111111111111",
+        "ttl_seconds": 3599,
+        "entries": [
+          {"seq": 2, "parsed_frame": {"id": "2", "event": "status", "data": {"phase": "routing", "sequence": 2, "trace_id": "harbor-fast-path-cancel-000000000d0b", "thread_id": "00000000-0000-4000-8000-000000000d05", "route": "luna"}}},
+          {"seq": 3, "parsed_frame": {"id": "3", "event": "token", "data": {"content": "The ar", "sequence": 3, "trace_id": "harbor-fast-path-cancel-000000000d0b", "thread_id": "00000000-0000-4000-8000-000000000d05", "route": "luna"}}},
+          {"seq": 4, "parsed_frame": {"id": "4", "event": "token", "data": {"content": " ray", "sequence": 4, "trace_id": "harbor-fast-path-cancel-000000000d0b", "thread_id": "00000000-0000-4000-8000-000000000d05", "route": "luna"}}}
+        ]
+      }
     ],
     "disconnect": {
       "initiated_at": "2026-08-09T10:00:04.900Z",
@@ -77,7 +90,7 @@
     "persisted_partial": {
       "id": "00000000-0000-4000-8000-000000000d09",
       "thread_id": "00000000-0000-4000-8000-000000000d05",
-      "content": "The ar",
+      "content": "The ar ray",
       "stopped": true,
       "client_message_id": "00000000-0000-4000-8000-000000000d0a"
     },
@@ -128,7 +141,7 @@
         "id": "00000000-0000-4000-8000-000000000d09",
         "thread_id": "00000000-0000-4000-8000-000000000d05",
         "role": "assistant",
-        "content": "The ar",
+        "content": "The ar ray",
         "stopped": true,
         "client_message_id": "00000000-0000-4000-8000-000000000d0a"
       }

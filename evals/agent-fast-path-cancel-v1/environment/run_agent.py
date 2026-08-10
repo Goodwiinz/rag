@@ -366,6 +366,7 @@ def token_log_from_frames(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 entries.append(
                     {
                         "content": content,
+                        "sequence": data.get("sequence"),
                         "emit_completed": True,
                         "appended_to_partial": True,
                     }
@@ -374,7 +375,7 @@ def token_log_from_frames(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 async def redis_snapshot() -> dict[str, Any]:
-    """Read the benchmark's isolated server-side replay buffer."""
+    """Read only the current request's server-side replay buffer."""
     import redis.asyncio as aioredis
 
     client = aioredis.from_url(os.environ["REDIS_URL"], decode_responses=True)
@@ -396,7 +397,21 @@ async def redis_snapshot() -> dict[str, Any]:
                     entries.append(json_safe(item))
                 except (TypeError, ValueError, json.JSONDecodeError):
                     entries.append({"malformed": True, "raw": str(raw)[:1000]})
-            buffers.append({"key": key, "entries": entries})
+            if not any(
+                isinstance((entry.get("parsed_frame") or {}).get("data"), dict)
+                and (entry["parsed_frame"]["data"].get("trace_id") == REQUEST_ID)
+                and (entry["parsed_frame"]["data"].get("thread_id") == str(THREAD_ID))
+                for entry in entries
+            ):
+                continue
+            buffers.append(
+                {
+                    "key": key,
+                    "stream_id": key.removeprefix("agent:stream:"),
+                    "ttl_seconds": await client.ttl(key),
+                    "entries": entries,
+                }
+            )
         return {"buffers": buffers}
     except InfrastructureFailure:
         raise
@@ -632,6 +647,7 @@ async def run_benchmark() -> dict[str, Any]:
             },
             "token_log": token_log_from_frames(frames),
             "server_token_log": token_log_from_frames(redis_frames),
+            "server_replay_buffers": observed_redis["buffers"],
             "disconnect": {
                 "initiated_at": streamed["disconnect"]["initiated_at"],
                 "completed_at": streamed["disconnect"]["completed_at"],
