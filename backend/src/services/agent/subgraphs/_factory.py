@@ -202,6 +202,8 @@ def make_specialist_subgraph(
             "\n\nThe unanswered tool request was not executed because the "
             "per-turn execution limit was reached. Do not claim it ran, infer "
             "its result, emit tool-call syntax, or promise to run it next. "
+            "Only requests with matching ToolMessages were executed; any "
+            "requested tool or stage without one must be described as not executed. "
             "Answer the user's original request from completed tool results "
             "only. State that the execution limit stopped the remaining work "
             "and identify the last completed or verified result."
