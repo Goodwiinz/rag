@@ -88,10 +88,11 @@ Per-probe call shapes (production function, args, what "org A row" means):
   "org-a-eyes-only-budget-figure", limit=5)` called once with `user_id =
   USER_A_ID` and once with `user_id = USER_B_ID`; org-A row = any returned
   memory entry whose text contains the fragment.
-- `suggestions.load_project_skill` — `_tool_load_project_skill({}, user_id=
-  <user id>, project_id=<org-A project id>, runtime_snapshot_id="", db=db)`;
-  org-A row = any non-error skill payload for user B against org A's
-  project id.
+- `suggestions.load_project_skill` — seed one approved skill version and a
+  production runtime snapshot, then call `_tool_load_project_skill({"skill_name":
+  <seeded name>}, user_id=<user id>, project_id=<org-A project id>,
+  runtime_snapshot_id=<org-A snapshot id>, db=db)`; org-A row = any non-error
+  skill payload. Org B receives the same project, snapshot, and skill name.
 - `rag.rag_node` — `rag_node(state, config)` with `configurable.user_id` /
   `organization_id` set to org B's ids and `state["messages"]` containing
   the org-A document's distinctive text fragment as the query; org-A row =
