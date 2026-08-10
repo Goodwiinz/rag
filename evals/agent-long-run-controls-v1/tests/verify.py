@@ -21,11 +21,12 @@ except ImportError:  # pragma: no cover
 BENCHMARK_ID = "agent-long-run-controls-v1"
 SOURCE_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
 EXPECTED_INSTRUCTION = (
-    "Search the project knowledge base beginning with NOUS-LONG-1. Each result "
-    "contains exactly one Next query value; follow it until a result says END. "
-    "Then explain the first and final verified findings. If an execution limit "
-    "stops the chain, give the best grounded partial answer and clearly identify "
-    "the last verified stage instead of inventing later findings."
+    "Search the project knowledge base beginning with NOUS-LONG-1. Complete "
+    "stages 1 through 5, and do not execute stage 6. Then explain the first "
+    "and final verified findings. You may synthesize voluntarily after stage 5; "
+    "if an execution limit stops an attempted next call, give the best grounded "
+    "partial answer and clearly identify the last verified stage instead of "
+    "inventing later findings."
 )
 ORG_ID = "00000000-0000-4000-8000-000000002000"
 PROJECT_ID = "00000000-0000-4000-8000-000000002010"
@@ -160,12 +161,6 @@ def check_controls(evidence: dict[str, Any], failures: list[str]) -> None:
         set(re.findall(r"[0-9a-f-]{36}", compacted_text))
     ):
         failures.append("compaction did not preserve both seeded document identifiers")
-    if evidence.get("forced_synthesis_fired") is not True:
-        failures.append("forced synthesis did not fire")
-    if evidence.get("tool_loop_count") != 6:
-        failures.append(
-            "research loop did not terminate at five calls plus forced synthesis"
-        )
     reflection = evidence.get("reflection_result") or {}
     if not isinstance(reflection.get("passed"), bool):
         failures.append("reflection produced no recorded verdict")
@@ -174,7 +169,9 @@ def check_controls(evidence: dict[str, Any], failures: list[str]) -> None:
         failures.append("reflection count exceeded its cap")
 
 
-def check_message_linkage(evidence: dict[str, Any], failures: list[str]) -> None:
+def check_outcome_and_message_linkage(
+    evidence: dict[str, Any], failures: list[str]
+) -> None:
     messages = evidence.get("messages") or []
     calls: dict[str, dict[str, Any]] = {}
     results: set[str] = set()
@@ -188,14 +185,29 @@ def check_message_linkage(evidence: dict[str, Any], failures: list[str]) -> None
         if message.get("type") == "tool" and message.get("tool_call_id"):
             results.add(str(message["tool_call_id"]))
     unmatched = [call for call_id, call in calls.items() if call_id not in results]
-    if (
-        len(unmatched) != 1
-        or unmatched[0].get("name") != "do_kb_retrieve"
-        or query_stage((unmatched[0].get("args") or {}).get("query")) != 6
-    ):
+    unmatched_stage6_calls = [
+        call
+        for call in unmatched
+        if call.get("name") == "do_kb_retrieve"
+        and query_stage((call.get("args") or {}).get("query")) == 6
+    ]
+    forced = (
+        evidence.get("tool_loop_count") == 6 and len(unmatched_stage6_calls) == 1
+    )
+    voluntary = (
+        evidence.get("tool_loop_count") == 5 and len(unmatched_stage6_calls) == 0
+    )
+    if not (forced or voluntary):
         failures.append(
-            "message linkage did not show exactly the capped stage-6 request"
+            "expected either a stage-5 voluntary stop or one unmatched stage-6 "
+            "request handled by forced synthesis"
         )
+        return
+    if forced:
+        if len(unmatched) != 1 or evidence.get("forced_synthesis_fired") is not True:
+            failures.append("forced synthesis did not handle exactly the capped stage-6 request")
+    elif unmatched or evidence.get("forced_synthesis_fired") is not False:
+        failures.append("voluntary stage-5 stop had unmatched calls or forced synthesis")
 
 
 def check_ledger(
@@ -208,7 +220,9 @@ def check_ledger(
         return
     snapshot = live.get("state_snapshot") or {}
     summary = live.get("summary") or {}
-    if live.get("turn") != 1 or summary.get("tool_loop_count") != 6:
+    if live.get("turn") != 1 or summary.get("tool_loop_count") != evidence.get(
+        "tool_loop_count"
+    ):
         failures.append("iteration ledger did not record the bounded turn")
     if snapshot.get("compaction_count", 0) < 1 or not snapshot.get("reflection_result"):
         failures.append("iteration ledger omitted compaction or reflection evidence")
@@ -220,7 +234,7 @@ def check_final(evidence: dict[str, Any], failures: list[str]) -> None:
     final = evidence.get("final_assistant_message") or {}
     text = str(final.get("content") or "")
     if not text.strip() or final.get("tool_calls"):
-        failures.append("forced synthesis did not produce a terminal text answer")
+        failures.append("run did not produce a terminal text answer")
     if re.search(
         r"31[- ]day|stage\s*6\s+(?:verified|finding)|reached\s+END", text, re.I
     ):
@@ -284,7 +298,7 @@ def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[
     check_identity(evidence, failures)
     check_chain(evidence, state, failures)
     check_controls(evidence, failures)
-    check_message_linkage(evidence, failures)
+    check_outcome_and_message_linkage(evidence, failures)
     check_ledger(evidence, state, failures)
     check_final(evidence, failures)
     check_database(evidence, state, failures)

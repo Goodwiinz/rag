@@ -35,22 +35,21 @@
       {"type": "tool", "tool_call_id": "t4", "content": "stage 4"},
       {"type": "ai", "tool_calls": [{"id": "t5", "name": "do_kb_retrieve", "args": {"query": "NOUS-LONG-5"}}]},
       {"type": "tool", "tool_call_id": "t5", "content": "stage 5"},
-      {"type": "ai", "tool_calls": [{"id": "t6", "name": "do_kb_retrieve", "args": {"query": "NOUS-LONG-6"}}]},
-      {"type": "ai", "tool_calls": [], "content": "Stage 1 established a 12-hour baseline. The execution limit stopped the chain after stage 5, where the last verified checkpoint retained 94 percent of validated records. Stage 6 was not retrieved."}
+      {"type": "ai", "tool_calls": [], "content": "Stages 1 through 5 completed: stage 1 established a 12-hour baseline, and stage 5 was the last verified result with 94 percent of validated records retained. The execution limit stopped the chain; stage 6 did not run."}
     ],
     "compaction_count": 1,
     "compacted_messages": [
       {"type": "tool", "content": "[Compacted] IDs 00000000-0000-4000-8000-000000002001 and 00000000-0000-4000-8000-000000002002"}
     ],
-    "forced_synthesis_fired": true,
-    "tool_loop_count": 6,
+    "forced_synthesis_fired": false,
+    "tool_loop_count": 5,
     "reflection_count": 1,
     "reflection_result": {"passed": true, "issues": [], "severity": "none"},
     "pending_confirmation": {},
     "iteration_ledger": {
       "record": {
         "turn": 1,
-        "summary": {"tool_loop_count": 6},
+        "summary": {"tool_loop_count": 5},
         "state_snapshot": {
           "compaction_count": 1,
           "reflection_result": {"passed": true},
@@ -59,7 +58,7 @@
       }
     },
     "final_assistant_message": {
-      "content": "Stage 1 established a 12-hour baseline. The execution limit stopped the chain after stage 5, where the last verified checkpoint retained 94 percent of validated records. Stage 6 was not retrieved.",
+      "content": "Stages 1 through 5 completed: stage 1 established a 12-hour baseline, and stage 5 was the last verified result with 94 percent of validated records retained. The execution limit stopped the chain; stage 6 did not run.",
       "tool_calls": []
     },
     "termination_reason": "completed",
@@ -100,7 +99,7 @@
     ],
     "ledger": {
       "turn": 1,
-      "summary": {"tool_loop_count": 6},
+      "summary": {"tool_loop_count": 5},
       "state_snapshot": {
         "compaction_count": 1,
         "reflection_result": {"passed": true},

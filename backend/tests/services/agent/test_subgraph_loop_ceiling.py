@@ -15,6 +15,10 @@ from src.services.agent.subgraphs.data_agent import (
     MAX_DATA_TOOL_LOOPS,
     data_should_continue,
 )
+from src.services.agent.subgraphs.research_agent import (
+    MAX_RESEARCH_TOOL_LOOPS,
+    research_force_synthesis_node,
+)
 from src.services.agent.subgraphs.writing_agent import (
     MAX_WRITING_TOOL_LOOPS,
     writing_should_continue,
@@ -225,6 +229,24 @@ async def test_writing_force_synthesis_strips_tool_calls_and_synthesizes():
     assert "unanswered tool request was not executed" in prompt
     assert "execution limit stopped the remaining work" in prompt
     assert "emit tool-call syntax" in prompt
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_research_force_synthesis_stops_unmatched_stage_six():
+    llm, captured = _capturing_llm(
+        "The tool limit stopped the remaining work after the verified results."
+    )
+    state = _ceiling_state("do_kb_retrieve", MAX_RESEARCH_TOOL_LOOPS)
+
+    with patch("src.services.agent.graph._build_llm", return_value=llm):
+        result = await research_force_synthesis_node(state, {"configurable": {}})
+
+    assert result["tool_loop_count"] == MAX_RESEARCH_TOOL_LOOPS + 1
+    assert result["_force_synthesis_fired"] is True
+    assert result["messages"][-1].tool_calls == []
+    assert "limit" in str(result["messages"][-1].content).lower()
+    assert not any(getattr(message, "tool_calls", None) for message in captured["messages"])
 
 
 @pytest.mark.unit
