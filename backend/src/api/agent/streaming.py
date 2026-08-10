@@ -519,8 +519,13 @@ async def _stream_luna_fast_path(
                 else {}
             ),
         )
-    except asyncio.CancelledError:
-        await asyncio.shield(cancel_fast_path())
+    except (asyncio.CancelledError, GeneratorExit):
+        cleanup_task = asyncio.create_task(cancel_fast_path())
+        try:
+            await asyncio.shield(cleanup_task)
+        except asyncio.CancelledError:
+            await cleanup_task
+            raise
         raise
     except Exception as exc:
         logger.error("Luna fast-path stream failed", exc_info=exc)
@@ -1030,7 +1035,7 @@ async def stream_event_generator(
             and resolved_thread_id is not None
         ):
             emitter.set_context(route="luna")
-            async for frame in _stream_luna_fast_path(
+            fast_path_iter = _stream_luna_fast_path(
                 request_body=request_body,
                 request=request,
                 current_user=current_user,
@@ -1055,8 +1060,12 @@ async def stream_event_generator(
                     client_message_id=client_message_id,
                 ),
                 acceptance=acceptance,
-            ):
-                yield frame
+            )
+            try:
+                async for frame in fast_path_iter:
+                    yield frame
+            finally:
+                await fast_path_iter.aclose()
             return
 
         # Edit-and-resend: whichever writer owned this turn's user row also
@@ -1747,7 +1756,12 @@ async def stream_event_generator(
                     payload=cancelled_payload,
                 )
 
-        await asyncio.shield(cleanup_cancelled_response())
+        cleanup_task = asyncio.create_task(cleanup_cancelled_response())
+        try:
+            await asyncio.shield(cleanup_task)
+        except asyncio.CancelledError:
+            await cleanup_task
+            raise
         raise
 
     except GraphInterrupt as exc:
@@ -2566,7 +2580,12 @@ async def stream_confirm_event_generator(
                     payload=cancelled_payload,
                 )
 
-        await asyncio.shield(cleanup_cancelled_confirm_response())
+        cleanup_task = asyncio.create_task(cleanup_cancelled_confirm_response())
+        try:
+            await asyncio.shield(cleanup_task)
+        except asyncio.CancelledError:
+            await cleanup_task
+            raise
         raise
 
     except Exception as e:

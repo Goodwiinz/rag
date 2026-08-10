@@ -224,3 +224,139 @@ async def test_streaming_response_abort_finalizes_cancelled_without_completion(
     else:
         finish_stream.assert_not_awaited()
     db.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_repeated_cancellation_waits_for_graph_cleanup() -> None:
+    from src.api.agent import streaming as streaming_mod
+
+    user_id = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    org_id = uuid.UUID("22222222-2222-2222-2222-222222222222")
+    thread_id = uuid.UUID("33333333-3333-3333-3333-333333333333")
+    current_user = cast(User, SimpleNamespace(id=user_id, organization_id=org_id))
+    thread = SimpleNamespace(id=thread_id)
+    body = make_stream_request(
+        messages=[
+            {
+                "role": "user",
+                "content": "generate a long synthetic answer",
+                "client_message_id": "44444444-4444-4444-4444-444444444444",
+            }
+        ],
+        thread_id=str(thread_id),
+    )
+    request = SimpleNamespace(
+        state=SimpleNamespace(request_id="repeated-cancel-request"),
+        is_disconnected=AsyncMock(return_value=False),
+    )
+    acceptance = AcceptedSubmission(
+        run_id="55555555-5555-5555-5555-555555555555",
+        thread_id=str(thread_id),
+        user_message_id="66666666-6666-6666-6666-666666666666",
+        outbox_id="outbox-1",
+        idempotency_key="idem-1",
+    )
+    graph = _BlockingGraph()
+    db = SimpleNamespace(close=AsyncMock())
+    persist = AsyncMock(return_value="partial-message")
+    finish_stream = AsyncMock(return_value=None)
+    token_yielded = asyncio.Event()
+    cleanup_started = asyncio.Event()
+    allow_cleanup = asyncio.Event()
+    finalize_calls: list[dict[str, Any]] = []
+
+    async def blocking_finalize(*_args: Any, **kwargs: Any) -> None:
+        cleanup_started.set()
+        await allow_cleanup.wait()
+        finalize_calls.append(kwargs)
+
+    with (
+        patch.object(streaming_mod, "AsyncSessionLocal", return_value=db),
+        patch.object(
+            streaming_mod,
+            "_resolve_thread",
+            new=AsyncMock(return_value=(thread, "conversation-1")),
+        ),
+        patch.object(
+            streaming_mod,
+            "accept_submission",
+            new=AsyncMock(return_value=acceptance),
+        ),
+        patch.object(
+            streaming_mod,
+            "mark_submission_dispatched",
+            new=AsyncMock(return_value=None),
+        ),
+        patch.object(
+            streaming_mod,
+            "_resolve_and_bind_project",
+            new=AsyncMock(return_value=None),
+        ),
+        patch.object(
+            streaming_mod,
+            "_clear_stale_pending_confirmation",
+            new=AsyncMock(return_value=None),
+        ),
+        patch.object(streaming_mod, "_finalize_run", new=blocking_finalize),
+        patch.object(
+            streaming_mod._jobs_mod,
+            "_persist_assistant_message_safe",
+            new=persist,
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "start_stream",
+            new=AsyncMock(return_value="stream-buffer-1"),
+        ),
+        patch.object(
+            streaming_mod._stream_buffer, "append", new=AsyncMock(return_value=None)
+        ),
+        patch.object(streaming_mod._stream_buffer, "finish_stream", new=finish_stream),
+        patch(
+            "src.services.agent.observability.configure_langsmith", return_value=None
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch("src.services.agent.graph.compile_agent_graph", return_value=graph),
+        patch(
+            "src.services.agent.fast_path.classify_fast_path_turn",
+            return_value=SimpleNamespace(eligible=False),
+        ),
+        patch(
+            "src.services.agent.runtime_snapshot.create_runtime_snapshot",
+            new=AsyncMock(return_value=empty_runtime_snapshot()),
+        ),
+    ):
+
+        async def consume_response() -> None:
+            async for _event in streaming_mod.stream_event_generator(
+                body, request, current_user
+            ):
+                if "event: token" in _event:
+                    token_yielded.set()
+
+        response_task = asyncio.create_task(consume_response())
+        await asyncio.wait_for(token_yielded.wait(), timeout=1)
+        response_task.cancel()
+        await asyncio.wait_for(cleanup_started.wait(), timeout=1)
+        response_task.cancel()
+        await asyncio.sleep(0)
+        finished_before_cleanup = response_task.done()
+        allow_cleanup.set()
+        with pytest.raises(asyncio.CancelledError):
+            await response_task
+
+    assert finished_before_cleanup is False
+    assert graph.aclosed is True
+    persist.assert_awaited_once()
+    assert persist.await_args.kwargs["stopped"] is True
+    finish_stream.assert_awaited_once_with(str(thread_id), "stream-buffer-1")
+    assert len(finalize_calls) == 1
+    assert finalize_calls[0]["status"] is JobStatus.CANCELLED
+    db.close.assert_awaited_once()

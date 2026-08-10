@@ -377,6 +377,79 @@ class _CancelDuringEmitLuna:
         yield AIMessageChunk(content="X")
 
 
+async def test_fast_path_generator_close_links_stopped_partial(monkeypatch):
+    user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
+    thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4())
+
+    from src.api.agent import streaming as streaming_mod
+    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
+    from src.core.config import get_settings
+    from src.services.agent import agent_execution_service as jobs_mod
+    from src.services.agent import llm_factory
+    from src.services.agent.run_event_types import RunEventType
+
+    body = AgentExecuteRequest(
+        messages=[
+            AgentMessage(
+                role="user",
+                content="Explain why rainbows form",
+                client_message_id=uuid4(),
+            )
+        ],
+        page_context={"type": "chat"},
+        use_rag=False,
+        thread_id=str(thread.id),
+    )
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    settings = get_settings()
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_ENABLED", True)
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_MAX_INPUT_CHARS", 8_000)
+    monkeypatch.setattr(
+        llm_factory, "build_fast_path_llm", lambda: _CancelDuringEmitLuna()
+    )
+
+    fake_session = SimpleNamespace(close=AsyncMock())
+    persist_assistant = AsyncMock(return_value="partial-row-id")
+    finalize_calls: list[dict] = []
+
+    async def spy_finalize_run(*_args, **kwargs):
+        finalize_calls.append(kwargs)
+
+    with (
+        patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_session),
+        patch.object(streaming_mod, "_accept_eligible", return_value=False),
+        patch.object(
+            streaming_mod,
+            "_resolve_thread",
+            new=AsyncMock(return_value=(thread, str(thread.conversation_id))),
+        ),
+        patch.object(
+            streaming_mod,
+            "_persist_user_message_guarded",
+            new=AsyncMock(return_value=True),
+        ),
+        patch.object(
+            jobs_mod, "_persist_assistant_message_safe", new=persist_assistant
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "start_stream",
+            new=AsyncMock(return_value=None),
+        ),
+        patch.object(streaming_mod, "_finalize_run", spy_finalize_run),
+    ):
+        generator = streaming_mod.stream_event_generator(body, request, user)
+        async for event in generator:
+            if "event: token" in event:
+                break
+        await generator.aclose()
+
+    persist_assistant.assert_awaited_once()
+    assert persist_assistant.await_args.kwargs["stopped"] is True
+    assert finalize_calls[0]["event_type"] is RunEventType.RUN_CANCELLED
+    assert finalize_calls[0]["payload"]["assistant_message_id"] == "partial-row-id"
+
+
 async def test_fast_path_cancel_links_partial_and_keeps_prefix(monkeypatch):
     """Cancel inside the 2nd token's emit: persisted partial must stop at the
     1st token (prefix invariant), and the run.cancelled payload must name the
