@@ -1,0 +1,39 @@
+{
+  "job_name": "agent-full-benchmark-v1-5x-gpt56-27018e6",
+  "jobs_dir": "evals/jobs",
+  "n_attempts": 5,
+  "n_concurrent_trials": 2,
+  "environment": {
+    "type": "docker",
+    "force_build": true,
+    "env": {
+      "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME": "gpt-5.6-luna",
+      "AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT": "gpt-5.6-luna",
+      "AZURE_OPENAI_SYNTHESIS_DEPLOYMENT": "gpt-5.6-luna"
+    }
+  },
+  "agents": [
+    {
+      "import_path": "evals.harbor_agents.nous_production_agent:NousProductionAgent"
+    }
+  ],
+  "tasks": [
+    { "path": "evals/agent-arxiv-research-flow-v1" },
+    { "path": "evals/agent-code-execution-v1" },
+    { "path": "evals/agent-direct-project-action-v1" },
+    { "path": "evals/agent-error-recovery-v1" },
+    { "path": "evals/agent-external-databases-v1" },
+    { "path": "evals/agent-fast-path-cancel-v1" },
+    { "path": "evals/agent-hitl-lifecycle-v1" },
+    { "path": "evals/agent-kb-retrieval-v1" },
+    { "path": "evals/agent-knowledge-graph-flow-v1" },
+    { "path": "evals/agent-long-run-controls-v1" },
+    { "path": "evals/agent-memory-roundtrip-v1" },
+    { "path": "evals/agent-project-management-v1" },
+    { "path": "evals/agent-project-skill-runtime-v1" },
+    { "path": "evals/agent-stream-cancel-durability-v1" },
+    { "path": "evals/agent-tenant-isolation-v1" },
+    { "path": "evals/agent-writing-flow-v1" },
+    { "path": "evals/rag-retrieval-safety-grounding-v1" }
+  ]
+}

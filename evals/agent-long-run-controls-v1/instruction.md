@@ -1,0 +1,1 @@
+Search the project knowledge base beginning with NOUS-LONG-1. Each result contains exactly one Next query value; follow it until a result says END. Then explain the first and final verified findings. If an execution limit stops the chain, give the best grounded partial answer and clearly identify the last verified stage instead of inventing later findings.

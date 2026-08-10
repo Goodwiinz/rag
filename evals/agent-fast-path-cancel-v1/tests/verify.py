@@ -50,7 +50,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import InfrastructureFailure, run_verifier_main
 
 BENCHMARK_ID = "agent-fast-path-cancel-v1"
-EXPECTED_SOURCE_REVISION = "fff861e9a7b74a584924b47fac6b19d2265d5e61"
+EXPECTED_SOURCE_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
 
 REQUIRED_EVIDENCE_KEYS = (
     "routing",
@@ -77,38 +77,35 @@ def live_database_state() -> dict[str, Any]:
     database_url = os.environ.get("DATABASE_URL", "")
     if not database_url:
         raise RuntimeError("DATABASE_URL is missing")
-    run_id = os.environ.get("HARBOR_FAST_PATH_RUN_ID", "")
-    thread_id = os.environ.get("HARBOR_FAST_PATH_THREAD_ID", "")
+    thread_id = "00000000-0000-4000-8000-000000000d05"
     with psycopg.connect(database_url, row_factory=dict_row) as connection:
-        run = None
-        events: list[dict[str, Any]] = []
-        run_count = 0
-        if thread_id:
-            run_count = connection.execute(
-                "SELECT count(*) AS count FROM agent_runs WHERE thread_id = %s::uuid",
-                (thread_id,),
-            ).fetchone()["count"]
-        if run_id:
-            run = connection.execute(
+        runs = list(
+            connection.execute(
                 """
-                SELECT job_id, status, organization_id::text, user_id::text,
+                SELECT job_id::text, status, organization_id::text, user_id::text,
                        thread_id::text, client_message_id::text,
                        assistant_message_id::text, last_event_seq,
-                       completed_at, error_code, error
+                       completed_at::text, error_code, error
                 FROM agent_runs
-                WHERE job_id = %s
+                WHERE thread_id = %s::uuid
+                ORDER BY created_at, job_id
                 """,
-                (run_id,),
-            ).fetchone()
+                (thread_id,),
+            ).fetchall()
+        )
+        run = runs[-1] if runs else None
+        events: list[dict[str, Any]] = []
+        if run is not None:
             events = list(
                 connection.execute(
                     """
-                    SELECT id::text, run_id, seq, event_type, payload, created_at
+                    SELECT id::text, run_id::text, seq, event_type, payload,
+                           created_at::text
                     FROM agent_run_events
                     WHERE run_id = %s
                     ORDER BY seq
                     """,
-                    (run_id,),
+                    (run["job_id"],),
                 ).fetchall()
             )
         messages: list[dict[str, Any]] = []
@@ -129,7 +126,7 @@ def live_database_state() -> dict[str, Any]:
         "run": dict(run) if run is not None else None,
         "events": [dict(row) for row in events],
         "messages": [dict(row) for row in messages],
-        "run_count_for_thread": int(run_count),
+        "run_count_for_thread": len(runs),
     }
 
 

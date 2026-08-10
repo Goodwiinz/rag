@@ -118,6 +118,41 @@ class TestFindRepeatedFailures:
         # behavior materially — bump deliberately, not accidentally.
         assert FAILED_RETRY_THRESHOLD == 2
 
+    @pytest.mark.asyncio
+    async def test_filtered_tool_node_caps_third_identical_failure(self, monkeypatch):
+        from src.services.agent import _nodes_tools
+
+        async def fail_if_called(*_args, **_kwargs):
+            raise AssertionError("circuit-broken call must not execute")
+
+        monkeypatch.setattr(_nodes_tools, "_execute_single_tool", fail_if_called)
+        node = _nodes_tools.make_filtered_tool_node({"search_arxiv"})
+        messages = _turn(["tc-1", "tc-2"])
+        messages.append(
+            AIMessage(
+                content="",
+                tool_calls=[{"id": "tc-3", "name": "search_arxiv", "args": ARGS}],
+            )
+        )
+
+        result = await node(
+            {
+                "messages": messages,
+                "tool_executions": [
+                    _failed("tc-1", "search_arxiv", ARGS),
+                    _failed("tc-2", "search_arxiv", ARGS),
+                ],
+                "error_count": 2,
+                "last_error": "TimeoutError()",
+                "page_context": {},
+                "tool_loop_count": 2,
+            },
+            {"configurable": {}},
+        )
+
+        assert result["error_count"] == 3
+        assert result["tool_executions"][-1]["error"].startswith("repeated_failure:")
+
 
 @pytest.mark.unit
 class TestCappedBuilders:

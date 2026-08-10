@@ -253,9 +253,8 @@ _parts = make_specialist_subgraph(
         "You ran {count} tool calls and reached "
         "the per-turn search budget. Do not request any more tools. Write a "
         "final answer drawn from the tool results already in this conversation: "
-        "list the most relevant papers (id, title, year, one-line summary) and "
-        "end with a clear next-step suggestion. Do NOT repeat or quote these "
-        "instructions in your reply."
+        "report the research findings gathered so far in the format the user "
+        "requested. Do NOT repeat or quote these instructions in your reply."
     ),
     synthesis_timeout_message=(
         "I ran my searches but the final summary step timed out "

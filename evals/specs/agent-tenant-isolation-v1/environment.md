@@ -57,8 +57,8 @@ Data:
     `knowledge_graph_service` exactly as plan 3's task does;
   - one long-term memory for user A (`save_memory`) whose text contains a
     distinctive, greppable fragment ("org-a-eyes-only-budget-figure");
-  - one project-skill-catalog row bound to the Org A project, resolvable by
-    `load_project_skill`.
+  - one approved project-skill version bound to the Org A project and frozen
+    in a production runtime snapshot, resolvable by `load_project_skill`.
 - Org B (`00000000-0000-4000-8000-000000000810` /
   `…0811` user / `…0812` workspace) — the attacking tenant, mirroring the
   disjoint-second-org shape of `agent-knowledge-graph-flow-v1`

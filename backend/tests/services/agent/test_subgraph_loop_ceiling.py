@@ -57,9 +57,7 @@ def test_writing_continues_below_ceiling():
 
 @pytest.mark.unit
 def test_writing_destructive_routes_to_interrupt_below_ceiling():
-    state = _state_with_pending_tool_calls(
-        "create_draft", MAX_WRITING_TOOL_LOOPS - 1
-    )
+    state = _state_with_pending_tool_calls("create_draft", MAX_WRITING_TOOL_LOOPS - 1)
     assert writing_should_continue(state) == "writing_interrupt_node"
 
 
@@ -67,9 +65,7 @@ def test_writing_destructive_routes_to_interrupt_below_ceiling():
 def test_writing_routes_to_force_synthesis_at_ceiling():
     """At the ceiling WITH unanswered tool_calls, route to forced synthesis
     instead of exiting with a dangling tool-call AIMessage."""
-    state = _state_with_pending_tool_calls(
-        "summarize_document", MAX_WRITING_TOOL_LOOPS
-    )
+    state = _state_with_pending_tool_calls("summarize_document", MAX_WRITING_TOOL_LOOPS)
     assert writing_should_continue(state) == "writing_force_synthesis_node"
 
 
@@ -212,41 +208,35 @@ def _capturing_llm(response_text: str):
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_writing_force_synthesis_strips_tool_calls_and_synthesizes():
-    from src.services.agent.subgraphs.writing_agent import (
-        writing_force_synthesis_node,
-    )
+    from src.services.agent.subgraphs.writing_agent import writing_force_synthesis_node
 
     llm, captured = _capturing_llm("final synthesized draft")
     state = _ceiling_state("summarize_document", MAX_WRITING_TOOL_LOOPS)
 
-    with patch(
-        "src.services.agent.llm_factory.build_synthesis_llm", return_value=llm
-    ):
+    with patch("src.services.agent.graph._build_llm", return_value=llm):
         result = await writing_force_synthesis_node(state, {"configurable": {}})
 
     assert result["messages"][0].content == "final synthesized draft"
     assert result["tool_loop_count"] == MAX_WRITING_TOOL_LOOPS + 1
     assert result["_force_synthesis_fired"] is True
     # The trailing tool-call AIMessage was stripped before the LLM saw it.
-    assert not any(
-        getattr(m, "tool_calls", None) for m in captured["messages"]
-    )
+    assert not any(getattr(m, "tool_calls", None) for m in captured["messages"])
+    prompt = captured["messages"][0].content
+    assert "unanswered tool request was not executed" in prompt
+    assert "execution limit stopped the remaining work" in prompt
+    assert "emit tool-call syntax" in prompt
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_writing_force_synthesis_timeout_emits_fallback():
-    from src.services.agent.subgraphs.writing_agent import (
-        writing_force_synthesis_node,
-    )
+    from src.services.agent.subgraphs.writing_agent import writing_force_synthesis_node
 
     llm = AsyncMock()
     llm.ainvoke = AsyncMock(side_effect=asyncio.TimeoutError())
     state = _ceiling_state("summarize_document", MAX_WRITING_TOOL_LOOPS)
 
-    with patch(
-        "src.services.agent.llm_factory.build_synthesis_llm", return_value=llm
-    ):
+    with patch("src.services.agent.graph._build_llm", return_value=llm):
         result = await writing_force_synthesis_node(state, {"configurable": {}})
 
     # Degraded but never dangling: a real AIMessage with content, flag set.
@@ -263,17 +253,13 @@ async def test_data_force_synthesis_strips_tool_calls_and_synthesizes():
     llm, captured = _capturing_llm("entities: A relates to B")
     state = _ceiling_state("search_knowledge_graph", MAX_DATA_TOOL_LOOPS)
 
-    with patch(
-        "src.services.agent.llm_factory.build_synthesis_llm", return_value=llm
-    ):
+    with patch("src.services.agent.graph._build_llm", return_value=llm):
         result = await data_force_synthesis_node(state, {"configurable": {}})
 
     assert result["messages"][0].content == "entities: A relates to B"
     assert result["tool_loop_count"] == MAX_DATA_TOOL_LOOPS + 1
     assert result["_force_synthesis_fired"] is True
-    assert not any(
-        getattr(m, "tool_calls", None) for m in captured["messages"]
-    )
+    assert not any(getattr(m, "tool_calls", None) for m in captured["messages"])
 
 
 @pytest.mark.unit
@@ -285,9 +271,7 @@ async def test_data_force_synthesis_timeout_emits_fallback():
     llm.ainvoke = AsyncMock(side_effect=asyncio.TimeoutError())
     state = _ceiling_state("search_knowledge_graph", MAX_DATA_TOOL_LOOPS)
 
-    with patch(
-        "src.services.agent.llm_factory.build_synthesis_llm", return_value=llm
-    ):
+    with patch("src.services.agent.graph._build_llm", return_value=llm):
         result = await data_force_synthesis_node(state, {"configurable": {}})
 
     assert result["messages"][0].content

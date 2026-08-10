@@ -779,9 +779,13 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         # Per-turn dedupe — mirrors tool_node. Keeps research subgraph in
         # sync with the main graph's dedupe semantics.
         from src.services.agent.tool_dedupe import (
+            FAILED_RETRY_THRESHOLD,
             build_deduped_execution_entry,
             build_deduped_tool_message,
+            build_failure_capped_execution_entry,
+            build_failure_capped_tool_message,
             find_cached_tool_results,
+            find_repeated_failures,
         )
 
         # Inject project_id before dedupe key computation (same as tool_node). (audit #10)
@@ -791,7 +795,18 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         cached = find_cached_tool_results(
             deduped_calls, state["messages"], tool_executions
         )
-        fresh_calls = [tc for tc in allowed_calls if tc["id"] not in cached]
+        capped = {
+            tc_id: prior
+            for tc_id, prior in find_repeated_failures(
+                deduped_calls, state["messages"], tool_executions
+            ).items()
+            if tc_id not in cached
+        }
+        fresh_calls = [
+            tc
+            for tc in allowed_calls
+            if tc["id"] not in cached and tc["id"] not in capped
+        ]
 
         tasks = [_execute_single_tool(tc, config, page_context) for tc in fresh_calls]
         fresh_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -806,6 +821,21 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
                 tool_messages.append(build_deduped_tool_message(tc["id"], prior))
                 tool_executions.append(
                     build_deduped_execution_entry(tc["id"], tc, prior)
+                )
+                continue
+            if tc["id"] in capped:
+                prior = capped[tc["id"]]
+                error_count += 1
+                last_error = "repeated_failure: identical args already failed this turn"
+                any_failure = True
+                all_success = False
+                tool_messages.append(
+                    build_failure_capped_tool_message(
+                        tc["id"], tc, prior, FAILED_RETRY_THRESHOLD
+                    )
+                )
+                tool_executions.append(
+                    build_failure_capped_execution_entry(tc["id"], tc, prior)
                 )
                 continue
             r = fresh_by_id.get(tc["id"])

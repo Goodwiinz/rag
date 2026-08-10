@@ -50,8 +50,8 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-memory-roundtrip-v1"
-SOURCE_REVISION = "b1165862ff0ba2021a0a5a3a206a0fd253a6d9a2"
-AGENT_REVISION = "b1165862ff0ba2021a0a5a3a206a0fd253a6d9a2"
+SOURCE_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
+AGENT_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
 APPROVAL_TEXT = "Yes, forget it."
 
 # Byte-identical across instruction.md / run_agent.py / verify.py. Turn 1 only
@@ -162,7 +162,7 @@ async def drain_memory_write(
     timeout_s: float = 20.0,
     interval_s: float = 0.25,
 ) -> Any:
-    """Poll the store for *key* until the fire-and-forget write lands.
+    """Poll the store for *key* until it lands or the bounded drain expires.
 
     Landmine 4: ``memory_save_node`` dispatches the embed+PG write as a
     background ``asyncio.Task`` and returns immediately. A fixed sleep is not
@@ -174,10 +174,7 @@ async def drain_memory_write(
         if item is not None:
             return item
         await asyncio.sleep(interval_s)
-    raise InfrastructureFailure(
-        f"memory key {key!r} did not land in the store within {timeout_s}s "
-        "(fire-and-forget write not drained)"
-    )
+    return None
 
 
 def tool_succeeded(tool_executions: list[Any], tool_name: str) -> list[dict[str, Any]]:
@@ -317,7 +314,11 @@ async def run_benchmark() -> dict[str, Any]:
 
     mem_key = memory_key(THREAD_ID, 1, instruction)
     memory_item = await drain_memory_write(store, namespace, mem_key)
-    record_milestone(milestones, sequence, "memory_drained")
+    record_milestone(
+        milestones,
+        sequence,
+        "memory_drained" if memory_item is not None else "memory_not_persisted",
+    )
     memory_value_after_turn1 = json_safe(getattr(memory_item, "value", None))
 
     # ---------------------------------------------------------------

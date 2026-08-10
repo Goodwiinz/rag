@@ -168,9 +168,9 @@ def make_specialist_subgraph(
         more. We strip the unanswered tool_calls and re-invoke the LLM with
         NO tools bound so it must produce text.
 
-        Uses the lightweight deployment — this is a pure prose-synthesis
-        call with no tool routing, matching the post-ToolMessage path in
-        the subgraph's LLM node.
+        Uses the main deployment because recovering a grounded partial answer
+        from a long, capped trajectory requires more than routine prose
+        rendering. Ordinary post-tool synthesis keeps using the cheaper tier.
 
         The "no more tools, synthesize now" directive is embedded into the
         system prompt (NOT a separate SystemMessage). Trace 019e190c showed
@@ -181,7 +181,6 @@ def make_specialist_subgraph(
         cannot route back here in a loop if the synthesis response somehow
         contains tool_calls (defensive — the directive forbids it).
         """
-        from src.services.agent.llm_factory import build_synthesis_llm
         from src.services.agent.observability import record_loop_exhaustion
 
         # Degraded-answer signal: reached this subgraph's tool-loop ceiling.
@@ -199,14 +198,26 @@ def make_specialist_subgraph(
         sanitized = _sanitize_messages(messages)
         base_prompt = prompt_builder()
         addendum = synthesis_addendum.format(count=state.get("tool_loop_count", 0))
-        full = [SystemMessage(content=base_prompt + addendum)] + sanitized
+        limit_contract = (
+            "\n\nThe unanswered tool request was not executed because the "
+            "per-turn execution limit was reached. Do not claim it ran, infer "
+            "its result, emit tool-call syntax, or promise to run it next. "
+            "Answer the user's original request from completed tool results "
+            "only. State that the execution limit stopped the remaining work "
+            "and identify the last completed or verified result."
+        )
+        full = [
+            SystemMessage(content=base_prompt + addendum + limit_contract)
+        ] + sanitized
 
-        llm_client = build_synthesis_llm(max_tokens=4096)
         # No bind_tools — force a pure text response.
         from src.services.agent.graph import (
             AGENT_LLM_TIMEOUT_SECONDS,
+            _build_llm,
             _merge_run_config,
         )
+
+        llm_client = _build_llm(state.get("model") or None)
 
         # _merge_run_config returns a plain dict; cast for the ainvoke
         # signature (mypy blocks on added files — the historical modules
