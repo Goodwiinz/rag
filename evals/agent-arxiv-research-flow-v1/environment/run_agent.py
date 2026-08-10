@@ -379,6 +379,13 @@ def tool_succeeded(tool_executions: list[Any], tool_name: str) -> bool:
 
 def hitl_steps(steps: list[dict[str, Any]], evidence: dict[str, Any]) -> list[Any]:
     """Splice the harness-supplied ingest approval into the trajectory."""
+    for step in steps:
+        if any(
+            str(call.get("tool_call_id") or "").startswith("direct_search_arxiv_")
+            for call in step.get("tool_calls") or []
+        ):
+            step["llm_call_count"] = 0
+            step.pop("model_name", None)
     if steps and steps[-1].get("source") == "agent":
         approved = [
             call.get("function_name")
