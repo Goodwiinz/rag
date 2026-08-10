@@ -130,6 +130,37 @@ async def initial_counts() -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------
+# Redis isolation
+# --------------------------------------------------------------------------
+async def reset_redis() -> None:
+    import redis.asyncio as aioredis
+
+    client = aioredis.from_url(os.environ["REDIS_URL"], decode_responses=True)
+    try:
+        if not await client.ping():
+            raise InfrastructureFailure("Redis ping returned false")
+        await client.flushdb()
+        active_key = f"agent:stream:active:{THREAD_ID}"
+        if await client.get(active_key) is not None:
+            raise InfrastructureFailure(
+                "isolated Redis reset left the benchmark active stream pointer"
+            )
+        replay_keys = sorted(await client.keys("agent:stream:*"))
+        if replay_keys:
+            raise InfrastructureFailure(
+                f"isolated Redis reset left replay stream state: {replay_keys}"
+            )
+    except InfrastructureFailure:
+        raise
+    except Exception as exc:
+        raise InfrastructureFailure(
+            f"isolated Redis reset failed: {type(exc).__name__}"
+        ) from exc
+    finally:
+        await client.aclose()
+
+
+# --------------------------------------------------------------------------
 # application lifecycle
 # --------------------------------------------------------------------------
 async def start_application() -> tuple[asyncio.subprocess.Process, Any]:
@@ -573,6 +604,7 @@ async def run_benchmark() -> dict[str, Any]:
         os.environ.get("AZURE_OPENAI_CHAT_ENDPOINT", "")
     )
     await bootstrap_schema()
+    await reset_redis()
     await seed_thread()
     initial = await initial_counts()
     if initial != {"agent_runs": 0, "run_events": 0, "chat_messages": 0}:
