@@ -43,6 +43,9 @@
     "token_log": [
       {"content": "The ar", "emit_completed": true, "appended_to_partial": true}
     ],
+    "server_token_log": [
+      {"content": "The ar", "emit_completed": true, "appended_to_partial": true}
+    ],
     "disconnect": {
       "initiated_at": "2026-08-09T10:00:04.900Z",
       "completed_at": "2026-08-09T10:00:04.910Z",

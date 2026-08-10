@@ -140,6 +140,9 @@
       "client_message_id": "00000000-0000-4000-8000-000000000406",
       "assistant_client_message_id": "ea887d66-2787-526f-b216-2a88abff7278"
     },
+    "server_token_log": [
+      {"content": "Evaluation"}
+    ],
     "disconnect": {
       "initiated_at": "2026-08-04T12:00:00.020Z",
       "completed_at": "2026-08-04T12:00:00.021Z",

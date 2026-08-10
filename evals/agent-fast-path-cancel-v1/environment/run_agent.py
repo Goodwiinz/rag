@@ -356,12 +356,7 @@ def accepted_run_id(frames: list[dict[str, Any]]) -> str | None:
 
 
 def token_log_from_frames(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Every SSE ``token`` frame the client actually received before the
-    disconnect. A frame reaching the client is proof its emit completed and
-    the production code's own buffer-before-append ordering already ran, so
-    every live-run entry is ``emit_completed=True, appended_to_partial=True``
-    -- see ``harness.md`` for why a live black-box run cannot observe the
-    ``emit_completed=False`` failure mode the calibration fixtures cover."""
+    """Normalize token frames from either the client or Redis replay log."""
     entries = []
     for frame in frames:
         data = frame.get("data")
@@ -376,6 +371,41 @@ def token_log_from_frames(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     }
                 )
     return entries
+
+
+async def redis_snapshot() -> dict[str, Any]:
+    """Read the benchmark's isolated server-side replay buffer."""
+    import redis.asyncio as aioredis
+
+    client = aioredis.from_url(os.environ["REDIS_URL"], decode_responses=True)
+    try:
+        if not await client.ping():
+            raise InfrastructureFailure("Redis ping returned false")
+        keys = sorted(await client.keys("agent:stream:*"))
+        buffers: list[dict[str, Any]] = []
+        for key in keys:
+            if key.startswith("agent:stream:active:"):
+                continue
+            entries: list[dict[str, Any]] = []
+            for raw in await client.lrange(key, 0, -1):
+                try:
+                    item = json.loads(raw)
+                    item["parsed_frame"] = parse_sse_text(
+                        str(item.get("frame") or "")
+                    )
+                    entries.append(json_safe(item))
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    entries.append({"malformed": True, "raw": str(raw)[:1000]})
+            buffers.append({"key": key, "entries": entries})
+        return {"buffers": buffers}
+    except InfrastructureFailure:
+        raise
+    except Exception as exc:
+        raise InfrastructureFailure(
+            f"isolated Redis evidence read failed: {type(exc).__name__}"
+        ) from exc
+    finally:
+        await client.aclose()
 
 
 async def database_state(run_id: str | None) -> dict[str, Any]:
@@ -546,6 +576,14 @@ async def run_benchmark() -> dict[str, Any]:
         frames = streamed["frames"]
         run_id = accepted_run_id(frames)
         observed_db = await wait_for_terminal(run_id)
+        await asyncio.sleep(0.2)
+        observed_redis = await redis_snapshot()
+        redis_frames = [
+            entry["parsed_frame"]
+            for buffer in observed_redis["buffers"]
+            for entry in buffer["entries"]
+            if isinstance(entry.get("parsed_frame"), dict)
+        ]
 
         run = observed_db.get("run") or {}
         partial_id = run.get("assistant_message_id")
@@ -593,6 +631,7 @@ async def run_benchmark() -> dict[str, Any]:
                 "first_token": streamed["first_token"],
             },
             "token_log": token_log_from_frames(frames),
+            "server_token_log": token_log_from_frames(redis_frames),
             "disconnect": {
                 "initiated_at": streamed["disconnect"]["initiated_at"],
                 "completed_at": streamed["disconnect"]["completed_at"],

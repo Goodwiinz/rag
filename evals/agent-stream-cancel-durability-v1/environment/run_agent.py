@@ -266,6 +266,17 @@ async def redis_snapshot() -> dict[str, Any]:
         await client.aclose()
 
 
+def token_log_from_frames(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize server replay token frames for diagnostic evidence."""
+    return [
+        {"content": str(data.get("content") or "")}
+        for frame in frames
+        if frame.get("event") == "token"
+        and isinstance(data := frame.get("data"), dict)
+        and data.get("content")
+    ]
+
+
 def validate_network_boundary() -> dict[str, Any]:
     direct_blocked = False
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -898,6 +909,12 @@ async def run_benchmark() -> dict[str, Any]:
         # turn before independently reading the final replay state.
         await asyncio.sleep(0.2)
         observed_redis = await redis_snapshot()
+        redis_frames = [
+            entry["parsed_frame"]
+            for buffer in observed_redis["buffers"]
+            for entry in buffer["entries"]
+            if isinstance(entry.get("parsed_frame"), dict)
+        ]
         resumed = await resume_stream(token)
 
         trace_ids = sorted(
@@ -954,6 +971,7 @@ async def run_benchmark() -> dict[str, Any]:
                 "frames": frames,
                 "first_token": streamed["first_token"],
             },
+            "server_token_log": token_log_from_frames(redis_frames),
             "accepted": accepted,
             "disconnect": {
                 "initiated_at": disconnect.get("initiated_at"),
