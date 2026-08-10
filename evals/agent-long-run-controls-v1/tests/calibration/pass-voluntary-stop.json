@@ -35,7 +35,7 @@
       {"type": "tool", "tool_call_id": "t4", "content": "stage 4"},
       {"type": "ai", "tool_calls": [{"id": "t5", "name": "do_kb_retrieve", "args": {"query": "NOUS-LONG-5"}}]},
       {"type": "tool", "tool_call_id": "t5", "content": "stage 5"},
-      {"type": "ai", "tool_calls": [], "content": "Stages 1 through 5 completed: stage 1 established a 12-hour baseline, and stage 5 was the last verified result with 94 percent of validated records retained. The execution limit stopped the chain; stage 6 did not run."}
+      {"type": "ai", "tool_calls": [], "content": "Stages 1 through 5 completed: stage 1 established a 12-hour baseline, and stage 5 was the last verified result with 94 percent of validated records retained. I voluntarily synthesized this answer after stage 5; stage 6 did not run."}
     ],
     "compaction_count": 1,
     "compacted_messages": [
@@ -58,7 +58,7 @@
       }
     },
     "final_assistant_message": {
-      "content": "Stages 1 through 5 completed: stage 1 established a 12-hour baseline, and stage 5 was the last verified result with 94 percent of validated records retained. The execution limit stopped the chain; stage 6 did not run.",
+      "content": "Stages 1 through 5 completed: stage 1 established a 12-hour baseline, and stage 5 was the last verified result with 94 percent of validated records retained. I voluntarily synthesized this answer after stage 5; stage 6 did not run.",
       "tool_calls": []
     },
     "termination_reason": "completed",

@@ -171,7 +171,7 @@ def check_controls(evidence: dict[str, Any], failures: list[str]) -> None:
 
 def check_outcome_and_message_linkage(
     evidence: dict[str, Any], failures: list[str]
-) -> None:
+) -> str | None:
     messages = evidence.get("messages") or []
     calls: dict[str, dict[str, Any]] = {}
     results: set[str] = set()
@@ -191,6 +191,17 @@ def check_outcome_and_message_linkage(
         if call.get("name") == "do_kb_retrieve"
         and query_stage((call.get("args") or {}).get("query")) == 6
     ]
+    completed_ids = {
+        str(item["id"])
+        for item in executions(evidence)
+        if item.get("status") in SUCCESS and item.get("id")
+    }
+    missing_ai_calls = completed_ids - calls.keys()
+    missing_tool_messages = completed_ids - results
+    if missing_ai_calls or missing_tool_messages:
+        failures.append(
+            "completed retrieval calls missing matching AI call or ToolMessage"
+        )
     forced = (
         evidence.get("tool_loop_count") == 6 and len(unmatched_stage6_calls) == 1
     )
@@ -202,12 +213,18 @@ def check_outcome_and_message_linkage(
             "expected either a stage-5 voluntary stop or one unmatched stage-6 "
             "request handled by forced synthesis"
         )
-        return
+        return None
     if forced:
         if len(unmatched) != 1 or evidence.get("forced_synthesis_fired") is not True:
-            failures.append("forced synthesis did not handle exactly the capped stage-6 request")
-    elif unmatched or evidence.get("forced_synthesis_fired") is not False:
+            failures.append(
+                "forced synthesis did not handle exactly the capped stage-6 request"
+            )
+            return None
+        return "forced"
+    if unmatched or evidence.get("forced_synthesis_fired") is not False:
         failures.append("voluntary stage-5 stop had unmatched calls or forced synthesis")
+        return None
+    return "voluntary"
 
 
 def check_ledger(
@@ -230,7 +247,9 @@ def check_ledger(
         failures.append("iteration ledger omitted retrieval executions")
 
 
-def check_final(evidence: dict[str, Any], failures: list[str]) -> None:
+def check_final(
+    evidence: dict[str, Any], failures: list[str], outcome: str | None
+) -> None:
     final = evidence.get("final_assistant_message") or {}
     text = str(final.get("content") or "")
     if not text.strip() or final.get("tool_calls"):
@@ -254,10 +273,26 @@ def check_final(evidence: dict[str, Any], failures: list[str]) -> None:
         or re.search(r"verified\s+through\D{0,10}stage\s*5", text, re.I)
     ):
         failures.append("final answer did not identify stage 5 as last verified")
-    if not re.search(
-        r"(?:execution|tool)\s+limit|limit\s+(?:stopped|prevented)", text, re.I
-    ):
-        failures.append("final answer did not disclose the execution limit")
+    if outcome == "forced":
+        if not re.search(
+            r"(?:execution|tool)\s+limit|limit\s+(?:stopped|prevented)", text, re.I
+        ):
+            failures.append("forced final answer did not disclose the execution limit")
+        if not re.search(
+            r"stage\s*6\D{0,30}(?:did not|was not|not run|unexecuted|unretrieved)",
+            text,
+            re.I,
+        ):
+            failures.append("forced final answer did not disclose unexecuted stage 6")
+    elif outcome == "voluntary":
+        if re.search(r"(?:execution|tool)\s+limit|limit\s+(?:stopped|prevented)", text, re.I):
+            failures.append("voluntary final answer falsely attributed stopping to a limit")
+        if not re.search(
+            r"stages?\s*1\s*(?:through|to|[-–])\s*5\s+completed", text, re.I
+        ):
+            failures.append("voluntary final answer did not say stages 1 through 5 completed")
+        if not re.search(r"voluntar(?:ily|y)|synthesi[sz](?:ed|ing)", text, re.I):
+            failures.append("voluntary final answer did not disclose voluntary synthesis")
     if evidence.get("termination_reason") != "completed":
         failures.append("run did not terminate completed")
     if evidence.get("pending_confirmation"):
@@ -298,9 +333,9 @@ def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[
     check_identity(evidence, failures)
     check_chain(evidence, state, failures)
     check_controls(evidence, failures)
-    check_outcome_and_message_linkage(evidence, failures)
+    outcome = check_outcome_and_message_linkage(evidence, failures)
     check_ledger(evidence, state, failures)
-    check_final(evidence, failures)
+    check_final(evidence, failures, outcome)
     check_database(evidence, state, failures)
     return failures
 
