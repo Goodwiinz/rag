@@ -38,7 +38,7 @@ ASSISTANT_CLIENT_MESSAGE_ID = str(
 REQUEST_ID = "harbor-stream-stop-000000000407"
 
 DEFAULT_EVIDENCE = Path("/logs/agent/evidence.json")
-REPORT_PATH = Path("/logs/verifier/audit.json")
+REPORT_PATH = Path(os.environ.get("VERIFIER_REPORT_PATH", "/logs/verifier/audit.json"))
 
 
 def json_safe(value: Any) -> Any:
