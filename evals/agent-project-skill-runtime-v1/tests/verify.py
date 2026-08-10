@@ -60,11 +60,20 @@ V1_HASH = sha256(VERSION_1.encode()).hexdigest()
 V2_HASH = sha256(VERSION_2.encode()).hexdigest()
 SUCCESS = {"completed", "success"}
 ALLOWED_TOOLS = {
+    "list_projects",
     "load_project_skill",
     "list_project_documents",
     "summarize_document",
     "create_project_note",
 }
+MEASUREMENT_SCOPE_RE = re.compile(
+    r"\b(?:16k|16,?000)[ -]token\s+scientific\s+abstracts\b",
+    re.IGNORECASE,
+)
+
+
+def mentions_measurement_scope(text: str) -> bool:
+    return bool(MEASUREMENT_SCOPE_RE.search(text))
 
 
 def live_state() -> dict[str, Any]:
@@ -336,7 +345,7 @@ def check_note(
         failures.append("note omitted the source's 38-percent memory result")
     if not re.search(r"0\.4\s+percentage\s+points", content, re.I):
         failures.append("note omitted the source's 0.4-point accuracy context")
-    if not re.search(r"16k[- ]token\s+scientific\s+abstracts", content, re.I):
+    if not mentions_measurement_scope(content):
         failures.append("note omitted the source's measurement scope")
     limitation = re.search(r"dense\s+cross[- ]token", content, re.I) and re.search(
         r"not\s+(?:evaluated|tested)", content, re.I

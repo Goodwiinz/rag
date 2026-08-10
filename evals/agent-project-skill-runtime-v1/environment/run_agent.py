@@ -489,6 +489,14 @@ async def run_benchmark() -> dict[str, Any]:
     messages = list(final_values.get("messages") or [])
     tool_executions = list(final_values.get("tool_executions") or [])
     final_db = await database_state()
+    final_snapshots = final_db.get("snapshots") or []
+    if len(final_snapshots) != 1:
+        raise InfrastructureFailure(
+            f"expected one final runtime snapshot, observed {len(final_snapshots)}"
+        )
+    loaded_skill_versions = list(
+        final_snapshots[0].get("loaded_skill_versions") or []
+    )
     pending = extract_interrupt(final_checkpoint)
     termination_reason = (
         "awaiting_confirmation"
@@ -516,9 +524,7 @@ async def run_benchmark() -> dict[str, Any]:
                 runtime.project_skill_catalog
             ),
             "tool_names": list(runtime.tool_names),
-            "loaded_skill_versions": json_safe(
-                final_values.get("loaded_skill_versions") or []
-            ),
+            "loaded_skill_versions": json_safe(loaded_skill_versions),
         },
         "interrupts": interrupts,
         "interrupt": {
