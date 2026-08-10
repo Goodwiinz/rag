@@ -2359,7 +2359,7 @@ async def _tool_compare_documents(
         for did in document_ids:
             doc = resolved.get(did)
             if not doc:
-                return {"error": f"Document not found: {did}"}
+                return {"error": "Document not found or access denied"}
 
             text = doc.content_text or ""
             if not text:
