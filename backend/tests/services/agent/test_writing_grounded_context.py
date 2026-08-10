@@ -14,8 +14,7 @@ from src.services.agent.subgraphs.writing_agent import writing_llm_node
 
 def test_writing_prompt_forbids_claiming_pending_artifacts_are_complete() -> None:
     prompt = (
-        Path(__file__).parents[3]
-        / "src/services/agent/subgraphs/AGENTS_writing.md"
+        Path(__file__).parents[3] / "src/services/agent/subgraphs/AGENTS_writing.md"
     ).read_text()
     assert "A pending artifact is not complete" in prompt
     assert "repeat the tool's status" in prompt

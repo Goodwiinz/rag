@@ -401,9 +401,7 @@ def token_log_from_frames(
             if content:
                 entry = {"content": content, "sequence": data.get("sequence")}
                 if client_observation:
-                    entry.update(
-                        {"emit_completed": True, "appended_to_partial": True}
-                    )
+                    entry.update({"emit_completed": True, "appended_to_partial": True})
                 entries.append(entry)
     return entries
 
@@ -415,7 +413,9 @@ async def capture_active_stream_id() -> str:
     try:
         stream_id = await client.get(f"agent:stream:active:{THREAD_ID}")
         if not stream_id:
-            raise InfrastructureFailure("current Redis active stream pointer is missing")
+            raise InfrastructureFailure(
+                "current Redis active stream pointer is missing"
+            )
         return str(stream_id)
     except InfrastructureFailure:
         raise

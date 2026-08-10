@@ -494,9 +494,7 @@ async def run_benchmark() -> dict[str, Any]:
         raise InfrastructureFailure(
             f"expected one final runtime snapshot, observed {len(final_snapshots)}"
         )
-    loaded_skill_versions = list(
-        final_snapshots[0].get("loaded_skill_versions") or []
-    )
+    loaded_skill_versions = list(final_snapshots[0].get("loaded_skill_versions") or [])
     pending = extract_interrupt(final_checkpoint)
     termination_reason = (
         "awaiting_confirmation"

@@ -246,7 +246,9 @@ async def test_research_force_synthesis_stops_unmatched_stage_six():
     assert result["_force_synthesis_fired"] is True
     assert result["messages"][-1].tool_calls == []
     assert "limit" in str(result["messages"][-1].content).lower()
-    assert not any(getattr(message, "tool_calls", None) for message in captured["messages"])
+    assert not any(
+        getattr(message, "tool_calls", None) for message in captured["messages"]
+    )
 
 
 @pytest.mark.unit

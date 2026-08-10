@@ -199,12 +199,8 @@ def check_outcome_and_message_linkage(
     missing_ai_calls = completed_ids - calls.keys()
     missing_tool_messages = completed_ids - results
     if missing_ai_calls or missing_tool_messages:
-        failures.append(
-            "completed tool calls missing matching AI call or ToolMessage"
-        )
-    forced = (
-        evidence.get("tool_loop_count") == 6 and len(unmatched_stage6_calls) == 1
-    )
+        failures.append("completed tool calls missing matching AI call or ToolMessage")
+    forced = evidence.get("tool_loop_count") == 6 and len(unmatched_stage6_calls) == 1
     voluntary = (
         evidence.get("tool_loop_count") == 5 and len(unmatched_stage6_calls) == 0
     )
@@ -222,7 +218,9 @@ def check_outcome_and_message_linkage(
             return None
         return "forced"
     if unmatched or evidence.get("forced_synthesis_fired") is not False:
-        failures.append("voluntary stage-5 stop had unmatched calls or forced synthesis")
+        failures.append(
+            "voluntary stage-5 stop had unmatched calls or forced synthesis"
+        )
         return None
     return "voluntary"
 
@@ -285,14 +283,22 @@ def check_final(
         ):
             failures.append("forced final answer did not disclose unexecuted stage 6")
     elif outcome == "voluntary":
-        if re.search(r"(?:execution|tool)\s+limit|limit\s+(?:stopped|prevented)", text, re.I):
-            failures.append("voluntary final answer falsely attributed stopping to a limit")
+        if re.search(
+            r"(?:execution|tool)\s+limit|limit\s+(?:stopped|prevented)", text, re.I
+        ):
+            failures.append(
+                "voluntary final answer falsely attributed stopping to a limit"
+            )
         if not re.search(
             r"stages?\s*1\s*(?:through|to|[-–])\s*5\s+completed", text, re.I
         ):
-            failures.append("voluntary final answer did not say stages 1 through 5 completed")
+            failures.append(
+                "voluntary final answer did not say stages 1 through 5 completed"
+            )
         if not re.search(r"voluntar(?:ily|y)|synthesi[sz](?:ed|ing)", text, re.I):
-            failures.append("voluntary final answer did not disclose voluntary synthesis")
+            failures.append(
+                "voluntary final answer did not disclose voluntary synthesis"
+            )
     if evidence.get("termination_reason") != "completed":
         failures.append("run did not terminate completed")
     if evidence.get("pending_confirmation"):

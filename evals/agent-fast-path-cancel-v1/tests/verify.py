@@ -217,10 +217,13 @@ def require_keys(evidence: dict[str, Any], state: dict[str, Any]) -> None:
                     f"evidence.server_replay_buffers[{index}] missing {key!r}"
                 )
 
-    if not isinstance(evidence["captured_stream_id"], str) or not evidence[
-        "captured_stream_id"
-    ]:
-        raise InfrastructureFailure("evidence.captured_stream_id must be non-empty text")
+    if (
+        not isinstance(evidence["captured_stream_id"], str)
+        or not evidence["captured_stream_id"]
+    ):
+        raise InfrastructureFailure(
+            "evidence.captured_stream_id must be non-empty text"
+        )
 
     finalize_attempts = evidence["finalize_attempts"]
     if not isinstance(finalize_attempts, list) or not finalize_attempts:
@@ -316,8 +319,13 @@ def check_prefix_retained(evidence: dict[str, Any], failures: list[str]) -> None
     buffer = replay_buffers[0]
     captured_stream_id = evidence["captured_stream_id"]
     expected_key = f"agent:stream:{captured_stream_id}"
-    if buffer.get("stream_id") != captured_stream_id or buffer.get("key") != expected_key:
-        failures.append("Redis replay buffer does not match the captured current stream id")
+    if (
+        buffer.get("stream_id") != captured_stream_id
+        or buffer.get("key") != expected_key
+    ):
+        failures.append(
+            "Redis replay buffer does not match the captured current stream id"
+        )
     if not isinstance(buffer.get("ttl_seconds"), int) or buffer["ttl_seconds"] <= 0:
         failures.append("Redis replay buffer has no positive TTL")
 
@@ -359,9 +367,8 @@ def check_prefix_retained(evidence: dict[str, Any], failures: list[str]) -> None
                 "Redis replay wrapper seq, SSE id, and data.sequence must match"
             )
             continue
-        if (
-            data.get("trace_id") != REQUEST_ID
-            or data.get("thread_id") != accepted.get("thread_id")
+        if data.get("trace_id") != REQUEST_ID or data.get("thread_id") != accepted.get(
+            "thread_id"
         ):
             failures.append("Redis replay buffer is not bound to the current run")
             break
@@ -375,12 +382,12 @@ def check_prefix_retained(evidence: dict[str, Any], failures: list[str]) -> None
         if frame.get("event") == "token" and isinstance(frame.get("data"), dict)
     ]
     if server_token_log != buffered_tokens:
-        failures.append("server token log does not match the current Redis replay buffer")
+        failures.append(
+            "server token log does not match the current Redis replay buffer"
+        )
 
     server_text = "".join(entry["content"] for entry in server_token_log)
-    persisted = str(
-        (evidence.get("persisted_partial") or {}).get("content") or ""
-    )
+    persisted = str((evidence.get("persisted_partial") or {}).get("content") or "")
     if not persisted:
         failures.append("persisted_partial.content is empty")
     if not server_text.startswith(persisted):
