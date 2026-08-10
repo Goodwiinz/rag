@@ -157,7 +157,7 @@
     "elapsed_ms": 24000,
     "events": [],
     "final_assistant_message": {
-      "content": "I compared the two documents: the GNN survey uses explicit molecular graph structure with permutation-invariant message passing, while the attention survey uses learned content-dependent weighting over sequences with no explicit graph. I started a literature review draft on \"neural architectures for scientific discovery\" linking both themes -- generation is running in the background and will appear in the Drafts tab once complete. I also exported the IEEE-format bibliography for both documents.",
+      "content": "I compared the two documents: the GNN survey uses explicit molecular graph structure with permutation-invariant message passing, while the attention survey uses learned content-dependent weighting over sequences with no explicit graph. The comparison and IEEE-format bibliography export completed. The literature review draft on \"neural architectures for scientific discovery\" is pending; generation is running in the background and will appear in the Drafts tab once complete.",
       "id": "msg-10",
       "response_metadata": {
         "finish_reason": "stop"
