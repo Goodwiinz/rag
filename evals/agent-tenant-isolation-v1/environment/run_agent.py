@@ -688,13 +688,13 @@ async def probe_rag_node(seed: dict[str, str]) -> dict[str, Any]:
             "messages": [HumanMessage(content=f"Tell me about {DOCUMENT_TITLE}")],
             "use_rag": True,
             "retrieved_contexts": [],
-            "current_project_id": "",
+            "current_project_id": seed["project_id"],
         }
         config = {
             "configurable": {
                 "user_id": str(user_id),
                 "organization_id": str(org_id),
-                "current_project_id": "",
+                "current_project_id": seed["project_id"],
             }
         }
         return await rag_node(state, config)
@@ -736,7 +736,10 @@ async def probe_rag_node(seed: dict[str, str]) -> dict[str, Any]:
     return {
         "probe_id": "rag.rag_node",
         "category": "rag",
-        "query": {"instruction": f"Tell me about {DOCUMENT_TITLE}"},
+        "query": {
+            "instruction": f"Tell me about {DOCUMENT_TITLE}",
+            "project_id": seed["project_id"],
+        },
         "org_a_rows": json_safe(a_rows),
         "org_b_rows": json_safe(b_rows),
         "org_b_error": error,

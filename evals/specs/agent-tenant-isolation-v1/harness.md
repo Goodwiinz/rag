@@ -95,9 +95,11 @@ Per-probe call shapes (production function, args, what "org A row" means):
   skill payload. Org B receives the same project, snapshot, and skill name.
 - `rag.rag_node` — `rag_node(state, config)` with `configurable.user_id` /
   `organization_id` set to org B's ids and `state["messages"]` containing
-  the org-A document's distinctive text fragment as the query; org-A row =
-  any retrieved context chunk whose source document id equals org A's
-  seeded document.
+  the org-A document's distinctive text fragment as the query. Both calls
+  carry org A's project id as the active project because production RAG
+  intentionally skips retrieval without project context; org-A row = any
+  retrieved context chunk whose source document id equals org A's seeded
+  document.
 
 Session shape: one process, one seeded pair of tenants, all 12 probes run
 back-to-back in the order declared in `task.md` — this is the "same trial
