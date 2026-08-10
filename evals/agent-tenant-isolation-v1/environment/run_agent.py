@@ -138,7 +138,9 @@ async def seed_org_a_fixture() -> dict[str, str]:
                 mime_type="application/pdf",
                 document_type=DocumentType.PDF,
                 processing_status=ProcessingStatus.COMPLETED,
-                content_text="Org A confidential budget figures follow.",
+                content_text=(
+                    "This report tells readers about Org A confidential budget figures."
+                ),
                 organization_id=ORG_A_ID,
                 uploaded_by_user_id=USER_A_ID,
             )
