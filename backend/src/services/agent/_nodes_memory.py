@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -41,6 +42,15 @@ logger = logging.getLogger(__name__)
 # (_background_tasks + callback).
 # ---------------------------------------------------------------------------
 _BACKGROUND_TASKS: set[asyncio.Task[Any]] = set()
+
+_EXPLICIT_MEMORY_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:remember|save)\s+(?:this\s+)?(?:that\s+)?",
+    re.IGNORECASE,
+)
+
+
+def _is_explicit_memory_request(text: str) -> bool:
+    return bool(_EXPLICIT_MEMORY_RE.search(text))
 
 
 def _on_persist_done(task: asyncio.Task[Any]) -> None:  # noqa: ANN001
@@ -232,7 +242,27 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
     # recall has any chance of helping a future query.
     intent = state.get("intent") or ""
     tool_executions = state.get("tool_executions") or []
-    if intent in ("", "general") and not tool_executions:
+
+    # Extract the last assistant and user messages. Coerce: multimodal
+    # content is a list of blocks, and the slice/encode below would raise
+    # on it (the save is best-effort, so the memory would just be silently
+    # lost).
+    last_ai_content = ""
+    last_user_content = ""
+    for msg in reversed(state["messages"]):
+        if isinstance(msg, AIMessage) and msg.content and not last_ai_content:
+            last_ai_content = _coerce_text(msg.content)
+        if isinstance(msg, HumanMessage) and not last_user_content:
+            last_user_content = _coerce_text(msg.content)
+        if last_ai_content and last_user_content:
+            break
+
+    explicit_memory_request = _is_explicit_memory_request(last_user_content)
+    if (
+        intent in ("", "general")
+        and not tool_executions
+        and not explicit_memory_request
+    ):
         return {}
 
     try:
@@ -241,20 +271,6 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
         store = await get_memory_store()
         if not store:
             return {}
-
-        # Extract the last assistant message for memory. Coerce: multimodal
-        # content is a list of blocks, and the slice/encode below would
-        # raise on it (the save is best-effort, so the memory would just be
-        # silently lost).
-        last_ai_content = ""
-        last_user_content = ""
-        for msg in reversed(state["messages"]):
-            if isinstance(msg, AIMessage) and msg.content and not last_ai_content:
-                last_ai_content = _coerce_text(msg.content)
-            if isinstance(msg, HumanMessage) and not last_user_content:
-                last_user_content = _coerce_text(msg.content)
-            if last_ai_content and last_user_content:
-                break
 
         if not last_user_content:
             return {}
