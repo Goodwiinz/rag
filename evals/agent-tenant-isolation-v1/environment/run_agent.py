@@ -152,6 +152,11 @@ async def seed_org_a_fixture() -> dict[str, str]:
             )
         )
         await session.flush()
+        from src.services.search.fulltext_search_service import fulltext_search_service
+
+        await fulltext_search_service.async_update_document_search_vectors(
+            [document_id], session
+        )
         session.add(
             CollectionDocument(collection_id=project_id, document_id=document_id)
         )
