@@ -343,16 +343,19 @@ async def test_repeated_cancellation_waits_for_graph_cleanup() -> None:
 
         response_task = asyncio.create_task(consume_response())
         await asyncio.wait_for(token_yielded.wait(), timeout=1)
-        response_task.cancel()
+        response_task.cancel("original-cancel")
         await asyncio.wait_for(cleanup_started.wait(), timeout=1)
-        response_task.cancel()
-        await asyncio.sleep(0)
-        finished_before_cleanup = response_task.done()
+        finished_during_cleanup = []
+        for repeat in range(1, 4):
+            response_task.cancel(f"repeat-{repeat}")
+            await asyncio.sleep(0)
+            finished_during_cleanup.append(response_task.done())
         allow_cleanup.set()
-        with pytest.raises(asyncio.CancelledError):
+        with pytest.raises(asyncio.CancelledError) as cancelled:
             await response_task
 
-    assert finished_before_cleanup is False
+    assert finished_during_cleanup == [False, False, False]
+    assert cancelled.value.args == ("original-cancel",)
     assert graph.aclosed is True
     persist.assert_awaited_once()
     assert persist.await_args.kwargs["stopped"] is True

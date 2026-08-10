@@ -377,7 +377,8 @@ class _CancelDuringEmitLuna:
         yield AIMessageChunk(content="X")
 
 
-async def test_fast_path_generator_close_links_stopped_partial(monkeypatch):
+@pytest.mark.parametrize("close_at", ["routing", "trace", "token", "usage"])
+async def test_fast_path_generator_close_finalizes_each_window(monkeypatch, close_at):
     user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
     thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4())
 
@@ -404,10 +405,9 @@ async def test_fast_path_generator_close_links_stopped_partial(monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings, "AGENT_FAST_PATH_ENABLED", True)
     monkeypatch.setattr(settings, "AGENT_FAST_PATH_MAX_INPUT_CHARS", 8_000)
-    monkeypatch.setattr(
-        llm_factory, "build_fast_path_llm", lambda: _CancelDuringEmitLuna()
-    )
+    monkeypatch.setattr(llm_factory, "build_fast_path_llm", lambda: _FakeLuna())
 
+    fake_graph = _NoGraphExecution()
     fake_session = SimpleNamespace(close=AsyncMock())
     persist_assistant = AsyncMock(return_value="partial-row-id")
     finalize_calls: list[dict] = []
@@ -437,17 +437,40 @@ async def test_fast_path_generator_close_links_stopped_partial(monkeypatch):
             new=AsyncMock(return_value=None),
         ),
         patch.object(streaming_mod, "_finalize_run", spy_finalize_run),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            new=lambda **_kwargs: fake_graph,
+        ),
     ):
         generator = streaming_mod.stream_event_generator(body, request, user)
         async for event in generator:
-            if "event: token" in event:
+            if (
+                (close_at == "routing" and "Using the direct Luna path" in event)
+                or (close_at == "trace" and "event: trace" in event)
+                or (close_at == "token" and "event: token" in event)
+                or (close_at == "usage" and "event: usage" in event)
+            ):
                 break
         await generator.aclose()
 
-    persist_assistant.assert_awaited_once()
-    assert persist_assistant.await_args.kwargs["stopped"] is True
+    if close_at in {"routing", "trace"}:
+        persist_assistant.assert_not_awaited()
+    else:
+        persist_assistant.assert_awaited_once()
+        assert persist_assistant.await_args.kwargs["stopped"] is (close_at == "token")
     assert finalize_calls[0]["event_type"] is RunEventType.RUN_CANCELLED
-    assert finalize_calls[0]["payload"]["assistant_message_id"] == "partial-row-id"
+    if close_at in {"token", "usage"}:
+        assert finalize_calls[0]["payload"]["assistant_message_id"] == "partial-row-id"
+    else:
+        assert "assistant_message_id" not in finalize_calls[0]["payload"]
 
 
 async def test_fast_path_cancel_links_partial_and_keeps_prefix(monkeypatch):

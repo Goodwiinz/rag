@@ -266,20 +266,6 @@ async def _stream_luna_fast_path(
         _uuid.uuid5(_uuid.NAMESPACE_URL, f"{user_message_id}:fast-assistant")
     )
 
-    await emitter.start(stream_thread_id)
-    yield await emitter.emit(
-        AgentStreamEvent.STATUS,
-        {"phase": "routing", "detail": "Using the direct Luna path"},
-    )
-    yield await emitter.emit(
-        AgentStreamEvent.TRACE,
-        build_trace_payload(
-            thread_id=stream_thread_id,
-            cli_session_id="",
-            langsmith_run_id="",
-        ),
-    )
-
     prompt = build_fast_path_messages(
         request_body.messages,
         max_input_chars=settings.AGENT_FAST_PATH_MAX_INPUT_CHARS,
@@ -316,6 +302,7 @@ async def _stream_luna_fast_path(
     # Declared here so cancel_fast_path can link the cancelled run to the
     # stopped partial row it persists — same contract as the graph path.
     persisted_partial_id: Optional[str] = None
+    persisted_assistant_id: Optional[str] = None
 
     async def persist_partial() -> None:
         nonlocal persisted_partial_id
@@ -348,8 +335,9 @@ async def _stream_luna_fast_path(
             # Link the run to the stopped partial row persisted just above,
             # so a cancelled run can still name the message holding its
             # output. Omitted when nothing streamed before the abort.
-            if persisted_partial_id:
-                cancelled_payload["assistant_message_id"] = persisted_partial_id
+            linked_assistant_id = persisted_partial_id or persisted_assistant_id
+            if linked_assistant_id:
+                cancelled_payload["assistant_message_id"] = linked_assistant_id
             await _finalize_run(
                 db,
                 acceptance,
@@ -360,6 +348,20 @@ async def _stream_luna_fast_path(
             )
 
     try:
+        await emitter.start(stream_thread_id)
+        yield await emitter.emit(
+            AgentStreamEvent.STATUS,
+            {"phase": "routing", "detail": "Using the direct Luna path"},
+        )
+        yield await emitter.emit(
+            AgentStreamEvent.TRACE,
+            build_trace_payload(
+                thread_id=stream_thread_id,
+                cli_session_id="",
+                langsmith_run_id="",
+            ),
+        )
+
         if acceptance is not None:
             # The dispatch this outbox row recorded is about to happen
             # in-process. Stamping it keeps a future relay from re-dispatching
@@ -519,14 +521,14 @@ async def _stream_luna_fast_path(
                 else {}
             ),
         )
-    except (asyncio.CancelledError, GeneratorExit):
+    except (asyncio.CancelledError, GeneratorExit) as exit_exc:
         cleanup_task = asyncio.create_task(cancel_fast_path())
-        try:
-            await asyncio.shield(cleanup_task)
-        except asyncio.CancelledError:
-            await cleanup_task
-            raise
-        raise
+        while not cleanup_task.done():
+            try:
+                await asyncio.shield(cleanup_task)
+            except asyncio.CancelledError:
+                continue
+        raise exit_exc
     except Exception as exc:
         logger.error("Luna fast-path stream failed", exc_info=exc)
         await persist_partial()
@@ -1724,7 +1726,7 @@ async def stream_event_generator(
             ),
         )
 
-    except asyncio.CancelledError:
+    except asyncio.CancelledError as cancellation_exc:
         # Starlette cancels StreamingResponse's body iterator directly when
         # the client aborts the fetch. Shield the cleanup so that cancellation
         # cannot leave the graph running or the durable run non-terminal.
@@ -1757,12 +1759,12 @@ async def stream_event_generator(
                 )
 
         cleanup_task = asyncio.create_task(cleanup_cancelled_response())
-        try:
-            await asyncio.shield(cleanup_task)
-        except asyncio.CancelledError:
-            await cleanup_task
-            raise
-        raise
+        while not cleanup_task.done():
+            try:
+                await asyncio.shield(cleanup_task)
+            except asyncio.CancelledError:
+                continue
+        raise cancellation_exc
 
     except GraphInterrupt as exc:
         # Graph hit an interrupt mid-stream (HITL confirmation needed).
@@ -2550,7 +2552,7 @@ async def stream_confirm_event_generator(
             ),
         )
 
-    except asyncio.CancelledError:
+    except asyncio.CancelledError as cancellation_exc:
 
         async def cleanup_cancelled_confirm_response() -> None:
             if confirm_event_iter is not None:
@@ -2581,12 +2583,12 @@ async def stream_confirm_event_generator(
                 )
 
         cleanup_task = asyncio.create_task(cleanup_cancelled_confirm_response())
-        try:
-            await asyncio.shield(cleanup_task)
-        except asyncio.CancelledError:
-            await cleanup_task
-            raise
-        raise
+        while not cleanup_task.done():
+            try:
+                await asyncio.shield(cleanup_task)
+            except asyncio.CancelledError:
+                continue
+        raise cancellation_exc
 
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)
