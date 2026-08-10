@@ -460,7 +460,7 @@ async def probe_explore_entity_neighborhood(seed: dict[str, str]) -> dict[str, A
     def rows(payload: dict[str, Any]) -> list[str]:
         if payload.get("error"):
             return []
-        neighbors = payload.get("neighbors") or payload.get("entities") or []
+        neighbors = payload.get("connected_entities") or []
         return [seed["entity_id"]] if neighbors else []
 
     return await _run_probe(

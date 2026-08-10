@@ -150,7 +150,7 @@ def run_semantic_judge(
                 api_key=required["HARBOR_JUDGE_API_KEY"],
                 azure_deployment=required["HARBOR_JUDGE_MODEL"],
                 api_version=required["HARBOR_JUDGE_API_VERSION"],
-                max_tokens=400,
+                max_tokens=800,
                 request_timeout=_JUDGE_REQUEST_TIMEOUT,
                 # Transport-level retries are disabled: this loop is the only
                 # retrying budget, since a langchain-side retry multiplier
