@@ -193,14 +193,14 @@ def check_outcome_and_message_linkage(
     ]
     completed_ids = {
         str(item["id"])
-        for item in executions(evidence)
-        if item.get("status") in SUCCESS and item.get("id")
+        for item in evidence.get("raw_tool_executions") or []
+        if isinstance(item, dict) and item.get("status") in SUCCESS and item.get("id")
     }
     missing_ai_calls = completed_ids - calls.keys()
     missing_tool_messages = completed_ids - results
     if missing_ai_calls or missing_tool_messages:
         failures.append(
-            "completed retrieval calls missing matching AI call or ToolMessage"
+            "completed tool calls missing matching AI call or ToolMessage"
         )
     forced = (
         evidence.get("tool_loop_count") == 6 and len(unmatched_stage6_calls) == 1
