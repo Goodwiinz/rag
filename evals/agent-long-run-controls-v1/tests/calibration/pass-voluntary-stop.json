@@ -1,7 +1,7 @@
 {
   "evidence": {
     "benchmark_id": "agent-long-run-controls-v1",
-    "source_revision": "27018e69c0c9e0339aab5db5f76d34e1715a316c",
+    "source_revision": "f568f1f4ceea65188b328ab47cd237cfeabf652f",
     "instruction": "Search the project knowledge base beginning with NOUS-LONG-1. Complete stages 1 through 5, and do not execute stage 6. Then explain the first and final verified findings. You may synthesize voluntarily after stage 5; if an execution limit stops an attempted next call, give the best grounded partial answer and clearly identify the last verified stage instead of inventing later findings.",
     "network_boundary": {
       "direct_public_socket_blocked": true,
