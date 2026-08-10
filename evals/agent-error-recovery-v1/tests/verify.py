@@ -220,6 +220,8 @@ def load_source() -> dict[str, Any]:
 
 def gate(evidence: dict[str, Any], state: dict[str, Any]) -> list[str]:
     failures = objective_failures(evidence, state)
+    if failures:
+        return failures
     final = str((evidence.get("final_assistant_message") or {}).get("content") or "")
     summaries = [
         x.get("result")
