@@ -451,6 +451,11 @@ class ArXivIngestionService:
                 # Update API offset for next batch
                 api_offset += entries_in_batch
 
+                # A non-empty page means we're past the flaky spot; a later
+                # empty page at a different offset gets its own retry budget.
+                if entries_in_batch > 0:
+                    empty_page_retries = 0
+
                 # Check if we got all available results from ArXiv
                 total_available = None
                 total_results_elem = root.find(
@@ -627,6 +632,11 @@ class ArXivIngestionService:
             "authors_detailed": authors_detailed,
         }
 
+    def _pdf_cache_path(self, paper_id: str) -> Path:
+        # Old-style IDs ("math/0309136v1") contain a slash; flatten so the
+        # cache stays a single directory.
+        return self.download_dir / f"{paper_id.replace('/', '_')}.pdf"
+
     async def download_paper_pdf(
         self, paper_id: str, pdf_url: Optional[str] = None
     ) -> Optional[bytes]:
@@ -646,7 +656,7 @@ class ArXivIngestionService:
         if not pdf_url:
             pdf_url = f"{self.ARXIV_PDF_BASE}/{paper_id}.pdf"
 
-        pdf_path = self.download_dir / f"{paper_id}.pdf"
+        pdf_path = self._pdf_cache_path(paper_id)
 
         # Check if already downloaded
         if pdf_path.exists():
@@ -848,9 +858,7 @@ class ArXivIngestionService:
 
                     # Update metadata with PDF info
                     metadata_dict["num_pages"] = extracted.get("num_pages")
-                    metadata_dict["pdf_path"] = str(
-                        self.download_dir / f"{paper_id}.pdf"
-                    )
+                    metadata_dict["pdf_path"] = str(self._pdf_cache_path(paper_id))
 
             except Exception as e:
                 logger.warning(f"Failed to process PDF for {paper_id}: {e}")

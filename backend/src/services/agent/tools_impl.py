@@ -19,6 +19,37 @@ from uuid import UUID, uuid4
 # without false negatives across version bumps.
 _ARXIV_VERSION_RE = re.compile(r"v\d+$")
 
+
+def _index_arxiv_papers(
+    papers: List[Dict[str, Any]],
+) -> tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    """Index fetched arXiv papers by exact (versioned) ID and by first-seen
+    unversioned ID, so requesting both "X v1" and "X v2" doesn't collapse
+    to one entry while unversioned requests still match a versioned result.
+    """
+    fetched_by_id: Dict[str, Dict[str, Any]] = {}
+    fetched_unversioned: Dict[str, Dict[str, Any]] = {}
+    for paper in papers:
+        exact = str(paper["id"])
+        fetched_by_id[exact] = paper
+        fetched_unversioned.setdefault(_ARXIV_VERSION_RE.sub("", exact), paper)
+    return fetched_by_id, fetched_unversioned
+
+
+def _resolve_arxiv_paper(
+    pid: str,
+    fetched_by_id: Dict[str, Dict[str, Any]],
+    fetched_unversioned: Dict[str, Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Match a requested ID against fetched metadata: exact ID first, then
+    the unversioned fallback if the caller didn't request a specific version.
+    """
+    paper = fetched_by_id.get(pid)
+    if paper is None and _ARXIV_VERSION_RE.search(pid) is None:
+        paper = fetched_unversioned.get(pid)
+    return paper
+
+
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1200,18 +1231,18 @@ async def _tool_ingest_arxiv(
             # instead of one per paper (a 10-paper ingest used to burn ~30s
             # of the gate queue on metadata alone).
             fetched_by_id: Dict[str, Dict[str, Any]] = {}
+            fetched_unversioned: Dict[str, Dict[str, Any]] = {}
             try:
-                for paper in await service.get_papers_by_ids(paper_ids):
-                    # arXiv returns versioned IDs ("2605.10877v1"); callers
-                    # typically pass unversioned — key by stripped ID.
-                    fetched_by_id[_ARXIV_VERSION_RE.sub("", str(paper["id"]))] = paper
+                fetched_by_id, fetched_unversioned = _index_arxiv_papers(
+                    await service.get_papers_by_ids(paper_ids)
+                )
             except Exception as exc:
                 logger.warning("arXiv batch metadata fetch failed: %s", exc)
                 for pid in paper_ids:
                     failed_papers[pid] = f"metadata fetch failed: {exc}"
 
             def _paper_or_stub(pid: str) -> Dict[str, Any]:
-                paper = fetched_by_id.get(_ARXIV_VERSION_RE.sub("", pid))
+                paper = _resolve_arxiv_paper(pid, fetched_by_id, fetched_unversioned)
                 if paper:
                     return paper
                 # Fallback: minimal paper dict so ingest can still proceed.
