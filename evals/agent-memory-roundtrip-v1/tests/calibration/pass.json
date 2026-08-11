@@ -1,6 +1,6 @@
 {
   "evidence": {
-    "agent_revision": "a16edb58d6e7550d7fb47062a5eee968b9dcf2d1",
+    "agent_revision": "ed775b109e9928f8d31574458b0399b4cb316bad",
     "approval": {
       "resume": {
         "confirmed": true
@@ -298,7 +298,7 @@
     },
     "schema_version": "1.0",
     "semantic": "N/A (deterministic; design doc reconciliation, see task.md)",
-    "source_revision": "a16edb58d6e7550d7fb47062a5eee968b9dcf2d1",
+    "source_revision": "ed775b109e9928f8d31574458b0399b4cb316bad",
     "started_at": "2026-08-08T12:00:00Z",
     "store_backend": "AsyncPostgresStore",
     "suppress_observation_for": [

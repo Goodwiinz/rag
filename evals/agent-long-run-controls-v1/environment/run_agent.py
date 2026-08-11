@@ -27,7 +27,7 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-long-run-controls-v1"
-SOURCE_REVISION = "a16edb58d6e7550d7fb47062a5eee968b9dcf2d1"
+SOURCE_REVISION = "ed775b109e9928f8d31574458b0399b4cb316bad"
 EXPECTED_INSTRUCTION = (
     "Search the project knowledge base beginning with NOUS-LONG-1. Complete "
     "stages 1 through 5, and do not execute stage 6. Then explain the first "

@@ -1,5 +1,5 @@
 schema_version = "1.2"
-source = "git+https://github.com/Goodwiinz/rag.git@a16edb58d6e7550d7fb47062a5eee968b9dcf2d1"
+source = "git+https://github.com/Goodwiinz/rag.git@ed775b109e9928f8d31574458b0399b4cb316bad"
 artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
 
 [task]
@@ -10,8 +10,8 @@ keywords = ["langgraph", "connectors", "pubmed", "fred", "tools", "intent-routin
 
 [metadata]
 benchmark_id = "agent-external-databases-v1"
-source_revision = "a16edb58d6e7550d7fb47062a5eee968b9dcf2d1"
-agent_revision = "a16edb58d6e7550d7fb47062a5eee968b9dcf2d1"
+source_revision = "ed775b109e9928f8d31574458b0399b4cb316bad"
+agent_revision = "ed775b109e9928f8d31574458b0399b4cb316bad"
 harbor_version = "0.6.6"
 base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
 

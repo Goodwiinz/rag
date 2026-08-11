@@ -31,7 +31,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import run_verifier_main
 
 BENCHMARK_ID = "agent-arxiv-research-flow-v1"
-EXPECTED_SOURCE_REVISION = "a16edb58d6e7550d7fb47062a5eee968b9dcf2d1"
+EXPECTED_SOURCE_REVISION = "ed775b109e9928f8d31574458b0399b4cb316bad"
 SEARCH_TEXT = "Search arXiv for deterministic benchmark retrieval evaluation."
 EXPECTED_INSTRUCTION = SEARCH_TEXT
 

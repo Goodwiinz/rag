@@ -26,7 +26,7 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-error-recovery-v1"
-SOURCE_REVISION = "a16edb58d6e7550d7fb47062a5eee968b9dcf2d1"
+SOURCE_REVISION = "ed775b109e9928f8d31574458b0399b4cb316bad"
 EXPECTED_INSTRUCTION = (
     "In the currently open project, summarize both identifiers. First try "
     "00000000-0000-4000-8000-000000001001; if the tool says that is a project "
