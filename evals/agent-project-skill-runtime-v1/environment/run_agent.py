@@ -28,7 +28,7 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-project-skill-runtime-v1"
-SOURCE_REVISION = "f568f1f4ceea65188b328ab47cd237cfeabf652f"
+SOURCE_REVISION = "838075c12fe0829ea9635c87fd855c6a21d44081"
 EXPECTED_INSTRUCTION = (
     "Use the active evidence-note project skill and the document in this project "
     "to create a source-grounded project note about sparse transformer attention."
