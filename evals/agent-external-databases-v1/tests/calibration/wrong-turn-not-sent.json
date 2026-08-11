@@ -2,8 +2,8 @@
   "evidence": {
     "schema_version": "1.0",
     "benchmark_id": "agent-external-databases-v1",
-    "source_revision": "ba71044eb99019c1813cd7593838c6f98d35639c",
-    "agent_revision": "ba71044eb99019c1813cd7593838c6f98d35639c",
+    "source_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
+    "agent_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
     "started_at": "2026-08-08T00:00:00Z",
     "completed_at": "2026-08-08T00:00:15Z",
     "instruction": "First call list_external_databases to see which external database connectors are available. Then call search_external_database with connector=\"pubmed\" for the topic \"telomere shortening senescent cells\", and call search_external_database with connector=\"fred\" for the economic series \"unemployment rate\". Report what you found from each source.",
