@@ -166,24 +166,38 @@ def per_stage_completion_claims(text: str) -> set[int]:
     )
     clause_boundary = re.compile(
         r"\s*(?:[,;]|\b(?:although|but|however|yet)\b)\s*|"
-        r"\s+and\s+(?=(?:it\b|stage\s*[1-6]\b))",
+        r"\s+and\s+(?=it\b)",
         re.I,
     )
+    stage_conjunction = re.compile(r"\s+and\s+(?=stage\s*[1-6]\b)", re.I)
     for sentence in re.split(r"[.!?\n]+", text):
         last_stage: int | None = None
         for clause in clause_boundary.split(sentence):
-            stages = [
-                int(match.group(1))
-                for match in re.finditer(r"\bstage\s*([1-6])\b", clause, re.I)
-            ]
-            if stages:
-                last_stage = stages[-1]
-            if not claim_word.search(clause) or negated.search(clause):
-                continue
-            if stages:
-                claimed.update(stages)
-            elif last_stage is not None:
-                claimed.add(last_stage)
+            pending_stages: set[int] = set()
+            for part in stage_conjunction.split(clause):
+                stages = [
+                    int(match.group(1))
+                    for match in re.finditer(r"\bstage\s*([1-6])\b", part, re.I)
+                ]
+                if stages:
+                    last_stage = stages[-1]
+                has_claim = claim_word.search(part)
+                is_negated = negated.search(part)
+                if not has_claim:
+                    if stages and not is_negated:
+                        pending_stages.update(stages)
+                    else:
+                        pending_stages.clear()
+                    continue
+                if is_negated:
+                    pending_stages.clear()
+                    continue
+                if stages:
+                    claimed.update(pending_stages)
+                    claimed.update(stages)
+                elif last_stage is not None:
+                    claimed.add(last_stage)
+                pending_stages.clear()
     return claimed
 
 
