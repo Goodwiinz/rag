@@ -114,6 +114,21 @@ def successful_raw_executions(evidence: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def successful_tool_message(message: dict[str, Any]) -> bool:
+    status = str(message.get("status") or "success").lower()
+    content = str(message.get("content") or "").strip()
+    if status not in SUCCESS or not content:
+        return False
+    try:
+        payload = json.loads(content)
+    except json.JSONDecodeError:
+        return True
+    if not isinstance(payload, dict):
+        return True
+    payload_status = str(payload.get("status") or "success").lower()
+    return not payload.get("error") and payload_status in SUCCESS
+
+
 def query_stage(value: Any) -> int | None:
     match = re.search(r"NOUS-LONG-([1-6])", str(value or ""), re.IGNORECASE)
     return int(match.group(1)) if match else None
@@ -142,29 +157,33 @@ def completion_through(text: str) -> int | None:
 def per_stage_completion_claims(text: str) -> set[int]:
     claimed: set[int] = set()
     negated = re.compile(
-        r"\b(?:never|not|without)\b|could\s+not|did\s+not|wasn't|isn't", re.I
+        r"\b(?:failed|never|neither|not|unsuccessful|without)\b|"
+        r"(?:could|did|is|was)n['’]t",
+        re.I,
     )
-    for stage in range(1, 7):
-        forward = re.compile(
-            rf"(?=\bstage\s*{stage}\b(?P<link>[^.!?;\n]{{0,50}}?)"
-            r"\b(?:complete(?:d)?|verified)\b)",
-            re.I,
-        )
-        reverse = re.compile(
-            rf"(?=\b(?:completed|verified)\b(?P<link>[^.!?;\n]{{0,30}}?)"
-            rf"\bstage\s*{stage}\b)",
-            re.I,
-        )
-        if any(
-            not negated.search(match.group("link")) for match in forward.finditer(text)
-        ):
-            claimed.add(stage)
-            continue
-        for match in reverse.finditer(text):
-            prefix = text[max(0, match.start() - 20) : match.start()]
-            if not negated.search(prefix + match.group("link")):
-                claimed.add(stage)
-                break
+    claim_word = re.compile(
+        r"\b(?:complete(?:d)?|completion|verification|verified)\b", re.I
+    )
+    clause_boundary = re.compile(
+        r"\s*(?:[,;]|\b(?:although|but|however|yet)\b)\s*|"
+        r"\s+and\s+(?=(?:it\b|stage\s*[1-6]\b))",
+        re.I,
+    )
+    for sentence in re.split(r"[.!?\n]+", text):
+        last_stage: int | None = None
+        for clause in clause_boundary.split(sentence):
+            stages = [
+                int(match.group(1))
+                for match in re.finditer(r"\bstage\s*([1-6])\b", clause, re.I)
+            ]
+            if stages:
+                last_stage = stages[-1]
+            if not claim_word.search(clause) or negated.search(clause):
+                continue
+            if stages:
+                claimed.update(stages)
+            elif last_stage is not None:
+                claimed.add(last_stage)
     return claimed
 
 
@@ -272,15 +291,19 @@ def check_outcome_and_message_linkage(
     for tool_call_id, matches in results_by_id.items():
         if len(matches) > 1:
             failures.append(f"duplicate ToolMessage tool_call_id: {tool_call_id}")
+        if tool_call_id not in calls_by_id:
+            failures.append(f"ToolMessage {tool_call_id} has no matching AI tool call")
 
     successful = successful_raw_executions(evidence)
     raw_ids: list[str] = []
+    raw_by_id: dict[str, list[dict[str, Any]]] = {}
     for item in successful:
         raw_id = item.get("id")
         if not isinstance(raw_id, str) or not raw_id.strip():
             failures.append("successful raw execution missing non-empty id")
             continue
         raw_ids.append(raw_id)
+        raw_by_id.setdefault(raw_id, []).append(item)
     for raw_id in sorted({raw_id for raw_id in raw_ids if raw_ids.count(raw_id) > 1}):
         failures.append(f"duplicate successful raw execution id: {raw_id}")
 
@@ -320,8 +343,7 @@ def check_outcome_and_message_linkage(
         )
         if args_mismatch:
             failures.append(f"tool argument linkage mismatch for execution {raw_id}")
-        message_status = tool_message.get("status")
-        if message_status is not None and message_status not in SUCCESS:
+        if not successful_tool_message(tool_message):
             failures.append(f"ToolMessage for execution {raw_id} is not successful")
         if tool_message.get("name") not in {None, "", item.get("tool_name")}:
             failures.append(f"ToolMessage name linkage mismatch for execution {raw_id}")
@@ -343,8 +365,34 @@ def check_outcome_and_message_linkage(
                         f"tool result linkage mismatch for execution {raw_id}"
                     )
 
+    for call_id, call_matches in calls_by_id.items():
+        if len(call_matches) != 1:
+            continue
+        call = call_matches[0]
+        successful_results = [
+            message
+            for message in results_by_id.get(call_id) or []
+            if successful_tool_message(message)
+        ]
+        if call.get("name") != "do_kb_retrieve" or not successful_results:
+            continue
+        raw_matches = [
+            item
+            for item in raw_by_id.get(call_id) or []
+            if item.get("tool_name") == "do_kb_retrieve"
+        ]
+        if len(raw_matches) != 1:
+            failures.append(
+                "successful KB trajectory execution "
+                f"{call_id} has no unique matching successful raw execution"
+            )
+
     calls = {call_id: matches[0] for call_id, matches in calls_by_id.items()}
-    results = set(results_by_id)
+    results = {
+        call_id
+        for call_id, messages_for_call in results_by_id.items()
+        if any(successful_tool_message(message) for message in messages_for_call)
+    }
     unmatched = [call for call_id, call in calls.items() if call_id not in results]
     if not completed_stages:
         return None
