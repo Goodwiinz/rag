@@ -20,20 +20,52 @@ from uuid import UUID, uuid4
 _ARXIV_VERSION_RE = re.compile(r"v\d+$")
 
 
+def _arxiv_paper_version(paper_id: str) -> int:
+    """Trailing ``vN`` as an int; unversioned IDs sort lowest (0)."""
+    match = re.search(r"v(\d+)$", paper_id)
+    return int(match.group(1)) if match else 0
+
+
 def _index_arxiv_papers(
     papers: List[Dict[str, Any]],
 ) -> tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
-    """Index fetched arXiv papers by exact (versioned) ID and by first-seen
-    unversioned ID, so requesting both "X v1" and "X v2" doesn't collapse
-    to one entry while unversioned requests still match a versioned result.
+    """Index fetched arXiv papers by exact (versioned) ID and by highest-
+    revision unversioned ID, so requesting both "X v1" and "X v2" doesn't
+    collapse to one entry, and a bare request resolves to the newest
+    revision regardless of the Atom feed's entry order.
     """
     fetched_by_id: Dict[str, Dict[str, Any]] = {}
     fetched_unversioned: Dict[str, Dict[str, Any]] = {}
     for paper in papers:
         exact = str(paper["id"])
         fetched_by_id[exact] = paper
-        fetched_unversioned.setdefault(_ARXIV_VERSION_RE.sub("", exact), paper)
+        bare = _ARXIV_VERSION_RE.sub("", exact)
+        current = fetched_unversioned.get(bare)
+        if current is None or _arxiv_paper_version(exact) > _arxiv_paper_version(
+            str(current["id"])
+        ):
+            fetched_unversioned[bare] = paper
     return fetched_by_id, fetched_unversioned
+
+
+def _find_missing_arxiv_ids(paper_ids: List[str], ingested_ids: List[str]) -> List[str]:
+    """Requested IDs not satisfied by what actually got ingested.
+
+    A versioned request ("...v2") is only satisfied by an exact ingested
+    match — stripped comparison would let a dropped v2 hide behind a
+    successfully ingested v1 of the same paper. A bare (unversioned)
+    request matches any ingested revision.
+    """
+    ingested_exact = {str(aid) for aid in ingested_ids}
+    ingested_stripped = {_ARXIV_VERSION_RE.sub("", aid) for aid in ingested_exact}
+    missing = []
+    for pid in paper_ids:
+        if _ARXIV_VERSION_RE.search(pid):
+            if pid not in ingested_exact:
+                missing.append(pid)
+        elif pid not in ingested_stripped:
+            missing.append(pid)
+    return missing
 
 
 def _resolve_arxiv_paper(
@@ -1274,24 +1306,17 @@ async def _tool_ingest_arxiv(
 
             # Detect which requested paper_ids the service dropped during
             # download/extract so we can surface per-paper failure reasons
-            # instead of a generic zero-count message.
-            # arXiv returns versioned IDs (``2605.10877v1``) while callers
-            # typically pass unversioned IDs — strip ``vN`` before comparing
-            # so successfully ingested papers aren't flagged as failures.
-            def _strip_version(aid: str) -> str:
-                return _ARXIV_VERSION_RE.sub("", aid)
-
-            ingested_arxiv_ids: set[str] = set()
+            # instead of a generic zero-count message. A versioned request
+            # must be matched exactly (see _find_missing_arxiv_ids) so a
+            # dropped v2 isn't hidden behind a successfully ingested v1.
+            ingested_arxiv_ids: List[str] = []
             for doc in ingested or []:
                 meta = getattr(doc, "document_metadata", None) or {}
                 aid = meta.get("arxiv_id") if isinstance(meta, dict) else None
                 if aid:
-                    ingested_arxiv_ids.add(_strip_version(str(aid)))
-            for pid in paper_ids:
-                if (
-                    _strip_version(pid) not in ingested_arxiv_ids
-                    and pid not in failed_papers
-                ):
+                    ingested_arxiv_ids.append(str(aid))
+            for pid in _find_missing_arxiv_ids(paper_ids, ingested_arxiv_ids):
+                if pid not in failed_papers:
                     failed_papers[pid] = "PDF download or content extraction failed"
 
             document_ids = []
