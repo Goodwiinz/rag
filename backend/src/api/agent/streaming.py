@@ -902,12 +902,20 @@ def _consume_pending_pull_result(pending: asyncio.Task) -> None:
 async def _close_async_iterator(iterator: Any) -> None:
     """Bound iterator shutdown so durable cancellation cannot wait on an LLM."""
     close_task = asyncio.create_task(iterator.aclose())
-    done, _ = await asyncio.wait({close_task}, timeout=_SSE_DISCONNECT_POLL_SECONDS)
+    try:
+        done, _ = await asyncio.wait({close_task}, timeout=_SSE_DISCONNECT_POLL_SECONDS)
+    except BaseException:
+        close_task.cancel()
+        if close_task.done():
+            _consume_pending_pull_result(close_task)
+        else:
+            close_task.add_done_callback(_consume_pending_pull_result)
+        raise
     if close_task in done:
         _consume_pending_pull_result(close_task)
         return
     close_task.cancel()
-    close_task.add_done_callback(_consume_pending_pull_result)
+    await _cancel_pending_graph_pull(close_task, request_cancel=False)
     logger.warning(
         "Timed out closing agent stream iterator",
         extra={

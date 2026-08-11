@@ -73,6 +73,31 @@ async def test_iterator_close_is_bounded(monkeypatch: pytest.MonkeyPatch) -> Non
     assert cancelled.is_set()
 
 
+@pytest.mark.asyncio
+async def test_iterator_close_tracks_child_when_caller_is_cancelled() -> None:
+    from src.api.agent import streaming as streaming_mod
+
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    class SlowIterator:
+        async def aclose(self) -> None:
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+    closing = asyncio.create_task(streaming_mod._close_async_iterator(SlowIterator()))
+    await started.wait()
+    closing.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await closing
+    await asyncio.sleep(0)
+
+    assert cancelled.is_set()
+
+
 @pytest.mark.parametrize("buffer_available", [False, True])
 @pytest.mark.asyncio
 async def test_streaming_response_abort_finalizes_cancelled_without_completion(
