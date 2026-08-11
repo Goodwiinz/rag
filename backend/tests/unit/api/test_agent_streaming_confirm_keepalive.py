@@ -78,6 +78,20 @@ async def _token_then_hang(cleaned: asyncio.Event):
         cleaned.set()
 
 
+async def _token_then_blocked_cleanup(
+    cleanup_started: asyncio.Event,
+    allow_cleanup: asyncio.Event,
+    cleanup_complete: asyncio.Event,
+):
+    yield {"event": "token"}
+    try:
+        await asyncio.Event().wait()
+    finally:
+        cleanup_started.set()
+        await allow_cleanup.wait()
+        cleanup_complete.set()
+
+
 @pytest.mark.asyncio
 async def test_graph_keepalive_polls_disconnect_while_next_event_is_pending(
     monkeypatch,
@@ -102,6 +116,47 @@ async def test_graph_keepalive_polls_disconnect_while_next_event_is_pending(
     assert cleaned.is_set()
     await graph.aclose()
     await events.aclose()
+
+
+@pytest.mark.asyncio
+async def test_graph_disconnect_cleanup_preserves_concurrent_asgi_cancellation(
+    monkeypatch,
+):
+    import src.api.agent.streaming as st
+
+    cleanup_started = asyncio.Event()
+    allow_cleanup = asyncio.Event()
+    cleanup_complete = asyncio.Event()
+    graph = _token_then_blocked_cleanup(
+        cleanup_started, allow_cleanup, cleanup_complete
+    )
+    request = SimpleNamespace(
+        is_disconnected=AsyncMock(side_effect=[False, False, True])
+    )
+    monkeypatch.setattr(st, "_SSE_KEEPALIVE_SECONDS", 0.2)
+    monkeypatch.setattr(st, "_SSE_DISCONNECT_POLL_SECONDS", 0.01, raising=False)
+
+    events = st._graph_events_with_keepalive(graph, request)
+    yielded = [await anext(events)]
+
+    async def pull_next():
+        yielded.append(await anext(events))
+
+    next_item = asyncio.create_task(pull_next())
+    await asyncio.wait_for(cleanup_started.wait(), timeout=0.1)
+    next_item.cancel("original ASGI cancellation")
+    await asyncio.sleep(0)
+    next_item.cancel("repeated ASGI cancellation")
+    await asyncio.sleep(0)
+    assert not next_item.done()
+
+    allow_cleanup.set()
+    with pytest.raises(asyncio.CancelledError) as caught:
+        await next_item
+
+    assert cleanup_complete.is_set()
+    assert caught.value.args == ("original ASGI cancellation",)
+    assert yielded == [{"type": "event", "event": {"event": "token"}}]
 
 
 @pytest.mark.asyncio

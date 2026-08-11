@@ -72,3 +72,32 @@ calls `aclose()`. It failed before the production edit and passes after it.
 - Harbor was not run. The intentional benchmark JSON was not edited or staged.
 
 Commit: `fix(agent): settle pending pull before disconnect sentinel`
+
+## Fix round 2/5
+
+Round 1 awaited the cancelled graph pull inside
+`suppress(BaseException)`. A concurrent ASGI cancellation could therefore
+escape that await, be suppressed, and let the helper yield a disconnect
+sentinel before async-generator cleanup finished.
+
+Disconnect handling now clears ownership from `pending`, cancels the pull, and
+repeatedly shields it until it settles. If the current task is cancelled during
+that wait, the first `CancelledError` is remembered and re-raised after cleanup;
+the disconnect sentinel is not yielded. Ordinary request disconnects still
+receive the sentinel, but only after the pull has settled. The existing
+`finally` remains idempotent, and poll/heartbeat timing is unchanged.
+
+The deterministic regression blocks the pull's async-generator `finally`,
+delivers two ordered ASGI cancellations, and proves that propagation waits for
+cleanup, preserves the original cancellation args, and yields no sentinel. It
+failed against round 1 and passes after the fix. The ordinary sentinel-ordering
+test remains green.
+
+- Focused and cancellation regressions: 8 passed, 3 PostgreSQL-dependent tests
+  skipped because `localhost:54322` refused connections.
+- Stream-cancel calibration: `pass.json` returned 0;
+  `wrong-late-completion.json` returned 10.
+- Compile, Black, Ruff, isort, benchmark/calibration JSON parse, and
+  `git diff --check`: passed.
+- Harbor was not run. The intentional benchmark JSON modification was neither
+  edited nor staged.

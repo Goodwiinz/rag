@@ -846,6 +846,33 @@ _PLANNER_CHAIN_NODES = frozenset(
 )
 
 
+async def _cancel_pending_graph_pull(pending: asyncio.Task) -> None:
+    """Cancel one graph pull and preserve concurrent caller cancellation."""
+    current_task = asyncio.current_task()
+    cancellation_count = current_task.cancelling() if current_task else 0
+    cancellation_exc: asyncio.CancelledError | None = None
+
+    if not pending.done():
+        pending.cancel()
+    while not pending.done():
+        try:
+            await asyncio.shield(pending)
+        except asyncio.CancelledError as exc:
+            if (
+                cancellation_exc is None
+                and current_task is not None
+                and current_task.cancelling() > cancellation_count
+            ):
+                cancellation_exc = exc
+            continue
+        except BaseException:
+            break
+    if not pending.cancelled():
+        pending.exception()
+    if cancellation_exc is not None:
+        raise cancellation_exc
+
+
 async def _graph_events_with_keepalive(event_stream_iter, request: Any):
     """Yield LangGraph events, interleaving keepalive markers during long gaps.
 
@@ -860,11 +887,9 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
         while True:
             if await request.is_disconnected():
                 if pending is not None:
-                    if not pending.done():
-                        pending.cancel()
-                    with contextlib.suppress(BaseException):
-                        await pending
+                    pending_pull = pending
                     pending = None
+                    await _cancel_pending_graph_pull(pending_pull)
                 yield {"type": "disconnect"}
                 return
             if pending is None:
@@ -891,11 +916,9 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
                 continue
 
             if await request.is_disconnected():
-                if not pending.done():
-                    pending.cancel()
-                with contextlib.suppress(BaseException):
-                    await pending
+                pending_pull = pending
                 pending = None
+                await _cancel_pending_graph_pull(pending_pull)
                 yield {"type": "disconnect"}
                 return
             now = time.monotonic()
