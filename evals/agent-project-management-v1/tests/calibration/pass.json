@@ -1,6 +1,6 @@
 {
   "evidence": {
-    "agent_revision": "85c3cc19dbb1c73b19cbb486690c768aa5bd4df0",
+    "agent_revision": "ba71044eb99019c1813cd7593838c6f98d35639c",
     "approval": {
       "count": 3,
       "resume": {
@@ -552,7 +552,7 @@
       }
     ],
     "schema_version": "1.0",
-    "source_revision": "85c3cc19dbb1c73b19cbb486690c768aa5bd4df0",
+    "source_revision": "ba71044eb99019c1813cd7593838c6f98d35639c",
     "started_at": "2026-08-07T12:00:00Z",
     "suppress_observation_for": [
       "create_project",

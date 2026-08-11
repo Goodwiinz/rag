@@ -1,5 +1,5 @@
 schema_version = "1.2"
-source = "git+https://github.com/Goodwiinz/rag.git@85c3cc19dbb1c73b19cbb486690c768aa5bd4df0"
+source = "git+https://github.com/Goodwiinz/rag.git@ba71044eb99019c1813cd7593838c6f98d35639c"
 artifacts = [
   "/logs/agent/evidence.json",
   "/logs/agent/trajectory.json",
@@ -14,8 +14,8 @@ keywords = ["fastapi", "langgraph", "sse", "cancellation", "durability", "redis"
 
 [metadata]
 benchmark_id = "agent-stream-cancel-durability-v1"
-source_revision = "85c3cc19dbb1c73b19cbb486690c768aa5bd4df0"
-agent_revision = "85c3cc19dbb1c73b19cbb486690c768aa5bd4df0"
+source_revision = "ba71044eb99019c1813cd7593838c6f98d35639c"
+agent_revision = "ba71044eb99019c1813cd7593838c6f98d35639c"
 harbor_version = "0.6.6"
 base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
 
