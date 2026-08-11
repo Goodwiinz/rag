@@ -46,7 +46,7 @@ services:
       DB_ASYNC_MAX_OVERFLOW: "2"
       DB_SYNC_POOL_SIZE: "1"
       DB_SYNC_MAX_OVERFLOW: "1"
-      GIT_SHA: 187973c4208f0895b43be3f8fa9766cf35c034a4
+      GIT_SHA: 381045593914ef28cabff458548ec4310b8df12f
       IMAGE_TAG: harbor-agent-stream-cancel-durability-v1
     depends_on:
       postgres:
