@@ -40,8 +40,8 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-kb-retrieval-v1"
-SOURCE_REVISION = "92678fc4692c8d5cb7025b7ad446209b0fa63590"
-AGENT_REVISION = "92678fc4692c8d5cb7025b7ad446209b0fa63590"
+SOURCE_REVISION = "fa3858d79baeb9dba79f0a44a077856418933898"
+AGENT_REVISION = "fa3858d79baeb9dba79f0a44a077856418933898"
 EXPECTED_INSTRUCTION = (
     'Search my documents for a file titled "API Rate Limit Policy" to confirm '
     "we have it on file, then use the organization knowledge base to retrieve "

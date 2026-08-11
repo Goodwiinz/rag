@@ -2,8 +2,8 @@
   "evidence": {
     "schema_version": "1.0",
     "benchmark_id": "agent-hitl-lifecycle-v1",
-    "source_revision": "92678fc4692c8d5cb7025b7ad446209b0fa63590",
-    "agent_revision": "92678fc4692c8d5cb7025b7ad446209b0fa63590",
+    "source_revision": "fa3858d79baeb9dba79f0a44a077856418933898",
+    "agent_revision": "fa3858d79baeb9dba79f0a44a077856418933898",
     "started_at": "2026-08-09T12:00:00Z",
     "completed_at": "2026-08-09T12:02:10Z",
     "synthetic_actor": {

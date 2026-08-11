@@ -1,6 +1,6 @@
 {
   "evidence": {
-    "agent_revision": "92678fc4692c8d5cb7025b7ad446209b0fa63590",
+    "agent_revision": "fa3858d79baeb9dba79f0a44a077856418933898",
     "approval": {
       "count": 1,
       "resume": {
@@ -269,7 +269,7 @@
       }
     ],
     "search_instruction": "Search arXiv for deterministic benchmark retrieval evaluation.",
-    "source_revision": "92678fc4692c8d5cb7025b7ad446209b0fa63590",
+    "source_revision": "fa3858d79baeb9dba79f0a44a077856418933898",
     "started_at": "2026-08-08T00:00:00Z",
     "storage": [
       {

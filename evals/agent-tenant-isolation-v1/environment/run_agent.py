@@ -34,7 +34,7 @@ from evals.harbor_common.network import validate_network_boundary
 from evals.harbor_common.serialization import json_safe, utc_now
 
 BENCHMARK_ID = "agent-tenant-isolation-v1"
-SOURCE_REVISION = "92678fc4692c8d5cb7025b7ad446209b0fa63590"
+SOURCE_REVISION = "fa3858d79baeb9dba79f0a44a077856418933898"
 AGENT_REVISION = SOURCE_REVISION
 
 # Org A -- the victim tenant.

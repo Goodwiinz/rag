@@ -50,7 +50,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import run_verifier_main
 
 BENCHMARK_ID = "agent-project-management-v1"
-EXPECTED_SOURCE_REVISION = "92678fc4692c8d5cb7025b7ad446209b0fa63590"
+EXPECTED_SOURCE_REVISION = "fa3858d79baeb9dba79f0a44a077856418933898"
 EXPECTED_INSTRUCTION = (
     'Create a research project named "Tool Coverage Study", then add the '
     'pre-loaded document titled "Seed Paper" to it, create a note in it titled '
