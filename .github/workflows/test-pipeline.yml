@@ -1150,6 +1150,10 @@ jobs:
           # cache in sync; this command is a no-op when the matching browser is
           # cached and re-downloads only on drift. --with-deps also installs OS
           # libs (libnss/libatk/libgbm) absent on a fresh runner.
+          # Hosted runners also preload unrelated packages.microsoft.com apt
+          # sources. Quarantine those ephemeral-runner sources so their outages
+          # cannot make Playwright's Ubuntu dependency update fail.
+          sudo python3 scripts/ci/quarantine_apt_sources.py
           pnpm --dir tests/e2e exec playwright install --with-deps chromium
       - name: Run E2E Tests
         env:
