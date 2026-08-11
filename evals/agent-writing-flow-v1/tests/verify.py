@@ -720,10 +720,7 @@ def run_judge(evidence: dict[str, Any]) -> dict[str, Any]:
         if isinstance(result, dict) and result.get("comparison"):
             comparison = str(result["comparison"])
             break
-    candidate_answer = json.dumps(
-        {"final_assistant_message": answer, "compare_documents_result": comparison},
-        sort_keys=True,
-    )
+    sources = [*load_truth_sources(), {"compare_documents_result": comparison}]
     # The stub is honored ONLY in calibration mode; a live evidence file cannot
     # self-certify Layer B by carrying a _judge_stub_verdict.
     stub_verdict = (
@@ -736,8 +733,8 @@ def run_judge(evidence: dict[str, Any]) -> dict[str, Any]:
     )
     return run_semantic_judge(
         question=EXPECTED_INSTRUCTION,
-        trusted_sources=load_truth_sources(),
-        candidate_answer=candidate_answer,
+        trusted_sources=sources,
+        candidate_answer=answer,
         rubric=JUDGE_RUBRIC,
         _client_factory=client_factory,
     )

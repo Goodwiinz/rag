@@ -413,10 +413,6 @@ def run_judge(evidence: dict[str, Any]) -> dict[str, Any]:
     # corpus figure and still read as grounded. An empty marker keeps the
     # rubric's "if empty, say so" branch judgeable.
     sources = chunks if chunks else [{"note": "retrieval returned no chunks"}]
-    candidate_answer = json.dumps(
-        {"final_assistant_message": answer, "do_kb_retrieve_chunks": chunks},
-        sort_keys=True,
-    )
     # The stub is honored ONLY in calibration mode; a live evidence file cannot
     # self-certify Layer B by carrying a _judge_stub_verdict.
     stub_verdict = (
@@ -430,7 +426,7 @@ def run_judge(evidence: dict[str, Any]) -> dict[str, Any]:
     return run_semantic_judge(
         question=EXPECTED_INSTRUCTION,
         trusted_sources=sources,
-        candidate_answer=candidate_answer,
+        candidate_answer=answer,
         rubric=JUDGE_RUBRIC,
         _client_factory=client_factory,
     )
