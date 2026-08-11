@@ -859,6 +859,12 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
     try:
         while True:
             if await request.is_disconnected():
+                if pending is not None:
+                    if not pending.done():
+                        pending.cancel()
+                    with contextlib.suppress(BaseException):
+                        await pending
+                    pending = None
                 yield {"type": "disconnect"}
                 return
             if pending is None:
@@ -885,6 +891,11 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
                 continue
 
             if await request.is_disconnected():
+                if not pending.done():
+                    pending.cancel()
+                with contextlib.suppress(BaseException):
+                    await pending
+                pending = None
                 yield {"type": "disconnect"}
                 return
             now = time.monotonic()

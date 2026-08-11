@@ -46,3 +46,29 @@ staged.
 ## Commit
 
 `fix(agent): poll stream disconnects before keepalive`
+
+## Fix round 1/5
+
+The disconnect sentinel previously escaped while the pending graph
+`__anext__` task still owned the async generator. The outer cancellation path
+could then suppress `RuntimeError` from `aclose()` and leave cleanup to delayed
+finalization.
+
+Both disconnect-sentinel branches now cancel and await any pending pull under
+`BaseException` suppression, clear `pending`, and only then yield the sentinel.
+The existing `finally` remains idempotent. Event completion, event errors,
+`StopAsyncIteration`, the 0.5-second poll, and the 10-second heartbeat are
+unchanged.
+
+The focused regression now uses a real async generator and asserts its
+`finally` completed before the caller receives the sentinel, then immediately
+calls `aclose()`. It failed before the production edit and passes after it.
+
+- Focused keepalive suite: 3 passed.
+- Cancellation regressions: 8 passed, 3 skipped because PostgreSQL at
+  `localhost:54322` refused connections.
+- Calibration: `pass.json` returned 0; `wrong-late-completion.json` returned 10.
+- Compile, Black, Ruff, JSON parse, and `git diff --check`: passed.
+- Harbor was not run. The intentional benchmark JSON was not edited or staged.
+
+Commit: `fix(agent): settle pending pull before disconnect sentinel`

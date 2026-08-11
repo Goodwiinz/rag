@@ -70,13 +70,22 @@ class _TokenThenHangIterator:
         raise StopAsyncIteration
 
 
+async def _token_then_hang(cleaned: asyncio.Event):
+    yield {"event": "token"}
+    try:
+        await asyncio.Event().wait()
+    finally:
+        cleaned.set()
+
+
 @pytest.mark.asyncio
 async def test_graph_keepalive_polls_disconnect_while_next_event_is_pending(
     monkeypatch,
 ):
     import src.api.agent.streaming as st
 
-    graph = _TokenThenHangIterator()
+    cleaned = asyncio.Event()
+    graph = _token_then_hang(cleaned)
     request = SimpleNamespace(
         # Disconnect immediately after the check that starts the hanging pull.
         is_disconnected=AsyncMock(side_effect=[False, False, True])
@@ -90,9 +99,9 @@ async def test_graph_keepalive_polls_disconnect_while_next_event_is_pending(
     started = time.monotonic()
     assert await asyncio.wait_for(anext(events), timeout=0.1) == {"type": "disconnect"}
     assert time.monotonic() - started < 0.1
-    with pytest.raises(StopAsyncIteration):
-        await anext(events)
-    assert graph.cancelled.is_set()
+    assert cleaned.is_set()
+    await graph.aclose()
+    await events.aclose()
 
 
 @pytest.mark.asyncio
