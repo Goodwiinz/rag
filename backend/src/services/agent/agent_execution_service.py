@@ -615,9 +615,31 @@ def build_user_history_messages(messages: List[Any], thread_id: str) -> List[Any
     built with no id gets a fresh random id every request, so the reducer sees
     each prior turn as new and re-appends the whole history into the checkpoint
     (quadratic growth the compactor never prunes). Anchor each user turn to a
-    stable id — the client idempotency key when present, else a derivation over
-    (thread_id, position) — so a resent history no-ops in the reducer and only
-    the new turn appends.
+    stable id derived from (thread_id, position) so a resent history no-ops in
+    the reducer and only the new turn appends.
+
+    Ids are positional ONLY — ``client_message_id`` is deliberately NOT
+    preferred here (audit finding B, live trace thread e3c56cef 2026-08-11):
+    the client attaches ``client_message_id`` to a turn only while it is the
+    newest message in the request; once resent as history on a later turn it
+    arrives with no cmid. Preferring cmid when present therefore assigned a
+    turn's first-ever id from its cmid (uuid4) and every later resend a
+    *different* positional-fallback id (uuid5) for the exact same turn — two
+    ids, so the id-keyed reducer kept both copies. Deriving purely from
+    position is stable across every resend of the same turn (same index every
+    time) and still collision-free across distinct turns (different index),
+    so it converges without needing cmid at all in this function.
+    client_message_id remains authoritative elsewhere (DB idempotency /
+    ON CONFLICT keys, trace correlation) — this only affects the LangGraph
+    message id.
+
+    Caveat: ``messages`` is the client-supplied resend, not the checkpoint's
+    compacted state, so this is safe from compaction (the compactor only ever
+    removes ToolMessages, never HumanMessages — see
+    ``_checkpoint_human_count``). It does NOT converge with checkpoints
+    rewritten by ``resync_thread_checkpoint`` / ``build_thread_seed_messages``
+    after an edit-and-resend, which key off cmid/row id, not position — a
+    pre-existing, separate interaction this fix does not attempt to close.
     """
     from langchain_core.messages import HumanMessage
 
@@ -626,12 +648,7 @@ def build_user_history_messages(messages: List[Any], thread_id: str) -> List[Any
     for m in messages:
         if getattr(m, "role", None) != "user":
             continue
-        cmid = getattr(m, "client_message_id", None)
-        msg_id = (
-            str(cmid)
-            if cmid is not None
-            else str(_uuid.uuid5(_uuid.NAMESPACE_URL, f"{thread_id}:user:{idx}"))
-        )
+        msg_id = str(_uuid.uuid5(_uuid.NAMESPACE_URL, f"{thread_id}:user:{idx}"))
         out.append(HumanMessage(content=m.content, id=msg_id))
         idx += 1
     return out

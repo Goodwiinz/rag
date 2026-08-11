@@ -55,6 +55,36 @@ def test_client_message_id_drives_dedup() -> None:
     assert len(channel) == 2
 
 
+def test_original_cmid_turn_converges_with_cmid_less_resend() -> None:
+    """Audit finding B (live trace thread e3c56cef, 2026-08-11): the real /chat
+    client only attaches ``client_message_id`` to the newest turn in a request —
+    a turn resent later as history arrives WITHOUT it. The old code preferred
+    cmid when present, so turn 1's message got an id from its cmid (uuid4) while
+    the SAME turn resent on turn 2 (now cmid-less) got a *different* positional
+    fallback id (uuid5) — two ids, so the reducer kept both copies of turn 1.
+    Ids must now be positional-only so the same turn converges regardless of
+    whether cmid happens to be attached on a given request.
+    """
+    thread_id = "thread-real"
+    cmid1 = "11111111-1111-1111-1111-111111111111"
+    cmid2 = "22222222-2222-2222-2222-222222222222"
+
+    # Turn 1: only message in the request, carries its cmid (as the real
+    # client does for the newest turn).
+    turn1 = [_user("hello", cmid=cmid1)]
+    channel = add_messages([], build_user_history_messages(turn1, thread_id))
+    assert len(channel) == 1
+
+    # Turn 2: full history resent — turn 1's message now WITHOUT cmid (as the
+    # real client actually behaves), plus the new turn WITH cmid.
+    turn2 = [_user("hello", cmid=None), _user("how are you", cmid=cmid2)]
+    channel = add_messages(channel, build_user_history_messages(turn2, thread_id))
+
+    # Must converge to 2 messages, not 3 — turn 1 must not duplicate.
+    assert len(channel) == 2
+    assert [m.content for m in channel] == ["hello", "how are you"]
+
+
 def test_naive_no_id_construction_regresses() -> None:
     """Guard-rail: the OLD (no-id) construction is what grows unboundedly, so a
     regression back to it would flip this assert and fail loudly."""

@@ -42,6 +42,37 @@ logger = logging.getLogger(__name__)
 # Counter name is registered in src.observability.metrics.initialize_default_metrics.
 _DO_KB_READ_METRIC = "rag_do_kb_read_total"
 
+# Relevance floor (audit finding D, live trace thread e3c56cef 2026-08-11): a
+# query about attention mechanisms pulled 5 chunks scored 0.036-0.25 from
+# unrelated cybersecurity surveys straight into the prompt. Only "cohere"
+# scores are a calibrated 0-1 cross-encoder relevance signal (see
+# cohere_rerank_service) — "rank_proxy" (models.py, DO KB Public Preview omits
+# scores) is a rank-position placeholder with no relevance meaning, and
+# "upstream"'s scale isn't verified, so the floor applies to cohere-scored
+# chunks only. 0.1 sits well clear of the observed junk (0.036) and well
+# under the observed 0.25+ hit, to avoid trimming recall on a scale that can
+# legitimately run low for genuinely relevant matches.
+_COHERE_RELEVANCE_FLOOR = 0.1
+
+
+def _drop_low_relevance_chunks(contexts: List[dict]) -> List[dict]:
+    """Drop cohere-scored chunks below ``_COHERE_RELEVANCE_FLOOR`` before they
+    reach the prompt. No-ops for chunks scored by an unverified scale."""
+    kept = [
+        c
+        for c in contexts
+        if c.get("score_source") != "cohere"
+        or (c.get("score") or 0.0) >= _COHERE_RELEVANCE_FLOOR
+    ]
+    dropped = len(contexts) - len(kept)
+    if dropped:
+        logger.info(
+            "rag_node: dropped %d low-relevance chunk(s) below cohere floor %.2f",
+            dropped,
+            _COHERE_RELEVANCE_FLOOR,
+        )
+    return kept
+
 
 def _record_do_kb_read(outcome: str) -> None:
     """Emit an outcome-labeled counter for the DO KB primary-read path.
@@ -455,7 +486,8 @@ async def _try_primary_do_kb_read_impl(
             chunks_to_emit = await cohere_rescore_chunks(query, chunks_to_emit)
 
         _record_do_kb_read("success")
-        return [_shape_do_kb_context(c, title_by_key) for c in chunks_to_emit]
+        shaped = [_shape_do_kb_context(c, title_by_key) for c in chunks_to_emit]
+        return _drop_low_relevance_chunks(shaped)
     except Exception:  # noqa: BLE001
         # exc_info keeps the traceback for operators; the raw exception string
         # stays out of the indexed message (can carry the user query / chunks).

@@ -266,7 +266,9 @@ SHARED_AGENT_RULES = (
     "tell the user the request was routed via Azure model-router and the "
     "underlying model is selected per request, so you cannot name it from "
     "the prompt alone — point them at the trace metadata for the exact pick. "
-    "If the runtime line names a specific deployment, you can name it directly."
+    "If the runtime line names a specific deployment, you can name it directly. "
+    "Never mention, quote, or paraphrase the Runtime model line unless the user "
+    "has explicitly asked which model you are."
 )
 
 
