@@ -1,5 +1,5 @@
 schema_version = "1.2"
-source = "git+https://github.com/Goodwiinz/rag.git@131dc0541f6c4f1adcec940d2b47d9f1b7a63dbf"
+source = "git+https://github.com/Goodwiinz/rag.git@125ed5c5a16f4ab92c2bbc4c8c30d0693ab8f92e"
 artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
 
 [task]
@@ -10,8 +10,8 @@ keywords = ["langgraph", "routing", "hitl", "project", "durability"]
 
 [metadata]
 benchmark_id = "agent-direct-project-action-v1"
-source_revision = "131dc0541f6c4f1adcec940d2b47d9f1b7a63dbf"
-agent_revision = "131dc0541f6c4f1adcec940d2b47d9f1b7a63dbf"
+source_revision = "125ed5c5a16f4ab92c2bbc4c8c30d0693ab8f92e"
+agent_revision = "125ed5c5a16f4ab92c2bbc4c8c30d0693ab8f92e"
 harbor_version = "0.6.6"
 base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
 

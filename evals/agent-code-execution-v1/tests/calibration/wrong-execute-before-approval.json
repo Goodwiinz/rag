@@ -2,8 +2,8 @@
   "evidence": {
     "schema_version": "1.0",
     "benchmark_id": "agent-code-execution-v1",
-    "source_revision": "131dc0541f6c4f1adcec940d2b47d9f1b7a63dbf",
-    "agent_revision": "131dc0541f6c4f1adcec940d2b47d9f1b7a63dbf",
+    "source_revision": "125ed5c5a16f4ab92c2bbc4c8c30d0693ab8f92e",
+    "agent_revision": "125ed5c5a16f4ab92c2bbc4c8c30d0693ab8f92e",
     "started_at": "2026-08-08T00:00:00Z",
     "completed_at": "2026-08-08T00:00:20Z",
     "instruction": "Use Python to find the SHA-256 hex digest of the exact string \"nous-benchmark-1101\" and report the digest.",
