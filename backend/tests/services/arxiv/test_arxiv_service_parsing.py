@@ -14,6 +14,8 @@ Pins four behaviors ported from studying arxiv.py's handling of API quirks:
    remain, instead of silently truncating the scan.
 """
 
+from typing import Any, cast
+
 import pytest
 from defusedxml import ElementTree as ET
 
@@ -62,15 +64,15 @@ def _parse_single(entry_xml: str) -> dict:
 
 
 class TestEntryParsing:
-    def test_new_style_id_keeps_version(self):
+    def test_new_style_id_keeps_version(self) -> None:
         paper = _parse_single(_entry())
         assert paper["id"] == "1706.03762v5"
 
-    def test_old_style_id_keeps_archive_prefix(self):
+    def test_old_style_id_keeps_archive_prefix(self) -> None:
         paper = _parse_single(_entry(entry_id="http://arxiv.org/abs/math/0309136v1"))
         assert paper["id"] == "math/0309136v1"
 
-    def test_primary_category_from_element_not_first_category(self):
+    def test_primary_category_from_element_not_first_category(self) -> None:
         # Explicit primary (cs.LG) differs from the first <category> (cs.CL).
         paper = _parse_single(
             _entry(
@@ -79,15 +81,15 @@ class TestEntryParsing:
         )
         assert paper["primary_category"] == "cs.LG"
 
-    def test_primary_category_falls_back_to_first_category(self):
+    def test_primary_category_falls_back_to_first_category(self) -> None:
         paper = _parse_single(_entry())
         assert paper["primary_category"] == "cs.CL"
 
-    def test_doi_from_element_when_no_doi_link(self):
+    def test_doi_from_element_when_no_doi_link(self) -> None:
         paper = _parse_single(_entry(extra="<arxiv:doi>10.1000/xyz123</arxiv:doi>"))
         assert paper["links"]["doi"] == "https://doi.org/10.1000/xyz123"
 
-    def test_doi_link_wins_over_element(self):
+    def test_doi_link_wins_over_element(self) -> None:
         paper = _parse_single(
             _entry(
                 extra=(
@@ -101,11 +103,13 @@ class TestEntryParsing:
 
 class TestGetPapersByIds:
     @pytest.mark.asyncio
-    async def test_batches_ids_into_one_request(self, monkeypatch):
+    async def test_batches_ids_into_one_request(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         svc = ArXivIngestionService()
         calls = []
 
-        async def _fake_request(url, params):
+        async def _fake_request(url: str, params: dict) -> str:
             calls.append(params)
             return _feed(
                 _entry() + _entry(entry_id="http://arxiv.org/abs/math/0309136v1"),
@@ -120,10 +124,12 @@ class TestGetPapersByIds:
         assert [p["id"] for p in papers] == ["1706.03762v5", "math/0309136v1"]
 
     @pytest.mark.asyncio
-    async def test_drops_error_entries_for_invalid_ids(self, monkeypatch):
+    async def test_drops_error_entries_for_invalid_ids(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         svc = ArXivIngestionService()
 
-        async def _fake_request(url, params):
+        async def _fake_request(url: str, params: dict) -> str:
             # arXiv reports an invalid ID as a normal entry whose id points
             # at api/errors — HTTP 200, no /abs/ segment.
             return _feed(
@@ -141,10 +147,12 @@ class TestGetPapersByIds:
         assert [p["id"] for p in papers] == ["1706.03762v5"]
 
     @pytest.mark.asyncio
-    async def test_empty_input_short_circuits(self, monkeypatch):
+    async def test_empty_input_short_circuits(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         svc = ArXivIngestionService()
 
-        async def _boom(url, params):  # pragma: no cover
+        async def _boom(url: str, params: dict) -> str:  # pragma: no cover
             raise AssertionError("should not be called")
 
         monkeypatch.setattr(svc, "_make_async_request", _boom)
@@ -153,16 +161,18 @@ class TestGetPapersByIds:
 
 class TestEmptyPageRetry:
     @pytest.mark.asyncio
-    async def test_retries_empty_mid_scan_page_once(self, monkeypatch):
+    async def test_retries_empty_mid_scan_page_once(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         svc = ArXivIngestionService()
-        svc.session = object()  # search_papers only checks presence
+        svc.session = cast(Any, object())  # search_papers only checks presence
         responses = [
             _feed(_entry(), total=2),
             _feed("", total=2),  # spurious empty page
             _feed(_entry(entry_id="http://arxiv.org/abs/2401.00001v1"), total=2),
         ]
 
-        async def _fake_request(url, params):
+        async def _fake_request(url: str, params: dict) -> str:
             return responses.pop(0)
 
         monkeypatch.setattr(svc, "_make_async_request", _fake_request)
@@ -171,16 +181,18 @@ class TestEmptyPageRetry:
         assert [p["id"] for p in papers] == ["1706.03762v5", "2401.00001v1"]
 
     @pytest.mark.asyncio
-    async def test_second_empty_page_stops_scan(self, monkeypatch):
+    async def test_second_empty_page_stops_scan(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         svc = ArXivIngestionService()
-        svc.session = object()
+        svc.session = cast(Any, object())
         responses = [
             _feed(_entry(), total=3),
             _feed("", total=3),
             _feed("", total=3),  # retry also empty -> stop, no infinite loop
         ]
 
-        async def _fake_request(url, params):
+        async def _fake_request(url: str, params: dict) -> str:
             return responses.pop(0)
 
         monkeypatch.setattr(svc, "_make_async_request", _fake_request)
