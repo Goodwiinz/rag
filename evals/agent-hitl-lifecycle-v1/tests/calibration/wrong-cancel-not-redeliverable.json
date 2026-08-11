@@ -1,6 +1,6 @@
 {
   "evidence": {
-    "agent_revision": "125ed5c5a16f4ab92c2bbc4c8c30d0693ab8f92e",
+    "agent_revision": "318e2ae4edd5103a0e67b8d432721f26424549fb",
     "benchmark_id": "agent-hitl-lifecycle-v1",
     "checkpointer": {
       "db_uri_scheme": "postgresql"
@@ -125,7 +125,7 @@
       }
     },
     "schema_version": "1.0",
-    "source_revision": "125ed5c5a16f4ab92c2bbc4c8c30d0693ab8f92e",
+    "source_revision": "318e2ae4edd5103a0e67b8d432721f26424549fb",
     "started_at": "2026-08-09T12:00:00Z",
     "synthetic_actor": {
       "organization_id": "00000000-0000-4000-8000-000000000801",

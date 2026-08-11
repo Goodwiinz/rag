@@ -44,8 +44,8 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-knowledge-graph-flow-v1"
-SOURCE_REVISION = "125ed5c5a16f4ab92c2bbc4c8c30d0693ab8f92e"
-AGENT_REVISION = "125ed5c5a16f4ab92c2bbc4c8c30d0693ab8f92e"
+SOURCE_REVISION = "318e2ae4edd5103a0e67b8d432721f26424549fb"
+AGENT_REVISION = "318e2ae4edd5103a0e67b8d432721f26424549fb"
 EXPECTED_INSTRUCTION = (
     'Search our knowledge graph for the entity "Elena Vasquez", explore her '
     "neighborhood of connected entities and relationships, and pull the "

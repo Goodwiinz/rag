@@ -2,8 +2,8 @@
   "evidence": {
     "schema_version": "1.0",
     "benchmark_id": "agent-stream-cancel-durability-v1",
-    "source_revision": "125ed5c5a16f4ab92c2bbc4c8c30d0693ab8f92e",
-    "agent_revision": "125ed5c5a16f4ab92c2bbc4c8c30d0693ab8f92e",
+    "source_revision": "318e2ae4edd5103a0e67b8d432721f26424549fb",
+    "agent_revision": "318e2ae4edd5103a0e67b8d432721f26424549fb",
     "started_at": "2026-08-04T11:59:50Z",
     "completed_at": "2026-08-04T12:00:01Z",
     "instruction": "Research three approaches to evaluating a production RAG system. Compare retrieval quality, answer faithfulness, latency, and cost, then recommend an approach.",
@@ -175,7 +175,7 @@
       "thread_id": "00000000-0000-4000-8000-000000000405",
       "user_message_id": "00000000-0000-4000-8000-000000000408",
       "client_message_id": "00000000-0000-4000-8000-000000000406",
-      "deployment_sha": "125ed5c5a16f4ab92c2bbc4c8c30d0693ab8f92e",
+      "deployment_sha": "318e2ae4edd5103a0e67b8d432721f26424549fb",
       "image_tag": "harbor-agent-stream-cancel-durability-v1"
     },
     "termination_reason": "cancelled",

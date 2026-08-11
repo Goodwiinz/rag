@@ -45,7 +45,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.judge import run_semantic_judge
 
 BENCHMARK_ID = "agent-knowledge-graph-flow-v1"
-EXPECTED_SOURCE_REVISION = "125ed5c5a16f4ab92c2bbc4c8c30d0693ab8f92e"
+EXPECTED_SOURCE_REVISION = "318e2ae4edd5103a0e67b8d432721f26424549fb"
 EXPECTED_INSTRUCTION = (
     'Search our knowledge graph for the entity "Elena Vasquez", explore her '
     "neighborhood of connected entities and relationships, and pull the "
