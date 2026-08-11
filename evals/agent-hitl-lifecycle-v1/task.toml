@@ -1,5 +1,5 @@
 schema_version = "1.2"
-source = "git+https://github.com/Goodwiinz/rag.git@deab258b29c4c4005d0178a04c1aadce44f7a3bd"
+source = "git+https://github.com/Goodwiinz/rag.git@206b6aea37a0e9f959c137dfca6d8200232410b8"
 artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
 
 [task]
@@ -10,8 +10,8 @@ keywords = ["langgraph", "hitl", "interrupt", "confirm", "tools"]
 
 [metadata]
 benchmark_id = "agent-hitl-lifecycle-v1"
-source_revision = "deab258b29c4c4005d0178a04c1aadce44f7a3bd"
-agent_revision = "deab258b29c4c4005d0178a04c1aadce44f7a3bd"
+source_revision = "206b6aea37a0e9f959c137dfca6d8200232410b8"
+agent_revision = "206b6aea37a0e9f959c137dfca6d8200232410b8"
 harbor_version = "0.6.6"
 base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
 
