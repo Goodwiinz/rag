@@ -50,7 +50,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import InfrastructureFailure, run_verifier_main
 
 BENCHMARK_ID = "agent-fast-path-cancel-v1"
-EXPECTED_SOURCE_REVISION = "ecc30ede203061b9440cbab1d2cfad23fa9abf1c"
+EXPECTED_SOURCE_REVISION = "85c3cc19dbb1c73b19cbb486690c768aa5bd4df0"
 REQUEST_ID = "harbor-fast-path-cancel-000000000d0b"
 
 REQUIRED_EVIDENCE_KEYS = (

@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover
     from evals.harbor_common.judge import run_semantic_judge
 
 BENCHMARK_ID = "agent-error-recovery-v1"
-SOURCE_REVISION = "ecc30ede203061b9440cbab1d2cfad23fa9abf1c"
+SOURCE_REVISION = "85c3cc19dbb1c73b19cbb486690c768aa5bd4df0"
 PROJECT_ID = "00000000-0000-4000-8000-000000001001"
 DOC_ID = "00000000-0000-4000-8000-000000001002"
 MISSING_ID = "00000000-0000-4000-8000-0000000010ff"

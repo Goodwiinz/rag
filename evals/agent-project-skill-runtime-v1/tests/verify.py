@@ -18,7 +18,7 @@ except ImportError:  # pragma: no cover
     from evals.harbor_common.envelope import run_verifier_main
 
 BENCHMARK_ID = "agent-project-skill-runtime-v1"
-SOURCE_REVISION = "ecc30ede203061b9440cbab1d2cfad23fa9abf1c"
+SOURCE_REVISION = "85c3cc19dbb1c73b19cbb486690c768aa5bd4df0"
 EXPECTED_INSTRUCTION = (
     "Use the active evidence-note project skill and the document in this project "
     "to create a source-grounded project note about sparse transformer attention."

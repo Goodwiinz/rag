@@ -31,7 +31,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import run_verifier_main
 
 BENCHMARK_ID = "agent-external-databases-v1"
-EXPECTED_SOURCE_REVISION = "ecc30ede203061b9440cbab1d2cfad23fa9abf1c"
+EXPECTED_SOURCE_REVISION = "85c3cc19dbb1c73b19cbb486690c768aa5bd4df0"
 EXPECTED_INSTRUCTION = (
     "First call list_external_databases to see which external database "
     "connectors are available. Then call search_external_database with "
