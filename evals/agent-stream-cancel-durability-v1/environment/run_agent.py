@@ -440,6 +440,7 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "text/event-stream",
+        "Connection": "close",
         "Content-Type": "application/json",
         "X-Request-ID": REQUEST_ID,
     }
@@ -506,6 +507,7 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
                             disconnect_initiated_at = utc_now()
                             disconnect_monotonic = time.monotonic()
                             await response.aclose()
+                            await client.aclose()
                             disconnect_completed_at = utc_now()
                             break
             except TimeoutError as exc:
