@@ -174,7 +174,7 @@ def per_stage_completion_claims(text: str) -> set[int]:
     predicate_local_boundary = re.compile(
         r"(?P<predicate>\b(?:am|is|are|was|were|do|does|did|has|have|had|can|"
         r"could|may|might|must|shall|should|will|would|\w+ed)\b[^,;.!?]*)"
-        rf"\s*(?:,|\band\b)\s*(?="
+        rf"\s*(?:,\s*(?:and\b)?|\band\b)\s*(?="
         rf"stages?\s*[1-6]\b[^,;.!?]*{claim_word.pattern})",
         re.I,
     )
