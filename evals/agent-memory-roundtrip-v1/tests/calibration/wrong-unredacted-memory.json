@@ -281,7 +281,7 @@
       "memory_present": true,
       "memory_value": {
         "created_at": "2026-08-08T12:00:05Z",
-        "intent": "research",
+        "intent": "general",
         "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
         "thread_id": "00000000-0000-4000-8000-000000000904",
         "tools_used": [],
@@ -335,7 +335,7 @@
           "score": 0.0,
           "value": {
             "created_at": "2026-08-08T12:00:05Z",
-            "intent": "research",
+            "intent": "general",
             "query": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
             "thread_id": "00000000-0000-4000-8000-000000000904",
             "tools_used": [],
