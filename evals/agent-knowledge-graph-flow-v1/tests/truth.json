@@ -30,12 +30,6 @@
     "average_degree": 2.0
   },
   "seed_confidence": { "entity": 0.95, "relationship": 0.9 },
-  "neighborhood_stats": {
-    "entity": "Elena Vasquez",
-    "max_depth": 2,
-    "connected_entity_count": 12,
-    "relationship_count": 12
-  },
   "entities": [
     { "name": "Elena Vasquez", "type": "PERSON" },
     { "name": "Marcus Chen", "type": "PERSON" },

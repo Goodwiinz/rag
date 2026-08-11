@@ -1,0 +1,100 @@
+{
+  "evidence": {
+    "schema_version": "1.0",
+    "benchmark_id": "agent-knowledge-graph-flow-v1",
+    "source_revision": "838075c12fe0829ea9635c87fd855c6a21d44081",
+    "instruction": "Search our knowledge graph for the entity \"Elena Vasquez\", explore her neighborhood of connected entities and relationships, and pull the current knowledge graph statistics. Then tell me who she is connected to and summarize what the graph shows.",
+    "termination_reason": "completed",
+    "pending_interrupt": null,
+    "tool_loop_count": 3,
+    "network_boundary": {
+      "direct_public_socket_blocked": true,
+      "approved_model_host_reachable_via_proxy": true,
+      "unrelated_https_blocked_by_proxy": true,
+      "neo4j_reachable_via_internal": true
+    },
+    "classification": {
+      "intent": "knowledge_graph",
+      "confidence": 0.94,
+      "source_probe": "llm",
+      "probe_reasoning": "Explicit request to search and explore the knowledge graph."
+    },
+    "raw_tool_executions": [
+      {
+        "tool_name": "search_knowledge_graph",
+        "status": "completed",
+        "args": {
+          "query": "Elena Vasquez",
+          "limit": 20
+        },
+        "result": {
+          "entities": [
+            {
+              "id": "entity-elena-vasquez",
+              "name": "Elena Vasquez",
+              "type": "PERSON",
+              "confidence": 0.95
+            }
+          ],
+          "total": 1,
+          "query": "Elena Vasquez"
+        }
+      },
+      {
+        "tool_name": "explore_entity_neighborhood",
+        "status": "completed",
+        "args": {
+          "entity_id": "entity-elena-vasquez",
+          "max_depth": 2,
+          "limit": 30
+        },
+        "result": {
+          "center_entity_id": "entity-elena-vasquez",
+          "connected_entities": [],
+          "relationships": [
+            {
+              "source": "entity-missing-source",
+              "target": "entity-elena-vasquez",
+              "type": "WORKS_FOR",
+              "strength": 1.0
+            }
+          ],
+          "total_entities": 0,
+          "total_relationships": 1
+        }
+      },
+      {
+        "tool_name": "get_graph_stats",
+        "status": "completed",
+        "args": {},
+        "result": {
+          "total_entities": 20,
+          "total_relationships": 20,
+          "entity_type_distribution": {
+            "PERSON": 6,
+            "ORGANIZATION": 2
+          },
+          "relationship_type_distribution": {
+            "WORKS_FOR": 6,
+            "RELATED_TO": 6
+          },
+          "average_degree": 2.0
+        }
+      }
+    ],
+    "final_assistant_message": {
+      "content": "I found Elena Vasquez, but the neighborhood result did not identify a connected entity for one relationship.",
+      "tool_calls": []
+    },
+    "_judge_stub_verdict": {
+      "supported": true,
+      "contradictions": [],
+      "unsupported_material_claims": [],
+      "reason": "The answer accurately describes the incomplete tool evidence."
+    }
+  },
+  "state": {
+    "total_entities": 20,
+    "total_relationships": 20
+  }
+}
