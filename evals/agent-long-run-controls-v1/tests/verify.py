@@ -171,6 +171,13 @@ def per_stage_completion_claims(text: str) -> set[int]:
         r"\band\s+(?=(?:it|they|did|does|do|could|would|should)\b))\s*",
         re.I,
     )
+    predicate_local_boundary = re.compile(
+        r"(?P<predicate>\b(?:am|is|are|was|were|do|does|did|has|have|had|can|"
+        r"could|may|might|must|shall|should|will|would|\w+ed)\b[^,;.!?]*)"
+        rf"\s*(?:,|\band\b)\s*(?="
+        rf"stages?\s*[1-6]\b[^,;.!?]*{claim_word.pattern})",
+        re.I,
+    )
     pronoun_subject = re.compile(r"^\s*(?:and\s+)?(?:it|they)\b", re.I)
 
     def stage_subjects(fragment: str) -> set[int]:
@@ -197,6 +204,7 @@ def per_stage_completion_claims(text: str) -> set[int]:
     for sentence in re.split(r"[.!?\n]+", text):
         latest_subject: set[int] = set()
         sentence_subject: set[int] = set()
+        sentence = predicate_local_boundary.sub(r"\g<predicate>;", sentence)
         for clause in clause_boundary.split(sentence):
             predicates = list(claim_word.finditer(clause))
             segment_start = 0
