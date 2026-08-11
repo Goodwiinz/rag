@@ -1691,10 +1691,16 @@ class KnowledgeGraphService:
                 # ANY relationship and unbounded N caused combinatorial fanout
                 # on hub nodes).
                 safe_depth = max(1, min(int(max_depth), 5))
+                if organization_id is not None:
+                    path_node_predicate = "n.organization_id = $organization_id"
+                elif source_document_ids is not None:
+                    path_node_predicate = "n.source_document_id IN $source_document_ids"
+                else:
+                    path_node_predicate = ""
                 node_scope = (
                     "\n              AND all(n IN nodes(path) "
-                    "WHERE n.organization_id = $organization_id)"
-                    if organization_id is not None
+                    f"WHERE {path_node_predicate})"
+                    if path_node_predicate
                     else ""
                 )
                 query = f"""
@@ -1810,8 +1816,13 @@ class KnowledgeGraphService:
                     nid for nid in intermediate_ids if nid not in seen_entity_ids
                 ]
                 if missing:
+                    refetch_scope = (
+                        f" AND {path_node_predicate}" if path_node_predicate else ""
+                    )
                     for row in session.run(
-                        "MATCH (n:Entity) WHERE n.id IN $ids RETURN n", {"ids": missing}
+                        "MATCH (n:Entity) WHERE n.id IN $ids"
+                        f"{refetch_scope} RETURN n",
+                        {"ids": missing, **scope_params},
                     ):
                         entities.append(_node_to_entity(row["n"]))
 

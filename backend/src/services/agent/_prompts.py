@@ -87,6 +87,21 @@ ACTION_INTENT_OVERRIDES = (
     ("execute_code", "research"),
     ("search_external_database", "general"),
     ("list_external_databases", "general"),
+    # More-specific work over KB material must win before the generic
+    # corpus-location phrases below. Otherwise "write ... knowledge base"
+    # loses its requested action and lands in the retrieval-only subgraph.
+    ("compare the documents", "writing"),
+    ("compare documents", "writing"),
+    ("write a summary", "writing"),
+    ("summarize our knowledge base", "writing"),
+    ("summarize the knowledge base", "writing"),
+    ("create a draft", "writing"),
+    ("create draft", "writing"),
+    ("export bibliography", "writing"),
+    ("export a bibliography", "writing"),
+    ("extract entities", "knowledge_graph"),
+    ("explore relationships", "knowledge_graph"),
+    ("find relationships", "knowledge_graph"),
     ("organization knowledge base", "research"),
     ("knowledge base", "research"),
     ("search our docs", "research"),

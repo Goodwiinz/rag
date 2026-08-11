@@ -515,12 +515,8 @@ def check_get_graph_stats(
     truth_stats = TRUTH["graph_stats"]
     for key in ("entity_type_distribution", "relationship_type_distribution"):
         observed = result.get(key)
-        if observed is None:
-            continue
         expected = truth_stats[key]
-        if not isinstance(observed, dict) or any(
-            expected.get(name) != count for name, count in observed.items()
-        ):
+        if not isinstance(observed, dict) or observed != expected:
             failures.append(f"{STATS_TOOL} {key} is inconsistent with seeded truth")
     if (
         "average_degree" in result
@@ -872,9 +868,7 @@ def trusted_sources(
         truth_stats = TRUTH["graph_stats"]
         for key in ("entity_type_distribution", "relationship_type_distribution"):
             observed = result.get(key)
-            if isinstance(observed, dict) and all(
-                truth_stats[key].get(name) == count for name, count in observed.items()
-            ):
+            if isinstance(observed, dict) and observed == truth_stats[key]:
                 fact[key] = observed
         if result.get("average_degree") == truth_stats["average_degree"]:
             fact["average_degree"] = result["average_degree"]

@@ -20,16 +20,29 @@ from src.services.agent.classifier import (
 @pytest.mark.unit
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "query",
+    ("query", "expected_intent"),
     [
-        "Compare the documents in our organization knowledge base about transformers.",
-        "Write a summary using our knowledge base evidence.",
-        "Search our docs and explain the retrieval policy.",
+        (
+            "Compare the documents in our organization knowledge base about transformers.",
+            "writing",
+        ),
+        ("Write a summary using our knowledge base evidence.", "writing"),
+        ("Summarize our knowledge base evidence.", "writing"),
+        ("Export a bibliography from our knowledge base.", "writing"),
+        ("Extract entities from our knowledge base.", "knowledge_graph"),
+        (
+            "Explore relationships in our organization knowledge base.",
+            "knowledge_graph",
+        ),
+        ("Find relationships in our knowledge base.", "knowledge_graph"),
+        ("Search our docs and explain the retrieval policy.", "research"),
     ],
 )
-async def test_kb_actions_route_to_research_override(query: str) -> None:
+async def test_kb_actions_preserve_explicit_action_intent(
+    query: str, expected_intent: str
+) -> None:
     result = await classify_intent_with_fallback(query, page_context={})
-    assert result.intent == "research"
+    assert result.intent == expected_intent
     assert result.source == "action_override"
     assert result.confidence == 1.0
 
