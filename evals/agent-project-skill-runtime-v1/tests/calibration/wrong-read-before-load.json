@@ -1,7 +1,7 @@
 {
   "evidence": {
     "benchmark_id": "agent-project-skill-runtime-v1",
-    "source_revision": "debb4b1506b3524a134888d0f13c66807901efca",
+    "source_revision": "ecc30ede203061b9440cbab1d2cfad23fa9abf1c",
     "instruction": "Use the active evidence-note project skill and the document in this project to create a source-grounded project note about sparse transformer attention.",
     "network_boundary": {"direct_public_socket_blocked": true, "approved_model_host_reachable_via_proxy": true, "unrelated_https_blocked_by_proxy": true},
     "runtime": {"snapshot_id": "snapshot-1", "snapshot_id_before_resume": "snapshot-1", "snapshot_id_after_resume": "snapshot-1", "project_id_before_resume": "00000000-0000-4000-8000-000000003010", "loaded_skill_versions": [{"version_id": "00000000-0000-4000-8000-000000003013", "name": "evidence-note", "content_hash": "603be37490f4dc09a7957a7c07fb91938529d0d63bdd7f5768dde98fcb5fae04"}], "prompt_catalog": "- evidence-note (v1): Create a source-grounded note with finding, evidence, and uncertainty. Use load_project_skill(skill_name) before relying on a skill."},

@@ -1,5 +1,5 @@
 schema_version = "1.2"
-source = "git+https://github.com/Goodwiinz/rag.git@debb4b1506b3524a134888d0f13c66807901efca"
+source = "git+https://github.com/Goodwiinz/rag.git@ecc30ede203061b9440cbab1d2cfad23fa9abf1c"
 artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
 
 [task]
@@ -10,8 +10,8 @@ keywords = ["langgraph", "rag", "retrieval", "rerank", "pii", "grounding"]
 
 [metadata]
 benchmark_id = "rag-retrieval-safety-grounding-v1"
-source_revision = "debb4b1506b3524a134888d0f13c66807901efca"
-agent_revision = "debb4b1506b3524a134888d0f13c66807901efca"
+source_revision = "ecc30ede203061b9440cbab1d2cfad23fa9abf1c"
+agent_revision = "ecc30ede203061b9440cbab1d2cfad23fa9abf1c"
 harbor_version = "0.6.6"
 base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
 
