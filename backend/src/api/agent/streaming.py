@@ -1872,7 +1872,7 @@ async def stream_event_generator(
             yield frame
         await emitter.finish()
 
-    except asyncio.CancelledError as cancellation_exc:
+    except (asyncio.CancelledError, GeneratorExit) as cancellation_exc:
         # Starlette cancels StreamingResponse's body iterator directly when
         # the client aborts the fetch. Shield the cleanup so that cancellation
         # cannot leave the graph running or the durable run non-terminal.
@@ -2704,7 +2704,7 @@ async def stream_confirm_event_generator(
             yield frame
         await emitter.finish()
 
-    except asyncio.CancelledError as cancellation_exc:
+    except (asyncio.CancelledError, GeneratorExit) as cancellation_exc:
 
         async def cleanup_cancelled_confirm_response() -> None:
             if confirm_event_iter is not None:

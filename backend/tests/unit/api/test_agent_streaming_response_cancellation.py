@@ -99,9 +99,11 @@ async def test_iterator_close_tracks_child_when_caller_is_cancelled() -> None:
 
 
 @pytest.mark.parametrize("buffer_available", [False, True])
+@pytest.mark.parametrize("termination_mode", ["disconnect", "generator_close"])
 @pytest.mark.asyncio
 async def test_streaming_response_abort_finalizes_cancelled_without_completion(
     buffer_available: bool,
+    termination_mode: str,
 ) -> None:
     from src.api.agent import streaming as streaming_mod
 
@@ -206,10 +208,7 @@ async def test_streaming_response_abort_finalizes_cancelled_without_completion(
             new=AsyncMock(return_value=empty_runtime_snapshot()),
         ),
     ):
-        response = StreamingResponse(
-            streaming_mod.stream_event_generator(body, request, current_user),
-            media_type="text/event-stream",
-        )
+        generator = streaming_mod.stream_event_generator(body, request, current_user)
         disconnect = asyncio.Event()
         sent: list[Message] = []
         received_request = False
@@ -246,7 +245,15 @@ async def test_streaming_response_abort_finalizes_cancelled_without_completion(
                 "server": ("testserver", 80),
             },
         )
-        await asyncio.wait_for(response(scope, receive, send), timeout=2)
+        if termination_mode == "generator_close":
+            async for frame in generator:
+                sent.append({"type": "http.response.body", "body": frame.encode()})
+                if "event: token" in frame:
+                    break
+            await generator.aclose()
+        else:
+            response = StreamingResponse(generator, media_type="text/event-stream")
+            await asyncio.wait_for(response(scope, receive, send), timeout=2)
 
     assert graph.aclosed is True
     persist.assert_awaited_once()
