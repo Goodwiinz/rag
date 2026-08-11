@@ -744,7 +744,6 @@ def run_judge(evidence: dict[str, Any]) -> dict[str, Any]:
     successful_workflow = [
         {
             "tool": tool,
-            "args": execution.get("args"),
             "result": execution.get("result"),
         }
         for tool in (COMPARE_TOOL, DRAFT_TOOL, EXPORT_TOOL)

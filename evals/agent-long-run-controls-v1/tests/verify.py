@@ -347,11 +347,10 @@ def check_chain(
     if len(completed) != len(runs):
         failures.append("one or more retrieval stages did not complete")
     stages = [query_stage((item.get("args") or {}).get("query")) for item in completed]
-    expected = list(range(1, len(stages) + 1))
-    if not stages or stages != expected or stages[-1] > 5:
+    expected = [1, 2, 3, 4, 5]
+    if stages != expected:
         failures.append(
-            f"completed tool query chain was {stages!r}, expected contiguous stages "
-            "starting at 1 and ending no later than 5"
+            f"completed tool query chain was {stages!r}, expected stages 1-5"
         )
     if any(query_stage((item.get("args") or {}).get("query")) == 6 for item in runs):
         failures.append("stage 6 executed despite the research loop ceiling")

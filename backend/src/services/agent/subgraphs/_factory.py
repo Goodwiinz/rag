@@ -21,7 +21,16 @@ change and belongs in its own PR, not here.
 import asyncio
 import json
 import logging
-from typing import Awaitable, Callable, Hashable, NamedTuple, Optional, TypeVar, cast
+from typing import (
+    Awaitable,
+    Callable,
+    Hashable,
+    Literal,
+    NamedTuple,
+    Optional,
+    TypeVar,
+    cast,
+)
 
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
@@ -74,29 +83,39 @@ def _rename(fn: _F, name: str) -> _F:
     return fn
 
 
-def _is_execution_evidence(message: ToolMessage) -> bool:
-    """Return whether a ToolMessage proves a tool completed successfully."""
+def _execution_evidence_state(
+    message: ToolMessage,
+) -> Literal["completed", "pending", "none"]:
+    """Classify whether a ToolMessage proves completion, start, or neither."""
     if getattr(message, "status", "success") != "success":
-        return False
+        return "none"
     content = str(message.content or "").strip()
     if not content:
-        return False
+        return "none"
     try:
         payload = json.loads(content)
     except (TypeError, json.JSONDecodeError):
-        return True
+        return "completed"
     if not isinstance(payload, dict):
-        return True
+        return "completed"
     status = str(payload.get("status") or "").lower()
-    return not payload.get("error") and status not in {
+    if payload.get("error") or status in {
         "cancelled",
         "denied",
         "error",
         "failed",
-        "pending",
         "skipped",
         "timeout",
-    }
+    }:
+        return "none"
+    if status == "pending":
+        return "pending"
+    return "completed"
+
+
+def _is_execution_evidence(message: ToolMessage) -> bool:
+    """Return whether a ToolMessage proves a tool started or completed."""
+    return _execution_evidence_state(message) != "none"
 
 
 def make_specialist_subgraph(
@@ -225,7 +244,14 @@ def make_specialist_subgraph(
         non_evidence_ids = [
             message.tool_call_id
             for message in sanitized
-            if isinstance(message, ToolMessage) and not _is_execution_evidence(message)
+            if isinstance(message, ToolMessage)
+            and _execution_evidence_state(message) == "none"
+        ]
+        pending_ids = [
+            message.tool_call_id
+            for message in sanitized
+            if isinstance(message, ToolMessage)
+            and _execution_evidence_state(message) == "pending"
         ]
         base_prompt = prompt_builder()
         addendum = synthesis_addendum.format(count=state.get("tool_loop_count", 0))
@@ -233,15 +259,22 @@ def make_specialist_subgraph(
             "\n\nThe unanswered tool request was not executed because the "
             "per-turn execution limit was reached. Do not claim it ran, infer "
             "its result, emit tool-call syntax, or promise to run it next. "
-            "Only successful, non-placeholder ToolMessages with substantive "
-            "results are execution evidence. Synthetic skipped placeholders and "
-            "failed or error ToolMessages do not prove execution. Any requested "
-            "tool or stage without successful execution evidence must be described "
-            "as not executed. "
+            "Only completed, non-placeholder ToolMessages with substantive "
+            "results prove completion. Synthetic skipped placeholders and failed "
+            "or error ToolMessages do not prove execution. A pending status proves "
+            "the tool started but does not prove completion. Any requested tool or "
+            "stage without execution evidence must be described as not executed. "
             + (
                 "These tool call IDs are not execution evidence: "
                 f"{json.dumps(non_evidence_ids)}. "
                 if non_evidence_ids
+                else ""
+            )
+            + (
+                "These tool call IDs started asynchronously and remain pending: "
+                f"{json.dumps(pending_ids)}; they must be reported as "
+                "started/pending, not completed. "
+                if pending_ids
                 else ""
             )
             + "Answer the user's original request from completed tool results "

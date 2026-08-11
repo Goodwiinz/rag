@@ -390,7 +390,18 @@ def check_prefix_retained(evidence: dict[str, Any], failures: list[str]) -> None
     persisted = str((evidence.get("persisted_partial") or {}).get("content") or "")
     if not persisted:
         failures.append("persisted_partial.content is empty")
-    if not server_text.startswith(persisted):
+    token_boundaries: set[str] = set()
+    accumulated = ""
+    for entry in server_token_log:
+        accumulated += entry["content"]
+        token_boundaries.add(accumulated)
+    if (
+        persisted
+        and persisted not in token_boundaries
+        and server_text.startswith(persisted)
+    ):
+        failures.append("persisted partial ends inside an emitted server token")
+    elif persisted and not server_text.startswith(persisted):
         failures.append(
             "persisted partial is not a prefix of the server replay token history"
         )

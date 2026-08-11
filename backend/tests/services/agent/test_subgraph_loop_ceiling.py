@@ -58,6 +58,17 @@ def test_unsuccessful_tool_message_is_not_execution_evidence():
     assert _is_execution_evidence(message) is False
 
 
+@pytest.mark.unit
+def test_pending_tool_message_is_started_execution_evidence():
+    message = ToolMessage(
+        content='{"status": "pending", "draft_id": "draft-1"}',
+        tool_call_id="call_pending",
+        status="success",
+    )
+
+    assert _is_execution_evidence(message) is True
+
+
 # ---------------------------------------------------------------------------
 # Writing subgraph
 # ---------------------------------------------------------------------------
@@ -239,7 +250,7 @@ async def test_writing_force_synthesis_strips_tool_calls_and_synthesizes():
     assert not any(getattr(m, "tool_calls", None) for m in captured["messages"])
     prompt = captured["messages"][0].content
     assert "unanswered tool request was not executed" in prompt
-    assert "Only successful, non-placeholder ToolMessages" in prompt
+    assert "Only completed, non-placeholder ToolMessages" in prompt
     assert "must be described as not executed" in prompt
     assert "execution limit stopped the remaining work" in prompt
     assert "emit tool-call syntax" in prompt
@@ -296,6 +307,37 @@ async def test_research_force_synthesis_marks_skipped_placeholder_as_non_evidenc
     prompt = captured["messages"][0].content
     assert "call_skipped" in prompt
     assert "not execution evidence" in prompt
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_writing_force_synthesis_reports_pending_write_as_started():
+    from src.services.agent.subgraphs.writing_agent import writing_force_synthesis_node
+
+    llm, captured = _capturing_llm("The draft was started and remains pending.")
+    state = _ceiling_state("summarize_document", MAX_WRITING_TOOL_LOOPS)
+    state["messages"][1:1] = [
+        AIMessage(
+            content="",
+            tool_calls=[{"id": "call_pending", "name": "create_draft", "args": {}}],
+        ),
+        ToolMessage(
+            content='{"status": "pending", "draft_id": "draft-1"}',
+            tool_call_id="call_pending",
+            status="success",
+        ),
+    ]
+
+    with patch("src.services.agent.graph._build_llm", return_value=llm):
+        await writing_force_synthesis_node(state, {"configurable": {}})
+
+    prompt = captured["messages"][0].content
+    assert "call_pending" in prompt
+    assert "started asynchronously and remain pending" in prompt
+    assert "must be reported as started/pending, not completed" in prompt
+    assert (
+        'These tool call IDs are not execution evidence: ["call_pending"]' not in prompt
+    )
 
 
 @pytest.mark.unit

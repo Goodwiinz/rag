@@ -65,11 +65,23 @@
           "total_relationships": 20,
           "entity_type_distribution": {
             "PERSON": 6,
-            "ORGANIZATION": 2
+            "ORGANIZATION": 2,
+            "CONCEPT": 4,
+            "TECHNOLOGY": 3,
+            "PRODUCT": 2,
+            "RESEARCH": 1,
+            "EVENT": 1,
+            "LOCATION": 1
           },
           "relationship_type_distribution": {
             "WORKS_FOR": 6,
-            "RELATED_TO": 6
+            "COLLABORATES_WITH": 1,
+            "RELATED_TO": 6,
+            "OWNS": 2,
+            "PART_OF": 2,
+            "CITED": 1,
+            "SPOKE_AT": 1,
+            "LOCATED_IN": 1
           },
           "average_degree": 2.0,
           "connected_components": 1
