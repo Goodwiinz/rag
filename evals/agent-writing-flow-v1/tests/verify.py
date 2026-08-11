@@ -59,7 +59,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.judge import run_semantic_judge
 
 BENCHMARK_ID = "agent-writing-flow-v1"
-EXPECTED_SOURCE_REVISION = "fa3858d79baeb9dba79f0a44a077856418933898"
+EXPECTED_SOURCE_REVISION = "bd9388ec19225813e5b99aba2c4042ba5b84d5db"
 EXPECTED_INSTRUCTION = (
     "In the currently open project, compare the two documents titled "
     '"Graph Neural Networks for Molecular Property Prediction" and '

@@ -34,7 +34,7 @@ from evals.harbor_common.network import validate_network_boundary
 from evals.harbor_common.serialization import json_safe, utc_now
 
 BENCHMARK_ID = "agent-fast-path-cancel-v1"
-SOURCE_REVISION = "fa3858d79baeb9dba79f0a44a077856418933898"
+SOURCE_REVISION = "bd9388ec19225813e5b99aba2c4042ba5b84d5db"
 AGENT_REVISION = SOURCE_REVISION
 
 ORG_ID = UUID("00000000-0000-4000-8000-000000000d01")
