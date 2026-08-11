@@ -225,8 +225,7 @@ def make_specialist_subgraph(
         non_evidence_ids = [
             message.tool_call_id
             for message in sanitized
-            if isinstance(message, ToolMessage)
-            and not _is_execution_evidence(message)
+            if isinstance(message, ToolMessage) and not _is_execution_evidence(message)
         ]
         base_prompt = prompt_builder()
         addendum = synthesis_addendum.format(count=state.get("tool_loop_count", 0))

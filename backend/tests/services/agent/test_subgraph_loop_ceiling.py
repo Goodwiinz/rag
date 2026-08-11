@@ -11,11 +11,11 @@ from __future__ import annotations
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
+from src.services.agent.subgraphs._factory import _is_execution_evidence
 from src.services.agent.subgraphs.data_agent import (
     MAX_DATA_TOOL_LOOPS,
     data_should_continue,
 )
-from src.services.agent.subgraphs._factory import _is_execution_evidence
 from src.services.agent.subgraphs.research_agent import (
     MAX_RESEARCH_TOOL_LOOPS,
     research_force_synthesis_node,
@@ -290,8 +290,7 @@ async def test_research_force_synthesis_marks_skipped_placeholder_as_non_evidenc
     placeholder = next(
         message
         for message in captured["messages"]
-        if isinstance(message, ToolMessage)
-        and message.tool_call_id == "call_skipped"
+        if isinstance(message, ToolMessage) and message.tool_call_id == "call_skipped"
     )
     assert placeholder.content == '{"status": "skipped"}'
     prompt = captured["messages"][0].content
