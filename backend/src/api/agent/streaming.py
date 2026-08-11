@@ -857,8 +857,13 @@ _SSE_KEEPALIVE_SECONDS = 10
 _SSE_DISCONNECT_POLL_SECONDS = 0.5
 
 
-async def _request_disconnected(request: Any) -> bool:
+def _get_disconnect_signal(request: Any) -> Optional[asyncio.Event]:
     signal = getattr(getattr(request, "state", None), AGENT_DISCONNECT_EVENT, None)
+    return signal if isinstance(signal, asyncio.Event) else None
+
+
+async def _request_disconnected(request: Any) -> bool:
+    signal = _get_disconnect_signal(request)
     return bool(signal and signal.is_set()) or await request.is_disconnected()
 
 
@@ -878,7 +883,7 @@ async def _run_interrupted_cleanup(cleanup: Any) -> None:
 
 
 def _cancel_current_task_on_disconnect(request: Any) -> Optional[asyncio.Task]:
-    signal = getattr(getattr(request, "state", None), AGENT_DISCONNECT_EVENT, None)
+    signal = _get_disconnect_signal(request)
     stream_task = asyncio.current_task()
     if signal is None or stream_task is None:
         return None
