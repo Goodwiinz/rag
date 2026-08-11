@@ -500,6 +500,7 @@ def test_task_judge_inputs() -> None:
             "raw_tool_executions": [
                 {
                     "tool_name": writing.COMPARE_TOOL,
+                    "status": "completed",
                     "result": {"comparison": "raw comparison sentinel"},
                 }
             ],
