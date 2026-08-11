@@ -1,16 +1,22 @@
 # CI and release workflows
 
-GitHub Actions owns CI and image construction. There is currently **no
-automatic dev release**: `release-dev.yml` was removed because it never
-finished bootstrapping (see "Removed: automatic dev release" below). Backend
-images are no longer built on `develop` pushes.
+GitHub Actions owns CI, image construction, and the dev release. The
+original exact-SHA dev release was removed in #1379 because it never finished
+bootstrapping (see "Removed: the original automatic dev release" below); the
+current `release-dev.yml` is its deliberately simplified reintroduction: on a
+green Test Pipeline run on `develop` it builds the tested SHA via
+`docker-build.yml` and commits the `values-dev.yaml` digest/tag bump straight
+to `develop` with `[skip ci]` — the pattern the old
+`chore(gitops): update dev images` commits used. Argo CD's `nous-dev` app
+tracks `develop`, so that bump commit is the deployment.
 
 ## Workflow responsibilities
 
 | Workflow | Trigger | Responsibility |
 | --- | --- | --- |
 | `test-pipeline.yml` | Push and pull request | Run all required checks and publish the exact `Release Gate` result. |
-| `docker-build.yml` | Reusable call or manual dispatch | Check out an explicit full SHA, assert `HEAD`, push the full-SHA trace tag, and return its digest. Currently has no caller. |
+| `release-dev.yml` | Completed successful Test Pipeline run on `develop` | Build the tested SHA and commit the `values-dev.yaml` digest/tag bump to `develop`. |
+| `docker-build.yml` | Reusable call or manual dispatch | Check out an explicit full SHA, assert `HEAD`, push the full-SHA trace tag, and return its digest. Called by `release-dev.yml`. |
 | `gitops-image-update.yml` | Manual dispatch only | Retained legacy production image update; it has no dev role. |
 | `deploy.yml` | Manual dispatch only | Retained legacy staging/production Helm path; it has no dev role and requires an explicit image tag. |
 | `helm-validate.yml` | Push and pull request | Validate the Helm chart and environment values. |
@@ -20,7 +26,7 @@ The frontend is deployed separately through Vercel. The backend, migration init
 container, Celery worker, Celery beat, and synthetic-traffic workloads share the
 same backend digest through the Helm image helper.
 
-## Removed: automatic dev release
+## Removed: the original automatic dev release
 
 `release-dev.yml` ("Release Dev") implemented an exact-SHA dev release: on
 every successful `Test Pipeline` run on `develop` it would build a backend
