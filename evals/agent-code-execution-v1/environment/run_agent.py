@@ -44,7 +44,7 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-code-execution-v1"
-SOURCE_REVISION = "318e2ae4edd5103a0e67b8d432721f26424549fb"
+SOURCE_REVISION = "cf3d04631cfd4ffb3d3e3f04be34333d5a091c3f"
 AGENT_REVISION = SOURCE_REVISION
 APPROVAL_TEXT = "Yes, run it."
 

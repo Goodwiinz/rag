@@ -36,7 +36,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import run_verifier_main
 
 BENCHMARK_ID = "agent-memory-roundtrip-v1"
-EXPECTED_SOURCE_REVISION = "318e2ae4edd5103a0e67b8d432721f26424549fb"
+EXPECTED_SOURCE_REVISION = "cf3d04631cfd4ffb3d3e3f04be34333d5a091c3f"
 EXPECTED_INSTRUCTION = (
     "Please remember this for my arXiv research going forward: my recovery "
     "contact email is jordan.avery@example.com."

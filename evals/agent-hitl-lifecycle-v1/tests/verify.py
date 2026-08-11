@@ -49,7 +49,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import InfrastructureFailure, run_verifier_main
 
 BENCHMARK_ID = "agent-hitl-lifecycle-v1"
-EXPECTED_SOURCE_REVISION = "318e2ae4edd5103a0e67b8d432721f26424549fb"
+EXPECTED_SOURCE_REVISION = "cf3d04631cfd4ffb3d3e3f04be34333d5a091c3f"
 
 WORKSPACE_ID = "00000000-0000-4000-8000-000000000803"
 DESTRUCTIVE_TOOL = "create_project"
