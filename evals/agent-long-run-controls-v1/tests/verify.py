@@ -157,47 +157,74 @@ def completion_through(text: str) -> int | None:
 def per_stage_completion_claims(text: str) -> set[int]:
     claimed: set[int] = set()
     negated = re.compile(
-        r"\b(?:failed|never|neither|not|unsuccessful|without)\b|"
-        r"(?:could|did|is|was)n['’]t",
+        r"(?:\b(?:failed|never|unsuccessful)\b|\bnot\b(?!\s+only\b)|"
+        r"\bwithout(?:\s+being)?\b|"
+        r"\b(?:could|did|does|do|is|are|was|were|has|have|had)n['’]t\b)"
+        r"(?:\s+\w+){0,2}\s*$|\bneither\b.*$",
         re.I,
     )
     claim_word = re.compile(
-        r"\b(?:complete(?:d)?|completion|verification|verified)\b", re.I
+        r"\b(?:complete(?:d)?|completion|verify|verification|verified)\b", re.I
     )
     clause_boundary = re.compile(
-        r"\s*(?:[,;]|\b(?:although|but|however|yet)\b)\s*|"
-        r"\s+and\s+(?=it\b)",
+        r"\s*(?:;|\b(?:although|but|however|yet)\b|"
+        r"\band\s+(?=(?:it|they|did|does|do|could|would|should)\b))\s*",
         re.I,
     )
-    stage_conjunction = re.compile(r"\s+and\s+(?=stage\s*[1-6]\b)", re.I)
+    pronoun_subject = re.compile(r"^\s*(?:and\s+)?(?:it|they)\b", re.I)
+
+    def stage_subjects(fragment: str) -> set[int]:
+        stages = {
+            int(match.group(1))
+            for match in re.finditer(r"\bstages?\s*([1-6])\b", fragment, re.I)
+        }
+        for match in re.finditer(
+            r"\bstages?\s*([1-6](?:(?:\s*,\s*|\s+(?:and|&)\s+)[1-6])+)\b",
+            fragment,
+            re.I,
+        ):
+            stages.update(int(value) for value in re.findall(r"[1-6]", match.group(1)))
+        for match in re.finditer(
+            r"\bstages?\s*([1-6])\s*(?:through|to|-)\s*([1-6])\b",
+            fragment,
+            re.I,
+        ):
+            start, end = (int(value) for value in match.groups())
+            stages.update(range(min(start, end), max(start, end) + 1))
+        return stages
+
+    previous_subject: set[int] = set()
     for sentence in re.split(r"[.!?\n]+", text):
-        last_stage: int | None = None
+        latest_subject: set[int] = set()
+        sentence_subject: set[int] = set()
         for clause in clause_boundary.split(sentence):
-            pending_stages: set[int] = set()
-            for part in stage_conjunction.split(clause):
-                stages = [
-                    int(match.group(1))
-                    for match in re.finditer(r"\bstage\s*([1-6])\b", part, re.I)
-                ]
-                if stages:
-                    last_stage = stages[-1]
-                has_claim = claim_word.search(part)
-                is_negated = negated.search(part)
-                if not has_claim:
-                    if stages and not is_negated:
-                        pending_stages.update(stages)
-                    else:
-                        pending_stages.clear()
-                    continue
-                if is_negated:
-                    pending_stages.clear()
-                    continue
-                if stages:
-                    claimed.update(pending_stages)
-                    claimed.update(stages)
-                elif last_stage is not None:
-                    claimed.add(last_stage)
-                pending_stages.clear()
+            predicates = list(claim_word.finditer(clause))
+            segment_start = 0
+            for index, predicate in enumerate(predicates):
+                prefix = clause[segment_start : predicate.start()]
+                next_start = (
+                    predicates[index + 1].start()
+                    if index + 1 < len(predicates)
+                    else len(clause)
+                )
+                suffix = clause[predicate.end() : next_start]
+                explicit_subjects = stage_subjects(prefix) or stage_subjects(suffix)
+                subjects = explicit_subjects
+                if not subjects and pronoun_subject.search(prefix):
+                    subjects = latest_subject or previous_subject
+                if subjects:
+                    latest_subject = subjects
+                    if explicit_subjects:
+                        sentence_subject = subjects
+                    if not negated.search(prefix):
+                        claimed.update(subjects)
+                segment_start = predicate.end()
+
+            trailing_subjects = stage_subjects(clause[segment_start:])
+            if trailing_subjects:
+                latest_subject = trailing_subjects
+                sentence_subject = trailing_subjects
+        previous_subject = sentence_subject
     return claimed
 
 
