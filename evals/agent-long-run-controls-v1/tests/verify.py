@@ -173,7 +173,8 @@ def per_stage_completion_claims(text: str) -> set[int]:
     clause_boundary = re.compile(
         r"\s*(?:;|\b(?:although|because|however|so|while|yet)\b|"
         r"\bbut\b(?!\s+not\s+stages?\s*[1-6]\b)|"
-        r"\band\s+(?=(?:it|they|did|does|do|could|would|should)\b))\s*",
+        r"\band\s+(?=(?:\w+ly\s+)*(?:it|they|am|is|are|was|were|has|have|had|"
+        r"did|does|do|could|would|should)\b))\s*",
         re.I,
     )
     predicate_local_boundary = re.compile(
@@ -284,6 +285,13 @@ def _assert_completion_claim_calibration() -> None:
         "Stage 6 was not not verified.": {6},
         "The limit was reached after four verified stages, so stage 5 was not executed.": set(),
         "Completed stages 1-5 and did not execute stage 6. Verified progression:": {
+            1,
+            2,
+            3,
+            4,
+            5,
+        },
+        "Completed stages 1-5 and intentionally did not execute stage 6.": {
             1,
             2,
             3,
