@@ -602,9 +602,13 @@ async def probe_memory_retrieval(seed: dict[str, str]) -> dict[str, Any]:
             for m in b_memories
             if MEMORY_FRAGMENT in str((m.get("value") or {}).get("query", ""))
         ]
-    except Exception as exc:  # noqa: BLE001 - captured as probe evidence, not raised
-        b_rows = []
-        error = f"{type(exc).__name__}: {exc}"
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 - org-B exceptions are infrastructure failures
+        raise InfrastructureFailure(
+            "memory.memory_retrieval_node: org-B's own call raised: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
 
     if not a_rows:
         raise InfrastructureFailure(
@@ -653,9 +657,13 @@ async def probe_load_project_skill(seed: dict[str, str]) -> dict[str, Any]:
             b_rows: list[str] = []
         else:
             b_rows = [seed["skill_id"]]
-    except Exception as exc:  # noqa: BLE001 - captured as probe evidence, not raised
-        b_rows = []
-        error = f"{type(exc).__name__}: {exc}"
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 - org-B exceptions are infrastructure failures
+        raise InfrastructureFailure(
+            "suggestions.load_project_skill: org-B's own call raised: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
 
     if not a_rows:
         raise InfrastructureFailure(
@@ -729,9 +737,12 @@ async def probe_rag_node(seed: dict[str, str]) -> dict[str, Any]:
             for c in b_contexts
             if isinstance(c, dict) and c.get("document_id") == seed["document_id"]
         ]
-    except Exception as exc:  # noqa: BLE001 - captured as probe evidence, not raised
-        b_rows = []
-        error = f"{type(exc).__name__}: {exc}"
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 - org-B exceptions are infrastructure failures
+        raise InfrastructureFailure(
+            f"rag.rag_node: org-B's own call raised: {type(exc).__name__}: {exc}"
+        ) from exc
 
     return {
         "probe_id": "rag.rag_node",
@@ -779,9 +790,12 @@ async def _run_probe(
         b_rows = rows_fn(b_payload)
         if isinstance(b_payload, dict) and b_payload.get("error"):
             error = str(b_payload["error"])
-    except Exception as exc:  # noqa: BLE001 - captured as probe evidence, not raised
-        b_rows = []
-        error = f"{type(exc).__name__}: {exc}"
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 - org-B exceptions are infrastructure failures
+        raise InfrastructureFailure(
+            f"{probe_id}: org-B's own call raised: {type(exc).__name__}: {exc}"
+        ) from exc
 
     return {
         "probe_id": probe_id,
