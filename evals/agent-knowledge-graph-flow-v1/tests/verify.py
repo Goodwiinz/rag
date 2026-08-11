@@ -126,6 +126,18 @@ def live_graph_state() -> dict[str, Any]:
     driver = GraphDatabase.driver(uri, auth=(user, password))
     try:
         with driver.session() as session:
+            entities = session.run(
+                "MATCH (e:Entity) WHERE e.organization_id = $org "
+                "RETURN e.id AS id, e.name AS name, e.type AS type",
+                org=ORG_ID,
+            ).data()
+            relationships = session.run(
+                "MATCH (source:Entity)-[r:RELATED_TO]->(target:Entity) "
+                "WHERE source.organization_id = $org "
+                "RETURN source.id AS source_id, coalesce(r.type, type(r)) AS type, "
+                "target.id AS target_id",
+                org=ORG_ID,
+            ).data()
             entity_count = session.run(
                 "MATCH (e:Entity) WHERE e.organization_id = $org RETURN count(e) AS c",
                 org=ORG_ID,
@@ -137,7 +149,22 @@ def live_graph_state() -> dict[str, Any]:
             ).single()["c"]
     finally:
         driver.close()
-    return {"total_entities": entity_count, "total_relationships": relationship_count}
+    return {
+        "total_entities": entity_count,
+        "total_relationships": relationship_count,
+        "entities_by_id": {
+            str(row["id"]): {"name": row["name"], "type": row["type"]}
+            for row in entities
+        },
+        "relationships": [
+            {
+                "source_id": str(row["source_id"]),
+                "type": row["type"],
+                "target_id": str(row["target_id"]),
+            }
+            for row in relationships
+        ],
+    }
 
 
 # --------------------------------------------------------------------------
@@ -587,6 +614,9 @@ def _assert_later_search_endpoint_calibration() -> None:
                 "tool_name": "explore_entity_neighborhood",
                 "status": "completed",
                 "result": {
+                    "scope": "entity_neighborhood",
+                    "requested_max_depth": 2,
+                    "result_limit": 30,
                     "connected_entities": [
                         {
                             "id": "nova",
@@ -601,6 +631,9 @@ def _assert_later_search_endpoint_calibration() -> None:
                             "type": "WORKS_FOR",
                         }
                     ],
+                    "total_entities": 1,
+                    "total_relationships": 1,
+                    "returned_counts_scope": "entity_neighborhood",
                 },
             },
             {
@@ -617,12 +650,56 @@ def _assert_later_search_endpoint_calibration() -> None:
     failures: list[str] = []
     check_relationship_direction(evidence, failures)
     assert not failures, failures
+    calibration_state = {
+        "entities_by_id": {
+            "marcus": {"name": "Marcus Chen", "type": "PERSON"},
+            "nova": {"name": "Nova Research Institute", "type": "ORGANIZATION"},
+        },
+        "relationships": [
+            {"source_id": "marcus", "type": "WORKS_FOR", "target_id": "nova"}
+        ],
+    }
+    sources = trusted_sources(evidence, calibration_state, deterministic_failures=[])
+    assert {
+        "kind": "entity",
+        "name": "Elena Vasquez",
+        "type": "PERSON",
+    } in sources
     assert {
         "kind": "relationship",
         "source": "Marcus Chen",
+        "source_id": "marcus",
         "type": "WORKS_FOR",
         "target": "Nova Research Institute",
-    } in trusted_sources(evidence, deterministic_failures=[])
+        "target_id": "nova",
+    } in sources
+    mismatched_state = {
+        **calibration_state,
+        "entities_by_id": {
+            **calibration_state["entities_by_id"],
+            "marcus": {"name": "Elena Vasquez", "type": "PERSON"},
+        },
+    }
+    mismatched_sources = trusted_sources(
+        evidence, mismatched_state, deterministic_failures=[]
+    )
+    assert not any(
+        item.get("kind") == "relationship" and item.get("source_id") == "marcus"
+        for item in mismatched_sources
+    )
+    assert {
+        "kind": "neighborhood_stats",
+        "scope": "entity_neighborhood",
+        "requested_max_depth": 2,
+        "result_limit": 30,
+        "connected_entity_count": 1,
+        "relationship_count": 1,
+        "counts_describe_validated_returned_rows": True,
+        "bounded_query_note": (
+            "requested depth and result limit do not prove exact hop distance "
+            "or completeness"
+        ),
+    } in sources
 
 
 def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[str]:
@@ -681,6 +758,12 @@ def trusted_sources(
     sources: list[dict[str, Any]] = []
     seen_entities: set[tuple[str, str]] = set()
     names = entity_names_by_id(evidence)
+    live_entities = (state or {}).get("entities_by_id") or {}
+    live_relationships = {
+        (str(row.get("source_id")), str(row.get("type")), str(row.get("target_id")))
+        for row in (state or {}).get("relationships") or []
+        if isinstance(row, dict)
+    }
     entity_confidence = TRUTH["seed_confidence"]["entity"]
 
     for execution in successful_graph_executions(evidence):
@@ -699,6 +782,9 @@ def trusted_sources(
                 "name": name,
                 "type": entity_type,
             }
+            row_id = str(row.get("id") or "")
+            if live_entities.get(row_id) == {"name": name, "type": entity_type}:
+                fact["id"] = row_id
             if row.get("confidence") == entity_confidence:
                 fact["confidence"] = row["confidence"]
             sources.append(fact)
@@ -720,23 +806,57 @@ def trusted_sources(
             )
             if triple in TRUTH_RELATIONSHIPS and triple not in seen_relationships:
                 seen_relationships.add(triple)
-                sources.append(
-                    {
-                        "kind": "relationship",
-                        "source": triple[0],
-                        "type": triple[1],
-                        "target": triple[2],
-                    }
+                fact = {
+                    "kind": "relationship",
+                    "source": triple[0],
+                    "type": triple[1],
+                    "target": triple[2],
+                }
+                id_triple = (
+                    str(row.get("source")),
+                    triple[1],
+                    str(row.get("target")),
                 )
+                source_identity = {
+                    "name": triple[0],
+                    "type": TRUTH_ENTITY_TYPES.get(triple[0]),
+                }
+                target_identity = {
+                    "name": triple[2],
+                    "type": TRUTH_ENTITY_TYPES.get(triple[2]),
+                }
+                if (
+                    id_triple in live_relationships
+                    and live_entities.get(id_triple[0]) == source_identity
+                    and live_entities.get(id_triple[2]) == target_identity
+                ):
+                    fact["source_id"] = id_triple[0]
+                    fact["target_id"] = id_triple[2]
+                sources.append(fact)
         if execution.get("tool_name") == "explore_entity_neighborhood":
             result = execution.get("result") or {}
             fact = {"kind": "neighborhood_stats"}
+            if result.get("scope") == "entity_neighborhood":
+                fact["scope"] = result["scope"]
+            for key in ("requested_max_depth", "result_limit"):
+                if isinstance(result.get(key), int):
+                    fact[key] = result[key]
             for count_key, rows_key, fact_key in (
                 ("total_entities", "connected_entities", "connected_entity_count"),
                 ("total_relationships", "relationships", "relationship_count"),
             ):
                 if count_key in result and result[count_key] == len(result[rows_key]):
                     fact[fact_key] = result[count_key]
+            if (
+                result.get("returned_counts_scope") == "entity_neighborhood"
+                and "connected_entity_count" in fact
+                and "relationship_count" in fact
+            ):
+                fact["counts_describe_validated_returned_rows"] = True
+                fact["bounded_query_note"] = (
+                    "requested depth and result limit do not prove exact hop "
+                    "distance or completeness"
+                )
             if len(fact) > 1:
                 sources.append(fact)
 
