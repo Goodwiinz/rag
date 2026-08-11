@@ -27,13 +27,14 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-long-run-controls-v1"
-SOURCE_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
+SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 EXPECTED_INSTRUCTION = (
-    "Search the project knowledge base beginning with NOUS-LONG-1. Each result "
-    "contains exactly one Next query value; follow it until a result says END. "
-    "Then explain the first and final verified findings. If an execution limit "
-    "stops the chain, give the best grounded partial answer and clearly identify "
-    "the last verified stage instead of inventing later findings."
+    "Search the project knowledge base beginning with NOUS-LONG-1. Complete "
+    "stages 1 through 5, and do not execute stage 6. Then explain the first "
+    "and final verified findings. You may synthesize voluntarily after stage 5; "
+    "if an execution limit stops an attempted next call, give the best grounded "
+    "partial answer and clearly identify the last verified stage instead of "
+    "inventing later findings."
 )
 
 ORG_ID = UUID("00000000-0000-4000-8000-000000002000")

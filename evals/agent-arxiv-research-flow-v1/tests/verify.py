@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -30,7 +31,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import run_verifier_main
 
 BENCHMARK_ID = "agent-arxiv-research-flow-v1"
-EXPECTED_SOURCE_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
+EXPECTED_SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 SEARCH_TEXT = "Search arXiv for deterministic benchmark retrieval evaluation."
 EXPECTED_INSTRUCTION = SEARCH_TEXT
 
@@ -184,10 +185,12 @@ def interrupt_for(evidence: dict[str, Any], tool: str) -> dict[str, Any] | None:
     return None
 
 
-def executions_for(evidence: dict[str, Any], tool: str) -> list[dict[str, Any]]:
+def executions_for(
+    evidence: dict[str, Any], tool: str, evidence_key: str = "tool_executions"
+) -> list[dict[str, Any]]:
     return [
         item
-        for item in evidence.get("tool_executions") or []
+        for item in evidence.get(evidence_key) or []
         if isinstance(item, dict) and item.get("tool_name") == tool
     ]
 
@@ -238,7 +241,7 @@ def check_arxiv_client_patch(evidence: dict[str, Any], failures: list[str]) -> N
 
 def check_search(evidence: dict[str, Any], failures: list[str]) -> None:
     """search_arxiv executed against the double, capped, drawn from fixtures."""
-    executions = executions_for(evidence, SEARCH_TOOL)
+    executions = executions_for(evidence, SEARCH_TOOL, "search_executions")
     successful = [
         item
         for item in executions
@@ -246,10 +249,11 @@ def check_search(evidence: dict[str, Any], failures: list[str]) -> None:
         and isinstance(item.get("result"), dict)
         and not item["result"].get("error")
     ]
-    if len(successful) < 2:
+    if len(executions) != 2 or len(successful) != 2:
         failures.append(
-            f"expected at least 2 successful {SEARCH_TOOL} executions "
-            f"(initial + cache-proof repeat), found {len(successful)}"
+            f"expected exactly 2 successful {SEARCH_TOOL} executions "
+            f"(initial + cache-proof repeat), found {len(successful)} successful "
+            f"of {len(executions)} total"
         )
         return
 
@@ -262,12 +266,18 @@ def check_search(evidence: dict[str, Any], failures: list[str]) -> None:
             f"search_arxiv returned {len(first_papers)} papers, impl cap is 5"
         )
     fixture_ids = {p["id"] for p in TRUTH["papers"]}
-    result_ids = {str(p.get("id") or "") for p in first_papers}
+    result_ids = {
+        re.sub(r"v\d+$", "", str(p.get("id") or ""), flags=re.IGNORECASE)
+        for p in first_papers
+    }
     if not result_ids <= fixture_ids:
         failures.append(
             f"search_arxiv result ids {result_ids} are not a subset of the fixture "
             f"corpus {fixture_ids}"
         )
+
+    if first.get("args") != second.get("args"):
+        failures.append("second search_arxiv call was not a byte-identical repeat")
 
     if not (second.get("result") or {}).get("cached"):
         failures.append(
@@ -410,10 +420,7 @@ def check_database_state(state: dict[str, Any], failures: list[str]) -> None:
                 f"no document with checksum {sha256!r} (fixture PDF for {paper_id})"
             )
             continue
-        if str(row.get("processing_status")) not in {
-            "COMPLETED",
-            "ProcessingStatus.COMPLETED",
-        }:
+        if str(row.get("processing_status")).split(".")[-1].lower() != "completed":
             failures.append(
                 f"document for {paper_id} processing_status="
                 f"{row.get('processing_status')!r}, expected COMPLETED"

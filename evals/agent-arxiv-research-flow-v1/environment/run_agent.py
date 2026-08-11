@@ -37,7 +37,7 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-arxiv-research-flow-v1"
-SOURCE_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
+SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 AGENT_REVISION = SOURCE_REVISION
 APPROVAL_TEXT = "Yes, ingest them."
 
@@ -379,6 +379,13 @@ def tool_succeeded(tool_executions: list[Any], tool_name: str) -> bool:
 
 def hitl_steps(steps: list[dict[str, Any]], evidence: dict[str, Any]) -> list[Any]:
     """Splice the harness-supplied ingest approval into the trajectory."""
+    for step in steps:
+        if any(
+            str(call.get("tool_call_id") or "").startswith("direct_search_arxiv_")
+            for call in step.get("tool_calls") or []
+        ):
+            step["llm_call_count"] = 0
+            step.pop("model_name", None)
     if steps and steps[-1].get("source") == "agent":
         approved = [
             call.get("function_name")
@@ -513,7 +520,14 @@ async def run_benchmark() -> dict[str, Any]:
         else "completed" if not getattr(final_snapshot, "next", ()) else "incomplete"
     )
 
-    search_executions = tool_executions_for(tool_executions, "search_arxiv")
+    search_executions = [
+        *tool_executions_for(tool_executions_after_search_1, "search_arxiv"),
+        *tool_executions_for(tool_executions_after_search_2, "search_arxiv"),
+    ]
+    if len(search_executions) != 2:
+        raise InfrastructureFailure(
+            f"expected two search_arxiv executions, observed {len(search_executions)}"
+        )
     ingest_executions = tool_executions_for(tool_executions, "ingest_arxiv_papers")
 
     return {

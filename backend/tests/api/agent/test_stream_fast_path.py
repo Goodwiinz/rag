@@ -47,6 +47,39 @@ class _CancelledLuna:
         raise asyncio.CancelledError()
 
 
+class _TokenThenBlockedLuna:
+    def __init__(self):
+        self.pull_started = asyncio.Event()
+        self.closed = asyncio.Event()
+
+    async def astream(self, _messages, *, config=None):
+        yield AIMessageChunk(content="partial")
+        self.pull_started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            self.closed.set()
+
+
+class _CancellationResistantLuna:
+    def __init__(self):
+        self.pull_started = asyncio.Event()
+        self.cancel_received = asyncio.Event()
+        self.release = asyncio.Event()
+        self.closed = asyncio.Event()
+
+    async def astream(self, _messages, *, config=None):
+        yield AIMessageChunk(content="partial")
+        self.pull_started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancel_received.set()
+            await self.release.wait()
+        finally:
+            self.closed.set()
+
+
 async def test_fast_chunks_wait_for_user_persistence_before_release():
     from src.services.agent.fast_path import stream_fast_path_chunks
 
@@ -369,12 +402,243 @@ async def test_luna_failure_persists_streamed_partial_as_stopped(
     assert persist_assistant.await_args.kwargs["stopped"] is True
 
 
+async def test_fast_path_disconnect_terminalizes_before_resistant_pull_cleanup(
+    monkeypatch, caplog
+):
+    user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
+    thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4())
+
+    from src.api.agent import streaming as streaming_mod
+    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
+    from src.core.config import get_settings
+    from src.services.agent import agent_execution_service as jobs_mod
+    from src.services.agent import llm_factory
+    from src.services.agent.run_event_types import RunEventType
+    from src.shared.enums import JobStatus
+
+    body = AgentExecuteRequest(
+        messages=[
+            AgentMessage(
+                role="user",
+                content="Explain why rainbows form",
+                client_message_id=uuid4(),
+            )
+        ],
+        page_context={"type": "chat"},
+        use_rag=False,
+        thread_id=str(thread.id),
+    )
+    request = SimpleNamespace(
+        is_disconnected=AsyncMock(side_effect=[False, False, True])
+    )
+    model = _CancellationResistantLuna()
+    settings = get_settings()
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_ENABLED", True)
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_MAX_INPUT_CHARS", 8_000)
+    monkeypatch.setattr(llm_factory, "build_fast_path_llm", lambda: model)
+    monkeypatch.setattr(streaming_mod, "_SSE_DISCONNECT_POLL_SECONDS", 0.05)
+    caplog.set_level("WARNING", logger=streaming_mod.__name__)
+
+    fake_session = SimpleNamespace(close=AsyncMock())
+    persist_assistant = AsyncMock(return_value="partial-row-id")
+    finish_stream = AsyncMock()
+    finalize_calls: list[dict] = []
+    finalized = asyncio.Event()
+
+    async def spy_finalize_run(*_args, **kwargs):
+        finalize_calls.append(kwargs)
+        finalized.set()
+
+    events: list[str] = []
+    with (
+        patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_session),
+        patch.object(streaming_mod, "_accept_eligible", return_value=False),
+        patch.object(
+            streaming_mod,
+            "_resolve_thread",
+            new=AsyncMock(return_value=(thread, str(thread.conversation_id))),
+        ),
+        patch.object(
+            streaming_mod,
+            "_persist_user_message_guarded",
+            new=AsyncMock(return_value=True),
+        ),
+        patch.object(
+            jobs_mod, "_persist_assistant_message_safe", new=persist_assistant
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "start_stream",
+            new=AsyncMock(return_value="stream-id"),
+        ),
+        patch.object(streaming_mod._stream_buffer, "append", new=AsyncMock()),
+        patch.object(streaming_mod._stream_buffer, "finish_stream", new=finish_stream),
+        patch.object(streaming_mod, "_finalize_run", spy_finalize_run),
+    ):
+        generator = streaming_mod.stream_event_generator(body, request, user)
+
+        async def drain_stream():
+            async for event in generator:
+                events.append(event)
+
+        drain_task = asyncio.create_task(drain_stream())
+        await asyncio.wait_for(model.pull_started.wait(), timeout=1)
+        await asyncio.wait_for(
+            model.cancel_received.wait(),
+            timeout=streaming_mod._SSE_DISCONNECT_POLL_SECONDS + 0.25,
+        )
+        await asyncio.wait_for(
+            finalized.wait(), timeout=streaming_mod._SSE_DISCONNECT_POLL_SECONDS
+        )
+
+        assert not model.closed.is_set()
+        assert sum("event: token" in event for event in events) == 1
+        assert not any("event: done" in event for event in events)
+        persist_assistant.assert_awaited_once()
+        assert persist_assistant.await_args.kwargs["content"] == "partial"
+        assert persist_assistant.await_args.kwargs["stopped"] is True
+        finish_stream.assert_awaited_once_with(str(thread.id), "stream-id")
+        assert len(finalize_calls) == 1
+
+        await asyncio.wait_for(
+            drain_task,
+            timeout=streaming_mod._SSE_DISCONNECT_POLL_SECONDS + 0.25,
+        )
+        assert not model.closed.is_set()
+        warning = next(
+            record
+            for record in caplog.records
+            if record.getMessage() == "Timed out settling cancelled agent stream pull"
+        )
+        assert warning.event == "agent_stream_pull_cleanup_timeout"
+
+        model.release.set()
+        await asyncio.wait_for(model.closed.wait(), timeout=0.1)
+        await asyncio.sleep(0)
+
+    assert len(finalize_calls) == 1
+    finalized = finalize_calls[0]
+    assert finalized["status"] is JobStatus.CANCELLED
+    assert finalized["event_type"] is RunEventType.RUN_CANCELLED
+    assert finalized["payload"]["reason"] == "client_disconnected"
+    assert finalized["payload"]["assistant_message_id"] == "partial-row-id"
+
+
 class _CancelDuringEmitLuna:
     """Second chunk's emit is where the cancel lands (see emit patch below)."""
 
     async def astream(self, _messages, *, config=None):
         yield AIMessageChunk(content="The ar")
         yield AIMessageChunk(content="X")
+
+
+@pytest.mark.parametrize(
+    "close_at", ["routing", "trace", "token", "heartbeat", "usage"]
+)
+async def test_fast_path_generator_close_finalizes_each_window(monkeypatch, close_at):
+    user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
+    thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4())
+
+    from src.api.agent import streaming as streaming_mod
+    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
+    from src.core.config import get_settings
+    from src.services.agent import agent_execution_service as jobs_mod
+    from src.services.agent import llm_factory
+    from src.services.agent.run_event_types import RunEventType
+
+    body = AgentExecuteRequest(
+        messages=[
+            AgentMessage(
+                role="user",
+                content="Explain why rainbows form",
+                client_message_id=uuid4(),
+            )
+        ],
+        page_context={"type": "chat"},
+        use_rag=False,
+        thread_id=str(thread.id),
+    )
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    settings = get_settings()
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_ENABLED", True)
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_MAX_INPUT_CHARS", 8_000)
+    model = _TokenThenBlockedLuna() if close_at == "heartbeat" else _FakeLuna()
+    monkeypatch.setattr(llm_factory, "build_fast_path_llm", lambda: model)
+    if close_at == "heartbeat":
+        monkeypatch.setattr(streaming_mod, "_SSE_KEEPALIVE_SECONDS", 0.01)
+
+    fake_graph = _NoGraphExecution()
+    fake_session = SimpleNamespace(close=AsyncMock())
+    persist_assistant = AsyncMock(return_value="partial-row-id")
+    finalize_calls: list[dict] = []
+
+    async def spy_finalize_run(*_args, **kwargs):
+        finalize_calls.append(kwargs)
+
+    with (
+        patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_session),
+        patch.object(streaming_mod, "_accept_eligible", return_value=False),
+        patch.object(
+            streaming_mod,
+            "_resolve_thread",
+            new=AsyncMock(return_value=(thread, str(thread.conversation_id))),
+        ),
+        patch.object(
+            streaming_mod,
+            "_persist_user_message_guarded",
+            new=AsyncMock(return_value=True),
+        ),
+        patch.object(
+            jobs_mod, "_persist_assistant_message_safe", new=persist_assistant
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "start_stream",
+            new=AsyncMock(return_value=None),
+        ),
+        patch.object(streaming_mod, "_finalize_run", spy_finalize_run),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            new=lambda **_kwargs: fake_graph,
+        ),
+    ):
+        generator = streaming_mod.stream_event_generator(body, request, user)
+        async for event in generator:
+            if (
+                (close_at == "routing" and "Using the direct Luna path" in event)
+                or (close_at == "trace" and "event: trace" in event)
+                or (close_at == "token" and "event: token" in event)
+                or (close_at == "heartbeat" and "event: heartbeat" in event)
+                or (close_at == "usage" and "event: usage" in event)
+            ):
+                break
+        if close_at == "heartbeat":
+            assert model.pull_started.is_set()
+            await asyncio.wait_for(generator.aclose(), timeout=0.1)
+            assert model.closed.is_set()
+        else:
+            await generator.aclose()
+
+    if close_at in {"routing", "trace"}:
+        persist_assistant.assert_not_awaited()
+    else:
+        persist_assistant.assert_awaited_once()
+        assert persist_assistant.await_args.kwargs["stopped"] is (
+            close_at in {"token", "heartbeat"}
+        )
+    assert finalize_calls[0]["event_type"] is RunEventType.RUN_CANCELLED
+    if close_at in {"token", "heartbeat", "usage"}:
+        assert finalize_calls[0]["payload"]["assistant_message_id"] == "partial-row-id"
+    else:
+        assert "assistant_message_id" not in finalize_calls[0]["payload"]
 
 
 async def test_fast_path_cancel_links_partial_and_keeps_prefix(monkeypatch):

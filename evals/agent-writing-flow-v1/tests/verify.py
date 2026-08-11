@@ -59,7 +59,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.judge import run_semantic_judge
 
 BENCHMARK_ID = "agent-writing-flow-v1"
-EXPECTED_SOURCE_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
+EXPECTED_SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 EXPECTED_INSTRUCTION = (
     "In the currently open project, compare the two documents titled "
     '"Graph Neural Networks for Molecular Property Prediction" and '
@@ -129,7 +129,14 @@ JUDGE_RUBRIC = (
     "documents. The candidate answer must not claim the literature review "
     "draft is already finished/complete -- draft generation is asynchronous "
     "and only just started. No citation details (authors, titles, DOIs) may "
-    "be fabricated beyond what the two trusted source documents state."
+    "be fabricated beyond what the two trusted source documents state. Judge "
+    "each workflow result independently: a pending draft does not invalidate "
+    "a completed comparison or bibliography export. Saying the draft was "
+    "started or is pending, including under a draft section heading, is not a "
+    "completion claim. Saying a source does not specify a limitation is "
+    "grounded when that source contains none. Do not label an omission or "
+    "harmless formatting choice a contradiction; contradictions require a "
+    "factual conflict with the trusted sources or successful tool results."
 )
 
 
@@ -615,6 +622,8 @@ def check_final_message(evidence: dict[str, Any], failures: list[str]) -> None:
     content = str(message.get("content") or "").strip()
     if not content:
         failures.append("no user-visible final assistant message")
+    elif not has_specific_comparison(content):
+        failures.append("final answer does not include a specific comparison finding")
     if message.get("tool_calls"):
         failures.append("final assistant message still contains pending tool calls")
     if evidence.get("termination_reason") != "completed":
@@ -622,6 +631,24 @@ def check_final_message(evidence: dict[str, Any], failures: list[str]) -> None:
             f"termination_reason={evidence.get('termination_reason')!r}, "
             "expected 'completed'"
         )
+
+
+def has_specific_comparison(content: str) -> bool:
+    normalized = content.casefold()
+    graph_markers = ("message passing", "permutation-invariant", "molecular graph")
+    attention_markers = ("self-attention", "content-dependent", "sequence")
+    return any(marker in normalized for marker in graph_markers) and any(
+        marker in normalized for marker in attention_markers
+    )
+
+
+def _assert_final_message_calibration() -> None:
+    assert has_specific_comparison(
+        "Molecular graph message passing differs from sequence self-attention."
+    )
+    assert not has_specific_comparison(
+        "The comparison and IEEE bibliography export are complete."
+    )
 
 
 def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[str]:
@@ -714,16 +741,22 @@ def load_truth_sources() -> list[dict[str, Any]]:
 
 def run_judge(evidence: dict[str, Any]) -> dict[str, Any]:
     answer = str((evidence.get("final_assistant_message") or {}).get("content") or "")
-    comparison = ""
-    for execution in executions_for(evidence, COMPARE_TOOL):
-        result = execution.get("result") or {}
-        if isinstance(result, dict) and result.get("comparison"):
-            comparison = str(result["comparison"])
-            break
-    candidate_answer = json.dumps(
-        {"final_assistant_message": answer, "compare_documents_result": comparison},
-        sort_keys=True,
-    )
+    successful_workflow = [
+        {
+            "tool": tool,
+            "args": execution.get("args"),
+            "result": execution.get("result"),
+        }
+        for tool in (COMPARE_TOOL, DRAFT_TOOL, EXPORT_TOOL)
+        for execution in executions_for(evidence, tool)
+        if execution.get("status") in SUCCESS_STATUSES
+        and isinstance(execution.get("result"), dict)
+        and not execution["result"].get("error")
+    ]
+    sources = [
+        *load_truth_sources(),
+        {"successful_workflow_tool_executions": successful_workflow},
+    ]
     # The stub is honored ONLY in calibration mode; a live evidence file cannot
     # self-certify Layer B by carrying a _judge_stub_verdict.
     stub_verdict = (
@@ -736,8 +769,8 @@ def run_judge(evidence: dict[str, Any]) -> dict[str, Any]:
     )
     return run_semantic_judge(
         question=EXPECTED_INSTRUCTION,
-        trusted_sources=load_truth_sources(),
-        candidate_answer=candidate_answer,
+        trusted_sources=sources,
+        candidate_answer=answer,
         rubric=JUDGE_RUBRIC,
         _client_factory=client_factory,
     )
@@ -750,7 +783,9 @@ def gate_with_judge(evidence: dict[str, Any], state: dict[str, Any]) -> list[str
     if judge.get("supported") is not True:
         failures.append("semantic judge marked the writing turn unsupported")
     if judge.get("contradictions"):
-        failures.append("semantic judge found contradictions")
+        failures.append(
+            f"semantic judge found contradictions: {judge['contradictions']}"
+        )
     if judge.get("unsupported_material_claims"):
         failures.append("semantic judge found unsupported material claims")
     return failures
@@ -764,6 +799,7 @@ def db_snapshot(evidence: dict[str, Any], state: dict[str, Any]) -> dict[str, An
 
 
 def main() -> int:
+    _assert_final_message_calibration()
     return run_verifier_main(BENCHMARK_ID, gate_with_judge, report_extra_fn=db_snapshot)
 
 

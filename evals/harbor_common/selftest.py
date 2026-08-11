@@ -11,7 +11,9 @@ import os
 import sys
 import tempfile
 from datetime import datetime, timezone
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from unittest.mock import patch
 from uuid import UUID
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -430,6 +432,112 @@ def test_run_semantic_judge() -> None:
                 os.environ[name] = value
 
 
+def test_judge_client_disables_reasoning() -> None:
+    captured: dict = {}
+
+    class _CapturingAzureChatOpenAI:
+        def __init__(self, **kwargs) -> None:
+            captured.update(kwargs)
+
+        def bind(self, **_kwargs):
+            return self
+
+        def invoke(self, _messages):
+            return _StubResponse(
+                '{"supported": true, "contradictions": [], '
+                '"unsupported_material_claims": [], "reason": "ok"}'
+            )
+
+    judge_env = {name: "test" for name in judge_module._ENV_VARS}
+    with (
+        patch.dict(os.environ, judge_env),
+        patch("langchain_openai.AzureChatOpenAI", _CapturingAzureChatOpenAI),
+    ):
+        run_semantic_judge(
+            question="q",
+            trusted_sources=["source a"],
+            candidate_answer="answer",
+            rubric="rubric text",
+        )
+
+    assert captured["reasoning_effort"] == "none", captured
+    assert captured["max_tokens"] == 800, captured
+
+
+def test_task_judge_inputs() -> None:
+    root = Path(__file__).resolve().parents[2]
+
+    def load_verifier(name: str, relative_path: str):
+        spec = spec_from_file_location(name, root / relative_path)
+        assert spec and spec.loader
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def capture_call(module, evidence: dict) -> dict:
+        captured: dict = {}
+
+        def capture(**kwargs):
+            captured.update(kwargs)
+            return {
+                "supported": True,
+                "contradictions": [],
+                "unsupported_material_claims": [],
+                "reason": "ok",
+            }
+
+        module.run_semantic_judge = capture
+        module.run_judge(evidence)
+        return captured
+
+    writing = load_verifier(
+        "writing_verify", "evals/agent-writing-flow-v1/tests/verify.py"
+    )
+    writing_call = capture_call(
+        writing,
+        {
+            "final_assistant_message": {"content": "visible writing answer"},
+            "raw_tool_executions": [
+                {
+                    "tool_name": writing.COMPARE_TOOL,
+                    "status": "completed",
+                    "result": {"comparison": "raw comparison sentinel"},
+                }
+            ],
+        },
+    )
+    assert writing_call["candidate_answer"] == "visible writing answer", writing_call
+    assert "raw comparison sentinel" in json.dumps(
+        writing_call["trusted_sources"]
+    ), writing_call
+
+    kb = load_verifier("kb_verify", "evals/agent-kb-retrieval-v1/tests/verify.py")
+    kb_call = capture_call(
+        kb,
+        {
+            "final_assistant_message": {"content": "visible KB answer"},
+            "raw_tool_executions": [
+                {
+                    "tool_name": kb.RETRIEVE_TOOL,
+                    "result": {"chunks": [{"text": "raw chunk sentinel"}]},
+                }
+            ],
+        },
+    )
+    assert kb_call["candidate_answer"] == "visible KB answer", kb_call
+    assert "raw chunk sentinel" in json.dumps(kb_call["trusted_sources"]), kb_call
+
+    kg = load_verifier(
+        "kg_verify", "evals/agent-knowledge-graph-flow-v1/tests/verify.py"
+    )
+    kg_call = capture_call(
+        kg,
+        {"final_assistant_message": {"content": "visible KG answer"}},
+    )
+    assert kg_call["candidate_answer"] == "visible KG answer", kg_call
+    assert kg_call["trusted_sources"], kg_call
+
+
 class _ListContentResponse:
     """Simulates langchain-openai>=1.0's list-shaped `AIMessage.content`."""
 
@@ -530,6 +638,8 @@ def main() -> None:
         test_load_inputs_live_path(tmp)
         test_run_verifier_main(tmp)
     test_run_semantic_judge()
+    test_judge_client_disables_reasoning()
+    test_task_judge_inputs()
     test_extract_text_from_content_blocks()
     test_retry_reminder_includes_offending_reply()
     print("selftest ok")

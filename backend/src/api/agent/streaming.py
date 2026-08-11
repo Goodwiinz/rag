@@ -13,9 +13,11 @@ import uuid as _uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from anyio import CancelScope
 from langgraph.errors import GraphInterrupt
 
 from src.core.database import AsyncSessionLocal
+from src.middleware.disconnect_signal import AGENT_DISCONNECT_EVENT
 from src.models.user import User
 
 # The job runner lives in the service layer (audit B5); `_jobs_mod` keeps its
@@ -266,20 +268,6 @@ async def _stream_luna_fast_path(
         _uuid.uuid5(_uuid.NAMESPACE_URL, f"{user_message_id}:fast-assistant")
     )
 
-    await emitter.start(stream_thread_id)
-    yield await emitter.emit(
-        AgentStreamEvent.STATUS,
-        {"phase": "routing", "detail": "Using the direct Luna path"},
-    )
-    yield await emitter.emit(
-        AgentStreamEvent.TRACE,
-        build_trace_payload(
-            thread_id=stream_thread_id,
-            cli_session_id="",
-            langsmith_run_id="",
-        ),
-    )
-
     prompt = build_fast_path_messages(
         request_body.messages,
         max_input_chars=settings.AGENT_FAST_PATH_MAX_INPUT_CHARS,
@@ -316,6 +304,7 @@ async def _stream_luna_fast_path(
     # Declared here so cancel_fast_path can link the cancelled run to the
     # stopped partial row it persists — same contract as the graph path.
     persisted_partial_id: Optional[str] = None
+    persisted_assistant_id: Optional[str] = None
 
     async def persist_partial() -> None:
         nonlocal persisted_partial_id
@@ -348,8 +337,9 @@ async def _stream_luna_fast_path(
             # Link the run to the stopped partial row persisted just above,
             # so a cancelled run can still name the message holding its
             # output. Omitted when nothing streamed before the abort.
-            if persisted_partial_id:
-                cancelled_payload["assistant_message_id"] = persisted_partial_id
+            linked_assistant_id = persisted_partial_id or persisted_assistant_id
+            if linked_assistant_id:
+                cancelled_payload["assistant_message_id"] = linked_assistant_id
             await _finalize_run(
                 db,
                 acceptance,
@@ -360,6 +350,20 @@ async def _stream_luna_fast_path(
             )
 
     try:
+        await emitter.start(stream_thread_id)
+        yield await emitter.emit(
+            AgentStreamEvent.STATUS,
+            {"phase": "routing", "detail": "Using the direct Luna path"},
+        )
+        yield await emitter.emit(
+            AgentStreamEvent.TRACE,
+            build_trace_payload(
+                thread_id=stream_thread_id,
+                cli_session_id="",
+                langsmith_run_id="",
+            ),
+        )
+
         if acceptance is not None:
             # The dispatch this outbox row recorded is about to happen
             # in-process. Stamping it keeps a future relay from re-dispatching
@@ -372,44 +376,64 @@ async def _stream_luna_fast_path(
             )
         async with asyncio.timeout(settings.AGENT_FAST_PATH_REQUEST_TIMEOUT):
             writing_emitted = False
-            async for chunk in stream_fast_path_chunks(
+            fast_path_chunks = stream_fast_path_chunks(
                 llm=llm,
                 messages=prompt,
                 persist_user=persist_user,
                 trace_metadata=trace_metadata,
-            ):
-                text = _chunk_text(chunk)
-                usage = getattr(chunk, "usage_metadata", None)
-                if isinstance(usage, dict):
-                    input_tokens = max(
-                        input_tokens, int(usage.get("input_tokens", 0) or 0)
+            ).__aiter__()
+            fast_path_events = _graph_events_with_keepalive(fast_path_chunks, request)
+            try:
+                async for item in fast_path_events:
+                    if item["type"] == "disconnect":
+                        client_disconnected = True
+                        await cancel_fast_path()
+                        return
+                    if item["type"] == "keepalive":
+                        frame = await emitter.emit(
+                            AgentStreamEvent.HEARTBEAT,
+                            {
+                                "elapsed_ms": int(
+                                    (time.monotonic() - stream_started_at) * 1000
+                                )
+                            },
+                            buffer=False,
+                        )
+                        if not client_disconnected:
+                            yield frame
+                        continue
+
+                    chunk = item["event"]
+                    text = _chunk_text(chunk)
+                    usage = getattr(chunk, "usage_metadata", None)
+                    if isinstance(usage, dict):
+                        input_tokens = max(
+                            input_tokens, int(usage.get("input_tokens", 0) or 0)
+                        )
+                        output_tokens = max(
+                            output_tokens, int(usage.get("output_tokens", 0) or 0)
+                        )
+                    if not text:
+                        continue
+                    if not writing_emitted:
+                        yield await emitter.emit(
+                            AgentStreamEvent.STATUS,
+                            {"phase": "writing", "detail": "Luna is responding"},
+                        )
+                        writing_emitted = True
+                    # Buffer BEFORE recording for persistence — same ordering
+                    # invariant as the graph path: the stopped partial must stay
+                    # a prefix of the buffered stream, so a cancellation inside
+                    # this await can only lose the last chunk, never invent one.
+                    frame = await emitter.emit(
+                        AgentStreamEvent.TOKEN,
+                        {"content": text},
                     )
-                    output_tokens = max(
-                        output_tokens, int(usage.get("output_tokens", 0) or 0)
-                    )
-                if not text:
-                    continue
-                if not writing_emitted:
-                    yield await emitter.emit(
-                        AgentStreamEvent.STATUS,
-                        {"phase": "writing", "detail": "Luna is responding"},
-                    )
-                    writing_emitted = True
-                # Buffer BEFORE recording for persistence — same ordering
-                # invariant as the graph path: the stopped partial must stay
-                # a prefix of the buffered stream, so a cancellation inside
-                # this await can only lose the last chunk, never invent one.
-                frame = await emitter.emit(
-                    AgentStreamEvent.TOKEN,
-                    {"content": text},
-                )
-                parts.append(text)
-                if not client_disconnected:
-                    yield frame
-                if await request.is_disconnected():
-                    client_disconnected = True
-                    await cancel_fast_path()
-                    return
+                    parts.append(text)
+                    if not client_disconnected:
+                        yield frame
+            finally:
+                await _close_async_iterator(fast_path_events)
 
         assistant_content = "".join(parts)
         if not assistant_content:
@@ -505,8 +529,8 @@ async def _stream_luna_fast_path(
                     "client_message_id": assistant_cmid,
                 }
             )
-        yield await emitter.emit(AgentStreamEvent.DONE, done_payload)
-        await emitter.finish()
+        # Commit completion before exposing the terminal frame. A disconnect
+        # immediately after ``done`` must not race into run.cancelled.
         await _finalize_run(
             db,
             acceptance,
@@ -519,9 +543,11 @@ async def _stream_luna_fast_path(
                 else {}
             ),
         )
-    except asyncio.CancelledError:
-        await asyncio.shield(cancel_fast_path())
-        raise
+        yield await emitter.emit(AgentStreamEvent.DONE, done_payload)
+        await emitter.finish()
+    except (asyncio.CancelledError, GeneratorExit) as exit_exc:
+        await _run_interrupted_cleanup(cancel_fast_path)
+        raise exit_exc
     except Exception as exc:
         logger.error("Luna fast-path stream failed", exc_info=exc)
         await persist_partial()
@@ -828,6 +854,47 @@ class _SeqEmitter:
 # Trace 019e6a0e: ~20s planner + internal LLM phases emit no SSE frames;
 # idle connections get cut at ~30s. Comment keepalives reset proxy timers.
 _SSE_KEEPALIVE_SECONDS = 10
+_SSE_DISCONNECT_POLL_SECONDS = 0.5
+
+
+def _get_disconnect_signal(request: Any) -> Optional[asyncio.Event]:
+    signal = getattr(getattr(request, "state", None), AGENT_DISCONNECT_EVENT, None)
+    return signal if isinstance(signal, asyncio.Event) else None
+
+
+async def _request_disconnected(request: Any) -> bool:
+    signal = _get_disconnect_signal(request)
+    return bool(signal and signal.is_set()) or await request.is_disconnected()
+
+
+async def _run_interrupted_cleanup(cleanup: Any) -> None:
+    """Finish durable cleanup outside the request's cancelled AnyIO scope."""
+
+    async def shielded_cleanup() -> None:
+        with CancelScope(shield=True):
+            await cleanup()
+
+    cleanup_task = asyncio.create_task(shielded_cleanup())
+    while not cleanup_task.done():
+        try:
+            await asyncio.shield(cleanup_task)
+        except asyncio.CancelledError:
+            continue
+
+
+def _cancel_current_task_on_disconnect(request: Any) -> Optional[asyncio.Task]:
+    signal = _get_disconnect_signal(request)
+    stream_task = asyncio.current_task()
+    if signal is None or stream_task is None:
+        return None
+
+    async def cancel_stream() -> None:
+        await signal.wait()
+        stream_task.cancel()
+
+    return asyncio.create_task(cancel_stream())
+
+
 _PLANNER_CHAIN_NODES = frozenset(
     {
         "planner_node",
@@ -836,6 +903,88 @@ _PLANNER_CHAIN_NODES = frozenset(
         "data_planner_node",
     }
 )
+
+
+def _consume_pending_pull_result(pending: asyncio.Task) -> None:
+    """Consume a detached pull result so asyncio never reports it as unhandled."""
+    try:
+        pending.result()
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        logger.debug("Detached agent stream pull failed", exc_info=True)
+
+
+async def _close_async_iterator(iterator: Any) -> None:
+    """Bound iterator shutdown so durable cancellation cannot wait on an LLM."""
+    close_task = asyncio.create_task(iterator.aclose())
+    try:
+        done, _ = await asyncio.wait({close_task}, timeout=_SSE_DISCONNECT_POLL_SECONDS)
+    except BaseException:
+        close_task.cancel()
+        if close_task.done():
+            _consume_pending_pull_result(close_task)
+        else:
+            close_task.add_done_callback(_consume_pending_pull_result)
+        raise
+    if close_task in done:
+        _consume_pending_pull_result(close_task)
+        return
+    close_task.cancel()
+    await _cancel_pending_graph_pull(close_task, request_cancel=False)
+    logger.warning(
+        "Timed out closing agent stream iterator",
+        extra={
+            "event": "agent_stream_iterator_close_timeout",
+            "cleanup_timeout_seconds": _SSE_DISCONNECT_POLL_SECONDS,
+        },
+    )
+
+
+async def _cancel_pending_graph_pull(
+    pending: asyncio.Task, *, request_cancel: bool = True
+) -> None:
+    """Cancel and briefly settle one pull without swallowing caller cancellation."""
+    current_task = asyncio.current_task()
+    cancellation_count = current_task.cancelling() if current_task else 0
+    cancellation_active = cancellation_count > 0
+    cancellation_exc: asyncio.CancelledError | None = None
+    cleanup_deadline = time.monotonic() + _SSE_DISCONNECT_POLL_SECONDS
+
+    if request_cancel and not pending.done():
+        pending.cancel()
+    while not pending.done():
+        remaining = cleanup_deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            await asyncio.wait_for(asyncio.shield(pending), timeout=remaining)
+        except asyncio.TimeoutError:
+            break
+        except asyncio.CancelledError as exc:
+            if (
+                cancellation_exc is None
+                and not cancellation_active
+                and current_task is not None
+                and current_task.cancelling() > cancellation_count
+            ):
+                cancellation_exc = exc
+            continue
+        except BaseException:
+            break
+    if pending.done():
+        _consume_pending_pull_result(pending)
+    else:
+        logger.warning(
+            "Timed out settling cancelled agent stream pull",
+            extra={
+                "event": "agent_stream_pull_cleanup_timeout",
+                "cleanup_timeout_seconds": _SSE_DISCONNECT_POLL_SECONDS,
+            },
+        )
+        pending.add_done_callback(_consume_pending_pull_result)
+    if cancellation_exc is not None:
+        raise cancellation_exc
 
 
 async def _graph_events_with_keepalive(event_stream_iter, request: Any):
@@ -847,41 +996,58 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
     terminal cancelled event instead of producing a later completion.
     """
     pending: asyncio.Task | None = None
+    pending_cancel_requested = False
+    next_keepalive_at = time.monotonic() + _SSE_KEEPALIVE_SECONDS
     try:
         while True:
-            if await request.is_disconnected():
+            if await _request_disconnected(request):
+                if pending is not None:
+                    pending.cancel()
+                    pending_cancel_requested = True
                 yield {"type": "disconnect"}
                 return
             if pending is None:
                 pending = asyncio.create_task(event_stream_iter.__anext__())
-            sleep_task = asyncio.create_task(asyncio.sleep(_SSE_KEEPALIVE_SECONDS))
             done, _ = await asyncio.wait(
-                {pending, sleep_task},
+                {pending},
+                timeout=min(
+                    _SSE_DISCONNECT_POLL_SECONDS,
+                    max(0, next_keepalive_at - time.monotonic()),
+                ),
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            if sleep_task in done and pending not in done:
-                yield {"type": "keepalive", "elapsed_ms": int(time.time() * 1000)}
+            if pending in done:
+                try:
+                    event = pending.result()
+                except StopAsyncIteration:
+                    pending = None
+                    break
+                except Exception:
+                    pending = None
+                    raise
+                pending = None
+                yield {"type": "event", "event": event}
                 continue
-            sleep_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await sleep_task
-            try:
-                event = pending.result()
-            except StopAsyncIteration:
-                pending = None
-                break
-            except Exception:
-                pending = None
-                raise
-            pending = None
-            yield {"type": "event", "event": event}
+
+            if await _request_disconnected(request):
+                pending.cancel()
+                pending_cancel_requested = True
+                yield {"type": "disconnect"}
+                return
+            now = time.monotonic()
+            if now >= next_keepalive_at:
+                yield {"type": "keepalive", "elapsed_ms": int(time.time() * 1000)}
+                next_keepalive_at = now + _SSE_KEEPALIVE_SECONDS
     finally:
         # Never leak the in-flight __anext__ task — on disconnect or error it
         # would otherwise drive one more graph step after we stop reading.
-        if pending is not None and not pending.done():
-            pending.cancel()
-            with contextlib.suppress(BaseException):
-                await pending
+        if pending is not None:
+            pending_pull = pending
+            pending = None
+            await _cancel_pending_graph_pull(
+                pending_pull,
+                request_cancel=not pending_cancel_requested,
+            )
 
 
 async def stream_event_generator(
@@ -955,6 +1121,7 @@ async def stream_event_generator(
         None,
     )
     client_message_id = getattr(latest_user_message, "client_message_id", None)
+    disconnect_canceller = _cancel_current_task_on_disconnect(request)
     try:
         # Resolve the thread and verify ownership BEFORE acknowledging anything
         # — the acknowledgment is now a claim about durable state, so it cannot
@@ -1030,7 +1197,7 @@ async def stream_event_generator(
             and resolved_thread_id is not None
         ):
             emitter.set_context(route="luna")
-            async for frame in _stream_luna_fast_path(
+            fast_path_iter = _stream_luna_fast_path(
                 request_body=request_body,
                 request=request,
                 current_user=current_user,
@@ -1055,8 +1222,12 @@ async def stream_event_generator(
                     client_message_id=client_message_id,
                 ),
                 acceptance=acceptance,
-            ):
-                yield frame
+            )
+            try:
+                async for frame in fast_path_iter:
+                    yield frame
+            finally:
+                await _close_async_iterator(fast_path_iter)
             return
 
         # Edit-and-resend: whichever writer owned this turn's user row also
@@ -1328,7 +1499,7 @@ async def stream_event_generator(
             """Best-effort durable cleanup for polling and ASGI cancellation."""
             if event_stream_iter is not None:
                 with contextlib.suppress(BaseException):
-                    await event_stream_iter.aclose()
+                    await _close_async_iterator(event_stream_iter)
             with contextlib.suppress(BaseException):
                 await persist_partial_stop(force_inline=True)
             with contextlib.suppress(BaseException):
@@ -1698,10 +1869,8 @@ async def stream_event_generator(
                     "client_message_id": assistant_cmid,
                 }
             )
-        frame = await emitter.emit(AgentStreamEvent.DONE, done_payload)
-        if not client_disconnected:
-            yield frame
-        await emitter.finish()
+        # Commit completion before exposing the terminal frame. A disconnect
+        # immediately after ``done`` must not race into run.cancelled.
         await _finalize_run(
             db,
             acceptance,
@@ -1714,15 +1883,19 @@ async def stream_event_generator(
                 else {}
             ),
         )
+        frame = await emitter.emit(AgentStreamEvent.DONE, done_payload)
+        if not client_disconnected:
+            yield frame
+        await emitter.finish()
 
-    except asyncio.CancelledError:
+    except (asyncio.CancelledError, GeneratorExit) as cancellation_exc:
         # Starlette cancels StreamingResponse's body iterator directly when
         # the client aborts the fetch. Shield the cleanup so that cancellation
         # cannot leave the graph running or the durable run non-terminal.
         async def cleanup_cancelled_response() -> None:
             if event_stream_iter is not None:
                 with contextlib.suppress(BaseException):
-                    await event_stream_iter.aclose()
+                    await _close_async_iterator(event_stream_iter)
             if persist_partial_stop is not None:
                 with contextlib.suppress(BaseException):
                     await persist_partial_stop(force_inline=True)
@@ -1747,8 +1920,8 @@ async def stream_event_generator(
                     payload=cancelled_payload,
                 )
 
-        await asyncio.shield(cleanup_cancelled_response())
-        raise
+        await _run_interrupted_cleanup(cleanup_cancelled_response)
+        raise cancellation_exc
 
     except GraphInterrupt as exc:
         # Graph hit an interrupt mid-stream (HITL confirmation needed).
@@ -1866,6 +2039,10 @@ async def stream_event_generator(
         )
 
     finally:
+        if disconnect_canceller is not None:
+            disconnect_canceller.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await disconnect_canceller
         await db.close()
         logger.info("SSE stream ended for thread %s", stream_thread_id)
 
@@ -1914,6 +2091,7 @@ async def stream_confirm_event_generator(
     # it to link the cancelled run to its stopped partial row, and that handler
     # can fire before the try body has run.
     persisted_assistant_id: Optional[str] = None
+    disconnect_canceller = _cancel_current_task_on_disconnect(request)
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
@@ -2188,7 +2366,7 @@ async def stream_confirm_event_generator(
         async def cancel_confirm_stream() -> None:
             if confirm_event_iter is not None:
                 with contextlib.suppress(BaseException):
-                    await confirm_event_iter.aclose()
+                    await _close_async_iterator(confirm_event_iter)
             with contextlib.suppress(BaseException):
                 await persist_partial_stop(force_inline=True)
             with contextlib.suppress(BaseException):
@@ -2518,11 +2696,8 @@ async def stream_confirm_event_generator(
                     "client_message_id": assistant_cmid,
                 }
             )
-        frame = await emitter.emit(AgentStreamEvent.DONE, done_payload)
-        if not client_disconnected:
-            yield frame
-        await emitter.finish()
-
+        # Commit completion before exposing the terminal frame. A disconnect
+        # immediately after ``done`` must not race into run.cancelled.
         await _finalize_run_id(
             db,
             str(active_run.job_id) if active_run is not None else None,
@@ -2535,13 +2710,17 @@ async def stream_confirm_event_generator(
                 else {}
             ),
         )
+        frame = await emitter.emit(AgentStreamEvent.DONE, done_payload)
+        if not client_disconnected:
+            yield frame
+        await emitter.finish()
 
-    except asyncio.CancelledError:
+    except (asyncio.CancelledError, GeneratorExit) as cancellation_exc:
 
         async def cleanup_cancelled_confirm_response() -> None:
             if confirm_event_iter is not None:
                 with contextlib.suppress(BaseException):
-                    await confirm_event_iter.aclose()
+                    await _close_async_iterator(confirm_event_iter)
             if persist_partial_stop is not None:
                 with contextlib.suppress(BaseException):
                     await persist_partial_stop(force_inline=True)
@@ -2566,8 +2745,8 @@ async def stream_confirm_event_generator(
                     payload=cancelled_payload,
                 )
 
-        await asyncio.shield(cleanup_cancelled_confirm_response())
-        raise
+        await _run_interrupted_cleanup(cleanup_cancelled_confirm_response)
+        raise cancellation_exc
 
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)
@@ -2595,5 +2774,9 @@ async def stream_confirm_event_generator(
         await emitter.finish()
 
     finally:
+        if disconnect_canceller is not None:
+            disconnect_canceller.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await disconnect_canceller
         await db.close()
         logger.info("SSE confirm stream ended for thread %s", request_body.thread_id)

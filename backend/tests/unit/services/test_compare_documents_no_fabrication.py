@@ -91,3 +91,24 @@ async def test_comparison_prompt_constrains_the_model_to_the_supplied_text():
     assert "Ground every statement in the supplied document text" in system_message
     assert "do not draw on outside knowledge" in system_message
     assert "treat a missing detail as unknown" in system_message
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_missing_document_error_does_not_echo_requested_identifier():
+    user = MagicMock()
+    user.organization_id = "org-1"
+    db = AsyncMock()
+    result_proxy = MagicMock()
+    result_proxy.scalars.return_value.all.return_value = []
+    db.execute.return_value = result_proxy
+    victim_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+
+    result = await _tool_compare_documents(
+        {"document_ids": [victim_id, "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"]},
+        db,
+        user,
+    )
+
+    assert result == {"error": "Document not found or access denied"}
+    assert victim_id not in str(result)

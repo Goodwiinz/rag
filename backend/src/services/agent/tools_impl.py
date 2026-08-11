@@ -2359,7 +2359,7 @@ async def _tool_compare_documents(
         for did in document_ids:
             doc = resolved.get(did)
             if not doc:
-                return {"error": f"Document not found: {did}"}
+                return {"error": "Document not found or access denied"}
 
             text = doc.content_text or ""
             if not text:
@@ -2581,7 +2581,11 @@ async def _tool_explore_entity_neighborhood(
         relationships = neighborhood.get("relationships", [])
 
         return {
+            "scope": "entity_neighborhood",
             "center_entity_id": entity_id,
+            "requested_max_depth": max_depth,
+            "result_limit": limit,
+            "connected_entities_scope": "entity_neighborhood",
             "connected_entities": [
                 {
                     "id": e.id,
@@ -2591,6 +2595,7 @@ async def _tool_explore_entity_neighborhood(
                 }
                 for e in entities
             ],
+            "relationships_scope": "entity_neighborhood",
             "relationships": [
                 {
                     "source": r.source_entity_id,
@@ -2606,6 +2611,9 @@ async def _tool_explore_entity_neighborhood(
             ],
             "total_entities": len(entities),
             "total_relationships": len(relationships),
+            "returned_counts_scope": "entity_neighborhood",
+            "returned_entity_count": len(entities),
+            "returned_relationship_count": len(relationships),
         }
     except Exception as e:
         logger.error("explore_entity_neighborhood tool failed", exc_info=e)
@@ -2711,12 +2719,14 @@ async def _tool_get_graph_stats(
         )
 
         return {
+            "scope": "organization_graph",
             "total_entities": analytics.total_entities,
             "total_relationships": analytics.total_relationships,
+            "entity_type_distribution_scope": "organization_graph",
             "entity_type_distribution": analytics.entity_type_counts,
+            "relationship_type_distribution_scope": "organization_graph",
             "relationship_type_distribution": analytics.relationship_type_counts,
             "average_degree": round(analytics.average_degree, 2),
-            "connected_components": analytics.connected_components,
         }
     except Exception as e:
         logger.error("get_graph_stats tool failed", exc_info=e)

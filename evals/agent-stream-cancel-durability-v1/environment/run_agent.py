@@ -21,8 +21,8 @@ import httpx
 from sqlalchemy import func, select, text
 
 BENCHMARK_ID = "agent-stream-cancel-durability-v1"
-SOURCE_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
-AGENT_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
+SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
+AGENT_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 EXPECTED_INSTRUCTION = (
     "Research three approaches to evaluating a production RAG system. Compare "
     "retrieval quality, answer faithfulness, latency, and cost, then recommend "
@@ -266,6 +266,17 @@ async def redis_snapshot() -> dict[str, Any]:
         await client.aclose()
 
 
+def token_log_from_frames(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize server replay token frames for diagnostic evidence."""
+    return [
+        {"content": str(data.get("content") or "")}
+        for frame in frames
+        if frame.get("event") == "token"
+        and isinstance(data := frame.get("data"), dict)
+        and data.get("content")
+    ]
+
+
 def validate_network_boundary() -> dict[str, Any]:
     direct_blocked = False
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -411,6 +422,20 @@ def parse_sse_text(raw: str) -> dict[str, Any]:
     }
 
 
+def abort_response_transport(response: httpx.Response) -> None:
+    """Force the live HTTP socket closed before recording a disconnect."""
+    network_stream = response.extensions.get("network_stream")
+    raw_socket = (
+        network_stream.get_extra_info("socket") if network_stream is not None else None
+    )
+    if raw_socket is None:
+        raise InfrastructureFailure("stream response did not expose its live socket")
+    try:
+        raw_socket.shutdown(socket.SHUT_RDWR)
+    except OSError as exc:
+        raise InfrastructureFailure("failed to abort stream response socket") from exc
+
+
 async def stream_until_first_token(token: str) -> dict[str, Any]:
     request_body = {
         "messages": [
@@ -429,6 +454,7 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "text/event-stream",
+        "Connection": "close",
         "Content-Type": "application/json",
         "X-Request-ID": REQUEST_ID,
     }
@@ -494,7 +520,9 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
                             first_token = observed
                             disconnect_initiated_at = utc_now()
                             disconnect_monotonic = time.monotonic()
+                            abort_response_transport(response)
                             await response.aclose()
+                            await client.aclose()
                             disconnect_completed_at = utc_now()
                             break
             except TimeoutError as exc:
@@ -898,6 +926,12 @@ async def run_benchmark() -> dict[str, Any]:
         # turn before independently reading the final replay state.
         await asyncio.sleep(0.2)
         observed_redis = await redis_snapshot()
+        redis_frames = [
+            entry["parsed_frame"]
+            for buffer in observed_redis["buffers"]
+            for entry in buffer["entries"]
+            if isinstance(entry.get("parsed_frame"), dict)
+        ]
         resumed = await resume_stream(token)
 
         trace_ids = sorted(
@@ -954,6 +988,7 @@ async def run_benchmark() -> dict[str, Any]:
                 "frames": frames,
                 "first_token": streamed["first_token"],
             },
+            "server_token_log": token_log_from_frames(redis_frames),
             "accepted": accepted,
             "disconnect": {
                 "initiated_at": disconnect.get("initiated_at"),

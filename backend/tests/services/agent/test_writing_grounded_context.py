@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -9,6 +10,20 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from src.services.agent.subgraphs.writing_agent import writing_llm_node
+
+
+def test_writing_prompt_forbids_claiming_pending_artifacts_are_complete() -> None:
+    prompt = (
+        Path(__file__).parents[3] / "src/services/agent/subgraphs/AGENTS_writing.md"
+    ).read_text()
+    assert "A pending artifact is not complete" in prompt
+    assert "repeat the tool's status" in prompt
+    assert "deliver their substantive results" in prompt
+    assert "status-only" in prompt
+    assert "do not write a substitute draft body" in prompt
+    assert "Treat tool results as the evidence boundary" in prompt
+    assert "list_project_documents` says `project_id is required" in prompt
+    assert "call `list_projects`" in prompt
 
 
 def _grounded_state(

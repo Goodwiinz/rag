@@ -102,6 +102,7 @@ from src.exceptions.error_handlers import (
     rag_exception_handler,
 )
 from src.health.endpoints import router as health_router
+from src.middleware.disconnect_signal import AgentDisconnectSignalMiddleware
 from src.middleware.multi_tenancy import MultiTenancyMiddleware
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.middleware.security_headers import SecurityHeadersMiddleware
@@ -546,11 +547,13 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-# Security response headers (audit #10). Registered LAST so it is the OUTERMOST
-# middleware: its headers are applied to every response, including those
-# short-circuited by inner middleware (CORS preflight, rate-limit 429,
-# trusted-host 400). Headers only — no request-handling side effects.
+# Security response headers (audit #10). Outermost response-mutating middleware:
+# its headers apply to every response, including those short-circuited by inner
+# middleware (CORS preflight, rate-limit 429, trusted-host 400).
 app.add_middleware(SecurityHeadersMiddleware)
+# Transparent outer receive wrapper: every downstream middleware shares its
+# disconnect signal, while SecurityHeadersMiddleware still mutates responses.
+app.add_middleware(AgentDisconnectSignalMiddleware)
 
 
 # Include routers

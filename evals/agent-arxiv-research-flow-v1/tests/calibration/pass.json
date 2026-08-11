@@ -1,6 +1,6 @@
 {
   "evidence": {
-    "agent_revision": "27018e69c0c9e0339aab5db5f76d34e1715a316c",
+    "agent_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
     "approval": {
       "count": 1,
       "resume": {
@@ -38,14 +38,14 @@
         },
         "documents": [
           {
-            "checksum_sha256": "19c12a6131fb79ba1244399b292f5c92fc14e2b7a75ceb0a9a5b192cd298e7b2",
+            "checksum_sha256": "be4a1ef8d2f14c220b7f678136c5aacc199d66e12309065105c6ddd7b3f82039",
             "id": "00000000-0000-4000-8000-0000000f0001",
             "is_deleted": false,
             "organization_id": "00000000-0000-4000-8000-000000001001",
             "title": "Deterministic Retrieval Benchmarks for Agentic Search"
           },
           {
-            "checksum_sha256": "8d83811c3266e59f13ac4019ea9235f103825bc0cdcea653e63706ce1c151174",
+            "checksum_sha256": "a070bdb41ada931ae538a6c76feaa1449e2f4479b7d88cc707a02bdb62fbf0fb",
             "id": "00000000-0000-4000-8000-0000000f0002",
             "is_deleted": false,
             "organization_id": "00000000-0000-4000-8000-000000001001",
@@ -165,14 +165,14 @@
         "type": "query"
       },
       {
-        "bytes": 120,
+        "bytes": 1100,
         "found": true,
         "paper_id": "2401.10001",
         "sequence": 4,
         "type": "pdf"
       },
       {
-        "bytes": 118,
+        "bytes": 1107,
         "found": true,
         "paper_id": "2401.10002",
         "sequence": 5,
@@ -219,35 +219,13 @@
       "2401.10002"
     ],
     "schema_version": "1.0",
-    "search_executions": [],
-    "search_instruction": "Search arXiv for deterministic benchmark retrieval evaluation.",
-    "source_revision": "27018e69c0c9e0339aab5db5f76d34e1715a316c",
-    "started_at": "2026-08-08T00:00:00Z",
-    "storage": [
+    "search_executions": [
       {
-        "bytes": 120,
-        "path": "documents/00000000-0000-4000-8000-000000001001/00000000-0000-4000-8000-0000000f0001/2401.10001.pdf",
-        "sha256": "19c12a6131fb79ba1244399b292f5c92fc14e2b7a75ceb0a9a5b192cd298e7b2"
-      },
-      {
-        "bytes": 118,
-        "path": "documents/00000000-0000-4000-8000-000000001001/00000000-0000-4000-8000-0000000f0002/2401.10002.pdf",
-        "sha256": "8d83811c3266e59f13ac4019ea9235f103825bc0cdcea653e63706ce1c151174"
-      }
-    ],
-    "suppress_observation_for": [
-      "ingest_arxiv_papers"
-    ],
-    "synthetic_actor": {
-      "organization_id": "00000000-0000-4000-8000-000000001001",
-      "project_id": "00000000-0000-4000-8000-000000001004",
-      "thread_id": "00000000-0000-4000-8000-000000001005",
-      "user_id": "00000000-0000-4000-8000-000000001002",
-      "workspace_id": "00000000-0000-4000-8000-000000001003"
-    },
-    "termination_reason": "completed",
-    "tool_executions": [
-      {
+        "args": {
+          "max_results": 5,
+          "query": "deterministic benchmark retrieval evaluation."
+        },
+        "id": "direct_search_arxiv_calibration_1",
         "result": {
           "papers": [
             {
@@ -266,6 +244,11 @@
         "tool_name": "search_arxiv"
       },
       {
+        "args": {
+          "max_results": 5,
+          "query": "deterministic benchmark retrieval evaluation."
+        },
+        "id": "direct_search_arxiv_calibration_2",
         "result": {
           "cached": true,
           "papers": [
@@ -283,7 +266,35 @@
         },
         "status": "completed",
         "tool_name": "search_arxiv"
+      }
+    ],
+    "search_instruction": "Search arXiv for deterministic benchmark retrieval evaluation.",
+    "source_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
+    "started_at": "2026-08-08T00:00:00Z",
+    "storage": [
+      {
+        "bytes": 1100,
+        "path": "documents/00000000-0000-4000-8000-000000001001/00000000-0000-4000-8000-0000000f0001/2401.10001.pdf",
+        "sha256": "be4a1ef8d2f14c220b7f678136c5aacc199d66e12309065105c6ddd7b3f82039"
       },
+      {
+        "bytes": 1107,
+        "path": "documents/00000000-0000-4000-8000-000000001001/00000000-0000-4000-8000-0000000f0002/2401.10002.pdf",
+        "sha256": "a070bdb41ada931ae538a6c76feaa1449e2f4479b7d88cc707a02bdb62fbf0fb"
+      }
+    ],
+    "suppress_observation_for": [
+      "ingest_arxiv_papers"
+    ],
+    "synthetic_actor": {
+      "organization_id": "00000000-0000-4000-8000-000000001001",
+      "project_id": "00000000-0000-4000-8000-000000001004",
+      "thread_id": "00000000-0000-4000-8000-000000001005",
+      "user_id": "00000000-0000-4000-8000-000000001002",
+      "workspace_id": "00000000-0000-4000-8000-000000001003"
+    },
+    "termination_reason": "completed",
+    "tool_executions": [
       {
         "result": {
           "document_ids": [
@@ -327,7 +338,7 @@
       },
       "documents": [
         {
-          "checksum_sha256": "19c12a6131fb79ba1244399b292f5c92fc14e2b7a75ceb0a9a5b192cd298e7b2",
+          "checksum_sha256": "be4a1ef8d2f14c220b7f678136c5aacc199d66e12309065105c6ddd7b3f82039",
           "document_metadata": {
             "arxiv_id": "2401.10001v1"
           },
@@ -343,7 +354,7 @@
           "title": "Deterministic Retrieval Benchmarks for Agentic Search"
         },
         {
-          "checksum_sha256": "8d83811c3266e59f13ac4019ea9235f103825bc0cdcea653e63706ce1c151174",
+          "checksum_sha256": "a070bdb41ada931ae538a6c76feaa1449e2f4479b7d88cc707a02bdb62fbf0fb",
           "document_metadata": {
             "arxiv_id": "2401.10002v1"
           },
@@ -381,14 +392,14 @@
     },
     "storage": [
       {
-        "bytes": 120,
+        "bytes": 1100,
         "path": "documents/00000000-0000-4000-8000-000000001001/00000000-0000-4000-8000-0000000f0001/2401.10001.pdf",
-        "sha256": "19c12a6131fb79ba1244399b292f5c92fc14e2b7a75ceb0a9a5b192cd298e7b2"
+        "sha256": "be4a1ef8d2f14c220b7f678136c5aacc199d66e12309065105c6ddd7b3f82039"
       },
       {
-        "bytes": 118,
+        "bytes": 1107,
         "path": "documents/00000000-0000-4000-8000-000000001001/00000000-0000-4000-8000-0000000f0002/2401.10002.pdf",
-        "sha256": "8d83811c3266e59f13ac4019ea9235f103825bc0cdcea653e63706ce1c151174"
+        "sha256": "a070bdb41ada931ae538a6c76feaa1449e2f4479b7d88cc707a02bdb62fbf0fb"
       }
     ]
   }

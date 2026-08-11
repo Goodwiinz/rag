@@ -18,7 +18,7 @@ except ImportError:  # pragma: no cover
     from evals.harbor_common.envelope import run_verifier_main
 
 BENCHMARK_ID = "agent-project-skill-runtime-v1"
-SOURCE_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
+SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 EXPECTED_INSTRUCTION = (
     "Use the active evidence-note project skill and the document in this project "
     "to create a source-grounded project note about sparse transformer attention."
@@ -60,11 +60,54 @@ V1_HASH = sha256(VERSION_1.encode()).hexdigest()
 V2_HASH = sha256(VERSION_2.encode()).hexdigest()
 SUCCESS = {"completed", "success"}
 ALLOWED_TOOLS = {
+    "list_projects",
     "load_project_skill",
     "list_project_documents",
     "summarize_document",
     "create_project_note",
 }
+MEASUREMENT_SCOPE_RE = re.compile(
+    r"\b(?:(?:16k|16\s+000)\s+tokens?\s+scientific\s+abstracts?"
+    r"(?:\s+workloads?)?|scientific\s+abstracts?(?:\s+workloads?)?\s+"
+    r"(?:containing|with|of)\s+(?:16k|16\s+000)\s+tokens?)\b",
+    re.IGNORECASE,
+)
+EXPLICIT_LIMITATION_RE = re.compile(
+    r"\b(?:dense\s+cross[- ]token\s+reasoning(?:\s+(?:tasks?|workloads?))?\s+"
+    r"(?:was\s+|were\s+)?not\s+(?:assessed|evaluated|tested|included)|did\s+not\s+"
+    r"(?:assess|evaluate|test|include)\s+(?:workloads?\s+requiring\s+)?"
+    r"dense\s+cross[- ]token\s+reasoning"
+    r"(?:\s+(?:tasks?|workloads?))?)\b",
+    re.IGNORECASE,
+)
+
+
+def mentions_measurement_scope(text: str) -> bool:
+    return bool(MEASUREMENT_SCOPE_RE.search(re.sub(r"[-,]", " ", text)))
+
+
+def mentions_explicit_limitation(text: str) -> bool:
+    return bool(EXPLICIT_LIMITATION_RE.search(text))
+
+
+def _assert_semantic_matcher_calibration() -> None:
+    assert all(
+        mentions_measurement_scope(text)
+        for text in (
+            "16k-token scientific abstracts",
+            "16,000-token scientific-abstract workload",
+            "scientific abstracts containing 16,000 tokens",
+        )
+    )
+    assert mentions_explicit_limitation(
+        "The experiment did not assess dense cross-token reasoning tasks."
+    )
+    assert mentions_explicit_limitation(
+        "The evaluation did not include workloads requiring dense cross-token reasoning tasks."
+    )
+    negative = "Long-context results leave dense cross-token reasoning uncertain."
+    assert not mentions_measurement_scope(negative)
+    assert not mentions_explicit_limitation(negative)
 
 
 def live_state() -> dict[str, Any]:
@@ -336,17 +379,9 @@ def check_note(
         failures.append("note omitted the source's 38-percent memory result")
     if not re.search(r"0\.4\s+percentage\s+points", content, re.I):
         failures.append("note omitted the source's 0.4-point accuracy context")
-    if not re.search(r"16k[- ]token\s+scientific\s+abstracts", content, re.I):
+    if not mentions_measurement_scope(content):
         failures.append("note omitted the source's measurement scope")
-    limitation = re.search(r"dense\s+cross[- ]token", content, re.I) and re.search(
-        r"not\s+(?:evaluated|tested)", content, re.I
-    )
-    limitation = limitation or re.search(
-        r"did\s+not\s+(?:include|evaluate|test)\s+dense\s+cross[- ]token",
-        content,
-        re.I,
-    )
-    if not limitation:
+    if not mentions_explicit_limitation(content):
         failures.append("note omitted the source's explicit limitation")
     if re.search(r"^##\s+(?:Context|Recommendation|Next Steps)\s*$", content, re.M):
         failures.append("note drifted to active version 2 after snapshot creation")
@@ -368,6 +403,7 @@ def check_note(
 
 
 def gate(evidence: dict[str, Any], state: dict[str, Any]) -> list[str]:
+    _assert_semantic_matcher_calibration()
     failures: list[str] = []
     check_identity(evidence, failures)
     check_versions(evidence, state, failures)

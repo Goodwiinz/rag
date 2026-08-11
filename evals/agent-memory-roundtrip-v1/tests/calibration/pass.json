@@ -1,6 +1,6 @@
 {
   "evidence": {
-    "agent_revision": "27018e69c0c9e0339aab5db5f76d34e1715a316c",
+    "agent_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
     "approval": {
       "resume": {
         "confirmed": true
@@ -10,9 +10,9 @@
     },
     "benchmark_id": "agent-memory-roundtrip-v1",
     "classification": {
-      "turn1_intent": "research",
-      "turn1_probe_intent": "research",
-      "turn1_probe_source": "keyword",
+      "turn1_intent": "general",
+      "turn1_probe_intent": "general",
+      "turn1_probe_source": "llm",
       "turn3_forced_intent": "memory_management"
     },
     "completed_at": "2026-08-08T12:01:10Z",
@@ -88,7 +88,7 @@
       "redacted_sentinel": "<email>",
       "value_after_turn1": {
         "created_at": "2026-08-08T12:00:05Z",
-        "intent": "research",
+        "intent": "general",
         "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
         "thread_id": "00000000-0000-4000-8000-000000000904",
         "tools_used": [],
@@ -287,7 +287,7 @@
       "memory_present": true,
       "memory_value": {
         "created_at": "2026-08-08T12:00:05Z",
-        "intent": "research",
+        "intent": "general",
         "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
         "thread_id": "00000000-0000-4000-8000-000000000904",
         "tools_used": [],
@@ -298,7 +298,7 @@
     },
     "schema_version": "1.0",
     "semantic": "N/A (deterministic; design doc reconciliation, see task.md)",
-    "source_revision": "27018e69c0c9e0339aab5db5f76d34e1715a316c",
+    "source_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
     "started_at": "2026-08-08T12:00:00Z",
     "store_backend": "AsyncPostgresStore",
     "suppress_observation_for": [
@@ -341,7 +341,7 @@
           "score": 0.0,
           "value": {
             "created_at": "2026-08-08T12:00:05Z",
-            "intent": "research",
+            "intent": "general",
             "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
             "thread_id": "00000000-0000-4000-8000-000000000904",
             "tools_used": [],

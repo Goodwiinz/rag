@@ -11,7 +11,27 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.agent.classifier import classify_intent_keywords
+from src.services.agent.classifier import (
+    classify_intent_keywords,
+    classify_intent_with_fallback,
+)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Compare the documents in our organization knowledge base about transformers.",
+        "Write a summary using our knowledge base evidence.",
+        "Search our docs and explain the retrieval policy.",
+    ],
+)
+async def test_kb_actions_route_to_research_override(query: str) -> None:
+    result = await classify_intent_with_fallback(query, page_context={})
+    assert result.intent == "research"
+    assert result.source == "action_override"
+    assert result.confidence == 1.0
 
 
 @pytest.mark.unit

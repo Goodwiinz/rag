@@ -29,6 +29,11 @@ EVENTS: list[dict[str, Any]] = []
 LOCK = threading.Lock()
 
 
+def query_stage(query: str) -> int:
+    tokens = set(re.findall(r"NOUS-LONG-([1-6])", query, re.IGNORECASE))
+    return int(next(iter(tokens))) if len(tokens) == 1 else 0
+
+
 def record(event: dict[str, Any]) -> None:
     with LOCK:
         EVENTS.append({"sequence": len(EVENTS) + 1, **event})
@@ -79,10 +84,9 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length))
             query = str(body["query"])
-            tokens = re.findall(r"NOUS-LONG-([1-6])", query, re.IGNORECASE)
             with LOCK:
                 expected = len([e for e in EVENTS if e.get("accepted")]) + 1
-            stage = int(tokens[0]) if len(tokens) == 1 else 0
+            stage = query_stage(query)
             accepted = (
                 auth_valid
                 and match.group(1) == KB_UUID
