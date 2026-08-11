@@ -22,7 +22,7 @@ import redis
 from psycopg.rows import dict_row
 
 BENCHMARK_ID = "agent-stream-cancel-durability-v1"
-SOURCE_REVISION = "cf3d04631cfd4ffb3d3e3f04be34333d5a091c3f"
+SOURCE_REVISION = "2a622d909f1dfc1cb2bc41def71a6c694b6343ac"
 EXPECTED_INSTRUCTION = (
     "Research three approaches to evaluating a production RAG system. Compare "
     "retrieval quality, answer faithfulness, latency, and cost, then recommend "

@@ -1,5 +1,5 @@
 schema_version = "1.2"
-source = "git+https://github.com/Goodwiinz/rag.git@cf3d04631cfd4ffb3d3e3f04be34333d5a091c3f"
+source = "git+https://github.com/Goodwiinz/rag.git@2a622d909f1dfc1cb2bc41def71a6c694b6343ac"
 artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
 
 [task]
@@ -10,8 +10,8 @@ keywords = ["langgraph", "e2b", "code-execution", "hitl", "tools", "intent-routi
 
 [metadata]
 benchmark_id = "agent-code-execution-v1"
-source_revision = "cf3d04631cfd4ffb3d3e3f04be34333d5a091c3f"
-agent_revision = "cf3d04631cfd4ffb3d3e3f04be34333d5a091c3f"
+source_revision = "2a622d909f1dfc1cb2bc41def71a6c694b6343ac"
+agent_revision = "2a622d909f1dfc1cb2bc41def71a6c694b6343ac"
 harbor_version = "0.6.6"
 base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
 

@@ -18,7 +18,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import AzureChatOpenAI
 
 BENCHMARK_ID = "rag-retrieval-safety-grounding-v1"
-SOURCE_REVISION = "cf3d04631cfd4ffb3d3e3f04be34333d5a091c3f"
+SOURCE_REVISION = "2a622d909f1dfc1cb2bc41def71a6c694b6343ac"
 EXPECTED_INSTRUCTION = (
     "Using our organization knowledge base, compare the current retention "
     "periods for account deletion and workspace deletion. Cite the supporting "
