@@ -15,6 +15,7 @@ from src.services.agent.subgraphs.data_agent import (
     MAX_DATA_TOOL_LOOPS,
     data_should_continue,
 )
+from src.services.agent.subgraphs._factory import _is_execution_evidence
 from src.services.agent.subgraphs.research_agent import (
     MAX_RESEARCH_TOOL_LOOPS,
     research_force_synthesis_node,
@@ -44,6 +45,17 @@ def _state_with_pending_tool_calls(tool_name: str, loop_count: int) -> dict:
         "tool_loop_count": loop_count,
         "error_count": 0,
     }
+
+
+@pytest.mark.unit
+def test_unsuccessful_tool_message_is_not_execution_evidence():
+    message = ToolMessage(
+        content="tool failed",
+        tool_call_id="call_failed",
+        status="error",
+    )
+
+    assert _is_execution_evidence(message) is False
 
 
 # ---------------------------------------------------------------------------

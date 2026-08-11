@@ -76,6 +76,8 @@ def _rename(fn: _F, name: str) -> _F:
 
 def _is_execution_evidence(message: ToolMessage) -> bool:
     """Return whether a ToolMessage proves a tool completed successfully."""
+    if getattr(message, "status", "success") != "success":
+        return False
     content = str(message.content or "").strip()
     if not content:
         return False
