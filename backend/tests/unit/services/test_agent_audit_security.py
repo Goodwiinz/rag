@@ -244,6 +244,9 @@ async def test_explore_entity_neighborhood_labels_returned_scope_and_limits():
     assert result["scope"] == "entity_neighborhood"
     assert result["requested_max_depth"] == 2
     assert result["result_limit"] == 10
+    assert result["connected_entities_scope"] == "entity_neighborhood"
+    assert result["relationships_scope"] == "entity_neighborhood"
+    assert result["returned_counts_scope"] == "entity_neighborhood"
     assert result["returned_entity_count"] == 2
     assert result["returned_relationship_count"] == 2
     assert result["total_entities"] == 2
@@ -283,6 +286,8 @@ async def test_get_graph_stats_omits_inexact_connected_components():
         result = await tools_impl._tool_get_graph_stats({}, current_user)
 
     assert result["scope"] == "organization_graph"
+    assert result["entity_type_distribution_scope"] == "organization_graph"
+    assert result["relationship_type_distribution_scope"] == "organization_graph"
     assert result["total_entities"] == 20
     assert result["total_relationships"] == 20
     assert result["entity_type_distribution"] == {"PERSON": 6}

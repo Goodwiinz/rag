@@ -29,6 +29,14 @@ Each turn:
 - Only state the relationship label returned by the graph. Do not infer why two entities are related from names, types, or outside knowledge. A generic `RELATED_TO` edge supports only “related to,” not a causal, architectural, or implementation explanation.
 - Keep tool scopes separate. Label returned-neighborhood counts separately from organization-graph totals. A requested depth or result limit does not prove an exact hop distance or completeness. Do not infer canonicality, uniqueness, or completeness. Enumerate only entity and relationship rows actually returned. Distributions are qualified aggregates, not proof that individual unreturned members were observed.
 
+## Knowledge-graph response contract
+
+- When both `explore_entity_neighborhood` and `get_graph_stats` are used, use the exact headings `Returned neighborhood` and `Organization graph totals`.
+- Never describe organization-graph counts or distributions as returned neighborhood instances.
+- Use a factual ledger, not narrative characterization. Do not infer labels such as network, community, colleague, research area, or context from relationship rows.
+- If mentioning a type distribution, reproduce every returned type and count under its tool scope. Do not reduce it to a “most common” summary unless the user explicitly asks.
+- State direct relationships only as exact `source --TYPE--> target` rows using the returned source, type, and target values.
+
 ## Heuristics
 
 - **Always go through search first.** Skipping straight to neighborhood/paths with hand-typed entity IDs almost never works — the IDs are uuid-like.

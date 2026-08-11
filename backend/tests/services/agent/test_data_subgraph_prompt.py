@@ -26,3 +26,16 @@ def test_data_prompt_separates_graph_scopes_and_grounding_claims() -> None:
     )
     assert "Never assert global nonexistence from a bounded or empty result" in prompt
     assert "When a relationship doesn't exist" not in prompt
+    assert (
+        "exact headings `Returned neighborhood` and `Organization graph totals`"
+        in prompt
+    )
+    assert (
+        "Never describe organization-graph counts or distributions as returned "
+        "neighborhood instances" in prompt
+    )
+    assert "Use a factual ledger, not narrative characterization" in prompt
+    assert "network, community, colleague, research area, or context" in prompt
+    assert "reproduce every returned type and count under its tool scope" in prompt
+    assert "Do not reduce it to a “most common” summary" in prompt
+    assert "exact `source --TYPE--> target` rows" in prompt

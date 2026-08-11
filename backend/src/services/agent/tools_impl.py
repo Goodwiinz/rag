@@ -2585,6 +2585,7 @@ async def _tool_explore_entity_neighborhood(
             "center_entity_id": entity_id,
             "requested_max_depth": max_depth,
             "result_limit": limit,
+            "connected_entities_scope": "entity_neighborhood",
             "connected_entities": [
                 {
                     "id": e.id,
@@ -2594,6 +2595,7 @@ async def _tool_explore_entity_neighborhood(
                 }
                 for e in entities
             ],
+            "relationships_scope": "entity_neighborhood",
             "relationships": [
                 {
                     "source": r.source_entity_id,
@@ -2609,6 +2611,7 @@ async def _tool_explore_entity_neighborhood(
             ],
             "total_entities": len(entities),
             "total_relationships": len(relationships),
+            "returned_counts_scope": "entity_neighborhood",
             "returned_entity_count": len(entities),
             "returned_relationship_count": len(relationships),
         }
@@ -2719,7 +2722,9 @@ async def _tool_get_graph_stats(
             "scope": "organization_graph",
             "total_entities": analytics.total_entities,
             "total_relationships": analytics.total_relationships,
+            "entity_type_distribution_scope": "organization_graph",
             "entity_type_distribution": analytics.entity_type_counts,
+            "relationship_type_distribution_scope": "organization_graph",
             "relationship_type_distribution": analytics.relationship_type_counts,
             "average_degree": round(analytics.average_degree, 2),
         }
