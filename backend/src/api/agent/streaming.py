@@ -13,6 +13,7 @@ import uuid as _uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from anyio import CancelScope
 from langgraph.errors import GraphInterrupt
 
 from src.core.database import AsyncSessionLocal
@@ -545,12 +546,7 @@ async def _stream_luna_fast_path(
         yield await emitter.emit(AgentStreamEvent.DONE, done_payload)
         await emitter.finish()
     except (asyncio.CancelledError, GeneratorExit) as exit_exc:
-        cleanup_task = asyncio.create_task(cancel_fast_path())
-        while not cleanup_task.done():
-            try:
-                await asyncio.shield(cleanup_task)
-            except asyncio.CancelledError:
-                continue
+        await _run_interrupted_cleanup(cancel_fast_path)
         raise exit_exc
     except Exception as exc:
         logger.error("Luna fast-path stream failed", exc_info=exc)
@@ -864,6 +860,20 @@ _SSE_DISCONNECT_POLL_SECONDS = 0.5
 async def _request_disconnected(request: Any) -> bool:
     signal = getattr(getattr(request, "state", None), AGENT_DISCONNECT_EVENT, None)
     return bool(signal and signal.is_set()) or await request.is_disconnected()
+
+
+async def _run_interrupted_cleanup(cleanup: Any) -> None:
+    """Finish durable cleanup outside the request's cancelled AnyIO scope."""
+    async def shielded_cleanup() -> None:
+        with CancelScope(shield=True):
+            await cleanup()
+
+    cleanup_task = asyncio.create_task(shielded_cleanup())
+    while not cleanup_task.done():
+        try:
+            await asyncio.shield(cleanup_task)
+        except asyncio.CancelledError:
+            continue
 
 
 def _cancel_current_task_on_disconnect(request: Any) -> Optional[asyncio.Task]:
@@ -1904,12 +1914,7 @@ async def stream_event_generator(
                     payload=cancelled_payload,
                 )
 
-        cleanup_task = asyncio.create_task(cleanup_cancelled_response())
-        while not cleanup_task.done():
-            try:
-                await asyncio.shield(cleanup_task)
-            except asyncio.CancelledError:
-                continue
+        await _run_interrupted_cleanup(cleanup_cancelled_response)
         raise cancellation_exc
 
     except GraphInterrupt as exc:
@@ -2734,12 +2739,7 @@ async def stream_confirm_event_generator(
                     payload=cancelled_payload,
                 )
 
-        cleanup_task = asyncio.create_task(cleanup_cancelled_confirm_response())
-        while not cleanup_task.done():
-            try:
-                await asyncio.shield(cleanup_task)
-            except asyncio.CancelledError:
-                continue
+        await _run_interrupted_cleanup(cleanup_cancelled_confirm_response)
         raise cancellation_exc
 
     except Exception as e:

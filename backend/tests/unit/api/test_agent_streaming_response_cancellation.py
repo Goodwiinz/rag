@@ -9,6 +9,7 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from anyio import CancelScope
 from starlette.responses import StreamingResponse
 from starlette.types import Message, Scope
 
@@ -48,6 +49,24 @@ class _BlockingGraph:
 
     async def aget_state(self, _config: Any) -> Any:
         return SimpleNamespace(values={"messages": []}, tasks=())
+
+
+@pytest.mark.asyncio
+async def test_interrupted_cleanup_shields_request_cancel_scope() -> None:
+    from src.api.agent import streaming as streaming_mod
+
+    completed = False
+
+    async def cleanup() -> None:
+        nonlocal completed
+        await asyncio.sleep(0)
+        completed = True
+
+    with CancelScope() as scope:
+        scope.cancel()
+        await streaming_mod._run_interrupted_cleanup(cleanup)
+
+    assert completed
 
 
 @pytest.mark.asyncio
