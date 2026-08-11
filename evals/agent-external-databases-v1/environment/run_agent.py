@@ -36,7 +36,7 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-external-databases-v1"
-SOURCE_REVISION = "6233f03472990f26a555507fd89bfc56ba8dfbe4"
+SOURCE_REVISION = "187973c4208f0895b43be3f8fa9766cf35c034a4"
 AGENT_REVISION = SOURCE_REVISION
 
 INSTRUCTION_TEXT = (
