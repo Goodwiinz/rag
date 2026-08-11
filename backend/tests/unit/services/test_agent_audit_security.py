@@ -199,13 +199,13 @@ async def test_explore_entity_neighborhood_labels_returned_scope_and_limits():
     current_user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
     entities = [
         SimpleNamespace(
-            id="entity-1",
+            id="neighbor-1",
             name="Atlas",
             entity_type=SimpleNamespace(value="MODEL"),
             confidence_score=0.9,
         ),
         SimpleNamespace(
-            id="entity-2",
+            id="neighbor-2",
             name="Beacon",
             entity_type=SimpleNamespace(value="CONCEPT"),
             confidence_score=0.8,
@@ -213,11 +213,17 @@ async def test_explore_entity_neighborhood_labels_returned_scope_and_limits():
     ]
     relationships = [
         SimpleNamespace(
-            source_entity_id="entity-1",
-            target_entity_id="entity-2",
+            source_entity_id="center-entity",
+            target_entity_id="neighbor-1",
             relationship_type=SimpleNamespace(value="RELATED_TO"),
             strength=0.7,
-        )
+        ),
+        SimpleNamespace(
+            source_entity_id="neighbor-1",
+            target_entity_id="neighbor-2",
+            relationship_type=SimpleNamespace(value="RELATED_TO"),
+            strength=0.7,
+        ),
     ]
     fake_service = SimpleNamespace(
         get_neighborhood=lambda **kwargs: {
@@ -231,17 +237,22 @@ async def test_explore_entity_neighborhood_labels_returned_scope_and_limits():
         fake_service,
     ):
         result = await tools_impl._tool_explore_entity_neighborhood(
-            {"entity_id": "entity-1", "max_depth": 2, "limit": 10}, current_user
+            {"entity_id": "center-entity", "max_depth": 2, "limit": 10},
+            current_user,
         )
 
     assert result["scope"] == "entity_neighborhood"
     assert result["requested_max_depth"] == 2
     assert result["result_limit"] == 10
     assert result["returned_entity_count"] == 2
-    assert result["returned_relationship_count"] == 1
+    assert result["returned_relationship_count"] == 2
     assert result["total_entities"] == 2
-    assert result["total_relationships"] == 1
-    assert result["center_entity_id"] == "entity-1"
+    assert result["total_relationships"] == 2
+    assert result["center_entity_id"] == "center-entity"
+    assert all(
+        entity["id"] != result["center_entity_id"]
+        for entity in result["connected_entities"]
+    )
     assert [entity["name"] for entity in result["connected_entities"]] == [
         "Atlas",
         "Beacon",

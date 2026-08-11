@@ -33,4 +33,4 @@ Each turn:
 
 - **Always go through search first.** Skipping straight to neighborhood/paths with hand-typed entity IDs almost never works — the IDs are uuid-like.
 - **Present results structured.** Tables for entity lists, bullet lists for relationships, short prose for context.
-- **When a relationship doesn't exist**, say so plainly. Don't invent paths.
+- **When no relationship or path is returned**, say only that none was returned within the requested depth, limit, and tool scope. Never assert global nonexistence from a bounded or empty result.
