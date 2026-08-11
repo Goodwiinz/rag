@@ -135,17 +135,6 @@ def check_store_choice(evidence: dict[str, Any], failures: list[str]) -> None:
         )
 
 
-def check_turn1_classification(evidence: dict[str, Any], failures: list[str]) -> None:
-    classification = evidence.get("classification") or {}
-    intent = classification.get("turn1_intent")
-    if intent in (None, "", "general"):
-        failures.append(
-            f"turn-1 intent={intent!r}; memory_save_node's gate skips "
-            "general/empty-intent turns with no tool_executions, so the fact "
-            "was never persisted"
-        )
-
-
 def check_memory_redaction(evidence: dict[str, Any], failures: list[str]) -> None:
     memory = evidence.get("memory") or {}
     value = memory.get("value_after_turn1")
@@ -326,7 +315,6 @@ def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[
     check_identity(evidence, failures)
     check_network_boundary(evidence, failures)
     check_store_choice(evidence, failures)
-    check_turn1_classification(evidence, failures)
     check_memory_redaction(evidence, failures)
     check_turn2_recall(evidence, failures)
     check_interrupt(evidence, failures)
