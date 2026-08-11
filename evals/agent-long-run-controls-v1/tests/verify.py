@@ -104,6 +104,16 @@ def executions(evidence: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def successful_raw_executions(evidence: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        item
+        for item in evidence.get("raw_tool_executions") or []
+        if isinstance(item, dict)
+        and item.get("status") in SUCCESS
+        and not (isinstance(item.get("result"), dict) and item["result"].get("error"))
+    ]
+
+
 def query_stage(value: Any) -> int | None:
     match = re.search(r"NOUS-LONG-([1-6])", str(value or ""), re.IGNORECASE)
     return int(match.group(1)) if match else None
@@ -127,6 +137,35 @@ def completion_through(text: str) -> int | None:
         for match in re.finditer(pattern, text, re.I)
     ]
     return max(claimed) if claimed else None
+
+
+def per_stage_completion_claims(text: str) -> set[int]:
+    claimed: set[int] = set()
+    negated = re.compile(
+        r"\b(?:never|not|without)\b|could\s+not|did\s+not|wasn't|isn't", re.I
+    )
+    for stage in range(1, 7):
+        forward = re.compile(
+            rf"(?=\bstage\s*{stage}\b(?P<link>[^.!?;\n]{{0,50}}?)"
+            r"\b(?:complete(?:d)?|verified)\b)",
+            re.I,
+        )
+        reverse = re.compile(
+            rf"(?=\b(?:completed|verified)\b(?P<link>[^.!?;\n]{{0,30}}?)"
+            rf"\bstage\s*{stage}\b)",
+            re.I,
+        )
+        if any(
+            not negated.search(match.group("link")) for match in forward.finditer(text)
+        ):
+            claimed.add(stage)
+            continue
+        for match in reverse.finditer(text):
+            prefix = text[max(0, match.start() - 20) : match.start()]
+            if not negated.search(prefix + match.group("link")):
+                claimed.add(stage)
+                break
+    return claimed
 
 
 def check_identity(evidence: dict[str, Any], failures: list[str]) -> None:
@@ -153,9 +192,8 @@ def check_chain(
     runs = executions(evidence)
     completed = [
         item
-        for item in runs
-        if item.get("status") in SUCCESS
-        and not (isinstance(item.get("result"), dict) and item["result"].get("error"))
+        for item in successful_raw_executions(evidence)
+        if item.get("tool_name") == "do_kb_retrieve"
     ]
     if len(completed) != len(runs):
         failures.append("one or more retrieval stages did not complete")
@@ -209,30 +247,105 @@ def check_outcome_and_message_linkage(
     evidence: dict[str, Any], completed_stages: list[int], failures: list[str]
 ) -> tuple[str, int, int | None] | None:
     messages = evidence.get("messages") or []
-    calls: dict[str, dict[str, Any]] = {}
-    results: set[str] = set()
+    calls_by_id: dict[str, list[dict[str, Any]]] = {}
+    results_by_id: dict[str, list[dict[str, Any]]] = {}
     for message in messages:
         if not isinstance(message, dict):
             continue
         if message.get("type") == "ai":
             for call in message.get("tool_calls") or []:
-                if call.get("id"):
-                    calls[str(call["id"])] = call
-        if message.get("type") == "tool" and message.get("tool_call_id"):
-            results.add(str(message["tool_call_id"]))
+                call_id = call.get("id") if isinstance(call, dict) else None
+                if not isinstance(call_id, str) or not call_id.strip():
+                    failures.append("AI tool call missing non-empty id")
+                    continue
+                calls_by_id.setdefault(call_id, []).append(call)
+        if message.get("type") == "tool":
+            tool_call_id = message.get("tool_call_id")
+            if not isinstance(tool_call_id, str) or not tool_call_id.strip():
+                failures.append("ToolMessage missing non-empty tool_call_id")
+                continue
+            results_by_id.setdefault(tool_call_id, []).append(message)
+
+    for call_id, matches in calls_by_id.items():
+        if len(matches) > 1:
+            failures.append(f"duplicate AI tool call id: {call_id}")
+    for tool_call_id, matches in results_by_id.items():
+        if len(matches) > 1:
+            failures.append(f"duplicate ToolMessage tool_call_id: {tool_call_id}")
+
+    successful = successful_raw_executions(evidence)
+    raw_ids: list[str] = []
+    for item in successful:
+        raw_id = item.get("id")
+        if not isinstance(raw_id, str) or not raw_id.strip():
+            failures.append("successful raw execution missing non-empty id")
+            continue
+        raw_ids.append(raw_id)
+    for raw_id in sorted({raw_id for raw_id in raw_ids if raw_ids.count(raw_id) > 1}):
+        failures.append(f"duplicate successful raw execution id: {raw_id}")
+
+    for item in successful:
+        raw_id = item.get("id")
+        if not isinstance(raw_id, str) or not raw_id.strip():
+            continue
+        calls = calls_by_id.get(raw_id) or []
+        tool_messages = results_by_id.get(raw_id) or []
+        if len(calls) != 1:
+            if not calls:
+                failures.append(
+                    f"successful raw execution {raw_id} has no matching AI tool call"
+                )
+            continue
+        if len(tool_messages) != 1:
+            if not tool_messages:
+                failures.append(
+                    f"successful raw execution {raw_id} has no matching ToolMessage"
+                )
+            continue
+
+        call = calls[0]
+        tool_message = tool_messages[0]
+        if call.get("name") != item.get("tool_name"):
+            failures.append(f"tool name linkage mismatch for execution {raw_id}")
+        raw_args = item.get("args")
+        call_args = call.get("args")
+        args_mismatch = not (
+            isinstance(raw_args, dict)
+            and isinstance(call_args, dict)
+            and (bool(call_args) or not raw_args)
+            and all(
+                key in raw_args and raw_args[key] == value
+                for key, value in call_args.items()
+            )
+        )
+        if args_mismatch:
+            failures.append(f"tool argument linkage mismatch for execution {raw_id}")
+        message_status = tool_message.get("status")
+        if message_status is not None and message_status not in SUCCESS:
+            failures.append(f"ToolMessage for execution {raw_id} is not successful")
+        if tool_message.get("name") not in {None, "", item.get("tool_name")}:
+            failures.append(f"ToolMessage name linkage mismatch for execution {raw_id}")
+        if "args" in tool_message and tool_message["args"] != raw_args:
+            failures.append(
+                f"ToolMessage argument linkage mismatch for execution {raw_id}"
+            )
+        if "result" in tool_message and "result" in item:
+            if tool_message["result"] != item["result"]:
+                failures.append(f"tool result linkage mismatch for execution {raw_id}")
+        elif "result" in item and isinstance(tool_message.get("content"), str):
+            try:
+                message_result = json.loads(tool_message["content"])
+            except json.JSONDecodeError:
+                pass
+            else:
+                if message_result != item["result"]:
+                    failures.append(
+                        f"tool result linkage mismatch for execution {raw_id}"
+                    )
+
+    calls = {call_id: matches[0] for call_id, matches in calls_by_id.items()}
+    results = set(results_by_id)
     unmatched = [call for call_id, call in calls.items() if call_id not in results]
-    completed_ids = {
-        str(item["id"])
-        for item in evidence.get("raw_tool_executions") or []
-        if isinstance(item, dict)
-        and item.get("status") in SUCCESS
-        and not (isinstance(item.get("result"), dict) and item["result"].get("error"))
-        and item.get("id")
-    }
-    missing_ai_calls = completed_ids - calls.keys()
-    missing_tool_messages = completed_ids - results
-    if missing_ai_calls or missing_tool_messages:
-        failures.append("completed tool calls missing matching AI call or ToolMessage")
     if not completed_stages:
         return None
     last_completed = completed_stages[-1]
@@ -314,6 +427,12 @@ def check_final(
             if re.search(STAGE_FACTS[stage], text, re.I):
                 failures.append(
                     f"final answer claimed facts from unexecuted stage {stage}"
+                )
+        for stage in sorted(per_stage_completion_claims(text)):
+            if stage > last_completed:
+                failures.append(
+                    "final answer claimed completion or verification of "
+                    f"unexecuted stage {stage}"
                 )
         claimed = completion_through(text)
         if claimed is not None and claimed > last_completed:
