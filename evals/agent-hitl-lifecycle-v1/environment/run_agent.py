@@ -38,7 +38,7 @@ from evals.harbor_common.network import validate_network_boundary
 from evals.harbor_common.serialization import json_safe, utc_now
 
 BENCHMARK_ID = "agent-hitl-lifecycle-v1"
-SOURCE_REVISION = "7d48eca8438ef643e7e3c33b644b68256b2c065b"
+SOURCE_REVISION = "70efbb5d3ff22dabff7104c55d5afdb53d315f48"
 AGENT_REVISION = SOURCE_REVISION
 
 ORG_ID = UUID("00000000-0000-4000-8000-000000000801")

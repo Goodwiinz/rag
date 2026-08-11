@@ -1,5 +1,5 @@
 schema_version = "1.2"
-source = "git+https://github.com/Goodwiinz/rag.git@7d48eca8438ef643e7e3c33b644b68256b2c065b"
+source = "git+https://github.com/Goodwiinz/rag.git@70efbb5d3ff22dabff7104c55d5afdb53d315f48"
 artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
 
 [task]
@@ -10,8 +10,8 @@ keywords = ["tenant-isolation", "security", "multi-tenant", "tools", "rag"]
 
 [metadata]
 benchmark_id = "agent-tenant-isolation-v1"
-source_revision = "7d48eca8438ef643e7e3c33b644b68256b2c065b"
-agent_revision = "7d48eca8438ef643e7e3c33b644b68256b2c065b"
+source_revision = "70efbb5d3ff22dabff7104c55d5afdb53d315f48"
+agent_revision = "70efbb5d3ff22dabff7104c55d5afdb53d315f48"
 harbor_version = "0.6.6"
 base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
 
