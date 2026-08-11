@@ -2,8 +2,8 @@
   "evidence": {
     "schema_version": "1.0",
     "benchmark_id": "agent-fast-path-cancel-v1",
-    "source_revision": "96f23a61a16688efefbbf784117ae3417ec3af43",
-    "agent_revision": "96f23a61a16688efefbbf784117ae3417ec3af43",
+    "source_revision": "6233f03472990f26a555507fd89bfc56ba8dfbe4",
+    "agent_revision": "6233f03472990f26a555507fd89bfc56ba8dfbe4",
     "started_at": "2026-08-09T10:00:00Z",
     "completed_at": "2026-08-09T10:00:05Z",
     "instruction": "Explain why the sky appears blue in one sentence.",
