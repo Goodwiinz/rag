@@ -41,25 +41,6 @@
         }
       },
       {
-        "tool_name": "search_knowledge_graph",
-        "status": "failed",
-        "args": {
-          "query": "Marcus Chen",
-          "limit": 20
-        },
-        "result": {
-          "entities": [
-            {
-              "id": "entity-marcus-chen",
-              "name": "Marcus Chen",
-              "type": "PERSON",
-              "confidence": 0.95
-            }
-          ],
-          "error": "simulated failed lookup"
-        }
-      },
-      {
         "tool_name": "explore_entity_neighborhood",
         "status": "completed",
         "args": {
@@ -69,24 +50,8 @@
         },
         "result": {
           "center_entity_id": "entity-elena-vasquez",
-          "connected_entities": [
-            {
-              "id": "entity-nova-research-institute",
-              "name": "Nova Research Institute",
-              "type": "ORGANIZATION",
-              "confidence": 0.95
-            }
-          ],
-          "relationships": [
-            {
-              "source": "entity-marcus-chen",
-              "target": "entity-nova-research-institute",
-              "type": "WORKS_FOR",
-              "strength": 1.0
-            }
-          ],
-          "total_entities": 1,
-          "total_relationships": 1
+          "total_entities": 0,
+          "total_relationships": 0
         }
       },
       {
@@ -109,14 +74,14 @@
       }
     ],
     "final_assistant_message": {
-      "content": "The neighborhood result says Marcus Chen works for Nova Research Institute, but Marcus appeared only in a failed lookup.",
+      "content": "Elena Vasquez has zero connected entities and zero relationships in the returned neighborhood.",
       "tool_calls": []
     },
     "_judge_stub_verdict": {
       "supported": true,
       "contradictions": [],
       "unsupported_material_claims": [],
-      "reason": "The answer accurately describes the incomplete tool evidence."
+      "reason": "The answer repeats the reported zero counts."
     }
   },
   "state": {
