@@ -15,8 +15,10 @@ Pool lifecycle lives in ``_pool_utils``; this module never closes it.
 
 import asyncio
 import logging
+import re
 
 from src.core.config import get_settings
+from src.services.agent._pii_redact import redact_pii
 from src.services.agent._pool_utils import (
     get_shared_langgraph_pool,
     require_durable_or_fallback,
@@ -203,6 +205,27 @@ async def save_memory(
 # a stray "forget" request wipe an unrelated memory. 0.6 is empirical —
 # tune if FN/FP rate is wrong after deploy.
 _FORGET_SCORE_THRESHOLD: float = 0.6
+_FORGET_BOILERPLATE = {
+    "a",
+    "about",
+    "an",
+    "for",
+    "forget",
+    "going",
+    "i",
+    "is",
+    "me",
+    "my",
+    "of",
+    "please",
+    "remember",
+    "that",
+    "the",
+    "this",
+    "to",
+    "what",
+    "you",
+}
 
 
 async def delete_memory_by_query(
@@ -248,6 +271,14 @@ async def delete_memory_by_query(
         getattr(item, "score", None) is None for item in results
     )
     needle = query.strip().casefold()
+    redacted_query = re.sub(
+        r"<[^>]+>|\[redacted_[^]]+\]", " ", redact_pii(query), flags=re.IGNORECASE
+    )
+    query_topics = {
+        token
+        for token in re.findall(r"\w+", redacted_query.casefold())
+        if token not in _FORGET_BOILERPLATE
+    }
 
     deleted = 0
     for m, item in zip(matches, results):
@@ -258,6 +289,19 @@ async def delete_memory_by_query(
                 str(v) for v in value.values() if isinstance(v, str)
             ).casefold()
             should_delete = needle in haystack
+            if not should_delete and len(query_topics) >= 3:
+                redacted_haystack = re.sub(
+                    r"<[^>]+>|\[redacted_[^]]+\]",
+                    " ",
+                    redact_pii(haystack),
+                    flags=re.IGNORECASE,
+                )
+                stored_topics = {
+                    token
+                    for token in re.findall(r"\w+", redacted_haystack.casefold())
+                    if token not in _FORGET_BOILERPLATE
+                }
+                should_delete = query_topics <= stored_topics
         if not should_delete:
             continue
         try:
@@ -268,7 +312,7 @@ async def delete_memory_by_query(
 
     if unranked:
         logger.warning(
-            "forget_memory: store has no semantic index; used exact-text "
+            "forget_memory: store has no semantic index; used text "
             "fallback for query=%r (deleted=%d of %d candidates)",
             query,
             deleted,
