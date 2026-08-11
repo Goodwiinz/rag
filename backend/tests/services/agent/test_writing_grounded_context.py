@@ -18,6 +18,8 @@ def test_writing_prompt_forbids_claiming_pending_artifacts_are_complete() -> Non
     ).read_text()
     assert "A pending artifact is not complete" in prompt
     assert "repeat the tool's status" in prompt
+    assert "deliver their substantive results" in prompt
+    assert "status-only" in prompt
 
 
 def _grounded_state(

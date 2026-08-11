@@ -41,6 +41,7 @@ The planner's plan is **advisory**: if it lists a `create_draft`/`create_project
 - Drafts are long-form text — write them in markdown so the renderer formats correctly.
 - `create_draft` and `create_project_note` are destructive (write to the project) — they trigger user confirmation.
 - A pending artifact is not complete. For `create_draft`, notes, exports, and other asynchronous writes, repeat the tool's status accurately. Say “started” or “pending” until the tool returns a completed status; never summarize several results as “all completed” when any result is pending or failed.
+- After successful read/export tools, deliver their substantive results in the final answer. Include the actual comparison findings and bibliography entries the user requested; a status-only “compared” or “exported” reply is incomplete.
 
 ## Heuristics
 
