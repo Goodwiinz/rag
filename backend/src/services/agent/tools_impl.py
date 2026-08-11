@@ -1195,25 +1195,25 @@ async def _tool_ingest_arxiv(
 
     try:
         async with ArXivIngestionService() as service:
-            # Fetch paper metadata in parallel; cap concurrency to be polite
-            # to the arXiv API (no batched id_list endpoint available).
-            metadata_semaphore = asyncio.Semaphore(5)
+            # Batch metadata lookup via the API's id_list parameter: all
+            # requested papers in ONE request — one shared rate-gate slot
+            # instead of one per paper (a 10-paper ingest used to burn ~30s
+            # of the gate queue on metadata alone).
+            fetched_by_id: Dict[str, Dict[str, Any]] = {}
+            try:
+                for paper in await service.get_papers_by_ids(paper_ids):
+                    # arXiv returns versioned IDs ("2605.10877v1"); callers
+                    # typically pass unversioned — key by stripped ID.
+                    fetched_by_id[_ARXIV_VERSION_RE.sub("", str(paper["id"]))] = paper
+            except Exception as exc:
+                logger.warning("arXiv batch metadata fetch failed: %s", exc)
+                for pid in paper_ids:
+                    failed_papers[pid] = f"metadata fetch failed: {exc}"
 
-            async def _fetch_one(pid: str) -> Dict[str, Any]:
-                async with metadata_semaphore:
-                    try:
-                        results = await service.search_papers(
-                            query=f"id:{pid}",
-                            max_results=1,
-                        )
-                    except Exception as exc:
-                        logger.warning(
-                            "arXiv metadata fetch failed for %s: %s", pid, exc
-                        )
-                        failed_papers[pid] = f"metadata fetch failed: {exc}"
-                        results = None
-                if results:
-                    return results[0]
+            def _paper_or_stub(pid: str) -> Dict[str, Any]:
+                paper = fetched_by_id.get(_ARXIV_VERSION_RE.sub("", pid))
+                if paper:
+                    return paper
                 # Fallback: minimal paper dict so ingest can still proceed.
                 # Record the miss so the caller knows which IDs lacked
                 # real arXiv metadata (likely invalid or very new).
@@ -1233,9 +1233,7 @@ async def _tool_ingest_arxiv(
                     "links": {"pdf": f"https://arxiv.org/pdf/{pid}"},
                 }
 
-            papers_to_ingest = list(
-                await asyncio.gather(*[_fetch_one(pid) for pid in paper_ids])
-            )
+            papers_to_ingest = [_paper_or_stub(pid) for pid in paper_ids]
 
             ingested = await service.ingest_papers(
                 papers=papers_to_ingest,
