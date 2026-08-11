@@ -8,7 +8,7 @@
       "supported": true,
       "unsupported_material_claims": []
     },
-    "agent_revision": "ed775b109e9928f8d31574458b0399b4cb316bad",
+    "agent_revision": "deab258b29c4c4005d0178a04c1aadce44f7a3bd",
     "approval": {
       "count": 1,
       "resume": {
@@ -489,7 +489,7 @@
       }
     ],
     "schema_version": "1.0",
-    "source_revision": "ed775b109e9928f8d31574458b0399b4cb316bad",
+    "source_revision": "deab258b29c4c4005d0178a04c1aadce44f7a3bd",
     "started_at": "2026-08-08T09:00:00Z",
     "suppress_observation_for": [
       "create_draft"

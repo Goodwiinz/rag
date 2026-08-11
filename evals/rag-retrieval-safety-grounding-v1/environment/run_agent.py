@@ -21,8 +21,8 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 from sqlalchemy import func, select
 
 BENCHMARK_ID = "rag-retrieval-safety-grounding-v1"
-SOURCE_REVISION = "ed775b109e9928f8d31574458b0399b4cb316bad"
-AGENT_REVISION = "ed775b109e9928f8d31574458b0399b4cb316bad"
+SOURCE_REVISION = "deab258b29c4c4005d0178a04c1aadce44f7a3bd"
+AGENT_REVISION = "deab258b29c4c4005d0178a04c1aadce44f7a3bd"
 EXPECTED_INSTRUCTION = (
     "Using our organization knowledge base, compare the current retention "
     "periods for account deletion and workspace deletion. Cite the supporting "
