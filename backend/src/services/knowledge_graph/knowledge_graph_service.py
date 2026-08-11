@@ -1710,7 +1710,7 @@ class KnowledgeGraphService:
                 WITH related,
                      shortest_path,
                      [rel in relationships(shortest_path) |
-                       {{label: type(rel),
+                       {{label: coalesce(rel.type, type(rel)),
                          strength: coalesce(rel.strength, rel.confidence, 1.0),
                          confidence: coalesce(rel.confidence_score, rel.confidence, 0.5)}}
                      ] AS path_rels,
