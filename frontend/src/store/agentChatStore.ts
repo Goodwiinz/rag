@@ -306,7 +306,19 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   threadId: string,
                   confirmation: Record<string, unknown>
                 ) => {
-                  if (!isCurrentGeneration()) return;
+                  if (!isCurrentGeneration()) {
+                    // A parked HITL confirmation from a superseded generation
+                    // is silently unrecoverable — the card never renders and
+                    // the next turn wipes it. Log so the drop is observable
+                    // (audit finding A, trace 019ff314-c29c) while keeping
+                    // the guard, which prevents cross-thread corruption
+                    // (PR #1223).
+                    console.warn(
+                      '[agentChatStore] dropped SSE confirmation: generation superseded',
+                      { threadId }
+                    );
+                    return;
+                  }
                   set((state) => {
                     const idx = state.messages.findIndex(
                       (m) => m.id === placeholderId
@@ -423,7 +435,14 @@ export const useAgentChatStore = create<AgentChatStore>()(
           const run = await agentChatService.getDurableRunStatus(runId);
           const meta = run.metadata ?? {};
 
-          if (meta.status === 'awaiting_confirmation' && meta.waitTokenId) {
+          // meta.status is the only reliable signal here — the backend
+          // never issues a wait token (agent_execution_service.py's
+          // AWAITING_CONFIRMATION payload is {status, confirmation,
+          // tool_executions}), so requiring meta.waitTokenId silently
+          // swallowed every parked confirmation on this path (audit finding
+          // A, trace 019ff314-c29c). Carry waitTokenId through when a
+          // durable run does supply one, but never require it.
+          if (meta.status === 'awaiting_confirmation') {
             set((state) => {
               state.pendingConfirmation = {
                 jobId: runId,
@@ -435,7 +454,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   ((meta.confirmation as Record<string, unknown>)
                     ?.message as string) ||
                   'The agent wants to perform an action. Please confirm.',
-                waitTokenId: meta.waitTokenId as string,
+                ...(typeof meta.waitTokenId === 'string'
+                  ? { waitTokenId: meta.waitTokenId }
+                  : {}),
               };
               const idx = state.messages.findIndex(
                 (m) => m.id === placeholderId
@@ -713,7 +734,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
                 confirmation: Record<string, unknown>
               ) => {
                 // Nested confirmation (e.g. ingest confirmed → add needs confirm)
-                if (!isCurrentGeneration()) return;
+                if (!isCurrentGeneration()) {
+                  console.warn(
+                    '[agentChatStore] dropped nested SSE confirmation: generation superseded',
+                    { threadId }
+                  );
+                  return;
+                }
                 set((state) => {
                   const idx = state.messages.findIndex(
                     (m) => m.id === targetMessageId

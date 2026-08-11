@@ -359,6 +359,54 @@ describe('agentChatStore', () => {
     });
   });
 
+  describe('durable poll path (sendMessage)', () => {
+    // Audit finding A (trace 019ff314-c29c): the backend never issues a
+    // wait token on AWAITING_CONFIRMATION (agent_execution_service.py's
+    // payload is {status, confirmation, tool_executions}) — requiring
+    // meta.waitTokenId to surface the card silently swallowed every parked
+    // confirmation reached via the durable poll loop.
+    it('surfaces pendingConfirmation from a durable poll without a waitTokenId', async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+      vi.mocked(agentChatService.streamMessage).mockRejectedValueOnce(
+        new Error('sse down')
+      );
+      vi.mocked(agentChatService.getDurableRunStatus).mockResolvedValue({
+        status: 'RUNNING',
+        metadata: {
+          status: 'awaiting_confirmation',
+          confirmation: {
+            tools: [{ name: 'create_project', args: { name: 'New Project' } }],
+            message: 'Create this project?',
+          },
+        },
+      } as never);
+
+      useAgentChatStore.setState({ inputValue: 'make a project' });
+
+      vi.useFakeTimers();
+      try {
+        const p = useAgentChatStore.getState().sendMessage();
+        // The poll loop waits 3s before its first status check.
+        await vi.advanceTimersByTimeAsync(3000);
+        await p;
+      } finally {
+        vi.useRealTimers();
+      }
+
+      const state = useAgentChatStore.getState();
+      expect(state.pendingConfirmation).toEqual({
+        jobId: 'run-stub',
+        tools: [{ name: 'create_project', args: { name: 'New Project' } }],
+        message: 'Create this project?',
+      });
+      expect(state.pendingConfirmation?.waitTokenId).toBeUndefined();
+      const assistant = state.messages.find((m) => m.role === 'assistant');
+      expect(assistant?.content).toBe('Waiting for your confirmation...');
+      expect(assistant?.isStreaming).toBe(false);
+      expect(state.isStreaming).toBe(false);
+    });
+  });
+
   describe('reflection revise loop', () => {
     it('replaces first-answer tokens with second when revising=true fires between them', async () => {
       // Arrange: streamMessage calls onToken('A'), then onReflection(revising=true),
