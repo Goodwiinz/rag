@@ -21,8 +21,8 @@ import httpx
 from sqlalchemy import func, select, text
 
 BENCHMARK_ID = "agent-stream-cancel-durability-v1"
-SOURCE_REVISION = "206b6aea37a0e9f959c137dfca6d8200232410b8"
-AGENT_REVISION = "206b6aea37a0e9f959c137dfca6d8200232410b8"
+SOURCE_REVISION = "96f23a61a16688efefbbf784117ae3417ec3af43"
+AGENT_REVISION = "96f23a61a16688efefbbf784117ae3417ec3af43"
 EXPECTED_INSTRUCTION = (
     "Research three approaches to evaluating a production RAG system. Compare "
     "retrieval quality, answer faithfulness, latency, and cost, then recommend "
