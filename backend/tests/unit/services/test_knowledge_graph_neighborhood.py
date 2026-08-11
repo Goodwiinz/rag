@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 
-def test_get_neighborhood_preserves_relationship_type_and_direction():
+def test_get_neighborhood_preserves_relationship_type_and_direction() -> None:
     from src.models.graph import RelationshipType
     from src.services.knowledge_graph.knowledge_graph_service import (
         KnowledgeGraphService,
