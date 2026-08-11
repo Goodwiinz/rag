@@ -50,8 +50,8 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-memory-roundtrip-v1"
-SOURCE_REVISION = "e0fe458562650cc98dfec657e51741caace651e0"
-AGENT_REVISION = "e0fe458562650cc98dfec657e51741caace651e0"
+SOURCE_REVISION = "b35524c80611d544749e109bd43a5a367798d62f"
+AGENT_REVISION = "b35524c80611d544749e109bd43a5a367798d62f"
 APPROVAL_TEXT = "Yes, forget it."
 
 # Byte-identical across instruction.md / run_agent.py / verify.py. Turn 1 only

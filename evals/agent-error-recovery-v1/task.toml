@@ -1,5 +1,5 @@
 schema_version = "1.2"
-source = "git+https://github.com/Goodwiinz/rag.git@e0fe458562650cc98dfec657e51741caace651e0"
+source = "git+https://github.com/Goodwiinz/rag.git@b35524c80611d544749e109bd43a5a367798d62f"
 artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
 
 [task]
@@ -10,8 +10,8 @@ keywords = ["langgraph", "errors", "recovery", "dedupe", "tools", "judge"]
 
 [metadata]
 benchmark_id = "agent-error-recovery-v1"
-source_revision = "e0fe458562650cc98dfec657e51741caace651e0"
-agent_revision = "e0fe458562650cc98dfec657e51741caace651e0"
+source_revision = "b35524c80611d544749e109bd43a5a367798d62f"
+agent_revision = "b35524c80611d544749e109bd43a5a367798d62f"
 harbor_version = "0.6.6"
 base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
 
