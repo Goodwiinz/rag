@@ -61,6 +61,25 @@ class _TokenThenBlockedLuna:
             self.closed.set()
 
 
+class _CancellationResistantLuna:
+    def __init__(self):
+        self.pull_started = asyncio.Event()
+        self.cancel_received = asyncio.Event()
+        self.release = asyncio.Event()
+        self.closed = asyncio.Event()
+
+    async def astream(self, _messages, *, config=None):
+        yield AIMessageChunk(content="partial")
+        self.pull_started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancel_received.set()
+            await self.release.wait()
+        finally:
+            self.closed.set()
+
+
 async def test_fast_chunks_wait_for_user_persistence_before_release():
     from src.services.agent.fast_path import stream_fast_path_chunks
 
@@ -383,7 +402,9 @@ async def test_luna_failure_persists_streamed_partial_as_stopped(
     assert persist_assistant.await_args.kwargs["stopped"] is True
 
 
-async def test_fast_path_disconnect_cancels_blocked_pull_and_finalizes(monkeypatch):
+async def test_fast_path_disconnect_terminalizes_before_resistant_pull_cleanup(
+    monkeypatch, caplog
+):
     user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
     thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4())
 
@@ -410,18 +431,23 @@ async def test_fast_path_disconnect_cancels_blocked_pull_and_finalizes(monkeypat
     request = SimpleNamespace(
         is_disconnected=AsyncMock(side_effect=[False, False, True])
     )
-    model = _TokenThenBlockedLuna()
+    model = _CancellationResistantLuna()
     settings = get_settings()
     monkeypatch.setattr(settings, "AGENT_FAST_PATH_ENABLED", True)
     monkeypatch.setattr(settings, "AGENT_FAST_PATH_MAX_INPUT_CHARS", 8_000)
     monkeypatch.setattr(llm_factory, "build_fast_path_llm", lambda: model)
+    monkeypatch.setattr(streaming_mod, "_SSE_DISCONNECT_POLL_SECONDS", 0.05)
+    caplog.set_level("WARNING", logger=streaming_mod.__name__)
 
     fake_session = SimpleNamespace(close=AsyncMock())
     persist_assistant = AsyncMock(return_value="partial-row-id")
+    finish_stream = AsyncMock()
     finalize_calls: list[dict] = []
+    finalized = asyncio.Event()
 
     async def spy_finalize_run(*_args, **kwargs):
         finalize_calls.append(kwargs)
+        finalized.set()
 
     events: list[str] = []
     with (
@@ -443,8 +469,10 @@ async def test_fast_path_disconnect_cancels_blocked_pull_and_finalizes(monkeypat
         patch.object(
             streaming_mod._stream_buffer,
             "start_stream",
-            new=AsyncMock(return_value=None),
+            new=AsyncMock(return_value="stream-id"),
         ),
+        patch.object(streaming_mod._stream_buffer, "append", new=AsyncMock()),
+        patch.object(streaming_mod._stream_buffer, "finish_stream", new=finish_stream),
         patch.object(streaming_mod, "_finalize_run", spy_finalize_run),
     ):
         generator = streaming_mod.stream_event_generator(body, request, user)
@@ -456,15 +484,38 @@ async def test_fast_path_disconnect_cancels_blocked_pull_and_finalizes(monkeypat
         drain_task = asyncio.create_task(drain_stream())
         await asyncio.wait_for(model.pull_started.wait(), timeout=1)
         await asyncio.wait_for(
-            model.closed.wait(),
+            model.cancel_received.wait(),
             timeout=streaming_mod._SSE_DISCONNECT_POLL_SECONDS + 0.25,
         )
-        await asyncio.wait_for(drain_task, timeout=1)
+        await asyncio.wait_for(
+            finalized.wait(), timeout=streaming_mod._SSE_DISCONNECT_POLL_SECONDS
+        )
 
-    assert sum("event: token" in event for event in events) == 1
-    persist_assistant.assert_awaited_once()
-    assert persist_assistant.await_args.kwargs["content"] == "partial"
-    assert persist_assistant.await_args.kwargs["stopped"] is True
+        assert not model.closed.is_set()
+        assert sum("event: token" in event for event in events) == 1
+        assert not any("event: done" in event for event in events)
+        persist_assistant.assert_awaited_once()
+        assert persist_assistant.await_args.kwargs["content"] == "partial"
+        assert persist_assistant.await_args.kwargs["stopped"] is True
+        finish_stream.assert_awaited_once_with(str(thread.id), "stream-id")
+        assert len(finalize_calls) == 1
+
+        await asyncio.wait_for(
+            drain_task,
+            timeout=streaming_mod._SSE_DISCONNECT_POLL_SECONDS + 0.25,
+        )
+        assert not model.closed.is_set()
+        warning = next(
+            record
+            for record in caplog.records
+            if record.getMessage() == "Timed out settling cancelled agent stream pull"
+        )
+        assert warning.event == "agent_stream_pull_cleanup_timeout"
+
+        model.release.set()
+        await asyncio.wait_for(model.closed.wait(), timeout=0.1)
+        await asyncio.sleep(0)
+
     assert len(finalize_calls) == 1
     finalized = finalize_calls[0]
     assert finalized["status"] is JobStatus.CANCELLED

@@ -866,18 +866,36 @@ _PLANNER_CHAIN_NODES = frozenset(
 )
 
 
-async def _cancel_pending_graph_pull(pending: asyncio.Task) -> None:
-    """Cancel one graph pull and preserve concurrent caller cancellation."""
+def _consume_pending_pull_result(pending: asyncio.Task) -> None:
+    """Consume a detached pull result so asyncio never reports it as unhandled."""
+    try:
+        pending.result()
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        logger.debug("Detached agent stream pull failed", exc_info=True)
+
+
+async def _cancel_pending_graph_pull(
+    pending: asyncio.Task, *, request_cancel: bool = True
+) -> None:
+    """Cancel and briefly settle one pull without swallowing caller cancellation."""
     current_task = asyncio.current_task()
     cancellation_count = current_task.cancelling() if current_task else 0
     cancellation_active = cancellation_count > 0
     cancellation_exc: asyncio.CancelledError | None = None
+    cleanup_deadline = time.monotonic() + _SSE_DISCONNECT_POLL_SECONDS
 
-    if not pending.done():
+    if request_cancel and not pending.done():
         pending.cancel()
     while not pending.done():
+        remaining = cleanup_deadline - time.monotonic()
+        if remaining <= 0:
+            break
         try:
-            await asyncio.shield(pending)
+            await asyncio.wait_for(asyncio.shield(pending), timeout=remaining)
+        except asyncio.TimeoutError:
+            break
         except asyncio.CancelledError as exc:
             if (
                 cancellation_exc is None
@@ -889,8 +907,17 @@ async def _cancel_pending_graph_pull(pending: asyncio.Task) -> None:
             continue
         except BaseException:
             break
-    if not pending.cancelled():
-        pending.exception()
+    if pending.done():
+        _consume_pending_pull_result(pending)
+    else:
+        logger.warning(
+            "Timed out settling cancelled agent stream pull",
+            extra={
+                "event": "agent_stream_pull_cleanup_timeout",
+                "cleanup_timeout_seconds": _SSE_DISCONNECT_POLL_SECONDS,
+            },
+        )
+        pending.add_done_callback(_consume_pending_pull_result)
     if cancellation_exc is not None:
         raise cancellation_exc
 
@@ -904,14 +931,14 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
     terminal cancelled event instead of producing a later completion.
     """
     pending: asyncio.Task | None = None
+    pending_cancel_requested = False
     next_keepalive_at = time.monotonic() + _SSE_KEEPALIVE_SECONDS
     try:
         while True:
             if await request.is_disconnected():
                 if pending is not None:
-                    pending_pull = pending
-                    pending = None
-                    await _cancel_pending_graph_pull(pending_pull)
+                    pending.cancel()
+                    pending_cancel_requested = True
                 yield {"type": "disconnect"}
                 return
             if pending is None:
@@ -938,9 +965,8 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
                 continue
 
             if await request.is_disconnected():
-                pending_pull = pending
-                pending = None
-                await _cancel_pending_graph_pull(pending_pull)
+                pending.cancel()
+                pending_cancel_requested = True
                 yield {"type": "disconnect"}
                 return
             now = time.monotonic()
@@ -953,7 +979,10 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
         if pending is not None:
             pending_pull = pending
             pending = None
-            await _cancel_pending_graph_pull(pending_pull)
+            await _cancel_pending_graph_pull(
+                pending_pull,
+                request_cancel=not pending_cancel_requested,
+            )
 
 
 async def stream_event_generator(
