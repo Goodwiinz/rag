@@ -124,8 +124,16 @@ async def test_delete_memory_unindexed_unsafe_query_deletes_nothing(query):
         ("ALICE@example.com", "remember my email is alice@example.com"),
         ("forget this", "please forget this stored item"),
         ("all memories delete", "delete all memories"),
+        ("delete every single thing", "please delete every single thing"),
+        ("thing single every delete", "delete every single thing"),
     ],
-    ids=["pii-only-exact", "generic-exact", "generic-reordered"],
+    ids=[
+        "pii-only-exact",
+        "generic-exact",
+        "generic-reordered",
+        "generic-quantifiers-exact",
+        "generic-quantifiers-reordered",
+    ],
 )
 async def test_delete_memory_unindexed_generic_request_deletes_nothing(
     query, stored_query
