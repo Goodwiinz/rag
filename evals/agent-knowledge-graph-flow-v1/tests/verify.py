@@ -314,10 +314,11 @@ def check_search_knowledge_graph(evidence: dict[str, Any], failures: list[str]) 
         return
     execution = (evidence.get("raw_tool_executions") or [])[index]
     for current in successful_graph_executions(evidence):
-        if (
-            current.get("tool_name") == SEARCH_TOOL
-            and validated_graph_rows(current) is None
-        ):
+        if current.get("tool_name") != SEARCH_TOOL:
+            continue
+        if not isinstance(current.get("result"), dict):
+            failures.append(f"{SEARCH_TOOL} result must be a JSON object")
+        elif validated_graph_rows(current) is None:
             failures.append(f"{SEARCH_TOOL} entities must be present as a list")
     args = execution.get("args") or {}
     limit = args.get("limit")
@@ -384,7 +385,10 @@ def check_neighborhood_tool(evidence: dict[str, Any], failures: list[str]) -> No
         current_tool = current.get("tool_name")
         if current_tool not in NEIGHBORHOOD_TOOLS:
             continue
-        result = current.get("result") or {}
+        result = current.get("result")
+        if not isinstance(result, dict):
+            failures.append(f"{current_tool} result must be a JSON object")
+            continue
         if current_tool == "explore_entity_neighborhood":
             for count_key, rows_key in (
                 ("total_entities", "connected_entities"),

@@ -71,6 +71,16 @@
         }
       },
       {
+        "tool_name": "explore_entity_neighborhood",
+        "status": "completed",
+        "args": {
+          "entity_id": "entity-elena-vasquez",
+          "max_depth": 2,
+          "limit": 30
+        },
+        "result": "malformed"
+      },
+      {
         "tool_name": "get_graph_stats",
         "status": "completed",
         "args": {},
