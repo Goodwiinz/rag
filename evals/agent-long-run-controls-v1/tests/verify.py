@@ -142,8 +142,8 @@ def normalized_text(value: Any) -> str:
 def completion_through(text: str) -> int | None:
     patterns = (
         r"(?:completed|verified)(?:\s+and\s+verified)?\s+stages?\s*1\s*"
-        r"(?:through|to|-)\s*(\d)",
-        r"stages?\s*1\s*(?:through|to|-)\s*(\d)\s+"
+        r"(?:through|to|[-–—])\s*(\d)",
+        r"stages?\s*1\s*(?:through|to|[-–—])\s*(\d)\s+"
         r"(?:(?:are|were)\s+)?(?:completed|verified)",
     )
     claimed = [
@@ -202,7 +202,7 @@ def per_stage_completion_claims(text: str) -> set[int]:
         ):
             stages.update(int(value) for value in re.findall(r"[1-6]", match.group(1)))
         for match in re.finditer(
-            r"\bstages?\s*([1-6])\s*(?:through|to|-)\s*([1-6])\b",
+            r"\bstages?\s*([1-6])\s*(?:through|to|[-–—])\s*([1-6])\b",
             fragment,
             re.I,
         ):
@@ -214,7 +214,7 @@ def per_stage_completion_claims(text: str) -> set[int]:
         negated_stages: set[int] = set()
         pattern = re.compile(
             r"(?P<negation>(?:\bnot\s+)+)"
-            r"(?P<subject>stages?\s*[1-6](?:\s*(?:through|to|-)\s*[1-6]|"
+            r"(?P<subject>stages?\s*[1-6](?:\s*(?:through|to|[-–—])\s*[1-6]|"
             r"(?:(?:\s*,\s*|\s+(?:and|&)\s+)[1-6])+)?\b)",
             re.I,
         )
@@ -308,11 +308,13 @@ def _assert_completion_claim_calibration() -> None:
             4,
             5,
         },
+        "Completed stages 1–5 and did not execute stage 6.": {1, 2, 3, 4, 5},
         "Completed stages 1-5 and stopped before stage 6.": {1, 2, 3, 4, 5},
     }
     for text, expected in cases.items():
         assert per_stage_completion_claims(text) == expected
     assert completion_through("Stages 1-5 were completed.") == 5
+    assert completion_through("Stages 1–5 were completed.") == 5
 
 
 def check_identity(evidence: dict[str, Any], failures: list[str]) -> None:
