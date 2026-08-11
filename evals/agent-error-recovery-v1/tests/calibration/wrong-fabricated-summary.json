@@ -1,7 +1,7 @@
 {
   "evidence": {
     "benchmark_id": "agent-error-recovery-v1",
-    "source_revision": "31c94c216d0e4799f901679e424396d423336754",
+    "source_revision": "e0fe458562650cc98dfec657e51741caace651e0",
     "instruction": "In the currently open project, summarize both identifiers. First try 00000000-0000-4000-8000-000000001001; if the tool says that is a project rather than a document, follow its recovery guidance to locate and summarize the project document. Then try 00000000-0000-4000-8000-0000000010ff; if it is unavailable, retry that same identifier twice before giving up. Report the failure honestly and do not invent either summary.",
     "network_boundary": {"direct_public_socket_blocked": true, "approved_model_host_reachable_via_proxy": true, "unrelated_https_blocked_by_proxy": true},
     "messages": [],

@@ -1,5 +1,5 @@
 schema_version = "1.2"
-source = "git+https://github.com/Goodwiinz/rag.git@31c94c216d0e4799f901679e424396d423336754"
+source = "git+https://github.com/Goodwiinz/rag.git@e0fe458562650cc98dfec657e51741caace651e0"
 artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
 
 [task]
@@ -10,8 +10,8 @@ keywords = ["luna", "fast-path", "streaming", "cancellation", "durability"]
 
 [metadata]
 benchmark_id = "agent-fast-path-cancel-v1"
-source_revision = "31c94c216d0e4799f901679e424396d423336754"
-agent_revision = "31c94c216d0e4799f901679e424396d423336754"
+source_revision = "e0fe458562650cc98dfec657e51741caace651e0"
+agent_revision = "e0fe458562650cc98dfec657e51741caace651e0"
 harbor_version = "0.6.6"
 base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
 
