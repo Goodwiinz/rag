@@ -380,54 +380,58 @@ async def _stream_luna_fast_path(
                 persist_user=persist_user,
                 trace_metadata=trace_metadata,
             ).__aiter__()
-            async for item in _graph_events_with_keepalive(fast_path_chunks, request):
-                if item["type"] == "disconnect":
-                    client_disconnected = True
-                    await cancel_fast_path()
-                    return
-                if item["type"] == "keepalive":
+            fast_path_events = _graph_events_with_keepalive(fast_path_chunks, request)
+            try:
+                async for item in fast_path_events:
+                    if item["type"] == "disconnect":
+                        client_disconnected = True
+                        await cancel_fast_path()
+                        return
+                    if item["type"] == "keepalive":
+                        frame = await emitter.emit(
+                            AgentStreamEvent.HEARTBEAT,
+                            {
+                                "elapsed_ms": int(
+                                    (time.monotonic() - stream_started_at) * 1000
+                                )
+                            },
+                            buffer=False,
+                        )
+                        if not client_disconnected:
+                            yield frame
+                        continue
+
+                    chunk = item["event"]
+                    text = _chunk_text(chunk)
+                    usage = getattr(chunk, "usage_metadata", None)
+                    if isinstance(usage, dict):
+                        input_tokens = max(
+                            input_tokens, int(usage.get("input_tokens", 0) or 0)
+                        )
+                        output_tokens = max(
+                            output_tokens, int(usage.get("output_tokens", 0) or 0)
+                        )
+                    if not text:
+                        continue
+                    if not writing_emitted:
+                        yield await emitter.emit(
+                            AgentStreamEvent.STATUS,
+                            {"phase": "writing", "detail": "Luna is responding"},
+                        )
+                        writing_emitted = True
+                    # Buffer BEFORE recording for persistence — same ordering
+                    # invariant as the graph path: the stopped partial must stay
+                    # a prefix of the buffered stream, so a cancellation inside
+                    # this await can only lose the last chunk, never invent one.
                     frame = await emitter.emit(
-                        AgentStreamEvent.HEARTBEAT,
-                        {
-                            "elapsed_ms": int(
-                                (time.monotonic() - stream_started_at) * 1000
-                            )
-                        },
-                        buffer=False,
+                        AgentStreamEvent.TOKEN,
+                        {"content": text},
                     )
+                    parts.append(text)
                     if not client_disconnected:
                         yield frame
-                    continue
-
-                chunk = item["event"]
-                text = _chunk_text(chunk)
-                usage = getattr(chunk, "usage_metadata", None)
-                if isinstance(usage, dict):
-                    input_tokens = max(
-                        input_tokens, int(usage.get("input_tokens", 0) or 0)
-                    )
-                    output_tokens = max(
-                        output_tokens, int(usage.get("output_tokens", 0) or 0)
-                    )
-                if not text:
-                    continue
-                if not writing_emitted:
-                    yield await emitter.emit(
-                        AgentStreamEvent.STATUS,
-                        {"phase": "writing", "detail": "Luna is responding"},
-                    )
-                    writing_emitted = True
-                # Buffer BEFORE recording for persistence — same ordering
-                # invariant as the graph path: the stopped partial must stay
-                # a prefix of the buffered stream, so a cancellation inside
-                # this await can only lose the last chunk, never invent one.
-                frame = await emitter.emit(
-                    AgentStreamEvent.TOKEN,
-                    {"content": text},
-                )
-                parts.append(text)
-                if not client_disconnected:
-                    yield frame
+            finally:
+                await fast_path_events.aclose()
 
         assistant_content = "".join(parts)
         if not assistant_content:

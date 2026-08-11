@@ -481,7 +481,9 @@ class _CancelDuringEmitLuna:
         yield AIMessageChunk(content="X")
 
 
-@pytest.mark.parametrize("close_at", ["routing", "trace", "token", "usage"])
+@pytest.mark.parametrize(
+    "close_at", ["routing", "trace", "token", "heartbeat", "usage"]
+)
 async def test_fast_path_generator_close_finalizes_each_window(monkeypatch, close_at):
     user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
     thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4())
@@ -509,7 +511,10 @@ async def test_fast_path_generator_close_finalizes_each_window(monkeypatch, clos
     settings = get_settings()
     monkeypatch.setattr(settings, "AGENT_FAST_PATH_ENABLED", True)
     monkeypatch.setattr(settings, "AGENT_FAST_PATH_MAX_INPUT_CHARS", 8_000)
-    monkeypatch.setattr(llm_factory, "build_fast_path_llm", lambda: _FakeLuna())
+    model = _TokenThenBlockedLuna() if close_at == "heartbeat" else _FakeLuna()
+    monkeypatch.setattr(llm_factory, "build_fast_path_llm", lambda: model)
+    if close_at == "heartbeat":
+        monkeypatch.setattr(streaming_mod, "_SSE_KEEPALIVE_SECONDS", 0.01)
 
     fake_graph = _NoGraphExecution()
     fake_session = SimpleNamespace(close=AsyncMock())
@@ -560,18 +565,26 @@ async def test_fast_path_generator_close_finalizes_each_window(monkeypatch, clos
                 (close_at == "routing" and "Using the direct Luna path" in event)
                 or (close_at == "trace" and "event: trace" in event)
                 or (close_at == "token" and "event: token" in event)
+                or (close_at == "heartbeat" and "event: heartbeat" in event)
                 or (close_at == "usage" and "event: usage" in event)
             ):
                 break
-        await generator.aclose()
+        if close_at == "heartbeat":
+            assert model.pull_started.is_set()
+            await asyncio.wait_for(generator.aclose(), timeout=0.1)
+            assert model.closed.is_set()
+        else:
+            await generator.aclose()
 
     if close_at in {"routing", "trace"}:
         persist_assistant.assert_not_awaited()
     else:
         persist_assistant.assert_awaited_once()
-        assert persist_assistant.await_args.kwargs["stopped"] is (close_at == "token")
+        assert persist_assistant.await_args.kwargs["stopped"] is (
+            close_at in {"token", "heartbeat"}
+        )
     assert finalize_calls[0]["event_type"] is RunEventType.RUN_CANCELLED
-    if close_at in {"token", "usage"}:
+    if close_at in {"token", "heartbeat", "usage"}:
         assert finalize_calls[0]["payload"]["assistant_message_id"] == "partial-row-id"
     else:
         assert "assistant_message_id" not in finalize_calls[0]["payload"]
