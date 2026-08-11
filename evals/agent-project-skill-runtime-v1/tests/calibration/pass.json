@@ -1,7 +1,7 @@
 {
   "evidence": {
     "benchmark_id": "agent-project-skill-runtime-v1",
-    "source_revision": "70efbb5d3ff22dabff7104c55d5afdb53d315f48",
+    "source_revision": "131dc0541f6c4f1adcec940d2b47d9f1b7a63dbf",
     "instruction": "Use the active evidence-note project skill and the document in this project to create a source-grounded project note about sparse transformer attention.",
     "network_boundary": {
       "direct_public_socket_blocked": true,
