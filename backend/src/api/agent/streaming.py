@@ -864,6 +864,7 @@ async def _request_disconnected(request: Any) -> bool:
 
 async def _run_interrupted_cleanup(cleanup: Any) -> None:
     """Finish durable cleanup outside the request's cancelled AnyIO scope."""
+
     async def shielded_cleanup() -> None:
         with CancelScope(shield=True):
             await cleanup()
