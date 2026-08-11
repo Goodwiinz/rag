@@ -43,7 +43,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import InfrastructureFailure, run_verifier_main
 
 BENCHMARK_ID = "agent-tenant-isolation-v1"
-EXPECTED_SOURCE_REVISION = "c409937d3c326a5f786900eb5cf727ab2e3ac76d"
+EXPECTED_SOURCE_REVISION = "a16edb58d6e7550d7fb47062a5eee968b9dcf2d1"
 
 # Kept in exact 1:1 sync with evals/specs/agent-tenant-isolation-v1/task.md's
 # 12-row table and environment/run_agent.py's DECLARED_PROBES tuple.
