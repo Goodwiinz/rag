@@ -47,6 +47,20 @@ class _CancelledLuna:
         raise asyncio.CancelledError()
 
 
+class _TokenThenBlockedLuna:
+    def __init__(self):
+        self.pull_started = asyncio.Event()
+        self.closed = asyncio.Event()
+
+    async def astream(self, _messages, *, config=None):
+        yield AIMessageChunk(content="partial")
+        self.pull_started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            self.closed.set()
+
+
 async def test_fast_chunks_wait_for_user_persistence_before_release():
     from src.services.agent.fast_path import stream_fast_path_chunks
 
@@ -367,6 +381,96 @@ async def test_luna_failure_persists_streamed_partial_as_stopped(
     persist_assistant.assert_awaited_once()
     assert persist_assistant.await_args.kwargs["content"] == "partial"
     assert persist_assistant.await_args.kwargs["stopped"] is True
+
+
+async def test_fast_path_disconnect_cancels_blocked_pull_and_finalizes(monkeypatch):
+    user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
+    thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4())
+
+    from src.api.agent import streaming as streaming_mod
+    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
+    from src.core.config import get_settings
+    from src.services.agent import agent_execution_service as jobs_mod
+    from src.services.agent import llm_factory
+    from src.services.agent.run_event_types import RunEventType
+    from src.shared.enums import JobStatus
+
+    body = AgentExecuteRequest(
+        messages=[
+            AgentMessage(
+                role="user",
+                content="Explain why rainbows form",
+                client_message_id=uuid4(),
+            )
+        ],
+        page_context={"type": "chat"},
+        use_rag=False,
+        thread_id=str(thread.id),
+    )
+    request = SimpleNamespace(
+        is_disconnected=AsyncMock(side_effect=[False, False, True])
+    )
+    model = _TokenThenBlockedLuna()
+    settings = get_settings()
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_ENABLED", True)
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_MAX_INPUT_CHARS", 8_000)
+    monkeypatch.setattr(llm_factory, "build_fast_path_llm", lambda: model)
+
+    fake_session = SimpleNamespace(close=AsyncMock())
+    persist_assistant = AsyncMock(return_value="partial-row-id")
+    finalize_calls: list[dict] = []
+
+    async def spy_finalize_run(*_args, **kwargs):
+        finalize_calls.append(kwargs)
+
+    events: list[str] = []
+    with (
+        patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_session),
+        patch.object(streaming_mod, "_accept_eligible", return_value=False),
+        patch.object(
+            streaming_mod,
+            "_resolve_thread",
+            new=AsyncMock(return_value=(thread, str(thread.conversation_id))),
+        ),
+        patch.object(
+            streaming_mod,
+            "_persist_user_message_guarded",
+            new=AsyncMock(return_value=True),
+        ),
+        patch.object(
+            jobs_mod, "_persist_assistant_message_safe", new=persist_assistant
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "start_stream",
+            new=AsyncMock(return_value=None),
+        ),
+        patch.object(streaming_mod, "_finalize_run", spy_finalize_run),
+    ):
+        generator = streaming_mod.stream_event_generator(body, request, user)
+
+        async def drain_stream():
+            async for event in generator:
+                events.append(event)
+
+        drain_task = asyncio.create_task(drain_stream())
+        await asyncio.wait_for(model.pull_started.wait(), timeout=1)
+        await asyncio.wait_for(
+            model.closed.wait(),
+            timeout=streaming_mod._SSE_DISCONNECT_POLL_SECONDS + 0.25,
+        )
+        await asyncio.wait_for(drain_task, timeout=1)
+
+    assert sum("event: token" in event for event in events) == 1
+    persist_assistant.assert_awaited_once()
+    assert persist_assistant.await_args.kwargs["content"] == "partial"
+    assert persist_assistant.await_args.kwargs["stopped"] is True
+    assert len(finalize_calls) == 1
+    finalized = finalize_calls[0]
+    assert finalized["status"] is JobStatus.CANCELLED
+    assert finalized["event_type"] is RunEventType.RUN_CANCELLED
+    assert finalized["payload"]["reason"] == "client_disconnected"
+    assert finalized["payload"]["assistant_message_id"] == "partial-row-id"
 
 
 class _CancelDuringEmitLuna:

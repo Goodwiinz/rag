@@ -374,12 +374,32 @@ async def _stream_luna_fast_path(
             )
         async with asyncio.timeout(settings.AGENT_FAST_PATH_REQUEST_TIMEOUT):
             writing_emitted = False
-            async for chunk in stream_fast_path_chunks(
+            fast_path_chunks = stream_fast_path_chunks(
                 llm=llm,
                 messages=prompt,
                 persist_user=persist_user,
                 trace_metadata=trace_metadata,
-            ):
+            ).__aiter__()
+            async for item in _graph_events_with_keepalive(fast_path_chunks, request):
+                if item["type"] == "disconnect":
+                    client_disconnected = True
+                    await cancel_fast_path()
+                    return
+                if item["type"] == "keepalive":
+                    frame = await emitter.emit(
+                        AgentStreamEvent.HEARTBEAT,
+                        {
+                            "elapsed_ms": int(
+                                (time.monotonic() - stream_started_at) * 1000
+                            )
+                        },
+                        buffer=False,
+                    )
+                    if not client_disconnected:
+                        yield frame
+                    continue
+
+                chunk = item["event"]
                 text = _chunk_text(chunk)
                 usage = getattr(chunk, "usage_metadata", None)
                 if isinstance(usage, dict):
@@ -408,10 +428,6 @@ async def _stream_luna_fast_path(
                 parts.append(text)
                 if not client_disconnected:
                     yield frame
-                if await request.is_disconnected():
-                    client_disconnected = True
-                    await cancel_fast_path()
-                    return
 
         assistant_content = "".join(parts)
         if not assistant_content:
