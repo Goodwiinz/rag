@@ -75,7 +75,8 @@ MEASUREMENT_SCOPE_RE = re.compile(
 EXPLICIT_LIMITATION_RE = re.compile(
     r"\b(?:dense\s+cross[- ]token\s+reasoning(?:\s+(?:tasks?|workloads?))?\s+"
     r"(?:was\s+|were\s+)?not\s+(?:assessed|evaluated|tested|included)|did\s+not\s+"
-    r"(?:assess|evaluate|test|include)\s+dense\s+cross[- ]token\s+reasoning"
+    r"(?:assess|evaluate|test|include)\s+(?:workloads?\s+requiring\s+)?"
+    r"dense\s+cross[- ]token\s+reasoning"
     r"(?:\s+(?:tasks?|workloads?))?)\b",
     re.IGNORECASE,
 )
@@ -100,6 +101,9 @@ def _assert_semantic_matcher_calibration() -> None:
     )
     assert mentions_explicit_limitation(
         "The experiment did not assess dense cross-token reasoning tasks."
+    )
+    assert mentions_explicit_limitation(
+        "The evaluation did not include workloads requiring dense cross-token reasoning tasks."
     )
     negative = "Long-context results leave dense cross-token reasoning uncertain."
     assert not mentions_measurement_scope(negative)

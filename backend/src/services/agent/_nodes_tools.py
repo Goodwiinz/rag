@@ -390,7 +390,7 @@ def _with_injected_project_id(tc: dict, page_context: dict) -> dict:
     """
     tool_args = dict(tc.get("args") or {})
     if (
-        "project_id" not in tool_args
+        not tool_args.get("project_id")
         and page_context.get("type") == "project"
         and page_context.get("project_id")
     ):
