@@ -2,7 +2,7 @@
   "evidence": {
     "schema_version": "1.0",
     "benchmark_id": "agent-knowledge-graph-flow-v1",
-    "source_revision": "381045593914ef28cabff458548ec4310b8df12f",
+    "source_revision": "bb8fc2863613f98e58907de59f08d8a64b875f1c",
     "instruction": "Search our knowledge graph for the entity \"Elena Vasquez\", explore her neighborhood of connected entities and relationships, and pull the current knowledge graph statistics. Then tell me who she is connected to and summarize what the graph shows.",
     "termination_reason": "completed",
     "pending_interrupt": null,

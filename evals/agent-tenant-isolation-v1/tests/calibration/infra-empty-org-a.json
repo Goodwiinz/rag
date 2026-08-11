@@ -1,6 +1,6 @@
 {
   "evidence": {
-    "agent_revision": "381045593914ef28cabff458548ec4310b8df12f",
+    "agent_revision": "bb8fc2863613f98e58907de59f08d8a64b875f1c",
     "benchmark_id": "agent-tenant-isolation-v1",
     "completed_at": "2026-08-09T12:01:40Z",
     "elapsed_ms": 18230,
@@ -179,7 +179,7 @@
       "project_id": "00000000-0000-4000-8000-0000000008a2",
       "skill_id": "skill:00000000-0000-4000-8000-0000000008a2:tenant-isolation-benchmark"
     },
-    "source_revision": "381045593914ef28cabff458548ec4310b8df12f",
+    "source_revision": "bb8fc2863613f98e58907de59f08d8a64b875f1c",
     "started_at": "2026-08-09T12:00:00Z",
     "synthetic_actor": {
       "org_a": {

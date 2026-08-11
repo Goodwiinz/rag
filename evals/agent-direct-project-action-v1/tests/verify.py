@@ -21,7 +21,7 @@ from psycopg.rows import dict_row
 EXPECTED_NAME = "The Discovery Note"
 EXPECTED_INSTRUCTION = "Create a project named The Discovery Note."
 EXPECTED_WORKSPACE_ID = "00000000-0000-4000-8000-000000000103"
-EXPECTED_SOURCE_REVISION = "381045593914ef28cabff458548ec4310b8df12f"
+EXPECTED_SOURCE_REVISION = "bb8fc2863613f98e58907de59f08d8a64b875f1c"
 DEFAULT_EVIDENCE = Path("/logs/agent/evidence.json")
 REPORT_PATH = Path("/logs/verifier/audit.json")
 
