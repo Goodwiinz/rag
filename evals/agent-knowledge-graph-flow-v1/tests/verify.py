@@ -100,6 +100,11 @@ def _load_truth() -> dict[str, Any]:
 
 TRUTH = _load_truth()
 OTHER_ORG_ENTITY_NAMES = {row["name"] for row in TRUTH.get("other_org_entities", [])}
+TRUTH_RELATIONSHIPS = {
+    (row["source"], row["type"], row["target"])
+    for row in TRUTH.get("relationships", [])
+}
+JUDGE_AUDIT_KEY = "_verifier_semantic_judge_verdict"
 
 
 # --------------------------------------------------------------------------
@@ -197,6 +202,27 @@ def result_entity_names(result: Any) -> set[str]:
         for row in path.get("entities") or []:
             if isinstance(row, dict) and row.get("name"):
                 names.add(str(row["name"]))
+    return names
+
+
+def entity_names_by_id(evidence: dict[str, Any]) -> dict[str, str]:
+    names: dict[str, str] = {}
+    for execution in evidence.get("raw_tool_executions") or []:
+        if not isinstance(execution, dict):
+            continue
+        result = execution.get("result")
+        if not isinstance(result, dict):
+            continue
+        rows = [
+            *(result.get("entities") or []),
+            *(result.get("connected_entities") or []),
+        ]
+        for path in result.get("paths") or []:
+            if isinstance(path, dict):
+                rows.extend(path.get("entities") or [])
+        for row in rows:
+            if isinstance(row, dict) and row.get("id") and row.get("name"):
+                names[str(row["id"])] = str(row["name"])
     return names
 
 
@@ -301,6 +327,42 @@ def check_neighborhood_tool(evidence: dict[str, Any], failures: list[str]) -> No
             )
 
 
+def check_relationship_direction(evidence: dict[str, Any], failures: list[str]) -> None:
+    names = entity_names_by_id(evidence)
+    for tool_name in NEIGHBORHOOD_TOOLS:
+        for execution in executions_for(evidence, tool_name):
+            if execution.get("status") not in SUCCESS_STATUSES:
+                continue
+            result = execution.get("result")
+            if not isinstance(result, dict):
+                continue
+            relationship_groups = [result.get("relationships") or []]
+            relationship_groups.extend(
+                path.get("relationships") or []
+                for path in result.get("paths") or []
+                if isinstance(path, dict)
+            )
+            for relationships in relationship_groups:
+                for row in relationships:
+                    if not isinstance(row, dict):
+                        continue
+                    source = names.get(str(row.get("source")))
+                    target = names.get(str(row.get("target")))
+                    relationship_type = str(row.get("type") or "")
+                    if not source or not target or not relationship_type:
+                        continue
+                    triple = (source, relationship_type, target)
+                    reverse = (target, relationship_type, source)
+                    if (
+                        triple not in TRUTH_RELATIONSHIPS
+                        and reverse in TRUTH_RELATIONSHIPS
+                    ):
+                        failures.append(
+                            f"{tool_name} reversed seeded relationship direction: "
+                            f"{source} --{relationship_type}--> {target}"
+                        )
+
+
 def check_get_graph_stats(
     evidence: dict[str, Any], state: dict[str, Any], failures: list[str]
 ) -> None:
@@ -401,6 +463,7 @@ def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[
     check_classification(evidence, failures)
     check_search_knowledge_graph(evidence, failures)
     check_neighborhood_tool(evidence, failures)
+    check_relationship_direction(evidence, failures)
     check_get_graph_stats(evidence, state, failures)
     check_tool_execution_order(evidence, failures)
     check_tenant_scope(evidence, failures)
@@ -436,13 +499,17 @@ class _StubJudgeClient:
 
 
 def trusted_sources() -> list[dict[str, Any]]:
+    confidence = TRUTH["seed_confidence"]
     sources: list[dict[str, Any]] = [
-        {"kind": "entity", **row} for row in TRUTH.get("entities", [])
+        {"kind": "entity", "confidence": confidence["entity"], **row}
+        for row in TRUTH.get("entities", [])
     ]
     sources.extend(
-        {"kind": "relationship", **row} for row in TRUTH.get("relationships", [])
+        {"kind": "relationship", "confidence": confidence["relationship"], **row}
+        for row in TRUTH.get("relationships", [])
     )
     sources.append({"kind": "graph_stats", **TRUTH["graph_stats"]})
+    sources.append({"kind": "neighborhood_stats", **TRUTH["neighborhood_stats"]})
     return sources
 
 
@@ -471,6 +538,7 @@ def gate_with_judge(evidence: dict[str, Any], state: dict[str, Any]) -> list[str
     """Layer A first; Layer B judge verdict is appended only after Layer A runs."""
     failures = objective_failures(evidence, state)
     judge = run_judge(evidence)
+    evidence[JUDGE_AUDIT_KEY] = judge
     if judge.get("supported") is not True:
         failures.append("semantic judge marked the entity answer unsupported")
     if judge.get("contradictions"):
@@ -484,7 +552,10 @@ gate_with_judge.live_reader = live_graph_state  # type: ignore[attr-defined]
 
 
 def graph_snapshot(evidence: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
-    return {"independent_graph_count": state}
+    return {
+        "independent_graph_count": state,
+        "semantic_judge_verdict": evidence.get(JUDGE_AUDIT_KEY),
+    }
 
 
 def main() -> int:

@@ -40,7 +40,11 @@
       {
         "tool_name": "explore_entity_neighborhood",
         "status": "completed",
-        "args": { "entity_id": "entity-elena-vasquez", "max_depth": 2, "limit": 30 },
+        "args": {
+          "entity_id": "entity-elena-vasquez",
+          "max_depth": 2,
+          "limit": 30
+        },
         "result": {
           "center_entity_id": "entity-elena-vasquez",
           "connected_entities": [
@@ -107,14 +111,14 @@
               "strength": 1.0
             },
             {
-              "source": "entity-marcus-chen",
-              "target": "entity-nova-research-institute",
+              "source": "entity-nova-research-institute",
+              "target": "entity-marcus-chen",
               "type": "WORKS_FOR",
               "strength": 1.0
             },
             {
-              "source": "entity-fault-tolerant-quantum-computing-survey",
-              "target": "entity-quantum-error-correction",
+              "source": "entity-quantum-error-correction",
+              "target": "entity-fault-tolerant-quantum-computing-survey",
               "type": "CITED",
               "strength": 1.0
             }
@@ -131,7 +135,10 @@
           "total_entities": 20,
           "total_relationships": 20,
           "entity_type_distribution": { "PERSON": 6, "ORGANIZATION": 2 },
-          "relationship_type_distribution": { "WORKS_FOR": 6, "RELATED_TO": 6 },
+          "relationship_type_distribution": {
+            "WORKS_FOR": 6,
+            "RELATED_TO": 6
+          },
           "average_degree": 2.0
         }
       }
@@ -144,7 +151,7 @@
       "supported": true,
       "contradictions": [],
       "unsupported_material_claims": [],
-      "reason": "Every asserted entity and relationship (works for Nova Research Institute, collaborates with Aisha Rahman, related to Quantum Error Correction, spoke at Quantum Computing Summit 2026) is present in trusted_sources."
+      "reason": "The answer is supported, but the tool result reverses two seeded directional relationships."
     }
   },
   "state": {

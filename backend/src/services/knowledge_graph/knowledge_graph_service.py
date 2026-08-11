@@ -1711,6 +1711,8 @@ class KnowledgeGraphService:
                      shortest_path,
                      [rel in relationships(shortest_path) |
                        {{label: coalesce(rel.type, type(rel)),
+                         source_entity_id: startNode(rel).id,
+                         target_entity_id: endNode(rel).id,
                          strength: coalesce(rel.strength, rel.confidence, 1.0),
                          confidence: coalesce(rel.confidence_score, rel.confidence, 0.5)}}
                      ] AS path_rels,
@@ -1774,10 +1776,9 @@ class KnowledgeGraphService:
 
                     # Emit the REAL per-hop edges (was a single synthetic
                     # start->related edge with product strength + first-hop type).
-                    for i, rel in enumerate(path_rels):
-                        if i + 1 >= len(path_node_ids):
-                            break
-                        src, tgt = path_node_ids[i], path_node_ids[i + 1]
+                    for rel in path_rels:
+                        src = rel["source_entity_id"]
+                        tgt = rel["target_entity_id"]
                         label = rel.get("label") or "RELATED_TO"
                         ek = (src, tgt, label)
                         if ek in seen_edge_keys:
