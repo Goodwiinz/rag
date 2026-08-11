@@ -19,10 +19,11 @@ change and belongs in its own PR, not here.
 """
 
 import asyncio
+import json
 import logging
 from typing import Awaitable, Callable, Hashable, NamedTuple, Optional, TypeVar, cast
 
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
@@ -71,6 +72,29 @@ def _rename(fn: _F, name: str) -> _F:
     fn.__name__ = name
     fn.__qualname__ = name
     return fn
+
+
+def _is_execution_evidence(message: ToolMessage) -> bool:
+    """Return whether a ToolMessage proves a tool completed successfully."""
+    content = str(message.content or "").strip()
+    if not content:
+        return False
+    try:
+        payload = json.loads(content)
+    except (TypeError, json.JSONDecodeError):
+        return True
+    if not isinstance(payload, dict):
+        return True
+    status = str(payload.get("status") or "").lower()
+    return not payload.get("error") and status not in {
+        "cancelled",
+        "denied",
+        "error",
+        "failed",
+        "pending",
+        "skipped",
+        "timeout",
+    }
 
 
 def make_specialist_subgraph(
@@ -196,15 +220,30 @@ def make_specialist_subgraph(
             messages.pop()
 
         sanitized = _sanitize_messages(messages)
+        non_evidence_ids = [
+            message.tool_call_id
+            for message in sanitized
+            if isinstance(message, ToolMessage)
+            and not _is_execution_evidence(message)
+        ]
         base_prompt = prompt_builder()
         addendum = synthesis_addendum.format(count=state.get("tool_loop_count", 0))
         limit_contract = (
             "\n\nThe unanswered tool request was not executed because the "
             "per-turn execution limit was reached. Do not claim it ran, infer "
             "its result, emit tool-call syntax, or promise to run it next. "
-            "Only requests with matching ToolMessages were executed; any "
-            "requested tool or stage without one must be described as not executed. "
-            "Answer the user's original request from completed tool results "
+            "Only successful, non-placeholder ToolMessages with substantive "
+            "results are execution evidence. Synthetic skipped placeholders and "
+            "failed or error ToolMessages do not prove execution. Any requested "
+            "tool or stage without successful execution evidence must be described "
+            "as not executed. "
+            + (
+                "These tool call IDs are not execution evidence: "
+                f"{json.dumps(non_evidence_ids)}. "
+                if non_evidence_ids
+                else ""
+            )
+            + "Answer the user's original request from completed tool results "
             "only. State that the execution limit stopped the remaining work "
             "and identify the last completed or verified result."
         )
