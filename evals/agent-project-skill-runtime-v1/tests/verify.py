@@ -67,13 +67,43 @@ ALLOWED_TOOLS = {
     "create_project_note",
 }
 MEASUREMENT_SCOPE_RE = re.compile(
-    r"\b(?:16k|16,?000)[ -]token\s+scientific\s+abstracts\b",
+    r"\b(?:(?:16k|16\s+000)\s+tokens?\s+scientific\s+abstracts?"
+    r"(?:\s+workloads?)?|scientific\s+abstracts?(?:\s+workloads?)?\s+"
+    r"(?:containing|with|of)\s+(?:16k|16\s+000)\s+tokens?)\b",
+    re.IGNORECASE,
+)
+EXPLICIT_LIMITATION_RE = re.compile(
+    r"\b(?:dense\s+cross[- ]token\s+reasoning(?:\s+(?:tasks?|workloads?))?\s+"
+    r"(?:was\s+|were\s+)?not\s+(?:assessed|evaluated|tested|included)|did\s+not\s+"
+    r"(?:assess|evaluate|test|include)\s+dense\s+cross[- ]token\s+reasoning"
+    r"(?:\s+(?:tasks?|workloads?))?)\b",
     re.IGNORECASE,
 )
 
 
 def mentions_measurement_scope(text: str) -> bool:
-    return bool(MEASUREMENT_SCOPE_RE.search(text))
+    return bool(MEASUREMENT_SCOPE_RE.search(re.sub(r"[-,]", " ", text)))
+
+
+def mentions_explicit_limitation(text: str) -> bool:
+    return bool(EXPLICIT_LIMITATION_RE.search(text))
+
+
+def _assert_semantic_matcher_calibration() -> None:
+    assert all(
+        mentions_measurement_scope(text)
+        for text in (
+            "16k-token scientific abstracts",
+            "16,000-token scientific-abstract workload",
+            "scientific abstracts containing 16,000 tokens",
+        )
+    )
+    assert mentions_explicit_limitation(
+        "The experiment did not assess dense cross-token reasoning tasks."
+    )
+    negative = "Long-context results leave dense cross-token reasoning uncertain."
+    assert not mentions_measurement_scope(negative)
+    assert not mentions_explicit_limitation(negative)
 
 
 def live_state() -> dict[str, Any]:
@@ -347,15 +377,7 @@ def check_note(
         failures.append("note omitted the source's 0.4-point accuracy context")
     if not mentions_measurement_scope(content):
         failures.append("note omitted the source's measurement scope")
-    limitation = re.search(r"dense\s+cross[- ]token", content, re.I) and re.search(
-        r"not\s+(?:evaluated|tested)", content, re.I
-    )
-    limitation = limitation or re.search(
-        r"did\s+not\s+(?:include|evaluate|test)\s+dense\s+cross[- ]token",
-        content,
-        re.I,
-    )
-    if not limitation:
+    if not mentions_explicit_limitation(content):
         failures.append("note omitted the source's explicit limitation")
     if re.search(r"^##\s+(?:Context|Recommendation|Next Steps)\s*$", content, re.M):
         failures.append("note drifted to active version 2 after snapshot creation")
@@ -377,6 +399,7 @@ def check_note(
 
 
 def gate(evidence: dict[str, Any], state: dict[str, Any]) -> list[str]:
+    _assert_semantic_matcher_calibration()
     failures: list[str] = []
     check_identity(evidence, failures)
     check_versions(evidence, state, failures)
