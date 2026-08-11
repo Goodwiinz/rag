@@ -427,6 +427,22 @@ export const useAgentChatStore = create<AgentChatStore>()(
         const MAX_POLLS = 200;
         const POLL_INTERVAL_MS = 3000;
 
+        // src/trigger/agent/execute-agent.ts (repo root — the Trigger.dev
+        // task this poll actually observes) publishes metadata.status =
+        // 'awaiting_confirmation' synchronously and only sets waitTokenId
+        // after awaiting wait.createToken() — a real, short async race
+        // window where this poll can land on a tokenless snapshot. Every
+        // run reaching this task DOES eventually get a token (deterministic
+        // in that file), so surfacing the tokenless snapshot as-is would be
+        // permanent and unresumable: confirmAction has no token to complete
+        // and this loop never re-polls once it returns. Tolerate a couple
+        // of extra ticks for the token to land; only surface tokenless as a
+        // fail-safe if it still hasn't shown up after that (never silently
+        // drop a parked confirmation — the original bug, audit finding A,
+        // trace 019ff314-c29c).
+        const MAX_TOKENLESS_TICKS = 2;
+        let tokenlessTicks = 0;
+
         for (let i = 0; i < MAX_POLLS; i++) {
           if (abortController.signal.aborted) return;
           await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
@@ -435,14 +451,12 @@ export const useAgentChatStore = create<AgentChatStore>()(
           const run = await agentChatService.getDurableRunStatus(runId);
           const meta = run.metadata ?? {};
 
-          // meta.status is the only reliable signal here — the backend
-          // never issues a wait token (agent_execution_service.py's
-          // AWAITING_CONFIRMATION payload is {status, confirmation,
-          // tool_executions}), so requiring meta.waitTokenId silently
-          // swallowed every parked confirmation on this path (audit finding
-          // A, trace 019ff314-c29c). Carry waitTokenId through when a
-          // durable run does supply one, but never require it.
           if (meta.status === 'awaiting_confirmation') {
+            const hasToken = typeof meta.waitTokenId === 'string';
+            if (!hasToken && tokenlessTicks < MAX_TOKENLESS_TICKS) {
+              tokenlessTicks += 1;
+              continue;
+            }
             set((state) => {
               state.pendingConfirmation = {
                 jobId: runId,
@@ -454,9 +468,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   ((meta.confirmation as Record<string, unknown>)
                     ?.message as string) ||
                   'The agent wants to perform an action. Please confirm.',
-                ...(typeof meta.waitTokenId === 'string'
-                  ? { waitTokenId: meta.waitTokenId }
-                  : {}),
+                ...(hasToken ? { waitTokenId: meta.waitTokenId as string } : {}),
               };
               const idx = state.messages.findIndex(
                 (m) => m.id === placeholderId

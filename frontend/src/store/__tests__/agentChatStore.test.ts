@@ -360,12 +360,20 @@ describe('agentChatStore', () => {
   });
 
   describe('durable poll path (sendMessage)', () => {
-    // Audit finding A (trace 019ff314-c29c): the backend never issues a
-    // wait token on AWAITING_CONFIRMATION (agent_execution_service.py's
-    // payload is {status, confirmation, tool_executions}) — requiring
-    // meta.waitTokenId to surface the card silently swallowed every parked
-    // confirmation reached via the durable poll loop.
-    it('surfaces pendingConfirmation from a durable poll without a waitTokenId', async () => {
+    // src/trigger/agent/execute-agent.ts (repo root) publishes
+    // metadata.status = 'awaiting_confirmation' synchronously and only sets
+    // waitTokenId after awaiting wait.createToken() — a real, short async
+    // race window. These tests cover: surface immediately once a token is
+    // present; tolerate a tokenless snapshot by continuing to poll until the
+    // token lands; and fail safe (surface tokenless) if the token never
+    // shows up, so a parked confirmation is never silently dropped forever
+    // (audit finding A, trace 019ff314-c29c).
+    const confirmation = {
+      tools: [{ name: 'create_project', args: { name: 'New Project' } }],
+      message: 'Create this project?',
+    };
+
+    it('surfaces pendingConfirmation immediately when the durable run already carries a waitTokenId', async () => {
       const { agentChatService } = await import('@/services/agentChatService');
       vi.mocked(agentChatService.streamMessage).mockRejectedValueOnce(
         new Error('sse down')
@@ -374,10 +382,8 @@ describe('agentChatStore', () => {
         status: 'RUNNING',
         metadata: {
           status: 'awaiting_confirmation',
-          confirmation: {
-            tools: [{ name: 'create_project', args: { name: 'New Project' } }],
-            message: 'Create this project?',
-          },
+          confirmation,
+          waitTokenId: 'wait-9',
         },
       } as never);
 
@@ -386,18 +392,92 @@ describe('agentChatStore', () => {
       vi.useFakeTimers();
       try {
         const p = useAgentChatStore.getState().sendMessage();
-        // The poll loop waits 3s before its first status check.
         await vi.advanceTimersByTimeAsync(3000);
         await p;
       } finally {
         vi.useRealTimers();
       }
 
+      expect(agentChatService.getDurableRunStatus).toHaveBeenCalledTimes(1);
+      expect(useAgentChatStore.getState().pendingConfirmation).toEqual({
+        jobId: 'run-stub',
+        ...confirmation,
+        waitTokenId: 'wait-9',
+      });
+    });
+
+    it('keeps polling through a tokenless awaiting_confirmation snapshot until the wait token lands', async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+      vi.mocked(agentChatService.streamMessage).mockRejectedValueOnce(
+        new Error('sse down')
+      );
+      vi.mocked(agentChatService.getDurableRunStatus)
+        .mockResolvedValueOnce({
+          status: 'RUNNING',
+          metadata: { status: 'awaiting_confirmation', confirmation },
+        } as never)
+        .mockResolvedValueOnce({
+          status: 'RUNNING',
+          metadata: {
+            status: 'awaiting_confirmation',
+            confirmation,
+            waitTokenId: 'wait-later',
+          },
+        } as never);
+
+      useAgentChatStore.setState({ inputValue: 'make a project' });
+
+      vi.useFakeTimers();
+      try {
+        const p = useAgentChatStore.getState().sendMessage();
+        await vi.advanceTimersByTimeAsync(3000); // tick 1: tokenless — not surfaced
+        expect(useAgentChatStore.getState().pendingConfirmation).toBeNull();
+        await vi.advanceTimersByTimeAsync(3000); // tick 2: token present — surfaced
+        await p;
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(agentChatService.getDurableRunStatus).toHaveBeenCalledTimes(2);
       const state = useAgentChatStore.getState();
       expect(state.pendingConfirmation).toEqual({
         jobId: 'run-stub',
-        tools: [{ name: 'create_project', args: { name: 'New Project' } }],
-        message: 'Create this project?',
+        ...confirmation,
+        waitTokenId: 'wait-later',
+      });
+      const assistant = state.messages.find((m) => m.role === 'assistant');
+      expect(assistant?.content).toBe('Waiting for your confirmation...');
+      expect(state.isStreaming).toBe(false);
+    });
+
+    it('surfaces pendingConfirmation without a waitTokenId once the tokenless grace period is exceeded', async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+      vi.mocked(agentChatService.streamMessage).mockRejectedValueOnce(
+        new Error('sse down')
+      );
+      // Never carries a token — the fail-safe path.
+      vi.mocked(agentChatService.getDurableRunStatus).mockResolvedValue({
+        status: 'RUNNING',
+        metadata: { status: 'awaiting_confirmation', confirmation },
+      } as never);
+
+      useAgentChatStore.setState({ inputValue: 'make a project' });
+
+      vi.useFakeTimers();
+      try {
+        const p = useAgentChatStore.getState().sendMessage();
+        // MAX_TOKENLESS_TICKS (2) tolerated ticks, surfaced on the 3rd.
+        await vi.advanceTimersByTimeAsync(9000);
+        await p;
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(agentChatService.getDurableRunStatus).toHaveBeenCalledTimes(3);
+      const state = useAgentChatStore.getState();
+      expect(state.pendingConfirmation).toEqual({
+        jobId: 'run-stub',
+        ...confirmation,
       });
       expect(state.pendingConfirmation?.waitTokenId).toBeUndefined();
       const assistant = state.messages.find((m) => m.role === 'assistant');
