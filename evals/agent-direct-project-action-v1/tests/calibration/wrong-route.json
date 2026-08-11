@@ -2,7 +2,7 @@
   "evidence": {
     "schema_version": "1.0",
     "benchmark_id": "agent-direct-project-action-v1",
-    "source_revision": "838075c12fe0829ea9635c87fd855c6a21d44081",
+    "source_revision": "31c94c216d0e4799f901679e424396d423336754",
     "instruction": "Create a project named The Discovery Note.",
     "network_boundary": {
       "direct_public_socket_blocked": true,
