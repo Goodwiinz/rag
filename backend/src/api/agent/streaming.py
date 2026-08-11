@@ -835,6 +835,7 @@ class _SeqEmitter:
 # Trace 019e6a0e: ~20s planner + internal LLM phases emit no SSE frames;
 # idle connections get cut at ~30s. Comment keepalives reset proxy timers.
 _SSE_KEEPALIVE_SECONDS = 10
+_SSE_DISCONNECT_POLL_SECONDS = 0.5
 _PLANNER_CHAIN_NODES = frozenset(
     {
         "planner_node",
@@ -854,6 +855,7 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
     terminal cancelled event instead of producing a later completion.
     """
     pending: asyncio.Task | None = None
+    next_keepalive_at = time.monotonic() + _SSE_KEEPALIVE_SECONDS
     try:
         while True:
             if await request.is_disconnected():
@@ -861,32 +863,40 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
                 return
             if pending is None:
                 pending = asyncio.create_task(event_stream_iter.__anext__())
-            sleep_task = asyncio.create_task(asyncio.sleep(_SSE_KEEPALIVE_SECONDS))
             done, _ = await asyncio.wait(
-                {pending, sleep_task},
+                {pending},
+                timeout=min(
+                    _SSE_DISCONNECT_POLL_SECONDS,
+                    max(0, next_keepalive_at - time.monotonic()),
+                ),
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            if sleep_task in done and pending not in done:
-                yield {"type": "keepalive", "elapsed_ms": int(time.time() * 1000)}
+            if pending in done:
+                try:
+                    event = pending.result()
+                except StopAsyncIteration:
+                    pending = None
+                    break
+                except Exception:
+                    pending = None
+                    raise
+                pending = None
+                yield {"type": "event", "event": event}
                 continue
-            sleep_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await sleep_task
-            try:
-                event = pending.result()
-            except StopAsyncIteration:
-                pending = None
-                break
-            except Exception:
-                pending = None
-                raise
-            pending = None
-            yield {"type": "event", "event": event}
+
+            if await request.is_disconnected():
+                yield {"type": "disconnect"}
+                return
+            now = time.monotonic()
+            if now >= next_keepalive_at:
+                yield {"type": "keepalive", "elapsed_ms": int(time.time() * 1000)}
+                next_keepalive_at = now + _SSE_KEEPALIVE_SECONDS
     finally:
         # Never leak the in-flight __anext__ task — on disconnect or error it
         # would otherwise drive one more graph step after we stop reading.
-        if pending is not None and not pending.done():
-            pending.cancel()
+        if pending is not None:
+            if not pending.done():
+                pending.cancel()
             with contextlib.suppress(BaseException):
                 await pending
 
