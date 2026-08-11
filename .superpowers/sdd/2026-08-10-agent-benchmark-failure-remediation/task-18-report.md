@@ -101,3 +101,35 @@ test remains green.
   `git diff --check`: passed.
 - Harbor was not run. The intentional benchmark JSON modification was neither
   edited nor staged.
+
+## Fix round 3/5
+
+The keepalive helper's `finally` still directly awaited its pending graph pull,
+so an initial ASGI cancellation followed by another cancellation during the
+async generator's cleanup could abort that cleanup. The existing helper also
+treated the repeated cancellation as newly arriving and could replace the
+original cancellation's arguments.
+
+The `finally` path now clears `pending` once and delegates its sole await to
+`_cancel_pending_graph_pull`. The helper records whether cancellation was
+already active at entry: that path settles the graph pull through repeated
+cancellations without raising a replacement, while a first cancellation that
+arrives inside the helper is still captured and re-raised after cleanup.
+
+The deterministic regression cancels while the graph pull is pending, waits
+for async-generator cleanup to start, then cancels again. Before the production
+edit it failed because cleanup never completed; after the edit cleanup finishes
+and the propagated `CancelledError` retains `("original ASGI cancellation",)`.
+The prior concurrent-inside-helper and ordinary disconnect tests remain green.
+
+- Focused keepalive suite: 5 passed.
+- Cancellation regressions: 4 passed, 3 skipped because PostgreSQL at
+  `localhost:54322` refused connections.
+- Stream-cancel calibration: `pass.json` returned 0;
+  `wrong-late-completion.json` returned 10.
+- Compile, Black, Ruff, isort, benchmark/calibration JSON parse, and
+  `git diff --check`: passed.
+- Harbor was not run. The intentional benchmark JSON modification was neither
+  edited nor staged.
+
+Commit: `fix(agent): settle graph pull during cancellation`

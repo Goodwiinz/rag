@@ -850,6 +850,7 @@ async def _cancel_pending_graph_pull(pending: asyncio.Task) -> None:
     """Cancel one graph pull and preserve concurrent caller cancellation."""
     current_task = asyncio.current_task()
     cancellation_count = current_task.cancelling() if current_task else 0
+    cancellation_active = cancellation_count > 0
     cancellation_exc: asyncio.CancelledError | None = None
 
     if not pending.done():
@@ -860,6 +861,7 @@ async def _cancel_pending_graph_pull(pending: asyncio.Task) -> None:
         except asyncio.CancelledError as exc:
             if (
                 cancellation_exc is None
+                and not cancellation_active
                 and current_task is not None
                 and current_task.cancelling() > cancellation_count
             ):
@@ -929,10 +931,9 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
         # Never leak the in-flight __anext__ task — on disconnect or error it
         # would otherwise drive one more graph step after we stop reading.
         if pending is not None:
-            if not pending.done():
-                pending.cancel()
-            with contextlib.suppress(BaseException):
-                await pending
+            pending_pull = pending
+            pending = None
+            await _cancel_pending_graph_pull(pending_pull)
 
 
 async def stream_event_generator(

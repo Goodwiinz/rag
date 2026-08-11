@@ -79,12 +79,14 @@ async def _token_then_hang(cleaned: asyncio.Event):
 
 
 async def _token_then_blocked_cleanup(
+    pull_started: asyncio.Event,
     cleanup_started: asyncio.Event,
     allow_cleanup: asyncio.Event,
     cleanup_complete: asyncio.Event,
 ):
     yield {"event": "token"}
     try:
+        pull_started.set()
         await asyncio.Event().wait()
     finally:
         cleanup_started.set()
@@ -127,8 +129,9 @@ async def test_graph_disconnect_cleanup_preserves_concurrent_asgi_cancellation(
     cleanup_started = asyncio.Event()
     allow_cleanup = asyncio.Event()
     cleanup_complete = asyncio.Event()
+    pull_started = asyncio.Event()
     graph = _token_then_blocked_cleanup(
-        cleanup_started, allow_cleanup, cleanup_complete
+        pull_started, cleanup_started, allow_cleanup, cleanup_complete
     )
     request = SimpleNamespace(
         is_disconnected=AsyncMock(side_effect=[False, False, True])
@@ -157,6 +160,40 @@ async def test_graph_disconnect_cleanup_preserves_concurrent_asgi_cancellation(
     assert cleanup_complete.is_set()
     assert caught.value.args == ("original ASGI cancellation",)
     assert yielded == [{"type": "event", "event": {"event": "token"}}]
+
+
+@pytest.mark.asyncio
+async def test_graph_finally_cleanup_preserves_initial_asgi_cancellation(monkeypatch):
+    import src.api.agent.streaming as st
+
+    pull_started = asyncio.Event()
+    cleanup_started = asyncio.Event()
+    allow_cleanup = asyncio.Event()
+    cleanup_complete = asyncio.Event()
+    graph = _token_then_blocked_cleanup(
+        pull_started, cleanup_started, allow_cleanup, cleanup_complete
+    )
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    monkeypatch.setattr(st, "_SSE_KEEPALIVE_SECONDS", 0.2)
+    monkeypatch.setattr(st, "_SSE_DISCONNECT_POLL_SECONDS", 0.01, raising=False)
+
+    events = st._graph_events_with_keepalive(graph, request)
+    assert await anext(events) == {"type": "event", "event": {"event": "token"}}
+
+    next_item = asyncio.create_task(anext(events))
+    await asyncio.wait_for(pull_started.wait(), timeout=0.1)
+    next_item.cancel("original ASGI cancellation")
+    await asyncio.wait_for(cleanup_started.wait(), timeout=0.1)
+    next_item.cancel("repeated ASGI cancellation")
+    await asyncio.sleep(0)
+    assert not next_item.done()
+
+    allow_cleanup.set()
+    with pytest.raises(asyncio.CancelledError) as caught:
+        await next_item
+
+    assert cleanup_complete.is_set()
+    assert caught.value.args == ("original ASGI cancellation",)
 
 
 @pytest.mark.asyncio
