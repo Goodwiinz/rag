@@ -864,6 +864,19 @@ async def _request_disconnected(request: Any) -> bool:
     return bool(signal and signal.is_set()) or await request.is_disconnected()
 
 
+def _cancel_current_task_on_disconnect(request: Any) -> Optional[asyncio.Task]:
+    signal = getattr(getattr(request, "state", None), AGENT_DISCONNECT_EVENT, None)
+    stream_task = asyncio.current_task()
+    if signal is None or stream_task is None:
+        return None
+
+    async def cancel_stream() -> None:
+        await signal.wait()
+        stream_task.cancel()
+
+    return asyncio.create_task(cancel_stream())
+
+
 _PLANNER_CHAIN_NODES = frozenset(
     {
         "planner_node",
@@ -1064,6 +1077,7 @@ async def stream_event_generator(
         None,
     )
     client_message_id = getattr(latest_user_message, "client_message_id", None)
+    disconnect_canceller = _cancel_current_task_on_disconnect(request)
     try:
         # Resolve the thread and verify ownership BEFORE acknowledging anything
         # — the acknowledgment is now a claim about durable state, so it cannot
@@ -1984,6 +1998,10 @@ async def stream_event_generator(
         )
 
     finally:
+        if disconnect_canceller is not None:
+            disconnect_canceller.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await disconnect_canceller
         await db.close()
         logger.info("SSE stream ended for thread %s", stream_thread_id)
 
@@ -2032,6 +2050,7 @@ async def stream_confirm_event_generator(
     # it to link the cancelled run to its stopped partial row, and that handler
     # can fire before the try body has run.
     persisted_assistant_id: Optional[str] = None
+    disconnect_canceller = _cancel_current_task_on_disconnect(request)
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
@@ -2718,5 +2737,9 @@ async def stream_confirm_event_generator(
         await emitter.finish()
 
     finally:
+        if disconnect_canceller is not None:
+            disconnect_canceller.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await disconnect_canceller
         await db.close()
         logger.info("SSE confirm stream ended for thread %s", request_body.thread_id)

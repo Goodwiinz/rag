@@ -1,6 +1,7 @@
 """Preserve agent-stream disconnects across middleware receive wrappers."""
 
 import asyncio
+import contextlib
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -22,11 +23,21 @@ class AgentDisconnectSignalMiddleware:
 
         disconnected = asyncio.Event()
         scope.setdefault("state", {})[AGENT_DISCONNECT_EVENT] = disconnected
+        messages: asyncio.Queue[Message] = asyncio.Queue(maxsize=1)
 
-        async def receive_with_signal() -> Message:
-            message = await receive()
-            if message["type"] == "http.disconnect":
-                disconnected.set()
-            return message
+        async def pump_receive() -> None:
+            while True:
+                message = await receive()
+                if message["type"] == "http.disconnect":
+                    disconnected.set()
+                await messages.put(message)
+                if message["type"] == "http.disconnect":
+                    return
 
-        await self.app(scope, receive_with_signal, send)
+        pump = asyncio.create_task(pump_receive())
+        try:
+            await self.app(scope, messages.get, send)
+        finally:
+            pump.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await pump

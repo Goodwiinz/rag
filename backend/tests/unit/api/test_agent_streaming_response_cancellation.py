@@ -378,11 +378,16 @@ async def test_disconnect_signal_survives_outer_receive_consumer() -> None:
     )
 
     async def app(scope: Scope, receive: Any, _send: Any) -> None:
-        assert (await receive())["type"] == "http.disconnect"
+        assert (await receive())["type"] == "http.request"
+        await asyncio.wait_for(scope["state"][AGENT_DISCONNECT_EVENT].wait(), timeout=1)
         assert scope["state"][AGENT_DISCONNECT_EVENT].is_set()
 
+    messages: asyncio.Queue[Message] = asyncio.Queue()
+    await messages.put({"type": "http.request", "body": b"{}", "more_body": False})
+    await messages.put({"type": "http.disconnect"})
+
     async def receive() -> Message:
-        return {"type": "http.disconnect"}
+        return await messages.get()
 
     scope = cast(Scope, {"type": "http", "path": "/api/v1/agent/stream"})
     await AgentDisconnectSignalMiddleware(app)(scope, receive, AsyncMock())
