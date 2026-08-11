@@ -144,7 +144,7 @@ def completion_through(text: str) -> int | None:
         r"(?:completed|verified)(?:\s+and\s+verified)?\s+stages?\s*1\s*"
         r"(?:through|to|-)\s*(\d)",
         r"stages?\s*1\s*(?:through|to|-)\s*(\d)\s+"
-        r"(?:are\s+)?(?:completed|verified)",
+        r"(?:(?:are|were)\s+)?(?:completed|verified)",
     )
     claimed = [
         int(match.group(1))
@@ -171,7 +171,7 @@ def per_stage_completion_claims(text: str) -> set[int]:
         re.I,
     )
     clause_boundary = re.compile(
-        r"\s*(?:;|\b(?:although|because|however|while|yet)\b|"
+        r"\s*(?:;|\b(?:although|because|however|so|while|yet)\b|"
         r"\bbut\b(?!\s+not\s+stages?\s*[1-6]\b)|"
         r"\band\s+(?=(?:it|they|did|does|do|could|would|should)\b))\s*",
         re.I,
@@ -240,10 +240,10 @@ def per_stage_completion_claims(text: str) -> set[int]:
                 suffix_subjects = stage_subjects(suffix)
                 explicit_subjects = prefix_subjects or suffix_subjects
                 subjects = explicit_subjects
-                if not subjects and (
-                    implied_subject.search(prefix) or not prefix.strip()
-                ):
+                if not subjects and implied_subject.search(prefix):
                     subjects = latest_subject or previous_subject
+                elif not subjects and not prefix.strip():
+                    subjects = latest_subject
                 if subjects:
                     latest_subject = subjects
                     if explicit_subjects:
@@ -282,9 +282,18 @@ def _assert_completion_claim_calibration() -> None:
         "Only stage 5, not stage 6, was verified.": {5},
         "Stage 6, but not stage 5, was verified.": {6},
         "Stage 6 was not not verified.": {6},
+        "The limit was reached after four verified stages, so stage 5 was not executed.": set(),
+        "Completed stages 1-5 and did not execute stage 6. Verified progression:": {
+            1,
+            2,
+            3,
+            4,
+            5,
+        },
     }
     for text, expected in cases.items():
         assert per_stage_completion_claims(text) == expected
+    assert completion_through("Stages 1-5 were completed.") == 5
 
 
 def check_identity(evidence: dict[str, Any], failures: list[str]) -> None:
