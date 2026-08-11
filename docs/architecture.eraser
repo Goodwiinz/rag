@@ -1,0 +1,84 @@
+// NOUS — system architecture (rag-dev, verified against live pod 2026-08-07)
+// Paste into https://app.eraser.io → Cloud Architecture diagram
+// Solid = sync request / streamed response. Label "async" = deferred path.
+
+title NOUS Multimodal Intelligence Platform
+
+Frontend [icon: vercel, color: blue] {
+  UI [label: "Next.js 16 app router\n/chat /documents /graph", icon: nextjs]
+  AgentChat [label: "agentChatService", icon: typescript]
+  RestSvc [label: "documentService\nsearchService · graphService", icon: typescript]
+  WsClient [label: "realtimeWebSocketService", icon: typescript]
+}
+
+Backend [icon: python, color: green] {
+  AgentAPI [label: "/api/v1/agent/*\nexecute · stream · confirm · threads", icon: fastapi]
+  RestAPI [label: "/api/v1 documents · search\nknowledge-graph · projects · arxiv", icon: fastapi]
+  WsServer [label: "WS /ws\nconnection_manager", icon: fastapi]
+  Services [label: "service layer\ndocuments · search · threads · do_kb", icon: python]
+}
+
+Agent [label: "Agent — LangGraph StateGraph (in-process)", icon: brain, color: purple] {
+  Pre [label: "preprocessing_node\nRAG + classify + memory (parallel)"]
+  Research [label: "research_subgraph\nagent tools"]
+  Writing [label: "writing_subgraph\nagent tools"]
+  Data [label: "data_subgraph\nagent tools"]
+  General [label: "general path\nplanner → llm → tool → compactor"]
+  Reflect [label: "reflection_gate"]
+  MemSave [label: "memory_save_node"]
+}
+
+Worker [label: "Celery worker\nKEDA 1–5", icon: celery, color: orange]
+
+DataLayer [label: "Data", icon: database, color: gray] {
+  Postgres [label: "Supabase Postgres\napp tables + LangGraph checkpoints", icon: postgresql]
+  Neo4j [label: "Neo4j (in-cluster)", icon: neo4j]
+  Valkey [label: "DO Valkey / Redis", icon: redis]
+  Spaces [label: "DO Spaces nyc3", icon: digital-ocean]
+}
+
+External [label: "External services", color: red] {
+  Azure [label: "Azure OpenAI\ngpt-5-mini chat + embeddings", icon: azure]
+  DOKB [label: "DO Knowledge Base\nprimary retrieval", icon: digital-ocean]
+  Arxiv [label: "arXiv API"]
+  LangSmith [label: "LangSmith traces"]
+}
+
+// --- frontend → backend ---
+UI > AgentChat, RestSvc, WsClient
+AgentChat > AgentAPI: "SSE — token, tool_start, tool_end, rag_context, plan, reflection, done, error"
+AgentChat > AgentAPI: "POST /stream/confirm — HITL resume"
+RestSvc > RestAPI: "REST JSON, org-scoped"
+WsClient > WsServer: "WS push — Sec-WebSocket-Protocol auth"
+
+// --- api → internals ---
+AgentAPI > Pre
+RestAPI > Services
+Services > Postgres, Neo4j, Spaces
+
+// --- agent graph ---
+Pre > Research, Writing, Data, General: "route_by_intent"
+Research, Writing, Data > MemSave
+General > Reflect
+Reflect > MemSave: "proceed"
+Reflect > General: "revise (loop)"
+MemSave > Postgres
+
+// --- agent → data / external ---
+Pre > DOKB: "primary read — org-scoped chunks"
+Pre > Postgres: "async fallback — hybrid search + rerank"
+General > Postgres: "psycopg v3 checkpoint writes"
+General > Azure: "chat completions, streamed"
+Research > Arxiv: "search + ingest"
+Data > Neo4j: "bolt:// Cypher"
+Agent > LangSmith: "async traces"
+
+// --- async pipeline ---
+RestAPI > Valkey: "async enqueue job"
+Valkey > Worker: "async broker"
+Worker > Postgres: "async extract → embed → index"
+Worker > DOKB: "async index chunks"
+Worker > Neo4j: "async entity extraction"
+Worker > Spaces: "async objects"
+Worker > Valkey: "async status events"
+Valkey > WsServer: "async pub/sub fan-out"

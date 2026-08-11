@@ -33,7 +33,9 @@ and the commands CI actually runs.
 
 LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
-**Flow:** `rag_node → intent_classifier → memory_retrieval → [route by intent] → tool_node → memory_save → END`
+**Flow:** `preprocessing_node (RAG + classify + memory, parallel) → [route_by_intent] → research|writing|data subgraph | general path → memory_save_node → END`
+
+General path: `planner_node → llm_node → [should_continue] → tool_node → compactor_node → llm_node (loop)`, with `interrupt_node` (HITL) and `reflection_gate` (`revise` loops back to `llm_node`). Authoritative topology = `build_agent_graph` docstring in `backend/src/services/agent/_builders.py`.
 
 **Subgraphs:**
 
@@ -50,7 +52,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 - `GET /threads` / `GET /threads/{id}/messages` — Thread management
 - `GET /graph/mermaid` / `GET /graph/trace/{thread_id}` — Visualization
 
-**Config:** `backend/langgraph.json` defines graph entry point (`compile_agent_graph`)
+**Config:** `backend/langgraph.json` points at `src/services/agent/graph.py:create_graph`. In-process runtime compiles via `compile_agent_graph(checkpointer, store)` (`_builders.py`) — cached per `(checkpointer, store)` identity.
 
 ## Code Style
 
@@ -80,6 +82,8 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 - **Storage layout**: `Document.storage_path` = bare object key; `file_path` = `s3://bucket/key` (or `supabase://...`, or a local path). Serving + deleting branch on `storage_backend` — **s3 (DO Spaces) is the deployed default**. Upload commits the object to storage _before_ the DB rows, so any post-upload failure must compensating-delete the object (`_best_effort_delete_object`) + revert quota, else it orphans the object and a PENDING row that content-hash dedup then blocks from re-upload.
 - `ThreadSummarizationService` uses the **sync** SQLAlchemy API (`db.query`/`db.commit`) and is shared with the Celery task — drive it from a worker thread (`SessionLocal()` + `asyncio.run`), never hand it the request's `AsyncSession` (`'AsyncSession' has no attribute 'query'` → 500).
 - Synthetic-traffic LangSmith runs are filtered by `metadata.synthetic` + `run_name` (`synthetic:<scenario>`), NOT a post-hoc tag — LangSmith rejects `update_run` after a run's final payload ("Duplicate run update… not supported").
+- **Config defaults + values-dev.yaml do NOT tell you what dev runs.** Infisical `envFrom` (`app-secrets`, `*-credentials`) overrides both at pod start and is invisible to any repo grep — `DO_KB_ENABLED` reads `False` in `core/config.py` and is absent from values-dev.yaml, yet is `true` live. A flag's absence from a values file is *no information*, not "off". Verify with `kubectl -n rag-dev exec <backend-pod> -- printenv | grep <VAR>`.
+- Grep hits are not proof a dependency is live: all 24 `qdrant` hits under `backend/src/` are comments recording its removal. Check for a client construction / URL read before believing one.
 
 ## Connections
 
@@ -109,7 +113,7 @@ Only `dev` deploys via ArgoCD (staging/prod apps retired in #442, values scaffol
 | LLM            | **Azure OpenAI**             | Chat/agent deployment                                                                                                                                            |
 | Frontend       | **Vercel**                   | `goodwiinz.tech` (+ `www`); backend API ingress `dev-api.gen-text.app`                                                                                           |
 | Secrets        | **Infisical** operator       | envFrom `app-secrets`, `*-credentials`                                                                                                                           |
-| Retrieval/RAG  | PostgreSQL fulltext          | DO KB (`backend/src/services/do_kb/`) behind `DO_KB_ENABLED` (off)                                                                                               |
+| Retrieval/RAG  | **DO KB** (primary read)     | `DO_KB_ENABLED` + `DO_KB_PRIMARY_READ` both **true** on dev — set via Infisical `/do-kb`, NOT in values-dev.yaml. Postgres hybrid + rerank is the fallback (timeout / no KB / empty result) |
 
 > **Qdrant:** removed. Retrieval migrated Qdrant → DO KB; the app sets no `QDRANT_URL` and never queries Qdrant. The `knowledge-graph-analytics` chart never actually had a Qdrant subchart or pod template — only dead `qdrant.*` values, a never-called `qdrantUrl` helper, and networkpolicy residue, all dropped in #1043. Legacy non-ArgoCD charts/manifests (`deployment/helm/rag-system`, `infrastructure/kubernetes/manifests/databases.yaml`, monitoring/terraform/backup/CI/docker-compose) still carry Qdrant refs; not deployed, cleanup pending.
 
