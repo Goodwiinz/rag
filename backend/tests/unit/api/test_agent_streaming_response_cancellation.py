@@ -50,6 +50,29 @@ class _BlockingGraph:
         return SimpleNamespace(values={"messages": []}, tasks=())
 
 
+@pytest.mark.asyncio
+async def test_iterator_close_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.api.agent import streaming as streaming_mod
+
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    class SlowIterator:
+        async def aclose(self) -> None:
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+    monkeypatch.setattr(streaming_mod, "_SSE_DISCONNECT_POLL_SECONDS", 0.01)
+    await streaming_mod._close_async_iterator(SlowIterator())
+    await asyncio.sleep(0)
+
+    assert started.is_set()
+    assert cancelled.is_set()
+
+
 @pytest.mark.parametrize("buffer_available", [False, True])
 @pytest.mark.asyncio
 async def test_streaming_response_abort_finalizes_cancelled_without_completion(

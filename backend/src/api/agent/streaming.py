@@ -432,7 +432,7 @@ async def _stream_luna_fast_path(
                     if not client_disconnected:
                         yield frame
             finally:
-                await fast_path_events.aclose()
+                await _close_async_iterator(fast_path_events)
 
         assistant_content = "".join(parts)
         if not assistant_content:
@@ -899,6 +899,24 @@ def _consume_pending_pull_result(pending: asyncio.Task) -> None:
         logger.debug("Detached agent stream pull failed", exc_info=True)
 
 
+async def _close_async_iterator(iterator: Any) -> None:
+    """Bound iterator shutdown so durable cancellation cannot wait on an LLM."""
+    close_task = asyncio.create_task(iterator.aclose())
+    done, _ = await asyncio.wait({close_task}, timeout=_SSE_DISCONNECT_POLL_SECONDS)
+    if close_task in done:
+        _consume_pending_pull_result(close_task)
+        return
+    close_task.cancel()
+    close_task.add_done_callback(_consume_pending_pull_result)
+    logger.warning(
+        "Timed out closing agent stream iterator",
+        extra={
+            "event": "agent_stream_iterator_close_timeout",
+            "cleanup_timeout_seconds": _SSE_DISCONNECT_POLL_SECONDS,
+        },
+    )
+
+
 async def _cancel_pending_graph_pull(
     pending: asyncio.Task, *, request_cancel: bool = True
 ) -> None:
@@ -1185,7 +1203,7 @@ async def stream_event_generator(
                 async for frame in fast_path_iter:
                     yield frame
             finally:
-                await fast_path_iter.aclose()
+                await _close_async_iterator(fast_path_iter)
             return
 
         # Edit-and-resend: whichever writer owned this turn's user row also
@@ -1457,7 +1475,7 @@ async def stream_event_generator(
             """Best-effort durable cleanup for polling and ASGI cancellation."""
             if event_stream_iter is not None:
                 with contextlib.suppress(BaseException):
-                    await event_stream_iter.aclose()
+                    await _close_async_iterator(event_stream_iter)
             with contextlib.suppress(BaseException):
                 await persist_partial_stop(force_inline=True)
             with contextlib.suppress(BaseException):
@@ -1853,7 +1871,7 @@ async def stream_event_generator(
         async def cleanup_cancelled_response() -> None:
             if event_stream_iter is not None:
                 with contextlib.suppress(BaseException):
-                    await event_stream_iter.aclose()
+                    await _close_async_iterator(event_stream_iter)
             if persist_partial_stop is not None:
                 with contextlib.suppress(BaseException):
                     await persist_partial_stop(force_inline=True)
@@ -2329,7 +2347,7 @@ async def stream_confirm_event_generator(
         async def cancel_confirm_stream() -> None:
             if confirm_event_iter is not None:
                 with contextlib.suppress(BaseException):
-                    await confirm_event_iter.aclose()
+                    await _close_async_iterator(confirm_event_iter)
             with contextlib.suppress(BaseException):
                 await persist_partial_stop(force_inline=True)
             with contextlib.suppress(BaseException):
@@ -2683,7 +2701,7 @@ async def stream_confirm_event_generator(
         async def cleanup_cancelled_confirm_response() -> None:
             if confirm_event_iter is not None:
                 with contextlib.suppress(BaseException):
-                    await confirm_event_iter.aclose()
+                    await _close_async_iterator(confirm_event_iter)
             if persist_partial_stop is not None:
                 with contextlib.suppress(BaseException):
                     await persist_partial_stop(force_inline=True)
