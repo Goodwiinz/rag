@@ -380,6 +380,7 @@ class ArXivIngestionService:
 
         papers = []
         api_offset = 0  # Tracks pagination offset for API calls
+        empty_page_retries = 0  # arXiv sporadically returns empty mid-scan pages
         max_api_results = (
             max_results * 5
         )  # Limit total API fetches to prevent infinite loop
@@ -451,6 +452,7 @@ class ArXivIngestionService:
                 api_offset += entries_in_batch
 
                 # Check if we got all available results from ArXiv
+                total_available = None
                 total_results_elem = root.find(
                     "opensearch:totalResults",
                     {"opensearch": "http://a9.com/-/spec/opensearch/1.1/"},
@@ -464,8 +466,24 @@ class ArXivIngestionService:
                         logger.info(f"Reached end of available results")
                         break
 
-                # If we got 0 entries in this batch, we've exhausted results
                 if entries_in_batch == 0:
+                    # arXiv sporadically returns an empty page mid-pagination
+                    # even when totalResults says more remain (known server
+                    # quirk). Retry the same offset once before concluding the
+                    # scan is done, else results are silently truncated.
+                    if (
+                        total_available is not None
+                        and api_offset < total_available
+                        and empty_page_retries < 1
+                    ):
+                        empty_page_retries += 1
+                        logger.warning(
+                            "Empty page at offset %d with %d total available; "
+                            "retrying once",
+                            api_offset,
+                            total_available,
+                        )
+                        continue
                     logger.info(f"No entries in batch, stopping")
                     break
 
@@ -475,6 +493,41 @@ class ArXivIngestionService:
 
         logger.info(f"Fetched {len(papers)} papers from arXiv")
         return papers[:max_results]
+
+    async def get_papers_by_ids(self, paper_ids: List[str]) -> List[Dict[str, Any]]:
+        """Batch metadata lookup via the API's ``id_list`` parameter.
+
+        One request (one shared rate-gate slot) for up to ~100 known IDs,
+        instead of one search per ID. Invalid IDs come back as error entries
+        in the same 200 Atom feed; those are dropped, so the result may be
+        shorter than the input — callers match by ID, not position.
+        """
+        if not paper_ids:
+            return []
+
+        params = {
+            "id_list": ",".join(paper_ids),
+            "max_results": len(paper_ids),
+        }
+        response_text = await self._make_async_request(self.ARXIV_API_BASE, params)
+        if not response_text:
+            raise IngestionError("Empty response from arXiv API")
+        try:
+            root = ET.fromstring(response_text)
+        except ET.ParseError as e:
+            raise IngestionError(f"Failed to parse arXiv id_list response: {e}")
+
+        namespaces = {
+            "atom": "http://www.w3.org/2005/Atom",
+            "arxiv": "http://arxiv.org/schemas/atom",
+        }
+        papers = [
+            self._parse_arxiv_entry(entry, namespaces)
+            for entry in root.findall("atom:entry", namespaces)
+        ]
+        # Error entries keep their full "http://arxiv.org/api/errors#..." URL
+        # as the id (no "/abs/" segment) — filter them out here.
+        return [p for p in papers if p["id"] and "://" not in p["id"]]
 
     def _parse_arxiv_entry(self, entry: Element, namespaces: Dict) -> Dict[str, Any]:
         """Parse a single arXiv entry from XML"""
@@ -488,7 +541,10 @@ class ArXivIngestionService:
             return (el.text or default).strip() if el is not None else default
 
         raw_id = _text("atom:id")
-        paper_id = raw_id.split("/")[-1] if raw_id else ""
+        # Split on "/abs/", not "/": pre-2007 IDs are archive-qualified
+        # ("math/0309136v1"), so taking the last path segment dropped the
+        # "math/" prefix and produced a broken PDF URL + wrong dedup key.
+        paper_id = raw_id.rsplit("/abs/", 1)[-1] if raw_id else ""
         title = _text("atom:title")
         abstract = _text("atom:summary")
         published = _text("atom:published")
@@ -539,6 +595,23 @@ class ArXivIngestionService:
         journal_ref_elem = entry.find("arxiv:journal_ref", namespaces)
         journal_ref = journal_ref_elem.text if journal_ref_elem is not None else None
 
+        # DOI: the <arxiv:doi> element carries the bare DOI even when the feed
+        # has no rel="doi" <link> — prefer the link, fall back to the element.
+        if "doi" not in links:
+            doi_elem = entry.find("arxiv:doi", namespaces)
+            doi_text = (doi_elem.text or "").strip() if doi_elem is not None else ""
+            if doi_text:
+                links["doi"] = f"https://doi.org/{doi_text}"
+
+        # Primary category has its own element; categories[0] is only a guess
+        # (the Atom <category> order is not guaranteed to lead with primary).
+        primary_elem = entry.find("arxiv:primary_category", namespaces)
+        primary_category = (
+            primary_elem.get("term")
+            if primary_elem is not None and primary_elem.get("term")
+            else (categories[0] if categories else None)
+        )
+
         return {
             "id": paper_id,
             "title": title,
@@ -550,7 +623,7 @@ class ArXivIngestionService:
             "links": links,
             "comment": comment,
             "journal_ref": journal_ref,
-            "primary_category": categories[0] if categories else None,
+            "primary_category": primary_category,
             "authors_detailed": authors_detailed,
         }
 
