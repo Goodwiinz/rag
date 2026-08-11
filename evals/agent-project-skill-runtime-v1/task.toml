@@ -1,5 +1,5 @@
 schema_version = "1.2"
-source = "git+https://github.com/Goodwiinz/rag.git@2a622d909f1dfc1cb2bc41def71a6c694b6343ac"
+source = "git+https://github.com/Goodwiinz/rag.git@67475464ada2060a66dd5789ccb0b7c6a644eaae"
 artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
 
 [task]
@@ -10,8 +10,8 @@ keywords = ["langgraph", "project-skills", "snapshot", "hitl", "versioning"]
 
 [metadata]
 benchmark_id = "agent-project-skill-runtime-v1"
-source_revision = "2a622d909f1dfc1cb2bc41def71a6c694b6343ac"
-agent_revision = "2a622d909f1dfc1cb2bc41def71a6c694b6343ac"
+source_revision = "67475464ada2060a66dd5789ccb0b7c6a644eaae"
+agent_revision = "67475464ada2060a66dd5789ccb0b7c6a644eaae"
 harbor_version = "0.6.6"
 base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
 
