@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import socket
 import sys
 import time
 import traceback
@@ -275,6 +276,20 @@ def parse_sse_text(raw: str) -> dict[str, Any]:
     return {"id": event_id, "event": event_type, "data": data}
 
 
+def abort_response_transport(response: httpx.Response) -> None:
+    """Force the live HTTP socket closed before recording a disconnect."""
+    network_stream = response.extensions.get("network_stream")
+    raw_socket = (
+        network_stream.get_extra_info("socket") if network_stream is not None else None
+    )
+    if raw_socket is None:
+        raise InfrastructureFailure("stream response did not expose its live socket")
+    try:
+        raw_socket.shutdown(socket.SHUT_RDWR)
+    except OSError as exc:
+        raise InfrastructureFailure("failed to abort stream response socket") from exc
+
+
 async def stream_until_first_token(token: str) -> dict[str, Any]:
     request_body = {
         "messages": [
@@ -292,6 +307,7 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "text/event-stream",
+        "Connection": "close",
         "Content-Type": "application/json",
         "X-Request-ID": REQUEST_ID,
     }
@@ -349,7 +365,9 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
                             captured_stream_id = await capture_active_stream_id()
                             disconnect_initiated_at = utc_now()
                             disconnect_monotonic = time.monotonic()
+                            abort_response_transport(response)
                             await response.aclose()
+                            await client.aclose()
                             disconnect_completed_at = utc_now()
                             break
             except TimeoutError as exc:
