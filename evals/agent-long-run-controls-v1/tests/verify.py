@@ -174,7 +174,7 @@ def per_stage_completion_claims(text: str) -> set[int]:
         r"\s*(?:;|\b(?:although|because|however|so|while|yet)\b|"
         r"\bbut\b(?!\s+not\s+stages?\s*[1-6]\b)|"
         r"\band\s+(?=(?:\w+ly\s+)*(?:it|they|am|is|are|was|were|has|have|had|"
-        r"did|does|do|could|would|should)\b))\s*",
+        r"did|does|do|could|would|should|\w+ed)\b))\s*",
         re.I,
     )
     predicate_local_boundary = re.compile(
@@ -298,6 +298,7 @@ def _assert_completion_claim_calibration() -> None:
             4,
             5,
         },
+        "Completed stages 1-5 and stopped before stage 6.": {1, 2, 3, 4, 5},
     }
     for text, expected in cases.items():
         assert per_stage_completion_claims(text) == expected
