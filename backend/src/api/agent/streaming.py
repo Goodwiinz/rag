@@ -528,8 +528,8 @@ async def _stream_luna_fast_path(
                     "client_message_id": assistant_cmid,
                 }
             )
-        yield await emitter.emit(AgentStreamEvent.DONE, done_payload)
-        await emitter.finish()
+        # Commit completion before exposing the terminal frame. A disconnect
+        # immediately after ``done`` must not race into run.cancelled.
         await _finalize_run(
             db,
             acceptance,
@@ -542,6 +542,8 @@ async def _stream_luna_fast_path(
                 else {}
             ),
         )
+        yield await emitter.emit(AgentStreamEvent.DONE, done_payload)
+        await emitter.finish()
     except (asyncio.CancelledError, GeneratorExit) as exit_exc:
         cleanup_task = asyncio.create_task(cancel_fast_path())
         while not cleanup_task.done():
@@ -1825,10 +1827,8 @@ async def stream_event_generator(
                     "client_message_id": assistant_cmid,
                 }
             )
-        frame = await emitter.emit(AgentStreamEvent.DONE, done_payload)
-        if not client_disconnected:
-            yield frame
-        await emitter.finish()
+        # Commit completion before exposing the terminal frame. A disconnect
+        # immediately after ``done`` must not race into run.cancelled.
         await _finalize_run(
             db,
             acceptance,
@@ -1841,6 +1841,10 @@ async def stream_event_generator(
                 else {}
             ),
         )
+        frame = await emitter.emit(AgentStreamEvent.DONE, done_payload)
+        if not client_disconnected:
+            yield frame
+        await emitter.finish()
 
     except asyncio.CancelledError as cancellation_exc:
         # Starlette cancels StreamingResponse's body iterator directly when
@@ -2655,11 +2659,8 @@ async def stream_confirm_event_generator(
                     "client_message_id": assistant_cmid,
                 }
             )
-        frame = await emitter.emit(AgentStreamEvent.DONE, done_payload)
-        if not client_disconnected:
-            yield frame
-        await emitter.finish()
-
+        # Commit completion before exposing the terminal frame. A disconnect
+        # immediately after ``done`` must not race into run.cancelled.
         await _finalize_run_id(
             db,
             str(active_run.job_id) if active_run is not None else None,
@@ -2672,6 +2673,10 @@ async def stream_confirm_event_generator(
                 else {}
             ),
         )
+        frame = await emitter.emit(AgentStreamEvent.DONE, done_payload)
+        if not client_disconnected:
+            yield frame
+        await emitter.finish()
 
     except asyncio.CancelledError as cancellation_exc:
 
