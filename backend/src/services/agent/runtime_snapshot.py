@@ -190,6 +190,10 @@ def render_project_skill_catalog(
     lines.append(
         "Call load_project_skill(skill_name) to read the exact instructions for one listed skill."
     )
+    lines.append(
+        "When the user explicitly names a listed skill, call "
+        "load_project_skill(skill_name) before any other project tool."
+    )
     return "\n".join(lines)
 
 
