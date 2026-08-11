@@ -186,13 +186,15 @@ def first_success_index_any(
     return min(indices) if indices else None
 
 
-def selected_graph_executions(evidence: dict[str, Any]) -> list[dict[str, Any]]:
-    executions = evidence.get("raw_tool_executions") or []
-    indices = [
-        first_success_index(evidence, SEARCH_TOOL),
-        first_success_index_any(evidence, NEIGHBORHOOD_TOOLS),
+def successful_graph_executions(evidence: dict[str, Any]) -> list[dict[str, Any]]:
+    relevant = {SEARCH_TOOL, *NEIGHBORHOOD_TOOLS}
+    return [
+        execution
+        for execution in evidence.get("raw_tool_executions") or []
+        if isinstance(execution, dict)
+        and execution.get("tool_name") in relevant
+        and execution.get("status") in SUCCESS_STATUSES
     ]
-    return [executions[index] for index in indices if index is not None]
 
 
 def result_entities(result: Any) -> list[dict[str, Any]]:
@@ -216,7 +218,7 @@ def result_entities(result: Any) -> list[dict[str, Any]]:
 def validated_graph_rows(
     execution: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], list[Any]] | None:
-    """Return rows only when the selected successful tool has valid collections."""
+    """Return rows only when a successful graph tool has valid collections."""
     if execution.get("status") not in SUCCESS_STATUSES:
         return None
     result = execution.get("result")
@@ -259,7 +261,7 @@ def result_entity_names(result: Any) -> set[str]:
 
 def entity_names_by_id(evidence: dict[str, Any]) -> dict[str, str]:
     names: dict[str, str] = {}
-    for execution in selected_graph_executions(evidence):
+    for execution in successful_graph_executions(evidence):
         rows = validated_graph_rows(execution)
         if rows is None:
             continue
@@ -311,6 +313,12 @@ def check_search_knowledge_graph(evidence: dict[str, Any], failures: list[str]) 
         failures.append(f"no successful {SEARCH_TOOL} execution was observed")
         return
     execution = (evidence.get("raw_tool_executions") or [])[index]
+    for current in successful_graph_executions(evidence):
+        if (
+            current.get("tool_name") == SEARCH_TOOL
+            and validated_graph_rows(current) is None
+        ):
+            failures.append(f"{SEARCH_TOOL} entities must be present as a list")
     args = execution.get("args") or {}
     limit = args.get("limit")
     if limit is not None and (
@@ -321,11 +329,10 @@ def check_search_knowledge_graph(evidence: dict[str, Any], failures: list[str]) 
             f"[1, {SEARCH_LIMIT_CAP}]"
         )
     result = execution.get("result") or {}
-    entities = result.get("entities")
-    if not isinstance(entities, list):
-        failures.append(f"{SEARCH_TOOL} entities must be present as a list")
+    rows = validated_graph_rows(execution)
+    if rows is None:
         return
-    names = result_entity_names(result)
+    names = {str(row["name"]) for row in rows[0] if row.get("name")}
     if FOCUS_ENTITY_NAME not in names:
         failures.append(
             f"{SEARCH_TOOL} did not surface the seeded entity {FOCUS_ENTITY_NAME!r} "
@@ -344,7 +351,6 @@ def check_neighborhood_tool(evidence: dict[str, Any], failures: list[str]) -> No
     execution = (evidence.get("raw_tool_executions") or [])[index]
     tool_name = execution.get("tool_name")
     args = execution.get("args") or {}
-    result = execution.get("result") or {}
     if tool_name == "explore_entity_neighborhood":
         max_depth = args.get("max_depth")
         if max_depth is not None and (
@@ -363,22 +369,6 @@ def check_neighborhood_tool(evidence: dict[str, Any], failures: list[str]) -> No
                 f"explore_entity_neighborhood args limit={limit!r} outside the "
                 f"impl cap [1, {NEIGHBORHOOD_LIMIT_CAP}]"
             )
-        for count_key, rows_key in (
-            ("total_entities", "connected_entities"),
-            ("total_relationships", "relationships"),
-        ):
-            rows = result.get(rows_key)
-            if not isinstance(rows, list):
-                failures.append(
-                    f"explore_entity_neighborhood {rows_key} must be present as a list"
-                )
-                continue
-            if count_key in result and result[count_key] != len(rows):
-                failures.append(
-                    f"explore_entity_neighborhood {count_key}="
-                    f"{result[count_key]!r} does not match {rows_key} length "
-                    f"{len(rows)}"
-                )
     else:
         max_depth = args.get("max_depth")
         if max_depth is not None and (
@@ -389,7 +379,30 @@ def check_neighborhood_tool(evidence: dict[str, Any], failures: list[str]) -> No
                 f"find_entity_paths args max_depth={max_depth!r} outside the impl "
                 f"cap [1, {FIND_PATHS_DEPTH_CAP}]"
             )
-        if validated_graph_rows(execution) is None:
+
+    for current in successful_graph_executions(evidence):
+        current_tool = current.get("tool_name")
+        if current_tool not in NEIGHBORHOOD_TOOLS:
+            continue
+        result = current.get("result") or {}
+        if current_tool == "explore_entity_neighborhood":
+            for count_key, rows_key in (
+                ("total_entities", "connected_entities"),
+                ("total_relationships", "relationships"),
+            ):
+                rows = result.get(rows_key)
+                if not isinstance(rows, list):
+                    failures.append(
+                        f"explore_entity_neighborhood {rows_key} must be present as a list"
+                    )
+                    continue
+                if count_key in result and result[count_key] != len(rows):
+                    failures.append(
+                        f"explore_entity_neighborhood {count_key}="
+                        f"{result[count_key]!r} does not match {rows_key} length "
+                        f"{len(rows)}"
+                    )
+        elif validated_graph_rows(current) is None:
             failures.append(
                 "find_entity_paths paths and nested entity/relationship "
                 "collections must be present as lists"
@@ -398,51 +411,50 @@ def check_neighborhood_tool(evidence: dict[str, Any], failures: list[str]) -> No
 
 def check_relationship_direction(evidence: dict[str, Any], failures: list[str]) -> None:
     names = entity_names_by_id(evidence)
-    index = first_success_index_any(evidence, NEIGHBORHOOD_TOOLS)
-    if index is None:
-        return
-    execution = (evidence.get("raw_tool_executions") or [])[index]
-    tool_name = str(execution.get("tool_name"))
-    rows = validated_graph_rows(execution)
-    if rows is None:
-        return  # collection failures are reported by check_neighborhood_tool
-    for row in rows[1]:
-        if not isinstance(row, dict):
-            failures.append(f"{tool_name} emitted a malformed relationship")
+    for execution in successful_graph_executions(evidence):
+        tool_name = str(execution.get("tool_name"))
+        if tool_name not in NEIGHBORHOOD_TOOLS:
             continue
-        source_id = row.get("source")
-        target_id = row.get("target")
-        source = names.get(str(source_id))
-        target = names.get(str(target_id))
-        if not source or not target:
-            unresolved = []
-            if not source:
-                unresolved.append(f"source id {source_id!r}")
-            if not target:
-                unresolved.append(f"target id {target_id!r}")
-            failures.append(
-                f"{tool_name} relationship has unresolvable endpoint(s): "
-                f"{', '.join(unresolved)}"
-            )
-            continue
-        relationship_type = str(row.get("type") or "")
-        if not relationship_type:
-            failures.append(f"{tool_name} relationship is missing its type")
-            continue
-        triple = (source, relationship_type, target)
-        if triple in TRUTH_RELATIONSHIPS:
-            continue
-        reverse = (target, relationship_type, source)
-        if reverse in TRUTH_RELATIONSHIPS:
-            failures.append(
-                f"{tool_name} reversed seeded relationship direction: "
-                f"{source} --{relationship_type}--> {target}"
-            )
-        else:
-            failures.append(
-                f"{tool_name} emitted relationship absent from seeded truth: "
-                f"{source} --{relationship_type}--> {target}"
-            )
+        rows = validated_graph_rows(execution)
+        if rows is None:
+            continue  # collection failures are reported by check_neighborhood_tool
+        for row in rows[1]:
+            if not isinstance(row, dict):
+                failures.append(f"{tool_name} emitted a malformed relationship")
+                continue
+            source_id = row.get("source")
+            target_id = row.get("target")
+            source = names.get(str(source_id))
+            target = names.get(str(target_id))
+            if not source or not target:
+                unresolved = []
+                if not source:
+                    unresolved.append(f"source id {source_id!r}")
+                if not target:
+                    unresolved.append(f"target id {target_id!r}")
+                failures.append(
+                    f"{tool_name} relationship has unresolvable endpoint(s): "
+                    f"{', '.join(unresolved)}"
+                )
+                continue
+            relationship_type = str(row.get("type") or "")
+            if not relationship_type:
+                failures.append(f"{tool_name} relationship is missing its type")
+                continue
+            triple = (source, relationship_type, target)
+            if triple in TRUTH_RELATIONSHIPS:
+                continue
+            reverse = (target, relationship_type, source)
+            if reverse in TRUTH_RELATIONSHIPS:
+                failures.append(
+                    f"{tool_name} reversed seeded relationship direction: "
+                    f"{source} --{relationship_type}--> {target}"
+                )
+            else:
+                failures.append(
+                    f"{tool_name} emitted relationship absent from seeded truth: "
+                    f"{source} --{relationship_type}--> {target}"
+                )
 
 
 def check_get_graph_stats(
@@ -555,7 +567,62 @@ def check_final_message(evidence: dict[str, Any], failures: list[str]) -> None:
         )
 
 
+def _assert_later_search_endpoint_calibration() -> None:
+    evidence = {
+        "raw_tool_executions": [
+            {
+                "tool_name": SEARCH_TOOL,
+                "status": "completed",
+                "result": {
+                    "entities": [
+                        {"id": "elena", "name": "Elena Vasquez", "type": "PERSON"}
+                    ]
+                },
+            },
+            {
+                "tool_name": "explore_entity_neighborhood",
+                "status": "completed",
+                "result": {
+                    "connected_entities": [
+                        {
+                            "id": "nova",
+                            "name": "Nova Research Institute",
+                            "type": "ORGANIZATION",
+                        }
+                    ],
+                    "relationships": [
+                        {
+                            "source": "marcus",
+                            "target": "nova",
+                            "type": "WORKS_FOR",
+                        }
+                    ],
+                },
+            },
+            {
+                "tool_name": SEARCH_TOOL,
+                "status": "completed",
+                "result": {
+                    "entities": [
+                        {"id": "marcus", "name": "Marcus Chen", "type": "PERSON"}
+                    ]
+                },
+            },
+        ]
+    }
+    failures: list[str] = []
+    check_relationship_direction(evidence, failures)
+    assert not failures, failures
+    assert {
+        "kind": "relationship",
+        "source": "Marcus Chen",
+        "type": "WORKS_FOR",
+        "target": "Nova Research Institute",
+    } in trusted_sources(evidence, deterministic_failures=[])
+
+
 def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[str]:
+    _assert_later_search_endpoint_calibration()
     failures: list[str] = []
     check_identity(evidence, failures)
     check_network_boundary(evidence, failures)
@@ -612,7 +679,7 @@ def trusted_sources(
     names = entity_names_by_id(evidence)
     entity_confidence = TRUTH["seed_confidence"]["entity"]
 
-    for execution in selected_graph_executions(evidence):
+    for execution in successful_graph_executions(evidence):
         rows = validated_graph_rows(execution)
         if rows is None:
             continue
@@ -633,42 +700,32 @@ def trusted_sources(
             sources.append(fact)
 
     seen_relationships: set[tuple[str, str, str]] = set()
-    neighborhood_index = first_success_index_any(evidence, NEIGHBORHOOD_TOOLS)
-    neighborhood_execution = (
-        (evidence.get("raw_tool_executions") or [])[neighborhood_index]
-        if neighborhood_index is not None
-        else None
-    )
-    neighborhood_rows = (
-        validated_graph_rows(neighborhood_execution)
-        if neighborhood_execution is not None
-        else None
-    )
-    for row in neighborhood_rows[1] if neighborhood_rows is not None else []:
-        if not isinstance(row, dict):
+    for execution in successful_graph_executions(evidence):
+        if execution.get("tool_name") not in NEIGHBORHOOD_TOOLS:
             continue
-        triple = (
-            names.get(str(row.get("source")), ""),
-            str(row.get("type") or ""),
-            names.get(str(row.get("target")), ""),
-        )
-        if triple in TRUTH_RELATIONSHIPS and triple not in seen_relationships:
-            seen_relationships.add(triple)
-            sources.append(
-                {
-                    "kind": "relationship",
-                    "source": triple[0],
-                    "type": triple[1],
-                    "target": triple[2],
-                }
+        rows = validated_graph_rows(execution)
+        if rows is None:
+            continue
+        for row in rows[1]:
+            if not isinstance(row, dict):
+                continue
+            triple = (
+                names.get(str(row.get("source")), ""),
+                str(row.get("type") or ""),
+                names.get(str(row.get("target")), ""),
             )
-
-    if (
-        neighborhood_execution is not None
-        and neighborhood_execution.get("tool_name") == "explore_entity_neighborhood"
-    ):
-        result = neighborhood_execution.get("result") or {}
-        if neighborhood_rows is not None:
+            if triple in TRUTH_RELATIONSHIPS and triple not in seen_relationships:
+                seen_relationships.add(triple)
+                sources.append(
+                    {
+                        "kind": "relationship",
+                        "source": triple[0],
+                        "type": triple[1],
+                        "target": triple[2],
+                    }
+                )
+        if execution.get("tool_name") == "explore_entity_neighborhood":
+            result = execution.get("result") or {}
             fact = {"kind": "neighborhood_stats"}
             for count_key, rows_key, fact_key in (
                 ("total_entities", "connected_entities", "connected_entity_count"),
