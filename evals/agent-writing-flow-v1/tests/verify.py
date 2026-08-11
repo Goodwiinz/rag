@@ -714,13 +714,22 @@ def load_truth_sources() -> list[dict[str, Any]]:
 
 def run_judge(evidence: dict[str, Any]) -> dict[str, Any]:
     answer = str((evidence.get("final_assistant_message") or {}).get("content") or "")
-    comparison = ""
-    for execution in executions_for(evidence, COMPARE_TOOL):
-        result = execution.get("result") or {}
-        if isinstance(result, dict) and result.get("comparison"):
-            comparison = str(result["comparison"])
-            break
-    sources = [*load_truth_sources(), {"compare_documents_result": comparison}]
+    successful_workflow = [
+        {
+            "tool": tool,
+            "args": execution.get("args"),
+            "result": execution.get("result"),
+        }
+        for tool in (COMPARE_TOOL, DRAFT_TOOL, EXPORT_TOOL)
+        for execution in executions_for(evidence, tool)
+        if execution.get("status") in SUCCESS_STATUSES
+        and isinstance(execution.get("result"), dict)
+        and not execution["result"].get("error")
+    ]
+    sources = [
+        *load_truth_sources(),
+        {"successful_workflow_tool_executions": successful_workflow},
+    ]
     # The stub is honored ONLY in calibration mode; a live evidence file cannot
     # self-certify Layer B by carrying a _judge_stub_verdict.
     stub_verdict = (
