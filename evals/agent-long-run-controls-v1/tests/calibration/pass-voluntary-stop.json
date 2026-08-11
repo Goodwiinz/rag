@@ -35,7 +35,7 @@
       {"type": "tool", "tool_call_id": "t4", "content": "stage 4"},
       {"type": "ai", "tool_calls": [{"id": "t5", "name": "do_kb_retrieve", "args": {"query": "NOUS-LONG-5"}}]},
       {"type": "tool", "tool_call_id": "t5", "content": "stage 5"},
-      {"type": "ai", "tool_calls": [], "content": "**Completed stages 1–5.** Stage 1 established a **12-hour** baseline. **Stage 5** is the final verified stage: **94%** of validated records were retained. Stage 6 did not run."}
+      {"type": "ai", "tool_calls": [], "content": "**Completed stages 1–5.** Stage 1 established a **12-hour** baseline. Did not verify stage 6. Final verified finding: At the last checkpoint, 94% of validated records were retained. This is the final verified result because stage 6 was intentionally not run."}
     ],
     "compaction_count": 1,
     "compacted_messages": [
@@ -58,7 +58,7 @@
       }
     },
     "final_assistant_message": {
-      "content": "**Completed stages 1–5.** Stage 1 established a **12-hour** baseline. **Stage 5** is the final verified stage: **94%** of validated records were retained. Stage 6 did not run.",
+      "content": "**Completed stages 1–5.** Stage 1 established a **12-hour** baseline. Did not verify stage 6. Final verified finding: At the last checkpoint, 94% of validated records were retained. This is the final verified result because stage 6 was intentionally not run.",
       "tool_calls": []
     },
     "termination_reason": "completed",

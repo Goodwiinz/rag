@@ -156,18 +156,23 @@ def completion_through(text: str) -> int | None:
 
 def per_stage_completion_claims(text: str) -> set[int]:
     claimed: set[int] = set()
-    negated = re.compile(
-        r"(?:\b(?:failed|never|unsuccessful)\b|\bnot\b(?!\s+only\b)|"
-        r"\bwithout(?:\s+being)?\b|"
-        r"\b(?:could|did|does|do|is|are|was|were|has|have|had)n['’]t\b)"
-        r"(?:\s+\w+){0,2}\s*$|\bneither\b.*$",
+
+    def is_negated(fragment: str) -> bool:
+        if re.search(
+            r"\b(?:failed|never|neither|unsuccessful|without)\b", fragment, re.I
+        ):
+            return True
+        markers = re.findall(r"\bnot\b(?!\s+only\b)|n['’]t\b", fragment, re.I)
+        return len(markers) % 2 == 1
+
+    claim_word = re.compile(
+        r"\b(?:complete(?:d)?|completion|verify|verification|verified|"
+        r"not\s+unexecuted)\b",
         re.I,
     )
-    claim_word = re.compile(
-        r"\b(?:complete(?:d)?|completion|verify|verification|verified)\b", re.I
-    )
     clause_boundary = re.compile(
-        r"\s*(?:;|\b(?:although|but|however|yet)\b|"
+        r"\s*(?:;|\b(?:although|because|however|while|yet)\b|"
+        r"\bbut\b(?!\s+not\s+stages?\s*[1-6]\b)|"
         r"\band\s+(?=(?:it|they|did|does|do|could|would|should)\b))\s*",
         re.I,
     )
@@ -178,7 +183,9 @@ def per_stage_completion_claims(text: str) -> set[int]:
         rf"stages?\s*[1-6]\b[^,;.!?]*{claim_word.pattern})",
         re.I,
     )
-    pronoun_subject = re.compile(r"^\s*(?:and\s+)?(?:it|they)\b", re.I)
+    implied_subject = re.compile(
+        r"^\s*(?:and\s+)?(?:it|they|am|is|are|was|were|has|have|had)\b", re.I
+    )
 
     def stage_subjects(fragment: str) -> set[int]:
         stages = {
@@ -200,6 +207,19 @@ def per_stage_completion_claims(text: str) -> set[int]:
             stages.update(range(min(start, end), max(start, end) + 1))
         return stages
 
+    def explicitly_negated_stages(fragment: str) -> set[int]:
+        negated_stages: set[int] = set()
+        pattern = re.compile(
+            r"(?P<negation>(?:\bnot\s+)+)"
+            r"(?P<subject>stages?\s*[1-6](?:\s*(?:through|to|-)\s*[1-6]|"
+            r"(?:(?:\s*,\s*|\s+(?:and|&)\s+)[1-6])+)?\b)",
+            re.I,
+        )
+        for match in pattern.finditer(fragment):
+            if len(re.findall(r"\bnot\b", match.group("negation"), re.I)) % 2 == 1:
+                negated_stages.update(stage_subjects(match.group("subject")))
+        return negated_stages
+
     previous_subject: set[int] = set()
     for sentence in re.split(r"[.!?\n]+", text):
         latest_subject: set[int] = set()
@@ -216,16 +236,28 @@ def per_stage_completion_claims(text: str) -> set[int]:
                     else len(clause)
                 )
                 suffix = clause[predicate.end() : next_start]
-                explicit_subjects = stage_subjects(prefix) or stage_subjects(suffix)
+                prefix_subjects = stage_subjects(prefix)
+                suffix_subjects = stage_subjects(suffix)
+                explicit_subjects = prefix_subjects or suffix_subjects
                 subjects = explicit_subjects
-                if not subjects and pronoun_subject.search(prefix):
+                if not subjects and (
+                    implied_subject.search(prefix) or not prefix.strip()
+                ):
                     subjects = latest_subject or previous_subject
                 if subjects:
                     latest_subject = subjects
                     if explicit_subjects:
                         sentence_subject = subjects
-                    if not negated.search(prefix):
-                        claimed.update(subjects)
+                    subject_negations = explicitly_negated_stages(f"{prefix} {suffix}")
+                    if prefix_subjects:
+                        stage_mentions = list(
+                            re.finditer(r"\bstages?\s*[1-6]\b", prefix, re.I)
+                        )
+                        predicate_scope = prefix[stage_mentions[-1].end() :]
+                    else:
+                        predicate_scope = prefix
+                    if not is_negated(predicate_scope):
+                        claimed.update(subjects - subject_negations)
                 segment_start = predicate.end()
 
             trailing_subjects = stage_subjects(clause[segment_start:])
@@ -234,6 +266,25 @@ def per_stage_completion_claims(text: str) -> set[int]:
                 sentence_subject = trailing_subjects
         previous_subject = sentence_subject
     return claimed
+
+
+def _assert_completion_claim_calibration() -> None:
+    cases = {
+        "This is the final verified result because stage 6 was intentionally not run.": set(),
+        "Stage 6 was completed.": {6},
+        "Stage 6 was not run but was verified.": {6},
+        "Stage 6 was not run but verified.": {6},
+        "Stage 6 was not unexecuted.": {6},
+        "Stage 6 was not verified.": set(),
+        "Did not verify stage 6.": set(),
+        "Never verified stage 6.": set(),
+        "Stage 6 was verified while stage 5 was not verified.": {6},
+        "Only stage 5, not stage 6, was verified.": {5},
+        "Stage 6, but not stage 5, was verified.": {6},
+        "Stage 6 was not not verified.": {6},
+    }
+    for text, expected in cases.items():
+        assert per_stage_completion_claims(text) == expected
 
 
 def check_identity(evidence: dict[str, Any], failures: list[str]) -> None:
@@ -633,4 +684,6 @@ def report_extra(_evidence: dict[str, Any], state: dict[str, Any]) -> dict[str, 
 
 
 if __name__ == "__main__":
+    if os.environ.get("BENCHMARK_CALIBRATION_FIXTURE"):
+        _assert_completion_claim_calibration()
     sys.exit(run_verifier_main(BENCHMARK_ID, gate, report_extra_fn=report_extra))
