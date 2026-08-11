@@ -31,7 +31,7 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import run_verifier_main
 
 BENCHMARK_ID = "agent-code-execution-v1"
-EXPECTED_SOURCE_REVISION = "bb8fc2863613f98e58907de59f08d8a64b875f1c"
+EXPECTED_SOURCE_REVISION = "debb4b1506b3524a134888d0f13c66807901efca"
 TARGET_STRING = "nous-benchmark-1101"
 EXPECTED_INSTRUCTION = (
     f"Use Python to find the SHA-256 hex digest of the exact string "

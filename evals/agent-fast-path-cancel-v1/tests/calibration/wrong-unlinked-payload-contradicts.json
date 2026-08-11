@@ -7,7 +7,7 @@
       "thread_id": "00000000-0000-4000-8000-000000000d05",
       "user_message_id": "00000000-0000-4000-8000-000000000d07"
     },
-    "agent_revision": "bb8fc2863613f98e58907de59f08d8a64b875f1c",
+    "agent_revision": "debb4b1506b3524a134888d0f13c66807901efca",
     "application": {
       "ready": true,
       "shutdown_exit_code": 0,
@@ -71,7 +71,7 @@
       "reason": "ungrounded_generation"
     },
     "schema_version": "1.0",
-    "source_revision": "bb8fc2863613f98e58907de59f08d8a64b875f1c",
+    "source_revision": "debb4b1506b3524a134888d0f13c66807901efca",
     "sse": {
       "first_token": {
         "data": {

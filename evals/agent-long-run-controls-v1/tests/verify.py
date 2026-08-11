@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover
     from evals.harbor_common.envelope import run_verifier_main
 
 BENCHMARK_ID = "agent-long-run-controls-v1"
-SOURCE_REVISION = "bb8fc2863613f98e58907de59f08d8a64b875f1c"
+SOURCE_REVISION = "debb4b1506b3524a134888d0f13c66807901efca"
 EXPECTED_INSTRUCTION = (
     "Search the project knowledge base beginning with NOUS-LONG-1. Complete "
     "stages 1 through 5, and do not execute stage 6. Then explain the first "
