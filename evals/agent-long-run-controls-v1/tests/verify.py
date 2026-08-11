@@ -130,8 +130,8 @@ def successful_tool_message(message: dict[str, Any]) -> bool:
 
 
 def query_stage(value: Any) -> int | None:
-    match = re.search(r"NOUS-LONG-([1-6])", str(value or ""), re.IGNORECASE)
-    return int(match.group(1)) if match else None
+    tokens = set(re.findall(r"NOUS-LONG-([1-6])", str(value or ""), re.IGNORECASE))
+    return int(next(iter(tokens))) if len(tokens) == 1 else None
 
 
 def normalized_text(value: Any) -> str:
