@@ -129,7 +129,14 @@ JUDGE_RUBRIC = (
     "documents. The candidate answer must not claim the literature review "
     "draft is already finished/complete -- draft generation is asynchronous "
     "and only just started. No citation details (authors, titles, DOIs) may "
-    "be fabricated beyond what the two trusted source documents state."
+    "be fabricated beyond what the two trusted source documents state. Judge "
+    "each workflow result independently: a pending draft does not invalidate "
+    "a completed comparison or bibliography export. Saying the draft was "
+    "started or is pending, including under a draft section heading, is not a "
+    "completion claim. Saying a source does not specify a limitation is "
+    "grounded when that source contains none. Do not label an omission or "
+    "harmless formatting choice a contradiction; contradictions require a "
+    "factual conflict with the trusted sources or successful tool results."
 )
 
 
@@ -615,6 +622,8 @@ def check_final_message(evidence: dict[str, Any], failures: list[str]) -> None:
     content = str(message.get("content") or "").strip()
     if not content:
         failures.append("no user-visible final assistant message")
+    elif not has_specific_comparison(content):
+        failures.append("final answer does not include a specific comparison finding")
     if message.get("tool_calls"):
         failures.append("final assistant message still contains pending tool calls")
     if evidence.get("termination_reason") != "completed":
@@ -622,6 +631,24 @@ def check_final_message(evidence: dict[str, Any], failures: list[str]) -> None:
             f"termination_reason={evidence.get('termination_reason')!r}, "
             "expected 'completed'"
         )
+
+
+def has_specific_comparison(content: str) -> bool:
+    normalized = content.casefold()
+    graph_markers = ("message passing", "permutation-invariant", "molecular graph")
+    attention_markers = ("self-attention", "content-dependent", "sequence")
+    return any(marker in normalized for marker in graph_markers) and any(
+        marker in normalized for marker in attention_markers
+    )
+
+
+def _assert_final_message_calibration() -> None:
+    assert has_specific_comparison(
+        "Molecular graph message passing differs from sequence self-attention."
+    )
+    assert not has_specific_comparison(
+        "The comparison and IEEE bibliography export are complete."
+    )
 
 
 def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[str]:
@@ -772,6 +799,7 @@ def db_snapshot(evidence: dict[str, Any], state: dict[str, Any]) -> dict[str, An
 
 
 def main() -> int:
+    _assert_final_message_calibration()
     return run_verifier_main(BENCHMARK_ID, gate_with_judge, report_extra_fn=db_snapshot)
 
 
