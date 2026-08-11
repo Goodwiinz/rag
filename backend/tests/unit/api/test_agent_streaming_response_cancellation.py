@@ -64,6 +64,7 @@ async def test_streaming_response_abort_finalizes_cancelled_without_completion(
     request_id = "response-cancel-request"
     current_user = cast(User, SimpleNamespace(id=user_id, organization_id=org_id))
     thread = SimpleNamespace(id=thread_id)
+    disconnect_signal = asyncio.Event()
     body = make_stream_request(
         messages=[
             {
@@ -75,7 +76,10 @@ async def test_streaming_response_abort_finalizes_cancelled_without_completion(
         thread_id=str(thread_id),
     )
     request = SimpleNamespace(
-        state=SimpleNamespace(request_id=request_id),
+        state=SimpleNamespace(
+            request_id=request_id,
+            agent_disconnect_event=disconnect_signal,
+        ),
         is_disconnected=AsyncMock(return_value=False),
     )
     acceptance = AcceptedSubmission(
@@ -175,6 +179,7 @@ async def test_streaming_response_abort_finalizes_cancelled_without_completion(
             if message.get("type") == "http.response.body" and b"event: token" in (
                 message.get("body") or b""
             ):
+                disconnect_signal.set()
                 disconnect.set()
 
         scope = cast(
@@ -363,3 +368,21 @@ async def test_repeated_cancellation_waits_for_graph_cleanup() -> None:
     assert len(finalize_calls) == 1
     assert finalize_calls[0]["status"] is JobStatus.CANCELLED
     db.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_disconnect_signal_survives_outer_receive_consumer() -> None:
+    from src.middleware.disconnect_signal import (
+        AGENT_DISCONNECT_EVENT,
+        AgentDisconnectSignalMiddleware,
+    )
+
+    async def app(scope: Scope, receive: Any, _send: Any) -> None:
+        assert (await receive())["type"] == "http.disconnect"
+        assert scope["state"][AGENT_DISCONNECT_EVENT].is_set()
+
+    async def receive() -> Message:
+        return {"type": "http.disconnect"}
+
+    scope = cast(Scope, {"type": "http", "path": "/api/v1/agent/stream"})
+    await AgentDisconnectSignalMiddleware(app)(scope, receive, AsyncMock())

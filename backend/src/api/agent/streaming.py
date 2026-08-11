@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 from langgraph.errors import GraphInterrupt
 
 from src.core.database import AsyncSessionLocal
+from src.middleware.disconnect_signal import AGENT_DISCONNECT_EVENT
 from src.models.user import User
 
 # The job runner lives in the service layer (audit B5); `_jobs_mod` keeps its
@@ -856,6 +857,13 @@ class _SeqEmitter:
 # idle connections get cut at ~30s. Comment keepalives reset proxy timers.
 _SSE_KEEPALIVE_SECONDS = 10
 _SSE_DISCONNECT_POLL_SECONDS = 0.5
+
+
+async def _request_disconnected(request: Any) -> bool:
+    signal = getattr(getattr(request, "state", None), AGENT_DISCONNECT_EVENT, None)
+    return bool(signal and signal.is_set()) or await request.is_disconnected()
+
+
 _PLANNER_CHAIN_NODES = frozenset(
     {
         "planner_node",
@@ -935,7 +943,7 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
     next_keepalive_at = time.monotonic() + _SSE_KEEPALIVE_SECONDS
     try:
         while True:
-            if await request.is_disconnected():
+            if await _request_disconnected(request):
                 if pending is not None:
                     pending.cancel()
                     pending_cancel_requested = True
@@ -964,7 +972,7 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
                 yield {"type": "event", "event": event}
                 continue
 
-            if await request.is_disconnected():
+            if await _request_disconnected(request):
                 pending.cancel()
                 pending_cancel_requested = True
                 yield {"type": "disconnect"}
