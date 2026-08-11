@@ -1,0 +1,152 @@
+{
+  "evidence": {
+    "schema_version": "1.0",
+    "benchmark_id": "agent-fast-path-cancel-v1",
+    "source_revision": "ba71044eb99019c1813cd7593838c6f98d35639c",
+    "agent_revision": "ba71044eb99019c1813cd7593838c6f98d35639c",
+    "started_at": "2026-08-09T10:00:00Z",
+    "completed_at": "2026-08-09T10:00:05Z",
+    "instruction": "Explain why the sky appears blue in one sentence.",
+    "synthetic_actor": {
+      "organization_id": "00000000-0000-4000-8000-000000000d01",
+      "user_id": "00000000-0000-4000-8000-000000000d02",
+      "workspace_id": "00000000-0000-4000-8000-000000000d03",
+      "conversation_id": "00000000-0000-4000-8000-000000000d04",
+      "thread_id": "00000000-0000-4000-8000-000000000d05"
+    },
+    "network_boundary": {
+      "direct_public_socket_blocked": true,
+      "approved_model_host_reachable_via_proxy": true,
+      "unrelated_https_blocked_by_proxy": true,
+      "private_postgres_reachable": true,
+      "private_redis_reachable": true,
+      "private_fastapi_reachable": true
+    },
+    "application": {"ready": true, "status_code": 200, "shutdown_exit_code": 0},
+    "routing": {"eligible": true, "reason": "ungrounded_generation"},
+    "accepted": {
+      "run_id": "00000000-0000-4000-8000-000000000d08",
+      "thread_id": "00000000-0000-4000-8000-000000000d05",
+      "user_message_id": "00000000-0000-4000-8000-000000000d07",
+      "client_message_id": "00000000-0000-4000-8000-000000000d06",
+      "assistant_client_message_id": "00000000-0000-4000-8000-000000000d0a"
+    },
+    "sse": {
+      "response": {"status_code": 200, "headers": {"content-type": "text/event-stream; charset=utf-8"}},
+      "frames": [
+        {"id": "1", "event": "status", "data": {"phase": "accepted", "run_id": "00000000-0000-4000-8000-000000000d08", "sequence": 1}},
+        {"id": "2", "event": "status", "data": {"phase": "routing", "detail": "Using the direct Luna path", "sequence": 2}},
+        {"id": "3", "event": "token", "data": {"content": "The ar", "sequence": 3}}
+      ],
+      "first_token": {"id": "3", "event": "token", "data": {"content": "The ar", "sequence": 3}}
+    },
+    "token_log": [
+      {"content": "The ar", "sequence": 3, "emit_completed": true, "appended_to_partial": true}
+    ],
+    "server_token_log": [
+      {"content": "The ar", "sequence": 3},
+      {"content": " ray", "sequence": 4}
+    ],
+    "captured_stream_id": "11111111-1111-4111-8111-111111111111",
+    "server_replay_buffers": [
+      {
+        "key": "agent:stream:11111111-1111-4111-8111-111111111111",
+        "stream_id": "11111111-1111-4111-8111-111111111111",
+        "ttl_seconds": 3599,
+        "entries": [
+          {"seq": 2, "parsed_frame": {"id": "2", "event": "status", "data": {"phase": "routing", "sequence": 2, "trace_id": "harbor-fast-path-cancel-000000000d0b", "thread_id": "00000000-0000-4000-8000-000000000d05", "route": "luna"}}},
+          {"seq": 3, "parsed_frame": {"id": "30", "event": "token", "data": {"content": "The ar", "sequence": 3, "trace_id": "harbor-fast-path-cancel-000000000d0b", "thread_id": "00000000-0000-4000-8000-000000000d05", "route": "luna"}}},
+          {"seq": 4, "parsed_frame": {"id": "4", "event": "token", "data": {"content": " ray", "sequence": 4, "trace_id": "harbor-fast-path-cancel-000000000d0b", "thread_id": "00000000-0000-4000-8000-000000000d05", "route": "luna"}}}
+        ]
+      }
+    ],
+    "disconnect": {
+      "initiated_at": "2026-08-09T10:00:04.900Z",
+      "completed_at": "2026-08-09T10:00:04.910Z",
+      "terminal_observed_within_bound": true,
+      "terminalization_elapsed_ms": 250,
+      "bound_ms": 10000
+    },
+    "finalize_attempts": [
+      {
+        "source": "fast_path_inner",
+        "event_type": "run.cancelled",
+        "linked": true,
+        "payload": {
+          "reason": "client_disconnected",
+          "request_id": "harbor-fast-path-cancel-000000000d0b",
+          "assistant_message_id": "00000000-0000-4000-8000-000000000d09"
+        }
+      },
+      {
+        "source": "outer_route_agnostic",
+        "event_type": "run.cancelled",
+        "linked": false,
+        "payload": {
+          "reason": "client_disconnected",
+          "request_id": "harbor-fast-path-cancel-000000000d0b"
+        }
+      }
+    ],
+    "persisted_partial": {
+      "id": "00000000-0000-4000-8000-000000000d09",
+      "thread_id": "00000000-0000-4000-8000-000000000d05",
+      "content": "The ar ray",
+      "stopped": true,
+      "client_message_id": "00000000-0000-4000-8000-000000000d0a"
+    },
+    "termination_reason": "cancelled",
+    "model_usage": {"input_tokens": 20, "output_tokens": 2, "cache_tokens": 0},
+    "elapsed_ms": 5150
+  },
+  "state": {
+    "run": {
+      "job_id": "00000000-0000-4000-8000-000000000d08",
+      "status": "cancelled",
+      "organization_id": "00000000-0000-4000-8000-000000000d01",
+      "user_id": "00000000-0000-4000-8000-000000000d02",
+      "thread_id": "00000000-0000-4000-8000-000000000d05",
+      "client_message_id": "00000000-0000-4000-8000-000000000d06",
+      "assistant_message_id": "00000000-0000-4000-8000-000000000d09",
+      "last_event_seq": 3,
+      "completed_at": "2026-08-09T10:00:05.100Z",
+      "error_code": null,
+      "error": null
+    },
+    "events": [
+      {"id": "00000000-0000-4000-8000-000000000d10", "run_id": "00000000-0000-4000-8000-000000000d08", "seq": 1, "event_type": "run.created", "payload": {}, "created_at": "2026-08-09T10:00:00.100Z"},
+      {"id": "00000000-0000-4000-8000-000000000d11", "run_id": "00000000-0000-4000-8000-000000000d08", "seq": 2, "event_type": "run.started", "payload": {}, "created_at": "2026-08-09T10:00:00.200Z"},
+      {
+        "id": "00000000-0000-4000-8000-000000000d12",
+        "run_id": "00000000-0000-4000-8000-000000000d08",
+        "seq": 3,
+        "event_type": "run.cancelled",
+        "payload": {
+          "reason": "client_disconnected",
+          "request_id": "harbor-fast-path-cancel-000000000d0b",
+          "assistant_message_id": "00000000-0000-4000-8000-000000000d09"
+        },
+        "created_at": "2026-08-09T10:00:05.100Z"
+      }
+    ],
+    "messages": [
+      {
+        "id": "00000000-0000-4000-8000-000000000d07",
+        "thread_id": "00000000-0000-4000-8000-000000000d05",
+        "role": "user",
+        "content": "Explain why the sky appears blue in one sentence.",
+        "stopped": false,
+        "client_message_id": "00000000-0000-4000-8000-000000000d06"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000d09",
+        "thread_id": "00000000-0000-4000-8000-000000000d05",
+        "role": "assistant",
+        "content": "The ar ray",
+        "stopped": true,
+        "client_message_id": "00000000-0000-4000-8000-000000000d0a"
+      }
+    ],
+    "run_count_for_thread": 1
+  }
+}

@@ -191,6 +191,111 @@ async def test_execute_tool_kg_rejects_user_without_org():
     assert result.get("error") == "Authentication required"
 
 
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_explore_entity_neighborhood_labels_returned_scope_and_limits():
+    from src.services.agent import tools_impl
+
+    current_user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
+    entities = [
+        SimpleNamespace(
+            id="neighbor-1",
+            name="Atlas",
+            entity_type=SimpleNamespace(value="MODEL"),
+            confidence_score=0.9,
+        ),
+        SimpleNamespace(
+            id="neighbor-2",
+            name="Beacon",
+            entity_type=SimpleNamespace(value="CONCEPT"),
+            confidence_score=0.8,
+        ),
+    ]
+    relationships = [
+        SimpleNamespace(
+            source_entity_id="center-entity",
+            target_entity_id="neighbor-1",
+            relationship_type=SimpleNamespace(value="RELATED_TO"),
+            strength=0.7,
+        ),
+        SimpleNamespace(
+            source_entity_id="neighbor-1",
+            target_entity_id="neighbor-2",
+            relationship_type=SimpleNamespace(value="RELATED_TO"),
+            strength=0.7,
+        ),
+    ]
+    fake_service = SimpleNamespace(
+        get_neighborhood=lambda **kwargs: {
+            "entities": entities,
+            "relationships": relationships,
+        }
+    )
+
+    with patch(
+        "src.services.knowledge_graph.knowledge_graph_service.knowledge_graph_service",
+        fake_service,
+    ):
+        result = await tools_impl._tool_explore_entity_neighborhood(
+            {"entity_id": "center-entity", "max_depth": 2, "limit": 10},
+            current_user,
+        )
+
+    assert result["scope"] == "entity_neighborhood"
+    assert result["requested_max_depth"] == 2
+    assert result["result_limit"] == 10
+    assert result["connected_entities_scope"] == "entity_neighborhood"
+    assert result["relationships_scope"] == "entity_neighborhood"
+    assert result["returned_counts_scope"] == "entity_neighborhood"
+    assert result["returned_entity_count"] == 2
+    assert result["returned_relationship_count"] == 2
+    assert result["total_entities"] == 2
+    assert result["total_relationships"] == 2
+    assert result["center_entity_id"] == "center-entity"
+    assert all(
+        entity["id"] != result["center_entity_id"]
+        for entity in result["connected_entities"]
+    )
+    assert [entity["name"] for entity in result["connected_entities"]] == [
+        "Atlas",
+        "Beacon",
+    ]
+    assert result["relationships"][0]["type"] == "RELATED_TO"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_graph_stats_omits_inexact_connected_components():
+    from src.services.agent import tools_impl
+
+    current_user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
+    analytics = SimpleNamespace(
+        total_entities=20,
+        total_relationships=20,
+        entity_type_counts={"PERSON": 6},
+        relationship_type_counts={"RELATED_TO": 5},
+        average_degree=2.0,
+        connected_components=17,
+    )
+    fake_service = SimpleNamespace(get_graph_analytics=lambda **kwargs: analytics)
+
+    with patch(
+        "src.services.knowledge_graph.knowledge_graph_service.knowledge_graph_service",
+        fake_service,
+    ):
+        result = await tools_impl._tool_get_graph_stats({}, current_user)
+
+    assert result["scope"] == "organization_graph"
+    assert result["entity_type_distribution_scope"] == "organization_graph"
+    assert result["relationship_type_distribution_scope"] == "organization_graph"
+    assert result["total_entities"] == 20
+    assert result["total_relationships"] == 20
+    assert result["entity_type_distribution"] == {"PERSON": 6}
+    assert result["relationship_type_distribution"] == {"RELATED_TO": 5}
+    assert result["average_degree"] == 2.0
+    assert "connected_components" not in result
+
+
 # ---------------------------------------------------------------------------
 # PII redaction — SSN
 # ---------------------------------------------------------------------------

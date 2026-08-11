@@ -9,11 +9,16 @@ exit path but no synthesis node — these tests pin the parity fix.
 from __future__ import annotations
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
+from src.services.agent.subgraphs._factory import _is_execution_evidence
 from src.services.agent.subgraphs.data_agent import (
     MAX_DATA_TOOL_LOOPS,
     data_should_continue,
+)
+from src.services.agent.subgraphs.research_agent import (
+    MAX_RESEARCH_TOOL_LOOPS,
+    research_force_synthesis_node,
 )
 from src.services.agent.subgraphs.writing_agent import (
     MAX_WRITING_TOOL_LOOPS,
@@ -40,6 +45,17 @@ def _state_with_pending_tool_calls(tool_name: str, loop_count: int) -> dict:
         "tool_loop_count": loop_count,
         "error_count": 0,
     }
+
+
+@pytest.mark.unit
+def test_unsuccessful_tool_message_is_not_execution_evidence():
+    message = ToolMessage(
+        content="tool failed",
+        tool_call_id="call_failed",
+        status="error",
+    )
+
+    assert _is_execution_evidence(message) is False
 
 
 # ---------------------------------------------------------------------------
@@ -223,8 +239,63 @@ async def test_writing_force_synthesis_strips_tool_calls_and_synthesizes():
     assert not any(getattr(m, "tool_calls", None) for m in captured["messages"])
     prompt = captured["messages"][0].content
     assert "unanswered tool request was not executed" in prompt
+    assert "Only successful, non-placeholder ToolMessages" in prompt
+    assert "must be described as not executed" in prompt
     assert "execution limit stopped the remaining work" in prompt
     assert "emit tool-call syntax" in prompt
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_research_force_synthesis_stops_unmatched_stage_six():
+    llm, captured = _capturing_llm(
+        "The tool limit stopped the remaining work after the verified results."
+    )
+    state = _ceiling_state("do_kb_retrieve", MAX_RESEARCH_TOOL_LOOPS)
+
+    with patch("src.services.agent.graph._build_llm", return_value=llm):
+        result = await research_force_synthesis_node(state, {"configurable": {}})
+
+    assert result["tool_loop_count"] == MAX_RESEARCH_TOOL_LOOPS + 1
+    assert result["_force_synthesis_fired"] is True
+    assert result["messages"][-1].tool_calls == []
+    assert "limit" in str(result["messages"][-1].content).lower()
+    assert not any(
+        getattr(message, "tool_calls", None) for message in captured["messages"]
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_research_force_synthesis_marks_skipped_placeholder_as_non_evidence():
+    llm, captured = _capturing_llm("Stage 4 was not executed.")
+    state = _ceiling_state("do_kb_retrieve", MAX_RESEARCH_TOOL_LOOPS)
+    state["messages"].insert(
+        -2,
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "id": "call_skipped",
+                    "name": "do_kb_retrieve",
+                    "args": {"query": "NOUS-LONG-4"},
+                }
+            ],
+        ),
+    )
+
+    with patch("src.services.agent.graph._build_llm", return_value=llm):
+        await research_force_synthesis_node(state, {"configurable": {}})
+
+    placeholder = next(
+        message
+        for message in captured["messages"]
+        if isinstance(message, ToolMessage) and message.tool_call_id == "call_skipped"
+    )
+    assert placeholder.content == '{"status": "skipped"}'
+    prompt = captured["messages"][0].content
+    assert "call_skipped" in prompt
+    assert "not execution evidence" in prompt
 
 
 @pytest.mark.unit

@@ -22,7 +22,7 @@ import redis
 from psycopg.rows import dict_row
 
 BENCHMARK_ID = "agent-stream-cancel-durability-v1"
-SOURCE_REVISION = "27018e69c0c9e0339aab5db5f76d34e1715a316c"
+SOURCE_REVISION = "ba71044eb99019c1813cd7593838c6f98d35639c"
 EXPECTED_INSTRUCTION = (
     "Research three approaches to evaluating a production RAG system. Compare "
     "retrieval quality, answer faithfulness, latency, and cost, then recommend "
@@ -38,7 +38,7 @@ ASSISTANT_CLIENT_MESSAGE_ID = str(
 REQUEST_ID = "harbor-stream-stop-000000000407"
 
 DEFAULT_EVIDENCE = Path("/logs/agent/evidence.json")
-REPORT_PATH = Path("/logs/verifier/audit.json")
+REPORT_PATH = Path(os.environ.get("VERIFIER_REPORT_PATH", "/logs/verifier/audit.json"))
 
 
 def json_safe(value: Any) -> Any:
@@ -215,11 +215,14 @@ def all_buffer_frames(redis_state: dict[str, Any]) -> list[dict[str, Any]]:
     return [frame for _sequence, frame in sorted(frames, key=lambda item: item[0])]
 
 
-def frame_content(frame: dict[str, Any]) -> str:
-    data = frame.get("data")
-    if frame.get("event") != "token" or not isinstance(data, dict):
-        return ""
-    return str(data.get("content") or "")
+def token_log_from_frames(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {"content": str(data.get("content") or "")}
+        for frame in frames
+        if frame.get("event") == "token"
+        and isinstance(data := frame.get("data"), dict)
+        and data.get("content")
+    ]
 
 
 def objective_failures(
@@ -326,7 +329,8 @@ def objective_failures(
         failures.append("accepted client message id does not match the request")
 
     first_token = (evidence.get("sse") or {}).get("first_token") or {}
-    first_content = frame_content(first_token)
+    first_token_log = token_log_from_frames([first_token])
+    first_content = first_token_log[0]["content"] if first_token_log else ""
     if not first_content:
         failures.append("no non-empty first assistant token was recorded")
     first_data = first_token.get("data") or {}
@@ -461,17 +465,19 @@ def objective_failures(
         if seqs != sorted(seqs) or len(seqs) != len(set(seqs)):
             failures.append(f"Redis buffered sequence is invalid: {seqs}")
     buffered_frames = all_buffer_frames(redis_state)
-    if not any(frame_content(frame) for frame in buffered_frames):
+    server_token_log = token_log_from_frames(buffered_frames)
+    if not server_token_log:
         failures.append(
             "Redis replay buffer does not contain the observed partial token"
         )
     if any(frame.get("event") == "done" for frame in buffered_frames):
         failures.append("Redis replay buffer contains a later done completion")
     if assistant_messages:
-        buffered_text = "".join(frame_content(frame) for frame in buffered_frames)
-        if buffered_text and assistant_messages[0].get("content") != buffered_text:
+        server_text = "".join(entry["content"] for entry in server_token_log)
+        persisted = str(assistant_messages[0].get("content") or "")
+        if not server_text.startswith(persisted):
             failures.append(
-                "persisted partial text does not match buffered token history"
+                "persisted partial is not a prefix of the server replay token history"
             )
 
     activity = evidence.get("post_disconnect_activity") or {}

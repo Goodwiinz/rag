@@ -10,7 +10,7 @@
       "updated": "2024-01-15T00:00:00Z",
       "categories": ["cs.IR", "cs.AI"],
       "pdf_filename": "2401.10001.pdf",
-      "pdf_sha256": "19c12a6131fb79ba1244399b292f5c92fc14e2b7a75ceb0a9a5b192cd298e7b2"
+      "pdf_sha256": "be4a1ef8d2f14c220b7f678136c5aacc199d66e12309065105c6ddd7b3f82039"
     },
     {
       "id": "2401.10002",
@@ -22,7 +22,7 @@
       "updated": "2024-01-16T00:00:00Z",
       "categories": ["cs.AI", "cs.DC"],
       "pdf_filename": "2401.10002.pdf",
-      "pdf_sha256": "8d83811c3266e59f13ac4019ea9235f103825bc0cdcea653e63706ce1c151174"
+      "pdf_sha256": "a070bdb41ada931ae538a6c76feaa1449e2f4479b7d88cc707a02bdb62fbf0fb"
     }
   ]
 }
