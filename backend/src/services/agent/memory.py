@@ -208,17 +208,25 @@ _FORGET_SCORE_THRESHOLD: float = 0.6
 _FORGET_BOILERPLATE = {
     "a",
     "about",
+    "all",
     "an",
+    "data",
+    "delete",
     "for",
     "forget",
     "going",
     "i",
+    "information",
     "is",
     "me",
+    "memories",
+    "memory",
     "my",
     "of",
     "please",
+    "remove",
     "remember",
+    "stored",
     "that",
     "the",
     "this",
@@ -266,7 +274,8 @@ async def delete_memory_by_query(
     # substring match against each memory's stored text so the confirmed forget
     # actually takes effect — without the recency-deletion footgun of blindly
     # bypassing the threshold (un-indexed asearch returns recents, not query
-    # matches), so we only delete recents that genuinely mention the query.
+    # matches), so we only delete recents that genuinely mention a query with
+    # at least three meaningful non-PII topic tokens.
     unranked = bool(results) and all(
         getattr(item, "score", None) is None for item in results
     )
@@ -283,13 +292,13 @@ async def delete_memory_by_query(
     deleted = 0
     for m, item in zip(matches, results):
         should_delete = m["score"] >= _FORGET_SCORE_THRESHOLD
-        if not should_delete and unranked and needle:
+        if not should_delete and unranked and needle and len(query_topics) >= 3:
             value = getattr(item, "value", None) or {}
             haystack = " ".join(
                 str(v) for v in value.values() if isinstance(v, str)
             ).casefold()
             should_delete = needle in haystack
-            if not should_delete and len(query_topics) >= 3:
+            if not should_delete:
                 redacted_haystack = re.sub(
                     r"<[^>]+>|\[redacted_[^]]+\]",
                     " ",
