@@ -160,6 +160,8 @@ def per_stage_completion_claims(text: str) -> set[int]:
     def is_negated(fragment: str) -> bool:
         if re.search(
             r"\b(?:failed|never|neither|unsuccessful|without)\b", fragment, re.I
+        ) or re.search(
+            r"\bno\s+(?:conclusion|claim|finding|evidence)\b", fragment, re.I
         ):
             return True
         markers = re.findall(r"\bnot\b(?!\s+only\b)|n['’]t\b", fragment, re.I)
@@ -219,6 +221,13 @@ def per_stage_completion_claims(text: str) -> set[int]:
         for match in pattern.finditer(fragment):
             if len(re.findall(r"\bnot\b", match.group("negation"), re.I)) % 2 == 1:
                 negated_stages.update(stage_subjects(match.group("subject")))
+        for match in re.finditer(
+            r"\bno\s+(?:conclusion|claim|finding|evidence)\b[^.;!?]*?"
+            r"\bstages?\s*[1-6]\b",
+            fragment,
+            re.I,
+        ):
+            negated_stages.update(stage_subjects(match.group(0)))
         return negated_stages
 
     previous_subject: set[int] = set()
@@ -284,6 +293,7 @@ def _assert_completion_claim_calibration() -> None:
         "Stage 6, but not stage 5, was verified.": {6},
         "Stage 6 was not not verified.": {6},
         "The limit was reached after four verified stages, so stage 5 was not executed.": set(),
+        "No conclusion about Stage 5 or later stages is supported by the completed searches.": set(),
         "Completed stages 1-5 and did not execute stage 6. Verified progression:": {
             1,
             2,
