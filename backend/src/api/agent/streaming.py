@@ -687,7 +687,25 @@ def _encode_tool_result(output: Any) -> str:
     """
     if isinstance(output, (dict, list)):
         try:
-            return _json.dumps(output, default=str)[:500]
+            encoded = _json.dumps(output, default=str)
+            if len(encoded) <= 500:
+                return encoded
+            if isinstance(output, dict):
+                # Over the cap: shorten long string values instead of slicing
+                # the serialized JSON mid-token — identity fields the frontend
+                # parses (note_id, project_id, …) must survive as valid JSON.
+                compact = {
+                    key: (
+                        value[:120] + "…"
+                        if isinstance(value, str) and len(value) > 120
+                        else value
+                    )
+                    for key, value in output.items()
+                }
+                encoded = _json.dumps(compact, default=str)
+                if len(encoded) <= 500:
+                    return encoded
+            return encoded[:500]
         except (TypeError, ValueError):
             pass
     return str(output)[:500]
