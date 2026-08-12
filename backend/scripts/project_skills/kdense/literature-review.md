@@ -36,7 +36,7 @@ Record every query string, its date, and its returned count in the methods log �
 
 ### 3. Screening and selection
 
-Screen title, then abstract, then full text, against the pre-registered criteria. Record counts at each stage (identified, screened, excluded with reasons, included) so a PRISMA-style flow can be reported. Ingest arXiv papers that pass screening with `ingest_arxiv_papers`, then work from the returned document ids — never from raw arXiv ids. Papers from external databases without an arXiv id cannot be ingested this way: keep them in the review as metadata-only records, mark them as not full-text screened in the methods log, and flag them for manual upload by the researcher.
+Screen title, then abstract, then full text, against the pre-registered criteria. Record counts at each stage (identified, screened, excluded with reasons, included) so a PRISMA-style flow can be reported. Ingest arXiv papers that pass screening with `ingest_arxiv_papers`, then work from the returned document ids — never from raw arXiv ids. Papers from external databases without an arXiv id cannot be ingested this way: hold them in an explicit candidate list (recorded in the methods log), excluded from synthesis, citation verification, and the bibliography, and flag them for manual upload by the researcher — a candidate enters the included set only once it exists as a project document.
 
 ### 4. Extraction and quality appraisal
 
@@ -56,7 +56,7 @@ Assemble the review with `create_draft`: introduction and scope, methods (the se
 
 ## Pitfalls
 
-1. Single-source search — always use at least three sources.
+1. Single-source search — search every source reachable in the turn; when fewer than three were reachable, document the coverage limitation in the methods log.
 2. Undocumented searches — irreproducible; log every query and date.
 3. Paper-by-paper summary — that is an annotated bibliography, not a synthesis.
 4. Unverified citations — check each one against the ingested source.

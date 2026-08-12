@@ -22,8 +22,8 @@ Adapted from K-Dense scientific-agent-skills (MIT license).
 
 Match the question and data to the test family:
 
-- Two independent group means: t-test; Welch correction when variances differ; Mann-Whitney U when normality fails badly at small n.
-- Paired measurements: paired t-test; Wilcoxon signed-rank as the nonparametric fallback.
+- Two independent group means: state the estimand first — if it is the mean difference, prefer the t-test with Welch correction, or bootstrap and permutation approaches when normality fails at small n; Mann-Whitney U tests stochastic dominance, not the mean difference, so use it only when that shift-style question matches the research question.
+- Paired measurements: paired t-test; Wilcoxon signed-rank as the nonparametric alternative, noting it assumes the paired differences are symmetrically distributed.
 - Three or more group means: one-way ANOVA with Tukey HSD post-hoc; Kruskal-Wallis nonparametric.
 - Two categorical variables: chi-square test of independence; Fisher exact when expected cell counts fall below five.
 - Association of two continuous variables: Pearson correlation; Spearman for monotonic non-linear or ordinal data.
@@ -63,7 +63,7 @@ Family-wise corrections (Tukey, Bonferroni-family) for confirmatory sets of comp
 
 ## Reporting
 
-Write results with `create_draft` or record them via `create_project_note` in reportable form: test name and variant, statistic with degrees of freedom, exact p-value, effect size with interval, assumption checks performed and their outcomes, sample sizes per group, and software noted as the sandboxed Python stack. Plots produced with `execute_code` should show the data (not just bar means): box or violin plots with points for group comparisons, scatter with fit and interval for associations.
+Record results with `create_project_note` in reportable form (`create_draft` produces literature-review-shaped documents; reserve it for review-style outputs): test name and variant, statistic with degrees of freedom, exact p-value, effect size with interval, assumption checks performed and their outcomes, sample sizes per group, and software noted as the sandboxed Python stack. Plots produced with `execute_code` should show the data (not just bar means): box or violin plots with points for group comparisons, scatter with fit and interval for associations.
 
 ## Pitfalls
 

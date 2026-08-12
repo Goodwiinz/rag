@@ -30,7 +30,7 @@ Prefer authoritative indexes over general web results: they return structured me
 
 ### 2. Capture into the project
 
-Ingest selected papers with `ingest_arxiv_papers` and work from the returned document ids, not raw external ids. Papers in the project are the citable universe; the bibliography is generated from them, which keeps every reference backed by a readable source.
+Ingest selected arXiv papers with `ingest_arxiv_papers` and work from the returned document ids, not raw external ids. There is no agent-side ingestion for non-arXiv papers: ask the researcher to upload the full text through the documents interface, then attach it with `add_document_to_project`. When a published paper also exists as an arXiv preprint, the verified arXiv record is the citable project document until the published version is uploaded — note the version used. Papers in the project are the citable universe; the bibliography is generated from them, which keeps every reference backed by a readable source.
 
 ### 3. Metadata verification
 
