@@ -175,7 +175,6 @@ const makeProps = (
       enableRAG: true,
       setEnableRAG: vi.fn(),
       onSelectThread: vi.fn(),
-      onCitationDocumentClick: vi.fn(),
     },
   };
 };

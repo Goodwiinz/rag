@@ -12,8 +12,6 @@ import { useSlashCommands } from '@/hooks/chat/useSlashCommands';
 import { useCitationPanel } from '@/hooks/chat/useCitationPanel';
 import { useChatDrawer } from '@/hooks/chat/useChatDrawer';
 import { useChatComposerActions } from '@/hooks/chat/useChatComposerActions';
-import { useArtifactPanelStore } from '@/store/artifactPanelStore';
-import type { Citation } from '@/utils/citationParser';
 
 // ============================================
 // MAIN PAGE COMPONENT — composition root. Every hook below owns its own
@@ -46,10 +44,7 @@ function ChatPageContent() {
 
   const drawer = useChatDrawer();
 
-  const citationPanel = useCitationPanel({
-    setInput: streaming.setInput,
-    chatInputRef: streaming.chatInputRef,
-  });
+  const citationPanel = useCitationPanel();
 
   const composerActions = useChatComposerActions({
     workspace: session.workspace,
@@ -96,27 +91,6 @@ function ChatPageContent() {
     [router, setCurrentThread, activeThreadId, closeDrawer]
   );
 
-  // Split-view: opening a cited document focuses it in the artifact panel
-  // beside the transcript instead of navigating away from the conversation.
-  // The panel header keeps an "Open full page" link to /documents/[id].
-  const openArtifact = useArtifactPanelStore((s) => s.openArtifact);
-  const { setIsCitationPanelOpen } = citationPanel;
-  const handleCitationDocumentClick = useCallback(
-    (citation: Citation) => {
-      if (citation.documentId) {
-        // The sources overlay is a fixed z-50 column on desktop — left open
-        // it would cover the docked artifact panel the user just targeted.
-        setIsCitationPanelOpen(false);
-        openArtifact({
-          kind: 'document',
-          id: citation.documentId,
-          title: citation.title || 'Untitled document',
-        });
-      }
-    },
-    [openArtifact, setIsCitationPanelOpen]
-  );
-
   return (
     <ChatSurface
       session={session}
@@ -129,7 +103,6 @@ function ChatPageContent() {
       enableRAG={enableRAG}
       setEnableRAG={setEnableRAG}
       onSelectThread={handleSelectThread}
-      onCitationDocumentClick={handleCitationDocumentClick}
     />
   );
 }
