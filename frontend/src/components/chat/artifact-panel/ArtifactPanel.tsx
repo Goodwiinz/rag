@@ -161,7 +161,7 @@ function NoteArtifactBody({
   if (isLoading) return <ArtifactContentSkeleton />;
   if (isError || !data) return <ArtifactContentError what="note" />;
   return (
-    <div className="p-4 font-nous-body text-sm leading-relaxed text-(--nous-fg-1)">
+    <div className="nous-prose p-4 font-nous-body text-sm leading-relaxed text-(--nous-fg-1)">
       <ChatMarkdown content={data.content} />
     </div>
   );
@@ -188,10 +188,14 @@ function DraftArtifactBody({
           v{data.version}
           {data.is_current ? ' · current' : ''}
         </span>
-        <span className="tabular-nums">{data.word_count} words</span>
-        <span className="tabular-nums">{data.citation_count} citations</span>
+        {typeof data.word_count === 'number' && (
+          <span className="tabular-nums">{data.word_count} words</span>
+        )}
+        {typeof data.citation_count === 'number' && (
+          <span className="tabular-nums">{data.citation_count} citations</span>
+        )}
       </div>
-      <div className="font-nous-body text-sm leading-relaxed text-(--nous-fg-1)">
+      <div className="nous-prose font-nous-body text-sm leading-relaxed text-(--nous-fg-1)">
         <ChatMarkdown content={data.content} />
       </div>
     </div>
