@@ -310,6 +310,10 @@ class TestProductionToolRegistryParity:
                 "list_project_documents",
                 "create_project",
                 "add_document_to_project",
+                # the literature-review project skill instructs multi-database
+                # search, and lit-review requests classify as writing.
+                "search_external_database",
+                "list_external_databases",
             },
             "data": {
                 # list_project_documents' _missing_project_error names this.
@@ -363,6 +367,9 @@ class TestProductionToolRegistryParity:
             "list_project_documents",
             "create_project",
             "add_document_to_project",
+            # Appended at positions 11 and 12 so the existing order is untouched.
+            "search_external_database",
+            "list_external_databases",
         ]
         assert [
             item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("data")
@@ -468,6 +475,10 @@ class TestProductionToolRegistryParity:
                 item.name for item in TOOL_REGISTRY.descriptors_for_intent("general")
             }
             assert name in {tool.name for tool in _get_tools_for_intent("general")}
+            # …and via writing, where lit-review requests are classified.
+            assert name in {
+                item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("writing")
+            }
 
     def test_policy_tags_keep_legacy_execution_policy(self) -> None:
         from src.services.agent.tool_registry import ToolPolicyTag
