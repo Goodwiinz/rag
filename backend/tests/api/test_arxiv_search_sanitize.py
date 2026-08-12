@@ -299,3 +299,29 @@ async def test_tool_search_arxiv_chronological_sends_fielded_query() -> None:
     sent_query = _call.kwargs["query"]
     assert "all:retrieval-augmented AND all:generation" in sent_query
     assert "submittedDate:" in sent_query
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_tool_search_arxiv_pure_filler_query_stays_unfielded() -> None:
+    """Sanitizer fallback (all tokens are stopwords) must NOT be fielded —
+    'all:recent AND all:the' would rewrite a deliberately-preserved query
+    into an over-restrictive one (codex audit on #1406, finding 3)."""
+    service = _make_service_mock()
+
+    with (
+        patch("src.services.arxiv.arxiv_service.ArXivIngestionService") as mock_cls,
+        patch(
+            "src.services.agent.tools_impl._arxiv_cache_get",
+            return_value=None,
+        ),
+        patch("src.services.agent.tools_impl._arxiv_cache_set"),
+    ):
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=service)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        await _tool_search_arxiv({"query": "recent papers on the"})
+
+    sent_query = service.search_papers.call_args.kwargs["query"]
+    assert "all:" not in sent_query
+    assert "recent papers on the" in sent_query

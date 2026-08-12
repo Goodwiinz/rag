@@ -957,24 +957,16 @@ def _sanitize_arxiv_query(q: str) -> str:
     return cleaned or q
 
 
-# Marks a query as already using arXiv search syntax: a field prefix (all:,
-# ti:, cat:…), quoted phrase, grouping parens, or a boolean operator.
-_ARXIV_QUERY_SYNTAX = re.compile(r'["():]|(?:^|\s)(?:AND|OR|ANDNOT)(?:\s|$)')
-
-
 def _field_arxiv_query(q: str) -> str:
     """Scope plain keyword queries to ``all:`` with AND between tokens.
 
-    The arXiv API ORs unfielded space-separated terms: 'retrieval-augmented
-    generation' matches ~21k papers in a 60-day window (anything containing
-    'generation'), and under ``chronological`` sort the tool then returns the
-    newest submissions regardless of topic (observed: five sequential arXiv
-    ids). Relevance sort masked this by ranking the phrase matches first.
-    Queries already written in arXiv syntax pass through untouched.
+    Canonical implementation lives in ``arxiv_service.field_arxiv_query`` so
+    the research-engine connector shares the same rewrite; this thin wrapper
+    keeps the module-local name the tool path and tests use.
     """
-    if not q or _ARXIV_QUERY_SYNTAX.search(q):
-        return q
-    return " AND ".join(f"all:{tok}" for tok in q.split())
+    from src.services.arxiv.arxiv_service import field_arxiv_query
+
+    return field_arxiv_query(q)
 
 
 # --- L2: shared Redis cache (cross-pod dedup + normalized key + 429 stale) ---
@@ -1109,8 +1101,15 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     # adding signal. The raw ``original_query`` is still used as the cache key.
     query = _sanitize_arxiv_query(query)
     # Field-scope plain keywords (all:tok AND all:tok) — unfielded terms are
-    # OR'd by arXiv and drown chronological sort in off-topic papers.
-    query = _field_arxiv_query(query)
+    # OR'd by arXiv and drown chronological sort in off-topic papers. Skip
+    # when the sanitizer fell back to a pure-filler query (every token a
+    # stopword): ANDing all: over stopwords ('all:recent AND all:the') would
+    # rewrite a query we deliberately chose to preserve verbatim into an
+    # over-restrictive one (codex audit on #1406, finding 3).
+    if any(
+        re.sub(r"[^a-z]", "", t.lower()) not in _ARXIV_STOPWORDS for t in query.split()
+    ):
+        query = _field_arxiv_query(query)
     # Hard cap at 5 papers + 250-char abstracts. Trace showed 10×500-char
     # results = 8087 chars feeding into the synthesis LLM call and triggering
     # 1536 reasoning tokens (~46s). Smaller payload = faster synthesis.

@@ -8,6 +8,7 @@ for testing and evaluating the multimodal RAG system.
 import asyncio
 import json
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
@@ -37,6 +38,27 @@ except ImportError:
 
 
 logger = logging.getLogger(__name__)
+
+# --- Query fielding ----------------------------------------------------------
+# Marks a query as already using arXiv search syntax: a field prefix (all:,
+# ti:, cat:…), quoted phrase, grouping parens, or a boolean operator.
+_ARXIV_QUERY_SYNTAX = re.compile(r'["():]|(?:^|\s)(?:AND|OR|ANDNOT)(?:\s|$)')
+
+
+def field_arxiv_query(q: str) -> str:
+    """Scope plain keyword queries to ``all:`` with AND between tokens.
+
+    The arXiv API ORs unfielded space-separated terms: 'retrieval-augmented
+    generation' matches ~21k papers in a 60-day window (anything containing
+    'generation'), and under a submittedDate sort the caller then gets the
+    newest submissions regardless of topic (observed: five sequential arXiv
+    ids). Relevance sort masks this by ranking the phrase matches first.
+    Queries already written in arXiv syntax pass through untouched.
+    """
+    if not q or _ARXIV_QUERY_SYNTAX.search(q):
+        return q
+    return " AND ".join(f"all:{tok}" for tok in q.split())
+
 
 # --- Shared cross-pod arXiv rate gate ---------------------------------------
 # arXiv rate-limits per SOURCE IP. Each pod honoring only its own 3s gate means
