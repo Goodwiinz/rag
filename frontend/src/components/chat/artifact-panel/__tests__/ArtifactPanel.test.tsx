@@ -10,10 +10,18 @@ import { render, screen, waitFor } from '@/test/test-utils';
 import { ArtifactPanel } from '../ArtifactPanel';
 import { useArtifactPanelStore, type Artifact } from '@/store/artifactPanelStore';
 import { documentService } from '@/services/documentService';
+import { projectService } from '@/services/projectService';
 
 vi.mock('@/services/documentService', () => ({
   documentService: {
     getDocument: vi.fn(),
+  },
+}));
+
+vi.mock('@/services/projectService', () => ({
+  projectService: {
+    getNote: vi.fn(),
+    getDraft: vi.fn(),
   },
 }));
 
@@ -173,6 +181,73 @@ describe('ArtifactPanel', () => {
     } finally {
       window.removeEventListener('populate-chat-input', listener);
     }
+  });
+
+  it('renders a note artifact as markdown', async () => {
+    vi.mocked(projectService.getNote).mockResolvedValue({
+      id: 'note-1',
+      project_id: 'proj-1',
+      title: 'Reading notes',
+      content: '# Heading\n\nBody text.',
+      is_pinned: false,
+      created_at: '2026-08-11',
+      updated_at: '2026-08-11',
+    });
+    const artifact: Artifact = {
+      kind: 'note',
+      projectId: 'proj-1',
+      id: 'note-1',
+      title: 'Reading notes',
+    };
+    render(<ArtifactPanel artifact={artifact} />);
+
+    await waitFor(() =>
+      expect(screen.getByText('Body text.')).toBeInTheDocument()
+    );
+    expect(projectService.getNote).toHaveBeenCalledWith('proj-1', 'note-1');
+  });
+
+  it('renders a draft artifact with version metadata', async () => {
+    vi.mocked(projectService.getDraft).mockResolvedValue({
+      id: 'draft-1',
+      project_id: 'proj-1',
+      version: 3,
+      title: 'Survey draft',
+      content: 'Draft body.',
+      themes: [],
+      word_count: 1200,
+      citation_count: 14,
+      is_current: true,
+      created_at: '2026-08-11',
+    });
+    const artifact: Artifact = {
+      kind: 'draft',
+      projectId: 'proj-1',
+      id: 'draft-1',
+      title: 'Survey draft',
+    };
+    render(<ArtifactPanel artifact={artifact} />);
+
+    await waitFor(() =>
+      expect(screen.getByText('Draft body.')).toBeInTheDocument()
+    );
+    expect(screen.getByText(/v3/)).toBeInTheDocument();
+    expect(screen.getByText('1200 words')).toBeInTheDocument();
+    expect(screen.getByText('14 citations')).toBeInTheDocument();
+  });
+
+  it('shows an error state when a note fetch fails', async () => {
+    vi.mocked(projectService.getNote).mockRejectedValue(new Error('404'));
+    const artifact: Artifact = {
+      kind: 'note',
+      projectId: 'proj-1',
+      id: 'note-x',
+      title: 'Missing note',
+    };
+    render(<ArtifactPanel artifact={artifact} />);
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(screen.getByText("Couldn't load this note")).toBeInTheDocument();
   });
 
   it('renders an external artifact as an outbound link card', () => {

@@ -398,23 +398,30 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
     [router, searchParams]
   );
 
-  // Rail file-tree selections: documents/external sources open in the
-  // artifact panel beside the chat (the split-view pattern — never navigate
-  // away). Note/draft detail routes don't exist yet, so those still fall back
-  // to the project page until the panel learns to render them.
+  // Rail file-tree selections open in the artifact panel beside the chat
+  // (the split-view pattern — never navigate away). Notes/drafts need the
+  // bound project id for their scoped fetch; the rail only lists them when a
+  // project is bound, so the project-page fallback is just a safety net.
   const handleRailSelect = useCallback(
     (node: WorkingFoldersSelection) => {
-      if ((node.kind === 'note' || node.kind === 'draft') && projectId) {
-        router.push(`/projects/${projectId}`);
+      if (node.kind === 'note' || node.kind === 'draft') {
+        if (projectId) {
+          openArtifact({
+            kind: node.kind,
+            projectId,
+            id: node.id,
+            title: node.title,
+          });
+        } else {
+          router.push('/projects');
+        }
         return;
       }
-      if (node.kind === 'document' || node.kind === 'external') {
-        openArtifact(
-          node.kind === 'document'
-            ? { kind: 'document', id: node.id, title: node.title }
-            : { kind: 'external', id: node.id, title: node.title }
-        );
-      }
+      openArtifact(
+        node.kind === 'document'
+          ? { kind: 'document', id: node.id, title: node.title }
+          : { kind: 'external', id: node.id, title: node.title }
+      );
     },
     [projectId, router, openArtifact]
   );
