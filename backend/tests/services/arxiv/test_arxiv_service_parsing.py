@@ -159,6 +159,19 @@ class TestGetPapersByIds:
         assert await svc.get_papers_by_ids([]) == []
 
 
+class TestPdfCachePath:
+    def test_old_style_id_flattens_slash(self) -> None:
+        svc = ArXivIngestionService()
+        path = svc._pdf_cache_path("math/0309136v1")
+        assert path.name == "math_0309136v1.pdf"
+        assert path.parent == svc.download_dir
+
+    def test_new_style_id_unchanged(self) -> None:
+        svc = ArXivIngestionService()
+        path = svc._pdf_cache_path("1706.03762v5")
+        assert path.name == "1706.03762v5.pdf"
+
+
 class TestEmptyPageRetry:
     @pytest.mark.asyncio
     async def test_retries_empty_mid_scan_page_once(
@@ -199,3 +212,31 @@ class TestEmptyPageRetry:
         svc.BATCH_SIZE = 1
         papers = await svc.search_papers(query="all:test", max_results=3)
         assert [p["id"] for p in papers] == ["1706.03762v5"]
+
+    @pytest.mark.asyncio
+    async def test_retry_budget_resets_per_offset(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A second, unrelated empty page later in the scan must still get
+        # its own retry — the budget is per-offset, not a whole-scan total.
+        svc = ArXivIngestionService()
+        svc.session = cast(Any, object())
+        responses = [
+            _feed(_entry(), total=3),
+            _feed("", total=3),  # first flaky page -> retried
+            _feed(_entry(entry_id="http://arxiv.org/abs/2401.00001v1"), total=3),
+            _feed("", total=3),  # second flaky page -> must also be retried
+            _feed(_entry(entry_id="http://arxiv.org/abs/2401.00002v1"), total=3),
+        ]
+
+        async def _fake_request(url: str, params: dict) -> str:
+            return responses.pop(0)
+
+        monkeypatch.setattr(svc, "_make_async_request", _fake_request)
+        svc.BATCH_SIZE = 1
+        papers = await svc.search_papers(query="all:test", max_results=3)
+        assert [p["id"] for p in papers] == [
+            "1706.03762v5",
+            "2401.00001v1",
+            "2401.00002v1",
+        ]
