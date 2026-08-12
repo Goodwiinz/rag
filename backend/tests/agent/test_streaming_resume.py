@@ -512,3 +512,53 @@ def test_resume_token_containing_terminal_text_does_not_stop_replay(monkeypatch)
     body = resp.text
     assert "id: 2\n" in body  # replay continued past the decoy token frame
     assert body.rstrip().endswith("event: done\ndata: {}")
+
+
+def test_resume_mismatched_stream_param_returns_204(monkeypatch):
+    """A cursor pinned to an older run must not attach to the thread's NEWER
+    active stream (codex audit CX1) — mismatch answers 204, no replay."""
+    active = "11111111-2222-3333-4444-555555555555"
+    stale = "99999999-8888-7777-6666-555555555555"
+    monkeypatch.setattr(
+        execute_mod._stream_buffer, "active_stream_id", AsyncMock(return_value=active)
+    )
+    read_after = AsyncMock(return_value=_frames())
+    monkeypatch.setattr(execute_mod._stream_buffer, "read_after", read_after)
+
+    resp = _client().get(f"/api/v1/agent/stream/resume/{THREAD_ID}?stream={stale}")
+
+    assert resp.status_code == 204
+    read_after.assert_not_awaited()
+
+
+def test_resume_matching_stream_param_replays(monkeypatch):
+    active = "11111111-2222-3333-4444-555555555555"
+    monkeypatch.setattr(
+        execute_mod._stream_buffer, "active_stream_id", AsyncMock(return_value=active)
+    )
+
+    async def read_after(sid, after_seq):
+        assert sid == active
+        return [f for f in _frames() if f.seq > after_seq]
+
+    monkeypatch.setattr(execute_mod._stream_buffer, "read_after", read_after)
+
+    resp = _client().get(f"/api/v1/agent/stream/resume/{THREAD_ID}?stream={active}")
+
+    assert resp.status_code == 200
+    assert "event: done" in resp.text
+
+
+def test_envelope_carries_stream_id_only_when_present():
+    """stream_id is additive: present when the emitter has a buffer id,
+    absent (not null) otherwise — pre-change frame shape preserved."""
+    import json as _json
+
+    from src.api.agent.streaming import build_stream_envelope
+
+    with_sid = build_stream_envelope({"c": "x"}, seq=1, trace_id="t", stream_id="sid-1")
+    assert with_sid["stream_id"] == "sid-1"
+
+    without = build_stream_envelope({"c": "x"}, seq=1, trace_id="t")
+    assert "stream_id" not in without
+    _json.dumps(without)  # still serializable

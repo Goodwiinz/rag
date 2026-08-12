@@ -90,6 +90,10 @@ export interface AgentStreamCallbacks {
   /** Fires for every frame carrying an `id: <seq>` line — the resumable-SSE
    * cursor. Persist the latest value to resume after a disconnect. */
   onSeq?: (seq: number) => void;
+  /** Fires for every enveloped frame carrying a `stream_id` — the run the
+   * seq cursor belongs to. Persist alongside the cursor and pass it to
+   * resumeStream so a stale cursor can't attach to a newer run. */
+  onStreamId?: (streamId: string) => void;
   onDone?: (payload?: {
     thread_id?: string;
     assistant_message_id?: string | null;
@@ -177,6 +181,11 @@ async function consumeSse(
   const dispatchData = (ev: string, dataLine: string): void => {
     try {
       const data = JSON.parse(dataLine.slice(6));
+      // Run-correlation id from the stream envelope (additive field): echoed
+      // back on /stream/resume so a stale cursor can't attach to a newer run.
+      if (typeof data.stream_id === 'string') {
+        callbacks.onStreamId?.(data.stream_id);
+      }
       switch (ev) {
         case 'token':
           callbacks.onToken?.(data.content);
@@ -514,12 +523,18 @@ class AgentChatService {
     threadId: string,
     afterSeq: number,
     callbacks: AgentStreamCallbacks,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    streamId?: string
   ): Promise<{ resumed: boolean }> {
     const base = getPublicApiBaseUrl('/api/v1').replace(/\/$/, '');
+    // `stream` pins the cursor to the run it was read from — the backend
+    // answers 204 instead of replaying a newer run's frames against it.
+    const streamParam = streamId
+      ? `&stream=${encodeURIComponent(streamId)}`
+      : '';
     const url = `${base}/agent/stream/resume/${encodeURIComponent(
       threadId
-    )}?after=${afterSeq}`;
+    )}?after=${afterSeq}${streamParam}`;
     const headers = new Headers(await getStreamAuthHeaders());
     headers.set('Last-Event-ID', String(afterSeq));
 

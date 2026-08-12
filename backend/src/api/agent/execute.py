@@ -779,6 +779,15 @@ async def resume_stream(
     request: Request,
     thread_id: str = Path(pattern=r"^[0-9a-fA-F-]{36}$"),
     after: int = Query(0, ge=0),
+    stream: Optional[str] = Query(
+        default=None,
+        pattern=r"^[0-9a-fA-F-]{36}$",
+        description=(
+            "Stream id the cursor belongs to (the envelope's stream_id). "
+            "When set, resume refuses to attach the cursor to a different "
+            "(newer) run on the same thread."
+        ),
+    ),
     last_event_id: Optional[str] = Header(default=None, alias="Last-Event-ID"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -819,6 +828,13 @@ async def resume_stream(
         raise HTTPException(status_code=404, detail="Thread not found")
 
     sid = await _stream_buffer.active_stream_id(thread_id)
+    # Run correlation (codex audit CX1): the client's seq cursor is only
+    # meaningful against the stream it was read from. If the caller names its
+    # stream and a DIFFERENT run now owns the thread's active pointer, replaying
+    # the new run's frames against the old cursor would skip or duplicate
+    # frames — 204 tells the client its old run is over.
+    if stream is not None and sid is not None and stream.lower() != sid.lower():
+        return Response(status_code=204)
     if sid is None:
         # No live stream — but the graph may still be parked on a HITL
         # interrupt. The confirmation frame was emitted on a stream that has
