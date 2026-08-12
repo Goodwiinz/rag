@@ -186,31 +186,9 @@ async def test_tool_search_arxiv_recency_days_zero_disables_date_filter() -> Non
     assert "submittedDate:" not in sent_query
 
 
-@pytest.mark.unit
-def test_search_arxiv_schema_exposes_recency_days() -> None:
-    """Agent callers can only widen the window if the schema advertises it."""
-    from src.services.agent.tools import search_arxiv
-
-    assert "recency_days" in search_arxiv.args_schema.model_fields
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_search_arxiv_tool_forwards_recency_days() -> None:
-    """The tool wrapper forwards recency_days; omitting it keeps the default."""
-    from src.services.agent import tools as tools_mod
-
-    # search_arxiv imports the impl lazily from tools_impl, so patch it there.
-    with patch(
-        "src.services.agent.tools_impl._tool_search_arxiv",
-        new=AsyncMock(return_value={"papers": []}),
-    ) as impl:
-        await tools_mod.search_arxiv.ainvoke({"query": "RAG", "recency_days": 1825})
-        assert impl.call_args.args[0]["recency_days"] == 1825
-
-        impl.reset_mock()
-        await tools_mod.search_arxiv.ainvoke({"query": "RAG"})
-        assert "recency_days" not in impl.call_args.args[0]
+# Schema exposure + wrapper pass-through are covered by #1404 in
+# tests/unit/services/test_agent_tools.py; only the impl-side behaviour it
+# does not reach is asserted here.
 
 
 @pytest.mark.unit
