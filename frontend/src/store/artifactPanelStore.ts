@@ -37,6 +37,9 @@ interface ArtifactPanelState {
   closePanel: () => void;
   reopenPanel: () => void;
   togglePin: () => void;
+  /** Full reset — called on sign-out so a shared-browser account switch
+   * never surfaces the previous user's artifact. */
+  reset: () => void;
 }
 
 /**
@@ -64,4 +67,6 @@ export const useArtifactPanelStore = create<ArtifactPanelState>((set, get) => ({
   },
 
   togglePin: () => set((s) => ({ pinned: !s.pinned })),
+
+  reset: () => set({ artifact: null, isOpen: false, pinned: false }),
 }));
