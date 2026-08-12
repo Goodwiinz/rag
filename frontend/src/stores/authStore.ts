@@ -2,6 +2,7 @@ import { clearSupabaseAuthCookies } from '@/lib/supabase/clearAuthCookies';
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { api } from '@/services/api-client';
 import { clearWorkspaceServiceCache } from '@/services/workspaceService';
+import { getAppQueryClient } from '@/lib/query-client';
 import { useArtifactPanelStore } from '@/store/artifactPanelStore';
 import { Organization, RegisterResult, User } from '@/types';
 import { supabaseAuthErrorMessage } from '@/utils/supabaseAuthError';
@@ -107,6 +108,10 @@ function getSupabaseClient(): SupabaseClient {
       if (event === 'SIGNED_OUT') {
         clearWorkspaceServiceCache();
         useArtifactPanelStore.getState().reset();
+        // The root QueryClient survives client-side auth transitions, so a
+        // shared-browser account switch could serve the previous user's
+        // note/draft bodies straight from cache. Drop everything.
+        getAppQueryClient()?.clear();
         // Drop the cached bearer token so the shared APIClient singleton can't
         // keep sending the signed-out user's JWT.
         api.clearAuth();
@@ -267,6 +272,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     // shared-browser account switch would otherwise show the previous
     // user's artifact title when the next user opens /chat.
     useArtifactPanelStore.getState().reset();
+    // Drop the React Query cache with it — user-private note/draft bodies
+    // are keyed without user identity, so they'd otherwise survive into the
+    // next signed-in session on this browser.
+    getAppQueryClient()?.clear();
     // Clear the shared APIClient token immediately so no in-flight or
     // subsequent request can carry the old JWT, even if the network call
     // below fails.
