@@ -15588,6 +15588,25 @@
             }
           },
           {
+            "description": "Stream id the cursor belongs to (the envelope's stream_id). When set, resume refuses to attach the cursor to a different (newer) run on the same thread.",
+            "in": "query",
+            "name": "stream",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-fA-F-]{36}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Stream id the cursor belongs to (the envelope's stream_id). When set, resume refuses to attach the cursor to a different (newer) run on the same thread.",
+              "title": "Stream"
+            }
+          },
+          {
             "in": "header",
             "name": "Last-Event-ID",
             "required": false,

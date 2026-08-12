@@ -51,6 +51,9 @@ export interface Run {
   carriedPlan?: PlanItem[];
   /** Last SSE frame seq seen for this run — the resume cursor. */
   streamSeq?: number;
+  /** Run-correlation id (envelope stream_id) the cursor belongs to; passed
+   * to resumeStream so a stale cursor can't attach to a newer run. */
+  streamId?: string;
 }
 
 interface AgentActivityState {
@@ -60,7 +63,7 @@ interface AgentActivityState {
   pushToolStart: (threadId: string, tool: string) => void;
   pushToolEnd: (threadId: string, tool: string, ok: boolean) => void;
   setPlan: (threadId: string, items: PlanItemInput[]) => void;
-  setStreamSeq: (threadId: string, seq: number) => void;
+  setStreamSeq: (threadId: string, seq: number, streamId?: string) => void;
   finishRun: (threadId: string, state: 'done' | 'error' | 'stopped') => void;
 }
 
@@ -201,11 +204,20 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
       return { runs: { ...s.runs, [threadId]: { ...run, plan } } };
     }),
 
-  setStreamSeq: (threadId, seq) =>
+  setStreamSeq: (threadId, seq, streamId) =>
     set((s) => {
       const run = s.runs[threadId];
-      if (!run || run.streamSeq === seq) return s;
-      return { runs: { ...s.runs, [threadId]: { ...run, streamSeq: seq } } };
+      if (!run || (run.streamSeq === seq && run.streamId === streamId)) return s;
+      return {
+        runs: {
+          ...s.runs,
+          [threadId]: {
+            ...run,
+            streamSeq: seq,
+            streamId: streamId ?? run.streamId,
+          },
+        },
+      };
     }),
 
   finishRun: (threadId, state) =>

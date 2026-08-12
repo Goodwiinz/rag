@@ -349,6 +349,9 @@ export function useChatStreaming(
   // once per paint.
   const seqRafRef = useRef<number | null>(null);
   const pendingSeqRef = useRef<{ threadId: string; seq: number } | null>(null);
+  // Run-correlation id per thread (envelope stream_id) — persisted with the
+  // seq cursor so resume pins to the run the cursor came from.
+  const streamIdByThreadRef = useRef<Record<string, string>>({});
   // Threads a resume was already attempted for this mount — guards against
   // double-resume from effect re-runs (StrictMode, dep changes).
   const resumeTriedRef = useRef<Set<string>>(new Set());
@@ -637,6 +640,10 @@ export function useChatStreaming(
             onStatus: (phase) => {
               useChatStore.setState({ streamingPhase: phase });
             },
+            onStreamId: (sid) => {
+              if (!currentThreadId) return;
+              streamIdByThreadRef.current[currentThreadId] = sid;
+            },
             onSeq: (seq) => {
               if (!currentThreadId) return;
               pendingSeqRef.current = { threadId: currentThreadId, seq };
@@ -648,7 +655,11 @@ export function useChatStreaming(
                   if (p) {
                     useAgentActivityStore
                       .getState()
-                      .setStreamSeq(p.threadId, p.seq);
+                      .setStreamSeq(
+                        p.threadId,
+                        p.seq,
+                        streamIdByThreadRef.current[p.threadId]
+                      );
                   }
                 });
               }
@@ -1334,7 +1345,8 @@ export function useChatStreaming(
           threadId,
           run.streamSeq ?? 0,
           streamCallbacks,
-          signal
+          signal,
+          run.streamId
         );
         if (!res.resumed) {
           // Nothing active server-side — clear the stale run record.
@@ -1595,6 +1607,11 @@ export function useChatStreaming(
               // it the cursor froze at whatever seq the pre-interrupt turn
               // reached, so a disconnect mid-resume replayed the buffer from a
               // stale position instead of continuing after the last seen frame.
+              onStreamId: (sid) => {
+                const sidThreadId = pendingConfirmation.workspaceThreadId;
+                if (!sidThreadId) return;
+                streamIdByThreadRef.current[sidThreadId] = sid;
+              },
               onSeq: (seq) => {
                 const seqThreadId = pendingConfirmation.workspaceThreadId;
                 if (!seqThreadId) return;
@@ -1607,7 +1624,11 @@ export function useChatStreaming(
                     if (p) {
                       useAgentActivityStore
                         .getState()
-                        .setStreamSeq(p.threadId, p.seq);
+                        .setStreamSeq(
+                          p.threadId,
+                          p.seq,
+                          streamIdByThreadRef.current[p.threadId]
+                        );
                     }
                   });
                 }

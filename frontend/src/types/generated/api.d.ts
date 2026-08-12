@@ -15770,6 +15770,8 @@ export interface operations {
         parameters: {
             query?: {
                 after?: number;
+                /** @description Stream id the cursor belongs to (the envelope's stream_id). When set, resume refuses to attach the cursor to a different (newer) run on the same thread. */
+                stream?: string | null;
             };
             header?: {
                 "Last-Event-ID"?: string | null;

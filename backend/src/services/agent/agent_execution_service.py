@@ -550,6 +550,44 @@ async def _detect_dualstore_divergence(
         pass
 
 
+# Seed lock (codex audit CX2): SET NX with a TTL well above a seed's couple of
+# DB reads; the TTL bounds the harm of a crashed winner. Plain DELETE release —
+# best-effort correctness only, the graph itself stays the source of truth.
+_SEED_LOCK_TTL_MS = 15_000
+
+
+def _seed_lock_key(thread_id: str) -> str:
+    return f"agent:seed:lock:{thread_id}"
+
+
+async def _acquire_seed_lock(thread_id: str) -> bool:
+    """Best-effort cross-worker seed lock. False = held elsewhere or no Redis."""
+    try:
+        from src.services.agent.job_store import get_redis
+
+        redis = await get_redis()
+        if redis is None:
+            return True  # no Redis → cannot coordinate; pre-lock behavior
+        return bool(
+            await redis.set(
+                _seed_lock_key(thread_id), "1", nx=True, px=_SEED_LOCK_TTL_MS
+            )
+        )
+    except Exception:
+        return True  # lock must never block a turn
+
+
+async def _release_seed_lock(thread_id: str) -> None:
+    try:
+        from src.services.agent.job_store import get_redis
+
+        redis = await get_redis()
+        if redis is not None:
+            await redis.delete(_seed_lock_key(thread_id))
+    except Exception:
+        pass  # TTL reaps it
+
+
 async def build_graph_input_messages(
     db: AsyncSession,
     graph: Any,
@@ -594,17 +632,39 @@ async def build_graph_input_messages(
         return [newest]
 
     # count == 0: the checkpoint is genuinely empty → rebuild from the DB.
-    seed = await build_thread_seed_messages(db, thread_id)
-    if not seed:
-        # Empty checkpoint AND empty DB (brand-new / unresolved thread, or a
-        # swallowed persist): fall back to the request's newest turn.
-        return [newest]
+    # Serialize concurrent seeders (codex audit CX2): two simultaneous
+    # first-turns can both read count == 0 and both seed. The Redis lock is
+    # best-effort — the loser waits for the winner, re-reads the count, and
+    # appends only its newest turn once the checkpoint is populated. No Redis
+    # (or lock timeout) degrades to the old race, never to a lost turn.
+    got_lock = await _acquire_seed_lock(thread_id)
+    try:
+        if not got_lock:
+            for _ in range(20):  # ≤ ~2s — seeding is a couple of DB reads
+                await asyncio.sleep(0.1)
+                recheck = await _checkpoint_human_count(graph, thread_id)
+                if recheck is not None and recheck > 0:
+                    return [newest]
+                if await _acquire_seed_lock(thread_id):
+                    got_lock = True
+                    break
+            # Winner died or is slow: proceed unlocked (pre-lock behavior).
 
-    # Ensure the newest turn survives even if its persist was swallowed; normally
-    # it's already in the seed (same client_message_id), so append only if missing.
-    if not _seed_has_id(seed, newest.id):
-        seed.append(newest)
-    return seed
+        seed = await build_thread_seed_messages(db, thread_id)
+        if not seed:
+            # Empty checkpoint AND empty DB (brand-new / unresolved thread, or
+            # a swallowed persist): fall back to the request's newest turn.
+            return [newest]
+
+        # Ensure the newest turn survives even if its persist was swallowed;
+        # normally it's already in the seed (same client_message_id), so
+        # append only if missing.
+        if not _seed_has_id(seed, newest.id):
+            seed.append(newest)
+        return seed
+    finally:
+        if got_lock:
+            await _release_seed_lock(thread_id)
 
 
 def build_user_history_messages(messages: List[Any], thread_id: str) -> List[Any]:
