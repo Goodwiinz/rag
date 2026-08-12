@@ -26,6 +26,7 @@ import {
   useChatStore,
 } from '@/store/chat-store';
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
+import { useArtifactPanelStore } from '@/store/artifactPanelStore';
 import { toolLabel } from '@/components/context-rail/toolLabels';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation } from '@/types/workspace';
@@ -44,6 +45,32 @@ import { v5 as uuidv5 } from 'uuid';
  * turn's sources persist with the assistant message. Snippet capped at the
  * backend Citation column limit.
  */
+/**
+ * Pull the created note's id/title out of a create_project_note tool result
+ * (a JSON string like {status, note_id, title, …}). Null when the result
+ * isn't JSON, errored, or carries no note_id — callers skip auto-focus then.
+ */
+export function parseCreatedNoteResult(
+  result: string
+): { noteId: string; title?: string } | null {
+  try {
+    const parsed: unknown =
+      typeof result === 'string' ? JSON.parse(result) : result;
+    if (!parsed || typeof parsed !== 'object') return null;
+    const obj = parsed as Record<string, unknown>;
+    if (obj.error) return null;
+    if (typeof obj.note_id !== 'string' || !obj.note_id) return null;
+    return {
+      noteId: obj.note_id,
+      ...(typeof obj.title === 'string' && obj.title
+        ? { title: obj.title }
+        : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Tool name + args preview from an interrupt's confirmation payload — flat
  * (tool_name/tool_args) or the first entry of a `tools` list. Mirrors the
  * page-level banner's extractToolCall (P4). */
@@ -354,6 +381,41 @@ export function useChatStreaming(
     [queryClient, boundProjectId]
   );
 
+  // Auto-focus a note the agent just created in the split-view artifact
+  // panel. Guards: only successful create_project_note (create_draft is an
+  // async task — there is no draft id at tool_end), only when the turn's
+  // thread is the one on screen (a background thread must not hijack the
+  // panel), only when a project is bound (the note fetch needs its id), and
+  // openArtifact's own pin gate ignores agent opens while the user has
+  // pinned what they're reading.
+  const maybeAutoFocusCreatedNote = useCallback(
+    (
+      tool: string,
+      result: string,
+      isError: boolean,
+      turnThreadId: string | null
+    ) => {
+      if (isError || tool !== 'create_project_note' || !boundProjectId) return;
+      if (
+        !turnThreadId ||
+        useChatStore.getState().currentThreadId !== turnThreadId
+      )
+        return;
+      const created = parseCreatedNoteResult(result);
+      if (!created) return;
+      useArtifactPanelStore.getState().openArtifact(
+        {
+          kind: 'note',
+          projectId: boundProjectId,
+          id: created.noteId,
+          title: created.title ?? 'New note',
+        },
+        { source: 'agent' }
+      );
+    },
+    [boundProjectId]
+  );
+
   // ---- Effects ----
 
   // Capture a stable timestamp when streaming begins
@@ -606,6 +668,12 @@ export function useChatStreaming(
                   .pushToolEnd(currentThreadId, tool, !isError);
               }
               invalidateProjectDataForTool(tool, isError);
+              maybeAutoFocusCreatedNote(
+                tool,
+                result,
+                isError,
+                currentThreadId || null
+              );
               // Update last matching running step for this tool
               const startTime = toolStartTimes.get(tool);
               const durationMs = startTime ? Date.now() - startTime : undefined;
@@ -944,6 +1012,7 @@ export function useChatStreaming(
       setConversations,
       enableRAG,
       invalidateProjectDataForTool,
+      maybeAutoFocusCreatedNote,
       displayedMessages.length,
     ]
   );
