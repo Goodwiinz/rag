@@ -215,9 +215,7 @@ async def wait_for_application(process: asyncio.subprocess.Process) -> dict[str,
                     while streak < 4:
                         await asyncio.sleep(0.25)
                         try:
-                            confirm = await client.get(
-                                f"{APP_URL}/api/v1/agent/health"
-                            )
+                            confirm = await client.get(f"{APP_URL}/api/v1/agent/health")
                         except (httpx.HTTPError, ValueError):
                             break
                         if confirm.status_code != 200:
