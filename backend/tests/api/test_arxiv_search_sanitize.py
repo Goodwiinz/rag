@@ -156,3 +156,62 @@ async def test_tool_search_arxiv_empty_results_include_honest_warning() -> None:
     assert "do not claim" in result["warning"]
     cached_payload = cache_set.call_args.args[1]
     assert cached_payload["warning"] == result["warning"]
+
+
+# ---------------------------------------------------------------------------
+# recency_days — the window must be reachable from the public tool schema
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_tool_search_arxiv_recency_days_zero_disables_date_filter() -> None:
+    """recency_days=0 must drop the submittedDate window entirely."""
+    service = _make_service_mock()
+
+    with (
+        patch("src.services.arxiv.arxiv_service.ArXivIngestionService") as mock_cls,
+        patch(
+            "src.services.agent.tools_impl._arxiv_cache_get",
+            return_value=None,
+        ),
+        patch("src.services.agent.tools_impl._arxiv_cache_set"),
+    ):
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=service)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        await _tool_search_arxiv({"query": "RAG", "recency_days": 0})
+
+    sent_query = service.search_papers.call_args.kwargs["query"]
+    assert "submittedDate:" not in sent_query
+
+
+@pytest.mark.unit
+def test_search_arxiv_schema_exposes_recency_days() -> None:
+    """Agent callers can only widen the window if the schema advertises it."""
+    from src.services.agent.tools import search_arxiv
+
+    assert "recency_days" in search_arxiv.args_schema.model_fields
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_search_arxiv_tool_forwards_recency_days() -> None:
+    """The tool wrapper forwards recency_days; omitting it keeps the default."""
+    from src.services.agent import tools as tools_mod
+
+    # search_arxiv imports the impl lazily from tools_impl, so patch it there.
+    with patch(
+        "src.services.agent.tools_impl._tool_search_arxiv",
+        new=AsyncMock(return_value={"papers": []}),
+    ) as impl:
+        await tools_mod.search_arxiv.ainvoke({"query": "RAG", "recency_days": 1825})
+        assert impl.call_args.args[0]["recency_days"] == 1825
+
+        impl.reset_mock()
+        await tools_mod.search_arxiv.ainvoke({"query": "RAG"})
+        assert "recency_days" not in impl.call_args.args[0]
+
+        impl.reset_mock()
+        await tools_mod.search_arxiv.ainvoke({"query": "RAG", "recency_days": -5})
+        assert impl.call_args.args[0]["recency_days"] == 0

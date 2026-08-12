@@ -211,12 +211,27 @@ async def search_arxiv(
     query: str,
     max_results: int = 5,
     categories: Optional[List[str]] = None,
+    recency_days: Annotated[
+        Optional[int],
+        Field(
+            description=(
+                "Only return papers submitted within this many days. "
+                "Defaults to 365. Pass 0 to search the full arXiv history — "
+                "required for systematic literature reviews or when the user "
+                "asks for foundational/older work or a window over a year."
+            )
+        ),
+    ] = None,
     config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Search arXiv for academic papers.
 
     Use when the user asks to find, search, or look up research papers,
     academic publications, or scientific articles.
+
+    Results are limited to the last 365 days by default. Set
+    ``recency_days`` to widen the window (e.g. 1825 for five years) or to 0
+    to remove the date filter entirely.
     """
     config = config or {}
     from src.services.agent.tools_impl import _tool_search_arxiv
@@ -227,6 +242,8 @@ async def search_arxiv(
     }
     if categories:
         args["categories"] = categories
+    if recency_days is not None:
+        args["recency_days"] = max(0, recency_days)
     return await _tool_search_arxiv(args)
 
 
