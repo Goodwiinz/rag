@@ -1,12 +1,19 @@
-"""The /chat client resends the FULL conversation each turn. LangGraph's
+"""``build_user_history_messages`` is now a LAST-RESORT fallback (audit review,
+PR #1395): ``build_graph_input_messages`` / Option B is the primary,
+checkpoint-authoritative path and runs unconditionally at the call sites, and
+never re-derives ids for resent history — see
+``test_windowed_reopen_appends_newest_never_replaces_old_turns`` in
+``test_agent_server_side_history.py`` for that invariant.
+
+This function is only reached when Option B declines (the newest turn has no
+``client_message_id``) or a DB/checkpoint read fails. LangGraph's
 ``add_messages`` reducer dedupes only by message ``.id`` — so if the endpoint
 rebuilds each prior user turn as a ``HumanMessage`` with no id (fresh random id
 per request), every turn re-appends the whole history into the checkpoint's
-messages channel: O(n^2) growth the compactor never prunes.
-
-``build_user_history_messages`` assigns deterministic ids (client idempotency
-key, else a (thread_id, position) derivation) so a resent history no-ops in the
-reducer and only the new turn appends. These tests pin that: pure Python, no
+messages channel: O(n^2) growth the compactor never prunes. It assigns
+deterministic ids (client idempotency key, else a (thread_id, position)
+derivation) so a resent history no-ops in the reducer when the SAME message
+carries the same id across resends. These tests pin that: pure Python, no
 DB / no network — just the reducer applied to the messages the endpoint builds.
 """
 
@@ -55,22 +62,23 @@ def test_client_message_id_drives_dedup() -> None:
     assert len(channel) == 2
 
 
-def test_original_cmid_turn_converges_with_cmid_less_resend() -> None:
-    """Audit finding B (live trace thread e3c56cef, 2026-08-11): the real /chat
-    client only attaches ``client_message_id`` to the newest turn in a request —
-    a turn resent later as history arrives WITHOUT it. The old code preferred
-    cmid when present, so turn 1's message got an id from its cmid (uuid4) while
-    the SAME turn resent on turn 2 (now cmid-less) got a *different* positional
-    fallback id (uuid5) — two ids, so the reducer kept both copies of turn 1.
-    Ids must now be positional-only so the same turn converges regardless of
-    whether cmid happens to be attached on a given request.
+def test_fallback_still_has_known_bounded_duplicate_for_cmid_less_resend() -> None:
+    """Documents (does not fix — audit review, PR #1395) the residual gap in
+    this now-fallback-only path: the real /chat client attaches
+    ``client_message_id`` only to the newest turn in a request — a turn
+    resent later as history arrives WITHOUT it. So a turn's first-ever id
+    (its cmid) and a later resend's positional-fallback id diverge, and the
+    reducer keeps both — a BOUNDED 2x duplicate (not corruption; a distinct,
+    windowing-unsafe positional id was tried and reverted, see the function's
+    docstring). Accepted here because Option B (the primary path) doesn't
+    have this gap and covers the common case; fully closing this fallback
+    needs a frontend change (resend client_message_id per history item, not
+    just the newest) or leaning fully on Option B.
     """
     thread_id = "thread-real"
     cmid1 = "11111111-1111-1111-1111-111111111111"
     cmid2 = "22222222-2222-2222-2222-222222222222"
 
-    # Turn 1: only message in the request, carries its cmid (as the real
-    # client does for the newest turn).
     turn1 = [_user("hello", cmid=cmid1)]
     channel = add_messages([], build_user_history_messages(turn1, thread_id))
     assert len(channel) == 1
@@ -80,9 +88,9 @@ def test_original_cmid_turn_converges_with_cmid_less_resend() -> None:
     turn2 = [_user("hello", cmid=None), _user("how are you", cmid=cmid2)]
     channel = add_messages(channel, build_user_history_messages(turn2, thread_id))
 
-    # Must converge to 2 messages, not 3 — turn 1 must not duplicate.
-    assert len(channel) == 2
-    assert [m.content for m in channel] == ["hello", "how are you"]
+    # Known, accepted gap: turn 1 duplicates (3, not 2) in this fallback path.
+    assert len(channel) == 3
+    assert [m.content for m in channel] == ["hello", "hello", "how are you"]
 
 
 def test_naive_no_id_construction_regresses() -> None:

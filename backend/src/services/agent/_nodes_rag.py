@@ -485,9 +485,14 @@ async def _try_primary_do_kb_read_impl(
 
             chunks_to_emit = await cohere_rescore_chunks(query, chunks_to_emit)
 
-        _record_do_kb_read("success")
+        # Filter BEFORE recording the outcome (audit review, PR #1395): recording
+        # "success" first meant an all-filtered read (every chunk below the
+        # cohere floor) still got double-counted as a "fallback_used" by the
+        # caller — masking the new failure mode from the metric.
         shaped = [_shape_do_kb_context(c, title_by_key) for c in chunks_to_emit]
-        return _drop_low_relevance_chunks(shaped)
+        kept = _drop_low_relevance_chunks(shaped)
+        _record_do_kb_read("success" if kept else "do_kb_low_relevance")
+        return kept
     except Exception:  # noqa: BLE001
         # exc_info keeps the traceback for operators; the raw exception string
         # stays out of the indexed message (can carry the user query / chunks).
@@ -746,7 +751,12 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     primary_contexts: Optional[List[dict]] = await _try_primary_do_kb_read(
         search_query, user_id, organization_id, project_id=resolved_project_id
     )
-    if primary_contexts:
+    # `is not None` (not truthiness — audit review, PR #1395): a successful
+    # read that the relevance floor filtered down to nothing is a healthy
+    # "retrieved, nothing relevant" outcome and must NOT fall through to the
+    # unfiltered legacy hybrid search — only an actually unavailable/errored/
+    # empty primary read (which always returns None) may fall back.
+    if primary_contexts is not None:
         return {"retrieved_contexts": primary_contexts, **state_update}
 
     _record_do_kb_read("fallback_used")

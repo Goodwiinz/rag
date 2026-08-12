@@ -89,6 +89,59 @@ async def test_success_emits_success_outcome(kb_cfg, monkeypatch):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_all_below_relevance_floor_emits_low_relevance_not_success(
+    kb_cfg, monkeypatch
+):
+    """Audit review, PR #1395 (Codex P2): filtering must happen BEFORE the
+    outcome is recorded, and an all-filtered read must record a distinct
+    outcome — not "success" (misleadingly inflates primary-read success)."""
+    user_id = str(uuid.uuid4())
+    org_id = str(uuid.uuid4())
+
+    org = MagicMock()
+    org.do_kb_uuid = "kb-1"
+
+    client = MagicMock()
+    client.retrieve = AsyncMock(
+        return_value=RetrieveResult(
+            chunks=[
+                Chunk(
+                    text="junk",
+                    score=0.036,
+                    document_id="doc-1",
+                    metadata={"score_source": "cohere"},
+                )
+            ],
+            total=1,
+        )
+    )
+
+    recorded: list[str] = []
+    monkeypatch.setattr(_nodes_rag, "_record_do_kb_read", recorded.append)
+
+    async def fake_resolve(*, chunks, org_id, session, project_id):
+        return ({}, chunks)
+
+    with (
+        patch("src.core.config.settings", kb_cfg),
+        patch("src.core.database.AsyncSessionLocal", _fake_session_ctx(org)),
+        patch("src.services.do_kb.get_do_kb_client", return_value=client),
+        patch(
+            "src.services.do_kb.resolve.resolve_and_filter_chunks",
+            fake_resolve,
+        ),
+    ):
+        result = await _nodes_rag._try_primary_do_kb_read(
+            "q", user_id, org_id, project_id=None
+        )
+
+    assert result == []
+    assert "do_kb_low_relevance" in recorded
+    assert "success" not in recorded
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_404_emits_error_outcome_and_returns_none(kb_cfg, monkeypatch):
     # Ids-only signature (audit B8): scalar user/org ids, org must parse
     # as a UUID or the read is skipped.
