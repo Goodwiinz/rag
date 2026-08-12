@@ -1102,18 +1102,27 @@ TOOL_REGISTRY = ToolRegistry(
             # bound only to the unknown-intent ALL_TOOLS path the live graph
             # never takes. A connector lookup carries no research/writing/KG
             # signal, so GENERAL is its natural home. CONTEXT_FREE is unchanged.
+            # Writing too: the literature-review project skill instructs a
+            # multi-database search, and the classifier routes "conduct a
+            # literature review" to writing — without the binding the
+            # instruction is dead (make_filtered_tool_node answers the call
+            # with "not available in this context"). Read-only, untagged.
             tool=search_external_database,
             intents=frozenset({AgentIntent.GENERAL}),
-            subgraphs=frozenset(),
+            subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 11),),
             policy_tags=frozenset({ToolPolicyTag.CONTEXT_FREE}),
         ),
         ToolDescriptor(
             name="list_external_databases",
             # Same fix, same reasoning as search_external_database above:
             # GENERAL makes it reachable; read-only, so no destructive tag needed.
+            # Writing too, for the same literature-review flow: the model has
+            # to be able to discover which connectors exist before searching.
             tool=list_external_databases,
             intents=frozenset({AgentIntent.GENERAL}),
-            subgraphs=frozenset(),
+            subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 12),),
             policy_tags=frozenset({ToolPolicyTag.CONTEXT_FREE}),
         ),
         ToolDescriptor(
