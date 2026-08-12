@@ -125,6 +125,56 @@ describe('ArtifactPanel', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('renders citations and re-focuses the panel on a cited document open', async () => {
+    const citations = [
+      {
+        title: 'Paper A',
+        documentId: 'doc-9',
+        score: 0.9,
+        content: 'passage',
+      },
+    ] as never[];
+    const artifact: Artifact = {
+      kind: 'citations',
+      citations,
+      activeCitationId: 'doc-9',
+      traceId: 'trace-1',
+    };
+    act(() => {
+      useArtifactPanelStore.setState({ artifact, isOpen: true });
+    });
+    const { user } = render(<ArtifactPanel artifact={artifact} />);
+
+    expect(screen.getByText('Paper A')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /open document/i }));
+
+    expect(useArtifactPanelStore.getState().artifact).toEqual({
+      kind: 'document',
+      id: 'doc-9',
+      title: 'Paper A',
+    });
+  });
+
+  it('cite dispatches the append-mode populate-chat-input bridge event', async () => {
+    const citations = [
+      { title: 'Paper A', documentId: 'doc-9', score: 0.9, content: 'p' },
+    ] as never[];
+    const artifact: Artifact = { kind: 'citations', citations };
+    const listener = vi.fn();
+    window.addEventListener('populate-chat-input', listener);
+    try {
+      const { user } = render(<ArtifactPanel artifact={artifact} />);
+      await user.click(screen.getByRole('button', { name: 'Cite' }));
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual({
+        text: '"Paper A"',
+        mode: 'append',
+      });
+    } finally {
+      window.removeEventListener('populate-chat-input', listener);
+    }
+  });
+
   it('renders an external artifact as an outbound link card', () => {
     const external: Artifact = {
       kind: 'external',

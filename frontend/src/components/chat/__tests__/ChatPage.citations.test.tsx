@@ -1,13 +1,13 @@
 /**
- * Characterization tests for ChatPage's citation panel wiring and the
- * project-context command action (Task 5.1) — currently orchestrated
- * directly inside page.tsx, ahead of Task 5.2's extraction into
- * useCitationPanel / useSlashCommands.
+ * ChatPage citation wiring: transcript citation clicks focus the sources in
+ * the split-view artifact panel (store-backed — the panel itself renders in
+ * the chat layout, not this page), plus the project-context command action.
  */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ChatPage from '../../../../app/(dashboard)/chat/page';
+import { useArtifactPanelStore } from '@/store/artifactPanelStore';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import type { CommandAction } from '@/components/chat/commandOutput';
 import type { Citation } from '@/utils/citationParser';
@@ -19,38 +19,6 @@ const mockSetInput = vi.fn();
 
 vi.mock('@/components/chat', () => ({
   ChatInput: () => <div data-testid="chat-input" />,
-  CitationPanel: (props: {
-    citations: Citation[];
-    isOpen: boolean;
-    activeCitationId?: string;
-    diagnosticsTraceId?: string;
-    onClose: () => void;
-    onCite: (citation: Citation) => void;
-  }) => (
-    <div data-testid="citation-panel" data-open={String(props.isOpen)}>
-      <span data-testid="citation-panel-trace">
-        {props.diagnosticsTraceId ?? ''}
-      </span>
-      <span data-testid="citation-panel-active">
-        {props.activeCitationId ?? ''}
-      </span>
-      <span data-testid="citation-panel-count">{props.citations.length}</span>
-      <button
-        type="button"
-        data-testid="citation-panel-close"
-        onClick={props.onClose}
-      >
-        Close
-      </button>
-      <button
-        type="button"
-        data-testid="citation-panel-cite"
-        onClick={() => props.citations[0] && props.onCite(props.citations[0])}
-      >
-        Cite
-      </button>
-    </div>
-  ),
   WelcomeState: () => <div data-testid="welcome-state" />,
 }));
 vi.mock('@/components/chat/ChatDialogs', () => ({ ChatDialogs: () => null }));
@@ -146,6 +114,13 @@ vi.mock('next/navigation', () => ({
 describe('ChatPage citation panel and project-context actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    act(() => {
+      useArtifactPanelStore.setState({
+        artifact: null,
+        isOpen: false,
+        pinned: false,
+      });
+    });
     mockUseChatSession.mockReturnValue({
       conversations: [{ id: 'thread-1', title: 'Thread 1', updatedAt: 1 }],
       setConversations: vi.fn(),
@@ -182,96 +157,50 @@ describe('ChatPage citation panel and project-context actions', () => {
     });
   });
 
-  it('opens the citation panel with the clicked citation and trace id', () => {
+  it('focuses clicked citations in the artifact panel with the trace id', () => {
     render(<ChatPage />);
 
-    expect(screen.getByTestId('citation-panel')).toHaveAttribute(
-      'data-open',
-      'false'
-    );
+    expect(useArtifactPanelStore.getState().isOpen).toBe(false);
 
     fireEvent.click(screen.getByTestId('cite-trigger'));
 
-    expect(screen.getByTestId('citation-panel')).toHaveAttribute(
-      'data-open',
-      'true'
-    );
-    expect(screen.getByTestId('citation-panel-trace')).toHaveTextContent(
-      'trace-1'
-    );
-    expect(screen.getByTestId('citation-panel-active')).toHaveTextContent(
-      'doc-1'
-    );
-    expect(screen.getByTestId('citation-panel-count')).toHaveTextContent('1');
+    const s = useArtifactPanelStore.getState();
+    expect(s.isOpen).toBe(true);
+    expect(s.artifact).toEqual({
+      kind: 'citations',
+      citations: [{ title: 'Paper A', documentId: 'doc-1' }],
+      activeCitationId: 'doc-1',
+      traceId: 'trace-1',
+    });
+    // The page never navigates away — the panel renders in the chat layout.
+    expect(mockRouterPush).not.toHaveBeenCalled();
   });
 
-  it('closes the citation panel via onClose', () => {
+  it('appends a cited source to the composer via the populate-chat-input append bridge', () => {
     render(<ChatPage />);
 
-    fireEvent.click(screen.getByTestId('cite-trigger'));
-    expect(screen.getByTestId('citation-panel')).toHaveAttribute(
-      'data-open',
-      'true'
+    fireEvent(
+      window,
+      new CustomEvent('populate-chat-input', {
+        detail: { text: '"Paper A"', mode: 'append' },
+      })
     );
-
-    fireEvent.click(screen.getByTestId('citation-panel-close'));
-    expect(screen.getByTestId('citation-panel')).toHaveAttribute(
-      'data-open',
-      'false'
-    );
-  });
-
-  it('inserts the cited source into the composer and closes the panel', () => {
-    render(<ChatPage />);
-
-    fireEvent.click(screen.getByTestId('cite-trigger'));
-    fireEvent.click(screen.getByTestId('citation-panel-cite'));
 
     expect(mockSetInput).toHaveBeenCalledTimes(1);
     const updater = mockSetInput.mock.calls[0][0] as (cur: string) => string;
     expect(updater('')).toBe('"Paper A" ');
     expect(updater('existing text')).toBe('existing text "Paper A"');
-
-    expect(screen.getByTestId('citation-panel')).toHaveAttribute(
-      'data-open',
-      'false'
-    );
   });
 
-  it('opens the panel for a synthetic citation from the layout context-rail bridge event', () => {
+  it('still replaces the composer for plain-string populate events (follow-up suggestions)', () => {
     render(<ChatPage />);
 
     fireEvent(
       window,
-      new CustomEvent('open-citation-panel', {
-        detail: { title: 'Doc B', documentId: 'doc-2' } as Citation,
-      })
+      new CustomEvent('populate-chat-input', { detail: 'Tell me more' })
     );
 
-    expect(screen.getByTestId('citation-panel')).toHaveAttribute(
-      'data-open',
-      'true'
-    );
-    expect(screen.getByTestId('citation-panel-active')).toHaveTextContent(
-      'doc-2'
-    );
-    expect(screen.getByTestId('citation-panel-count')).toHaveTextContent('1');
-  });
-
-  it('ignores a synthetic citation event with no title', () => {
-    render(<ChatPage />);
-
-    fireEvent(
-      window,
-      new CustomEvent('open-citation-panel', {
-        detail: { documentId: 'doc-3' } as Citation,
-      })
-    );
-
-    expect(screen.getByTestId('citation-panel')).toHaveAttribute(
-      'data-open',
-      'false'
-    );
+    expect(mockSetInput).toHaveBeenCalledWith('Tell me more');
   });
 
   it('binds the chat to a project via the set-project command action', () => {

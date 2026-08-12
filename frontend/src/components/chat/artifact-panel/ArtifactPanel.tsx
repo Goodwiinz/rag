@@ -12,10 +12,12 @@ import {
 import Link from 'next/link';
 
 import { IconButton } from '@/components/ui/icon-button';
+import { CitationPanelBody } from '@/components/chat/CitationPanelBody';
 import { DocumentInlineViewer } from '@/components/documents/DocumentInlineViewer';
 import { cn } from '@/lib/utils';
 import { documentService } from '@/services/documentService';
 import { useArtifactPanelStore, type Artifact } from '@/store/artifactPanelStore';
+import type { Citation } from '@/utils/citationParser';
 
 const ARXIV_RE = /\d{4}\.\d{4,5}/;
 
@@ -144,6 +146,30 @@ export function ArtifactPanel({
   const closePanel = useArtifactPanelStore((s) => s.closePanel);
   const pinned = useArtifactPanelStore((s) => s.pinned);
   const togglePin = useArtifactPanelStore((s) => s.togglePin);
+  const openArtifact = useArtifactPanelStore((s) => s.openArtifact);
+
+  // "Open document" inside a sources view focuses that document here — the
+  // split-view stays put, the panel just changes what it shows.
+  const handleOpenCitedDocument = (citation: Citation) => {
+    if (citation.documentId) {
+      openArtifact({
+        kind: 'document',
+        id: citation.documentId,
+        title: citation.title || 'Untitled document',
+      });
+    }
+  };
+
+  // The composer lives in a different subtree (ChatSurface); reuse the
+  // existing 'populate-chat-input' bridge with append semantics so citing
+  // never clobbers a draft the user is typing.
+  const handleCite = (citation: Citation) => {
+    window.dispatchEvent(
+      new CustomEvent('populate-chat-input', {
+        detail: { text: `"${citation.title}"`, mode: 'append' },
+      })
+    );
+  };
 
   const fullPageHref =
     artifact.kind === 'document' ? `/documents/${artifact.id}` : undefined;
@@ -236,11 +262,18 @@ export function ArtifactPanel({
         {artifact.kind === 'external' && (
           <ExternalArtifactBody artifact={artifact} />
         )}
-        {/* note / draft / citations render in follow-up PRs; the store union
-            already carries them so producers don't churn. */}
-        {(artifact.kind === 'note' ||
-          artifact.kind === 'draft' ||
-          artifact.kind === 'citations') && (
+        {artifact.kind === 'citations' && (
+          <CitationPanelBody
+            citations={artifact.citations}
+            activeCitationId={artifact.activeCitationId}
+            diagnosticsTraceId={artifact.traceId}
+            onCitationClick={handleOpenCitedDocument}
+            onCite={handleCite}
+          />
+        )}
+        {/* note / draft render in follow-up PRs; the store union already
+            carries them so producers don't churn. */}
+        {(artifact.kind === 'note' || artifact.kind === 'draft') && (
           <div className="flex h-40 items-center justify-center px-6 text-center">
             <p className="font-nous-mono text-xs text-(--nous-fg-3)">
               This artifact type isn&apos;t viewable here yet.
