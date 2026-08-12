@@ -54,7 +54,9 @@ def scan_all() -> dict[str, str]:
             f"warnings={len(warnings)}"
         )
         for finding in blockers + warnings:
-            print(f"      {finding.severity} {finding.code} (line {finding.line}): {finding.message}")
+            print(
+                f"      {finding.severity} {finding.code} (line {finding.line}): {finding.message}"
+            )
         if blockers:
             failed = True
         else:
@@ -79,9 +81,7 @@ def upload(clean: dict[str, str], base_url: str, project_id: str, token: str) ->
                 print(f"skip  {name}: already in catalog")
                 continue
             request = (
-                client.post(api, json={"document_text": text})
-                .raise_for_status()
-                .json()
+                client.post(api, json={"document_text": text}).raise_for_status().json()
             )
             approval = client.post(
                 f"{api}/change-requests/{request['id']}/approve",
