@@ -306,7 +306,19 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   threadId: string,
                   confirmation: Record<string, unknown>
                 ) => {
-                  if (!isCurrentGeneration()) return;
+                  if (!isCurrentGeneration()) {
+                    // A parked HITL confirmation from a superseded generation
+                    // is silently unrecoverable — the card never renders and
+                    // the next turn wipes it. Log so the drop is observable
+                    // (audit finding A, trace 019ff314-c29c) while keeping
+                    // the guard, which prevents cross-thread corruption
+                    // (PR #1223).
+                    console.warn(
+                      '[agentChatStore] dropped SSE confirmation: generation superseded',
+                      { threadId }
+                    );
+                    return;
+                  }
                   set((state) => {
                     const idx = state.messages.findIndex(
                       (m) => m.id === placeholderId
@@ -415,6 +427,22 @@ export const useAgentChatStore = create<AgentChatStore>()(
         const MAX_POLLS = 200;
         const POLL_INTERVAL_MS = 3000;
 
+        // src/trigger/agent/execute-agent.ts (repo root — the Trigger.dev
+        // task this poll actually observes) publishes metadata.status =
+        // 'awaiting_confirmation' synchronously and only sets waitTokenId
+        // after awaiting wait.createToken() — a real, short async race
+        // window where this poll can land on a tokenless snapshot. Every
+        // run reaching this task DOES eventually get a token (deterministic
+        // in that file), so surfacing the tokenless snapshot as-is would be
+        // permanent and unresumable: confirmAction has no token to complete
+        // and this loop never re-polls once it returns. Tolerate a couple
+        // of extra ticks for the token to land; only surface tokenless as a
+        // fail-safe if it still hasn't shown up after that (never silently
+        // drop a parked confirmation — the original bug, audit finding A,
+        // trace 019ff314-c29c).
+        const MAX_TOKENLESS_TICKS = 2;
+        let tokenlessTicks = 0;
+
         for (let i = 0; i < MAX_POLLS; i++) {
           if (abortController.signal.aborted) return;
           await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
@@ -423,7 +451,12 @@ export const useAgentChatStore = create<AgentChatStore>()(
           const run = await agentChatService.getDurableRunStatus(runId);
           const meta = run.metadata ?? {};
 
-          if (meta.status === 'awaiting_confirmation' && meta.waitTokenId) {
+          if (meta.status === 'awaiting_confirmation') {
+            const hasToken = typeof meta.waitTokenId === 'string';
+            if (!hasToken && tokenlessTicks < MAX_TOKENLESS_TICKS) {
+              tokenlessTicks += 1;
+              continue;
+            }
             set((state) => {
               state.pendingConfirmation = {
                 jobId: runId,
@@ -435,7 +468,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   ((meta.confirmation as Record<string, unknown>)
                     ?.message as string) ||
                   'The agent wants to perform an action. Please confirm.',
-                waitTokenId: meta.waitTokenId as string,
+                ...(hasToken ? { waitTokenId: meta.waitTokenId as string } : {}),
               };
               const idx = state.messages.findIndex(
                 (m) => m.id === placeholderId
@@ -713,7 +746,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
                 confirmation: Record<string, unknown>
               ) => {
                 // Nested confirmation (e.g. ingest confirmed → add needs confirm)
-                if (!isCurrentGeneration()) return;
+                if (!isCurrentGeneration()) {
+                  console.warn(
+                    '[agentChatStore] dropped nested SSE confirmation: generation superseded',
+                    { threadId }
+                  );
+                  return;
+                }
                 set((state) => {
                   const idx = state.messages.findIndex(
                     (m) => m.id === targetMessageId
