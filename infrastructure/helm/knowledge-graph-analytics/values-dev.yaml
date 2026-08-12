@@ -204,6 +204,14 @@ backend:
     # is NEXT_PUBLIC_SERVER_CANONICAL_CHAT on the Vercel dev project (#993).
     - name: AGENT_CANONICAL_PERSISTENCE
       value: "true"
+    # Option B (checkpoint-authoritative history, #1395 research): the
+    # checkpoint is the model-context source of truth; only the newest user
+    # turn is appended per request. With this OFF every turn runs the legacy
+    # B1 fallback, which re-derives ids for the resent history and duplicates
+    # every user message in the checkpoint (observed 2x per turn, 4x on a
+    # HITL turn — trace thread e88fdbf7, 2026-08-12). Rollback: set "false".
+    - name: AGENT_SERVER_SIDE_HISTORY
+      value: "true"
     - name: SENTRY_TRACES_SAMPLE_RATE
       value: "1.0"
     - name: SENTRY_PROFILES_SAMPLE_RATE
