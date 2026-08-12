@@ -72,27 +72,41 @@ def upload(clean: dict[str, str], base_url: str, project_id: str, token: str) ->
 
     headers = {"Authorization": f"Bearer {token}"}
     api = f"{base_url.rstrip('/')}/api/v1/projects/{project_id}/skills"
+
+    def approve(client: "httpx.Client", request_id: str) -> None:
+        client.post(
+            f"{api}/change-requests/{request_id}/approve",
+            json={
+                "self_approval_acknowledged": True,
+                "warning_acknowledged": True,
+                "audit_note": "Imported from K-Dense scientific-agent-skills (MIT).",
+            },
+        ).raise_for_status()
+
     with httpx.Client(headers=headers, timeout=30.0) as client:
-        existing = {
-            s["name"] for s in client.get(api).raise_for_status().json()["skills"]
+        catalog = client.get(api).raise_for_status().json()
+        active = {s["name"] for s in catalog["skills"] if s.get("active_version_id")}
+        pending = {
+            r["skill_name"]: r["id"]
+            for r in catalog["pending_change_requests"]
+            if r["status"] == "pending"
         }
         for name, text in clean.items():
-            if name in existing:
-                print(f"skip  {name}: already in catalog")
-                continue
-            request = (
-                client.post(api, json={"document_text": text}).raise_for_status().json()
-            )
-            approval = client.post(
-                f"{api}/change-requests/{request['id']}/approve",
-                json={
-                    "self_approval_acknowledged": True,
-                    "warning_acknowledged": True,
-                    "audit_note": "Imported from K-Dense scientific-agent-skills (MIT).",
-                },
-            )
-            approval.raise_for_status()
-            print(f"done  {name}: created + approved")
+            if name in active:
+                print(f"skip  {name}: already active in catalog")
+            elif name in pending:
+                # A previous run created the skill but its approval failed;
+                # resume by approving the existing pending request.
+                approve(client, pending[name])
+                print(f"done  {name}: approved existing pending request")
+            else:
+                request = (
+                    client.post(api, json={"document_text": text})
+                    .raise_for_status()
+                    .json()
+                )
+                approve(client, request["id"])
+                print(f"done  {name}: created + approved")
 
 
 def main() -> None:

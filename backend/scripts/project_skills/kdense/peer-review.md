@@ -28,7 +28,7 @@ Read for structure first with `summarize_document`: what is claimed, what is the
 
 ### 3. Map claims to evidence
 
-For each central claim, locate the supporting figure, table, or analysis. Use `search_documents` against the manuscript to trace each claim to its evidence. Classify each claim: supported, partially supported (state what is missing), or unsupported. This map is the skeleton of the review.
+For each central claim, locate the supporting figure, table, or analysis. Use `do_kb_retrieve` to pull the manuscript passages bearing on each claim — it returns relevance-scored content with verbatim quotes, which is what evidence tracing needs (`search_documents` matches only titles and metadata). Classify each claim: supported, partially supported (state what is missing), or unsupported. This map is the skeleton of the review.
 
 ### 4. Review methods and statistics
 
@@ -40,11 +40,11 @@ Could a competent reader reproduce this work? Check for data availability, code 
 
 ### 6. Figures, tables, and citations
 
-Verify that figures show what captions claim, axes and units are labeled, and numbers agree between text, tables, and figures. Spot-check citations: does the cited work actually say what the manuscript attributes to it? Use `search_arxiv` or `search_external_database` to pull cited works when a key attribution needs checking.
+Check the textual layer of figures and tables: captions, referenced numbers, and agreement between text, tables, and figure descriptions. The available tools extract text only — rendered graphics, axes, and plotted values cannot be inspected, so the review must state explicitly that visual properties of figures were not assessed rather than implying they were verified. Spot-check citations: does the cited work actually say what the manuscript attributes to it? Use `search_arxiv` or `search_external_database` to pull cited works when a key attribution needs checking.
 
 ### 7. Draft actionable comments
 
-Write comments the authors can act on. Each comment: location (section, figure, line), the observation, why it matters, and what would resolve it. Separate major concerns (validity-threatening) from minor ones (clarity, presentation). Assemble the review with `create_draft` in this structure: summary of the work in the reviewer's own words, major comments numbered, minor comments numbered, and a short note on what was not assessed.
+Write comments the authors can act on. Each comment: location (section, figure, line), the observation, why it matters, and what would resolve it. Separate major concerns (validity-threatening) from minor ones (clarity, presentation). Assemble the reviewer report with `create_project_note` in this structure: summary of the work in the reviewer's own words, major comments numbered, minor comments numbered, and a short note on what was not assessed. (`create_draft` generates literature-review-style synthesis documents and will not honor a reviewer-report structure — do not use it for the report.)
 
 ### 8. Keep channels separate
 

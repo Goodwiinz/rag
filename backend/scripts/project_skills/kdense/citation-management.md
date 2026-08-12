@@ -24,7 +24,7 @@ Find candidate papers through the project's search tools:
 
 - `search_arxiv` for preprints and CS, math, and physics work
 - `list_external_databases` then `search_external_database` for domain databases (biomedical, general scholarly indexes) configured on the project
-- `search_documents` for papers already in the project — avoid duplicating what is already collected
+- `list_project_documents` for papers already in the active project — avoid duplicating what is already collected (`search_documents` matches titles organization-wide; use it to locate a known title, not to enumerate the project corpus)
 
 Prefer authoritative indexes over general web results: they return structured metadata (title, authors, venue, year, identifiers) instead of scraped fragments.
 
@@ -34,7 +34,7 @@ Ingest selected papers with `ingest_arxiv_papers` and work from the returned doc
 
 ### 3. Metadata verification
 
-For each reference, verify the metadata against the actual document with `summarize_document` or `search_documents`:
+For each reference, verify the metadata against the actual document with `summarize_document` (or `do_kb_retrieve` when a specific passage must be confirmed):
 
 - Title matches exactly (subtitle included)
 - Author list complete and ordered correctly
@@ -50,7 +50,7 @@ The same work often appears as preprint and published version. Detect duplicates
 
 ### 5. Bibliography generation
 
-Generate the reference list with `export_bibliography` from the project's documents. Never hand-type bibliography entries: hand-typed entries are the main source of citation errors. Choose one citation style per document and apply it uniformly; the common families are author-year (APA-like), numbered (Vancouver or IEEE-like), and venue-specific house styles.
+Generate the reference list with `export_bibliography` from the project's documents, then audit it for completeness: compare the exported entries against the full list of documents to be cited, and for any document the export omitted (freshly ingested records can be skipped when other documents have stored citations), construct its entry from the verified metadata gathered in the verification step and flag the gap in the audit note. Never hand-type an entry that was not first verified against its source. Choose one citation style per document and apply it uniformly; the common families are author-year (APA-like), numbered (Vancouver or IEEE-like), and venue-specific house styles.
 
 ### 6. Integration with drafting
 

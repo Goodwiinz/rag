@@ -22,21 +22,21 @@ Run the review in seven phases. Keep a running methods log (search strings, date
 
 ### 1. Planning and scoping
 
-Define the research question, inclusion and exclusion criteria, and time window before searching. Record them first with `create_project_note`. A review that cannot reproduce its own search is not systematic.
+Define the research question, inclusion and exclusion criteria, and time window before searching. Record them first with `create_project_note`. A review that cannot reproduce its own search is not systematic. Note a platform limit in the methods log: arXiv search covers roughly the most recent year of submissions, so a wider declared window must state that older arXiv-only work may be under-represented.
 
 ### 2. Systematic search
 
-Search at least three sources:
+Search every source available in this turn, and record in the methods log which were reachable:
 
 - Use `search_arxiv` for preprints and CS, math, and physics literature. Vary terms across runs: synonyms, abbreviations, and adjacent phrasings.
-- Use `list_external_databases` to see which connectors are configured, then `search_external_database` for domain databases such as PubMed or Semantic Scholar equivalents.
-- Use `search_documents` to cover papers already ingested into the project, so prior collections are not re-fetched.
+- Use `list_external_databases` to see which connectors are configured, then `search_external_database` for domain databases such as PubMed or Semantic Scholar equivalents. If these tools are not bound in the current turn, state that in the methods log instead of silently narrowing coverage.
+- Use `list_project_documents` to cover papers already in the active project, so prior collections are not re-fetched. (`search_documents` matches titles and filenames across the whole organization, not just this project — use it for locating a known title, not for defining the project corpus.)
 
-Record every query string, its date, and hit count in the methods log. Too broad yields thousands of irrelevant hits; too narrow misses synonyms — pilot the query, inspect the first page, refine, and log each revision.
+Record every query string, its date, and its returned count in the methods log — label these as returned-page counts, not database totals, since each search returns a bounded page (about 20 results) rather than the full hit population.
 
 ### 3. Screening and selection
 
-Screen title, then abstract, then full text, against the pre-registered criteria. Record counts at each stage (identified, screened, excluded with reasons, included) so a PRISMA-style flow can be reported. Ingest the papers that pass screening with `ingest_arxiv_papers`, then work from the returned document ids — never from raw arXiv ids.
+Screen title, then abstract, then full text, against the pre-registered criteria. Record counts at each stage (identified, screened, excluded with reasons, included) so a PRISMA-style flow can be reported. Ingest arXiv papers that pass screening with `ingest_arxiv_papers`, then work from the returned document ids — never from raw arXiv ids. Papers from external databases without an arXiv id cannot be ingested this way: keep them in the review as metadata-only records, mark them as not full-text screened in the methods log, and flag them for manual upload by the researcher.
 
 ### 4. Extraction and quality appraisal
 
@@ -48,11 +48,11 @@ Organize by theme, never paper by paper. Use `compare_documents` to contrast met
 
 ### 6. Citation verification
 
-Every citation must trace to a document in the project. Cross-check claims against the source with `search_documents` before asserting them. Never cite a paper that was not read at least at abstract level; never invent bibliographic details.
+Every citation must trace to a document in the project. Cross-check claims against source content with `do_kb_retrieve`, which returns relevance-scored passages with verbatim quotes — cite from the quote. (`search_documents` returns only titles and metadata; it cannot confirm what a source says.) Never cite a paper that was not read at least at abstract level; never invent bibliographic details.
 
 ### 7. Document generation
 
-Assemble the review with `create_draft`: introduction and scope, methods (the search log), thematic synthesis, gaps and future directions, limitations. Generate the bibliography with `export_bibliography` rather than hand-writing references. State the search date in the methods section — fields move quickly.
+Assemble the review with `create_draft`: introduction and scope, methods (the search log), thematic synthesis, gaps and future directions, limitations. Generate the bibliography with `export_bibliography` rather than hand-writing references, then check its output against the included-papers list — any included paper missing from the export is added from verified metadata and flagged. State the search date in the methods section — fields move quickly.
 
 ## Pitfalls
 

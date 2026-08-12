@@ -28,7 +28,7 @@ Match the document to its reporting conventions: empirical ML papers report data
 
 ### 3. Build the evidence record
 
-Before drafting, collect the facts. Use `search_documents` and `summarize_document` to extract the claims, numbers, and findings each section will rest on, and record them in a `create_project_note` as an evidence table: claim, source document, location. Where numbers require computation or verification from data, use `execute_code` and record the computed value with its provenance.
+Before drafting, collect the facts. Use `do_kb_retrieve` (content passages with verbatim quotes) and `summarize_document` to extract the claims, numbers, and findings each section will rest on — `search_documents` locates documents by title only and cannot supply evidence, and record them in a `create_project_note` as an evidence table: claim, source document, location. Where numbers require computation or verification from data, use `execute_code` and record the computed value with its provenance.
 
 ### 4. Create an evidence outline
 
@@ -36,7 +36,7 @@ Outline the document section by section, attaching evidence-table entries to eac
 
 ### 5. Draft without adding facts
 
-Write from the outline with `create_draft`. The drafting pass transforms evidence into prose; it does not introduce new numbers, citations, or claims. Standard section logic: introduction moves general to specific and ends with the contribution; methods are past tense and reproducible; results report without interpreting; discussion interprets without repeating.
+Write from the outline. `create_draft` produces literature-review-style synthesis documents from themes; use it when the document is review-shaped, and assemble other document types section by section in `create_project_note` instead. The drafting pass transforms evidence into prose; it does not introduce new numbers, citations, or claims. Standard section logic: introduction moves general to specific and ends with the contribution; methods are past tense and reproducible; results report without interpreting; discussion interprets without repeating.
 
 ### 6. Reconcile methods and results
 
@@ -44,7 +44,7 @@ Cross-check: every result has a method that produces it, and every described met
 
 ### 7. Verify citations and claims
 
-Walk the draft claim by claim against the evidence table. Verify citation accuracy against sources with `search_documents`; generate the reference list with `export_bibliography` rather than typing references by hand. Preserve each source's hedging level.
+Walk the draft claim by claim against the evidence table. Verify citation accuracy against source content with `do_kb_retrieve`; generate the reference list with `export_bibliography` rather than typing references by hand. Preserve each source's hedging level.
 
 ### 8. Figures and tables
 
