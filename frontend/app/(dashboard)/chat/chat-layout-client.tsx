@@ -420,7 +420,12 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
       openArtifact(
         node.kind === 'document'
           ? { kind: 'document', id: node.id, title: node.title }
-          : { kind: 'external', id: node.id, title: node.title }
+          : {
+              kind: 'external',
+              id: node.id,
+              title: node.title,
+              ...(node.source ? { source: node.source } : {}),
+            }
       );
     },
     [projectId, router, openArtifact]

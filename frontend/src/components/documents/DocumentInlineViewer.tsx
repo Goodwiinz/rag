@@ -32,6 +32,16 @@ function resolveViewerKind(kind?: string, mimeType?: string): ViewerKind {
   return 'unsupported';
 }
 
+interface LoadState {
+  /** Which (document, attempt) this state belongs to — stale async results
+   * for any other key are discarded, so switching documents mid-download
+   * can never show the wrong file under the new title. */
+  key: string;
+  status: 'loading' | 'ready' | 'error';
+  objectUrl?: string;
+  message?: string;
+}
+
 /**
  * Tenant-scoped inline media viewer (PDF / image / audio / video) over the
  * document download endpoint. Extracted from DocumentPreviewTab so the chat
@@ -43,45 +53,56 @@ export function DocumentInlineViewer({
   filename,
   kind,
   mimeType,
-}: DocumentInlineViewerProps) {
+}: DocumentInlineViewerProps): React.ReactElement {
   const viewerKind = resolveViewerKind(kind, mimeType);
-  const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const requestKey = `${documentId}:${attempt}`;
 
-  const loadPreview = useCallback(async () => {
+  // "Adjust state when a prop changes" pattern (not an effect): a document
+  // switch resets to loading during render, so no synchronous setState in an
+  // effect body and no flash of the previous document's state.
+  const [load, setLoad] = useState<LoadState>({
+    key: requestKey,
+    status: 'loading',
+  });
+  if (load.key !== requestKey) {
+    setLoad({ key: requestKey, status: 'loading' });
+  }
+
+  useEffect(() => {
     // Inline rendering is only meaningful for these media types; for anything
     // else we offer download instead of fetching bytes we can't display.
     if (viewerKind === 'unsupported') return;
 
-    setLoading(true);
-    setError(null);
-    try {
-      const { objectUrl: url } = await api.fetchObjectUrl(
-        `/files/${documentId}/download`
-      );
-      setObjectUrl(url);
-    } catch (err) {
-      if (err instanceof APIErrorClass) {
-        setError(err.error.message || 'Failed to load preview');
-      } else {
-        setError('Could not load this file for preview.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [documentId, viewerKind]);
+    let cancelled = false;
+    let createdUrl: string | null = null;
 
-  useEffect(() => {
-    loadPreview();
-  }, [loadPreview]);
+    api
+      .fetchObjectUrl(`/files/${documentId}/download`)
+      .then(({ objectUrl }) => {
+        createdUrl = objectUrl;
+        if (cancelled) return; // cleanup below revokes createdUrl
+        setLoad({ key: requestKey, status: 'ready', objectUrl });
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLoad({
+          key: requestKey,
+          status: 'error',
+          message:
+            err instanceof APIErrorClass
+              ? err.error.message || 'Failed to load preview'
+              : 'Could not load this file for preview.',
+        });
+      });
 
-  // Release the blob URL when it changes or the viewer unmounts.
-  useEffect(() => {
+    // Cancels the in-flight request's effects on document switch, retry, or
+    // unmount, and releases the blob URL this effect instance created.
     return () => {
-      if (objectUrl) window.URL.revokeObjectURL(objectUrl);
+      cancelled = true;
+      if (createdUrl) window.URL.revokeObjectURL(createdUrl);
     };
-  }, [objectUrl]);
+  }, [documentId, viewerKind, requestKey]);
 
   const handleDownload = useCallback(() => {
     api
@@ -115,7 +136,7 @@ export function DocumentInlineViewer({
     );
   }
 
-  if (loading) {
+  if (load.status === 'loading') {
     return (
       <div>
         <div className="h-[70vh] min-h-[400px] animate-pulse rounded-xl border border-border bg-card" />
@@ -126,7 +147,7 @@ export function DocumentInlineViewer({
     );
   }
 
-  if (error || !objectUrl) {
+  if (load.status === 'error' || !load.objectUrl) {
     return (
       <div
         role="alert"
@@ -140,12 +161,12 @@ export function DocumentInlineViewer({
           Couldn&apos;t load the preview
         </p>
         <p className="mb-5 max-w-sm text-xs text-muted-foreground">
-          {error || 'The file may still be uploading or is unavailable.'}
+          {load.message || 'The file may still be uploading or is unavailable.'}
         </p>
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={loadPreview}
+            onClick={() => setAttempt((a) => a + 1)}
             className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <RefreshCw aria-hidden="true" className="h-4 w-4" />
@@ -163,6 +184,8 @@ export function DocumentInlineViewer({
       </div>
     );
   }
+
+  const objectUrl = load.objectUrl;
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
