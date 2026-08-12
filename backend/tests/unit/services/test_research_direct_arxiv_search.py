@@ -45,3 +45,41 @@ async def test_explicit_arxiv_search_emits_tool_call_without_llm(monkeypatch):
     }
     assert tool_call["id"].startswith("direct_search_arxiv_")
     assert tool_call["type"] == "tool_call"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Search arXiv for papers from the last five years",
+        "search arxiv for transformer papers since 2015",
+        "find arxiv papers on RAG over the past decade",
+        "search arxiv for the earliest work on neural nets",
+        "look up arxiv papers 2015-2020",
+    ],
+)
+def test_explicit_time_window_skips_fast_path(content: str) -> None:
+    """Turns that state their own window must fall through to the LLM.
+
+    The fast path hard-codes search_arxiv's 365-day default, so a declared
+    multi-year window would otherwise silently return only the last year.
+    """
+    from src.services.agent.subgraphs.research_agent import _direct_arxiv_search_query
+
+    assert _direct_arxiv_search_query(content) is None
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "content",
+    [
+        "find arxiv papers on RAG",
+        "search arxiv for recent RAG papers",
+        "show me the latest arxiv papers on diffusion",
+    ],
+)
+def test_recency_words_still_take_fast_path(content: str) -> None:
+    """ "recent"/"latest" keep the deterministic path — 365 days is right there."""
+    from src.services.agent.subgraphs.research_agent import _direct_arxiv_search_query
+
+    assert _direct_arxiv_search_query(content) is not None

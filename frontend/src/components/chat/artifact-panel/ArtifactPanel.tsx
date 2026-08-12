@@ -118,7 +118,7 @@ function ExternalArtifactBody({
   );
 }
 
-function ArtifactContentSkeleton() {
+function ArtifactContentSkeleton(): React.ReactElement {
   return (
     <div className="p-3">
       <div className="h-[50vh] min-h-[280px] animate-pulse rounded-xl border border-(--nous-border-1) bg-(--nous-bg-2)" />
@@ -129,7 +129,11 @@ function ArtifactContentSkeleton() {
   );
 }
 
-function ArtifactContentError({ what }: { what: string }) {
+function ArtifactContentError({
+  what,
+}: {
+  what: string;
+}): React.ReactElement {
   return (
     <div
       role="alert"
@@ -153,7 +157,7 @@ function NoteArtifactBody({
   artifact,
 }: {
   artifact: Extract<Artifact, { kind: 'note' }>;
-}) {
+}): React.ReactElement {
   const { data, isLoading, isError } = useNoteArtifact(
     artifact.projectId,
     artifact.id
@@ -171,7 +175,7 @@ function DraftArtifactBody({
   artifact,
 }: {
   artifact: Extract<Artifact, { kind: 'draft' }>;
-}) {
+}): React.ReactElement {
   const { data, isLoading, isError } = useDraftArtifact(
     artifact.projectId,
     artifact.id
@@ -232,7 +236,7 @@ export function ArtifactPanel({
 
   // "Open document" inside a sources view focuses that document here — the
   // split-view stays put, the panel just changes what it shows.
-  const handleOpenCitedDocument = (citation: Citation) => {
+  const handleOpenCitedDocument = (citation: Citation): void => {
     if (citation.documentId) {
       openArtifact({
         kind: 'document',
@@ -245,7 +249,7 @@ export function ArtifactPanel({
   // The composer lives in a different subtree (ChatSurface); reuse the
   // existing 'populate-chat-input' bridge with append semantics so citing
   // never clobbers a draft the user is typing.
-  const handleCite = (citation: Citation) => {
+  const handleCite = (citation: Citation): void => {
     window.dispatchEvent(
       new CustomEvent('populate-chat-input', {
         detail: { text: `"${citation.title}"`, mode: 'append' },
