@@ -28,6 +28,14 @@ describe('parseCreatedNoteResult', () => {
     ).toEqual({ noteId: 'note-2' });
   });
 
+  it("extracts the note's actual project id when present", () => {
+    expect(
+      parseCreatedNoteResult(
+        JSON.stringify({ note_id: 'note-3', project_id: 'proj-b' })
+      )
+    ).toEqual({ noteId: 'note-3', projectId: 'proj-b' });
+  });
+
   it('returns null for error payloads', () => {
     expect(
       parseCreatedNoteResult(

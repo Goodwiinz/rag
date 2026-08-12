@@ -2009,6 +2009,10 @@ async def _tool_create_project_note(
         return {
             "status": "success",
             "note_id": str(note.id),
+            # The note may land in a different project than the thread's
+            # binding (explicit project_id arg) — the frontend's artifact
+            # auto-focus must fetch through THIS id, not the bound one.
+            "project_id": str(project.id),
             "title": note.title,
             "project_name": project.name,
             "message": f"Created note '{title}' in project '{project.name}'.",

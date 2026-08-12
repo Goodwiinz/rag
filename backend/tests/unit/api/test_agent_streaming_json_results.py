@@ -28,8 +28,38 @@ class TestEncodeToolResult:
     def test_string_output_passes_through_as_str(self) -> None:
         assert _encode_tool_result("hello") == "hello"
 
-    def test_truncates_at_500_chars(self) -> None:
-        big = {"blob": "x" * 1000}
+    def test_oversized_dict_stays_valid_json_with_capped_values(self) -> None:
+        # Long string values are shortened instead of slicing the serialized
+        # JSON mid-token — identity fields must survive as parseable JSON.
+        big = {"blob": "x" * 1000, "note_id": "abc-123"}
+        out = _encode_tool_result(big)
+        assert len(out) <= 500
+        parsed = json.loads(out)
+        assert parsed["note_id"] == "abc-123"
+        assert parsed["blob"].startswith("xxx") and len(parsed["blob"]) <= 121
+
+    def test_created_note_identity_survives_long_titles(self) -> None:
+        # Regression: 100-char title + project name used to push the payload
+        # past 500 chars and the naive slice broke JSON.parse downstream.
+        title = "t" * 100
+        project = "p" * 100
+        payload = {
+            "status": "success",
+            "note_id": "3f2a9c1e-0000-4000-8000-000000000001",
+            "project_id": "5b1d7e2f-0000-4000-8000-000000000002",
+            "title": title,
+            "project_name": project,
+            "message": f"Created note '{title}' in project '{project}'.",
+        }
+        out = _encode_tool_result(payload)
+        parsed = json.loads(out)
+        assert parsed["note_id"] == payload["note_id"]
+        assert parsed["project_id"] == payload["project_id"]
+
+    def test_truncates_at_500_chars_when_uncompactable(self) -> None:
+        # Many keys (not long values) can't be compacted — falls back to the
+        # hard slice, same as before.
+        big = {f"k{i}": i for i in range(200)}
         out = _encode_tool_result(big)
         assert len(out) == 500
 

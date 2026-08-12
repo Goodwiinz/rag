@@ -52,7 +52,7 @@ import { v5 as uuidv5 } from 'uuid';
  */
 export function parseCreatedNoteResult(
   result: string
-): { noteId: string; title?: string } | null {
+): { noteId: string; projectId?: string; title?: string } | null {
   try {
     const parsed: unknown =
       typeof result === 'string' ? JSON.parse(result) : result;
@@ -62,6 +62,11 @@ export function parseCreatedNoteResult(
     if (typeof obj.note_id !== 'string' || !obj.note_id) return null;
     return {
       noteId: obj.note_id,
+      // The note's actual project — may differ from the thread's bound
+      // project when the user asked for an explicit target project.
+      ...(typeof obj.project_id === 'string' && obj.project_id
+        ? { projectId: obj.project_id }
+        : {}),
       ...(typeof obj.title === 'string' && obj.title
         ? { title: obj.title }
         : {}),
@@ -395,7 +400,7 @@ export function useChatStreaming(
       isError: boolean,
       turnThreadId: string | null
     ) => {
-      if (isError || tool !== 'create_project_note' || !boundProjectId) return;
+      if (isError || tool !== 'create_project_note') return;
       if (
         !turnThreadId ||
         useChatStore.getState().currentThreadId !== turnThreadId
@@ -403,10 +408,16 @@ export function useChatStreaming(
         return;
       const created = parseCreatedNoteResult(result);
       if (!created) return;
+      // Prefer the project id the backend actually created the note in —
+      // an explicit project arg can differ from the thread's binding, and
+      // fetching through the wrong project 404s. Bound project is only a
+      // fallback for older payloads without project_id.
+      const noteProjectId = created.projectId ?? boundProjectId;
+      if (!noteProjectId) return;
       useArtifactPanelStore.getState().openArtifact(
         {
           kind: 'note',
-          projectId: boundProjectId,
+          projectId: noteProjectId,
           id: created.noteId,
           title: created.title ?? 'New note',
         },
@@ -1626,6 +1637,15 @@ export function useChatStreaming(
                 // HITL-confirmed tools are exactly the mutating ones (ingest,
                 // create_note, create_draft) — refresh the rail here too.
                 invalidateProjectDataForTool(tool, isError);
+                // create_project_note is destructive, so its successful
+                // tool_end arrives HERE (post-approval resume stream), not on
+                // the primary stream — auto-focus must run from this path.
+                maybeAutoFocusCreatedNote(
+                  tool,
+                  result,
+                  isError,
+                  pendingConfirmation.workspaceThreadId
+                );
                 const startTime = confirmToolStartTimes.get(tool);
                 const durationMs = startTime ? Date.now() - startTime : undefined;
                 const idx = [...confirmSteps]
@@ -1842,7 +1862,13 @@ export function useChatStreaming(
         throw err;
       }
     },
-    [pendingConfirmation, messages, setMessages, invalidateProjectDataForTool]
+    [
+      pendingConfirmation,
+      messages,
+      setMessages,
+      invalidateProjectDataForTool,
+      maybeAutoFocusCreatedNote,
+    ]
   );
 
   // P4: mirror the active pending confirmation into an in-band approval
