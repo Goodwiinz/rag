@@ -159,7 +159,7 @@ export function ArtifactPanel({
 
   // "Open document" inside a sources view focuses that document here — the
   // split-view stays put, the panel just changes what it shows.
-  const handleOpenCitedDocument = (citation: Citation) => {
+  const handleOpenCitedDocument = (citation: Citation): void => {
     if (citation.documentId) {
       openArtifact({
         kind: 'document',
@@ -172,7 +172,7 @@ export function ArtifactPanel({
   // The composer lives in a different subtree (ChatSurface); reuse the
   // existing 'populate-chat-input' bridge with append semantics so citing
   // never clobbers a draft the user is typing.
-  const handleCite = (citation: Citation) => {
+  const handleCite = (citation: Citation): void => {
     window.dispatchEvent(
       new CustomEvent('populate-chat-input', {
         detail: { text: `"${citation.title}"`, mode: 'append' },

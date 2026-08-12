@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   Activity,
@@ -82,7 +82,13 @@ function groupByDocument(citations: Citation[]): SourceGroup[] {
 }
 
 /** Thin relevance meter: a sol-filled bar plus the percentage. */
-function Relevance({ score, wide }: { score: number; wide?: boolean }) {
+function Relevance({
+  score,
+  wide,
+}: {
+  score: number;
+  wide?: boolean;
+}): React.ReactElement | null {
   // Synthetic citations (e.g. ContextRail previews) carry score 0 — they are
   // not retrieval hits, so showing a "0%" relevance meter would be misleading.
   if (score <= 0) return null;
@@ -131,7 +137,7 @@ function SourceGroupRow({
   onToggle: () => void;
   onOpen?: (c: Citation) => void;
   onCite?: (c: Citation) => void;
-}) {
+}): React.ReactElement {
   const meta = sourceMeta(group.chunks[0]);
   const headingId = `src-${group.key}`;
 
@@ -285,7 +291,7 @@ export function CitationPanelBody({
   onCite,
   diagnosticsTraceId,
   activeCitationId,
-}: CitationPanelBodyProps) {
+}: CitationPanelBodyProps): React.ReactElement {
   const reduce = useReducedMotion();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortBy>('relevance');
@@ -311,13 +317,20 @@ export function CitationPanelBody({
   }, [citations, searchQuery, sortBy]);
 
   // Expand the active document (or the top one) when the source set changes.
-  useEffect(() => {
+  // Adjusted during render rather than in an effect: setState inside an
+  // effect triggers a second render pass (react-hooks/set-state-in-effect).
+  // Search/sort changes deliberately leave the expansion alone, so the key
+  // is the citation set identity — not `groups`.
+  // Sentinel start so the FIRST render expands too — mount is exactly when
+  // the user needs the active source already open.
+  const [lastCitations, setLastCitations] = useState<Citation[] | null>(null);
+  if (citations !== lastCitations) {
+    setLastCitations(citations);
     const activeGroup = activeCitationId
       ? groups.find((g) => g.key === activeCitationId)
       : undefined;
     setExpandedKey(activeGroup?.key ?? groups[0]?.key ?? null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [citations]);
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
