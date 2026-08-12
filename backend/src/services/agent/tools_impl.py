@@ -957,6 +957,18 @@ def _sanitize_arxiv_query(q: str) -> str:
     return cleaned or q
 
 
+def _field_arxiv_query(q: str) -> str:
+    """Scope plain keyword queries to ``all:`` with AND between tokens.
+
+    Canonical implementation lives in ``arxiv_service.field_arxiv_query`` so
+    the research-engine connector shares the same rewrite; this thin wrapper
+    keeps the module-local name the tool path and tests use.
+    """
+    from src.services.arxiv.arxiv_service import field_arxiv_query
+
+    return field_arxiv_query(q)
+
+
 # --- L2: shared Redis cache (cross-pod dedup + normalized key + 429 stale) ---
 # arXiv results are public, so the L2 key is tenant-less (unlike core/cache's
 # tenant-scoped ``search:`` keys — hence the distinct ``arxiv:search:``
@@ -1088,6 +1100,16 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     # reaches arXiv's all-field index — they dilute relevance scores without
     # adding signal. The raw ``original_query`` is still used as the cache key.
     query = _sanitize_arxiv_query(query)
+    # Field-scope plain keywords (all:tok AND all:tok) — unfielded terms are
+    # OR'd by arXiv and drown chronological sort in off-topic papers. Skip
+    # when the sanitizer fell back to a pure-filler query (every token a
+    # stopword): ANDing all: over stopwords ('all:recent AND all:the') would
+    # rewrite a query we deliberately chose to preserve verbatim into an
+    # over-restrictive one (codex audit on #1406, finding 3).
+    if any(
+        re.sub(r"[^a-z]", "", t.lower()) not in _ARXIV_STOPWORDS for t in query.split()
+    ):
+        query = _field_arxiv_query(query)
     # Hard cap at 5 papers + 250-char abstracts. Trace showed 10×500-char
     # results = 8087 chars feeding into the synthesis LLM call and triggering
     # 1536 reasoning tokens (~46s). Smaller payload = faster synthesis.

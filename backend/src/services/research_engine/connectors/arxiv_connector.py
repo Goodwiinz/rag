@@ -29,8 +29,14 @@ class ArxivConnector(SourceConnector):
         self, query: str, max_results: int = 50, **kwargs: Any
     ) -> List[SourceDocument]:
         """Search arXiv for papers matching the query."""
+        from src.services.arxiv.arxiv_service import field_arxiv_query
+
+        # Per-token all: AND fielding. The previous f"all:{query}" fielded
+        # only the FIRST token of a multiword query ('all:retrieval-augmented
+        # generation') — the rest stayed unfielded and got OR'd by arXiv
+        # (codex audit on #1406, finding 4).
         params = {
-            "search_query": f"all:{query}",
+            "search_query": field_arxiv_query(query),
             "start": 0,
             "max_results": max_results,
             "sortBy": "relevance",

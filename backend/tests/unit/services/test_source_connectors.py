@@ -131,7 +131,9 @@ class TestArxivConnector:
         mock_client.get.assert_called_once_with(
             "https://export.arxiv.org/api/query",
             params={
-                "search_query": "all:test query",
+                # Per-token fielding: unfielded terms are OR'd by arXiv, so
+                # multiword queries are AND-joined with all: per token.
+                "search_query": "all:test AND all:query",
                 "start": 0,
                 "max_results": 10,
                 "sortBy": "relevance",
