@@ -857,3 +857,45 @@ class TestExtractProjectIdFromText:
             _extract_project_id_from_text(text)
             == "22222222-2222-2222-2222-222222222222"
         )
+
+
+# ---------------------------------------------------------------------------
+# search_arxiv wrapper schema (recency_days / chronological)
+# ---------------------------------------------------------------------------
+
+
+class TestSearchArxivRecencyParams:
+    async def test_search_arxiv_schema_exposes_recency_params(self):
+        import inspect
+
+        from src.services.agent.tools import search_arxiv
+
+        args = getattr(search_arxiv, "args", None)
+        if args is not None:
+            assert {"recency_days", "chronological"} <= set(args)
+        else:
+            params = inspect.signature(
+                getattr(search_arxiv, "func", search_arxiv)
+            ).parameters
+            assert {"recency_days", "chronological"} <= set(params)
+
+    async def test_search_arxiv_passes_recency_through(self, monkeypatch):
+        from src.services.agent.tools import search_arxiv
+
+        captured: dict = {}
+
+        async def fake_tool_search_arxiv(args):
+            captured.update(args)
+            return {"results": []}
+
+        monkeypatch.setattr(
+            "src.services.agent.tools_impl._tool_search_arxiv",
+            fake_tool_search_arxiv,
+        )
+
+        await search_arxiv.ainvoke(
+            {"query": "q", "recency_days": 0, "chronological": True}
+        )
+
+        assert captured["recency_days"] == 0
+        assert captured["chronological"] is True

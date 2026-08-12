@@ -752,7 +752,7 @@ export class MessageByIndexBoundary extends React.Component<
   render(): ReactNode {
     const { error } = this.state;
     if (error) {
-      // Version-coupled: this matches @assistant-ui/react@0.14.26's transient
+      // Version-coupled: this matches @assistant-ui/react@0.14.29's transient
       // out-of-bounds message. If a version bump rewords it, the classifier
       // stops matching and the boundary rethrows (crash returns) — but the
       // "shrinks under a mounted message" test in AuiMessage.test.tsx drives

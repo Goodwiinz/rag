@@ -211,12 +211,19 @@ async def search_arxiv(
     query: str,
     max_results: int = 5,
     categories: Optional[List[str]] = None,
+    recency_days: int = 365,
+    chronological: bool = False,
     config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Search arXiv for academic papers.
 
-    Use when the user asks to find, search, or look up research papers,
-    academic publications, or scientific articles.
+    Use when the user asks to find, search, or look up research papers.
+    Pass clean topic KEYWORDS in query — not filler like 'recent' or 'latest';
+    recency is controlled by recency_days. By default only papers from the
+    last 365 days are returned. Pass recency_days=0 to disable the date
+    filter for historical or all-time searches (e.g. papers from 2022-2024),
+    or a larger N to widen the window. Set chronological=true to sort
+    newest-first instead of by relevance.
     """
     config = config or {}
     from src.services.agent.tools_impl import _tool_search_arxiv
@@ -224,6 +231,8 @@ async def search_arxiv(
     args: Dict[str, Any] = {
         "query": query,
         "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_CAP),
+        "recency_days": _clamp_int(recency_days, lo=0, hi=36500),
+        "chronological": bool(chronological),
     }
     if categories:
         args["categories"] = categories
@@ -1102,18 +1111,27 @@ TOOL_REGISTRY = ToolRegistry(
             # bound only to the unknown-intent ALL_TOOLS path the live graph
             # never takes. A connector lookup carries no research/writing/KG
             # signal, so GENERAL is its natural home. CONTEXT_FREE is unchanged.
+            # Writing too: the literature-review project skill instructs a
+            # multi-database search, and the classifier routes "conduct a
+            # literature review" to writing — without the binding the
+            # instruction is dead (make_filtered_tool_node answers the call
+            # with "not available in this context"). Read-only, untagged.
             tool=search_external_database,
             intents=frozenset({AgentIntent.GENERAL}),
-            subgraphs=frozenset(),
+            subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 11),),
             policy_tags=frozenset({ToolPolicyTag.CONTEXT_FREE}),
         ),
         ToolDescriptor(
             name="list_external_databases",
             # Same fix, same reasoning as search_external_database above:
             # GENERAL makes it reachable; read-only, so no destructive tag needed.
+            # Writing too, for the same literature-review flow: the model has
+            # to be able to discover which connectors exist before searching.
             tool=list_external_databases,
             intents=frozenset({AgentIntent.GENERAL}),
-            subgraphs=frozenset(),
+            subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 12),),
             policy_tags=frozenset({ToolPolicyTag.CONTEXT_FREE}),
         ),
         ToolDescriptor(
