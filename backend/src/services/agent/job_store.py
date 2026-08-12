@@ -436,36 +436,46 @@ async def compare_and_set_status(
 
 
 async def get_job(job_id: str) -> Optional[dict]:
-    """Retrieve a job, checking L1 cache first, then Redis."""
-    # L1: in-memory cache (fast path)
+    """Retrieve a job: Redis-first (cross-worker truth), L1 as fallback.
+
+    Redis is authoritative across workers — an L1-first read let worker A
+    serve a stale local entry after worker B advanced the job in Redis
+    (codex audit on #1405: the resume and worker-failure paths acted on such
+    reads). The monotonic ``_seq`` guard still protects the one case where
+    the LOCAL copy is fresher (this worker's write-through beat its own
+    fire-and-forget Redis write): the newer of the two wins. L1 serves the
+    answer only when Redis is unavailable or has no key.
+    """
+    # L1 lookup (expiry-checked); used for the freshness compare and as the
+    # Redis-down fallback — never returned early over a live Redis read.
+    cached: Optional[dict] = None
     with _l1_lock:
         _l1_maybe_cleanup()
-        cached = _l1.get(job_id)
-        if cached is not None:
-            # Check expiry
-            if time.time() - cached.get("created_at", 0) > _JOB_TTL_SECONDS:
+        entry = _l1.get(job_id)
+        if entry is not None:
+            if time.time() - entry.get("created_at", 0) > _JOB_TTL_SECONDS:
                 del _l1[job_id]
             else:
-                return cached
+                cached = entry
 
-    # L2: Redis
     redis_client = await _get_redis()
     if redis_client is not None:
         try:
             raw = await redis_client.get(f"{_JOB_KEY_PREFIX}{job_id}")
             if raw is not None:
                 data = _json.loads(raw)
-                # Seed L1 for next read — monotonic guard so a slightly stale
-                # Redis read cannot clobber a fresher L1 entry written meanwhile.
                 with _l1_lock:
                     existing = _l1.get(job_id)
                     if existing is None or _is_newer_or_equal(data, existing):
                         _l1[job_id] = data
-                return data
+                        return data
+                    # Local write-through is newer than the Redis read
+                    # (its async projection hasn't landed yet).
+                    return existing
         except Exception:
             logger.exception("Failed to read job %s from Redis", job_id)
 
-    return None
+    return cached
 
 
 async def get_job_fresh(job_id: str) -> Optional[dict]:
