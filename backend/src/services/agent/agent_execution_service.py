@@ -608,16 +608,40 @@ async def build_graph_input_messages(
 
 
 def build_user_history_messages(messages: List[Any], thread_id: str) -> List[Any]:
-    """Rebuild resent request history into HumanMessages with *deterministic* ids.
+    """LAST-RESORT fallback: rebuild resent request history into HumanMessages
+    with deterministic-where-possible ids.
 
-    The /chat client resends the FULL conversation each turn. LangGraph's
-    ``add_messages`` reducer dedupes only by message ``.id`` — a HumanMessage
-    built with no id gets a fresh random id every request, so the reducer sees
-    each prior turn as new and re-appends the whole history into the checkpoint
-    (quadratic growth the compactor never prunes). Anchor each user turn to a
-    stable id — the client idempotency key when present, else a derivation over
-    (thread_id, position) — so a resent history no-ops in the reducer and only
-    the new turn appends.
+    Audit review on PR #1395 (Codex, live trace e3c56cef 2026-08-11) confirmed
+    a v1 of this fix that derived every id from (thread_id, position) is
+    UNSOUND: the ``/chat`` client resends only a windowed page of a long
+    thread (e.g. the initial 50-message page), not the full conversation from
+    turn 1 — so the index of a resent message is the index WITHIN THE WINDOW,
+    not its absolute position in the thread. A later window (turns 11-60)
+    replays the same indices (0-49) as an earlier one (turns 1-50), so a
+    purely positional id silently REPLACES an unrelated older checkpoint
+    message in place (``add_messages`` is an id-keyed upsert) — worse than the
+    2x duplication this was meant to fix. This exact failure mode was already
+    identified and rejected as "B1" in prior research (see memory
+    project_langgraph_history_pattern.md): "adopt Option B ... supersedes B1's
+    position-id scheme" — position-based ids are only sound for a client that
+    resends the FULL untrimmed history, which this one does not.
+
+    ``build_graph_input_messages`` (Option B, above) is therefore the primary,
+    checkpoint-authoritative path and runs unconditionally (see call sites) —
+    it never re-derives ids for resent history at all: a populated checkpoint
+    gets only the newest turn (keyed on its client_message_id) appended, and
+    an empty one is seeded from the DB by row identity. This function is only
+    reached when Option B declines (the newest turn carries no
+    client_message_id) or a DB/checkpoint read fails — restored to its
+    original, pre-audit behavior: prefer client_message_id when present, else
+    a (thread_id, position) fallback. That positional fallback still carries
+    the same windowing risk described above, but only in this now-rare
+    fallback; the alternative (inventing a safer id here) needs checkpoint
+    access this sync helper doesn't have. Per review guidance, a bounded
+    duplicate (the pre-audit 2x growth) is accepted here over risking silent
+    in-place corruption of unrelated history — closing this fallback for good
+    needs either a frontend change (resend client_message_id per history
+    item, not just the newest) or leaning fully on Option B.
     """
     from langchain_core.messages import HumanMessage
 
