@@ -861,6 +861,10 @@ _ARXIV_CACHE_FRESH_TTL = 600.0  # 10 min: served as a fresh cache hit
 _ARXIV_CACHE_STALE_TTL = 1800  # 30 min: kept in Redis for the 429 stale fallback
 _ARXIV_SEARCH_CACHE_MAX = 64
 _ARXIV_CACHE_REDIS_PREFIX = "arxiv:search:"  # own namespace; NOT tenant-scoped search:
+# ~100 years. arXiv's first submission was 1991, so anything beyond this is a
+# nonsense window; the cap exists because ``timedelta(days=...)`` past ~2700
+# years raises OverflowError when subtracted from now().
+_MAX_ARXIV_RECENCY_DAYS = 36525
 
 
 def _arxiv_cache_key(
@@ -1099,9 +1103,14 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
         recency_days = int(recency_days_raw)
     except (TypeError, ValueError):
         recency_days = 365
-    # Clamp to ≥0; negative values silently disable the filter under the
-    # > 0 check, but the contract is "0 disables, positive caps lookback".
-    recency_days = max(0, recency_days)
+    # Clamp to [0, _MAX_ARXIV_RECENCY_DAYS]. Negative values silently disable
+    # the filter under the > 0 check, but the contract is "0 disables, positive
+    # caps lookback". The upper bound matters because recency_days is now
+    # LLM-supplied: an oversized window (1000000) makes the timedelta below
+    # raise OverflowError and fails the whole tool call. Clamped here rather
+    # than in the tool wrapper so every caller is covered — the research
+    # subgraph's direct-search fast path builds this args dict itself.
+    recency_days = max(0, min(recency_days, _MAX_ARXIV_RECENCY_DAYS))
     if recency_days > 0:
         cutoff = datetime.now(timezone.utc) - timedelta(days=recency_days)
         cutoff_str = cutoff.strftime("%Y%m%d%H%M")

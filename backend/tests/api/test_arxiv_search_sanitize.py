@@ -212,6 +212,35 @@ async def test_search_arxiv_tool_forwards_recency_days() -> None:
         await tools_mod.search_arxiv.ainvoke({"query": "RAG"})
         assert "recency_days" not in impl.call_args.args[0]
 
-        impl.reset_mock()
-        await tools_mod.search_arxiv.ainvoke({"query": "RAG", "recency_days": -5})
-        assert impl.call_args.args[0]["recency_days"] == 0
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("recency_days", [-5, 1_000_000])
+async def test_tool_search_arxiv_clamps_out_of_range_recency(recency_days: int) -> None:
+    """Out-of-range windows must not raise — a negative disables the filter and
+    an oversized one is capped instead of blowing up on timedelta overflow.
+
+    Clamping lives in the impl, so the research subgraph's direct-search fast
+    path (which builds this args dict itself) is covered too.
+    """
+    service = _make_service_mock()
+
+    with (
+        patch("src.services.arxiv.arxiv_service.ArXivIngestionService") as mock_cls,
+        patch(
+            "src.services.agent.tools_impl._arxiv_cache_get",
+            return_value=None,
+        ),
+        patch("src.services.agent.tools_impl._arxiv_cache_set"),
+    ):
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=service)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        result = await _tool_search_arxiv(
+            {"query": "RAG", "recency_days": recency_days}
+        )
+
+    assert "papers" in result
+    sent_query = service.search_papers.call_args.kwargs["query"]
+    # Negative clamps to 0 (no filter); oversized clamps to the cap (filter present).
+    assert ("submittedDate:" in sent_query) is (recency_days > 0)

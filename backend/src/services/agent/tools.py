@@ -243,7 +243,9 @@ async def search_arxiv(
     if categories:
         args["categories"] = categories
     if recency_days is not None:
-        args["recency_days"] = max(0, recency_days)
+        # Bounds are enforced in _tool_search_arxiv, not here — the research
+        # subgraph's direct-search fast path builds that args dict directly.
+        args["recency_days"] = recency_days
     return await _tool_search_arxiv(args)
 
 
