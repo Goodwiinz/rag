@@ -6,9 +6,8 @@ primitives we keep the previous ``str()`` shape. Non-serializable objects
 must not crash the stream.
 """
 
-from datetime import datetime
-
 import json
+from datetime import datetime
 
 import pytest
 
