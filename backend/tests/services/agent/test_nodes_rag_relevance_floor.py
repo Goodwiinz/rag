@@ -39,7 +39,9 @@ def test_no_chunks_dropped_is_a_noop() -> None:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_all_filtered_primary_read_does_not_fall_back(monkeypatch) -> None:
+async def test_all_filtered_primary_read_does_not_fall_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Audit review, PR #1395 (Codex P2): when every DO KB chunk is filtered by
     the relevance floor, the primary read returns `[]` — a *successful* read
     with nothing relevant, not an unavailable one. rag_node must proceed with
