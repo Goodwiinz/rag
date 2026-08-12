@@ -2,6 +2,7 @@ import { clearSupabaseAuthCookies } from '@/lib/supabase/clearAuthCookies';
 import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { api } from '@/services/api-client';
 import { clearWorkspaceServiceCache } from '@/services/workspaceService';
+import { useArtifactPanelStore } from '@/store/artifactPanelStore';
 import { Organization, RegisterResult, User } from '@/types';
 import { supabaseAuthErrorMessage } from '@/utils/supabaseAuthError';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -105,6 +106,7 @@ function getSupabaseClient(): SupabaseClient {
 
       if (event === 'SIGNED_OUT') {
         clearWorkspaceServiceCache();
+        useArtifactPanelStore.getState().reset();
         // Drop the cached bearer token so the shared APIClient singleton can't
         // keep sending the signed-out user's JWT.
         api.clearAuth();
@@ -261,6 +263,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   signOut: async () => {
     clearWorkspaceServiceCache();
+    // Drop the chat artifact panel's state — it survives navigation, so a
+    // shared-browser account switch would otherwise show the previous
+    // user's artifact title when the next user opens /chat.
+    useArtifactPanelStore.getState().reset();
     // Clear the shared APIClient token immediately so no in-flight or
     // subsequent request can carry the old JWT, even if the network call
     // below fails.

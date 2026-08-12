@@ -1,8 +1,11 @@
 'use client';
 
+import { ArtifactPanel } from '@/components/chat/artifact-panel/ArtifactPanel';
 import { ContextRail } from '@/components/context-rail';
+import type { WorkingFoldersSelection } from '@/components/context-rail/WorkingFoldersPanel';
 import { useChatPersistence } from '@/hooks';
 import { cn } from '@/lib/utils';
+import { useArtifactPanelStore } from '@/store/artifactPanelStore';
 import {
   resolveBoundProjectId,
   selectCurrentThreadProjectId,
@@ -353,6 +356,22 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
     : null;
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
+  // Split-view artifact panel: when open it takes over the rail's slot, and
+  // the rail becomes a button-toggled overlay (Codex-style) so its content
+  // stays reachable without a third permanent column.
+  const artifact = useArtifactPanelStore((s) => s.artifact);
+  const isArtifactPanelOpen = useArtifactPanelStore((s) => s.isOpen);
+  const openArtifact = useArtifactPanelStore((s) => s.openArtifact);
+  const [railOverlayOpen, setRailOverlayOpen] = useState(false);
+  // The overlay only exists while the panel is docked; reset on panel close
+  // so reopening the panel starts without a stale overlay.
+  const showArtifactPanel = isArtifactPanelOpen && artifact !== null;
+  const [panelWasOpen, setPanelWasOpen] = useState(showArtifactPanel);
+  if (showArtifactPanel !== panelWasOpen) {
+    setPanelWasOpen(showArtifactPanel);
+    if (!showArtifactPanel) setRailOverlayOpen(false);
+  }
+
   useEffect(() => {
     if (projectId && !resolvedProjectName) {
       fetchProject(projectId);
@@ -379,6 +398,32 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
     [router, searchParams]
   );
 
+  // Rail file-tree selections: documents/external sources open in the
+  // artifact panel beside the chat (the split-view pattern — never navigate
+  // away). Note/draft detail routes don't exist yet, so those still fall back
+  // to the project page until the panel learns to render them.
+  const handleRailSelect = useCallback(
+    (node: WorkingFoldersSelection) => {
+      if ((node.kind === 'note' || node.kind === 'draft') && projectId) {
+        router.push(`/projects/${projectId}`);
+        return;
+      }
+      if (node.kind === 'document' || node.kind === 'external') {
+        openArtifact(
+          node.kind === 'document'
+            ? { kind: 'document', id: node.id, title: node.title }
+            : {
+                kind: 'external',
+                id: node.id,
+                title: node.title,
+                ...(node.source ? { source: node.source } : {}),
+              }
+        );
+      }
+    },
+    [projectId, router, openArtifact]
+  );
+
   // Global keyboard shortcut for command palette
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -403,46 +448,58 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
         {/* Main Content */}
         <main className="flex-1 flex flex-col overflow-hidden">{children}</main>
 
-        {/* Right-rail: stacked Agent Activity, Related Results, Citations */}
+        {/* Right slot: the docked ContextRail, or — when an artifact is in
+            focus — the ArtifactPanel, with the rail demoted to a
+            button-toggled overlay so its content stays reachable. */}
         {isAuthenticated && (
-          <ContextRail
-            threadId={currentThreadId ?? null}
-            workspaceName={workspaceName}
-            workspaceId={currentWorkspaceId ?? undefined}
-            ragEnabled={true}
-            projectId={projectId}
-            projectName={resolvedProjectName}
-            onProjectBound={handleProjectBound}
-            onSelect={(node) => {
-              // Per design + Task 1 verification: note/draft detail routes don't
-              // exist yet, so navigate to the project page as a stable fallback.
-              if (
-                (node.kind === 'note' || node.kind === 'draft') &&
-                projectId
-              ) {
-                router.push(`/projects/${projectId}`);
-                return;
-              }
-              // Document/external previews open the chat page's CitationPanel
-              // with a synthetic citation. The panel state lives inside
-              // ChatPageContent (a child of this layout), so hand it over via
-              // a window event — same idiom as 'populate-chat-input'.
-              if (node.kind === 'document' || node.kind === 'external') {
-                window.dispatchEvent(
-                  new CustomEvent('open-citation-panel', {
-                    detail: {
-                      ...(node.kind === 'document'
-                        ? { documentId: node.id }
-                        : { externalReferenceId: node.id }),
-                      title: node.title,
-                      score: 0,
-                    },
-                  })
-                );
-              }
-            }}
-            className="hidden lg:flex shrink-0 w-[320px] border-l border-(--nous-border-1)"
-          />
+          <>
+            {!showArtifactPanel && (
+              <ContextRail
+                threadId={currentThreadId ?? null}
+                workspaceName={workspaceName}
+                workspaceId={currentWorkspaceId ?? undefined}
+                ragEnabled={true}
+                projectId={projectId}
+                projectName={resolvedProjectName}
+                onProjectBound={handleProjectBound}
+                onSelect={handleRailSelect}
+                className="hidden lg:flex shrink-0 w-[320px] border-l border-(--nous-border-1)"
+              />
+            )}
+            {showArtifactPanel && (
+              <>
+                <ArtifactPanel
+                  artifact={artifact}
+                  onToggleRail={() => setRailOverlayOpen((o) => !o)}
+                  railOpen={railOverlayOpen}
+                />
+                {railOverlayOpen && (
+                  <>
+                    {/* Click-away layer for the rail overlay. */}
+                    <div
+                      className="absolute inset-0 z-30 hidden lg:block"
+                      aria-hidden="true"
+                      onClick={() => setRailOverlayOpen(false)}
+                    />
+                    <ContextRail
+                      threadId={currentThreadId ?? null}
+                      workspaceName={workspaceName}
+                      workspaceId={currentWorkspaceId ?? undefined}
+                      ragEnabled={true}
+                      projectId={projectId}
+                      projectName={resolvedProjectName}
+                      onProjectBound={handleProjectBound}
+                      onSelect={(node) => {
+                        setRailOverlayOpen(false);
+                        handleRailSelect(node);
+                      }}
+                      className="absolute right-2 top-2 bottom-2 z-40 hidden lg:flex w-[340px] rounded-(--nous-radius-lg) border border-(--nous-border-1) bg-(--nous-bg-1) shadow-(--nous-shadow-lg)"
+                    />
+                  </>
+                )}
+              </>
+            )}
+          </>
         )}
       </div>
 
