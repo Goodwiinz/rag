@@ -346,6 +346,12 @@ async def start_application() -> tuple[asyncio.subprocess.Process, Any]:
         "8081",
         "--log-level",
         "info",
+        # Two workers to mirror the deployed multi-worker topology: the
+        # confirm/cancel/resume request may land on a different worker than
+        # the stream it targets, so cross-worker job/stream state (Redis) is
+        # actually exercised instead of silently bypassed.
+        "--workers",
+        "2",
         stdout=log_handle,
         stderr=asyncio.subprocess.STDOUT,
     )

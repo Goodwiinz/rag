@@ -84,3 +84,4 @@ temp/
 
 # AI Elements reference scratch (MCP comparison, not shipped)
 .scratch-ai-elements/
+playwright-smoke-report/
