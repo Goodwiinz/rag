@@ -12,7 +12,12 @@ import {
 import Link from 'next/link';
 
 import { IconButton } from '@/components/ui/icon-button';
+import { ChatMarkdown } from '@/components/chat/ChatMarkdown';
 import { CitationPanelBody } from '@/components/chat/CitationPanelBody';
+import {
+  useDraftArtifact,
+  useNoteArtifact,
+} from '@/components/chat/artifact-panel/useArtifactContent';
 import { DocumentInlineViewer } from '@/components/documents/DocumentInlineViewer';
 import { cn } from '@/lib/utils';
 import { documentService } from '@/services/documentService';
@@ -68,23 +73,7 @@ function DocumentArtifactBody({
   }
 
   if (isError || !data) {
-    return (
-      <div
-        role="alert"
-        className="m-3 flex min-h-[200px] flex-col items-center justify-center rounded-xl border border-destructive/30 bg-destructive/5 px-6 text-center"
-      >
-        <AlertTriangle
-          aria-hidden="true"
-          className="mb-3 h-8 w-8 text-destructive"
-        />
-        <p className="text-sm font-medium text-(--nous-fg-1)">
-          Couldn&apos;t load this document
-        </p>
-        <p className="mt-1 max-w-sm text-xs text-(--nous-fg-3)">
-          It may have been deleted, or you may not have access to it.
-        </p>
-      </div>
-    );
+    return <ArtifactContentError what="document" />;
   }
 
   return (
@@ -125,6 +114,94 @@ function ExternalArtifactBody({
           <ExternalLink aria-hidden="true" className="h-4 w-4" />
         </a>
       )}
+    </div>
+  );
+}
+
+function ArtifactContentSkeleton(): React.ReactElement {
+  return (
+    <div className="p-3">
+      <div className="h-[50vh] min-h-[280px] animate-pulse rounded-xl border border-(--nous-border-1) bg-(--nous-bg-2)" />
+      <span className="sr-only" role="status">
+        Loading…
+      </span>
+    </div>
+  );
+}
+
+function ArtifactContentError({
+  what,
+}: {
+  what: string;
+}): React.ReactElement {
+  return (
+    <div
+      role="alert"
+      className="m-3 flex min-h-[200px] flex-col items-center justify-center rounded-xl border border-destructive/30 bg-destructive/5 px-6 text-center"
+    >
+      <AlertTriangle
+        aria-hidden="true"
+        className="mb-3 h-8 w-8 text-destructive"
+      />
+      <p className="text-sm font-medium text-(--nous-fg-1)">
+        Couldn&apos;t load this {what}
+      </p>
+      <p className="mt-1 max-w-sm text-xs text-(--nous-fg-3)">
+        It may have been deleted, or you may not have access to it.
+      </p>
+    </div>
+  );
+}
+
+function NoteArtifactBody({
+  artifact,
+}: {
+  artifact: Extract<Artifact, { kind: 'note' }>;
+}): React.ReactElement {
+  const { data, isLoading, isError } = useNoteArtifact(
+    artifact.projectId,
+    artifact.id
+  );
+  if (isLoading) return <ArtifactContentSkeleton />;
+  if (isError || !data) return <ArtifactContentError what="note" />;
+  return (
+    <div className="nous-prose p-4 font-nous-body text-sm leading-relaxed text-(--nous-fg-1)">
+      <ChatMarkdown content={data.content} />
+    </div>
+  );
+}
+
+function DraftArtifactBody({
+  artifact,
+}: {
+  artifact: Extract<Artifact, { kind: 'draft' }>;
+}): React.ReactElement {
+  const { data, isLoading, isError } = useDraftArtifact(
+    artifact.projectId,
+    artifact.id
+  );
+  if (isLoading) return <ArtifactContentSkeleton />;
+  if (isError || !data) return <ArtifactContentError what="draft" />;
+  return (
+    <div className="p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-2 font-nous-mono text-[10px] text-(--nous-fg-3)">
+        <span
+          className="rounded-sm border border-(--nous-border-1) bg-(--nous-bg-2) px-1.5 py-0.5 uppercase"
+          style={{ letterSpacing: '0.08em' }}
+        >
+          v{data.version}
+          {data.is_current ? ' · current' : ''}
+        </span>
+        {typeof data.word_count === 'number' && (
+          <span className="tabular-nums">{data.word_count} words</span>
+        )}
+        {typeof data.citation_count === 'number' && (
+          <span className="tabular-nums">{data.citation_count} citations</span>
+        )}
+      </div>
+      <div className="nous-prose font-nous-body text-sm leading-relaxed text-(--nous-fg-1)">
+        <ChatMarkdown content={data.content} />
+      </div>
     </div>
   );
 }
@@ -280,15 +357,8 @@ export function ArtifactPanel({
             onCite={handleCite}
           />
         )}
-        {/* note / draft render in follow-up PRs; the store union already
-            carries them so producers don't churn. */}
-        {(artifact.kind === 'note' || artifact.kind === 'draft') && (
-          <div className="flex h-40 items-center justify-center px-6 text-center">
-            <p className="font-nous-mono text-xs text-(--nous-fg-3)">
-              This artifact type isn&apos;t viewable here yet.
-            </p>
-          </div>
-        )}
+        {artifact.kind === 'note' && <NoteArtifactBody artifact={artifact} />}
+        {artifact.kind === 'draft' && <DraftArtifactBody artifact={artifact} />}
       </div>
     </aside>
   );
