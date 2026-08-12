@@ -211,12 +211,19 @@ async def search_arxiv(
     query: str,
     max_results: int = 5,
     categories: Optional[List[str]] = None,
+    recency_days: int = 365,
+    chronological: bool = False,
     config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Search arXiv for academic papers.
 
-    Use when the user asks to find, search, or look up research papers,
-    academic publications, or scientific articles.
+    Use when the user asks to find, search, or look up research papers.
+    Pass clean topic KEYWORDS in query — not filler like 'recent' or 'latest';
+    recency is controlled by recency_days. By default only papers from the
+    last 365 days are returned. Pass recency_days=0 to disable the date
+    filter for historical or all-time searches (e.g. papers from 2022-2024),
+    or a larger N to widen the window. Set chronological=true to sort
+    newest-first instead of by relevance.
     """
     config = config or {}
     from src.services.agent.tools_impl import _tool_search_arxiv
@@ -224,6 +231,8 @@ async def search_arxiv(
     args: Dict[str, Any] = {
         "query": query,
         "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_CAP),
+        "recency_days": _clamp_int(recency_days, lo=0, hi=36500),
+        "chronological": bool(chronological),
     }
     if categories:
         args["categories"] = categories
