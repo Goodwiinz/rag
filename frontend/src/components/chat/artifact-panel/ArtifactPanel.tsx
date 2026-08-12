@@ -19,11 +19,16 @@ import { documentService } from '@/services/documentService';
 import { useArtifactPanelStore, type Artifact } from '@/store/artifactPanelStore';
 import type { Citation } from '@/utils/citationParser';
 
-const ARXIV_RE = /\d{4}\.\d{4,5}/;
+// Version suffix included: the backend stores versioned external references
+// (e.g. 2512.14313v1) and the cited revision can differ materially from the
+// latest one, so the link must open exactly what was cited.
+const ARXIV_RE = /\d{4}\.\d{4,5}(v\d+)?/;
 
-function externalHref(artifact: Extract<Artifact, { kind: 'external' }>) {
-  if (ARXIV_RE.test(artifact.id))
-    return `https://arxiv.org/abs/${artifact.id.match(ARXIV_RE)![0]}`;
+function externalHref(
+  artifact: Extract<Artifact, { kind: 'external' }>
+): string | undefined {
+  const arxivId = artifact.id.match(ARXIV_RE)?.[0];
+  if (arxivId) return `https://arxiv.org/abs/${arxivId}`;
   if (artifact.source && /^https?:\/\//.test(artifact.source))
     return artifact.source;
   return undefined;
@@ -41,7 +46,11 @@ function artifactTitle(artifact: Artifact): string {
   return artifact.kind === 'citations' ? 'Sources' : artifact.title;
 }
 
-function DocumentArtifactBody({ documentId }: { documentId: string }) {
+function DocumentArtifactBody({
+  documentId,
+}: {
+  documentId: string;
+}): React.ReactElement {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['document', documentId],
     queryFn: async () => (await documentService.getDocument(documentId)).data,
@@ -94,7 +103,7 @@ function ExternalArtifactBody({
   artifact,
 }: {
   artifact: Extract<Artifact, { kind: 'external' }>;
-}) {
+}): React.ReactElement {
   const href = externalHref(artifact);
   return (
     <div className="m-3 flex min-h-[200px] flex-col items-center justify-center rounded-xl border border-dashed border-(--nous-border-1) bg-(--nous-bg-2) px-6 py-10 text-center">
@@ -142,7 +151,7 @@ export function ArtifactPanel({
   onToggleRail,
   railOpen,
   className,
-}: ArtifactPanelProps) {
+}: ArtifactPanelProps): React.ReactElement {
   const closePanel = useArtifactPanelStore((s) => s.closePanel);
   const pinned = useArtifactPanelStore((s) => s.pinned);
   const togglePin = useArtifactPanelStore((s) => s.togglePin);

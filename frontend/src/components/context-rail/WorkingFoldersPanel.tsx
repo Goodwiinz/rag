@@ -8,7 +8,9 @@ import { useProjectWorkingFolders } from './hooks/useProjectWorkingFolders';
 
 export type WorkingFoldersSelection =
   | { kind: 'document'; id: string; title: string }
-  | { kind: 'external'; id: string; title: string }
+  // `source` carries the citation's URL for non-arXiv web sources — the
+  // artifact panel's outbound link needs it (the id alone isn't a URL).
+  | { kind: 'external'; id: string; title: string; source?: string }
   | { kind: 'note'; id: string; title: string }
   | { kind: 'draft'; id: string; title: string };
 
@@ -62,6 +64,7 @@ export function WorkingFoldersPanel({
             kind: 'external',
             id: (c.externalReferenceId ?? c.id ?? '') as string,
             title: c.title || 'Untitled source',
+            ...(c.source ? { source: c.source } : {}),
           }),
       })),
     ],

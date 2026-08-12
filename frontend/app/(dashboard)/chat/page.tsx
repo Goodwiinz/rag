@@ -91,7 +91,6 @@ function ChatPageContent() {
     [router, setCurrentThread, activeThreadId, closeDrawer]
   );
 
-
   return (
     <ChatSurface
       session={session}
