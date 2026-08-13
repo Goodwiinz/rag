@@ -8,6 +8,7 @@ import asyncio
 import contextlib
 import json as _json
 import logging
+import threading
 import time
 import uuid as _uuid
 from datetime import datetime, timezone
@@ -2076,6 +2077,40 @@ async def stream_event_generator(
         logger.info("SSE stream ended for thread %s", stream_thread_id)
 
 
+# R2-H4: per-process confirm-claim fallback for Redis outages. Partial by
+# design — it cannot see claims in OTHER workers (gunicorn multi-worker) —
+# but it turns "no protection at all" into "protected within a worker",
+# which closes the common single-worker dev/most-traffic case. The Redis
+# claim remains authoritative when available.
+_local_confirm_claims: Dict[str, float] = {}
+_local_confirm_claims_lock = threading.Lock()
+_LOCAL_CONFIRM_TTL_S = 330.0
+
+
+def _acquire_local_confirm_claim(key: str, now: Optional[float] = None) -> bool:
+    """True if this process may proceed with the confirm; False if a live
+    claim for the same key exists. TTL mirrors the Redis claim's 330s."""
+    current = time.monotonic() if now is None else now
+    with _local_confirm_claims_lock:
+        expiry = _local_confirm_claims.get(key)
+        if expiry is not None and expiry > current:
+            return False
+        _local_confirm_claims[key] = current + _LOCAL_CONFIRM_TTL_S
+        # Opportunistic sweep so the dict can't grow unbounded.
+        if len(_local_confirm_claims) > 512:
+            for stale_key in [
+                k for k, v in _local_confirm_claims.items() if v <= current
+            ]:
+                del _local_confirm_claims[stale_key]
+        return True
+
+
+def _release_local_confirm_claim(key: str) -> None:
+    """Release a locally-held confirm claim (pop; no-op if absent/expired)."""
+    with _local_confirm_claims_lock:
+        _local_confirm_claims.pop(key, None)
+
+
 async def stream_confirm_event_generator(
     request_body: Any,  # StreamConfirmRequest
     request: Any,  # FastAPI Request
@@ -2112,6 +2147,7 @@ async def stream_confirm_event_generator(
     # them even when an exception fires before the claim block runs.
     confirm_claim_key: Optional[str] = None
     redis_client = None
+    claim_is_local = False  # R2-H4: True when the claim was taken in-process
     events_started = False
     confirm_event_iter = None
     active_run = None
@@ -2237,10 +2273,10 @@ async def stream_confirm_event_generator(
             from src.services.agent.job_store import get_redis
 
             redis_client = await get_redis()
+            confirm_claim_key = (
+                f"hitl-confirm-claim:{request_body.thread_id}:{resume_ckpt_id}"
+            )
             if redis_client is not None:
-                confirm_claim_key = (
-                    f"hitl-confirm-claim:{request_body.thread_id}:{resume_ckpt_id}"
-                )
                 # TTL > the 300s stream timeout so a live winner can't lose
                 # its claim mid-run; a crashed winner unblocks after TTL.
                 if not await _acquire_lock(redis_client, confirm_claim_key, ttl=330):
@@ -2252,8 +2288,22 @@ async def stream_confirm_event_generator(
                         ),
                     )
                     return
-            # ponytail: Redis down → no claim (single-worker in-memory CAS
-            # like job_store._cas_in_memory is the upgrade if this bites).
+            else:
+                # R2-H4: Redis down — fall back to an in-process claim so two
+                # concurrent confirms in the same worker can't both resume
+                # (and double-run a destructive tool). Partial protection
+                # only (see the module-level docstring above); the Redis
+                # claim remains authoritative when it's up.
+                claim_is_local = True
+                if not _acquire_local_confirm_claim(confirm_claim_key):
+                    yield await emitter.emit(
+                        AgentStreamEvent.ERROR,
+                        error_frame_payload(
+                            "Confirmation already in progress",
+                            AgentErrorCategory.CONFLICT,
+                        ),
+                    )
+                    return
         else:
             logger.warning(
                 "No checkpoint id for resumed thread %s; confirm proceeds "
@@ -2785,9 +2835,12 @@ async def stream_confirm_event_generator(
         # a destructive tool already, so the claim is left for TTL cleanup.
         if confirm_claim_key and not events_started:
             with contextlib.suppress(Exception):
-                from src.core.caching import _release_lock
+                if claim_is_local:
+                    _release_local_confirm_claim(confirm_claim_key)
+                else:
+                    from src.core.caching import _release_lock
 
-                await _release_lock(redis_client, confirm_claim_key)
+                    await _release_lock(redis_client, confirm_claim_key)
         # Persist whatever was streamed before the failure (stopped=True) so the
         # partial answer survives a reload. Covers both the disconnected drain
         # dying (e.g. the 300s timeout) and an error while the client is still
