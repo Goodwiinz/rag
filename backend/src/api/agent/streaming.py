@@ -2202,7 +2202,8 @@ async def stream_confirm_event_generator(
     # them even when an exception fires before the claim block runs.
     confirm_claim_key: Optional[str] = None
     redis_client = None
-    claim_is_local = False  # R2-H4: True when the claim was taken in-process
+    claim_is_local = False  # R2-H4: True when the in-process claim is held
+    claim_is_redis = False  # True when the Redis claim is ALSO held
     events_started = False
     confirm_event_iter = None
     active_run = None
@@ -2331,10 +2332,46 @@ async def stream_confirm_event_generator(
             confirm_claim_key = (
                 f"hitl-confirm-claim:{request_body.thread_id}:{resume_ckpt_id}"
             )
+            # R2-H4 (review follow-up): the local claim is taken FIRST and
+            # ALWAYS — Redis then ADDS cross-worker coordination on top
+            # rather than replacing it. Two reasons (codex review on #1413):
+            # a Redis outage TRANSITION (worker A claimed locally while Redis
+            # was down, Redis recovers, worker A's request still running)
+            # must not let a second confirm in the same worker acquire a
+            # fresh Redis key and double-resume; and a Redis client that was
+            # healthy at startup but errors NOW must degrade to the local
+            # claim instead of failing the confirm outright.
+            claim_is_local = True
+            if not _acquire_local_confirm_claim(confirm_claim_key):
+                yield await emitter.emit(
+                    AgentStreamEvent.ERROR,
+                    error_frame_payload(
+                        "Confirmation already in progress",
+                        AgentErrorCategory.CONFLICT,
+                    ),
+                )
+                return
             if redis_client is not None:
                 # TTL > the 300s stream timeout so a live winner can't lose
                 # its claim mid-run; a crashed winner unblocks after TTL.
-                if not await _acquire_lock(redis_client, confirm_claim_key, ttl=330):
+                try:
+                    redis_claimed = await _acquire_lock(
+                        redis_client, confirm_claim_key, ttl=330
+                    )
+                except Exception:
+                    # Redis reachable at startup, erroring now — the local
+                    # claim above already protects this worker; proceed.
+                    logger.warning(
+                        "Confirm claim: Redis lock errored; proceeding on "
+                        "the in-process claim only",
+                        exc_info=True,
+                    )
+                    redis_claimed = None  # not held — don't release later
+                if redis_claimed is False:
+                    # Another worker holds the claim. Release our local one
+                    # (taken above) so a later legit confirm in THIS worker
+                    # isn't blocked for the full local TTL.
+                    _release_local_confirm_claim(confirm_claim_key)
                     yield await emitter.emit(
                         AgentStreamEvent.ERROR,
                         error_frame_payload(
@@ -2343,22 +2380,7 @@ async def stream_confirm_event_generator(
                         ),
                     )
                     return
-            else:
-                # R2-H4: Redis down — fall back to an in-process claim so two
-                # concurrent confirms in the same worker can't both resume
-                # (and double-run a destructive tool). Partial protection
-                # only (see the module-level docstring above); the Redis
-                # claim remains authoritative when it's up.
-                claim_is_local = True
-                if not _acquire_local_confirm_claim(confirm_claim_key):
-                    yield await emitter.emit(
-                        AgentStreamEvent.ERROR,
-                        error_frame_payload(
-                            "Confirmation already in progress",
-                            AgentErrorCategory.CONFLICT,
-                        ),
-                    )
-                    return
+                claim_is_redis = redis_claimed is True
         else:
             logger.warning(
                 "No checkpoint id for resumed thread %s; confirm proceeds "
@@ -2891,9 +2913,11 @@ async def stream_confirm_event_generator(
         # a destructive tool already, so the claim is left for TTL cleanup.
         if confirm_claim_key and not events_started:
             with contextlib.suppress(Exception):
+                # Both domains may be held (local always, Redis on top —
+                # R2-H4 review follow-up): release whichever were taken.
                 if claim_is_local:
                     _release_local_confirm_claim(confirm_claim_key)
-                else:
+                if claim_is_redis:
                     from src.core.caching import _release_lock
 
                     await _release_lock(redis_client, confirm_claim_key)
@@ -2907,22 +2931,29 @@ async def stream_confirm_event_generator(
             with contextlib.suppress(Exception):
                 await persist_partial_stop()
         # R2-H1: an error at confirm time previously left the durable run
-        # AWAITING_CONFIRMATION forever — the thread read as blocked and the
-        # run never terminated. Finalize as FAILED (best-effort; the user
-        # still gets the ERROR frame either way).
-        with contextlib.suppress(Exception):
-            await _finalize_run_id(
-                db,
-                str(active_run.job_id) if active_run is not None else None,
-                current_user,
-                status=JobStatus.FAILED,
-                event_type=RunEventType.RUN_FAILED,
-                payload={
-                    "reason": "confirm_error",
-                    "error": str(e)[:500],
-                    "request_id": emitter.trace_id,
-                },
-            )
+        # AWAITING_CONFIRMATION forever. Review follow-ups (codex on #1413):
+        # - finalize ONLY once the resume produced events — a pre-resume
+        #   failure released the claim above precisely so the confirm can be
+        #   RETRIED, and a terminal FAILED run would strand that retry
+        #   (terminal states are absorbing; get_active_run_for_thread skips
+        #   them). Pre-resume the run correctly stays awaiting_confirmation.
+        # - RunFailedPayload requires {code, message} and forbids extras —
+        #   the original {reason, error, request_id} payload failed
+        #   validation inside append_event, rolled back the status write,
+        #   and silently defeated the whole fix.
+        if events_started:
+            with contextlib.suppress(Exception):
+                await _finalize_run_id(
+                    db,
+                    str(active_run.job_id) if active_run is not None else None,
+                    current_user,
+                    status=JobStatus.FAILED,
+                    event_type=RunEventType.RUN_FAILED,
+                    payload={
+                        "code": "confirm_error",
+                        "message": client_safe_error(e),
+                    },
+                )
         frame = await emitter.emit(AgentStreamEvent.ERROR, error_frame_payload(e))
         if not client_disconnected:
             yield frame

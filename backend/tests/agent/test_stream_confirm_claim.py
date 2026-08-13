@@ -66,6 +66,11 @@ def _make_snapshot(checkpoint_id: str):
 def stream_confirm_harness(monkeypatch):
     import src.api.agent.streaming as streaming_mod
 
+    # The in-process confirm-claim fallback (R2-H4) is module-global and
+    # TTL'd like its Redis counterpart — correct in prod, but it leaks
+    # claims across tests sharing the same thread/checkpoint key. Isolate.
+    monkeypatch.setattr(streaming_mod, "_local_confirm_claims", {})
+
     snapshot = _make_snapshot("ckpt-fixed-1")
     graph = _FakeGraph(snapshot)
     redis = _FakeRedisLock()
@@ -111,9 +116,7 @@ def stream_confirm_harness(monkeypatch):
         body = SimpleNamespace(thread_id="thread-cx1", confirmed=True, model="gpt-5")
         request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
         current_user = Mock(id="user-1", organization_id="org-1")
-        return streaming_mod.stream_confirm_event_generator(
-            body, request, current_user
-        )
+        return streaming_mod.stream_confirm_event_generator(body, request, current_user)
 
     return SimpleNamespace(
         graph=graph,
