@@ -268,6 +268,11 @@ class TestProductionToolRegistryParity:
                 "search_arxiv",
                 "ingest_arxiv_papers",
                 "search_documents",
+                # content-level retrieval: general is the classifier's
+                # weak-evidence fallback and must be a superset of the
+                # specialist lanes (live miss 2026-08-12).
+                "do_kb_retrieve",
+                "compare_documents",
                 "create_project",
                 "list_projects",
                 "add_document_to_project",
@@ -324,6 +329,9 @@ class TestProductionToolRegistryParity:
                 "find_entity_paths",
                 "get_graph_stats",
                 "search_documents",
+                # search_documents' zero-hit suggestion names this tool; bound
+                # to research only, that advice was dead in the data lane.
+                "do_kb_retrieve",
                 "list_project_documents",
             },
         }
@@ -382,6 +390,8 @@ class TestProductionToolRegistryParity:
             "search_documents",
             "list_project_documents",
             "list_projects",
+            # Appended at position 8 so the existing order is untouched.
+            "do_kb_retrieve",
         ]
 
     def test_research_only_tool_is_registered_but_hidden_from_legacy_all_tools(

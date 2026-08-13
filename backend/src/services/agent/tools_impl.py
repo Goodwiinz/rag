@@ -1677,7 +1677,7 @@ async def _tool_search_documents(
 
         from src.services.agent._pii_redact import redact_pii
 
-        return {
+        payload: Dict[str, Any] = {
             "documents": [
                 {
                     "id": str(d.id),
@@ -1693,6 +1693,18 @@ async def _tool_search_documents(
             "total": len(docs),
             "query": query,
         }
+        if not docs:
+            # Zero-hit escalation hint: this tool matches title/filename
+            # substrings only, so a miss says nothing about content. Without
+            # this the model reported "no documents found" while do_kb_retrieve
+            # sat unused one call away (live miss 2026-08-12).
+            payload["suggestion"] = (
+                "No title/filename matched. This tool does not search "
+                "document content — retry with do_kb_retrieve for a "
+                "content-level (semantic) search before telling the "
+                "user nothing was found."
+            )
+        return payload
     except Exception as e:
         logger.error("search_documents tool failed", exc_info=e)
         return {"error": f"Document search failed: {str(e)}"}

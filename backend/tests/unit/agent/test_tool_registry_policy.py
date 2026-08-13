@@ -149,3 +149,29 @@ async def test_filtered_node_rejects_registered_name_when_disabled(
 
     execute.assert_not_awaited()
     assert "not available" in result["messages"][0].content
+
+
+def test_general_lane_binds_semantic_retrieval_and_compare() -> None:
+    """The classifier demotes weak-evidence turns to general on the premise
+    that general is a superset of the specialist lanes. That premise was false
+    for exactly the two content-level tools: a compare/content question landing
+    in general had only title search (live miss 2026-08-12: 'Compare the METR
+    and MIT studies' -> search_documents -> 0 hits -> 'no documents found')."""
+    from src.services.agent.tools import TOOL_REGISTRY
+
+    general = {d.name for d in TOOL_REGISTRY.descriptors_for_intent("general")}
+    assert "do_kb_retrieve" in general
+    assert "compare_documents" in general
+    assert "search_documents" in general
+
+
+def test_search_documents_description_disclaims_content_search() -> None:
+    """The schema description steers the model; it must not claim content
+    search when the implementation is a title/filename ILIKE."""
+    from src.services.agent.tools import TOOL_REGISTRY
+
+    desc = TOOL_REGISTRY.descriptor("search_documents").tool.description
+    # The old text — "Search the user's indexed documents by title or content"
+    # — also contained "content", so assert the disclaimer, not the substring.
+    assert "does not search" in desc.lower()
+    assert "do_kb_retrieve" in desc  # points at the right tool
