@@ -340,3 +340,75 @@ async def test_windowed_reopen_appends_newest_never_replaces_old_turns():
     # Every earlier turn's content is untouched — none were replaced in place.
     assert [m.content for m in final[:120]] == [m.content for m in before]
     assert final[-1].content == "q61"
+
+
+# --- concurrent seeding (codex audit CX2/CX4) --------------------------------
+
+
+class _MutableCountGraph:
+    """count starts empty; flips to populated when the test says so."""
+
+    def __init__(self):
+        self.values = {"messages": []}
+
+    async def aget_state(self, _config):
+        return SimpleNamespace(values=self.values)
+
+
+async def test_seed_lock_loser_waits_and_appends_only_newest(monkeypatch):
+    """Second concurrent first-turn must NOT double-seed: it waits on the seed
+    lock, re-reads a now-populated checkpoint, and appends only its turn."""
+    import asyncio
+
+    from src.services.agent import agent_execution_service as svc
+
+    graph = _MutableCountGraph()
+    rows = [_row(MessageRole.USER, "new", rid=_uuid.uuid4(), cmid="u1")]
+
+    lock_holder = {"held": True}
+
+    async def fake_acquire(_thread_id):
+        return not lock_holder["held"]
+
+    monkeypatch.setattr(svc, "_acquire_seed_lock", fake_acquire)
+    monkeypatch.setattr(svc, "_release_seed_lock", _async_noop)
+
+    async def winner_finishes():
+        await asyncio.sleep(0.15)
+        graph.values = {"messages": [HumanMessage(content="q1", id="s1")]}
+        lock_holder["held"] = False
+
+    task = asyncio.create_task(winner_finishes())
+    out = await build_graph_input_messages(
+        _FakeDB(rows), graph, THREAD, _req("new", cmid="u1")
+    )
+    await task
+
+    # The loser saw the populated checkpoint and appended ONLY its newest turn.
+    assert [m.content for m in out] == ["new"]
+
+
+async def _async_noop(_thread_id):
+    return None
+
+
+async def test_seed_lock_unavailable_still_seeds(monkeypatch):
+    """Lock never freeing (winner crashed) degrades to the pre-lock seed —
+    a turn is never lost to the lock."""
+    from src.services.agent import agent_execution_service as svc
+
+    monkeypatch.setattr(svc, "_acquire_seed_lock", _return_false)
+    monkeypatch.setattr(svc, "_release_seed_lock", _async_noop)
+    # Collapse the loser's wait loop so the test stays fast.
+    monkeypatch.setattr(svc.asyncio, "sleep", _async_noop)
+
+    graph = _FakeGraph({"messages": []})
+    rows = [_row(MessageRole.USER, "new", rid=_uuid.uuid4(), cmid="u1")]
+    out = await build_graph_input_messages(
+        _FakeDB(rows), graph, THREAD, _req("new", cmid="u1")
+    )
+    assert [m.content for m in out] == ["new"]
+
+
+async def _return_false(_thread_id):
+    return False

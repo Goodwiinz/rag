@@ -770,6 +770,7 @@ def build_stream_envelope(
     trace_id: str,
     thread_id: Optional[str] = None,
     route: str = "pending",
+    stream_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Wrap an SSE payload in the agent stream envelope.
 
@@ -779,7 +780,7 @@ def build_stream_envelope(
     stream (see ``_pending_confirmation_frame`` on the resume path) goes
     through here rather than hand-rolling a payload that drifts.
     """
-    return {
+    envelope = {
         **data,
         "schema_version": AGENT_STREAM_SCHEMA_VERSION,
         "sequence": seq,
@@ -789,6 +790,13 @@ def build_stream_envelope(
         "thread_id": thread_id,
         "route": route,
     }
+    # Additive run-correlation field (codex audit CX1): clients echo it on
+    # /stream/resume so a replayed resume can't attach to a NEWER stream on
+    # the same thread. Omitted (not null) when the emitter has no buffer id,
+    # so non-buffered frames keep their exact pre-change shape.
+    if stream_id is not None:
+        envelope["stream_id"] = stream_id
+    return envelope
 
 
 def format_stream_envelope_frame(
@@ -799,6 +807,7 @@ def format_stream_envelope_frame(
     trace_id: Optional[str] = None,
     thread_id: Optional[str] = None,
     route: str = "pending",
+    stream_id: Optional[str] = None,
 ) -> str:
     """Serialize one enveloped SSE frame, ``id:`` line included.
 
@@ -813,6 +822,7 @@ def format_stream_envelope_frame(
             trace_id=trace_id or str(_uuid.uuid4()),
             thread_id=thread_id,
             route=route,
+            stream_id=stream_id,
         ),
         seq=seq,
     )
@@ -871,6 +881,7 @@ class _SeqEmitter:
             trace_id=self.trace_id,
             thread_id=self.thread_id,
             route=self.route,
+            stream_id=self.sid,
         )
         if buffer and self.sid is not None:
             try:
