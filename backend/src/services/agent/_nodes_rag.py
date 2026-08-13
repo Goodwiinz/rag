@@ -506,21 +506,71 @@ async def _legacy_hybrid_search_fallback(
     query: str,
     user_id: str,
     organization_id: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> List[dict]:
     """Fallback to hybrid search when DO KB is unavailable or returns nothing.
 
-    Takes scalar ids from the ids-only configurable (audit B8).
+    Takes scalar ids from the ids-only configurable (audit B8). When a project
+    is active, resolve its owned document ids first and reuse SearchFilter's
+    existing document-id constraint. A missing, unowned, or empty project fails
+    closed to no results instead of widening the read to the whole organization.
     """
     try:
-        from src.models.search_schemas import SearchQuery, SearchSortOrder, SearchType
+        from src.models.search_schemas import (
+            SearchFilter,
+            SearchQuery,
+            SearchSortOrder,
+            SearchType,
+        )
         from src.services.search.hybrid_search_service import hybrid_search_service
+
+        filters = None
+        if project_id:
+            try:
+                project_uuid = UUID(str(project_id))
+                user_uuid = UUID(str(user_id))
+            except (ValueError, TypeError, AttributeError):
+                return []
+
+            from sqlalchemy import select
+
+            from src.models.collection import Collection, CollectionDocument
+            from src.models.workspace import Workspace
+            from src.services.agent.tool_session import tool_session
+
+            async with tool_session() as session:
+                document_ids = list(
+                    (
+                        await session.execute(
+                            select(CollectionDocument.document_id)
+                            .join(
+                                Collection,
+                                Collection.id == CollectionDocument.collection_id,
+                            )
+                            .join(Workspace, Workspace.id == Collection.workspace_id)
+                            .where(
+                                Collection.id == project_uuid,
+                                Collection.is_deleted == False,  # noqa: E712
+                                CollectionDocument.is_deleted == False,  # noqa: E712
+                                Workspace.owner_id == user_uuid,
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            if not document_ids:
+                return []
+            filters = SearchFilter(
+                document_ids=[str(document_id) for document_id in document_ids]
+            )
 
         search_request = SearchQuery(
             query=query,
             limit=5,
             search_type=SearchType.HYBRID,
             sort_order=SearchSortOrder.RELEVANCE,
-            filters=None,
+            filters=filters,
         )
         org_id = str(organization_id) if organization_id else None
         uid = str(user_id)
@@ -761,7 +811,10 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
 
     _record_do_kb_read("fallback_used")
     contexts = await _legacy_hybrid_search_fallback(
-        search_query, user_id, organization_id
+        search_query,
+        user_id,
+        organization_id,
+        project_id=resolved_project_id,
     )
     return {"retrieved_contexts": contexts, **state_update}
 

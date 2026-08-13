@@ -161,8 +161,11 @@ class ToolRegistry:
             if (
                 ToolPolicyTag.NO_OUTER_RETRY in descriptor.policy_tags
                 and ToolPolicyTag.SLOW not in descriptor.policy_tags
+                and ToolPolicyTag.DESTRUCTIVE not in descriptor.policy_tags
             ):
-                raise ValueError("no_outer_retry policy requires the slow policy")
+                raise ValueError(
+                    "no_outer_retry policy requires the slow or destructive policy"
+                )
 
     def _build_metadata_hash(self) -> str:
         metadata = [

@@ -45,17 +45,15 @@ the same user resolves to the existing run instead of creating a second one;
 the ``uq_agent_runs_user_idempotency_key`` partial unique index closes the
 race, and the loser re-reads the winner.
 
-**Superseding.** ``uq_agent_runs_active_thread`` makes "one non-terminal run
-per thread" a database invariant, so a new submission must close the previous
-run for that thread or its own INSERT is rejected. That is done inside the
-accept transaction and mirrors what the turn already does to the graph state
-(``_clear_stale_pending_confirmation`` drops an abandoned HITL interrupt), plus
-what migration d5e6f7a8b9c0 did to pre-existing duplicates.
+**Single writer.** ``uq_agent_runs_active_thread`` makes "one non-terminal run
+per thread" a database invariant. A new submission rejects while another run
+is queued, running, awaiting confirmation, or stopping. Marking only the ledger
+row cancelled does not stop a graph invocation from writing the same checkpoint.
 
 **Tenancy.** ``organization_id`` is nullable (org-less users exist), compared
 null-safely, and NEVER stringified — ``str(None) == "None"`` has merged tenants
 in this codebase before. The one query keyed by thread rather than org
-(``_supersede_active_runs``) is scoped by construction: its ``thread_id`` comes
+(``_ensure_thread_idle``) is scoped by construction: its ``thread_id`` comes
 from ``_resolve_thread``, which joins ``Workspace.owner_id == current_user.id``,
 so the thread — and therefore every run correlated to it — is already
 ownership-verified. Same reasoning as ``run_event_store.has_terminal_event``,
@@ -78,6 +76,7 @@ from src.models.agent_outbox import AgentOutbox
 from src.models.agent_run import AgentRun
 from src.models.chat_message import ChatMessage, MessageRole
 from src.models.thread import Thread
+from src.services.agent.agent_run_service import ActiveRunConflict
 from src.services.agent.run_event_store import RunAlreadyTerminalError, append_event
 from src.services.agent.run_event_types import RunEventType
 from src.shared.enums import TERMINAL_JOB_STATUSES, AgentOutboxStatus, JobStatus
@@ -191,6 +190,31 @@ async def _existing_outbox_id(db: AsyncSession, run_id: str) -> Optional[str]:
     stmt = select(AgentOutbox.id).where(AgentOutbox.run_id == run_id).limit(1)
     found = (await db.execute(stmt)).scalar_one_or_none()
     return str(found) if found is not None else None
+
+
+async def _replayed_submission(
+    db: AsyncSession,
+    existing: AgentRun,
+    *,
+    thread_id: UUID,
+    idempotency_key: str,
+    request: Any,
+) -> AcceptedSubmission:
+    return AcceptedSubmission(
+        run_id=str(existing.job_id),
+        thread_id=str(thread_id),
+        user_message_id=(
+            str(existing.user_message_id)
+            if existing.user_message_id is not None
+            else None
+        ),
+        outbox_id=await _existing_outbox_id(db, str(existing.job_id)),
+        idempotency_key=idempotency_key,
+        replayed=True,
+        # The winner committed this edit's tombstones, but a replay still has
+        # to converge the checkpoint. A redundant reseed from the DB is safe.
+        tombstoned=(getattr(request, "supersedes_client_message_id", None) is not None),
+    )
 
 
 async def _existing_user_message_id(
@@ -330,61 +354,23 @@ def _decrement_message_count(tombstoned: int) -> Any:
     return case((remaining < 0, 0), else_=remaining)
 
 
-async def _supersede_active_runs(db: AsyncSession, *, thread_id: UUID) -> list[str]:
-    """Close any non-terminal run still holding this thread. Does NOT commit.
-
-    ``uq_agent_runs_active_thread`` permits exactly one non-terminal run per
-    thread, so without this the second turn of every conversation would be
-    rejected by the index. Superseding is also the correct semantics: the turn
-    already discards an abandoned HITL interrupt from the graph state
-    (``_clear_stale_pending_confirmation``), and migration d5e6f7a8b9c0
-    terminalized pre-existing duplicates with the same reasoning.
+async def _ensure_thread_idle(db: AsyncSession, *, thread_id: UUID) -> None:
+    """Reject while any non-terminal run owns the thread. Does NOT commit.
 
     Tenant scope: see the module docstring — ``thread_id`` comes from an
     ownership-verified thread, so every run correlated to it belongs to the
     submitting user by construction.
     """
-    stmt = select(AgentRun.job_id, AgentRun.organization_id).where(
-        AgentRun.thread_id == thread_id,
-        AgentRun.status.in_(_ACTIVE_RUN_STATUSES),
-    )
-    victims = (await db.execute(stmt)).all()
-    if not victims:
-        return []
-
-    now = _utcnow()
-    superseded: list[str] = []
-    for job_id, org_id in victims:
+    active_job_id = (
         await db.execute(
-            update(AgentRun)
-            .where(AgentRun.job_id == job_id)
-            .values(
-                status=JobStatus.CANCELLED.value,
-                error_code="superseded",
-                error="Superseded by a newer submission on this thread.",
-                completed_at=now,
-                updated_at=now,
+            select(AgentRun.job_id).where(
+                AgentRun.thread_id == thread_id,
+                AgentRun.status.in_(_ACTIVE_RUN_STATUSES),
             )
-            .execution_options(synchronize_session=False)
         )
-        try:
-            await append_event(
-                db,
-                run_id=str(job_id),
-                event_type=RunEventType.RUN_CANCELLED,
-                payload={"reason": "superseded"},
-                organization_id=org_id,
-            )
-        except RunAlreadyTerminalError:
-            # Ledger already closed (status and ledger can diverge if a writer
-            # died between them). The status update above still stands.
-            logger.debug(
-                "accept_submission: ledger already terminal for superseded run %s",
-                job_id,
-            )
-        superseded.append(str(job_id))
-    await db.flush()
-    return superseded
+    ).scalar_one_or_none()
+    if active_job_id is not None:
+        raise ActiveRunConflict("A response is already in progress for this thread.")
 
 
 async def _insert_run(
@@ -492,30 +478,35 @@ async def accept_submission(
             user_id=current_user.id,
         )
         if existing is not None:
-            return AcceptedSubmission(
-                run_id=str(existing.job_id),
-                thread_id=str(thread_uuid),
-                user_message_id=(
-                    str(existing.user_message_id)
-                    if existing.user_message_id is not None
-                    else None
-                ),
-                outbox_id=await _existing_outbox_id(db, str(existing.job_id)),
+            return await _replayed_submission(
+                db,
+                existing,
+                thread_id=thread_uuid,
                 idempotency_key=idempotency_key,
-                replayed=True,
-                # The tombstones this edit implies were committed by the
-                # submission we are attaching to; its response was lost, so
-                # this caller must still converge the checkpoint. A redundant
-                # resync is an idempotent reseed from the DB — a missed one
-                # leaves the model answering the turn the user edited away.
-                tombstoned=(
-                    getattr(request, "supersedes_client_message_id", None) is not None
-                ),
+                request=request,
             )
 
     job_id = str(uuid4())
     try:
-        await _supersede_active_runs(db, thread_id=thread_uuid)
+        try:
+            await _ensure_thread_idle(db, thread_id=thread_uuid)
+        except ActiveRunConflict:
+            if idempotency_key is not None:
+                existing = await _find_by_idempotency_key(
+                    db,
+                    idempotency_key,
+                    organization_id=organization_id,
+                    user_id=current_user.id,
+                )
+                if existing is not None:
+                    return await _replayed_submission(
+                        db,
+                        existing,
+                        thread_id=thread_uuid,
+                        idempotency_key=idempotency_key,
+                        request=request,
+                    )
+            raise
         user_message_id, user_row_inserted = await _insert_user_message(
             db,
             thread_id=thread_uuid,
@@ -593,25 +584,25 @@ async def accept_submission(
                     "accept_submission: idempotency race lost — attaching to run %s",
                     winner.job_id,
                 )
-                return AcceptedSubmission(
-                    run_id=str(winner.job_id),
-                    thread_id=str(thread_uuid),
-                    user_message_id=(
-                        str(winner.user_message_id)
-                        if winner.user_message_id is not None
-                        else None
-                    ),
-                    outbox_id=await _existing_outbox_id(db, str(winner.job_id)),
+                return await _replayed_submission(
+                    db,
+                    winner,
+                    thread_id=thread_uuid,
                     idempotency_key=idempotency_key,
-                    replayed=True,
-                    # Same reasoning as the pre-check replay above: the winner
-                    # committed this edit's tombstones, we did not, and the
-                    # checkpoint still has to converge.
-                    tombstoned=(
-                        getattr(request, "supersedes_client_message_id", None)
-                        is not None
-                    ),
+                    request=request,
                 )
+        active_job_id = (
+            await db.execute(
+                select(AgentRun.job_id).where(
+                    AgentRun.thread_id == thread_uuid,
+                    AgentRun.status.in_(_ACTIVE_RUN_STATUSES),
+                )
+            )
+        ).scalar_one_or_none()
+        if active_job_id is not None:
+            raise ActiveRunConflict(
+                "A response is already in progress for this thread."
+            ) from None
         raise
     except Exception:
         # Nothing partial may survive: no run row without its event, no user
@@ -676,8 +667,8 @@ async def mark_submission_dispatched(
                 organization_id=organization_id,
             )
         except RunAlreadyTerminalError:
-            # A supersede won the race and closed the ledger before dispatch
-            # got here; the status/outbox updates above still stand.
+            # Terminal cleanup closed the ledger before this best-effort
+            # dispatch stamp arrived; the status/outbox updates still stand.
             logger.debug(
                 "mark_submission_dispatched: ledger already terminal for run %s",
                 run_id,
@@ -704,19 +695,20 @@ async def finalize_submission(
     error_code: Optional[str] = None,
     error: Optional[str] = None,
 ) -> None:
-    """Move the run to *status* at the end of the turn. Commits; never raises.
+    """Move the run to *status* at the end of the turn and commit.
 
     The run row must reach a terminal status or ``uq_agent_runs_active_thread``
-    would leave a phantom active run on the thread (superseded by the next
-    turn) and the stale-run sweeper would eventually mark a perfectly
-    successful turn ``failed``.
+    would leave a phantom active run that rejects the next turn, and the
+    stale-run sweeper would eventually mark a perfectly successful turn
+    ``failed``.
 
     ``event_type`` is optional because not every exit is terminal: a turn
     parked on a HITL confirmation moves to ``awaiting_confirmation`` and its
     ledger must stay OPEN — the run genuinely continues on ``/stream/confirm``.
 
-    Best-effort: the frames the client cares about have already been emitted by
-    the time this runs, so a bookkeeping failure is logged, never raised.
+    Terminal failures propagate so callers cannot emit ``done`` while the
+    thread's single-writer slot is still held. Non-terminal HITL parking stays
+    best-effort: the checkpoint remains the authoritative resume state.
     """
     now = _utcnow()
     values: dict[str, Any] = {
@@ -772,6 +764,8 @@ async def finalize_submission(
             await db.rollback()
         except Exception:
             logger.debug("rollback after finalize failure failed", exc_info=True)
+        if status in TERMINAL_JOB_STATUSES:
+            raise
 
 
 __all__ = [

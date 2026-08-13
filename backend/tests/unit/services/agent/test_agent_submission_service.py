@@ -35,6 +35,7 @@ from src.models.conversation import Conversation
 from src.models.thread import Thread
 from src.models.workspace import Workspace
 from src.services.agent import agent_submission_service as submission_mod
+from src.services.agent.agent_run_service import ActiveRunConflict
 from src.services.agent.agent_submission_service import (
     accept_submission,
     stream_idempotency_key,
@@ -298,27 +299,31 @@ async def test_org_less_user_is_not_stringified(db: AsyncSession) -> None:
     assert event_row.organization_id is None
 
 
-async def test_second_turn_supersedes_the_threads_active_run(
+async def test_thread_rejects_active_writer_until_it_is_terminal(
     db: AsyncSession,
 ) -> None:
-    """``uq_agent_runs_active_thread`` permits one live run per thread.
-
-    Without superseding, the second turn of every conversation would be
-    rejected by the index and the client would get an error instead of an
-    acknowledgment.
-    """
+    """The durable slot releases only when the prior run is terminal."""
     first = await accept_submission(
         db, current_user=_user(), request=_request(uuid.uuid4()), thread=_thread()
     )
+    with pytest.raises(ActiveRunConflict):
+        await accept_submission(
+            db, current_user=_user(), request=_request(uuid.uuid4()), thread=_thread()
+        )
+
+    old = await db.get(AgentRun, first.run_id)
+    assert old is not None
+    assert old.status == JobStatus.QUEUED.value
+
+    old.status = JobStatus.COMPLETED.value
+    await db.commit()
     second = await accept_submission(
         db, current_user=_user(), request=_request(uuid.uuid4()), thread=_thread()
     )
 
     assert second.run_id != first.run_id
-    old = await db.get(AgentRun, first.run_id)
-    assert old is not None
-    assert old.status == JobStatus.CANCELLED.value
-    assert old.error_code == "superseded"
+    await db.refresh(old)
+    assert old.status == JobStatus.COMPLETED.value
 
     closing = (
         (
@@ -333,7 +338,6 @@ async def test_second_turn_supersedes_the_threads_active_run(
     )
     assert [e.event_type for e in closing] == [
         RunEventType.RUN_CREATED.value,
-        RunEventType.RUN_CANCELLED.value,
     ]
 
 

@@ -45,7 +45,10 @@ from src.services.agent.agent_execution_service import (
     _resolve_thread,
     resync_thread_checkpoint,
 )
-from src.services.agent.agent_run_service import get_active_run_for_thread
+from src.services.agent.agent_run_service import (
+    ActiveRunConflict,
+    get_active_run_for_thread,
+)
 from src.services.agent.agent_submission_service import (
     AcceptedSubmission,
     accept_submission,
@@ -98,9 +101,8 @@ async def _finalize_run(
     """Close the accepted run out at a stream exit. No-op without an accept.
 
     A run left non-terminal keeps holding ``uq_agent_runs_active_thread`` and
-    is eventually reaped as "stale running" — i.e. a successful turn would be
-    projected as a failure. Purely bookkeeping: it runs after the client's
-    frames, and ``finalize_submission`` never raises.
+    is eventually reaped as "stale running". Terminal failures therefore
+    propagate before a ``done`` frame; HITL parking remains best-effort.
     """
     if acceptance is None:
         return
@@ -164,6 +166,8 @@ def _stream_failure_category(exc: BaseException) -> AgentErrorCategory:
     missing-user-message rejection, otherwise the generic classification."""
     if isinstance(exc, ValueError) and _NO_USER_MESSAGE_SENTINEL in str(exc):
         return AgentErrorCategory.INVALID_REQUEST
+    if isinstance(exc, ActiveRunConflict):
+        return AgentErrorCategory.CONFLICT
     return classify_agent_error(exc)
 
 
@@ -2097,8 +2101,13 @@ async def stream_event_generator(
             with contextlib.suppress(Exception):
                 await persist_partial_stop()
         category = _stream_failure_category(e)
+        wire_error: BaseException | str = (
+            "A response is already in progress for this thread."
+            if isinstance(e, ActiveRunConflict)
+            else e
+        )
         frame = await emitter.emit(
-            AgentStreamEvent.ERROR, error_frame_payload(e, category)
+            AgentStreamEvent.ERROR, error_frame_payload(wire_error, category)
         )
         if not client_disconnected:
             yield frame

@@ -43,6 +43,13 @@ logger = logging.getLogger(__name__)
 # Default sweeper lease: long enough to resolve/kill a stuck run, short enough
 # that a crashed sweeper doesn't block the next pass for long.
 DEFAULT_LEASE_SECONDS = 300
+_ACTIVE_RUN_STATUSES = tuple(
+    status.value for status in JobStatus if not status.is_terminal
+)
+
+
+class ActiveRunConflict(RuntimeError):
+    """A non-terminal run already owns the thread's single-writer slot."""
 
 
 def _utcnow() -> datetime:
@@ -129,15 +136,36 @@ async def upsert_run(
         try:
             await db.commit()
         except IntegrityError:
-            # Two causes: a concurrent creator won the PK race (fall through
-            # to update), or thread_id is a dangling uuid — the legacy job-id
-            # fallback for thread-less runs is uuid-valid but not a threads
-            # row, so the FK rejects it. Retry once without the correlation:
-            # losing thread linkage is fine, losing the status projection is
-            # not (audit X1).
+            # A concurrent creator may have won the job-id/idempotency race, or
+            # another run may already own this thread's partial-unique slot.
+            # Only a genuinely dangling legacy thread id may retry uncorrelated;
+            # dropping thread_id for an active-run collision would let two graph
+            # writers race the same LangGraph checkpoint.
             await db.rollback()
             run = await db.get(AgentRun, job_id)
             if run is None:
+                if idempotency_key is not None:
+                    existing = await get_run_by_idempotency_key(
+                        db,
+                        idempotency_key,
+                        organization_id=org_uuid,
+                        user_id=user_uuid,
+                    )
+                    if existing is not None:
+                        return None
+                if thread_uuid is not None:
+                    active = (
+                        await db.execute(
+                            select(AgentRun).where(
+                                AgentRun.thread_id == thread_uuid,
+                                AgentRun.status.in_(_ACTIVE_RUN_STATUSES),
+                            )
+                        )
+                    ).scalar_one_or_none()
+                    if active is not None:
+                        raise ActiveRunConflict(
+                            "A response is already in progress for this thread."
+                        )
                 if thread_uuid is None:  # pragma: no cover — PK race implies row
                     return None
                 run = AgentRun(
@@ -180,9 +208,24 @@ async def upsert_run(
     try:
         await db.commit()
     except IntegrityError:
-        # Dangling thread backfill (legacy job-id fallback) — keep the status
-        # transition, drop the correlation.
+        # A backfill can collide with another run's active-thread slot. Do not
+        # silently drop correlation and keep both writers alive.
         await db.rollback()
+        if thread_uuid is not None:
+            active = (
+                await db.execute(
+                    select(AgentRun).where(
+                        AgentRun.thread_id == thread_uuid,
+                        AgentRun.status.in_(_ACTIVE_RUN_STATUSES),
+                    )
+                )
+            ).scalar_one_or_none()
+            if active is not None and active.job_id != job_id:
+                raise ActiveRunConflict(
+                    "A response is already in progress for this thread."
+                )
+        # Otherwise this is the legacy dangling-thread path: keep the status
+        # transition and leave correlation unchanged.
         run = await db.get(AgentRun, job_id)
         if run is None:  # pragma: no cover
             return None
@@ -231,17 +274,11 @@ async def get_active_run_for_thread(
     thread_uuid = _coerce_uuid(thread_id)
     if thread_uuid is None:
         return None
-    active_statuses = [
-        JobStatus.QUEUED.value,
-        JobStatus.RUNNING.value,
-        JobStatus.AWAITING_CONFIRMATION.value,
-        JobStatus.STOPPING.value,
-    ]
     stmt = select(AgentRun).where(
         AgentRun.thread_id == thread_uuid,
         AgentRun.organization_id == _coerce_uuid(organization_id),
         AgentRun.user_id == _coerce_uuid(user_id),
-        AgentRun.status.in_(active_statuses),
+        AgentRun.status.in_(_ACTIVE_RUN_STATUSES),
     )
     return (await db.execute(stmt)).scalar_one_or_none()
 
@@ -423,13 +460,16 @@ def _extract_thread_id(data: dict) -> Optional[str]:
     return str(tid) if tid else None
 
 
-async def record_job_status(job_id: str, data: dict) -> None:
+async def record_job_status(
+    job_id: str, data: dict, *, raise_on_error: bool = False
+) -> None:
     """Project a job-store write into ``agent_runs`` — log-and-continue.
 
     The write-through entry point fired (as a background task) by the job
     store on every status write. Opens its own ``AsyncSessionLocal`` and
-    swallows every exception: Redis stays authoritative during rollout, so a
-    failed projection must never break the agent turn or the streaming path.
+    swallows exceptions by default: Redis stays authoritative during rollout.
+    Thread-scoped terminal writes pass ``raise_on_error=True`` so completion
+    cannot become visible while the durable single-writer slot remains held.
     """
     try:
         status = data.get("status")
@@ -454,6 +494,8 @@ async def record_job_status(job_id: str, data: dict) -> None:
             job_id,
             exc_info=True,
         )
+        if raise_on_error:
+            raise
 
 
 async def claim_execution_safe(

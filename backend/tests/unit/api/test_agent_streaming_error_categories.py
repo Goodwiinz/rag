@@ -19,6 +19,7 @@ import pytest
 from openai import RateLimitError
 
 from src.api.agent.streaming import _stream_failure_category
+from src.services.agent.agent_run_service import ActiveRunConflict
 from src.shared.enums import AgentErrorCategory
 from tests.utils.agent_stream import frames_of_type, make_stream_request, sse_data
 
@@ -191,6 +192,13 @@ def test_missing_user_message_rejection_is_invalid_request_not_internal() -> Non
     )
     assert (
         _stream_failure_category(TimeoutError()) is AgentErrorCategory.UPSTREAM_TIMEOUT
+    )
+
+
+def test_active_thread_writer_is_a_conflict() -> None:
+    assert (
+        _stream_failure_category(ActiveRunConflict("safe"))
+        is AgentErrorCategory.CONFLICT
     )
 
 
