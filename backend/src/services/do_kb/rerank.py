@@ -16,6 +16,16 @@ logger = logging.getLogger(__name__)
 
 # ponytail: constant, not a setting — promote to config if ops ever need to tune
 _RERANK_TIMEOUT_SECONDS = 2.0
+_RERANK_METRIC = "rag_do_kb_cohere_rerank_total"
+
+
+def _record_rerank_metric(outcome: str) -> None:
+    try:
+        from src.observability.metrics import increment_counter
+
+        increment_counter(_RERANK_METRIC, attributes={"outcome": outcome})
+    except Exception:  # pragma: no cover - observability is optional
+        pass
 
 
 async def cohere_rescore_chunks(query: str, chunks: list[Chunk]) -> list[Chunk]:
@@ -32,6 +42,7 @@ async def cohere_rescore_chunks(query: str, chunks: list[Chunk]) -> list[Chunk]:
 
     if not cohere_rerank_service.is_enabled:
         logger.debug("cohere_rescore_chunks: service disabled, passthrough")
+        _record_rerank_metric("disabled")
         return chunks
 
     docs = [
@@ -46,10 +57,12 @@ async def cohere_rescore_chunks(query: str, chunks: list[Chunk]) -> list[Chunk]:
         )
     except (asyncio.TimeoutError, Exception):
         logger.warning("cohere_rescore_chunks: rerank call failed, passthrough")
+        _record_rerank_metric("timeout_or_error")
         return chunks
 
     try:
         if not outcome.succeeded:
+            _record_rerank_metric("timeout_or_error")
             return chunks
 
         reranked = []
@@ -71,7 +84,9 @@ async def cohere_rescore_chunks(query: str, chunks: list[Chunk]) -> list[Chunk]:
             covered.add(index)
     except Exception:
         logger.warning("cohere_rescore_chunks: invalid rerank result, passthrough")
+        _record_rerank_metric("invalid_result")
         return chunks
 
     reranked.extend(c for i, c in enumerate(chunks) if i not in covered)
+    _record_rerank_metric("success")
     return reranked

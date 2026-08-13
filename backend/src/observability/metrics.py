@@ -247,6 +247,14 @@ def initialize_default_metrics():
                 unit="reads",
             ),
             MetricConfig(
+                name="rag_do_kb_cohere_rerank_total",
+                description=(
+                    "DO KB Cohere rerank outcomes labeled by `outcome` "
+                    "(disabled, timeout_or_error, invalid_result, success)."
+                ),
+                unit="reranks",
+            ),
+            MetricConfig(
                 name="do_kb_ingest_total",
                 description=(
                     "DO KB document ingest/sync outcomes, labeled by `status` "

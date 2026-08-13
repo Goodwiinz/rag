@@ -14,6 +14,8 @@ import pytest
 from langchain_core.messages import HumanMessage
 
 from src.services.agent._nodes_rag import _drop_low_relevance_chunks, rag_node
+from src.services.do_kb.models import Chunk
+from src.services.do_kb.postprocess import drop_low_relevance_chunks
 
 
 def _ctx(score: float, score_source: str | None) -> dict:
@@ -35,6 +37,16 @@ def test_keeps_non_cohere_scores_regardless_of_value() -> None:
 def test_no_chunks_dropped_is_a_noop() -> None:
     contexts = [_ctx(0.9, "cohere")]
     assert _drop_low_relevance_chunks(contexts) == contexts
+
+
+def test_shared_floor_handles_chunk_score_provenance() -> None:
+    chunks = [
+        Chunk(text="junk", score=0.09, metadata={"score_source": "cohere"}),
+        Chunk(text="rank", score=0.01, metadata={"score_source": "rank_proxy"}),
+        Chunk(text="relevant", score=0.1, metadata={"score_source": "cohere"}),
+    ]
+
+    assert drop_low_relevance_chunks(chunks) == chunks[1:]
 
 
 @pytest.mark.unit

@@ -446,6 +446,54 @@ class TestIngestArxiv:
         shared_db.add.assert_not_called()
         shared_db.commit.assert_not_called()
 
+    async def test_ingest_persists_metadata_title_for_immediate_search(self):
+        """The arXiv metadata title must win over a transient placeholder."""
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
+
+        user = _mock_user()
+        ingested_doc = Mock()
+        ingested_doc.title = "arXiv:2601.00003v1"
+        ingested_doc.filename = "2601.00003v1.pdf"
+        ingested_doc.file_size_bytes = 0
+        ingested_doc.mime_type = "text/plain"
+        ingested_doc.content_text = "abstract"
+        ingested_doc.content_summary = None
+        ingested_doc.document_metadata = {
+            "title": "  Real\nPaper\tTitle  ",
+            "arxiv_id": "2601.00003v1",
+        }
+
+        mock_service = AsyncMock()
+        mock_service.get_papers_by_ids = AsyncMock(
+            return_value=[{"id": "2601.00003v1", "title": "Real Paper Title"}]
+        )
+        mock_service.ingest_papers = AsyncMock(return_value=[ingested_doc])
+        mock_service_ctx = AsyncMock()
+        mock_service_ctx.__aenter__ = AsyncMock(return_value=mock_service)
+        mock_service_ctx.__aexit__ = AsyncMock(return_value=False)
+        fresh_db = MockAsyncSession()
+
+        with (
+            patch.dict(
+                sys.modules,
+                {
+                    "src.services.arxiv.arxiv_service": _mock_arxiv_service_module(
+                        mock_service_ctx
+                    )
+                },
+            ),
+            patch("src.core.database.AsyncSessionLocal", return_value=fresh_db),
+        ):
+            result = await _tool_ingest_arxiv(
+                args={"paper_ids": ["2601.00003v1"]},
+                user_id=str(user.id),
+                db=AsyncMock(),
+                current_user=user,
+            )
+
+        assert result["status"] == "ingestion_complete"
+        assert fresh_db._added_items[0].title == "Real Paper Title"
+
     async def test_ingest_no_papers_returns_error(self):
         """Should reject empty paper_ids list."""
         from src.api.agent.execute import _tool_ingest_arxiv
