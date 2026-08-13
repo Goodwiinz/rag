@@ -14,17 +14,17 @@ from src.api.agent.streaming import (
 )
 
 
-def setup_function(_fn):
+def setup_function(_fn: object) -> None:
     _local_confirm_claims.clear()
 
 
-def test_second_acquire_of_same_key_fails():
+def test_second_acquire_of_same_key_fails() -> None:
     key = "hitl-confirm-claim:thread-1:ckpt-1"
     assert _acquire_local_confirm_claim(key, now=0.0) is True
     assert _acquire_local_confirm_claim(key, now=1.0) is False
 
 
-def test_acquirable_again_after_ttl_expiry():
+def test_acquirable_again_after_ttl_expiry() -> None:
     key = "hitl-confirm-claim:thread-1:ckpt-1"
     assert _acquire_local_confirm_claim(key, now=0.0) is True
     # Just before TTL (330s): still claimed.
@@ -33,17 +33,17 @@ def test_acquirable_again_after_ttl_expiry():
     assert _acquire_local_confirm_claim(key, now=331.0) is True
 
 
-def test_release_frees_the_key_immediately():
+def test_release_frees_the_key_immediately() -> None:
     key = "hitl-confirm-claim:thread-1:ckpt-1"
     assert _acquire_local_confirm_claim(key, now=0.0) is True
     _release_local_confirm_claim(key)
     assert _acquire_local_confirm_claim(key, now=0.5) is True
 
 
-def test_release_of_absent_key_is_a_noop():
+def test_release_of_absent_key_is_a_noop() -> None:
     _release_local_confirm_claim("no-such-key")  # must not raise
 
 
-def test_different_keys_do_not_collide():
+def test_different_keys_do_not_collide() -> None:
     assert _acquire_local_confirm_claim("key-a", now=0.0) is True
     assert _acquire_local_confirm_claim("key-b", now=0.0) is True

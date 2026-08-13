@@ -9,6 +9,7 @@ cancellation path's finalize-as-CANCELLED behavior) before returning.
 """
 
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -18,22 +19,22 @@ class _ErroringGraph:
     """astream_events raises before yielding any event, modelling a resume
     failure (e.g. the graph invocation itself blows up)."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
-    def astream_events(self, *args, **kwargs):
+    def astream_events(self, *args: object, **kwargs: object) -> "Any":
         return self
 
-    def __aiter__(self):
+    def __aiter__(self) -> "Any":
         return self
 
-    async def __anext__(self):
+    async def __anext__(self) -> None:
         raise RuntimeError("resume boom")
 
-    async def aclose(self):
+    async def aclose(self) -> None:
         pass
 
-    async def aget_state(self, config):
+    async def aget_state(self, config: object) -> "Any":
         return SimpleNamespace(
             values={
                 "user_id": "user-1",
@@ -46,7 +47,7 @@ class _ErroringGraph:
 
 
 @pytest.mark.asyncio
-async def test_confirm_stream_finalizes_run_as_failed_on_error():
+async def test_confirm_stream_finalizes_run_as_failed_on_error() -> None:
     import src.api.agent.streaming as streaming_mod
     from src.shared.enums import JobStatus
 
@@ -98,6 +99,7 @@ async def test_confirm_stream_finalizes_run_as_failed_on_error():
 
     assert any("event: error" in e for e in events)
     finalize_mock.assert_awaited_once()
+    assert finalize_mock.await_args is not None
     args, kwargs = finalize_mock.await_args
     assert args[1] == "run-abc-123"
     assert kwargs["status"] == JobStatus.FAILED
