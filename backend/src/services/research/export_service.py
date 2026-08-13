@@ -442,6 +442,13 @@ class ExportService:
             select(Thread)
             .options(
                 selectinload(Thread.messages).selectinload(ChatMessage.citations),
+                # has_attachments (chat_message.py) touches the attachments
+                # relationship; without eager-loading it, the export path
+                # sync-lazy-loads inside the async session and dies with
+                # MissingGreenlet ("greenlet_spawn has not been called") —
+                # every thread export 500'd (Sentry JAVASCRIPT-NEXTJS-4Q,
+                # 2026-08-12).
+                selectinload(Thread.messages).selectinload(ChatMessage.attachments),
                 selectinload(
                     Thread.conversation
                 ),  # Load conversation for ownership check
