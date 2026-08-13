@@ -8,6 +8,7 @@ every POST /export/thread 500'd (Sentry JAVASCRIPT-NEXTJS-4Q, 2026-08-12).
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -15,7 +16,7 @@ import pytest
 from src.services.research.export_service import ExportOptions, ExportService
 
 
-def _loaded_paths(stmt) -> set[str]:
+def _loaded_paths(stmt: Any) -> set[str]:
     """Names of relationship paths the statement eager-loads."""
     paths: set[str] = set()
     for opt in stmt._with_options:
@@ -27,7 +28,7 @@ def _loaded_paths(stmt) -> set[str]:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_load_thread_eager_loads_attachments_and_citations():
+async def test_load_thread_eager_loads_attachments_and_citations() -> None:
     db = AsyncMock()
     result = MagicMock()
     result.unique.return_value.scalar_one_or_none.return_value = None
