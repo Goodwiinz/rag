@@ -514,6 +514,45 @@ def test_resume_token_containing_terminal_text_does_not_stop_replay(monkeypatch)
     assert body.rstrip().endswith("event: done\ndata: {}")
 
 
+def test_latest_turn_assistant_text_stops_at_human_boundary():
+    """Turn-scoped scan must return '' for a turn with no AI text — never the
+    PREVIOUS turn's answer (live dup: thread 014caf59, 2026-08-12)."""
+    from types import SimpleNamespace as NS
+
+    from src.api.agent.streaming import _latest_turn_assistant_text
+
+    msgs = [
+        NS(type="human", content="turn 1"),
+        NS(type="ai", content="answer 1"),
+        NS(type="human", content="turn 2 (parked on interrupt)"),
+        NS(type="ai", content="", tool_calls=[{"name": "ingest_arxiv_papers"}]),
+    ]
+    assert _latest_turn_assistant_text(msgs) == ""
+
+
+def test_latest_turn_assistant_text_returns_current_turn_answer():
+    from types import SimpleNamespace as NS
+
+    from src.api.agent.streaming import _latest_turn_assistant_text
+
+    msgs = [
+        NS(type="human", content="turn 1"),
+        NS(type="ai", content="answer 1"),
+        NS(type="human", content="turn 2"),
+        NS(type="ai", content=""),
+        NS(type="tool", content="{}"),
+        NS(type="ai", content="answer 2"),
+    ]
+    assert _latest_turn_assistant_text(msgs) == "answer 2"
+
+
+def test_latest_turn_assistant_text_empty_messages():
+    from src.api.agent.streaming import _latest_turn_assistant_text
+
+    assert _latest_turn_assistant_text([]) == ""
+    assert _latest_turn_assistant_text(None) == ""
+
+
 def test_resume_mismatched_stream_param_returns_204(monkeypatch):
     """A cursor pinned to an older run must not attach to the thread's NEWER
     active stream (codex audit CX1) — mismatch answers 204, no replay."""

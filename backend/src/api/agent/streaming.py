@@ -210,6 +210,27 @@ def _chunk_text(chunk: Any) -> str:
     return ""
 
 
+def _latest_turn_assistant_text(messages: Any) -> str:
+    """Text of the newest AI message produced AFTER the newest human turn.
+
+    A plain reversed last-AI-with-content scan reaches PAST the current turn:
+    when a turn parks on a HITL interrupt (or otherwise produces no AI text),
+    the scan lands on the PREVIOUS turn's answer, which then gets streamed as
+    a fake token frame and persisted as this turn's assistant row — the exact
+    duplicate observed live on thread 014caf59 (2026-08-12). Stopping at the
+    first human message bounds the scan to the current turn.
+    """
+    for msg in reversed(list(messages or [])):
+        msg_type = getattr(msg, "type", None)
+        if msg_type == "human":
+            return ""
+        if msg_type == "ai":
+            text = _chunk_text(msg)
+            if text:
+                return text
+    return ""
+
+
 async def _stream_luna_fast_path(
     *,
     request_body: Any,
@@ -1741,6 +1762,30 @@ async def stream_event_generator(
                 final_snapshot = await graph.aget_state(config)
                 final_values = final_snapshot.values if final_snapshot else {}
 
+            # Turn-scoped: the current turn's answer, or "" when the turn
+            # produced none (parked on an interrupt, or genuinely empty).
+            new_turn_text = _latest_turn_assistant_text(
+                final_values.get("messages", [])
+            )
+
+            # The completed_root_values fast path carries no tasks view, so a
+            # subgraph interrupt there looked exactly like "completed with no
+            # output" — has_interrupt read False, the old whole-state scan
+            # surfaced the PREVIOUS turn's answer, and the client got a
+            # duplicated bubble + persisted row instead of the approval gate
+            # (thread 014caf59, 2026-08-12). When the turn has no new answer
+            # and no snapshot, fetch one so the interrupt check is real — and
+            # adopt its values: the stale root dict is exactly what hid this
+            # turn's writes, so tool_executions and the turn text must come
+            # from the fresh view too (PR #1410 review).
+            if final_snapshot is None and not new_turn_text:
+                final_snapshot = await graph.aget_state(config)
+                if final_snapshot is not None and final_snapshot.values:
+                    final_values = final_snapshot.values
+                    new_turn_text = _latest_turn_assistant_text(
+                        final_values.get("messages", [])
+                    )
+
             # Check for pending interrupts (HITL confirmation needed)
             pending_tasks = final_snapshot.tasks if final_snapshot else ()
             has_interrupt = any(getattr(t, "interrupts", None) for t in pending_tasks)
@@ -1775,11 +1820,14 @@ async def stream_event_generator(
                 )
                 return
 
-            assistant_content = ""
-            for msg in reversed(final_values.get("messages", [])):
-                if hasattr(msg, "type") and msg.type == "ai" and msg.content:
-                    assistant_content = _chunk_text(msg)
-                    break
+            # Turn-scoped (computed above): "" when this turn produced no AI
+            # text — never the previous turn's answer.
+            # Turn-scoped text; if the checkpoint view still lags a turn the
+            # user WATCHED stream, fall back to the streamed tokens themselves
+            # — never persist an empty row for a streamed answer.
+            assistant_content = new_turn_text or (
+                "".join(streamed_parts) if streamed_token else ""
+            )
 
             # Surface a final answer that was produced WITHOUT streaming — the
             # greeting fast-path, a templated/degraded reply, or force_synthesis
@@ -1805,7 +1853,14 @@ async def stream_event_generator(
             # docs/plans/2026-05-13-agent-persist-perf.md. Resolved late
             # via the jobs module so tests can monkeypatch the safe
             # wrapper at runtime.
-            if resolved_thread_id is not None:
+            #
+            # Nothing-happened turns (no streamed tokens, no turn-scoped
+            # answer, no tool executions) persist NO assistant row: writing
+            # one would fabricate an empty transcript entry for a turn the
+            # client already surfaces as "no response received".
+            if resolved_thread_id is not None and (
+                streamed_token or assistant_content or tool_executions_out
+            ):
                 persist_kwargs = dict(
                     thread_id=resolved_thread_id,
                     content=assistant_content,
@@ -2596,11 +2651,12 @@ async def stream_confirm_event_generator(
             for te in final_values.get("tool_executions", [])
         ] or None
 
-        assistant_content = ""
-        for msg in reversed(final_values.get("messages", [])):
-            if hasattr(msg, "type") and msg.type == "ai" and msg.content:
-                assistant_content = _chunk_text(msg)
-                break
+        # Turn-scoped: the resumed turn's messages sit after the newest human
+        # turn, so this finds the post-confirm answer — and returns "" (never
+        # a stale prior answer) if the resume produced no AI text.
+        assistant_content = _latest_turn_assistant_text(
+            final_values.get("messages", [])
+        )
 
         # Persist ONLY the assistant row for the resumed turn. The user row
         # that started this turn was already written up-front by the original
