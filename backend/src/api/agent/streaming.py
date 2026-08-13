@@ -2797,6 +2797,23 @@ async def stream_confirm_event_generator(
         if persist_partial_stop is not None:
             with contextlib.suppress(Exception):
                 await persist_partial_stop()
+        # R2-H1: an error at confirm time previously left the durable run
+        # AWAITING_CONFIRMATION forever — the thread read as blocked and the
+        # run never terminated. Finalize as FAILED (best-effort; the user
+        # still gets the ERROR frame either way).
+        with contextlib.suppress(Exception):
+            await _finalize_run_id(
+                db,
+                str(active_run.job_id) if active_run is not None else None,
+                current_user,
+                status=JobStatus.FAILED,
+                event_type=RunEventType.RUN_FAILED,
+                payload={
+                    "reason": "confirm_error",
+                    "error": str(e)[:500],
+                    "request_id": emitter.trace_id,
+                },
+            )
         frame = await emitter.emit(AgentStreamEvent.ERROR, error_frame_payload(e))
         if not client_disconnected:
             yield frame
