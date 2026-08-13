@@ -1763,9 +1763,17 @@ async def stream_event_generator(
             # surfaced the PREVIOUS turn's answer, and the client got a
             # duplicated bubble + persisted row instead of the approval gate
             # (thread 014caf59, 2026-08-12). When the turn has no new answer
-            # and no snapshot, fetch one so the interrupt check is real.
+            # and no snapshot, fetch one so the interrupt check is real — and
+            # adopt its values: the stale root dict is exactly what hid this
+            # turn's writes, so tool_executions and the turn text must come
+            # from the fresh view too (PR #1410 review).
             if final_snapshot is None and not new_turn_text:
                 final_snapshot = await graph.aget_state(config)
+                if final_snapshot is not None and final_snapshot.values:
+                    final_values = final_snapshot.values
+                    new_turn_text = _latest_turn_assistant_text(
+                        final_values.get("messages", [])
+                    )
 
             # Check for pending interrupts (HITL confirmation needed)
             pending_tasks = final_snapshot.tasks if final_snapshot else ()
@@ -1803,7 +1811,12 @@ async def stream_event_generator(
 
             # Turn-scoped (computed above): "" when this turn produced no AI
             # text — never the previous turn's answer.
-            assistant_content = new_turn_text
+            # Turn-scoped text; if the checkpoint view still lags a turn the
+            # user WATCHED stream, fall back to the streamed tokens themselves
+            # — never persist an empty row for a streamed answer.
+            assistant_content = new_turn_text or (
+                "".join(streamed_parts) if streamed_token else ""
+            )
 
             # Surface a final answer that was produced WITHOUT streaming — the
             # greeting fast-path, a templated/degraded reply, or force_synthesis
