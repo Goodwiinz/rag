@@ -11509,6 +11509,8 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             status: components["schemas"]["JobStatus"];
+            /** Thread Id */
+            thread_id?: string | null;
             /** Tool Executions */
             tool_executions?: {
                 [key: string]: unknown;

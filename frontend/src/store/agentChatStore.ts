@@ -70,7 +70,7 @@ const initialState: AgentChatState = {
   pageContext: DEFAULT_PAGE_CONTEXT,
   isLoadingThreads: false,
   isLoadingMessages: false,
-  pendingConfirmation: null,
+  pendingConfirmations: {},
   isConfirming: false,
   projectDataVersion: 0,
   currentPlan: null,
@@ -193,6 +193,12 @@ export const useAgentChatStore = create<AgentChatStore>()(
             await agentChatService.streamMessage(
               requestPayload,
               {
+                onTrace: (threadId: string) => {
+                  if (!isCurrentGeneration()) return;
+                  set((state) => {
+                    if (!state.activeThreadId) state.activeThreadId = threadId;
+                  });
+                },
                 onToken: (content: string) => {
                   if (!isCurrentGeneration()) return;
                   streamedContent += content;
@@ -328,7 +334,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
                       state.messages[idx].content =
                         'Waiting for your confirmation...';
                     }
-                    state.pendingConfirmation = {
+                    state.pendingConfirmations[threadId] = {
+                      threadId,
+                      assistantMessageId: placeholderId,
                       jobId: threadId, // thread_id used as job identifier for SSE
                       tools:
                         (confirmation.tools as Array<{
@@ -457,8 +465,17 @@ export const useAgentChatStore = create<AgentChatStore>()(
               tokenlessTicks += 1;
               continue;
             }
+            const ownerThreadId =
+              requestPayload.thread_id ??
+              (typeof meta.threadId === 'string' ? meta.threadId : undefined);
+            if (!ownerThreadId) {
+              throw new Error('Durable confirmation is missing its thread id');
+            }
             set((state) => {
-              state.pendingConfirmation = {
+              state.activeThreadId ??= ownerThreadId;
+              state.pendingConfirmations[ownerThreadId] = {
+                threadId: ownerThreadId,
+                assistantMessageId: placeholderId,
                 jobId: runId,
                 tools:
                   ((meta.confirmation as Record<string, unknown>)?.tools as
@@ -468,7 +485,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   ((meta.confirmation as Record<string, unknown>)
                     ?.message as string) ||
                   'The agent wants to perform an action. Please confirm.',
-                ...(hasToken ? { waitTokenId: meta.waitTokenId as string } : {}),
+                ...(hasToken
+                  ? { waitTokenId: meta.waitTokenId as string }
+                  : {}),
               };
               const idx = state.messages.findIndex(
                 (m) => m.id === placeholderId
@@ -569,13 +588,14 @@ export const useAgentChatStore = create<AgentChatStore>()(
       }
     },
 
-    confirmAction: async (confirmed: boolean) => {
-      const { pendingConfirmation } = get();
+    confirmAction: async (threadId: string, confirmed: boolean) => {
+      const pendingConfirmation = get().pendingConfirmations[threadId];
       if (!pendingConfirmation) return;
+      if (get().activeThreadId !== threadId) return;
 
       const jobId = pendingConfirmation.jobId;
-      // Capture the durable wait token NOW: the set() below nulls
-      // pendingConfirmation, so re-reading it from the store in the fallback
+      // Capture the durable wait token NOW: the set() below removes this
+      // thread's pending confirmation, so re-reading it in the fallback
       // branch (after streamConfirm fails) would always be undefined —
       // silently skipping completeDurableConfirmation and mis-routing a
       // durable-run approval to the legacy /confirm endpoint, which fails and
@@ -596,10 +616,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
       // message" — the user can switch threads mid-confirm, and the newly
       // visible thread's last assistant message would then belong to a
       // different conversation entirely (cross-thread corruption).
-      const confirmThreadId = get().activeThreadId;
-      const targetMessageId =
-        [...get().messages].reverse().find((m) => m.role === 'assistant')?.id ??
-        null;
+      const confirmThreadId = pendingConfirmation.threadId;
+      const targetMessageId = pendingConfirmation.assistantMessageId;
       // The thread-id clause is defense-in-depth: today every thread switch
       // also nulls _abortController synchronously, so the identity check
       // alone would catch it — kept in case controller-nulling and
@@ -613,12 +631,22 @@ export const useAgentChatStore = create<AgentChatStore>()(
         state.isStreaming = true;
         (state as unknown as AgentChatStore)._abortController = abortController;
         // Update the waiting message to show streaming
-        const idx = state.messages.findIndex((m) => m.id === targetMessageId);
+        let idx = state.messages.findIndex((m) => m.id === targetMessageId);
+        if (idx === -1) {
+          state.messages.push({
+            id: targetMessageId,
+            role: 'assistant',
+            content: '',
+            timestamp: new Date(),
+            isStreaming: true,
+          });
+          idx = state.messages.length - 1;
+        }
         if (idx !== -1) {
           state.messages[idx].isStreaming = true;
           state.messages[idx].content = '';
         }
-        state.pendingConfirmation = null;
+        delete state.pendingConfirmations[threadId];
       });
 
       try {
@@ -762,7 +790,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     state.messages[idx].content =
                       'Waiting for your confirmation...';
                   }
-                  state.pendingConfirmation = {
+                  state.pendingConfirmations[threadId] = {
+                    threadId,
+                    assistantMessageId: targetMessageId,
                     jobId: threadId,
                     tools:
                       (confirmation.tools as Array<{
@@ -812,12 +842,23 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }
                   state.isStreaming = false;
                   state.isConfirming = false;
+                  state.pendingConfirmations[threadId] = pendingConfirmation;
                   (state as unknown as AgentChatStore)._abortController = null;
                 });
               },
             },
             abortController.signal
           );
+          if (abortController.signal.aborted) {
+            set((state) => {
+              state.pendingConfirmations[threadId] ??= pendingConfirmation;
+              const store = state as unknown as AgentChatStore;
+              if (store._abortController !== abortController) return;
+              state.isStreaming = false;
+              state.isConfirming = false;
+              store._abortController = null;
+            });
+          }
           return; // SSE confirm succeeded
         } catch {
           // SSE confirm failed — fall back to polling
@@ -871,7 +912,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }
                 }
                 state.isStreaming = false;
-                state.pendingConfirmation = null;
+                delete state.pendingConfirmations[threadId];
                 state.isConfirming = false;
               });
               return;
@@ -891,7 +932,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }
                 }
                 state.isStreaming = false;
-                state.pendingConfirmation = null;
+                delete state.pendingConfirmations[threadId];
                 state.isConfirming = false;
               });
               return;
@@ -941,7 +982,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }
                 }
                 state.isStreaming = false;
-                state.pendingConfirmation = null;
+                delete state.pendingConfirmations[threadId];
                 state.isConfirming = false;
 
                 if (hasMutation) {
@@ -973,7 +1014,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }
                 }
                 state.isStreaming = false;
-                state.pendingConfirmation = null;
+                delete state.pendingConfirmations[threadId];
                 state.isConfirming = false;
               });
               return;
@@ -984,11 +1025,23 @@ export const useAgentChatStore = create<AgentChatStore>()(
         // If superseded (stopGeneration / thread switch already aborted this
         // generation), its own reset already ran — don't clobber whatever
         // owns the slot now. Mirrors sendMessage's outer catch guard.
-        if (abortController.signal.aborted) return;
+        if (abortController.signal.aborted) {
+          set((state) => {
+            state.pendingConfirmations[threadId] ??= pendingConfirmation;
+          });
+          return;
+        }
         set((state) => {
           state.isStreaming = false;
           state.isConfirming = false;
-          state.pendingConfirmation = null;
+          state.pendingConfirmations[threadId] = pendingConfirmation;
+          const idx = state.messages.findIndex(
+            (message) => message.id === targetMessageId
+          );
+          if (idx !== -1) {
+            state.messages[idx].isStreaming = false;
+            state.messages[idx].content = 'Waiting for your confirmation...';
+          }
           (state as unknown as AgentChatStore)._abortController = null;
         });
       }
@@ -1045,7 +1098,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
         state.messages = [];
         state.activeThreadId = null;
         state.isStreaming = false;
-        state.pendingConfirmation = null;
+        state.pendingConfirmations = {};
         state.currentPlan = null;
         (state as unknown as AgentChatStore)._abortController = null;
       }),

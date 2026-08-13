@@ -21,6 +21,7 @@ import time
 from collections import OrderedDict
 from threading import Lock
 from typing import TYPE_CHECKING, Any, Optional
+from uuid import uuid4
 
 from src.core.config import get_settings
 from src.shared.enums import JobStatus
@@ -53,6 +54,15 @@ _L1_CLEANUP_INTERVAL = 60.0
 # same ``time.time()`` tick, so two updates in one tick cannot overwrite out of
 # order (created_at alone can't disambiguate them).
 _seq: int = 0
+
+
+class ConfirmationCoordinationUnavailable(RuntimeError):
+    """Raised when a shared deployment cannot claim a confirmation safely."""
+
+
+def process_local_confirmation_coordination_allowed() -> bool:
+    """Whether this process may use an in-memory confirmation claim."""
+    return get_settings().is_throwaway_environment
 
 
 def _is_newer_or_equal(data: dict, existing: dict) -> bool:
@@ -372,16 +382,21 @@ async def compare_and_set_status(
     only one wins this compare-and-set, so only one schedules a resume — without
     it a destructive HITL tool (ingest/create_note/create_draft) could execute
     twice. Uses a Redis WATCH/MULTI optimistic transaction (JSON parsed in
-    Python to avoid cjson's empty-dict ambiguity), falling back to an in-memory
-    transition when Redis is unavailable or errors mid-op.
+    Python to avoid cjson's empty-dict ambiguity). Disposable local/CI processes
+    may fall back to memory; shared deployments fail closed without Redis.
     """
     redis_client = await _get_redis()
     if redis_client is None:
+        if not process_local_confirmation_coordination_allowed():
+            raise ConfirmationCoordinationUnavailable(
+                "Distributed confirmation coordination is unavailable"
+            )
         return await _cas_in_memory(job_id, expected, new_status)
 
     key = f"{_JOB_KEY_PREFIX}{job_id}"
     from redis.exceptions import RedisError, WatchError
 
+    claim_id = uuid4().hex
     try:
         async with redis_client.pipeline(transaction=True) as pipe:
             while True:
@@ -396,6 +411,7 @@ async def compare_and_set_status(
                         await pipe.reset()
                         return "conflict"
                     job["status"] = new_status
+                    job["_confirmation_claim_id"] = claim_id
                     ttl = await pipe.ttl(key)
                     pipe.multi()
                     pipe.setex(
@@ -412,17 +428,32 @@ async def compare_and_set_status(
                     await pipe.reset()
                     continue
     except (RedisError, OSError, asyncio.TimeoutError):
-        # Operational Redis/connection error (not a logical conflict). Degrade to
-        # the in-memory path rather than fail-closed: dropping the transition
-        # would silently stall a HITL confirm on a transient Redis blip.
-        # Unexpected (non-operational) errors propagate so real defects surface.
+        # Operational Redis/connection error (not a logical conflict). Only a
+        # disposable single-process environment can safely fall back to memory;
+        # shared deployments fail closed so two pods cannot both resume.
         logger.warning(
             "compare_and_set_status Redis path failed for job %s; "
-            "falling back to in-memory",
+            "checking whether an in-memory fallback is safe",
             job_id,
             exc_info=True,
         )
-        return await _cas_in_memory(job_id, expected, new_status)
+        if not process_local_confirmation_coordination_allowed():
+            try:
+                committed_raw = await redis_client.get(key)
+                committed = _json.loads(committed_raw) if committed_raw else None
+            except (RedisError, OSError, asyncio.TimeoutError, ValueError):
+                committed = None
+            if not (
+                committed
+                and committed.get("status") == new_status
+                and committed.get("_confirmation_claim_id") == claim_id
+            ):
+                raise ConfirmationCoordinationUnavailable(
+                    "Distributed confirmation coordination is unavailable"
+                )
+            job = committed
+        else:
+            return await _cas_in_memory(job_id, expected, new_status)
 
     # Mirror the winning transition into L1 so this worker's polls are consistent.
     with _l1_lock:

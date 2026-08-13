@@ -47,9 +47,9 @@ export function useNotificationBridge() {
   // --- 2. Bridge agent chat events ---
   const agentMessages = useAgentChatStore((s) => s.messages);
   const isStreaming = useAgentChatStore((s) => s.isStreaming);
-  const pendingConfirmation = useAgentChatStore((s) => s.pendingConfirmation);
+  const pendingConfirmations = useAgentChatStore((s) => s.pendingConfirmations);
   const prevStreamingRef = useRef(false);
-  const lastConfirmIdRef = useRef<string | null>(null);
+  const notifiedConfirmIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (prevStreamingRef.current && !isStreaming && agentMessages.length > 0) {
@@ -74,19 +74,16 @@ export function useNotificationBridge() {
 
   // HITL interrupt
   useEffect(() => {
-    if (!pendingConfirmation) return;
-    const confirmId =
-      pendingConfirmation.jobId || JSON.stringify(pendingConfirmation);
-    if (confirmId === lastConfirmIdRef.current) return;
-
-    lastConfirmIdRef.current = confirmId;
-
-    addNotification({
-      channel: 'agent',
-      title: 'Agent paused — review required',
-      snippet: `The agent wants to run a destructive tool and needs your approval.`,
-      severity: 'warn',
-      linkTo: '/chat',
-    });
-  }, [pendingConfirmation, addNotification]);
+    for (const pending of Object.values(pendingConfirmations)) {
+      if (notifiedConfirmIdsRef.current.has(pending.jobId)) continue;
+      notifiedConfirmIdsRef.current.add(pending.jobId);
+      addNotification({
+        channel: 'agent',
+        title: 'Agent paused — review required',
+        snippet: `The agent wants to run a destructive tool and needs your approval.`,
+        severity: 'warn',
+        linkTo: '/chat',
+      });
+    }
+  }, [pendingConfirmations, addNotification]);
 }

@@ -6092,6 +6092,17 @@
           "status": {
             "$ref": "#/components/schemas/JobStatus"
           },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
           "tool_executions": {
             "anyOf": [
               {

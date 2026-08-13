@@ -74,7 +74,7 @@ describe('useChatStreaming confirm-path resume cursor', () => {
         }
       ) => {
         cb.onConfirmation?.(threadId, CONFIRMATION);
-        return { resumed: true };
+        return { status: 'resumed' };
       }
     );
     useAgentActivityStore.setState({ runs: {}, currentThreadId: null });

@@ -5,6 +5,7 @@
 // SECOND interrupt.
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import {
+  act,
   renderHook,
   waitFor,
   type RenderHookResult,
@@ -63,7 +64,7 @@ function parkedInterrupt(): void {
       }
     ) => {
       cb.onConfirmation?.(threadId, CONFIRMATION);
-      return { resumed: true };
+      return { status: 'resumed' };
     }
   );
 }
@@ -91,7 +92,7 @@ async function renderStreaming(): Promise<
 describe('useChatStreaming pending-confirmation probe (cold thread load)', () => {
   beforeEach(() => {
     resumeStreamMock.mockReset();
-    resumeStreamMock.mockResolvedValue({ resumed: false });
+    resumeStreamMock.mockResolvedValue({ status: 'idle' });
     useAgentActivityStore.setState({ runs: {}, currentThreadId: null });
     useChatStore.setState({
       currentThreadId: 'thread-A',
@@ -115,6 +116,33 @@ describe('useChatStreaming pending-confirmation probe (cold thread load)', () =>
       confirmation: CONFIRMATION,
     });
     expect(resumeStreamMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps each parked confirmation while probing another thread', async () => {
+    parkedInterrupt();
+    const { result } = await renderStreaming();
+    await waitFor(() =>
+      expect(result.current.pendingConfirmation?.workspaceThreadId).toBe(
+        'thread-A'
+      )
+    );
+
+    await act(async () => {
+      useChatStore.setState({ currentThreadId: 'thread-B' });
+    });
+    await waitFor(() =>
+      expect(result.current.pendingConfirmation?.workspaceThreadId).toBe(
+        'thread-B'
+      )
+    );
+    expect(resumeStreamMock).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      useChatStore.setState({ currentThreadId: 'thread-A' });
+    });
+    expect(result.current.pendingConfirmation?.workspaceThreadId).toBe(
+      'thread-A'
+    );
   });
 
   it('leaves the gate closed when the server has nothing parked (204)', async () => {
@@ -161,11 +189,25 @@ describe('useChatStreaming pending-confirmation probe (cold thread load)', () =>
     expect(resumeStreamMock).not.toHaveBeenCalled();
   });
 
-  it('survives a failing probe without breaking the thread view', async () => {
-    resumeStreamMock.mockRejectedValue(new Error('offline'));
+  it('retries a failed probe when the thread is activated again', async () => {
+    resumeStreamMock.mockResolvedValue({
+      status: 'failed',
+      error: 'offline',
+    });
+    useAgentActivityStore.getState().startRun('thread-B', 'NOUS', 'settled');
+    useAgentActivityStore.getState().finishRun('thread-B', 'stopped');
     const { result } = await renderStreaming();
 
-    await waitFor(() => expect(resumeStreamMock).toHaveBeenCalled());
+    await waitFor(() => expect(resumeStreamMock).toHaveBeenCalledTimes(1));
     expect(result.current.pendingConfirmation).toBeNull();
+
+    await act(async () => {
+      useChatStore.setState({ currentThreadId: 'thread-B' });
+    });
+    await act(async () => {
+      useChatStore.setState({ currentThreadId: 'thread-A' });
+    });
+
+    await waitFor(() => expect(resumeStreamMock).toHaveBeenCalledTimes(2));
   });
 });

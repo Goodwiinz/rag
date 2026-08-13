@@ -52,6 +52,7 @@ from src.services.agent.agent_submission_service import (
     finalize_submission,
     mark_submission_dispatched,
 )
+from src.services.agent.job_store import process_local_confirmation_coordination_allowed
 from src.services.agent.observability import AgentStreamSLOTracker, record_token_usage
 from src.services.agent.run_event_types import RunEventType
 from src.services.agent.trace_metadata import TraceSource, build_trace_metadata
@@ -2332,15 +2333,21 @@ async def stream_confirm_event_generator(
             confirm_claim_key = (
                 f"hitl-confirm-claim:{request_body.thread_id}:{resume_ckpt_id}"
             )
-            # R2-H4 (review follow-up): the local claim is taken FIRST and
-            # ALWAYS — Redis then ADDS cross-worker coordination on top
-            # rather than replacing it. Two reasons (codex review on #1413):
-            # a Redis outage TRANSITION (worker A claimed locally while Redis
-            # was down, Redis recovers, worker A's request still running)
-            # must not let a second confirm in the same worker acquire a
-            # fresh Redis key and double-resume; and a Redis client that was
-            # healthy at startup but errors NOW must degrade to the local
-            # claim instead of failing the confirm outright.
+            if (
+                redis_client is None
+                and not process_local_confirmation_coordination_allowed()
+            ):
+                yield await emitter.emit(
+                    AgentStreamEvent.ERROR,
+                    error_frame_payload(
+                        "Confirmation is temporarily unavailable; please retry",
+                        AgentErrorCategory.INTERNAL,
+                    ),
+                )
+                return
+            # Take the local claim first for same-process exclusion. Redis then
+            # adds the required cross-worker claim in shared deployments; only
+            # disposable single-process environments may proceed without it.
             claim_is_local = True
             if not _acquire_local_confirm_claim(confirm_claim_key):
                 yield await emitter.emit(
@@ -2359,13 +2366,24 @@ async def stream_confirm_event_generator(
                         redis_client, confirm_claim_key, ttl=330
                     )
                 except Exception:
-                    # Redis reachable at startup, erroring now — the local
-                    # claim above already protects this worker; proceed.
+                    # A local claim is sufficient only for disposable,
+                    # single-process environments. Shared deployments must
+                    # fail closed or another pod can resume the same tool.
                     logger.warning(
-                        "Confirm claim: Redis lock errored; proceeding on "
-                        "the in-process claim only",
+                        "Confirm claim: Redis lock errored",
                         exc_info=True,
                     )
+                    if not process_local_confirmation_coordination_allowed():
+                        _release_local_confirm_claim(confirm_claim_key)
+                        claim_is_local = False
+                        yield await emitter.emit(
+                            AgentStreamEvent.ERROR,
+                            error_frame_payload(
+                                "Confirmation is temporarily unavailable; please retry",
+                                AgentErrorCategory.INTERNAL,
+                            ),
+                        )
+                        return
                     redis_claimed = None  # not held — don't release later
                 if redis_claimed is False:
                     # Another worker holds the claim. Release our local one
@@ -2382,6 +2400,15 @@ async def stream_confirm_event_generator(
                     return
                 claim_is_redis = redis_claimed is True
         else:
+            if not process_local_confirmation_coordination_allowed():
+                yield await emitter.emit(
+                    AgentStreamEvent.ERROR,
+                    error_frame_payload(
+                        "Confirmation is temporarily unavailable; please retry",
+                        AgentErrorCategory.INTERNAL,
+                    ),
+                )
+                return
             logger.warning(
                 "No checkpoint id for resumed thread %s; confirm proceeds "
                 "unclaimed (matches the cmid fallback philosophy)",

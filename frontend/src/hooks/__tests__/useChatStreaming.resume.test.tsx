@@ -1,11 +1,11 @@
 /**
  * Resume-on-mount: a stale `running` run in the agent activity store for the
  * displayed thread must trigger agentChatService.resumeStream (from the last
- * seen seq), and a 204/{resumed:false} must clear the stale run record.
+ * seen seq), and a 204/idle result must clear the stale run record.
  */
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
@@ -99,7 +99,7 @@ describe('useChatStreaming stream resume on mount', () => {
   it('resumes a stale running run from its streamSeq when not streaming', async () => {
     useAgentActivityStore.getState().startRun('thread-A', 'Agent', 'task');
     useAgentActivityStore.getState().setStreamSeq('thread-A', 7);
-    resumeStreamMock.mockResolvedValue({ resumed: true });
+    resumeStreamMock.mockResolvedValue({ status: 'resumed' });
 
     await act(async () => {
       renderHook(() => useChatStreaming(makeParams()), { wrapper });
@@ -110,9 +110,9 @@ describe('useChatStreaming stream resume on mount', () => {
     expect(resumeStreamMock.mock.calls[0][1]).toBe(7);
   });
 
-  it('clears the stale run on {resumed:false} and does not resume twice', async () => {
+  it('clears the stale run on idle and does not resume twice', async () => {
     useAgentActivityStore.getState().startRun('thread-A', 'Agent', 'task');
-    resumeStreamMock.mockResolvedValue({ resumed: false });
+    resumeStreamMock.mockResolvedValue({ status: 'idle' });
 
     let rerender: () => void = () => {};
     await act(async () => {
@@ -132,12 +132,39 @@ describe('useChatStreaming stream resume on mount', () => {
     );
   });
 
+  it('keeps a failed resume retryable on the next thread activation', async () => {
+    useAgentActivityStore.getState().startRun('thread-A', 'Agent', 'task');
+    useAgentActivityStore.getState().startRun('thread-B', 'Agent', 'settled');
+    useAgentActivityStore.getState().finishRun('thread-B', 'stopped');
+    resumeStreamMock.mockResolvedValue({
+      status: 'failed',
+      error: 'checkpoint unavailable',
+    });
+
+    await act(async () => {
+      renderHook(() => useChatStreaming(makeParams()), { wrapper });
+    });
+    await waitFor(() => expect(resumeStreamMock).toHaveBeenCalledTimes(1));
+    expect(useAgentActivityStore.getState().runs['thread-A'].state).toBe(
+      'running'
+    );
+
+    act(() => useChatStore.setState({ currentThreadId: 'thread-B' }));
+    act(() => useChatStore.setState({ currentThreadId: 'thread-A' }));
+
+    await waitFor(() => expect(resumeStreamMock).toHaveBeenCalledTimes(2));
+    expect(resumeStreamMock.mock.calls.map(([threadId]) => threadId)).toEqual([
+      'thread-A',
+      'thread-A',
+    ]);
+  });
+
   it('does not resume a stream when there is no run for the thread', async () => {
     // With no run record the hook still asks ONCE whether the thread is parked
     // on a HITL interrupt (a cold reload has no in-memory run either) — but
     // that probe is confirmation-only, from seq 0. It must not turn into a
     // stream resume: no token/done handling, nothing committed.
-    resumeStreamMock.mockResolvedValue({ resumed: false });
+    resumeStreamMock.mockResolvedValue({ status: 'idle' });
     await act(async () => {
       renderHook(() => useChatStreaming(makeParams()), { wrapper });
     });
@@ -165,7 +192,7 @@ describe('useChatStreaming stream resume on mount', () => {
           assistant_message_id: 'resume-assistant-1',
           client_message_id: 'resume-runtime-1',
         });
-        return Promise.resolve({ resumed: true });
+        return Promise.resolve({ status: 'resumed' });
       }
     );
     const actualRefresh = useChatStore.getState().refreshMessages;

@@ -314,8 +314,9 @@ export function useChatStreaming(
   // ---- State ----
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [pendingConfirmation, setPendingConfirmation] =
-    useState<PendingConfirmation | null>(null);
+  const [pendingConfirmations, setPendingConfirmations] = useState<
+    Record<string, PendingConfirmation>
+  >({});
   const [isConfirming, setIsConfirming] = useState(false);
 
   // ---- Refs ----
@@ -358,6 +359,7 @@ export function useChatStreaming(
   // Threads already asked whether they hold a parked HITL confirmation —
   // one probe per thread activation (see the cold-load effect below).
   const confirmationProbedRef = useRef<Set<string>>(new Set());
+  const lastActivatedThreadRef = useRef<string | null>(null);
   const probeAbortRef = useRef<AbortController | null>(null);
   const hadPendingApprovalRef = useRef(false);
 
@@ -368,9 +370,38 @@ export function useChatStreaming(
   const storeIsRetrievingRag = useChatStore((state) => state.isRetrievingRag);
   const streamingThreadId = useChatStore((state) => state.streamingThreadId);
   const activeThreadId = useChatStore((state) => state.currentThreadId);
+  const pendingConfirmation = activeThreadId
+    ? (pendingConfirmations[activeThreadId] ?? null)
+    : null;
+  const setPendingConfirmation = useCallback(
+    (next: PendingConfirmation | null) => {
+      const threadId = next?.workspaceThreadId || activeThreadId;
+      if (!threadId) return;
+      setPendingConfirmations((current) => {
+        if (next) return { ...current, [threadId]: next };
+        if (!(threadId in current)) return current;
+        const updated = { ...current };
+        delete updated[threadId];
+        return updated;
+      });
+    },
+    [activeThreadId]
+  );
 
   const router = useRouter();
   const queryClient = useQueryClient();
+
+  // Recovery is once per activation, not once per component lifetime. A
+  // failed resume/probe can be retried by leaving and returning to the thread.
+  useEffect(() => {
+    if (lastActivatedThreadRef.current !== activeThreadId) {
+      if (activeThreadId) {
+        resumeTriedRef.current.delete(activeThreadId);
+        confirmationProbedRef.current.delete(activeThreadId);
+      }
+      lastActivatedThreadRef.current = activeThreadId;
+    }
+  }, [activeThreadId]);
 
   // Refetch the Working-folders queries once a project-mutating tool
   // succeeds, so the rail shows agent-created sources/notes/drafts without
@@ -1035,6 +1066,7 @@ export function useChatStreaming(
       enableRAG,
       invalidateProjectDataForTool,
       maybeAutoFocusCreatedNote,
+      setPendingConfirmation,
       displayedMessages.length,
     ]
   );
@@ -1062,7 +1094,6 @@ export function useChatStreaming(
       }
       submitLockRef.current = true;
       try {
-
         // Create the idempotency/runtime identity before the optimistic bubble.
         // The backend stores this on the user row and derives the assistant row's
         // client id with the same UUIDv5 contract below.
@@ -1348,9 +1379,11 @@ export function useChatStreaming(
           signal,
           run.streamId
         );
-        if (!res.resumed) {
+        if (res.status === 'idle') {
           // Nothing active server-side — clear the stale run record.
           useAgentActivityStore.getState().finishRun(threadId, 'done');
+        } else if (res.status === 'failed') {
+          throw new Error(res.error);
         }
       },
     });
@@ -1415,7 +1448,13 @@ export function useChatStreaming(
     ).catch(() => {
       // Best-effort: a failed probe must not break the thread view.
     });
-  }, [activeThreadId, isLoading, storeIsStreaming, pendingConfirmation]);
+  }, [
+    activeThreadId,
+    isLoading,
+    storeIsStreaming,
+    pendingConfirmation,
+    setPendingConfirmation,
+  ]);
 
   // Unmount is the only place the in-flight probe is abandoned.
   useEffect(() => {
@@ -1668,11 +1707,15 @@ export function useChatStreaming(
                   pendingConfirmation.workspaceThreadId
                 );
                 const startTime = confirmToolStartTimes.get(tool);
-                const durationMs = startTime ? Date.now() - startTime : undefined;
+                const durationMs = startTime
+                  ? Date.now() - startTime
+                  : undefined;
                 const idx = [...confirmSteps]
                   .map((s, i) => ({ s, i }))
                   .reverse()
-                  .find(({ s }) => s.tool === tool && s.status === 'running')?.i;
+                  .find(
+                    ({ s }) => s.tool === tool && s.status === 'running'
+                  )?.i;
                 if (idx !== undefined) {
                   confirmSteps[idx] = {
                     ...confirmSteps[idx],
@@ -1712,7 +1755,10 @@ export function useChatStreaming(
                 };
               },
               onUsage: (inputTokens, outputTokens) => {
-                confirmTokenUsage = { input: inputTokens, output: outputTokens };
+                confirmTokenUsage = {
+                  input: inputTokens,
+                  output: outputTokens,
+                };
               },
               onReflection: (_passed, _issues, _round, revising) => {
                 if (!revising) return;
@@ -1723,7 +1769,10 @@ export function useChatStreaming(
               onDone: (payload) => {
                 confirmDoneIds = payload ?? {};
                 if (confirmContent.trim()) {
-                  const baseMessage = buildConfirmMessage(confirmContent, false);
+                  const baseMessage = buildConfirmMessage(
+                    confirmContent,
+                    false
+                  );
                   // The done payload carries the graph state's tool executions
                   // (parsed results, real durations) for the WHOLE turn —
                   // richer than the live SSE summaries, and identical to what
@@ -1770,7 +1819,8 @@ export function useChatStreaming(
                   },
                 };
                 confirmCommitted = true;
-                if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
+                if (isConfirmDisplayed())
+                  setMessages([...confirmMessages, msg]);
               },
             },
             confirmAbort.signal
@@ -1889,6 +1939,7 @@ export function useChatStreaming(
       setMessages,
       invalidateProjectDataForTool,
       maybeAutoFocusCreatedNote,
+      setPendingConfirmation,
     ]
   );
 

@@ -94,6 +94,8 @@ export interface AgentThread {
 export type AgentUIMode = 'closed' | 'panel' | 'sidebar';
 
 export interface PendingConfirmation {
+  threadId: string;
+  assistantMessageId: string;
   jobId: string;
   tools: Array<{ name: string; args: Record<string, unknown> }>;
   message: string;
@@ -129,7 +131,7 @@ export interface AgentChatState {
   isLoadingThreads: boolean;
   isLoadingMessages: boolean;
   /** Pending human-in-the-loop confirmation */
-  pendingConfirmation: PendingConfirmation | null;
+  pendingConfirmations: Record<string, PendingConfirmation>;
   /** Whether a confirmation action is in progress */
   isConfirming: boolean;
   /** Incremented when agent tools mutate project data (documents, notes, etc.) */
@@ -159,5 +161,5 @@ export interface AgentChatActions {
   // Context
   setPageContext: (context: PageContext) => void;
   // Human-in-the-loop
-  confirmAction: (confirmed: boolean) => Promise<void>;
+  confirmAction: (threadId: string, confirmed: boolean) => Promise<void>;
 }

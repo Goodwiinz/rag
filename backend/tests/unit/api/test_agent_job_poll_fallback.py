@@ -124,6 +124,22 @@ async def test_redis_hit_never_touches_postgres():
 
 
 @pytest.mark.asyncio
+async def test_redis_hit_exposes_resolved_thread_id():
+    user = _user()
+    thread_id = uuid.uuid4()
+    job = {
+        "status": "awaiting_confirmation",
+        "user_id": str(user.id),
+        "request": {"thread_id": str(thread_id)},
+    }
+    p1, p2 = _patch_stores(l1_job=job)
+    with p1, p2:
+        resp = await get_job_status(job_id=str(uuid.uuid4()), current_user=user)
+
+    assert resp.thread_id == str(thread_id)
+
+
+@pytest.mark.asyncio
 async def test_redis_hit_with_legacy_error_status_normalizes():
     """In-Redis records written pre-collapse still poll back as FAILED."""
     user = _user()

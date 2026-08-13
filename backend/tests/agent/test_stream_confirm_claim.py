@@ -162,3 +162,29 @@ async def test_claim_released_on_pre_resume_failure(stream_confirm_harness):
     # Retry must be able to claim again
     frames = [f async for f in harness.make_confirm_generator()]
     assert not any("already in progress" in f.lower() for f in frames)
+
+
+@pytest.mark.asyncio
+async def test_shared_environment_does_not_resume_without_redis(
+    stream_confirm_harness, monkeypatch
+):
+    harness = stream_confirm_harness
+    resume_calls = []
+
+    async def fake_astream_events(*args, **kwargs):
+        resume_calls.append(1)
+        yield {"event": "on_chat_model_stream", "data": {}}
+
+    harness.graph.astream_events = fake_astream_events
+    monkeypatch.setattr(
+        "src.services.agent.job_store.get_redis", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(
+        "src.api.agent.streaming.process_local_confirmation_coordination_allowed",
+        lambda: False,
+    )
+
+    frames = [frame async for frame in harness.make_confirm_generator()]
+
+    assert resume_calls == []
+    assert any("temporarily unavailable" in frame.lower() for frame in frames)

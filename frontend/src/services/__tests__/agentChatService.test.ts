@@ -201,7 +201,7 @@ describe('agentChatService.resumeStream', () => {
     global.fetch = realFetch;
   });
 
-  it('treats 204 as a clean no-op: no callbacks, {resumed:false}', async () => {
+  it('returns idle for 204 without firing callbacks', async () => {
     global.fetch = vi.fn(async () => ({
       ok: true,
       status: 204,
@@ -215,9 +215,29 @@ describe('agentChatService.resumeStream', () => {
       onDone,
       onError,
     });
-    expect(res).toEqual({ resumed: false });
+    expect(res).toEqual({ status: 'idle' });
     expect(onToken).not.toHaveBeenCalled();
     expect(onDone).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('returns a failed result for HTTP errors without firing stream callbacks', async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 503,
+      body: null,
+      text: async () => '{"detail":"checkpoint unavailable"}',
+    })) as unknown as typeof fetch;
+    const onError = vi.fn();
+
+    const res = await agentChatService.resumeStream('thread-1', 0, {
+      onError,
+    });
+
+    expect(res).toEqual({
+      status: 'failed',
+      error: 'Stream resume failed (503): checkpoint unavailable',
+    });
     expect(onError).not.toHaveBeenCalled();
   });
 
@@ -235,7 +255,7 @@ describe('agentChatService.resumeStream', () => {
       onSeq: (s) => seqs.push(s),
       onDone,
     });
-    expect(res).toEqual({ resumed: true });
+    expect(res).toEqual({ status: 'resumed' });
     expect(tokens).toEqual(['he', 'llo']);
     expect(seqs).toEqual([3, 4, 5]);
     expect(onDone).toHaveBeenCalledTimes(1);

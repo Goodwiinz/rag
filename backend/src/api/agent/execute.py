@@ -169,6 +169,7 @@ class JobStatusResponse(BaseModel):
     tool_executions: Optional[List[dict]] = None
     error: Optional[str] = None
     confirmation: Optional[dict] = None
+    thread_id: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -507,16 +508,27 @@ async def get_job_status(
         )
         if run is None:
             raise HTTPException(status_code=404, detail="Job not found")
+        run_thread_id = getattr(run, "thread_id", None)
         return JobStatusResponse(
-            status=_normalized_job_status(run.status), error=run.error
+            status=_normalized_job_status(run.status),
+            error=run.error,
+            thread_id=str(run_thread_id) if run_thread_id else None,
         )
     # Fail closed: a job record without an owner must not be readable. Every
     # write path stamps user_id; its absence means a corrupted/legacy record,
     # not a public one.
     if job.get("user_id") != str(current_user.id):
         raise HTTPException(status_code=404, detail="Job not found")
+    request = job.get("request")
+    thread_id = job.get("thread_id") or (
+        request.get("thread_id") if isinstance(request, dict) else None
+    )
     return JobStatusResponse(
-        **{**job, "status": _normalized_job_status(job.get("status"))}
+        **{
+            **job,
+            "status": _normalized_job_status(job.get("status")),
+            "thread_id": thread_id,
+        }
     )
 
 
@@ -535,7 +547,10 @@ async def confirm_agent_action(
     so the resume itself runs here as a BackgroundTask BY DESIGN even when
     the original turn executed on a Celery worker (see agent_run_tasks).
     """
-    from src.services.agent.job_store import compare_and_set_status
+    from src.services.agent.job_store import (
+        ConfirmationCoordinationUnavailable,
+        compare_and_set_status,
+    )
     from src.services.agent.job_store import get_job_fresh as _get_job_fresh
 
     # Read the job Redis-first for the friendly 404 + ownership/status check.
@@ -554,9 +569,15 @@ async def confirm_agent_action(
     # only the CAS winner schedules a resume, so a destructive HITL tool can't
     # be executed twice. The transition self-resets when a multi-step resume
     # re-parks the job as awaiting_confirmation, so the next confirm still works.
-    result = await compare_and_set_status(
-        job_id, JobStatus.AWAITING_CONFIRMATION, JobStatus.RUNNING
-    )
+    try:
+        result = await compare_and_set_status(
+            job_id, JobStatus.AWAITING_CONFIRMATION, JobStatus.RUNNING
+        )
+    except ConfirmationCoordinationUnavailable as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Confirmation is temporarily unavailable; please retry",
+        ) from exc
     if result == "missing":
         raise HTTPException(status_code=404, detail="Job not found")
     if result == "conflict":

@@ -17,7 +17,10 @@ export const AgentMessageList = React.memo(function AgentMessageList({
   isStreaming,
 }: AgentMessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const pendingConfirmation = useAgentChatStore((s) => s.pendingConfirmation);
+  const activeThreadId = useAgentChatStore((s) => s.activeThreadId);
+  const pendingConfirmation = useAgentChatStore((s) =>
+    s.activeThreadId ? s.pendingConfirmations[s.activeThreadId] : undefined
+  );
   const confirmAction = useAgentChatStore((s) => s.confirmAction);
   const isConfirming = useAgentChatStore((s) => s.isConfirming);
   const retryLastMessage = useAgentChatStore((s) => s.retryLastMessage);
@@ -114,8 +117,12 @@ export const AgentMessageList = React.memo(function AgentMessageList({
           <ConfirmationCard
             tools={pendingConfirmation.tools}
             message={pendingConfirmation.message}
-            onConfirm={() => void confirmAction(true)}
-            onCancel={() => void confirmAction(false)}
+            onConfirm={() =>
+              activeThreadId && void confirmAction(activeThreadId, true)
+            }
+            onCancel={() =>
+              activeThreadId && void confirmAction(activeThreadId, false)
+            }
             isLoading={isConfirming}
           />
         </div>
