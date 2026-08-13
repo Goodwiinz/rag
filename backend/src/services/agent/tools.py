@@ -283,7 +283,13 @@ async def search_documents(
     max_results: int = 10,
     config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
-    """Search the user's indexed documents by title or content."""
+    """Look up documents by title/filename substring match.
+
+    Does NOT search document content — for content-level questions
+    ("what do my documents say about X", comparisons, quotes) use
+    do_kb_retrieve instead. A multi-word query here must appear verbatim
+    in a single title/filename to match.
+    """
     config = config or {}
     from src.services.agent.tools_impl import _tool_search_documents
 
@@ -919,7 +925,13 @@ TOOL_REGISTRY = ToolRegistry(
         ToolDescriptor(
             name="do_kb_retrieve",
             tool=do_kb_retrieve,
-            intents=frozenset(),
+            # GENERAL: the classifier demotes weak-evidence turns to general on
+            # the premise that general is a superset of the specialist lanes
+            # (classifier.py). Without this binding, a content-level question
+            # landing in general had only title search — live miss 2026-08-12:
+            # "Compare the METR and MIT studies" → search_documents → 0 hits →
+            # "no documents found" with both docs indexed.
+            intents=frozenset({AgentIntent.GENERAL}),
             subgraphs=frozenset({AgentSubgraph.RESEARCH}),
             subgraph_positions=((AgentSubgraph.RESEARCH, 3),),
             policy_tags=frozenset(),
@@ -1021,7 +1033,11 @@ TOOL_REGISTRY = ToolRegistry(
         ToolDescriptor(
             name="compare_documents",
             tool=compare_documents,
-            intents=frozenset({AgentIntent.WRITING}),
+            # GENERAL: comparison phrasings rarely carry classifier signal
+            # (only two literal override phrases match), so they routinely land
+            # in general — where this tool must be callable (see do_kb_retrieve
+            # note above).
+            intents=frozenset({AgentIntent.WRITING, AgentIntent.GENERAL}),
             subgraphs=frozenset({AgentSubgraph.WRITING}),
             subgraph_positions=((AgentSubgraph.WRITING, 4),),
             policy_tags=frozenset({ToolPolicyTag.SLOW}),

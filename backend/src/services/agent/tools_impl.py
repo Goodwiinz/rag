@@ -1692,6 +1692,22 @@ async def _tool_search_documents(
             ],
             "total": len(docs),
             "query": query,
+            # Zero-hit escalation hint: this tool matches title/filename
+            # substrings only, so a miss says nothing about content. Without
+            # this the model reported "no documents found" while do_kb_retrieve
+            # sat unused one call away (live miss 2026-08-12).
+            **(
+                {
+                    "suggestion": (
+                        "No title/filename matched. This tool does not search "
+                        "document content — retry with do_kb_retrieve for a "
+                        "content-level (semantic) search before telling the "
+                        "user nothing was found."
+                    )
+                }
+                if not docs
+                else {}
+            ),
         }
     except Exception as e:
         logger.error("search_documents tool failed", exc_info=e)
