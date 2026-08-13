@@ -56,6 +56,8 @@ async def test_explicit_arxiv_search_emits_tool_call_without_llm(monkeypatch):
         "find arxiv papers on RAG over the past decade",
         "search arxiv for the earliest work on neural nets",
         "look up arxiv papers 2015-2020",
+        "search arxiv for papers in 2020",
+        "search arxiv for papers during 2020",
     ],
 )
 def test_explicit_time_window_skips_fast_path(content: str) -> None:
