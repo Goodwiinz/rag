@@ -421,6 +421,10 @@ class TestResumePersistence:
                 "src.services.agent.agent_execution_service.AsyncSessionLocal",
                 return_value=_mock_async_session(),
             ),
+            patch(
+                "src.services.agent.agent_run_service.record_job_status",
+                new_callable=AsyncMock,
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
@@ -494,6 +498,10 @@ class TestResumePersistence:
                 "src.services.agent.agent_execution_service.AsyncSessionLocal",
                 return_value=_mock_async_session(),
             ),
+            patch(
+                "src.services.agent.agent_run_service.record_job_status",
+                new_callable=AsyncMock,
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
@@ -562,6 +570,10 @@ class TestResumePersistence:
             patch(
                 "src.services.agent.agent_execution_service.AsyncSessionLocal",
                 return_value=_mock_async_session(),
+            ),
+            patch(
+                "src.services.agent.agent_run_service.record_job_status",
+                new_callable=AsyncMock,
             ),
         ):
             mock_graph = MagicMock()

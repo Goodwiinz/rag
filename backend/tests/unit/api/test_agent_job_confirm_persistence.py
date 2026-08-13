@@ -118,6 +118,10 @@ async def test_job_confirm_persists_assistant_only_with_checkpoint_cmid():
             return_value=_session_cm(),
         ),
         patch(
+            "src.services.agent.agent_run_service.record_job_status",
+            new_callable=AsyncMock,
+        ),
+        patch(
             "src.services.agent.agent_execution_service._persist_assistant_message_safe",
             new=persist_assistant,
         ),
