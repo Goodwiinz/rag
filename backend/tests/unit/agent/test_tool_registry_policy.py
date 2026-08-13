@@ -171,5 +171,7 @@ def test_search_documents_description_disclaims_content_search() -> None:
     from src.services.agent.tools import TOOL_REGISTRY
 
     desc = TOOL_REGISTRY.descriptor("search_documents").tool.description
-    assert "content" in desc  # names the limitation
+    # The old text — "Search the user's indexed documents by title or content"
+    # — also contained "content", so assert the disclaimer, not the substring.
+    assert "does not search" in desc.lower()
     assert "do_kb_retrieve" in desc  # points at the right tool

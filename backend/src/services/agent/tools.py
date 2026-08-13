@@ -932,8 +932,13 @@ TOOL_REGISTRY = ToolRegistry(
             # "Compare the METR and MIT studies" → search_documents → 0 hits →
             # "no documents found" with both docs indexed.
             intents=frozenset({AgentIntent.GENERAL}),
-            subgraphs=frozenset({AgentSubgraph.RESEARCH}),
-            subgraph_positions=((AgentSubgraph.RESEARCH, 3),),
+            # DATA: search_documents is bound to research + data, and its
+            # zero-hit path tells the model to escalate here. Bound to research
+            # only, that advice was unfollowable from the data subgraph —
+            # make_filtered_tool_node answers "not available in this context"
+            # (guarded by test_recovery_suggestions_are_callable).
+            subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 3), (AgentSubgraph.DATA, 8)),
             policy_tags=frozenset(),
             exposed_in_all_tools=False,
         ),
