@@ -58,8 +58,8 @@ from src.services.agent.agent_execution_service import (  # noqa: F401
     _jobs,
     _jobs_lock,
     _page_context_to_dict,
-    _resume_agent_graph,
     _resolve_thread,
+    _resume_agent_graph,
     _run_agent_graph,
     _set_job,
 )
