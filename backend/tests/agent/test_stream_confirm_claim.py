@@ -116,9 +116,7 @@ def stream_confirm_harness(monkeypatch):
         body = SimpleNamespace(thread_id="thread-cx1", confirmed=True, model="gpt-5")
         request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
         current_user = Mock(id="user-1", organization_id="org-1")
-        return streaming_mod.stream_confirm_event_generator(
-            body, request, current_user
-        )
+        return streaming_mod.stream_confirm_event_generator(body, request, current_user)
 
     return SimpleNamespace(
         graph=graph,
