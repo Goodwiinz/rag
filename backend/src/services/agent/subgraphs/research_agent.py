@@ -56,6 +56,7 @@ _EXPLICIT_TIME_WINDOW_RE = re.compile(
     r"\b(?:last|past|previous|within|over)\s+(?:the\s+)?"
     r"(?:\w+[-\s]+)?(?:year|month|week|day|decade)s?\b"
     r"|\b(?:since|before|after|between|from|until|up\s+to)\s+(?:19|20)\d{2}\b"
+    r"|\b(?:in|during)\s+(?:19|20)\d{2}\b"
     r"|\b(?:19|20)\d{2}\s*(?:-|–|to)\s*(?:19|20)\d{2}\b"
     r"|\ball[-\s]?time\b"
     r"|\bdecades?\b"
