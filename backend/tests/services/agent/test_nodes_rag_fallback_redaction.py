@@ -4,8 +4,10 @@ system prompt / SSE frame / citations (audit 2026-08-07, gap 1)."""
 
 from __future__ import annotations
 
+import uuid
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -56,3 +58,81 @@ async def test_hybrid_fallback_leaves_clean_content_intact() -> None:
 
     assert contexts[0]["title"] == "Plain title"
     assert contexts[0]["content"] == "plain body text"
+
+
+async def test_hybrid_fallback_keeps_active_project_scope() -> None:
+    from src.services.agent._nodes_rag import _legacy_hybrid_search_fallback
+
+    project_id = str(uuid.uuid4())
+    user_id = str(uuid.uuid4())
+    document_id = uuid.uuid4()
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [document_id]
+    session = SimpleNamespace(execute=AsyncMock(return_value=result))
+
+    @asynccontextmanager
+    async def scoped_session():
+        yield session
+
+    captured = {}
+
+    def search(**kwargs):
+        captured["request"] = kwargs["search_request"]
+        return SimpleNamespace(results=[])
+
+    with (
+        patch(
+            "src.services.agent.tool_session.tool_session",
+            side_effect=scoped_session,
+        ),
+        patch(
+            "src.services.search.hybrid_search_service.hybrid_search_service.search",
+            side_effect=search,
+        ),
+    ):
+        contexts = await _legacy_hybrid_search_fallback(
+            query="project query",
+            user_id=user_id,
+            organization_id=str(uuid.uuid4()),
+            project_id=project_id,
+        )
+
+    assert contexts == []
+    assert captured["request"].filters.document_ids == [str(document_id)]
+    sql = str(session.execute.await_args.args[0])
+    assert "collections.is_deleted = false" in sql
+    assert "collection_documents.is_deleted = false" in sql
+    assert "workspaces.owner_id" in sql
+
+
+async def test_hybrid_fallback_fails_closed_for_empty_project() -> None:
+    from src.services.agent._nodes_rag import _legacy_hybrid_search_fallback
+
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = []
+    session = SimpleNamespace(execute=AsyncMock(return_value=result))
+
+    @asynccontextmanager
+    async def scoped_session():
+        yield session
+
+    search = AsyncMock()
+    with (
+        patch(
+            "src.services.agent.tool_session.tool_session",
+            side_effect=scoped_session,
+        ),
+        patch(
+            "src.services.search.hybrid_search_service.hybrid_search_service.search",
+            search,
+        ),
+    ):
+        contexts = await _legacy_hybrid_search_fallback(
+            query="project query",
+            user_id=str(uuid.uuid4()),
+            organization_id=str(uuid.uuid4()),
+            project_id=str(uuid.uuid4()),
+        )
+
+    assert contexts == []
+    search.assert_not_called()

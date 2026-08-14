@@ -92,6 +92,26 @@ async def test_upsert_drops_non_uuid_thread_correlation(session_factory):
         assert run.thread_id is None
 
 
+async def test_upsert_rejects_a_second_active_run_for_the_thread(session_factory):
+    thread_id = uuid.uuid4()
+    async with session_factory() as db:
+        await svc.upsert_run(
+            db,
+            job_id=_job_id(),
+            status=JobStatus.RUNNING,
+            user_id=USER_A,
+            thread_id=thread_id,
+        )
+        with pytest.raises(svc.ActiveRunConflict):
+            await svc.upsert_run(
+                db,
+                job_id=_job_id(),
+                status=JobStatus.RUNNING,
+                user_id=USER_A,
+                thread_id=thread_id,
+            )
+
+
 async def test_upsert_normalizes_legacy_error_alias(session_factory):
     """A pre-collapse writer's "error" is stored as canonical "failed"."""
     job_id = _job_id()
@@ -412,6 +432,23 @@ async def test_record_job_status_never_raises(session_factory):
 
     with patch("src.core.database.AsyncSessionLocal", _boom):
         await svc.record_job_status(_job_id(), {"status": "running", "user_id": "u"})
+
+
+async def test_record_job_status_can_fail_closed_for_terminal_publication(
+    session_factory,
+):
+    def _boom(*a, **k):
+        raise RuntimeError("db down")
+
+    with (
+        patch("src.core.database.AsyncSessionLocal", _boom),
+        pytest.raises(RuntimeError, match="db down"),
+    ):
+        await svc.record_job_status(
+            _job_id(),
+            {"status": "completed", "user_id": "u"},
+            raise_on_error=True,
+        )
 
 
 async def test_record_job_status_ignores_statusless_payload(session_factory):

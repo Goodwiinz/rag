@@ -117,6 +117,10 @@ class TestHitlCheckpointOwnership:
                 "src.services.agent.agent_execution_service.AsyncSessionLocal",
                 return_value=_session_cm(db),
             ),
+            patch(
+                "src.services.agent.agent_run_service.record_job_status",
+                new_callable=AsyncMock,
+            ),
         ):
             await _resume_agent_graph(job_id, True, current_user)
 
@@ -255,7 +259,9 @@ class TestBackgroundTimeout:
                 new_callable=AsyncMock,
                 return_value=(None, ""),
             ),
-            patch("src.services.agent.agent_execution_service.asyncio.timeout") as mock_timeout,
+            patch(
+                "src.services.agent.agent_execution_service.asyncio.timeout"
+            ) as mock_timeout,
         ):
             mock_timeout.return_value.__aenter__ = AsyncMock(
                 side_effect=asyncio.TimeoutError()

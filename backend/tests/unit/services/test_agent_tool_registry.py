@@ -521,4 +521,13 @@ class TestProductionToolRegistryParity:
             descriptor.name
             for descriptor in TOOL_REGISTRY.descriptors
             if ToolPolicyTag.NO_OUTER_RETRY in descriptor.policy_tags
-        } == {"search_arxiv", "ingest_arxiv_papers"}
+        } == {
+            "search_arxiv",
+            "ingest_arxiv_papers",
+            "create_project",
+            "add_document_to_project",
+            "create_project_note",
+            "create_draft",
+            "execute_code",
+            "forget_memory",
+        }

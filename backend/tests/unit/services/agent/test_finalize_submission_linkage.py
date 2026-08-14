@@ -91,3 +91,25 @@ async def test_finalize_without_payload_leaves_column_untouched(
     )
 
     assert "assistant_message_id" not in _update_values(db)
+
+
+async def test_terminal_finalize_failure_propagates_after_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.services.agent.agent_submission_service as svc
+
+    monkeypatch.setattr(svc, "append_event", AsyncMock())
+    db = _spy_db()
+    db.commit.side_effect = RuntimeError("db unavailable")
+
+    with pytest.raises(RuntimeError, match="db unavailable"):
+        await finalize_submission(
+            db,
+            run_id=str(uuid.uuid4()),
+            status=JobStatus.COMPLETED,
+            organization_id=str(uuid.uuid4()),
+            event_type=RunEventType.RUN_COMPLETED,
+            payload={},
+        )
+
+    db.rollback.assert_awaited_once()

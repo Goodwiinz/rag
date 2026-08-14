@@ -18,8 +18,8 @@ Why these constants live here:
 - ``TOOL_TIMEOUT_SECONDS`` / ``_SLOW_TOOL_TIMEOUT_SECONDS`` / ``_SLOW_TOOLS``
   control per-call wall-clock and which tools deserve the extended budget.
 - ``_NO_OUTER_RETRY_TOOLS`` skips the outer ``retry_transient`` for tools
-  whose internal client already retries (arxiv) — trace ``019e040b``
-  showed stacking pushed search_arxiv to ~85s.
+  whose internal client already retries (arxiv), or whose destructive side
+  effects must not be replayed after an ambiguous failure.
 - ``AGENT_LLM_TIMEOUT_SECONDS`` is consumed by every LLM node (main +
   subgraphs) so it must be importable from a single canonical location.
 """
@@ -299,8 +299,9 @@ _SLOW_TOOLS = frozenset(
     if ToolPolicyTag.SLOW in descriptor.policy_tags
 )
 
-# Tools that already handle their own retry/backoff internally. Outer
-# retry_transient stacks on top and amplifies wall-clock — trace 019e040b
+# Tools that must get one outer attempt: either they already retry internally
+# or they can commit destructive side effects before an ambiguous timeout.
+# Stacked retries amplify wall-clock — trace 019e040b
 # showed search_arxiv at 85.5s = (3s rate gate + 20s httpx + 30s outer
 # wait_for) × 2 attempts + 1s backoff. arxiv_service.py has its own 429
 # loop + exponential backoff; ingest_arxiv_papers downloads with retry
@@ -469,8 +470,8 @@ async def _execute_single_tool(
             # arxiv API hung 93s (3 × 30s timeout + backoff) which exceeded
             # the CLI 90s idle window. Failing faster surfaces the issue
             # while keeping one safety-net retry for genuine transient blips.
-            # Tools that retry internally (arxiv) skip the outer retry to
-            # avoid 2× wall-clock amplification (trace 019e040b: 85.5s).
+            # Internally-retrying and destructive tools skip the outer retry;
+            # the latter may have committed before an ambiguous failure.
             _outer_attempts = (
                 1
                 if TOOL_REGISTRY.has_policy(tool_name, ToolPolicyTag.NO_OUTER_RETRY)

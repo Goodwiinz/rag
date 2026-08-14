@@ -20,6 +20,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.api.agent.execute import (
@@ -30,6 +31,7 @@ from src.api.agent.execute import (
     _resolve_dispatch_backend,
 )
 from src.models.agent_run import AgentRun
+from src.services.agent.agent_run_service import ActiveRunConflict
 
 pytestmark = pytest.mark.unit
 
@@ -95,11 +97,11 @@ def _user():
     return SimpleNamespace(id=uuid.uuid4(), organization_id=uuid.uuid4())
 
 
-def _request(cmid=None):
+def _request(cmid=None, *, thread_id=None):
     msg = {"role": "user", "content": "find papers"}
     if cmid is not None:
         msg["client_message_id"] = str(cmid)
-    return AgentExecuteRequest(messages=[msg], thread_id=None)
+    return AgentExecuteRequest(messages=[msg], thread_id=thread_id)
 
 
 def _patched(session_factory, delay=None):
@@ -188,6 +190,30 @@ async def test_dispatch_dedupes_on_idempotency_key(session_factory):
 
 
 @pytest.mark.asyncio
+async def test_dispatch_rejects_a_second_writer_for_the_same_thread(session_factory):
+    user = _user()
+    thread_id = str(uuid.uuid4())
+    p_db, p_set_job, p_task, task = _patched(session_factory)
+    with p_db, p_set_job, p_task:
+        first, _ = await _celery_dispatch(
+            str(uuid.uuid4()),
+            {"status": JobStatus.RUNNING},
+            _request(uuid.uuid4(), thread_id=thread_id),
+            user,
+        )
+        second, _ = await _celery_dispatch(
+            str(uuid.uuid4()),
+            {"status": JobStatus.RUNNING},
+            _request(uuid.uuid4(), thread_id=thread_id),
+            user,
+        )
+
+    assert first == "dispatched"
+    assert second == "conflict"
+    assert task.delay.call_count == 1
+
+
+@pytest.mark.asyncio
 async def test_dedup_is_tenant_scoped(session_factory):
     """Another user reusing the same cmid must NOT resolve to the first
     user's run (the key embeds the user id, so no collision is possible)."""
@@ -236,7 +262,7 @@ async def test_row_write_failure_falls_back_in_process(session_factory):
 
 @pytest.mark.asyncio
 class TestExecuteEndpointRouting:
-    async def _call_execute(self, backend: str, dispatch_outcome=None):
+    async def _call_execute(self, backend: str, dispatch_outcome=None, request=None):
         from src.api.agent.execute import execute_agent
 
         user = _user()
@@ -261,7 +287,7 @@ class TestExecuteEndpointRouting:
             ),
         ):
             response = await execute_agent(
-                _request(uuid.uuid4()),
+                request or _request(uuid.uuid4()),
                 background_tasks,
                 current_user=user,
                 db=MagicMock(),
@@ -293,3 +319,33 @@ class TestExecuteEndpointRouting:
         background_tasks.add_task.assert_called_once()
         set_job.assert_called_once()
         assert response.job_id  # fresh id, not the fallback marker
+
+    @pytest.mark.parametrize(
+        ("outcome", "status_code"),
+        [("conflict", 409), ("unavailable", 503)],
+    )
+    async def test_celery_writer_slot_failures_are_http_errors(
+        self, outcome, status_code
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await self._call_execute("celery", dispatch_outcome=(outcome, "x"))
+        assert exc_info.value.status_code == status_code
+
+    async def test_background_mode_rejects_an_active_thread_writer(self):
+        thread_id = str(uuid.uuid4())
+        with (
+            patch(
+                "src.api.agent.execute._resolve_thread",
+                new=AsyncMock(return_value=(SimpleNamespace(id=thread_id), "")),
+            ),
+            patch(
+                "src.services.agent.agent_run_service.upsert_run",
+                new=AsyncMock(side_effect=ActiveRunConflict("active")),
+            ),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            await self._call_execute(
+                "background",
+                request=_request(uuid.uuid4(), thread_id=thread_id),
+            )
+        assert exc_info.value.status_code == 409

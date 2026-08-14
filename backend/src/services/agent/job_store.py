@@ -7,9 +7,9 @@ The in-memory ``OrderedDict`` is kept as an L1 read cache (write-through)
 so the hot path (polling) avoids a Redis round-trip.
 
 Every status write is additionally projected into the durable ``agent_runs``
-Postgres table via ``schedule_run_projection`` (fire-and-forget, log-and-
-continue) so a run's lifecycle survives Redis failover — Redis stays
-authoritative; the poll endpoint only reads Postgres on a Redis miss.
+Postgres table. Non-terminal writes remain fire-and-forget; thread-scoped
+terminal writes land before L1/Redis publication so completion cannot leave
+the database's single-writer slot held.
 """
 
 from __future__ import annotations
@@ -147,6 +147,37 @@ async def close_redis() -> None:
 _projection_tasks: set = set()
 
 
+def _projection_payload(data: dict, fallback: Optional[dict] = None) -> dict:
+    """Snapshot the fields projected into ``agent_runs``."""
+    request = data.get("request")
+    result = data.get("result")
+    fallback = fallback or {}
+    fallback_request = fallback.get("request")
+    fallback_result = fallback.get("result")
+    return {
+        "status": data.get("status"),
+        "user_id": data.get("user_id"),
+        "organization_id": data.get("organization_id"),
+        "error": data.get("error"),
+        "thread_id": (
+            data.get("thread_id")
+            or (request.get("thread_id") if isinstance(request, dict) else None)
+            or (result.get("thread_id") if isinstance(result, dict) else None)
+            or fallback.get("thread_id")
+            or (
+                fallback_request.get("thread_id")
+                if isinstance(fallback_request, dict)
+                else None
+            )
+            or (
+                fallback_result.get("thread_id")
+                if isinstance(fallback_result, dict)
+                else None
+            )
+        ),
+    }
+
+
 def _projection_enabled() -> bool:
     """Whether to schedule the background agent_runs projection at all.
 
@@ -195,19 +226,7 @@ def schedule_run_projection(job_id: str, data: dict) -> None:
     status = data.get("status")
     if not status:
         return
-    request = data.get("request")
-    result = data.get("result")
-    payload = {
-        "status": status,
-        "user_id": data.get("user_id"),
-        "organization_id": data.get("organization_id"),
-        "error": data.get("error"),
-        "thread_id": (
-            data.get("thread_id")
-            or (request.get("thread_id") if isinstance(request, dict) else None)
-            or (result.get("thread_id") if isinstance(result, dict) else None)
-        ),
-    }
+    payload = _projection_payload(data)
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -277,10 +296,9 @@ async def set_job(job_id: str, data: dict) -> None:
     global _seq
     data["created_at"] = time.time()
 
-    # L1: in-memory cache (monotonic guard — never overwrite newer data)
+    # Carry ownership forward and capture the prior request/result before the
+    # replacement write. Terminal updates often contain only status + actor.
     with _l1_lock:
-        _seq += 1
-        data["_seq"] = _seq
         existing = _l1.get(job_id)
         # set_job REPLACES the record. Carry the owner forward when a status
         # update omits it — the GET ownership check fails closed on a missing
@@ -298,12 +316,36 @@ async def set_job(job_id: str, data: dict) -> None:
             and existing.get("organization_id")
         ):
             data["organization_id"] = existing["organization_id"]
+
+    projection_payload = _projection_payload(data, existing)
+    try:
+        status = JobStatus(data.get("status"))
+    except (TypeError, ValueError):
+        status = None
+    strict_terminal_projection = bool(
+        status is not None
+        and status.is_terminal
+        and projection_payload.get("thread_id")
+    )
+    if strict_terminal_projection:
+        # Release the durable single-writer slot before L1/Redis can expose a
+        # terminal result to the client.
+        from src.services.agent.agent_run_service import record_job_status
+
+        await record_job_status(job_id, projection_payload, raise_on_error=True)
+
+    # L1: in-memory cache (monotonic guard — never overwrite newer data)
+    with _l1_lock:
+        _seq += 1
+        data["_seq"] = _seq
         if existing is None or _is_newer_or_equal(data, existing):
             _l1[job_id] = data
         _l1_maybe_cleanup()
 
-    # Durable projection (fire-and-forget; Redis stays authoritative).
-    schedule_run_projection(job_id, data)
+    # Non-terminal and threadless writes retain the rollout's best-effort
+    # projection behavior. Thread-scoped terminal writes landed above.
+    if not strict_terminal_projection:
+        schedule_run_projection(job_id, data)
 
     # L2: Redis
     await set_job_redis_only(job_id, data)

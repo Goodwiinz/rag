@@ -58,6 +58,7 @@ from src.services.agent.agent_execution_service import (  # noqa: F401
     _jobs,
     _jobs_lock,
     _page_context_to_dict,
+    _resolve_thread,
     _resume_agent_graph,
     _run_agent_graph,
     _set_job,
@@ -289,6 +290,9 @@ async def _celery_dispatch(
     - ``"dedup"``     — a run for this idempotency key already exists; the
       existing job_id is returned and NOTHING new is enqueued (retry of the
       same turn resolves to the original run).
+    - ``"conflict"``  — another non-terminal run owns the thread.
+    - ``"unavailable"`` — the writer slot could not be checked for a
+      thread-scoped request, so execution fails closed.
     - ``"failed"``    — the enqueue itself failed AFTER the durable writes;
       the job is marked failed in both stores so the poller stops cleanly.
       We deliberately do NOT fall back to in-process execution here: the
@@ -344,14 +348,16 @@ async def _celery_dispatch(
                     job_id,
                 )
                 return "fallback", job_id
+    except agent_run_service.ActiveRunConflict:
+        return "conflict", job_id
     except Exception:
         logger.warning(
             "celery dispatch: agent_runs row write failed for job %s; "
-            "falling back to in-process dispatch",
+            "cannot establish the thread writer slot",
             job_id,
             exc_info=True,
         )
-        return "fallback", job_id
+        return ("unavailable" if request.thread_id else "fallback"), job_id
 
     # 2. Job record for pollers (L1 + Redis + projection).
     _set_job(job_id, job_payload)
@@ -430,6 +436,13 @@ async def execute_agent(
         },
     )
 
+    if request.thread_id:
+        try:
+            thread, _conversation_id = await _resolve_thread(db, current_user, request)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid thread ID") from exc
+        request.thread_id = str(thread.id) if thread is not None else None
+
     job_id = str(_uuid.uuid4())
     job_payload = {
         "status": JobStatus.RUNNING,
@@ -442,10 +455,59 @@ async def execute_agent(
         outcome, dispatched_job_id = await _celery_dispatch(
             job_id, job_payload, request, current_user
         )
+        if outcome == "conflict":
+            raise HTTPException(
+                status_code=409,
+                detail="A response is already in progress for this thread.",
+            )
+        if outcome == "unavailable":
+            raise HTTPException(
+                status_code=503,
+                detail="Unable to reserve this thread. Please retry.",
+            )
         if outcome != "fallback":
             return JobStartResponse(job_id=dispatched_job_id)
         # "fallback": nothing was enqueued and no job record written — safe
         # to run in-process below, exactly as if the flag were "background".
+
+    if request.thread_id:
+        from src.services.agent import agent_run_service
+
+        idem_key = _client_idempotency_key(request, current_user)
+        try:
+            run = await agent_run_service.upsert_run(
+                db,
+                job_id=job_id,
+                status=JobStatus.QUEUED,
+                organization_id=getattr(current_user, "organization_id", None),
+                user_id=current_user.id,
+                thread_id=request.thread_id,
+                idempotency_key=idem_key,
+            )
+        except agent_run_service.ActiveRunConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="A response is already in progress for this thread.",
+            ) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Unable to reserve this thread. Please retry.",
+            ) from exc
+        if run is None and idem_key is not None:
+            existing = await agent_run_service.get_run_by_idempotency_key(
+                db,
+                idem_key,
+                organization_id=getattr(current_user, "organization_id", None),
+                user_id=current_user.id,
+            )
+            if existing is not None:
+                return JobStartResponse(job_id=existing.job_id)
+        if run is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Unable to reserve this thread. Please retry.",
+            )
 
     _set_job(job_id, job_payload)
 

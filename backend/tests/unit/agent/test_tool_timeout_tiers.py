@@ -42,6 +42,17 @@ class TestToolTimeoutTiers:
         # slow tier would amplify worst-case wall clock to ~2x the cap.
         assert "search_arxiv" in _NO_OUTER_RETRY_TOOLS
 
+    def test_destructive_tools_are_never_retried_by_the_outer_wrapper(self):
+        assert {
+            "ingest_arxiv_papers",
+            "create_project",
+            "add_document_to_project",
+            "create_project_note",
+            "create_draft",
+            "execute_code",
+            "forget_memory",
+        } <= _NO_OUTER_RETRY_TOOLS
+
     def test_ingest_and_draft_tools_stay_slow(self):
         for tool in ("ingest_arxiv_papers", "create_draft", "compare_documents"):
             assert _resolve_timeout(tool) == _SLOW_TOOL_TIMEOUT_SECONDS
