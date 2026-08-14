@@ -383,6 +383,7 @@ describe('agentChatStore', () => {
         metadata: {
           status: 'awaiting_confirmation',
           confirmation,
+          threadId: 'thread-durable',
           waitTokenId: 'wait-9',
         },
       } as never);
@@ -399,11 +400,16 @@ describe('agentChatStore', () => {
       }
 
       expect(agentChatService.getDurableRunStatus).toHaveBeenCalledTimes(1);
-      expect(useAgentChatStore.getState().pendingConfirmation).toEqual({
-        jobId: 'run-stub',
-        ...confirmation,
-        waitTokenId: 'wait-9',
-      });
+      expect(
+        useAgentChatStore.getState().pendingConfirmations['thread-durable']
+      ).toEqual(
+        expect.objectContaining({
+          threadId: 'thread-durable',
+          jobId: 'run-stub',
+          ...confirmation,
+          waitTokenId: 'wait-9',
+        })
+      );
     });
 
     it('keeps polling through a tokenless awaiting_confirmation snapshot until the wait token lands', async () => {
@@ -414,13 +420,18 @@ describe('agentChatStore', () => {
       vi.mocked(agentChatService.getDurableRunStatus)
         .mockResolvedValueOnce({
           status: 'RUNNING',
-          metadata: { status: 'awaiting_confirmation', confirmation },
+          metadata: {
+            status: 'awaiting_confirmation',
+            confirmation,
+            threadId: 'thread-durable',
+          },
         } as never)
         .mockResolvedValueOnce({
           status: 'RUNNING',
           metadata: {
             status: 'awaiting_confirmation',
             confirmation,
+            threadId: 'thread-durable',
             waitTokenId: 'wait-later',
           },
         } as never);
@@ -431,7 +442,7 @@ describe('agentChatStore', () => {
       try {
         const p = useAgentChatStore.getState().sendMessage();
         await vi.advanceTimersByTimeAsync(3000); // tick 1: tokenless — not surfaced
-        expect(useAgentChatStore.getState().pendingConfirmation).toBeNull();
+        expect(useAgentChatStore.getState().pendingConfirmations).toEqual({});
         await vi.advanceTimersByTimeAsync(3000); // tick 2: token present — surfaced
         await p;
       } finally {
@@ -440,11 +451,14 @@ describe('agentChatStore', () => {
 
       expect(agentChatService.getDurableRunStatus).toHaveBeenCalledTimes(2);
       const state = useAgentChatStore.getState();
-      expect(state.pendingConfirmation).toEqual({
-        jobId: 'run-stub',
-        ...confirmation,
-        waitTokenId: 'wait-later',
-      });
+      expect(state.pendingConfirmations['thread-durable']).toEqual(
+        expect.objectContaining({
+          threadId: 'thread-durable',
+          jobId: 'run-stub',
+          ...confirmation,
+          waitTokenId: 'wait-later',
+        })
+      );
       const assistant = state.messages.find((m) => m.role === 'assistant');
       expect(assistant?.content).toBe('Waiting for your confirmation...');
       expect(state.isStreaming).toBe(false);
@@ -458,7 +472,11 @@ describe('agentChatStore', () => {
       // Never carries a token — the fail-safe path.
       vi.mocked(agentChatService.getDurableRunStatus).mockResolvedValue({
         status: 'RUNNING',
-        metadata: { status: 'awaiting_confirmation', confirmation },
+        metadata: {
+          status: 'awaiting_confirmation',
+          confirmation,
+          threadId: 'thread-durable',
+        },
       } as never);
 
       useAgentChatStore.setState({ inputValue: 'make a project' });
@@ -475,11 +493,16 @@ describe('agentChatStore', () => {
 
       expect(agentChatService.getDurableRunStatus).toHaveBeenCalledTimes(3);
       const state = useAgentChatStore.getState();
-      expect(state.pendingConfirmation).toEqual({
-        jobId: 'run-stub',
-        ...confirmation,
-      });
-      expect(state.pendingConfirmation?.waitTokenId).toBeUndefined();
+      expect(state.pendingConfirmations['thread-durable']).toEqual(
+        expect.objectContaining({
+          threadId: 'thread-durable',
+          jobId: 'run-stub',
+          ...confirmation,
+        })
+      );
+      expect(
+        state.pendingConfirmations['thread-durable']?.waitTokenId
+      ).toBeUndefined();
       const assistant = state.messages.find((m) => m.role === 'assistant');
       expect(assistant?.content).toBe('Waiting for your confirmation...');
       expect(assistant?.isStreaming).toBe(false);
@@ -555,6 +578,7 @@ describe('agentChatStore', () => {
       );
 
       useAgentChatStore.setState({
+        activeThreadId: 'thread-A',
         messages: [
           {
             id: 'a-1',
@@ -563,13 +587,17 @@ describe('agentChatStore', () => {
             timestamp: new Date(),
           },
         ],
-        pendingConfirmation: {
-          jobId: 'job-1',
-          tools: [{ name: 'ingest_arxiv', args: {} }],
-          message: 'Confirm?',
+        pendingConfirmations: {
+          'thread-A': {
+            threadId: 'thread-A',
+            assistantMessageId: 'a-1',
+            jobId: 'job-1',
+            tools: [{ name: 'ingest_arxiv', args: {} }],
+            message: 'Confirm?',
+          },
         },
       });
-      await useAgentChatStore.getState().confirmAction(true);
+      await useAgentChatStore.getState().confirmAction('thread-A', true);
 
       const assistant = useAgentChatStore
         .getState()
@@ -609,6 +637,7 @@ describe('agentChatStore', () => {
       } as never);
 
       useAgentChatStore.setState({
+        activeThreadId: 'thread-A',
         messages: [
           {
             id: 'a-1',
@@ -617,17 +646,21 @@ describe('agentChatStore', () => {
             timestamp: new Date(),
           },
         ],
-        pendingConfirmation: {
-          jobId: 'run-42',
-          waitTokenId: 'wait-7',
-          tools: [{ name: 'ingest_arxiv', args: {} }],
-          message: 'Confirm?',
+        pendingConfirmations: {
+          'thread-A': {
+            threadId: 'thread-A',
+            assistantMessageId: 'a-1',
+            jobId: 'run-42',
+            waitTokenId: 'wait-7',
+            tools: [{ name: 'ingest_arxiv', args: {} }],
+            message: 'Confirm?',
+          },
         },
       });
 
       vi.useFakeTimers();
       try {
-        const p = useAgentChatStore.getState().confirmAction(true);
+        const p = useAgentChatStore.getState().confirmAction('thread-A', true);
         // The poll loop waits 3s before its first status check.
         await vi.advanceTimersByTimeAsync(3000);
         await p;
@@ -641,6 +674,41 @@ describe('agentChatStore', () => {
         true
       );
       expect(agentChatService.confirmAction).not.toHaveBeenCalled();
+    });
+
+    it('keeps the confirmation available when the confirm stream reports an error', async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+      vi.mocked(agentChatService.streamConfirm).mockImplementationOnce(
+        async (_req, callbacks) => {
+          callbacks.onError?.('Confirmation is temporarily unavailable');
+        }
+      );
+      const pending = {
+        threadId: 'thread-A',
+        assistantMessageId: 'a-1',
+        jobId: 'job-1',
+        tools: [{ name: 'create_project', args: {} }],
+        message: 'Confirm?',
+      };
+      useAgentChatStore.setState({
+        activeThreadId: 'thread-A',
+        messages: [
+          {
+            id: 'a-1',
+            role: 'assistant',
+            content: 'Waiting for your confirmation...',
+            timestamp: new Date(),
+          },
+        ],
+        pendingConfirmations: { 'thread-A': pending },
+      });
+
+      await useAgentChatStore.getState().confirmAction('thread-A', true);
+
+      expect(
+        useAgentChatStore.getState().pendingConfirmations['thread-A']
+      ).toEqual(pending);
+      expect(useAgentChatStore.getState().isConfirming).toBe(false);
     });
   });
 
@@ -714,6 +782,53 @@ describe('agentChatStore', () => {
       await send;
     });
 
+    it('keeps a parked confirmation owned by its thread across navigation', async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+      useAgentChatStore.setState({
+        activeThreadId: 'thread-A',
+        messages: [],
+        pendingConfirmations: {
+          'thread-A': {
+            threadId: 'thread-A',
+            assistantMessageId: 'a-assistant',
+            jobId: 'job-a',
+            tools: [{ name: 'create_project_note', args: {} }],
+            message: 'Confirm?',
+          },
+        },
+      });
+
+      useAgentChatStore.getState().selectThread('thread-B');
+      await useAgentChatStore.getState().confirmAction('thread-A', true);
+
+      expect(agentChatService.streamConfirm).not.toHaveBeenCalled();
+      expect(
+        useAgentChatStore.getState().pendingConfirmations['thread-A']
+      ).toBeDefined();
+
+      vi.mocked(agentChatService.streamConfirm).mockImplementationOnce(
+        async (_request, callbacks) => {
+          callbacks.onToken?.('thread A result');
+          callbacks.onDone?.();
+        }
+      );
+      useAgentChatStore.getState().selectThread('thread-A');
+      await useAgentChatStore.getState().confirmAction('thread-A', true);
+
+      expect(agentChatService.streamConfirm).toHaveBeenCalledWith(
+        { thread_id: 'job-a', confirmed: true },
+        expect.any(Object),
+        expect.any(AbortSignal)
+      );
+      expect(useAgentChatStore.getState().messages).toEqual([
+        expect.objectContaining({
+          id: 'a-assistant',
+          content: 'thread A result',
+        }),
+      ]);
+      expect(useAgentChatStore.getState().pendingConfirmations).toEqual({});
+    });
+
     it("confirmAction events target the captured message, not the visible thread's last assistant message", async () => {
       const { agentChatService } = await import('@/services/agentChatService');
 
@@ -727,10 +842,14 @@ describe('agentChatStore', () => {
             timestamp: new Date(),
           },
         ],
-        pendingConfirmation: {
-          jobId: 'job-a',
-          tools: [{ name: 'ingest_arxiv', args: {} }],
-          message: 'Confirm?',
+        pendingConfirmations: {
+          'thread-A': {
+            threadId: 'thread-A',
+            assistantMessageId: 'a-assistant',
+            jobId: 'job-a',
+            tools: [{ name: 'ingest_arxiv', args: {} }],
+            message: 'Confirm?',
+          },
         },
       });
 
@@ -744,7 +863,9 @@ describe('agentChatStore', () => {
           })
       );
 
-      const confirmPromise = useAgentChatStore.getState().confirmAction(true);
+      const confirmPromise = useAgentChatStore
+        .getState()
+        .confirmAction('thread-A', true);
       await vi.waitFor(() => expect(confirmCallbacks).toBeDefined());
 
       // Switch to a different thread while thread A's confirm stream is
@@ -777,6 +898,70 @@ describe('agentChatStore', () => {
 
       releaseConfirm?.();
       await confirmPromise;
+    });
+
+    it("an aborted confirm cannot clear a newer thread's stream owner", async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+      let releaseConfirm: (() => void) | undefined;
+      vi.mocked(agentChatService.streamConfirm).mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseConfirm = resolve;
+          })
+      );
+      useAgentChatStore.setState({
+        activeThreadId: 'thread-A',
+        messages: [
+          {
+            id: 'a-assistant',
+            role: 'assistant',
+            content: 'Waiting for your confirmation...',
+            timestamp: new Date(),
+          },
+        ],
+        pendingConfirmations: {
+          'thread-A': {
+            threadId: 'thread-A',
+            assistantMessageId: 'a-assistant',
+            jobId: 'job-a',
+            tools: [],
+            message: 'Confirm?',
+          },
+        },
+      });
+
+      const confirm = useAgentChatStore
+        .getState()
+        .confirmAction('thread-A', true);
+      await vi.waitFor(() => expect(releaseConfirm).toBeDefined());
+      useAgentChatStore.getState().selectThread('thread-B');
+
+      let releaseSend: (() => void) | undefined;
+      vi.mocked(agentChatService.streamMessage).mockImplementationOnce(
+        (_request, callbacks) =>
+          new Promise<void>((resolve) => {
+            releaseSend = () => {
+              callbacks.onDone?.();
+              resolve();
+            };
+          })
+      );
+      useAgentChatStore.setState({ inputValue: 'thread B turn' });
+      const send = useAgentChatStore.getState().sendMessage();
+      await vi.waitFor(() => expect(releaseSend).toBeDefined());
+      const threadBController = getAbortController();
+
+      releaseConfirm?.();
+      await confirm;
+
+      expect(useAgentChatStore.getState().isStreaming).toBe(true);
+      expect(getAbortController()).toBe(threadBController);
+      expect(
+        useAgentChatStore.getState().pendingConfirmations['thread-A']
+      ).toBeDefined();
+
+      releaseSend?.();
+      await send;
     });
 
     it('drops a trailing token frame arriving after onDone', async () => {
@@ -827,17 +1012,23 @@ describe('agentChatStore', () => {
             timestamp: new Date(),
           },
         ],
-        pendingConfirmation: {
-          jobId: 'run-42',
-          waitTokenId: 'wait-7',
-          tools: [{ name: 'ingest_arxiv', args: {} }],
-          message: 'Confirm?',
+        pendingConfirmations: {
+          'thread-A': {
+            threadId: 'thread-A',
+            assistantMessageId: 'a-assistant',
+            jobId: 'run-42',
+            waitTokenId: 'wait-7',
+            tools: [{ name: 'ingest_arxiv', args: {} }],
+            message: 'Confirm?',
+          },
         },
       });
 
       vi.useFakeTimers();
       try {
-        const confirmPromise = useAgentChatStore.getState().confirmAction(true);
+        const confirmPromise = useAgentChatStore
+          .getState()
+          .confirmAction('thread-A', true);
         // Past the 3s poll sleep — confirmAction is now suspended inside the
         // getDurableRunStatus network await.
         await vi.advanceTimersByTimeAsync(3000);

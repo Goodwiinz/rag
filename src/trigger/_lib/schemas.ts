@@ -27,6 +27,7 @@ export const JobStatusResponseSchema = z.object({
   tool_executions: z.array(z.record(z.unknown())).nullable().optional(),
   error: z.string().nullable().optional(),
   confirmation: z.record(z.unknown()).nullable().optional(),
+  thread_id: z.string().nullable().optional(),
 });
 
 export const ProcessingJobResponseSchema = z.object({

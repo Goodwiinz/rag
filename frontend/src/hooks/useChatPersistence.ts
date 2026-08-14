@@ -17,6 +17,7 @@ import {
   ThreadStatus,
 } from '@/types/workspace';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { MAX_REINIT_RETRIES } from '@/store/chat/initialState';
 
 const debugLog =
   process.env.NODE_ENV === 'development'
@@ -409,7 +410,23 @@ export function useChatPersistence(): UseChatPersistenceReturn {
 
       _initInFlight = (async () => {
         debugLog('[useChatPersistence] Starting initialization...');
-        await initializeDefaultWorkspace();
+        let initialized = false;
+        let initializationError: unknown;
+        for (let attempt = 0; attempt < MAX_REINIT_RETRIES; attempt += 1) {
+          try {
+            await initializeDefaultWorkspace();
+            initialized = true;
+            break;
+          } catch (error) {
+            initializationError = error;
+          }
+        }
+
+        if (!initialized) {
+          throw (
+            initializationError ?? new Error('Failed to initialize workspace')
+          );
+        }
 
         const state = useChatStore.getState();
         debugLog(
@@ -418,11 +435,13 @@ export function useChatPersistence(): UseChatPersistenceReturn {
         );
 
         if (!state.currentWorkspaceId) {
-          debugLog('[useChatPersistence] No workspaceId after initialization');
-          return;
+          throw new Error('Workspace initialization returned no workspace');
         }
 
         await loadConversations(state.currentWorkspaceId);
+        if (useChatStore.getState().error === 'Failed to load conversations') {
+          throw new Error('Failed to load conversations');
+        }
 
         const updatedState = useChatStore.getState();
         const workspaceConversations =
@@ -469,10 +488,9 @@ export function useChatPersistence(): UseChatPersistenceReturn {
         }
 
         if (!conversationId) {
-          debugLog(
-            '[useChatPersistence] No conversationId to load threads for'
+          throw new Error(
+            'Conversation initialization returned no conversation'
           );
-          return;
         }
 
         debugLog(
@@ -480,6 +498,9 @@ export function useChatPersistence(): UseChatPersistenceReturn {
           conversationId
         );
         await loadThreads(conversationId);
+        if (useChatStore.getState().error === 'Failed to load threads') {
+          throw new Error('Failed to load threads');
+        }
 
         const threadsState = useChatStore.getState();
         const conversationThreads = threadsState.threads[conversationId] || [];

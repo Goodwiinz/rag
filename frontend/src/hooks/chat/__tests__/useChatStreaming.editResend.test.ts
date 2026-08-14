@@ -36,7 +36,7 @@ vi.mock('@/services/agentChatService', () => ({
   agentChatService: {
     streamMessage: (...args: unknown[]) => streamMessageMock(...args),
     streamConfirm: vi.fn(),
-    resumeStream: vi.fn().mockResolvedValue({ resumed: false }),
+    resumeStream: vi.fn().mockResolvedValue({ status: 'idle' }),
   },
 }));
 

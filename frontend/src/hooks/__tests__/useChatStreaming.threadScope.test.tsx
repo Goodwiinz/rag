@@ -35,7 +35,7 @@ vi.mock('@/services/agentChatService', () => ({
     streamConfirm: (...args: unknown[]) => streamConfirmMock(...args),
     // The hook probes for a parked HITL confirmation on thread activation;
     // nothing is parked in these scenarios.
-    resumeStream: vi.fn().mockResolvedValue({ resumed: false }),
+    resumeStream: vi.fn().mockResolvedValue({ status: 'idle' }),
   },
 }));
 

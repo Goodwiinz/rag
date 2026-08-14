@@ -6,9 +6,8 @@
  * Two rules are pinned here:
  *  - a category the server sends is passed through only if this build knows it
  *    (an unknown label degrades to `undefined`, never leaks to the UI);
- *  - HTTP-level failures — where no server `error` frame ever existed — get a
- *    CLIENT-derived fallback, and 5xx/network get none at all, because the
- *    server made no claim to report.
+ *  - HTTP-level failures on new streams get a client-derived fallback;
+ *    resume failures return a retryable result without firing stream callbacks.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -175,10 +174,14 @@ describe('HTTP-level failures synthesize a client-derived category', () => {
     expect(onError.mock.calls[0][1]).toBe('rate_limited');
   });
 
-  it('applies the same mapping on resumeStream', async () => {
+  it('keeps resume transport failures separate from stream error frames', async () => {
     global.fetch = fetchFailing(404);
     const onError = vi.fn();
-    await agentChatService.resumeStream('t1', 0, { onError });
-    expect(onError.mock.calls[0][1]).toBe('invalid_request');
+    const result = await agentChatService.resumeStream('t1', 0, { onError });
+    expect(result).toEqual({
+      status: 'failed',
+      error: 'Stream resume failed: 404',
+    });
+    expect(onError).not.toHaveBeenCalled();
   });
 });

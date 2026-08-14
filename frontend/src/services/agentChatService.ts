@@ -103,8 +103,9 @@ export interface AgentStreamCallbacks {
     tool_executions?: Array<Record<string, unknown>>;
   }) => void;
   /**
-   * Fired for a server `error` frame AND for the HTTP-level failures this
-   * service synthesizes (non-2xx before the stream opens).
+   * Fired for a server `error` frame and for HTTP-level failures on new or
+   * confirmation streams. Resume transport failures return AgentResumeResult
+   * instead so callers can keep the run retryable.
    *
    * `category` is the SERVER's claim about the cause when it came off an
    * `error` frame; for a synthesized HTTP failure it is derived client-side
@@ -113,6 +114,12 @@ export interface AgentStreamCallbacks {
    */
   onError?: (error: string, category?: AgentErrorCategory) => void;
 }
+
+export type AgentResumeResult =
+  | { status: 'resumed' }
+  | { status: 'idle' }
+  | { status: 'aborted' }
+  | { status: 'failed'; error: string };
 
 /** Read the backend's error body so the user sees the real cause, not just
  * an HTTP number. The backend returns the structured envelope
@@ -525,7 +532,7 @@ class AgentChatService {
     callbacks: AgentStreamCallbacks,
     signal?: AbortSignal,
     streamId?: string
-  ): Promise<{ resumed: boolean }> {
+  ): Promise<AgentResumeResult> {
     const base = getPublicApiBaseUrl('/api/v1').replace(/\/$/, '');
     // `stream` pins the cursor to the run it was read from — the backend
     // answers 204 instead of replaying a newer run's frames against it.
@@ -543,27 +550,37 @@ class AgentChatService {
       response = await fetch(url, { method: 'GET', headers, signal });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
-        return { resumed: false };
+        return { status: 'aborted' };
       }
-      throw err;
+      return {
+        status: 'failed',
+        error: err instanceof Error ? err.message : 'Stream resume failed',
+      };
     }
 
     if (response.status === 204) {
-      return { resumed: false };
+      return { status: 'idle' };
     }
     if (!response.ok || !response.body) {
       const backendMessage = await readErrorBody(response);
-      callbacks.onError?.(
-        backendMessage
+      return {
+        status: 'failed',
+        error: backendMessage
           ? `Stream resume failed (${response.status}): ${backendMessage}`
           : `Stream resume failed: ${response.status}`,
-        httpFailureCategory(response.status)
-      );
-      return { resumed: false };
+      };
     }
 
-    await consumeSse(response, callbacks);
-    return { resumed: true };
+    try {
+      await consumeSse(response, callbacks);
+    } catch (err) {
+      return {
+        status: 'failed',
+        error: err instanceof Error ? err.message : 'Stream resume failed',
+      };
+    }
+    if (signal?.aborted) return { status: 'aborted' };
+    return { status: 'resumed' };
   }
 
   async streamConfirm(
