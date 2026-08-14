@@ -47,7 +47,6 @@
     "@tiptap/extension-text": "^3.22.4",
     "@tiptap/suggestion": "^3.13.0",
     "@types/node": "^26.2.0",
-    "@types/react-grid-layout": "^2.1.0",
     "@types/uuid": "^11.0.0",
     "@uidotdev/usehooks": "^2.4.1",
     "@use-gesture/react": "^10.3.1",
