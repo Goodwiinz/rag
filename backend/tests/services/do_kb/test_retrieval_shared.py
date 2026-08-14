@@ -204,6 +204,68 @@ async def test_tool_delegates_to_shared_retrieve():
     assert out["chunks"][0]["text"] == "hi"
 
 
+@pytest.mark.parametrize(
+    ("score_sources", "expected_semantics"),
+    [
+        (("rank_proxy",), "rank_only"),
+        (("cohere",), "relevance"),
+        (("upstream",), "upstream"),
+        (("upstream", "rank_proxy"), "mixed"),
+    ],
+)
+async def test_tool_reports_score_semantics_from_emitted_chunks(
+    score_sources: tuple[str, ...], expected_semantics: str
+) -> None:
+    """The tool reports the provenance of every emitted score."""
+    from src.services.agent import tools_impl
+
+    user = SimpleNamespace(organization_id="org-1", id="u-1")
+    db = MagicMock()
+    chunks = [
+        Chunk(
+            text=f"retrieved text {index}",
+            score=0.1,
+            document_id=f"d-{index}.pdf",
+            metadata={"score_source": score_source},
+        )
+        for index, score_source in enumerate(score_sources)
+    ]
+    fake_retrieve = AsyncMock(
+        return_value=DOKBRetrieveOutcome(
+            status=DOKBRetrieveStatus.SUCCESS,
+            result=RetrieveResult(chunks=chunks, total=len(chunks)),
+        )
+    )
+    cfg = SimpleNamespace(
+        DO_KB_ENABLED=True,
+        DO_KB_DEFAULT_TOP_K=10,
+        AGENT_DOKB_COHERE_RERANK=False,
+        AGENT_ITERATIVE_RETRIEVAL=False,
+    )
+
+    with (
+        patch("src.core.config.settings", cfg),
+        patch(
+            "src.services.do_kb.retrieval.resolve_org_kb_uuid",
+            AsyncMock(return_value="kb-1"),
+        ),
+        patch("src.services.do_kb.retrieval.retrieve_kb_chunks", fake_retrieve),
+        patch(
+            "src.services.do_kb.resolve.resolve_and_filter_chunks",
+            AsyncMock(return_value=({}, chunks)),
+        ),
+    ):
+        out = await tools_impl._tool_do_kb_retrieve(
+            {"query": "q", "top_k": 1}, db, user
+        )
+
+    assert out["score_semantics"] == expected_semantics
+    if expected_semantics == "rank_only":
+        assert "retrieval rank" in out["note"]
+    else:
+        assert "note" not in out
+
+
 async def test_rag_node_delegates_to_shared_retrieve():
     """``_try_primary_do_kb_read`` calls the shared helper with the timeout."""
     from contextlib import asynccontextmanager

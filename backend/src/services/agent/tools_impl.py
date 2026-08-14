@@ -1251,6 +1251,14 @@ async def _existing_document_id(
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
+def _arxiv_document_title(document: Any) -> str:
+    """Use the arXiv metadata title when the transient title is a placeholder."""
+    metadata = getattr(document, "document_metadata", None)
+    metadata_title = metadata.get("title") if isinstance(metadata, dict) else None
+    title = metadata_title or getattr(document, "title", None)
+    return " ".join(str(title or "Untitled").split())
+
+
 async def _tool_ingest_arxiv(
     args: Dict[str, Any],
     user_id: str,
@@ -1407,7 +1415,7 @@ async def _tool_ingest_arxiv(
 
                                 document = Document(
                                     id=document_id,
-                                    title=getattr(doc, "title", "Untitled"),
+                                    title=_arxiv_document_title(doc),
                                     **storage_fields,
                                     content_text=getattr(doc, "content_text", None),
                                     content_summary=getattr(
@@ -1676,6 +1684,7 @@ async def _tool_search_documents(
         docs = result.scalars().all()
 
         from src.services.agent._pii_redact import redact_pii
+        from src.shared.enums import ApiDocumentStatus
 
         payload: Dict[str, Any] = {
             "documents": [
@@ -1684,7 +1693,9 @@ async def _tool_search_documents(
                     "title": redact_pii(d.title) if d.title else d.title,
                     "type": d.document_type.value if d.document_type else None,
                     "status": (
-                        d.processing_status.value if d.processing_status else None
+                        ApiDocumentStatus.from_db(d.processing_status).value
+                        if d.processing_status
+                        else None
                     ),
                     "created_at": d.created_at.isoformat() if d.created_at else None,
                 }
@@ -1845,6 +1856,27 @@ async def _tool_do_kb_retrieve(
 
         chunks_to_emit = await cohere_rescore_chunks(query, chunks_to_emit)
 
+    from src.services.do_kb.postprocess import drop_low_relevance_chunks
+
+    chunks_to_emit = drop_low_relevance_chunks(chunks_to_emit)
+    if not chunks_to_emit:
+        return {
+            "chunks": [],
+            "total": 0,
+            "source": "do_kb",
+            "reason": "no_relevant_chunks",
+            "evidence_mode": False,
+        }
+
+    score_sources = frozenset(
+        (chunk.metadata or {}).get("score_source") for chunk in chunks_to_emit
+    )
+    score_semantics = {
+        frozenset({"cohere"}): "relevance",
+        frozenset({"rank_proxy"}): "rank_only",
+        frozenset({"upstream"}): "upstream",
+    }.get(score_sources, "mixed")
+
     from src.services.agent._pii_redact import redact_pii
 
     chunks_payload = []
@@ -1874,13 +1906,20 @@ async def _tool_do_kb_retrieve(
         chunks_payload = await summarize_evidence(query, chunks_payload)
         evidence_mode = True
 
-    return {
+    payload = {
         "chunks": chunks_payload,
         "total": len(chunks_payload) if project_id else result.total,
         "source": "do_kb",
         "query": query,
         "evidence_mode": evidence_mode,
+        "score_semantics": score_semantics,
     }
+    if score_semantics == "rank_only":
+        payload["note"] = (
+            "Scores reflect retrieval rank, not relevance; judge topical "
+            "relevance from the chunk text yourself."
+        )
+    return payload
 
 
 async def _tool_add_document_to_project(
