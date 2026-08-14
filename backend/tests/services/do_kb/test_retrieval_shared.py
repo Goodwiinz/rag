@@ -205,27 +205,35 @@ async def test_tool_delegates_to_shared_retrieve():
 
 
 @pytest.mark.parametrize(
-    ("score_source", "expected_semantics"),
-    [("rank_proxy", "rank_only"), ("cohere", "relevance")],
+    ("score_sources", "expected_semantics"),
+    [
+        (("rank_proxy",), "rank_only"),
+        (("cohere",), "relevance"),
+        (("upstream",), "upstream"),
+        (("upstream", "rank_proxy"), "mixed"),
+    ],
 )
 async def test_tool_reports_score_semantics_from_emitted_chunks(
-    score_source: str, expected_semantics: str
+    score_sources: tuple[str, ...], expected_semantics: str
 ) -> None:
-    """The tool tells the model whether scores are rank-only or calibrated."""
+    """The tool reports the provenance of every emitted score."""
     from src.services.agent import tools_impl
 
     user = SimpleNamespace(organization_id="org-1", id="u-1")
     db = MagicMock()
-    chunk = Chunk(
-        text="retrieved text",
-        score=0.1,
-        document_id="d.pdf",
-        metadata={"score_source": score_source},
-    )
+    chunks = [
+        Chunk(
+            text=f"retrieved text {index}",
+            score=0.1,
+            document_id=f"d-{index}.pdf",
+            metadata={"score_source": score_source},
+        )
+        for index, score_source in enumerate(score_sources)
+    ]
     fake_retrieve = AsyncMock(
         return_value=DOKBRetrieveOutcome(
             status=DOKBRetrieveStatus.SUCCESS,
-            result=RetrieveResult(chunks=[chunk], total=1),
+            result=RetrieveResult(chunks=chunks, total=len(chunks)),
         )
     )
     cfg = SimpleNamespace(
@@ -244,7 +252,7 @@ async def test_tool_reports_score_semantics_from_emitted_chunks(
         patch("src.services.do_kb.retrieval.retrieve_kb_chunks", fake_retrieve),
         patch(
             "src.services.do_kb.resolve.resolve_and_filter_chunks",
-            AsyncMock(return_value=({}, [chunk])),
+            AsyncMock(return_value=({}, chunks)),
         ),
     ):
         out = await tools_impl._tool_do_kb_retrieve(

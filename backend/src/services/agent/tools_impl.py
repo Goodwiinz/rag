@@ -1868,14 +1868,14 @@ async def _tool_do_kb_retrieve(
             "evidence_mode": False,
         }
 
-    score_semantics = (
-        "relevance"
-        if all(
-            (chunk.metadata or {}).get("score_source") == "cohere"
-            for chunk in chunks_to_emit
-        )
-        else "rank_only"
+    score_sources = frozenset(
+        (chunk.metadata or {}).get("score_source") for chunk in chunks_to_emit
     )
+    score_semantics = {
+        frozenset({"cohere"}): "relevance",
+        frozenset({"rank_proxy"}): "rank_only",
+        frozenset({"upstream"}): "upstream",
+    }.get(score_sources, "mixed")
 
     from src.services.agent._pii_redact import redact_pii
 

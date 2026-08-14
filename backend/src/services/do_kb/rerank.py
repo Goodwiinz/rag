@@ -82,11 +82,12 @@ async def cohere_rescore_chunks(query: str, chunks: list[Chunk]) -> list[Chunk]:
                 )
             )
             covered.add(index)
+        if len(covered) != len(chunks):
+            raise ValueError("incomplete Cohere rerank result coverage")
     except Exception:
         logger.warning("cohere_rescore_chunks: invalid rerank result, passthrough")
         _record_rerank_metric("invalid_result")
         return chunks
 
-    reranked.extend(c for i, c in enumerate(chunks) if i not in covered)
     _record_rerank_metric("success")
     return reranked
