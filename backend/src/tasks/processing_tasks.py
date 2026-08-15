@@ -29,6 +29,7 @@ from src.services.processing.llm_entity_extraction import LLMEntityExtractionSer
 from src.services.processing.processing_service import ProcessingPipeline
 from src.services.search.fulltext_search_service import fulltext_search_service
 from src.shared.enums import SatelliteSyncStatus
+from src.tasks._async_utils import run_async
 from src.tasks.celery_app import celery_app
 from src.tasks.replay_guard import claim_job_for_processing
 
@@ -69,8 +70,8 @@ def _sync_document_to_kb_blocking(
     DO KB (DigitalOcean Knowledge Base) is the retrieval backend after Qdrant
     was dropped. ``sync_document_to_kb`` is async and needs an async session,
     while these tasks hold a sync ``SessionLocal`` — bridge the sync-loaded ORM
-    object into a fresh ``AsyncSessionLocal`` via ``merge()`` (synchronous in
-    SQLAlchemy 2.0 — do NOT await), mirroring ``api/agent/tools_impl.py``.
+    object into a fresh ``AsyncSessionLocal`` via async ``merge()``, mirroring
+    ``api/agent/tools_impl.py``.
 
     ``trigger_indexing=False`` registers the data source without kicking the
     org-level indexing job — the satellite reconciler uses it to batch one
@@ -85,16 +86,13 @@ def _sync_document_to_kb_blocking(
         from src.services.do_kb import sync_document_to_kb
 
         async with AsyncSessionLocal() as kb_db:
-            # merge() is synchronous in SQLAlchemy 2.0; awaiting it raises.
-            merged = kb_db.merge(document)
+            merged = await kb_db.merge(document)
             return await sync_document_to_kb(
                 kb_db, merged, trigger_indexing=trigger_indexing
             )
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     try:
-        return loop.run_until_complete(_run())
+        return run_async(_run())
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "DO KB sync failed for document %s: %s",
@@ -102,8 +100,6 @@ def _sync_document_to_kb_blocking(
             exc,
         )
         return None
-    finally:
-        loop.close()
 
 
 def _index_entities_to_graph(document, entities) -> int:

@@ -278,9 +278,8 @@ def test_bulk_delete_background_cleanup_swallows_do_failure():
 
 
 @pytest.mark.unit
-def test_unsync_helper_nulls_uuid_and_swallows_do_failure():
-    """The real unsync_document_from_kb clears the uuid even when the DO
-    delete_data_source call fails, and never raises."""
+def test_unsync_helper_retains_uuid_and_swallows_do_failure():
+    """A DO outage keeps the data-source UUID available for a later retry."""
     from src.services.do_kb import ingest as ingest_mod
 
     document = MagicMock()
@@ -310,10 +309,8 @@ def test_unsync_helper_nulls_uuid_and_swallows_do_failure():
             ingest_mod.unsync_document_from_kb(session, document, client=client)
         )
 
-    # DO delete failed → helper returns True only on a clean commit; regardless,
-    # the stale uuid must be cleared so it doesn't linger, and it must not raise.
-    assert document.do_kb_data_source_uuid is None
-    assert document.do_kb_indexed_at is None
-    assert document.do_kb_index_status is None
-    session.commit.assert_awaited_once()
-    assert result is True
+    assert document.do_kb_data_source_uuid == "ds-123"
+    assert document.do_kb_indexed_at == "2026-01-01"
+    assert document.do_kb_index_status == "indexed"
+    session.commit.assert_not_awaited()
+    assert result is False

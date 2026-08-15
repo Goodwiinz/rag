@@ -59,6 +59,41 @@ async def test_repair_document_unsyncs_and_resyncs():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_repair_document_stops_when_unsync_fails():
+    doc_id = uuid.uuid4()
+    mock_doc = MagicMock(
+        id=doc_id,
+        title="Test PDF",
+        content_text="existing text",
+        do_kb_data_source_uuid="ds-old",
+    )
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(return_value=mock_doc)
+    mock_session.refresh = AsyncMock()
+    mock_ctx = MagicMock()
+    mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_ctx.__aexit__ = AsyncMock(return_value=False)
+    sync_mock = AsyncMock()
+
+    with (
+        patch("src.core.database.AsyncSessionLocal", return_value=mock_ctx),
+        patch(
+            "src.services.do_kb.unsync_document_from_kb",
+            new=AsyncMock(return_value=False),
+        ),
+        patch("src.services.do_kb.sync_document_to_kb", new=sync_mock),
+    ):
+        import scripts.maintenance.repair_do_kb_document as mod
+
+        result = await mod.repair_document(str(doc_id))
+
+    assert result["status"] == "unsync_failed"
+    mock_session.refresh.assert_not_awaited()
+    sync_mock.assert_not_awaited()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_repair_document_not_found():
     """repair_document returns not_found for missing document."""
     doc_id = uuid.uuid4()

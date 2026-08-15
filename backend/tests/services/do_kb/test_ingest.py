@@ -398,9 +398,8 @@ async def test_unsync_noop_when_no_data_source(stub_settings):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_unsync_clears_columns_even_when_delete_fails(stub_settings):
-    """A stale UUID must not linger: clear DB columns even if DO's DELETE errors
-    (the DS may already be gone on DO's side)."""
+async def test_unsync_clears_columns_when_data_source_is_already_absent(stub_settings):
+    """A confirmed 404 is a successful idempotent delete."""
     from src.services.do_kb.ingest import unsync_document_from_kb
 
     session = _FakeSession()
@@ -408,7 +407,9 @@ async def test_unsync_clears_columns_even_when_delete_fails(stub_settings):
     doc.do_kb_data_source_uuid = "ds-old"
 
     client = MagicMock()
-    client.delete_data_source = AsyncMock(side_effect=DOKnowledgeBaseError("gone"))
+    client.delete_data_source = AsyncMock(
+        side_effect=DOKnowledgeBaseError("gone", status_code=404)
+    )
 
     with patch(
         "src.services.do_kb.ingest.ensure_kb_for_org",
@@ -419,6 +420,42 @@ async def test_unsync_clears_columns_even_when_delete_fails(stub_settings):
     assert result is True
     assert doc.do_kb_data_source_uuid is None
     assert session.commits == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [
+        DOKnowledgeBaseError("upstream down", status_code=503),
+        RuntimeError("connection reset"),
+    ],
+)
+async def test_unsync_retains_columns_when_delete_fails(stub_settings, error):
+    """Unconfirmed deletes retain the retry handle and index metadata."""
+    from src.services.do_kb.ingest import unsync_document_from_kb
+
+    session = _FakeSession()
+    doc = _FakeDoc()
+    indexed_at = datetime.now(timezone.utc)
+    doc.do_kb_data_source_uuid = "ds-old"
+    doc.do_kb_indexed_at = indexed_at
+    doc.do_kb_index_status = "indexed"
+
+    client = MagicMock()
+    client.delete_data_source = AsyncMock(side_effect=error)
+
+    with patch(
+        "src.services.do_kb.ingest.ensure_kb_for_org",
+        AsyncMock(return_value="kb-1"),
+    ):
+        result = await unsync_document_from_kb(session, doc, client=client)
+
+    assert result is False
+    assert doc.do_kb_data_source_uuid == "ds-old"
+    assert doc.do_kb_indexed_at == indexed_at
+    assert doc.do_kb_index_status == "indexed"
+    assert session.commits == 0
 
 
 @pytest.mark.unit
