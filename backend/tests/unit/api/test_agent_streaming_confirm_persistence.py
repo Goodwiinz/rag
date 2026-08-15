@@ -221,7 +221,13 @@ async def test_confirm_derives_idempotent_assistant_cmid_from_user_row():
 
 
 @pytest.mark.asyncio
-async def test_confirm_done_carries_assistant_message_id_in_canonical_mode():
+@pytest.mark.parametrize(
+    ("persisted_id", "terminal_event"),
+    [("assistant-msg-1", "done"), (None, "error")],
+)
+async def test_confirm_canonical_completion_requires_persisted_assistant(
+    persisted_id, terminal_event
+):
     """In canonical mode the done event must carry assistant_message_id so
     the client can reconcile its optimistic bubble (legacy mode omits it)."""
     from src.api.agent.streaming import stream_confirm_event_generator
@@ -271,7 +277,7 @@ async def test_confirm_done_carries_assistant_message_id_in_canonical_mode():
         ),
         patch(
             "src.services.agent.agent_execution_service._persist_assistant_message_safe",
-            new=AsyncMock(return_value="assistant-msg-1"),
+            new=AsyncMock(return_value=persisted_id),
         ),
         patch(
             "src.api.agent.streaming._latest_user_client_message_id",
@@ -286,7 +292,10 @@ async def test_confirm_done_carries_assistant_message_id_in_canonical_mode():
         async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
-    done_events = [e for e in events if "event: done" in e]
-    assert len(done_events) == 1
-    assert "assistant_message_id" in done_events[0]
-    assert "assistant-msg-1" in done_events[0]
+    terminal_events = [e for e in events if f"event: {terminal_event}" in e]
+    assert len(terminal_events) == 1
+    if persisted_id is None:
+        assert not [e for e in events if "event: done" in e]
+    else:
+        assert "assistant_message_id" in terminal_events[0]
+        assert persisted_id in terminal_events[0]

@@ -90,6 +90,7 @@ from src.models.collection import CollectionDocument
 from src.models.document import Document
 from src.models.user import User
 
+from .error_recovery import tool_error_payload
 from .tool_helpers import (
     _escape_like,
     _resolve_document_id,
@@ -1221,9 +1222,9 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
                 **stale_payload,
                 "cached": True,
                 "stale": True,
-                "warning": f"ArXiv unavailable ({e}); returned cached results.",
+                "warning": "ArXiv is unavailable; returned cached results.",
             }
-        return {"error": f"ArXiv search failed: {str(e)}", "query": query}
+        return {**tool_error_payload("search_arxiv", e), "query": query}
 
 
 async def _existing_document_id(
@@ -1310,7 +1311,7 @@ async def _tool_ingest_arxiv(
             except Exception as exc:
                 logger.warning("arXiv batch metadata fetch failed: %s", exc)
                 for pid in paper_ids:
-                    failed_papers[pid] = f"metadata fetch failed: {exc}"
+                    failed_papers[pid] = "metadata fetch failed"
 
             def _paper_or_stub(pid: str) -> Dict[str, Any]:
                 paper = _resolve_arxiv_paper(pid, fetched_by_id, fetched_unversioned)
@@ -1508,9 +1509,7 @@ async def _tool_ingest_arxiv(
                         "Failed to persist ingested documents to DB", exc_info=db_err
                     )
                     document_ids = []
-                    return {
-                        "error": f"Papers downloaded but DB persist failed: {str(db_err)}"
-                    }
+                    return tool_error_payload("ingest_arxiv_papers", db_err)
             elif ingested:
                 # Fallback: no current_user, return paper_ids only
                 for doc in ingested:
@@ -1650,7 +1649,10 @@ async def _tool_ingest_arxiv(
             return result
     except Exception as e:
         logger.error("ArXiv ingest tool failed", exc_info=e)
-        return {"error": f"Ingestion failed: {str(e)}", "paper_ids": paper_ids}
+        return {
+            **tool_error_payload("ingest_arxiv_papers", e),
+            "paper_ids": paper_ids,
+        }
 
 
 async def _tool_search_documents(
@@ -1718,7 +1720,7 @@ async def _tool_search_documents(
         return payload
     except Exception as e:
         logger.error("search_documents tool failed", exc_info=e)
-        return {"error": f"Document search failed: {str(e)}"}
+        return tool_error_payload("search_documents", e)
 
 
 async def _tool_do_kb_retrieve(
@@ -1781,15 +1783,20 @@ async def _tool_do_kb_retrieve(
             "chunks": [],
             "total": 0,
             "source": "do_kb",
-            "error": f"Retrieval failed: {exc}",
+            **tool_error_payload("do_kb_retrieve", exc),
         }
 
     if outcome.status is not DOKBRetrieveStatus.SUCCESS:
+        failure = (
+            asyncio.TimeoutError()
+            if outcome.status is DOKBRetrieveStatus.TIMEOUT
+            else outcome.error or RuntimeError("DO KB retrieval failed")
+        )
         return {
             "chunks": [],
             "total": 0,
             "source": "do_kb",
-            "error": f"Retrieval failed: {outcome.error}",
+            **tool_error_payload("do_kb_retrieve", failure),
         }
     result = outcome.result
 
@@ -1978,7 +1985,7 @@ async def _tool_add_document_to_project(
         }
     except Exception as e:
         logger.error("add_document_to_project tool failed", exc_info=e)
-        return {"error": f"Failed to add document to project: {str(e)}"}
+        return tool_error_payload("add_document_to_project", e)
 
 
 async def _tool_create_project(
@@ -2045,7 +2052,7 @@ async def _tool_create_project(
         }
     except Exception as e:
         logger.error("create_project tool failed", exc_info=e)
-        return {"error": f"Failed to create project: {str(e)}"}
+        return tool_error_payload("create_project", e)
 
 
 async def _tool_create_project_note(
@@ -2101,7 +2108,7 @@ async def _tool_create_project_note(
         }
     except Exception as e:
         logger.error("create_project_note tool failed", exc_info=e)
-        return {"error": f"Failed to create note: {str(e)}"}
+        return tool_error_payload("create_project_note", e)
 
 
 async def _tool_list_project_documents(
@@ -2179,7 +2186,7 @@ async def _tool_list_project_documents(
         }
     except Exception as e:
         logger.error("list_project_documents tool failed", exc_info=e)
-        return {"error": f"Failed to list project documents: {str(e)}"}
+        return tool_error_payload("list_project_documents", e)
 
 
 async def _tool_list_projects(
@@ -2300,7 +2307,7 @@ async def _tool_list_projects(
         return payload
     except Exception as e:
         logger.error("list_projects tool failed", exc_info=e)
-        return {"error": f"Failed to list projects: {str(e)}"}
+        return tool_error_payload("list_projects", e)
 
 
 async def _tool_summarize_document(
@@ -2403,7 +2410,7 @@ async def _tool_summarize_document(
         }
     except Exception as e:
         logger.error("summarize_document tool failed", exc_info=e)
-        return {"error": f"Summarization failed: {str(e)}"}
+        return tool_error_payload("summarize_document", e)
 
 
 #: Per-document character budget sent to the comparison model.
@@ -2549,7 +2556,7 @@ async def _tool_compare_documents(
         }
     except Exception as e:
         logger.error("compare_documents tool failed", exc_info=e)
-        return {"error": f"Comparison failed: {str(e)}"}
+        return tool_error_payload("compare_documents", e)
 
 
 async def _tool_extract_entities(
@@ -2616,7 +2623,7 @@ async def _tool_extract_entities(
         }
     except Exception as e:
         logger.error("extract_entities tool failed", exc_info=e)
-        return {"error": f"Entity extraction failed: {str(e)}"}
+        return tool_error_payload("extract_entities", e)
 
 
 async def _tool_search_knowledge_graph(
@@ -2679,7 +2686,7 @@ async def _tool_search_knowledge_graph(
         }
     except Exception as e:
         logger.error("search_knowledge_graph tool failed", exc_info=e)
-        return {"error": f"Knowledge graph search failed: {str(e)}"}
+        return tool_error_payload("search_knowledge_graph", e)
 
 
 async def _tool_explore_entity_neighborhood(
@@ -2757,7 +2764,7 @@ async def _tool_explore_entity_neighborhood(
         }
     except Exception as e:
         logger.error("explore_entity_neighborhood tool failed", exc_info=e)
-        return {"error": f"Neighborhood exploration failed: {str(e)}"}
+        return tool_error_payload("explore_entity_neighborhood", e)
 
 
 async def _tool_find_entity_paths(
@@ -2830,7 +2837,7 @@ async def _tool_find_entity_paths(
         }
     except Exception as e:
         logger.error("find_entity_paths tool failed", exc_info=e)
-        return {"error": f"Path finding failed: {str(e)}"}
+        return tool_error_payload("find_entity_paths", e)
 
 
 async def _tool_get_graph_stats(
@@ -2870,7 +2877,7 @@ async def _tool_get_graph_stats(
         }
     except Exception as e:
         logger.error("get_graph_stats tool failed", exc_info=e)
-        return {"error": f"Graph stats retrieval failed: {str(e)}"}
+        return tool_error_payload("get_graph_stats", e)
 
 
 async def _tool_create_draft(
@@ -2922,7 +2929,7 @@ async def _tool_create_draft(
         }
     except Exception as e:
         logger.error("create_draft tool failed", exc_info=e)
-        return {"error": f"Draft creation failed: {str(e)}"}
+        return tool_error_payload("create_draft", e)
 
 
 @dataclass
@@ -3056,7 +3063,7 @@ async def _tool_export_bibliography(
         }
     except Exception as e:
         logger.error("export_bibliography tool failed", exc_info=e)
-        return {"error": f"Bibliography export failed: {str(e)}"}
+        return tool_error_payload("export_bibliography", e)
 
 
 # ---------------------------------------------------------------------------
@@ -3214,7 +3221,7 @@ async def _tool_search_external_database(args: Dict[str, Any]) -> Dict[str, Any]
         }
     except Exception as exc:
         logger.exception("external_db_search_failed")
-        return {"error": f"Search failed: {str(exc)}"}
+        return tool_error_payload("search_external_database", exc)
 
 
 async def _tool_list_external_databases(args: Dict[str, Any]) -> Dict[str, Any]:

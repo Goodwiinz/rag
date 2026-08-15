@@ -493,7 +493,7 @@ async def _stream_luna_fast_path(
                 else None
             ),
         )
-        assistant_saved = True
+        assistant_saved = persisted_assistant_id is not None
 
         # Keep the graph checkpoint authoritative for a later grounded/tool turn.
         checkpointer, store = await asyncio.gather(
@@ -540,6 +540,9 @@ async def _stream_luna_fast_path(
             },
             as_node="memory_save_node",
         )
+
+        if persisted_assistant_id is None:
+            raise RuntimeError("Assistant message persistence returned no id")
 
         if input_tokens or output_tokens:
             record_token_usage(deployment, input_tokens, output_tokens)
@@ -1985,9 +1988,13 @@ async def stream_event_generator(
                     # reconcile its optimistic message without a re-fetch.
                     persisted_assistant_id = (
                         await _jobs_mod._persist_assistant_message_safe(
-                            **persist_kwargs
+                            **persist_kwargs, required=True
                         )
                     )
+                    if persisted_assistant_id is None:
+                        raise RuntimeError(
+                            "Assistant message persistence returned no id"
+                        )
                 elif background_tasks is not None:
                     background_tasks.add_task(
                         _jobs_mod._persist_assistant_message_safe,
@@ -2002,6 +2009,8 @@ async def stream_event_generator(
                 assistant_persisted = True
         except Exception as e:
             logger.warning("Failed to persist SSE thread messages", exc_info=e)
+            if _canonical_persistence_enabled():
+                raise
 
         if turn_input_tokens > 0 or turn_output_tokens > 0:
             # Server-side token cost metric (was previously SSE-only, so cost
@@ -2933,8 +2942,12 @@ async def stream_confirm_event_generator(
             # background task to release the SSE without waiting on the write.
             if _canonical_persistence_enabled():
                 persisted_assistant_id = (
-                    await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
+                    await _jobs_mod._persist_assistant_message_safe(
+                        **persist_kwargs, required=True
+                    )
                 )
+                if persisted_assistant_id is None:
+                    raise RuntimeError("Assistant message persistence returned no id")
             elif background_tasks is not None:
                 background_tasks.add_task(
                     _jobs_mod._persist_assistant_message_safe,
@@ -2948,6 +2961,8 @@ async def stream_confirm_event_generator(
                 "Failed to persist SSE confirmation thread messages",
                 exc_info=e,
             )
+            if _canonical_persistence_enabled():
+                raise
 
         if turn_input_tokens > 0 or turn_output_tokens > 0:
             # Server-side token cost metric (was previously SSE-only, so cost

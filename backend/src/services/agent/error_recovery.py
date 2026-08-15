@@ -101,14 +101,17 @@ class ToolError:
     message: str
     suggestion: str = ""
 
-    def to_tool_message_content(self) -> str:
+    def to_payload(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "error": self.message,
             "error_type": self.category,
         }
         if self.suggestion:
             payload["suggestion"] = self.suggestion
-        return json.dumps(payload)
+        return payload
+
+    def to_tool_message_content(self) -> str:
+        return json.dumps(self.to_payload())
 
     def to_state_info(self) -> dict:
         return {
@@ -126,28 +129,47 @@ def classify_error(tool_name: str, exc: Exception) -> ToolError:
     if isinstance(exc, _USER_FIXABLE_EXCEPTIONS):
         return ToolError(
             category="user_fixable",
-            message=msg,
+            message="The tool could not access the requested resource.",
             suggestion="Check your permissions or ask the user for help.",
         )
 
     if isinstance(exc, _TRANSIENT_EXCEPTIONS):
         return ToolError(
-            category="transient", message=msg, suggestion="Retrying automatically..."
+            category="transient",
+            message="The tool timed out or its upstream connection failed. Please retry.",
+            suggestion="Retrying automatically...",
         )
 
     # Check hints by keyword
     msg_lower = msg.lower()
     for (tn, keyword), (cat, suggestion) in TOOL_ERROR_HINTS.items():
         if tn == tool_name and keyword in msg_lower:
-            return ToolError(category=cat, message=msg, suggestion=suggestion)
+            return ToolError(
+                category=cat,
+                message=(
+                    "The tool timed out or its upstream connection failed. Please retry."
+                    if cat == "transient"
+                    else "The tool could not complete the request."
+                ),
+                suggestion=suggestion,
+            )
 
     # Transient infrastructure / rate-limit errors raised as exceptions.
     if any(kw in msg_lower for kw in _TRANSIENT_ERROR_KEYWORDS):
         return ToolError(
-            category="transient", message=msg, suggestion="Retrying automatically..."
+            category="transient",
+            message="The tool timed out or its upstream connection failed. Please retry.",
+            suggestion="Retrying automatically...",
         )
 
-    return ToolError(category="fatal", message=msg)
+    return ToolError(
+        category="fatal", message="The tool could not complete the request."
+    )
+
+
+def tool_error_payload(tool_name: str, exc: Exception) -> dict[str, Any]:
+    """Client-safe error payload for tools that catch their own exceptions."""
+    return classify_error(tool_name, exc).to_payload()
 
 
 def classify_error_from_payload(tool_name: str, payload: dict) -> ToolError:

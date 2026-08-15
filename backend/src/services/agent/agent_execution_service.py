@@ -1957,20 +1957,22 @@ async def _persist_assistant_message_safe(
     client_message_id: Optional[str] = None,
     plan: Optional[list] = None,
     token_usage: Optional[dict] = None,
+    required: bool = False,
 ) -> Optional[str]:
     """Background-task-safe wrapper around ``_persist_assistant_message``.
 
     Opens its own ``AsyncSessionLocal()`` so it doesn't depend on the
     request session being alive — by the time FastAPI runs background
     tasks the original streaming session has already been closed.
-    Swallows + logs any exception so a background-task failure can't
-    crash the worker, and bumps
+    Swallows + logs exceptions for best-effort background writes. Callers that
+    cannot report success without the row pass ``required=True`` and receive
+    the failure after the metric is recorded. Bumps
     ``agent_assistant_persist_failures_total`` on failure so dashboards
     surface silently-lost assistant rows.
     """
     try:
         async with AsyncSessionLocal() as db:
-            return await _persist_assistant_message(
+            persisted_id = await _persist_assistant_message(
                 db,
                 thread_id=thread_id,
                 content=content,
@@ -1983,6 +1985,9 @@ async def _persist_assistant_message_safe(
                 plan=plan,
                 token_usage=token_usage,
             )
+            if required and persisted_id is None:
+                raise RuntimeError("Assistant message persistence returned no id")
+            return persisted_id
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "Background assistant persist failed for thread %s: %s",
@@ -2000,6 +2005,9 @@ async def _persist_assistant_message_safe(
             # Metrics path is best-effort: never let a bookkeeping
             # failure mask the real error (already logged above).
             pass
+        if required:
+            raise
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -2304,7 +2312,7 @@ async def _run_agent_graph(
                     _job_in_tok, _job_out_tok = _sum_message_usage(
                         final_state.get("messages")
                     )
-                    await _persist_assistant_message_safe(
+                    persisted_assistant_id = await _persist_assistant_message_safe(
                         thread_id=thread_id,
                         content=assistant_content,
                         model_name=request.model,
@@ -2319,9 +2327,15 @@ async def _run_agent_graph(
                             if (_job_in_tok or _job_out_tok)
                             else None
                         ),
+                        required=True,
                     )
+                    if persisted_assistant_id is None:
+                        raise RuntimeError(
+                            "Assistant message persistence returned no id"
+                        )
             except Exception as e:
                 logger.warning("Failed to persist thread", exc_info=e)
+                raise
 
             response_model_name: str = getattr(request, "model", "") or ""
             # Token cost on the job path (the SSE path records its own). Reads
@@ -2659,7 +2673,7 @@ async def _resume_agent_graph(
                             if resume_ckpt_id
                             else None
                         )
-                        await _persist_assistant_message_safe(
+                        persisted_assistant_id = await _persist_assistant_message_safe(
                             thread_id=thread_id,
                             content=assistant_content,
                             model_name=original_request.model,
@@ -2675,11 +2689,17 @@ async def _resume_agent_graph(
                                 else None
                             ),
                             client_message_id=assistant_cmid,
+                            required=True,
                         )
+                        if persisted_assistant_id is None:
+                            raise RuntimeError(
+                                "Assistant message persistence returned no id"
+                            )
             except Exception as e:
                 logger.warning(
                     "Failed to persist confirmation thread messages", exc_info=e
                 )
+                raise
 
             response_model_name: str = (
                 getattr(original_request, "model", "") if original_request else ""
