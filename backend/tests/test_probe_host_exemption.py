@@ -56,9 +56,7 @@ async def _drive(app, path: str, host: str) -> int:
 def test_readiness_path_is_probe_exempt():
     # The readiness probe targets /health/readiness; if it is not exempt the
     # kubelet's pod-IP Host header 400s every probe -> all pods leave the LB.
-    assert "/health/readiness" in PROBE_EXEMPT_PATHS
-    # Liveness/startup path stays exempt too.
-    assert "/health" in PROBE_EXEMPT_PATHS
+    assert PROBE_EXEMPT_PATHS == {"/health", "/health/readiness"}
 
 
 @pytest.mark.unit

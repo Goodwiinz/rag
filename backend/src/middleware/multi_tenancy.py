@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.core.database import AsyncSessionLocal
+from src.core.probes import PROBE_EXEMPT_PATHS
 from src.core.security import verify_token
 from src.core.user_provisioning import ensure_user_and_org
 from src.exceptions.analytics_exceptions import PermissionDeniedException
@@ -105,15 +106,16 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
         forced every login/register/refresh request through tenant
         resolution (issue #1003).
         """
+        if request.url.path in PROBE_EXEMPT_PATHS:
+            return True
+
         skip_paths = [
-            "/health",
             "/api/v1/auth/login",
             "/api/v1/auth/register",
             "/api/v1/auth/refresh",
             "/docs",
             "/redoc",
             "/openapi.json",
-            "/api/v1/sentry-debug",
         ]
 
         return any(request.url.path.startswith(path) for path in skip_paths)
