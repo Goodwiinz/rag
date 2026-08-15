@@ -63,10 +63,8 @@ async def repair_document(document_id: str, *, dry_run: bool = False) -> dict:
         if not doc.content_text:
             logger.info("Re-extracting text for document %s", document_id)
             try:
-                from src.services.documents.storage_utils import (
-                    local_file_for_document,
-                )
                 from src.services.documents.file_service import FileService
+                from src.services.documents.storage_utils import local_file_for_document
 
                 file_service = FileService()
                 with local_file_for_document(doc) as file_path:
@@ -76,7 +74,8 @@ async def repair_document(document_id: str, *, dry_run: bool = False) -> dict:
                     doc.content_text = text
                     logger.info(
                         "Extracted %d characters for document %s",
-                        len(text), document_id,
+                        len(text),
+                        document_id,
                     )
                     result["extracted_chars"] = len(text)
                 else:
@@ -100,7 +99,8 @@ async def repair_document(document_id: str, *, dry_run: bool = False) -> dict:
         if doc.do_kb_data_source_uuid:
             logger.info(
                 "Unsyncing document %s (ds_uuid=%s)",
-                document_id, doc.do_kb_data_source_uuid,
+                document_id,
+                doc.do_kb_data_source_uuid,
             )
             if not await unsync_document_from_kb(session, doc):
                 result["status"] = "unsync_failed"
@@ -129,6 +129,7 @@ async def repair_document(document_id: str, *, dry_run: bool = False) -> dict:
 async def find_orphans() -> list[dict]:
     """Find documents with content_text but no do_kb_data_source_uuid."""
     from sqlalchemy import select
+
     from src.core.database import AsyncSessionLocal
     from src.models.document import Document, ProcessingStatus
 
@@ -145,19 +146,12 @@ async def find_orphans() -> list[dict]:
             .limit(100)
         )
         rows = await session.execute(stmt)
-        return [
-            {"document_id": str(row.id), "title": row.title}
-            for row in rows
-        ]
+        return [{"document_id": str(row.id), "title": row.title} for row in rows]
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Repair DO KB indexing for a document"
-    )
-    parser.add_argument(
-        "--document-id", type=str, help="Document UUID to repair"
-    )
+    parser = argparse.ArgumentParser(description="Repair DO KB indexing for a document")
+    parser.add_argument("--document-id", type=str, help="Document UUID to repair")
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -181,7 +175,9 @@ def main():
             print(f"\nFound {len(orphans)} orphaned documents:")
             for o in orphans:
                 print(f"  {o['document_id']}  {o['title']}")
-            print(f"\nRepair with: python scripts/maintenance/repair_do_kb_document.py --document-id <id>")
+            print(
+                f"\nRepair with: python scripts/maintenance/repair_do_kb_document.py --document-id <id>"
+            )
         else:
             print("No orphaned documents found.")
         return

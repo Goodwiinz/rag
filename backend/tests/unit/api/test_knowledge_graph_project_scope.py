@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from sqlalchemy import create_engine
@@ -13,12 +14,13 @@ from sqlalchemy.pool import StaticPool
 from src.api.search import knowledge_graph as kg
 from src.models.collection import Collection, CollectionDocument
 from src.models.document import Document, DocumentType
+from src.models.user import User
 from src.models.workspace import Workspace
 
 pytestmark = pytest.mark.unit
 
 
-def test_project_scope_rejects_another_users_project():
+def test_project_scope_rejects_another_users_project() -> None:
     import src.models  # noqa: F401 - register all foreign-key targets
     from src.models.base import Base
 
@@ -88,8 +90,10 @@ def test_project_scope_rejects_another_users_project():
         )
         db.commit()
 
-        caller = SimpleNamespace(id=owner_id, organization_id=org_id)
-        assert kg._scope_doc_ids(db, caller, owned_project.id) == [str(owned_doc.id)]
-        assert kg._scope_doc_ids(db, caller, other_project.id) == []
+        caller = cast(User, SimpleNamespace(id=owner_id, organization_id=org_id))
+        owned_project_id = cast(uuid.UUID, owned_project.id)
+        other_project_id = cast(uuid.UUID, other_project.id)
+        assert kg._scope_doc_ids(db, caller, owned_project_id) == [str(owned_doc.id)]
+        assert kg._scope_doc_ids(db, caller, other_project_id) == []
 
     engine.dispose()
