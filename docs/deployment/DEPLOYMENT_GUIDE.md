@@ -508,14 +508,14 @@ docker-compose up -d
 
 ```bash
 # Manual health check
-curl -f http://localhost:8000/health
+curl -fsS http://localhost:8000/health
 
 # Dependency readiness (database and Redis)
-curl -f http://localhost:8000/health/readiness
+curl -fsS http://localhost:8000/health/readiness
 
 # Authenticated component checks
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/workers/health
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/knowledge-graph/health
+curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/workers/health
+curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/knowledge-graph/health
 
 # Diagnose remaining failures from backend logs
 docker-compose logs --tail=200 backend

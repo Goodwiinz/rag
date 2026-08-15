@@ -17,14 +17,14 @@ This runbook provides step-by-step procedures for common operational tasks and i
 
 ```bash
 # Liveness
-curl http://localhost:8000/health
+curl -fsS http://localhost:8000/health
 
 # Database and Redis readiness
-curl http://localhost:8000/health/readiness
+curl -fsS http://localhost:8000/health/readiness
 
 # Authenticated worker and knowledge-graph diagnostics
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/workers/health
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/knowledge-graph/health
+curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/workers/health
+curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/knowledge-graph/health
 
 # Service status
 docker-compose ps

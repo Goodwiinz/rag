@@ -88,7 +88,8 @@ import sentry_sdk
 
 from src.observability.sentry import init_sentry
 
-assert init_sentry(), "Sentry is disabled"
+if not init_sentry():
+    raise SystemExit("Sentry is disabled")
 try:
     raise RuntimeError("nous-backend Sentry verification")
 except RuntimeError as exc:

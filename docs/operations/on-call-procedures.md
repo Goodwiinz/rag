@@ -339,14 +339,14 @@ Post-mortem scheduled: [Date/Time]
 1. **Check API Probes**
    ```bash
    # Liveness
-   curl http://backend:8000/health
+   curl -fsS http://backend:8000/health
 
    # Database and Redis readiness
-   curl http://backend:8000/health/readiness
+   curl -fsS http://backend:8000/health/readiness
 
    # Authenticated component diagnostics
-   curl -H "Authorization: Bearer $TOKEN" http://backend:8000/api/v1/workers/health
-   curl -H "Authorization: Bearer $TOKEN" http://backend:8000/api/v1/knowledge-graph/health
+   curl -fsS -H "Authorization: Bearer $TOKEN" http://backend:8000/api/v1/workers/health
+   curl -fsS -H "Authorization: Bearer $TOKEN" http://backend:8000/api/v1/knowledge-graph/health
    ```
 
 2. **Analyze Error Patterns**
