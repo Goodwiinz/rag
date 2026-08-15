@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { getAppQueryClient } from '@/lib/query-client';
+import type { AgentExecuteRequest } from '@/services/agentChatService';
 import type {
   AgentChatState,
   AgentChatActions,
@@ -146,9 +147,12 @@ export const useAgentChatStore = create<AgentChatStore>()(
         let didMutateProjectData = false;
 
         // Build messages array for the API (only user/assistant roles)
-        const apiMessages = get()
-          .messages.filter((m) => m.role === 'user' || m.role === 'assistant')
-          .map((m) => ({ role: m.role, content: m.content }));
+        const apiMessages: AgentExecuteRequest['messages'] =
+          get().messages.flatMap((message) =>
+            message.role === 'user' || message.role === 'assistant'
+              ? [{ role: message.role, content: message.content }]
+              : []
+          );
 
         const requestPayload = {
           messages: apiMessages,

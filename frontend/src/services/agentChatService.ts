@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/client';
 import { getPublicApiBaseUrl } from '@/utils/publicEndpoints';
 import { parseErrorBody } from '@/utils/parseErrorBody';
 import { parseAgentErrorCategory } from '@/services/agentStreamEvents';
+import type { components } from '@/types/generated/api';
 import type {
   AgentErrorCategory,
   AgentStreamEvent,
@@ -309,26 +310,14 @@ async function consumeSse(
   }
 }
 
-export interface AgentExecuteRequest {
-  messages: Array<{
-    role: string;
-    content: string;
-    /** Idempotency key for the user turn (server-canonical persistence). */
-    client_message_id?: string;
-  }>;
-  page_context: {
-    type: string;
-    project_id?: string;
-    metadata?: Record<string, unknown>;
-  };
-  model?: string;
-  use_rag?: boolean;
-  max_context_docs?: number;
-  thread_id?: string;
-  /** Edit-and-resend only: the `client_message_id` of the user turn being
-   * edited. The server tombstones that turn and everything after it. */
-  supersedes_client_message_id?: string;
-}
+type GeneratedAgentExecuteRequest =
+  components['schemas']['AgentExecuteRequest'];
+export type AgentExecuteRequest = Pick<
+  GeneratedAgentExecuteRequest,
+  'messages'
+> &
+  Partial<Omit<GeneratedAgentExecuteRequest, 'messages'>>;
+type StreamConfirmRequest = components['schemas']['StreamConfirmRequest'];
 
 export interface AgentExecuteResponse {
   message: {
@@ -586,7 +575,7 @@ class AgentChatService {
   }
 
   async streamConfirm(
-    request: { thread_id: string; confirmed: boolean },
+    request: StreamConfirmRequest,
     callbacks: AgentStreamCallbacks,
     signal?: AbortSignal
   ): Promise<void> {

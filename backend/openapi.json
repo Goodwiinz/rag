@@ -185,17 +185,36 @@
             "type": "integer"
           },
           "messages": {
-            "description": "Conversation messages",
+            "contains": {
+              "properties": {
+                "role": {
+                  "const": "user"
+                }
+              },
+              "required": [
+                "role"
+              ],
+              "type": "object"
+            },
+            "description": "Conversation messages; at least one must have role='user'",
             "items": {
               "$ref": "#/components/schemas/AgentMessage"
             },
             "maxItems": 50,
+            "minContains": 1,
+            "minItems": 1,
             "title": "Messages",
             "type": "array"
           },
           "model": {
             "default": "",
             "description": "Azure deployment name to route the chat to. Empty string uses the server-configured deployment. See SUPPORTED_MODELS for the allow-list.",
+            "enum": [
+              "",
+              "model-router",
+              "gpt-5-mini",
+              "gpt-5.6-luna"
+            ],
             "title": "Model",
             "type": "string"
           },
@@ -218,6 +237,7 @@
           "thread_id": {
             "anyOf": [
               {
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                 "type": "string"
               },
               {
@@ -5938,6 +5958,19 @@
         "title": "GraphVisualizationNode",
         "type": "object"
       },
+      "HTTPErrorResponse": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "HTTPErrorResponse",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -11471,6 +11504,7 @@
             "type": "boolean"
           },
           "thread_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
             "title": "Thread Id",
             "type": "string"
           }
@@ -15499,11 +15533,13 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Server-Sent Events stream"
           },
           "422": {
             "content": {
@@ -15514,6 +15550,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -15547,6 +15593,26 @@
           "204": {
             "description": "Successful Response"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                }
+              }
+            },
+            "description": "Thread not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                }
+              }
+            },
+            "description": "Run is not awaiting confirmation"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -15556,6 +15622,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                }
+              }
+            },
+            "description": "Cancellation temporarily unavailable"
           }
         },
         "security": [
@@ -15586,11 +15662,13 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Server-Sent Events stream"
           },
           "422": {
             "content": {
