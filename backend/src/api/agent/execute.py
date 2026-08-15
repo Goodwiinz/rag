@@ -80,6 +80,7 @@ from src.services.agent.schemas import (  # noqa: F401
     AgentMessage,
     PageContextRequest,
     RetrievedContextResponse,
+    StrictUUIDString,
     ToolExecutionResponse,
 )
 from src.services.agent.tool_helpers import (  # noqa: F401
@@ -180,6 +181,10 @@ class JobStatusResponse(BaseModel):
     thread_id: Optional[str] = None
 
 
+class HTTPErrorResponse(BaseModel):
+    detail: str
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -241,8 +246,16 @@ class ConfirmationRequest(BaseModel):
 
 
 class StreamConfirmRequest(BaseModel):
-    thread_id: str
+    thread_id: StrictUUIDString
     confirmed: bool
+
+
+_SSE_RESPONSE = {
+    200: {
+        "description": "Server-Sent Events stream",
+        "content": {"text/event-stream": {"schema": {"type": "string"}}},
+    }
+}
 
 
 # ---------------------------------------------------------------------------
@@ -697,7 +710,14 @@ async def confirm_agent_action(
     return {"status": JobStatus.RUNNING, "job_id": job_id}
 
 
-@router.post("/stream")
+@router.post(
+    "/stream",
+    response_class=StreamingResponse,
+    responses={
+        **_SSE_RESPONSE,
+        429: {"model": HTTPErrorResponse, "description": "Rate limit exceeded"},
+    },
+)
 async def stream_agent(
     request_body: AgentExecuteRequest,
     request: Request,
@@ -742,7 +762,11 @@ async def stream_agent(
     )
 
 
-@router.post("/stream/confirm")
+@router.post(
+    "/stream/confirm",
+    response_class=StreamingResponse,
+    responses=_SSE_RESPONSE,
+)
 async def stream_confirm_agent(
     request_body: StreamConfirmRequest,
     request: Request,
@@ -762,7 +786,21 @@ async def stream_confirm_agent(
     )
 
 
-@router.post("/stream/cancel/{thread_id}", status_code=204)
+@router.post(
+    "/stream/cancel/{thread_id}",
+    status_code=204,
+    responses={
+        404: {"model": HTTPErrorResponse, "description": "Thread not found"},
+        409: {
+            "model": HTTPErrorResponse,
+            "description": "Run is not awaiting confirmation",
+        },
+        503: {
+            "model": HTTPErrorResponse,
+            "description": "Cancellation temporarily unavailable",
+        },
+    },
+)
 async def cancel_stream_confirmation(
     thread_id: _uuid.UUID,
     current_user: User = Depends(get_current_user),

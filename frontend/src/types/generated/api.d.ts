@@ -8590,15 +8590,16 @@ export interface components {
             max_context_docs: number;
             /**
              * Messages
-             * @description Conversation messages
+             * @description Conversation messages; at least one must have role='user'
              */
             messages: components["schemas"]["AgentMessage"][];
             /**
              * Model
              * @description Azure deployment name to route the chat to. Empty string uses the server-configured deployment. See SUPPORTED_MODELS for the allow-list.
              * @default
+             * @enum {string}
              */
-            model: string;
+            model: "" | "model-router" | "gpt-5-mini" | "gpt-5.6-luna";
             page_context?: components["schemas"]["PageContextRequest"];
             /**
              * Supersedes Client Message Id
@@ -11277,6 +11278,11 @@ export interface components {
              * @description Y coordinate for layout
              */
             y?: number | null;
+        };
+        /** HTTPErrorResponse */
+        HTTPErrorResponse: {
+            /** Detail */
+            detail: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -15560,13 +15566,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Server-Sent Events stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "text/event-stream": string;
                 };
             };
             /** @description Validation Error */
@@ -15576,6 +15582,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPErrorResponse"];
                 };
             };
         };
@@ -15598,6 +15613,24 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Thread not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPErrorResponse"];
+                };
+            };
+            /** @description Run is not awaiting confirmation */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -15605,6 +15638,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Cancellation temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPErrorResponse"];
                 };
             };
         };
@@ -15622,13 +15664,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Server-Sent Events stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "text/event-stream": string;
                 };
             };
             /** @description Validation Error */

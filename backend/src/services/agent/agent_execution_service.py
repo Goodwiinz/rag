@@ -2173,6 +2173,7 @@ async def _run_agent_graph(
                 "retrieved_contexts": [],
                 "tool_executions": [],
                 "thread_id": request.thread_id or "",
+                "turn_index": 0,
                 "tool_loop_count": 0,
                 "error_count": 0,
                 "last_error": "",
