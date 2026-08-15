@@ -331,6 +331,23 @@ async def unsync_document_from_kb(
 
     try:
         await api.delete_data_source(kb_uuid=kb_uuid, ds_uuid=ds_uuid)
+    except DOKnowledgeBaseError as exc:
+        if exc.status_code == 404:
+            logger.info(
+                "do_kb data source already absent",
+                extra={"document_id": str(document.id), "ds_uuid": ds_uuid},
+            )
+        else:
+            logger.warning(
+                "do_kb delete_data_source failed",
+                extra={
+                    "document_id": str(document.id),
+                    "ds_uuid": ds_uuid,
+                    "error": str(exc),
+                },
+            )
+            _record_metric("unsync_failed")
+            return False
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "do_kb delete_data_source failed",
@@ -340,8 +357,8 @@ async def unsync_document_from_kb(
                 "error": str(exc),
             },
         )
-        # Still clear DB columns — the DS may already be gone on DO's side
-        # (e.g. deleted via console), and a stale UUID must not linger.
+        _record_metric("unsync_failed")
+        return False
 
     document.do_kb_data_source_uuid = None
     document.do_kb_indexed_at = None

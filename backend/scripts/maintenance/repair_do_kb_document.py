@@ -102,7 +102,10 @@ async def repair_document(document_id: str, *, dry_run: bool = False) -> dict:
                 "Unsyncing document %s (ds_uuid=%s)",
                 document_id, doc.do_kb_data_source_uuid,
             )
-            await unsync_document_from_kb(session, doc)
+            if not await unsync_document_from_kb(session, doc):
+                result["status"] = "unsync_failed"
+                logger.error("Unsync failed for document %s", document_id)
+                return result
             await session.refresh(doc)
 
         # Step 3: Re-sync with the canonical .txt path
