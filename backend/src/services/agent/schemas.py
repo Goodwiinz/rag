@@ -62,7 +62,7 @@ SUPPORTED_MODELS: frozenset[str] = frozenset(
 
 class AgentExecuteRequest(BaseModel):
     messages: List[AgentMessage] = Field(
-        ..., min_length=1, max_length=50, description="Conversation messages"
+        ..., max_length=50, description="Conversation messages"
     )
     page_context: PageContextRequest = Field(default_factory=PageContextRequest)
     model: str = Field(
@@ -74,7 +74,7 @@ class AgentExecuteRequest(BaseModel):
     )
     use_rag: bool = Field(default=True)
     max_context_docs: int = Field(default=5, ge=1, le=10)
-    thread_id: Optional[str] = Field(default=None, pattern=UUID_STRICT_RE)
+    thread_id: Optional[str] = None
     supersedes_client_message_id: Optional[UUID] = Field(
         default=None,
         description=(
@@ -119,6 +119,13 @@ class AgentExecuteRequest(BaseModel):
             raise ValueError(
                 f"Unsupported model {value!r}. Supported deployments: {supported}."
             )
+        return value
+
+    @field_validator("thread_id")
+    @classmethod
+    def _validate_thread_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and UUID_STRICT_RE.fullmatch(value) is None:
+            raise ValueError("thread_id must be a UUID")
         return value
 
 

@@ -190,7 +190,6 @@
               "$ref": "#/components/schemas/AgentMessage"
             },
             "maxItems": 50,
-            "minItems": 1,
             "title": "Messages",
             "type": "array"
           },
@@ -219,7 +218,6 @@
           "thread_id": {
             "anyOf": [
               {
-                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
                 "type": "string"
               },
               {

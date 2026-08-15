@@ -49,3 +49,13 @@ def test_unknown_model_raises_validation_error_naming_supported_set():
 def test_gpt_5_mini_is_accepted():
     request = _build(model="gpt-5-mini")
     assert request.model == "gpt-5-mini"
+
+
+def test_request_rejects_missing_user_message():
+    with pytest.raises(ValidationError, match="messages must include a user message"):
+        _build(messages=[])
+
+
+def test_request_rejects_non_uuid_thread_id():
+    with pytest.raises(ValidationError, match="thread_id must be a UUID"):
+        _build(thread_id="not-a-uuid")
