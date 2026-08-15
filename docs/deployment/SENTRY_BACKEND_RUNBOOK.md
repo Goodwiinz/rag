@@ -83,19 +83,30 @@ show new ages).
 ## 7. Trigger a test event
 
 ```sh
-curl -i https://dev-api.gen-text.app/api/v1/sentry-debug
+kubectl -n rag-dev exec -i deploy/nous-dev-knowledge-graph-analytics-backend -- python - <<'PY'
+import sentry_sdk
+
+from src.observability.sentry import init_sentry
+
+if not init_sentry():
+    raise SystemExit("Sentry is disabled")
+try:
+    raise RuntimeError("nous-backend Sentry verification")
+except RuntimeError as exc:
+    sentry_sdk.capture_exception(exc)
+sentry_sdk.flush(timeout=5)
+PY
 ```
 
-Expect `HTTP/1.1 500 Internal Server Error`. (404 means
-`SENTRY_DEBUG_ENABLED` gating thinks the env is prod — check `ENVIRONMENT`
-or `SENTRY_ENVIRONMENT` env var values in the pod.)
+Expect the command to exit successfully. The test runs inside the backend pod;
+there is no public HTTP error trigger.
 
 ## 8. Confirm event in Sentry
 
 - https://goodwiinz-uk.sentry.io/issues/?project=nous-frontend
 - Filter by `service:nous-backend environment:dev`
 - New issue appears within ~30s. Stack trace points to
-  `src/api/diagnostics/sentry_debug.py`.
+  the in-pod verification command.
 
 ---
 
@@ -114,7 +125,7 @@ When ready:
 - Init logic: `backend/src/observability/sentry.py`
 - App wiring: `backend/src/main.py` (calls `init_sentry()` before
   `FastAPI(...)`)
-- Verify endpoint: `backend/src/api/diagnostics/sentry_debug.py`
+- Verification: run the controlled SDK command in step 7 from inside a backend pod
 - Helm env vars: `infrastructure/helm/knowledge-graph-analytics/values-{dev,staging,production}.yaml`
 - DSN flows from existing `app-secrets` k8s secret via the existing
   `envFrom` block in `values-*.yaml` — no helm template change needed for

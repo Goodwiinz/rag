@@ -34547,23 +34547,6 @@
         ]
       }
     },
-    "/api/v1/sentry-debug": {
-      "get": {
-        "description": "Deliberately raise an error to verify Sentry is capturing events.",
-        "operationId": "sentry_debug_api_v1_sentry_debug_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Sentry Debug"
-      }
-    },
     "/api/v1/workers/health": {
       "get": {
         "description": "Get overall health status of worker infrastructure\n\nReturns:\n- healthy: bool - Whether the worker infrastructure is healthy\n- workers_online: int - Number of workers online\n- issues: List[str] - List of any issues detected",
@@ -39911,150 +39894,9 @@
         "summary": "Health Check"
       }
     },
-    "/health/": {
-      "get": {
-        "description": "Basic health check endpoint.\nReturns overall system health status.",
-        "operationId": "health_check_health__get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Health Check",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/check/{component}": {
-      "get": {
-        "description": "Check health of a specific component.",
-        "operationId": "check_component_health_check__component__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "component",
-            "required": true,
-            "schema": {
-              "title": "Component",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Check Component",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/detailed": {
-      "get": {
-        "description": "Detailed health check endpoint.\nReturns detailed status of all components.",
-        "operationId": "detailed_health_check_health_detailed_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Detailed Health Check",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/invalidate-cache": {
-      "post": {
-        "description": "Invalidate the health check cache.\nForces new health checks on next request.",
-        "operationId": "invalidate_health_cache_health_invalidate_cache_post",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Invalidate Health Cache",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/liveness": {
-      "get": {
-        "description": "Kubernetes liveness probe.\nChecks if the application is still alive.",
-        "operationId": "liveness_probe_health_liveness_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Liveness Probe",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/metrics": {
-      "get": {
-        "description": "Health-specific metrics endpoint.\nReturns metrics about the health check system itself.",
-        "operationId": "health_metrics_health_metrics_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Health Metrics",
-        "tags": [
-          "health"
-        ]
-      }
-    },
     "/health/readiness": {
       "get": {
-        "description": "Kubernetes readiness probe.\nChecks if the application is ready to serve traffic.\nReturns 503 when the LLM config is incomplete (strict/non-throwaway\nenv only) or when a critical dependency is unhealthy. Liveness\n(/health/liveness) is unaffected — the pod stays alive but is removed\nfrom the LB.\n\nThe dependency checks are cached for a few seconds (see\n``_readiness_cache_ttl``) so kubelet polling doesn't open a fresh\nDB + Redis connection on every hit.",
+        "description": "Return 503 until LLM config, PostgreSQL, and Redis are ready.",
         "operationId": "readiness_probe_health_readiness_get",
         "responses": {
           "200": {
@@ -40067,26 +39909,6 @@
           }
         },
         "summary": "Readiness Probe",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/startup": {
-      "get": {
-        "description": "Kubernetes startup probe.\nChecks if the application has started successfully.",
-        "operationId": "startup_probe_health_startup_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Startup Probe",
         "tags": [
           "health"
         ]

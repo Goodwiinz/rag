@@ -336,13 +336,17 @@ Post-mortem scheduled: [Date/Time]
 **Impact**: Users cannot access system functionality
 
 **Investigation Steps**:
-1. **Check API Health Endpoints**
+1. **Check API Probes**
    ```bash
-   # Overall health
-   curl http://backend:8000/health
+   # Liveness
+   curl -fsS http://backend:8000/health
 
-   # Detailed health status
-   curl http://backend:8000/api/v1/health/detailed
+   # Database and Redis readiness
+   curl -fsS http://backend:8000/health/readiness
+
+   # Authenticated component diagnostics
+   curl -fsS -H "Authorization: Bearer $TOKEN" http://backend:8000/api/v1/workers/health
+   curl -fsS -H "Authorization: Bearer $TOKEN" http://backend:8000/api/v1/knowledge-graph/health
    ```
 
 2. **Analyze Error Patterns**
