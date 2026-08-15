@@ -6941,26 +6941,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/sentry-debug": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Sentry Debug
-         * @description Deliberately raise an error to verify Sentry is capturing events.
-         */
-        get: operations["sentry_debug_api_v1_sentry_debug_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/workers/health": {
         parameters: {
             query?: never;
@@ -8496,131 +8476,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/health/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health Check
-         * @description Basic health check endpoint.
-         *     Returns overall system health status.
-         */
-        get: operations["health_check_health__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/check/{component}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check Component
-         * @description Check health of a specific component.
-         */
-        get: operations["check_component_health_check__component__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/detailed": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Detailed Health Check
-         * @description Detailed health check endpoint.
-         *     Returns detailed status of all components.
-         */
-        get: operations["detailed_health_check_health_detailed_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/invalidate-cache": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Invalidate Health Cache
-         * @description Invalidate the health check cache.
-         *     Forces new health checks on next request.
-         */
-        post: operations["invalidate_health_cache_health_invalidate_cache_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/liveness": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Liveness Probe
-         * @description Kubernetes liveness probe.
-         *     Checks if the application is still alive.
-         */
-        get: operations["liveness_probe_health_liveness_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/metrics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health Metrics
-         * @description Health-specific metrics endpoint.
-         *     Returns metrics about the health check system itself.
-         */
-        get: operations["health_metrics_health_metrics_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/health/readiness": {
         parameters: {
             query?: never;
@@ -8630,39 +8485,9 @@ export interface paths {
         };
         /**
          * Readiness Probe
-         * @description Kubernetes readiness probe.
-         *     Checks if the application is ready to serve traffic.
-         *     Returns 503 when the LLM config is incomplete (strict/non-throwaway
-         *     env only) or when a critical dependency is unhealthy. Liveness
-         *     (/health/liveness) is unaffected — the pod stays alive but is removed
-         *     from the LB.
-         *
-         *     The dependency checks are cached for a few seconds (see
-         *     ``_readiness_cache_ttl``) so kubelet polling doesn't open a fresh
-         *     DB + Redis connection on every hit.
+         * @description Return 503 until LLM config, PostgreSQL, and Redis are ready.
          */
         get: operations["readiness_probe_health_readiness_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/startup": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Startup Probe
-         * @description Kubernetes startup probe.
-         *     Checks if the application has started successfully.
-         */
-        get: operations["startup_probe_health_startup_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -26803,26 +26628,6 @@ export interface operations {
             };
         };
     };
-    sentry_debug_api_v1_sentry_debug_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
     get_workers_health_api_v1_workers_health_get: {
         parameters: {
             query?: never;
@@ -29791,158 +29596,7 @@ export interface operations {
             };
         };
     };
-    health_check_health__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    check_component_health_check__component__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                component: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    detailed_health_check_health_detailed_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    invalidate_health_cache_health_invalidate_cache_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    liveness_probe_health_liveness_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    health_metrics_health_metrics_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
     readiness_probe_health_readiness_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    startup_probe_health_startup_get: {
         parameters: {
             query?: never;
             header?: never;
