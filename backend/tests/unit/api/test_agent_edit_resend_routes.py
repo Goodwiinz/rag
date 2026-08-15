@@ -303,6 +303,8 @@ async def test_luna_route_still_appends_when_the_assistant_row_was_lost(
 
     run.resync.assert_awaited_once()
     assert run.graph.aupdate_state.await_count == 1
+    assert any("event: error" in event for event in run.events)
+    assert not any("event: done" in event for event in run.events)
 
 
 async def test_luna_route_does_not_resync_a_plain_turn(

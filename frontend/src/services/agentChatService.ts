@@ -2,7 +2,10 @@ import { api } from '@/services/api-client';
 import { createClient } from '@/lib/supabase/client';
 import { getPublicApiBaseUrl } from '@/utils/publicEndpoints';
 import { parseErrorBody } from '@/utils/parseErrorBody';
-import { parseAgentErrorCategory } from '@/services/agentStreamEvents';
+import {
+  parseAgentErrorCategory,
+  TERMINAL_STREAM_EVENTS,
+} from '@/services/agentStreamEvents';
 import type { components } from '@/types/generated/api';
 import type {
   AgentErrorCategory,
@@ -124,6 +127,9 @@ export type AgentResumeResult =
   | { status: 'aborted' }
   | { status: 'failed'; error: string };
 
+const INCOMPLETE_STREAM_ERROR =
+  'Stream ended before completion. Please retry.';
+
 /** Read the backend's error body so the user sees the real cause, not just
  * an HTTP number. The backend returns the structured envelope
  * `{ error: { message, ... } }`; older paths may return `{detail: "..."}`. */
@@ -182,15 +188,19 @@ export const HANDLED_STREAM_EVENTS: ReadonlySet<AgentStreamEvent> = new Set([
 async function consumeSse(
   response: Response,
   callbacks: AgentStreamCallbacks
-): Promise<void> {
+): Promise<boolean> {
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   let eventType = '';
+  let terminalSeen = false;
 
   const dispatchData = (ev: string, dataLine: string): void => {
     try {
       const data = JSON.parse(dataLine.slice(6));
+      if (TERMINAL_STREAM_EVENTS.has(ev as AgentStreamEvent)) {
+        terminalSeen = true;
+      }
       // Run-correlation id from the stream envelope (additive field): echoed
       // back on /stream/resume so a stale cursor can't attach to a newer run.
       if (typeof data.stream_id === 'string') {
@@ -303,11 +313,12 @@ async function consumeSse(
       }
     }
   } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') return;
+    if (err instanceof DOMException && err.name === 'AbortError') return false;
     throw err;
   } finally {
     reader.releaseLock();
   }
+  return terminalSeen;
 }
 
 type GeneratedAgentExecuteRequest =
@@ -507,7 +518,10 @@ class AgentChatService {
       return;
     }
 
-    await consumeSse(response, callbacks);
+    const terminalSeen = await consumeSse(response, callbacks);
+    if (!terminalSeen && !signal?.aborted) {
+      callbacks.onError?.(INCOMPLETE_STREAM_ERROR);
+    }
   }
 
   /**
@@ -563,7 +577,11 @@ class AgentChatService {
     }
 
     try {
-      await consumeSse(response, callbacks);
+      const terminalSeen = await consumeSse(response, callbacks);
+      if (!terminalSeen) {
+        if (signal?.aborted) return { status: 'aborted' };
+        return { status: 'failed', error: INCOMPLETE_STREAM_ERROR };
+      }
     } catch (err) {
       return {
         status: 'failed',
@@ -605,7 +623,10 @@ class AgentChatService {
       return;
     }
 
-    await consumeSse(response, callbacks);
+    const terminalSeen = await consumeSse(response, callbacks);
+    if (!terminalSeen && !signal?.aborted) {
+      callbacks.onError?.(INCOMPLETE_STREAM_ERROR);
+    }
   }
 
   async cancelPendingConfirmation(threadId: string): Promise<void> {

@@ -193,6 +193,19 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     expect(tokens).toEqual(['hello']);
     expect(done).toHaveBeenCalledTimes(1);
   });
+
+  it('reports EOF before a terminal frame as an error', async () => {
+    global.fetch = fetchWith([
+      'event: token\ndata: {"content":"partial"}\n\n',
+    ]);
+    const onError = vi.fn();
+
+    await agentChatService.streamMessage(request, { onError });
+
+    expect(onError).toHaveBeenCalledWith(
+      'Stream ended before completion. Please retry.'
+    );
+  });
 });
 
 describe('agentChatService.resumeStream', () => {
@@ -263,6 +276,19 @@ describe('agentChatService.resumeStream', () => {
     const [url, options] = vi.mocked(global.fetch).mock.calls[0];
     expect(url).toContain('/agent/stream/resume/thread-1?after=2');
     expect(new Headers(options?.headers).get('Last-Event-ID')).toBe('2');
+  });
+
+  it('fails resume when replay ends without a terminal frame', async () => {
+    global.fetch = fetchWith([
+      'id: 3\nevent: token\ndata: {"content":"partial"}\n\n',
+    ]);
+
+    const res = await agentChatService.resumeStream('thread-1', 2, {});
+
+    expect(res).toEqual({
+      status: 'failed',
+      error: 'Stream ended before completion. Please retry.',
+    });
   });
 
   it('reports seqs on the live streamMessage path too', async () => {

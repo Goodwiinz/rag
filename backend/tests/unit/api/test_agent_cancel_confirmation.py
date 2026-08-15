@@ -162,3 +162,44 @@ def test_job_confirm_fails_when_durable_stop_won() -> None:
 
     assert response.status_code == 409
     resume.assert_not_awaited()
+
+
+def test_job_confirm_releases_durable_claim_on_redis_conflict() -> None:
+    client, _db = _client()
+    release = AsyncMock(return_value=True)
+    resume = AsyncMock()
+    job = {
+        "status": JobStatus.AWAITING_CONFIRMATION,
+        "user_id": str(USER_ID),
+    }
+
+    with (
+        patch(
+            "src.services.agent.job_store.get_job_fresh",
+            new=AsyncMock(return_value=job),
+        ),
+        patch(
+            "src.services.agent.job_store.compare_and_set_status",
+            new=AsyncMock(return_value="conflict"),
+        ),
+        patch.object(
+            execute_mod,
+            "claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch.object(execute_mod, "release_confirmation_claim", new=release),
+        patch.object(execute_mod, "_resume_agent_graph", new=resume),
+    ):
+        response = client.post(
+            "/api/v1/agent/confirm/run-1",
+            json={"confirmed": True},
+        )
+
+    assert response.status_code == 409
+    release.assert_awaited_once_with(
+        _db,
+        "run-1",
+        organization_id=ORG_ID,
+        user_id=USER_ID,
+    )
+    resume.assert_not_awaited()
