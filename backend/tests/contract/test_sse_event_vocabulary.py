@@ -25,7 +25,6 @@ from src.shared.enums import TERMINAL_STREAM_EVENTS, AgentStreamEvent
 # backend/tests/contract/<this file> -> parents[2] == backend/
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 _STREAMING_PY = _BACKEND_ROOT / "src" / "api" / "agent" / "streaming.py"
-_EXECUTE_PY = _BACKEND_ROOT / "src" / "api" / "agent" / "execute.py"
 
 _ENUM_VALUES = frozenset(e.value for e in AgentStreamEvent)
 _ENUM_MEMBER_NAMES = frozenset(AgentStreamEvent.__members__)
@@ -150,10 +149,10 @@ def test_terminal_events_are_a_subset_of_the_enum() -> None:
 
 @pytest.mark.unit
 def test_resume_path_uses_terminal_stream_events_not_a_literal_set() -> None:
-    """Guards item C1(3): the resume replay loop in execute.py must classify
+    """Guards item C1(3): the resume replay loop must classify
     terminal frames via TERMINAL_STREAM_EVENTS, never a re-hand-listed set of
     ``"event: done"`` string literals."""
-    execute_src = _EXECUTE_PY.read_text()
+    execute_src = _STREAMING_PY.read_text()
     assert (
         "TERMINAL_STREAM_EVENTS" in execute_src
     ), "resume path should reference TERMINAL_STREAM_EVENTS"
