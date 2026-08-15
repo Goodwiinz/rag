@@ -69,7 +69,7 @@ async def _run_stream(graph: Any) -> list[str]:
     from src.api.agent.streaming import stream_event_generator
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-err")
+    body = make_stream_request(thread_id="11111111-1111-1111-1111-111111111301")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
@@ -129,6 +129,22 @@ async def _run_confirm(graph: Any) -> list[str]:
         ),
         patch("src.services.agent.graph.compile_agent_graph", return_value=graph),
         patch("src.api.agent.streaming.AsyncSessionLocal", return_value=AsyncMock()),
+        patch(
+            "src.api.agent.streaming.get_active_run_for_thread",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    job_id="run-1", user_message_id=None, client_message_id=None
+                )
+            ),
+        ),
+        patch(
+            "src.api.agent.streaming.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.api.agent.streaming._finalize_run_id",
+            new=AsyncMock(return_value=True),
+        ),
     ):
         return [
             frame

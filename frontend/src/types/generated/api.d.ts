@@ -178,9 +178,29 @@ export interface paths {
          *     (``src/shared/enums.py`` — the single source of truth): token, tool_start,
          *     tool_end, rag_context, plan, reflection, trace, usage, heartbeat, status,
          *     confirmation, done, error. ``heartbeat`` is a payload-less keepalive; the
-         *     terminal frames are ``TERMINAL_STREAM_EVENTS`` (done, error, confirmation).
+         *     terminal frames are done, error, or confirmation.
          */
         post: operations["stream_agent_api_v1_agent_stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/stream/cancel/{thread_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Stream Confirmation
+         * @description Durably abandon a caller-owned graph parked on HITL confirmation.
+         */
+        post: operations["cancel_stream_confirmation_api_v1_agent_stream_cancel__thread_id__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -15723,6 +15743,35 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_stream_confirmation_api_v1_agent_stream_cancel__thread_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -47,8 +47,9 @@ race, and the loser re-reads the winner.
 
 **Single writer.** ``uq_agent_runs_active_thread`` makes "one non-terminal run
 per thread" a database invariant. A new submission rejects while another run
-is queued, running, awaiting confirmation, or stopping. Marking only the ledger
-row cancelled does not stop a graph invocation from writing the same checkpoint.
+is queued, running, or stopping. A parked ``awaiting_confirmation`` run is safe
+to abandon because no graph invocation is active; it is cancelled atomically
+with accepting the fresh turn, then the caller clears the stale checkpoint.
 
 **Tenancy.** ``organization_id`` is nullable (org-less users exist), compared
 null-safely, and NEVER stringified — ``str(None) == "None"`` has merged tenants
@@ -355,22 +356,78 @@ def _decrement_message_count(tombstoned: int) -> Any:
 
 
 async def _ensure_thread_idle(db: AsyncSession, *, thread_id: UUID) -> None:
-    """Reject while any non-terminal run owns the thread. Does NOT commit.
+    """Reject active work; retire an abandoned HITL pause. Does NOT commit.
 
     Tenant scope: see the module docstring — ``thread_id`` comes from an
     ownership-verified thread, so every run correlated to it belongs to the
     submitting user by construction.
     """
-    active_job_id = (
+    active = (
         await db.execute(
-            select(AgentRun.job_id).where(
+            select(AgentRun).where(
                 AgentRun.thread_id == thread_id,
                 AgentRun.status.in_(_ACTIVE_RUN_STATUSES),
             )
         )
     ).scalar_one_or_none()
-    if active_job_id is not None:
-        raise ActiveRunConflict("A response is already in progress for this thread.")
+    if active is None:
+        return
+    if active.status == JobStatus.AWAITING_CONFIRMATION.value:
+        abandoned = await abandon_awaiting_submission(
+            db,
+            thread_id=thread_id,
+            organization_id=active.organization_id,
+            user_id=active.user_id,
+            reason="superseded_by_new_turn",
+        )
+        if abandoned is not None:
+            return
+    raise ActiveRunConflict("A response is already in progress for this thread.")
+
+
+async def abandon_awaiting_submission(
+    db: AsyncSession,
+    *,
+    thread_id: Any,
+    organization_id: Any,
+    user_id: Any,
+    reason: str,
+) -> Optional[str]:
+    """Cancel one caller-owned parked run without committing.
+
+    The guarded UPDATE is the claim: concurrent Stop/new-turn requests cannot
+    both close the same run or append two terminal ledger events.
+    """
+    now = _utcnow()
+    row = (
+        await db.execute(
+            update(AgentRun)
+            .where(
+                AgentRun.thread_id == _coerce_uuid(thread_id),
+                AgentRun.organization_id == _coerce_uuid(organization_id),
+                AgentRun.user_id == _coerce_uuid(user_id),
+                AgentRun.status == JobStatus.AWAITING_CONFIRMATION.value,
+            )
+            .values(
+                status=JobStatus.CANCELLED.value,
+                completed_at=now,
+                updated_at=now,
+            )
+            .returning(AgentRun.job_id)
+            .execution_options(synchronize_session=False)
+        )
+    ).first()
+    if row is None:
+        return None
+    run_id = str(row[0])
+    await append_event(
+        db,
+        run_id=run_id,
+        event_type=RunEventType.RUN_CANCELLED,
+        payload={"reason": reason},
+        organization_id=organization_id,
+    )
+    return run_id
 
 
 async def _insert_run(

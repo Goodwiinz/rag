@@ -12,6 +12,29 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _allow_durable_confirm():
+    with (
+        patch(
+            "src.api.agent.streaming.get_active_run_for_thread",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    job_id="run-1", user_message_id=None, client_message_id=None
+                )
+            ),
+        ),
+        patch(
+            "src.api.agent.streaming.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.api.agent.streaming._finalize_run_id",
+            new=AsyncMock(return_value=True),
+        ),
+    ):
+        yield
+
+
 class _DisconnectGraph:
     """astream_events yields one event; on client disconnect the generator must
     aclose() the iterator (cancelling the resumed run) and stop without emitting
@@ -97,10 +120,7 @@ async def test_confirm_stream_acloses_graph_on_disconnect():
 
     assert graph.aclosed is True  # resumed run cancelled
     # Early-returned before the post-loop snapshot/emit path.
-    assert not any(
-        "event: done" in e or "event: confirmation" in e
-        for e in events
-    )
+    assert not any("event: done" in e or "event: confirmation" in e for e in events)
 
 
 @pytest.mark.asyncio

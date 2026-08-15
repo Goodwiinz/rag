@@ -36,7 +36,7 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
     # generator must emit `done`. Disconnect now cancels early without a `done`
     # — covered by test_stream_event_generator_cancels_on_disconnect below.
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(messages=[], thread_id="")
+    body = make_stream_request()
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
@@ -90,7 +90,7 @@ async def test_stream_event_generator_cancels_on_disconnect():
         state=SimpleNamespace(request_id=expected_request_id),
         is_disconnected=AsyncMock(return_value=True),
     )
-    body = make_stream_request(messages=[], thread_id="")
+    body = make_stream_request()
     current_user = Mock(id="user-1", organization_id="org-1")
     persist = AsyncMock(return_value=None)
     finalize = AsyncMock(return_value=None)
@@ -190,6 +190,22 @@ async def test_stream_confirm_event_generator_bootstraps_langsmith_before_compil
         patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
+        ),
+        patch(
+            "src.api.agent.streaming.get_active_run_for_thread",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    job_id="run-1", user_message_id=None, client_message_id=None
+                )
+            ),
+        ),
+        patch(
+            "src.api.agent.streaming.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.api.agent.streaming._finalize_run_id",
+            new=AsyncMock(return_value=True),
         ),
     ):
         events = []

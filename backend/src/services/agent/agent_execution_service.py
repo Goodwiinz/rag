@@ -299,15 +299,16 @@ def _seed_message_id(thread_id: str, row: Any) -> str:
     return str(_uuid.uuid5(_uuid.NAMESPACE_URL, f"{thread_id}:{row.id}"))
 
 
+_THREAD_SEED_MESSAGE_LIMIT = 40
+
+
 async def build_thread_seed_messages(db: AsyncSession, thread_id: str) -> List[Any]:
     """Rebuild a thread's conversation from the DB as LangGraph messages.
 
-    Seeds the checkpoint (Option B) when it has no history of its own — a fresh
-    thread, a lost in-memory checkpoint, or a legacy/non-agent thread. User rows
-    become HumanMessages and assistant rows become plain-content AIMessages (no
-    tool_call replay, which the prompt path does not need). Ordered by
-    created_at; ids are deterministic so a later reseed converges via the
-    id-keyed reducer instead of duplicating turns.
+    Seeds the latest 40 rows when the checkpoint has no history of its own.
+    User rows become HumanMessages and assistant rows become plain-content
+    AIMessages (no tool_call replay, which the prompt path does not need).
+    Ordered by created_at; deterministic ids make later reseeds converge.
     """
     from uuid import UUID
 
@@ -321,15 +322,21 @@ async def build_thread_seed_messages(db: AsyncSession, thread_id: str) -> List[A
     except (ValueError, TypeError, AttributeError):
         return []
 
+    recent_message_ids = (
+        select(ChatMessage.id)
+        .where(
+            ChatMessage.thread_id == tid,
+            ChatMessage.superseded_by_message_id.is_(None),
+        )
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+        .limit(_THREAD_SEED_MESSAGE_LIMIT)
+    )
     rows = (
         (
             await db.execute(
                 select(ChatMessage)
                 .where(
-                    ChatMessage.thread_id == tid,
-                    # Model-visible reseed: a superseded turn must not come
-                    # back into context through the DB rebuild.
-                    ChatMessage.superseded_by_message_id.is_(None),
+                    ChatMessage.id.in_(recent_message_ids),
                 )
                 .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
             )

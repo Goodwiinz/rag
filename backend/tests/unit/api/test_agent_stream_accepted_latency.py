@@ -83,7 +83,7 @@ async def test_accepted_latency_measured_from_request_start(
         execute_mod._agent_rate_limiter, "record_attempt", AsyncMock(return_value=None)
     )
 
-    body = make_stream_request(thread_id="thread-accepted-latency")
+    body = make_stream_request(thread_id="11111111-1111-1111-1111-111111111401")
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     current_user = Mock(id="user-1", organization_id="org-1")
 

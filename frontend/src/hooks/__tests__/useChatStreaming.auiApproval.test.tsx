@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
@@ -19,10 +19,13 @@ vi.mock('next/navigation', () => ({
 
 const streamMessageMock = vi.fn();
 const streamConfirmMock = vi.fn().mockResolvedValue(undefined);
+const cancelPendingConfirmationMock = vi.fn().mockResolvedValue(undefined);
 vi.mock('@/services/agentChatService', () => ({
   agentChatService: {
     streamMessage: (...a: unknown[]) => streamMessageMock(...a),
     streamConfirm: (...a: unknown[]) => streamConfirmMock(...a),
+    cancelPendingConfirmation: (...a: unknown[]) =>
+      cancelPendingConfirmationMock(...a),
     // The hook probes for a parked HITL confirmation on thread activation;
     // nothing is parked in these scenarios.
     resumeStream: vi.fn().mockResolvedValue({ status: 'idle' }),
@@ -65,6 +68,7 @@ describe('useChatStreaming in-band HITL approval', () => {
   beforeEach(() => {
     streamMessageMock.mockReset();
     streamConfirmMock.mockClear();
+    cancelPendingConfirmationMock.mockClear();
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -120,6 +124,7 @@ describe('the approval card survives the stream ending', () => {
   beforeEach(() => {
     streamMessageMock.mockReset();
     streamConfirmMock.mockClear();
+    cancelPendingConfirmationMock.mockResolvedValue(undefined);
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -206,10 +211,10 @@ describe('the approval card survives the stream ending', () => {
       result.current.handleStop();
     });
 
-    expect(
-      result.current.pendingConfirmation,
-      'ChatSurface keeps isBusy true while this is set, so Stop must clear it'
-    ).toBeNull();
+    expect(cancelPendingConfirmationMock).toHaveBeenCalledWith(
+      'agent-thread-1'
+    );
+    await waitFor(() => expect(result.current.pendingConfirmation).toBeNull());
   });
 });
 

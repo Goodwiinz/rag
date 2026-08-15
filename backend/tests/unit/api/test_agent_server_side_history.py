@@ -55,8 +55,10 @@ class _FakeDB:
 
     def __init__(self, rows):
         self._rows = rows
+        self.statement = None
 
-    async def execute(self, _stmt):
+    async def execute(self, statement):
+        self.statement = statement
         return _FakeResult(self._rows)
 
 
@@ -113,6 +115,14 @@ async def test_seed_is_idempotent():
     a = await build_thread_seed_messages(_FakeDB(rows), THREAD)
     b = await build_thread_seed_messages(_FakeDB(rows), THREAD)
     assert [m.id for m in a] == [m.id for m in b]
+
+
+async def test_seed_query_is_bounded_to_the_latest_40_rows():
+    db = _FakeDB([])
+    await build_thread_seed_messages(db, THREAD)
+
+    sql = str(db.statement.compile(compile_kwargs={"literal_binds": True}))
+    assert "LIMIT 40" in sql
 
 
 async def test_seed_bad_thread_id_returns_empty():

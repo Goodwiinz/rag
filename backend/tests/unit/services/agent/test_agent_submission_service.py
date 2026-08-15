@@ -341,6 +341,43 @@ async def test_thread_rejects_active_writer_until_it_is_terminal(
     ]
 
 
+async def test_fresh_turn_atomically_abandons_awaiting_confirmation(
+    db: AsyncSession,
+) -> None:
+    first = await accept_submission(
+        db, current_user=_user(), request=_request(uuid.uuid4()), thread=_thread()
+    )
+    old = await db.get(AgentRun, first.run_id)
+    assert old is not None
+    old.status = JobStatus.AWAITING_CONFIRMATION.value
+    await db.commit()
+
+    second = await accept_submission(
+        db, current_user=_user(), request=_request(uuid.uuid4()), thread=_thread()
+    )
+
+    await db.refresh(old)
+    assert old.status == JobStatus.CANCELLED.value
+    assert old.completed_at is not None
+    assert second.run_id != first.run_id
+    events = (
+        (
+            await db.execute(
+                select(AgentRunEvent)
+                .where(AgentRunEvent.run_id == first.run_id)
+                .order_by(AgentRunEvent.seq)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [event.event_type for event in events] == [
+        RunEventType.RUN_CREATED.value,
+        RunEventType.RUN_CANCELLED.value,
+    ]
+    assert events[-1].payload == {"reason": "superseded_by_new_turn"}
+
+
 async def test_a_failed_write_leaves_nothing_behind(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:

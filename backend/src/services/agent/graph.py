@@ -128,14 +128,14 @@ def _sanitize_messages(raw: list) -> list:
             merged[-1] = msg
         else:
             merged.append(msg)
-    return merged
+    return trim_model_history(merged)
 
 
 from langgraph.types import Command, RetryPolicy, interrupt
 
 from src.core.config import get_settings
 from src.core.openai_endpoint import classify_openai_endpoint
-from src.services.agent.compactor import make_compactor_node
+from src.services.agent.compactor import make_compactor_node, trim_model_history
 from src.services.agent.error_recovery import (
     ToolError,
     classify_error,

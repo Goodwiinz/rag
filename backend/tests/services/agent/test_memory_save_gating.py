@@ -34,8 +34,9 @@ def _state(
     intent: str = "general",
     tool_executions: list | None = None,
     messages: list | None = None,
+    turn_index: int | None = None,
 ) -> dict:
-    return {
+    state = {
         "messages": messages
         or [
             HumanMessage(content="hi"),
@@ -44,6 +45,9 @@ def _state(
         "intent": intent,
         "tool_executions": tool_executions or [],
     }
+    if turn_index is not None:
+        state["turn_index"] = turn_index
+    return state
 
 
 @pytest.mark.unit
@@ -182,6 +186,7 @@ async def test_saved_value_includes_provenance_fields():
         await memory_save_node(
             _state(
                 intent="research",
+                turn_index=47,
                 messages=[
                     HumanMessage(content="find papers on RLHF"),
                     AIMessage(content="..."),
@@ -198,7 +203,7 @@ async def test_saved_value_includes_provenance_fields():
     # save_memory signature: (store, user_id, key, value)
     value = call_kwargs_or_args.args[3]
     assert value["thread_id"] == "thread-abc"
-    assert value["turn_index"] == 2  # two HumanMessage entries
+    assert value["turn_index"] == 47  # monotonic even after checkpoint pruning
     assert "created_at" in value and "T" in value["created_at"]
     assert value["intent"] == "research"
     assert "ingest_arxiv_papers" in value["tools_used"]

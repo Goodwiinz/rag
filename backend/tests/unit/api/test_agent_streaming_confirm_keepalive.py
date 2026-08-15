@@ -10,6 +10,29 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _allow_durable_confirm():
+    with (
+        patch(
+            "src.api.agent.streaming.get_active_run_for_thread",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    job_id="run-1", user_message_id=None, client_message_id=None
+                )
+            ),
+        ),
+        patch(
+            "src.api.agent.streaming.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.api.agent.streaming._finalize_run_id",
+            new=AsyncMock(return_value=True),
+        ),
+    ):
+        yield
+
+
 class _SilentThenDoneGraph:
     def __init__(self):
         self._items = iter(

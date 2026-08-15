@@ -20,6 +20,9 @@ class AgentState(TypedDict):
     retrieved_contexts: list
     tool_executions: list
     thread_id: str
+    # preprocessing_node increments once per fresh turn. Plain last-value state
+    # prevents compiled specialist subgraphs from adding the value again.
+    turn_index: int
     tool_loop_count: int
     error_count: int
     last_error: str

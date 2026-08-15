@@ -47,7 +47,9 @@ from src.services.agent.agent_execution_service import (
 )
 from src.services.agent.agent_run_service import (
     ActiveRunConflict,
+    claim_awaiting_run_for_confirmation,
     get_active_run_for_thread,
+    release_confirmation_claim,
 )
 from src.services.agent.agent_submission_service import (
     AcceptedSubmission,
@@ -59,7 +61,12 @@ from src.services.agent.job_store import process_local_confirmation_coordination
 from src.services.agent.observability import AgentStreamSLOTracker, record_token_usage
 from src.services.agent.run_event_types import RunEventType
 from src.services.agent.trace_metadata import TraceSource, build_trace_metadata
-from src.shared.enums import AgentErrorCategory, AgentStreamEvent, JobStatus
+from src.shared.enums import (
+    TERMINAL_STREAM_EVENTS,
+    AgentErrorCategory,
+    AgentStreamEvent,
+    JobStatus,
+)
 
 from .trace_context import build_trace_payload
 
@@ -868,10 +875,12 @@ class _SeqEmitter:
             self.route = route if route in _STREAM_ROUTES else "unknown"
             self.slo_tracker.set_route(self.route)
 
-    async def start(self, thread_id: str) -> None:
+    async def start(self, thread_id: str, *, run_id: Optional[str] = None) -> None:
+        if self.sid is not None:
+            return
         self.set_context(thread_id=thread_id)
         try:
-            self.sid = await _stream_buffer.start_stream(thread_id)
+            self.sid = await _stream_buffer.start_stream(thread_id, run_id=run_id)
         except Exception:
             logger.debug("stream_buffer.start_stream failed", exc_info=True)
 
@@ -905,6 +914,56 @@ class _SeqEmitter:
         except Exception:
             logger.debug("stream_buffer.finish_stream failed", exc_info=True)
         self.sid = None
+
+
+async def replay_buffered_stream(
+    request: Any,
+    *,
+    thread_id: str,
+    stream_id: str,
+    after: int = 0,
+    wait_for_start: bool = False,
+):
+    """Replay and follow one immutable stream until its terminal frame."""
+    last_seq = after
+    saw_frame = False
+    empty_start_polls = 0
+    # Hard bound: ~10 minutes once the stream has started. A replayed POST can
+    # win the small accept->buffer race, so give its original request 5 seconds
+    # to publish the first frame without ever dispatching the graph again.
+    for _ in range(600):
+        frames = await _stream_buffer.read_after(stream_id, last_seq)
+        if not frames:
+            if await request.is_disconnected():
+                return
+            if await _stream_buffer.active_stream_id(thread_id) != stream_id:
+                if wait_for_start and not saw_frame and empty_start_polls < 50:
+                    empty_start_polls += 1
+                    await asyncio.sleep(0.1)
+                    continue
+                # The terminal append and active-pointer delete are separate
+                # Redis operations. Close their race with one final read.
+                frames = await _stream_buffer.read_after(stream_id, last_seq)
+                if not frames:
+                    return
+        for buffered in frames:
+            saw_frame = True
+            yield buffered.frame
+            last_seq = buffered.seq
+            event_line = next(
+                (
+                    line
+                    for line in buffered.frame.split("\n")
+                    if line.startswith("event: ")
+                ),
+                "",
+            )
+            if event_line.removeprefix("event: ") in TERMINAL_STREAM_EVENTS:
+                return
+        if await request.is_disconnected():
+            return
+        # ponytail: poll-follow; pub/sub if latency matters
+        await asyncio.sleep(1.0)
 
 
 # Trace 019e6a0e: ~20s planner + internal LLM phases emit no SSE frames;
@@ -1223,9 +1282,42 @@ async def stream_event_generator(
                 extra={"thread_id": request_body.thread_id},
             )
 
-        # First server-sourced progress signal — now a post-commit fact. It
-        # stays unbuffered: the resumable Redis pointer is opened by the route
-        # branches below, which own the thread-scoped stream id.
+        if acceptance is not None and acceptance.replayed:
+            # Idempotency means execution-once, not merely row-once. Reattach
+            # this retry to the immutable run-scoped buffer and return before
+            # route selection, graph compilation, tools, or dispatch.
+            replay_sid = None
+            for _ in range(50):
+                replay_sid = await _stream_buffer.stream_id_for_run(acceptance.run_id)
+                if replay_sid is not None or await request.is_disconnected():
+                    break
+                await asyncio.sleep(0.1)
+            if replay_sid is None:
+                yield await emitter.emit(
+                    AgentStreamEvent.ERROR,
+                    error_frame_payload(
+                        RuntimeError("The original response stream is unavailable."),
+                        category=AgentErrorCategory.INTERNAL,
+                    ),
+                    buffer=False,
+                )
+                return
+            async for frame in replay_buffered_stream(
+                request,
+                thread_id=acceptance.thread_id,
+                stream_id=replay_sid,
+                wait_for_start=True,
+            ):
+                yield frame
+            return
+
+        # Open the durable run's buffer before acknowledging it so a retry can
+        # always attach through run_id, even if it races this generator.
+        if acceptance is not None:
+            await emitter.start(acceptance.thread_id, run_id=acceptance.run_id)
+
+        # First server-sourced progress signal — now a post-commit fact. Durable
+        # submissions buffer it; the no-thread degraded path remains live-only.
         yield await emitter.emit(
             AgentStreamEvent.STATUS,
             {
@@ -1233,7 +1325,7 @@ async def stream_event_generator(
                 "detail": "Request accepted",
                 "run_id": acceptance.run_id if acceptance is not None else None,
             },
-            buffer=False,
+            buffer=acceptance is not None,
         )
 
         from src.core.config import get_settings
@@ -2214,6 +2306,7 @@ async def stream_confirm_event_generator(
     redis_client = None
     claim_is_local = False  # R2-H4: True when the in-process claim is held
     claim_is_redis = False  # True when the Redis claim is ALSO held
+    durable_claimed = False
     events_started = False
     confirm_event_iter = None
     active_run = None
@@ -2293,9 +2386,8 @@ async def stream_confirm_event_generator(
             return
 
         # The checkpoint proves thread ownership; the tenant-scoped durable
-        # run lookup supplies only identifiers that can be joined to the run
-        # ledger. A legacy checkpoint with no active run still gets release,
-        # actor, thread, and request correlation without inventing run ids.
+        # run is also the shared Stop/Confirm authority. Legacy owner-only
+        # checkpoints fail closed because destructive resumes need that claim.
         active_run = await get_active_run_for_thread(
             db,
             request_body.thread_id,
@@ -2305,6 +2397,15 @@ async def stream_confirm_event_generator(
         if asyncio.iscoroutine(active_run):  # fail closed on a malformed DB adapter
             active_run.close()
             active_run = None
+        if active_run is None:
+            yield await emitter.emit(
+                AgentStreamEvent.ERROR,
+                error_frame_payload(
+                    "Run is not awaiting confirmation",
+                    AgentErrorCategory.CONFLICT,
+                ),
+            )
+            return
 
         page_context = _page_context_to_dict(
             current_snapshot.values.get("page_context", {})
@@ -2423,6 +2524,30 @@ async def stream_confirm_event_generator(
                 "unclaimed (matches the cmid fallback philosophy)",
                 request_body.thread_id,
             )
+
+        durable_claimed = await claim_awaiting_run_for_confirmation(
+            db,
+            str(active_run.job_id),
+            organization_id=getattr(current_user, "organization_id", None),
+            user_id=current_user.id,
+        )
+        if not durable_claimed:
+            if claim_is_local and confirm_claim_key:
+                with contextlib.suppress(Exception):
+                    _release_local_confirm_claim(confirm_claim_key)
+            if claim_is_redis and confirm_claim_key:
+                from src.core.caching import _release_lock
+
+                with contextlib.suppress(Exception):
+                    await _release_lock(redis_client, confirm_claim_key)
+            yield await emitter.emit(
+                AgentStreamEvent.ERROR,
+                error_frame_payload(
+                    "Run is not awaiting confirmation",
+                    AgentErrorCategory.CONFLICT,
+                ),
+            )
+            return
 
         async def _resume_assistant_cmid() -> Optional[str]:
             if resume_ckpt_id:
@@ -2948,15 +3073,25 @@ async def stream_confirm_event_generator(
         # the full TTL. Once events_started is True the resume may have run
         # a destructive tool already, so the claim is left for TTL cleanup.
         if confirm_claim_key and not events_started:
-            with contextlib.suppress(Exception):
-                # Both domains may be held (local always, Redis on top —
-                # R2-H4 review follow-up): release whichever were taken.
-                if claim_is_local:
+            # Both domains may be held (local always, Redis on top —
+            # R2-H4 review follow-up): release each independently.
+            if claim_is_local:
+                with contextlib.suppress(Exception):
                     _release_local_confirm_claim(confirm_claim_key)
-                if claim_is_redis:
-                    from src.core.caching import _release_lock
+            if claim_is_redis:
+                from src.core.caching import _release_lock
 
+                with contextlib.suppress(Exception):
                     await _release_lock(redis_client, confirm_claim_key)
+        if durable_claimed and not events_started and active_run is not None:
+            with contextlib.suppress(Exception):
+                await db.rollback()
+                await release_confirmation_claim(
+                    db,
+                    str(active_run.job_id),
+                    organization_id=getattr(current_user, "organization_id", None),
+                    user_id=current_user.id,
+                )
         # Persist whatever was streamed before the failure (stopped=True) so the
         # partial answer survives a reload. Covers both the disconnected drain
         # dying (e.g. the 300s timeout) and an error while the client is still

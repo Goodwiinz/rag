@@ -98,6 +98,26 @@ def stream_confirm_harness(monkeypatch):
     )
     monkeypatch.setattr(streaming_mod, "AsyncSessionLocal", lambda: fake_db)
     monkeypatch.setattr(
+        streaming_mod,
+        "get_active_run_for_thread",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                job_id="run-1", user_message_id=None, client_message_id=None
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        streaming_mod,
+        "claim_awaiting_run_for_confirmation",
+        AsyncMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        streaming_mod,
+        "release_confirmation_claim",
+        AsyncMock(return_value=True),
+    )
+    monkeypatch.setattr(streaming_mod, "_finalize_run_id", AsyncMock(return_value=True))
+    monkeypatch.setattr(
         "src.services.agent.agent_execution_service._persist_assistant_message_safe",
         AsyncMock(return_value="assistant-msg-1"),
     )

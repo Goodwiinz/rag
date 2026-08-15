@@ -146,7 +146,7 @@ async def test_stream_event_generator_revising_true_when_major_fail_under_budget
 
     graph = _make_reflection_graph(passed=False, severity="major", reflection_count=1)
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-revise")
+    body = make_stream_request(thread_id="11111111-1111-1111-1111-111111111201")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     patches = _collect_patches(graph)
@@ -174,7 +174,7 @@ async def test_stream_event_generator_revising_false_when_passed():
 
     graph = _make_reflection_graph(passed=True, severity="none", reflection_count=0)
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-pass")
+    body = make_stream_request(thread_id="11111111-1111-1111-1111-111111111202")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     patches = _collect_patches(graph)
@@ -201,7 +201,7 @@ async def test_stream_event_generator_revising_false_when_minor_severity():
 
     graph = _make_reflection_graph(passed=False, severity="minor", reflection_count=0)
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-minor")
+    body = make_stream_request(thread_id="11111111-1111-1111-1111-111111111203")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     patches = _collect_patches(graph)
@@ -227,7 +227,7 @@ async def test_stream_event_generator_revising_false_when_budget_exhausted():
 
     graph = _make_reflection_graph(passed=False, severity="major", reflection_count=2)
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-cap")
+    body = make_stream_request(thread_id="11111111-1111-1111-1111-111111111204")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     patches = _collect_patches(graph)
@@ -268,6 +268,22 @@ async def test_stream_confirm_event_generator_revising_true_when_major_fail_unde
         patch(patches[2][0], new=patches[2][1]),
         patch(patches[3][0], return_value=patches[3][1]),
         patch(patches[4][0], return_value=patches[4][1]),
+        patch(
+            "src.api.agent.streaming.get_active_run_for_thread",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    job_id="run-1", user_message_id=None, client_message_id=None
+                )
+            ),
+        ),
+        patch(
+            "src.api.agent.streaming.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.api.agent.streaming._finalize_run_id",
+            new=AsyncMock(return_value=True),
+        ),
     ):
         events = []
         async for event in stream_confirm_event_generator(body, request, current_user):
@@ -294,6 +310,22 @@ async def test_stream_confirm_event_generator_revising_false_when_passed():
         patch(patches[2][0], new=patches[2][1]),
         patch(patches[3][0], return_value=patches[3][1]),
         patch(patches[4][0], return_value=patches[4][1]),
+        patch(
+            "src.api.agent.streaming.get_active_run_for_thread",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    job_id="run-1", user_message_id=None, client_message_id=None
+                )
+            ),
+        ),
+        patch(
+            "src.api.agent.streaming.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.api.agent.streaming._finalize_run_id",
+            new=AsyncMock(return_value=True),
+        ),
     ):
         events = []
         async for event in stream_confirm_event_generator(body, request, current_user):

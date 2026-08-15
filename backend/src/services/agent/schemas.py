@@ -17,6 +17,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from src.services.agent._uuid import UUID_STRICT_RE
+
 
 class AgentMessage(BaseModel):
     role: Literal["user", "assistant"] = Field(
@@ -96,11 +98,11 @@ class AgentExecuteRequest(BaseModel):
         its own replacement superseded — the turn disappears from every reader.
         422 at the edge is the only place this is cheap to see.
         """
-        supersedes = self.supersedes_client_message_id
-        if supersedes is None:
-            return self
         last_user = next((m for m in reversed(self.messages) if m.role == "user"), None)
         if last_user is None:
+            raise ValueError("messages must include a user message")
+        supersedes = self.supersedes_client_message_id
+        if supersedes is None:
             return self
         if (
             last_user.client_message_id is not None
@@ -117,6 +119,13 @@ class AgentExecuteRequest(BaseModel):
             raise ValueError(
                 f"Unsupported model {value!r}. Supported deployments: {supported}."
             )
+        return value
+
+    @field_validator("thread_id")
+    @classmethod
+    def _validate_thread_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and UUID_STRICT_RE.fullmatch(value) is None:
+            raise ValueError("thread_id must be a UUID")
         return value
 
 
