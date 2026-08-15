@@ -146,7 +146,7 @@ async def test_upsert_skips_ownerless_insert(session_factory):
 
 
 async def test_terminal_states_are_absorbing(session_factory):
-    """A delayed non-terminal projection must not resurrect a finished run."""
+    """A delayed projection must not rewrite a finished run."""
     job_id = _job_id()
     async with session_factory() as db:
         await svc.upsert_run(
@@ -154,6 +154,12 @@ async def test_terminal_states_are_absorbing(session_factory):
         )
         run = await svc.upsert_run(db, job_id=job_id, status=JobStatus.RUNNING)
         assert run.status == "completed"
+
+        run = await svc.upsert_run(
+            db, job_id=job_id, status=JobStatus.FAILED, error="late failure"
+        )
+        assert run.status == "completed"
+        assert run.error is None
 
         # Non-terminal ↔ non-terminal stays free-form (confirm / re-park).
         job2 = _job_id()
@@ -254,6 +260,40 @@ async def test_get_run_filters_org_and_user(session_factory):
         assert (
             await svc.get_run(db, job_id, organization_id=None, user_id=USER_A) is None
         )
+
+
+async def test_confirmation_claim_races_cancellation_on_durable_status(session_factory):
+    job_id = _job_id()
+    async with session_factory() as db:
+        await svc.upsert_run(
+            db,
+            job_id=job_id,
+            status=JobStatus.AWAITING_CONFIRMATION,
+            organization_id=ORG_A,
+            user_id=USER_A,
+        )
+
+        assert await svc.claim_awaiting_run_for_confirmation(
+            db,
+            job_id,
+            organization_id=ORG_A,
+            user_id=USER_A,
+        )
+        assert not await svc.claim_awaiting_run_for_confirmation(
+            db,
+            job_id,
+            organization_id=ORG_A,
+            user_id=USER_A,
+        )
+
+        assert await svc.release_confirmation_claim(
+            db,
+            job_id,
+            organization_id=ORG_A,
+            user_id=USER_A,
+        )
+        run = await svc.get_run(db, job_id, organization_id=ORG_A, user_id=USER_A)
+        assert run is not None and run.status == JobStatus.AWAITING_CONFIRMATION.value
 
 
 async def test_get_active_run_for_thread_is_tenant_scoped_and_non_terminal(

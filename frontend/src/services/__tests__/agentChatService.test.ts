@@ -278,6 +278,27 @@ describe('agentChatService.resumeStream', () => {
   });
 });
 
+describe('agentChatService.cancelPendingConfirmation', () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it('posts the parked thread to the cancellation endpoint', async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 204,
+    })) as unknown as typeof fetch;
+
+    await agentChatService.cancelPendingConfirmation('thread/with space');
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/agent/stream/cancel/thread%2Fwith%20space'),
+      expect.objectContaining({ method: 'POST' })
+    );
+  });
+});
+
 describe('agentChatService.streamConfirm SSE parsing', () => {
   const realFetch = global.fetch;
   afterEach(() => {

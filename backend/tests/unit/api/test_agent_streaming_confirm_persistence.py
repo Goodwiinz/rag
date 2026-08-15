@@ -23,7 +23,25 @@ def _reset_compiled_graph_cache():
     import src.api.agent.streaming as mod
 
     mod._COMPILED_GRAPH = None
-    yield
+    with (
+        patch(
+            "src.api.agent.streaming.get_active_run_for_thread",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    job_id="run-1", user_message_id=None, client_message_id=None
+                )
+            ),
+        ),
+        patch(
+            "src.api.agent.streaming.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.api.agent.streaming._finalize_run_id",
+            new=AsyncMock(return_value=True),
+        ),
+    ):
+        yield
     mod._COMPILED_GRAPH = None
 
 
@@ -115,9 +133,7 @@ async def test_confirm_persists_only_assistant_row_not_user_row():
             new=AsyncMock(return_value=None),
         ),
     ):
-        async for _ in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for _ in stream_confirm_event_generator(body, request, current_user):
             pass
 
     persist_mock.assert_awaited_once()
@@ -197,9 +213,7 @@ async def test_confirm_derives_idempotent_assistant_cmid_from_user_row():
             new=AsyncMock(return_value=user_cmid),
         ),
     ):
-        async for _ in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for _ in stream_confirm_event_generator(body, request, current_user):
             pass
 
     kwargs = persist_mock.await_args.kwargs
@@ -269,9 +283,7 @@ async def test_confirm_done_carries_assistant_message_id_in_canonical_mode():
         ),
     ):
         events = []
-        async for event in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
     done_events = [e for e in events if "event: done" in e]

@@ -31,6 +31,7 @@ from langchain_core.runnables import RunnableConfig
 
 from src.services.agent._nodes_rag import _coerce_text, is_conversational
 from src.services.agent._pii_redact import redact_pii
+from src.services.agent.compactor import trim_model_history
 from src.services.agent.observability import track_node_execution
 from src.services.agent.state import AgentState
 
@@ -110,12 +111,15 @@ async def _persist_memory_async(  # noqa: PLR0913
 
                 from src.services.agent.memory_store import extract_insights
 
+                insight_messages = trim_model_history(
+                    [m for m in messages if isinstance(m, (HumanMessage, AIMessage))]
+                )
                 serialised = [
                     {
                         "role": "user" if isinstance(m, HumanMessage) else "assistant",
                         "content": m.content,
                     }
-                    for m in messages
+                    for m in insight_messages
                     if getattr(m, "content", "")
                 ]
                 insights = await extract_insights(serialised, config)
@@ -282,7 +286,9 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
         from datetime import datetime, timezone
 
         thread_id = configurable.get("thread_id") or state.get("thread_id") or ""
-        turn_index = len([m for m in state["messages"] if isinstance(m, HumanMessage)])
+        turn_index = int(state.get("turn_index") or 0) or len(
+            [m for m in state["messages"] if isinstance(m, HumanMessage)]
+        )
         mem_key = hashlib.md5(
             f"{thread_id}:{turn_index}:{last_user_content[:100]}".encode(),
             usedforsecurity=False,

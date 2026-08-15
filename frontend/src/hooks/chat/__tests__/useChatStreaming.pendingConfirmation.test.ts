@@ -33,11 +33,14 @@ vi.mock('next/navigation', () => ({
 }));
 
 const resumeStreamMock = vi.fn();
+const cancelPendingConfirmationMock = vi.fn();
 vi.mock('@/services/agentChatService', () => ({
   agentChatService: {
     streamMessage: vi.fn(),
     streamConfirm: vi.fn(),
     resumeStream: (...args: unknown[]) => resumeStreamMock(...args),
+    cancelPendingConfirmation: (...args: unknown[]) =>
+      cancelPendingConfirmationMock(...args),
   },
 }));
 
@@ -93,6 +96,8 @@ describe('useChatStreaming pending-confirmation probe (cold thread load)', () =>
   beforeEach(() => {
     resumeStreamMock.mockReset();
     resumeStreamMock.mockResolvedValue({ status: 'idle' });
+    cancelPendingConfirmationMock.mockReset();
+    cancelPendingConfirmationMock.mockResolvedValue(undefined);
     useAgentActivityStore.setState({ runs: {}, currentThreadId: null });
     useChatStore.setState({
       currentThreadId: 'thread-A',
@@ -116,6 +121,35 @@ describe('useChatStreaming pending-confirmation probe (cold thread load)', () =>
       confirmation: CONFIRMATION,
     });
     expect(resumeStreamMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('durably cancels a parked confirmation when Stop is pressed', async () => {
+    parkedInterrupt();
+    const { result } = await renderStreaming();
+    await waitFor(() =>
+      expect(result.current.pendingConfirmation).not.toBeNull()
+    );
+
+    act(() => result.current.handleStop());
+
+    expect(cancelPendingConfirmationMock).toHaveBeenCalledWith('thread-A');
+    await waitFor(() => expect(result.current.pendingConfirmation).toBeNull());
+  });
+
+  it('keeps the confirmation retryable when durable Stop fails', async () => {
+    parkedInterrupt();
+    cancelPendingConfirmationMock.mockRejectedValueOnce(new Error('offline'));
+    const { result } = await renderStreaming();
+    await waitFor(() =>
+      expect(result.current.pendingConfirmation).not.toBeNull()
+    );
+
+    act(() => result.current.handleStop());
+
+    await waitFor(() =>
+      expect(cancelPendingConfirmationMock).toHaveBeenCalledWith('thread-A')
+    );
+    expect(result.current.pendingConfirmation).not.toBeNull();
   });
 
   it('keeps each parked confirmation while probing another thread', async () => {

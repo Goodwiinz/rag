@@ -1329,18 +1329,36 @@ export function useChatStreaming(
       useAgentActivityStore.getState().finishRun(runThread, 'stopped');
     }
 
-    // Stop is the user's escape hatch, and a pending confirmation is one of
-    // the states it has to clear: ChatSurface keeps `isBusy` true while
-    // `pendingConfirmation` is set, so leaving it meant Stop disabled the
-    // composer permanently instead of freeing it.
-    setPendingConfirmation(null);
+    // A parked confirmation has no live graph task for AbortController to
+    // cancel. Close its durable run explicitly; if confirmation execution has
+    // already started, aborting that live stream owns terminal cleanup.
+    if (pendingConfirmation && !confirmLockRef.current) {
+      void agentChatService
+        .cancelPendingConfirmation(pendingConfirmation.threadId)
+        .then(() => setPendingConfirmation(null))
+        .catch((error) => {
+          stoppedByUserRef.current = false;
+          console.error('[Chat] Failed to cancel pending confirmation:', error);
+          toast.error('Could not stop this action. Please try again.');
+        });
+    } else {
+      setPendingConfirmation(null);
+    }
+
+    // Keep a parked confirmation visible until the durable cancellation wins.
+    // A failed request remains retryable instead of reporting a false Stop.
 
     // The store-driven streaming path (used by the non-cloud chat) finalizes
     // through its own action; keep that contract intact.
     if (storeIsStreaming) {
       storeStopStreaming();
     }
-  }, [setPendingConfirmation, storeIsStreaming, storeStopStreaming]);
+  }, [
+    pendingConfirmation,
+    setPendingConfirmation,
+    storeIsStreaming,
+    storeStopStreaming,
+  ]);
 
   // ---- Resume an in-flight stream on mount / thread switch ----
   // If the activity store still records a running run for the displayed

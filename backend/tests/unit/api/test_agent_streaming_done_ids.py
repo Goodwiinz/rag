@@ -62,7 +62,7 @@ async def test_main_done_carries_ids_in_canonical_mode():
                 "client_message_id": "11111111-1111-1111-1111-111111111111",
             }
         ],
-        thread_id="thread-req-1",
+        thread_id="11111111-1111-1111-1111-111111111112",
     )
     current_user = Mock(id="user-1", organization_id="org-1")
 

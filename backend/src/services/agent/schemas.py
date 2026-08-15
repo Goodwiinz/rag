@@ -17,6 +17,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from src.services.agent._uuid import UUID_STRICT_RE
+
 
 class AgentMessage(BaseModel):
     role: Literal["user", "assistant"] = Field(
@@ -60,7 +62,7 @@ SUPPORTED_MODELS: frozenset[str] = frozenset(
 
 class AgentExecuteRequest(BaseModel):
     messages: List[AgentMessage] = Field(
-        ..., max_length=50, description="Conversation messages"
+        ..., min_length=1, max_length=50, description="Conversation messages"
     )
     page_context: PageContextRequest = Field(default_factory=PageContextRequest)
     model: str = Field(
@@ -72,7 +74,7 @@ class AgentExecuteRequest(BaseModel):
     )
     use_rag: bool = Field(default=True)
     max_context_docs: int = Field(default=5, ge=1, le=10)
-    thread_id: Optional[str] = None
+    thread_id: Optional[str] = Field(default=None, pattern=UUID_STRICT_RE)
     supersedes_client_message_id: Optional[UUID] = Field(
         default=None,
         description=(
@@ -96,11 +98,11 @@ class AgentExecuteRequest(BaseModel):
         its own replacement superseded — the turn disappears from every reader.
         422 at the edge is the only place this is cheap to see.
         """
-        supersedes = self.supersedes_client_message_id
-        if supersedes is None:
-            return self
         last_user = next((m for m in reversed(self.messages) if m.role == "user"), None)
         if last_user is None:
+            raise ValueError("messages must include a user message")
+        supersedes = self.supersedes_client_message_id
+        if supersedes is None:
             return self
         if (
             last_user.client_message_id is not None

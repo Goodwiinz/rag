@@ -54,7 +54,7 @@ async def _capture_stream_metadata(*, durable: bool) -> dict[str, str]:
                 "client_message_id": str(CLIENT_MESSAGE_ID),
             }
         ],
-        thread_id=str(THREAD_ID) if durable else "",
+        thread_id=str(THREAD_ID) if durable else None,
     )
     request = SimpleNamespace(
         state=SimpleNamespace(request_id=REQUEST_ID),
@@ -214,7 +214,7 @@ async def test_background_graph_config_uses_same_correlation_contract(
     monkeypatch.setenv("GIT_SHA", "deployment-sha-123")
     monkeypatch.setenv("IMAGE_TAG", "backend-image-456")
     job_id = "77777777-7777-7777-7777-777777777777"
-    unverified_thread_id = "raw-user-thread-must-not-enter-external-metadata"
+    unverified_thread_id = "88888888-8888-8888-8888-888888888888"
     body = make_stream_request(
         messages=[
             {
@@ -491,6 +491,11 @@ async def test_streaming_confirmation_root_uses_owned_durable_run_metadata(
             streaming_mod,
             "get_active_run_for_thread",
             new=AsyncMock(return_value=durable_run),
+        ),
+        patch.object(
+            streaming_mod,
+            "claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
         ),
         patch.object(
             streaming_mod, "_finalize_run_id", new=AsyncMock(return_value=None)

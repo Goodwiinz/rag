@@ -191,7 +191,7 @@ async def upsert_run(
             return run
 
     current = _coerce_status(run.status)
-    if current is not None and current.is_terminal and not normalized.is_terminal:
+    if current is not None and current.is_terminal and normalized != current:
         return run  # absorbing terminal state — drop the stale transition
 
     run.status = normalized.value
@@ -281,6 +281,52 @@ async def get_active_run_for_thread(
         AgentRun.status.in_(_ACTIVE_RUN_STATUSES),
     )
     return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def claim_awaiting_run_for_confirmation(
+    db: AsyncSession,
+    job_id: str,
+    *,
+    organization_id: Any,
+    user_id: Any,
+) -> bool:
+    """Atomically claim one caller-owned parked run for confirmation. Commits."""
+    result = await db.execute(
+        update(AgentRun)
+        .where(
+            AgentRun.job_id == job_id,
+            AgentRun.organization_id == _coerce_uuid(organization_id),
+            AgentRun.user_id == _coerce_uuid(user_id),
+            AgentRun.status == JobStatus.AWAITING_CONFIRMATION.value,
+        )
+        .values(status=JobStatus.RUNNING.value, updated_at=_utcnow())
+        .execution_options(synchronize_session=False)
+    )
+    await db.commit()
+    return bool(result.rowcount)
+
+
+async def release_confirmation_claim(
+    db: AsyncSession,
+    job_id: str,
+    *,
+    organization_id: Any,
+    user_id: Any,
+) -> bool:
+    """Return a pre-execution confirmation claim to its parked state. Commits."""
+    result = await db.execute(
+        update(AgentRun)
+        .where(
+            AgentRun.job_id == job_id,
+            AgentRun.organization_id == _coerce_uuid(organization_id),
+            AgentRun.user_id == _coerce_uuid(user_id),
+            AgentRun.status == JobStatus.RUNNING.value,
+        )
+        .values(status=JobStatus.AWAITING_CONFIRMATION.value, updated_at=_utcnow())
+        .execution_options(synchronize_session=False)
+    )
+    await db.commit()
+    return bool(result.rowcount)
 
 
 async def get_run_by_idempotency_key(

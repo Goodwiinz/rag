@@ -190,6 +190,7 @@
               "$ref": "#/components/schemas/AgentMessage"
             },
             "maxItems": 50,
+            "minItems": 1,
             "title": "Messages",
             "type": "array"
           },
@@ -218,6 +219,7 @@
           "thread_id": {
             "anyOf": [
               {
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
                 "type": "string"
               },
               {
@@ -15484,7 +15486,7 @@
     },
     "/api/v1/agent/stream": {
       "post": {
-        "description": "Stream agent responses via Server-Sent Events.\n\nSSE event types are the ``AgentStreamEvent`` wire vocabulary\n(``src/shared/enums.py`` — the single source of truth): token, tool_start,\ntool_end, rag_context, plan, reflection, trace, usage, heartbeat, status,\nconfirmation, done, error. ``heartbeat`` is a payload-less keepalive; the\nterminal frames are ``TERMINAL_STREAM_EVENTS`` (done, error, confirmation).",
+        "description": "Stream agent responses via Server-Sent Events.\n\nSSE event types are the ``AgentStreamEvent`` wire vocabulary\n(``src/shared/enums.py`` — the single source of truth): token, tool_start,\ntool_end, rag_context, plan, reflection, trace, usage, heartbeat, status,\nconfirmation, done, error. ``heartbeat`` is a payload-less keepalive; the\nterminal frames are done, error, or confirmation.",
         "operationId": "stream_agent_api_v1_agent_stream_post",
         "requestBody": {
           "content": {
@@ -15522,6 +15524,48 @@
           }
         ],
         "summary": "Stream Agent",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/stream/cancel/{thread_id}": {
+      "post": {
+        "description": "Durably abandon a caller-owned graph parked on HITL confirmation.",
+        "operationId": "cancel_stream_confirmation_api_v1_agent_stream_cancel__thread_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Cancel Stream Confirmation",
         "tags": [
           "agent"
         ]

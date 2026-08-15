@@ -120,7 +120,7 @@ async def test_stream_emits_nonstreamed_final_answer_as_token():
     from src.api.agent.streaming import stream_event_generator
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-123")
+    body = make_stream_request(thread_id="11111111-1111-1111-1111-111111111601")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
@@ -163,7 +163,8 @@ async def test_completed_stream_reuses_root_output_without_final_checkpoint_read
     graph = _FakeGraphWithRootFinal()
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     body = make_stream_request(
-        messages=[{"role": "user", "content": "hello"}], thread_id="thread-123"
+        messages=[{"role": "user", "content": "hello"}],
+        thread_id="11111111-1111-1111-1111-111111111602",
     )
     current_user = Mock(id="user-1", organization_id="org-1")
 
@@ -204,7 +205,7 @@ async def test_interrupted_root_still_reads_checkpoint_for_pending_tasks():
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     body = make_stream_request(
         messages=[{"role": "user", "content": "create a project"}],
-        thread_id="thread-123",
+        thread_id="11111111-1111-1111-1111-111111111603",
     )
     current_user = Mock(id="user-1", organization_id="org-1")
 

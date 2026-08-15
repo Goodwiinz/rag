@@ -33,7 +33,9 @@ function httpFailureCategory(status: number): AgentErrorCategory | undefined {
   return undefined;
 }
 
-function agentStreamUrl(path: 'stream' | 'stream/confirm'): string {
+function agentStreamUrl(
+  path: 'stream' | 'stream/confirm' | `stream/cancel/${string}`
+): string {
   const base = getPublicApiBaseUrl('/api/v1').replace(/\/$/, '');
   return `${base}/agent/${path}`;
 }
@@ -616,6 +618,23 @@ class AgentChatService {
 
     await consumeSse(response, callbacks);
   }
+
+  async cancelPendingConfirmation(threadId: string): Promise<void> {
+    const headers = await getStreamAuthHeaders();
+    const response = await fetch(
+      agentStreamUrl(`stream/cancel/${encodeURIComponent(threadId)}`),
+      { method: 'POST', headers }
+    );
+    if (!response.ok) {
+      const backendMessage = await readErrorBody(response);
+      throw new Error(
+        backendMessage
+          ? `Stream cancellation failed (${response.status}): ${backendMessage}`
+          : `Stream cancellation failed: ${response.status}`
+      );
+    }
+  }
+
   async startDurableRun(
     request: AgentExecuteRequest
   ): Promise<{ runId: string }> {

@@ -40,7 +40,7 @@ class _RecordingBuffer:
         self.finished: list[tuple[str, str]] = []
 
     def install(self, monkeypatch):
-        async def start_stream(thread_id):
+        async def start_stream(thread_id, *, run_id=None):
             return f"sid-{thread_id}"
 
         async def append(sid, seq, frame):
@@ -77,12 +77,88 @@ class _FakeGraph:
 
 
 @pytest.mark.asyncio
+async def test_replayed_submission_replays_original_stream_without_dispatch(
+    monkeypatch,
+):
+    thread_id = "33333333-3333-3333-3333-333333333333"
+    run_id = "55555555-5555-5555-5555-555555555555"
+    sid = "77777777-7777-7777-7777-777777777777"
+    replayed_frames = [
+        SimpleNamespace(
+            seq=1,
+            frame='id: 1\nevent: token\ndata: {"content": "same"}\n\n',
+        ),
+        SimpleNamespace(seq=2, frame="id: 2\nevent: done\ndata: {}\n\n"),
+    ]
+    acceptance = streaming.AcceptedSubmission(
+        run_id=run_id,
+        thread_id=thread_id,
+        user_message_id=None,
+        outbox_id=None,
+        idempotency_key="same-turn",
+        replayed=True,
+    )
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    body = make_stream_request(thread_id=thread_id, use_rag=False)
+    current_user = Mock(id="user-1", organization_id="org-1")
+    compile_graph = Mock(side_effect=AssertionError("replay must not compile graph"))
+    dispatched = AsyncMock()
+
+    monkeypatch.setattr(
+        streaming._stream_buffer,
+        "stream_id_for_run",
+        AsyncMock(side_effect=[None, sid]),
+    )
+    monkeypatch.setattr(
+        streaming._stream_buffer,
+        "read_after",
+        AsyncMock(return_value=replayed_frames),
+    )
+
+    with (
+        patch(
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=AsyncMock(),
+        ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(SimpleNamespace(id=thread_id), None)),
+        ),
+        patch(
+            "src.api.agent.streaming.accept_submission",
+            new=AsyncMock(return_value=acceptance),
+        ),
+        patch(
+            "src.api.agent.streaming.mark_submission_dispatched",
+            new=dispatched,
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            new=compile_graph,
+        ),
+        patch("src.api.agent.streaming.asyncio.sleep", new=AsyncMock()),
+    ):
+        frames = [
+            frame
+            async for frame in streaming.stream_event_generator(
+                body, request, current_user
+            )
+        ]
+
+    assert frames == [item.frame for item in replayed_frames]
+    compile_graph.assert_not_called()
+    dispatched.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_stream_frames_carry_ids_and_are_buffered(monkeypatch):
     buf = _RecordingBuffer()
     buf.install(monkeypatch)
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-123", use_rag=False)
+    body = make_stream_request(
+        thread_id="11111111-1111-1111-1111-111111111123", use_rag=False
+    )
     current_user = Mock(id="user-1", organization_id="org-1")
     thread_obj = SimpleNamespace(id="thread-123")
 
@@ -199,7 +275,9 @@ async def test_connected_graph_timeout_persists_partial_and_emits_error(monkeypa
     buf.install(monkeypatch)
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-timeout", use_rag=False)
+    body = make_stream_request(
+        thread_id="11111111-1111-1111-1111-111111111124", use_rag=False
+    )
     current_user = Mock(id="user-1", organization_id="org-1")
     persist = AsyncMock(return_value="row-1")
     thread_obj = SimpleNamespace(id="thread-timeout")
@@ -401,12 +479,79 @@ def _frames():
     ]
 
 
+@pytest.mark.asyncio
+async def test_replay_rechecks_buffer_after_active_pointer_clears(monkeypatch):
+    terminal = BufferedFrame(seq=1, frame="id: 1\nevent: done\ndata: {}\n\n")
+    read_after = AsyncMock(side_effect=[[], [terminal]])
+    monkeypatch.setattr(execute_mod._stream_buffer, "read_after", read_after)
+    monkeypatch.setattr(
+        execute_mod._stream_buffer,
+        "active_stream_id",
+        AsyncMock(return_value=None),
+    )
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+
+    frames = [
+        frame
+        async for frame in streaming.replay_buffered_stream(
+            request,
+            thread_id=THREAD_ID,
+            stream_id="sid-1",
+        )
+    ]
+
+    assert frames == [terminal.frame]
+    assert read_after.await_count == 2
+
+
 def test_resume_no_active_stream_returns_204(monkeypatch):
     monkeypatch.setattr(
         execute_mod._stream_buffer, "active_stream_id", AsyncMock(return_value=None)
     )
     resp = _client().get(f"/api/v1/agent/stream/resume/{THREAD_ID}")
     assert resp.status_code == 204
+
+
+def test_resume_just_finished_named_stream_replays(monkeypatch):
+    sid = "11111111-2222-3333-4444-555555555555"
+    monkeypatch.setattr(
+        execute_mod._stream_buffer, "active_stream_id", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(
+        execute_mod._stream_buffer,
+        "thread_id_for_stream",
+        AsyncMock(return_value=THREAD_ID),
+    )
+
+    async def read_after(stream_id, after_seq):
+        assert stream_id == sid
+        return [f for f in _frames() if f.seq > after_seq]
+
+    monkeypatch.setattr(execute_mod._stream_buffer, "read_after", read_after)
+
+    resp = _client().get(f"/api/v1/agent/stream/resume/{THREAD_ID}?stream={sid}")
+
+    assert resp.status_code == 200
+    assert "event: done" in resp.text
+
+
+def test_resume_finished_stream_rejects_wrong_thread_mapping(monkeypatch):
+    sid = "11111111-2222-3333-4444-555555555555"
+    monkeypatch.setattr(
+        execute_mod._stream_buffer, "active_stream_id", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(
+        execute_mod._stream_buffer,
+        "thread_id_for_stream",
+        AsyncMock(return_value=str(uuid4())),
+    )
+    read_after = AsyncMock(return_value=_frames())
+    monkeypatch.setattr(execute_mod._stream_buffer, "read_after", read_after)
+
+    resp = _client().get(f"/api/v1/agent/stream/resume/{THREAD_ID}?stream={sid}")
+
+    assert resp.status_code == 204
+    read_after.assert_not_awaited()
 
 
 def test_resume_replays_frames_and_stops_after_done(monkeypatch):
