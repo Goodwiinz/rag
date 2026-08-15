@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID
@@ -25,7 +26,7 @@ def _client(*, owns_thread: bool = True) -> tuple[TestClient, AsyncMock]:
         )
     )
 
-    async def override_db():
+    async def override_db() -> AsyncIterator[AsyncMock]:
         yield db
 
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(

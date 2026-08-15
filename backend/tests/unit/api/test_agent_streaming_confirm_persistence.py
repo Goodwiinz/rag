@@ -153,9 +153,9 @@ async def test_confirm_derives_idempotent_assistant_cmid_from_user_row():
     """A double-confirm must hit the assistant partial unique index. The
     resumed turn has no fresh cmid, so the assistant key is derived (uuid5)
     from the original user row's client_message_id."""
-    from src.api.agent.streaming import stream_confirm_event_generator
-
     import uuid as _uuid
+
+    from src.api.agent.streaming import stream_confirm_event_generator
 
     user_cmid = "22222222-2222-2222-2222-222222222222"
     expected_assistant_cmid = str(
