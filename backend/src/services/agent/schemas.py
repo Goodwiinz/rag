@@ -12,12 +12,20 @@ Router-only schemas (job start/status, confirmation, thread listing) stay in
 ``execute.py`` — nothing below the API layer needs them.
 """
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional, get_args
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
-from src.services.agent._uuid import UUID_STRICT_RE
+from src.services.agent._uuid import UUID_STRICT_PATTERN
+
+StrictUUIDString = Annotated[str, StringConstraints(pattern=UUID_STRICT_PATTERN)]
 
 
 class AgentMessage(BaseModel):
@@ -55,17 +63,29 @@ class PageContextRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
+SupportedModel = Literal["", "model-router", "gpt-5-mini", "gpt-5.6-luna"]
 SUPPORTED_MODELS: frozenset[str] = frozenset(
-    {"", "model-router", "gpt-5-mini", "gpt-5.6-luna"}
+    value for value in get_args(SupportedModel) if isinstance(value, str)
 )
 
 
 class AgentExecuteRequest(BaseModel):
     messages: List[AgentMessage] = Field(
-        ..., max_length=50, description="Conversation messages"
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Conversation messages; at least one must have role='user'",
+        json_schema_extra={
+            "contains": {
+                "properties": {"role": {"const": "user"}},
+                "required": ["role"],
+                "type": "object",
+            },
+            "minContains": 1,
+        },
     )
     page_context: PageContextRequest = Field(default_factory=PageContextRequest)
-    model: str = Field(
+    model: SupportedModel = Field(
         default="",
         description=(
             "Azure deployment name to route the chat to. Empty string uses the "
@@ -74,7 +94,7 @@ class AgentExecuteRequest(BaseModel):
     )
     use_rag: bool = Field(default=True)
     max_context_docs: int = Field(default=5, ge=1, le=10)
-    thread_id: Optional[str] = None
+    thread_id: Optional[StrictUUIDString] = None
     supersedes_client_message_id: Optional[UUID] = Field(
         default=None,
         description=(
@@ -110,23 +130,6 @@ class AgentExecuteRequest(BaseModel):
         ):
             raise ValueError("edited turn must carry a fresh client_message_id")
         return self
-
-    @field_validator("model")
-    @classmethod
-    def _validate_model(cls, value: str) -> str:
-        if value not in SUPPORTED_MODELS:
-            supported = ", ".join(sorted(name for name in SUPPORTED_MODELS if name))
-            raise ValueError(
-                f"Unsupported model {value!r}. Supported deployments: {supported}."
-            )
-        return value
-
-    @field_validator("thread_id")
-    @classmethod
-    def _validate_thread_id(cls, value: Optional[str]) -> Optional[str]:
-        if value is not None and UUID_STRICT_RE.fullmatch(value) is None:
-            raise ValueError("thread_id must be a UUID")
-        return value
 
 
 class RetrievedContextResponse(BaseModel):

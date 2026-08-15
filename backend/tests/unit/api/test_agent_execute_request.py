@@ -52,10 +52,12 @@ def test_gpt_5_mini_is_accepted():
 
 
 def test_request_rejects_missing_user_message():
-    with pytest.raises(ValidationError, match="messages must include a user message"):
+    with pytest.raises(ValidationError) as excinfo:
         _build(messages=[])
+    assert excinfo.value.errors()[0]["loc"] == ("messages",)
 
 
 def test_request_rejects_non_uuid_thread_id():
-    with pytest.raises(ValidationError, match="thread_id must be a UUID"):
+    with pytest.raises(ValidationError) as excinfo:
         _build(thread_id="not-a-uuid")
+    assert excinfo.value.errors()[0]["loc"] == ("thread_id",)

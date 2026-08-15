@@ -1475,6 +1475,7 @@ async def stream_event_generator(
             "retrieved_contexts": [],
             "tool_executions": [],
             "thread_id": request_body.thread_id or "",
+            "turn_index": 0,
             "tool_loop_count": 0,
             "error_count": 0,
             "last_error": "",
