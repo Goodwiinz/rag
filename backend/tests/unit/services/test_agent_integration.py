@@ -676,6 +676,10 @@ class TestSSEStreamPersistence:
             patch(
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
+            patch(
+                "src.api.agent.streaming._resolve_thread",
+                new=AsyncMock(return_value=(None, None)),
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.astream_events = Mock(
