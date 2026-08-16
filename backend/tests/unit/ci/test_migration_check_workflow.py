@@ -1,14 +1,12 @@
-"""Workflow-contract test for the Alembic migration-check job (PR 5, Task 5.1).
+"""Workflow contracts for the Alembic migration-check job.
 
-The migration-check job historically ran only the *static* guard
-(``scripts/ci/check_alembic.py``): single head + revision-id length, read via
-Alembic's ``ScriptDirectory`` with ``env.py`` never executed and no engine
-created. Task 5.1 adds three *execution-depth* checks — from-empty
-``upgrade head``, ``alembic check`` drift, and a ``downgrade -1`` /
-``upgrade head`` smoke — as **advisory** (``continue-on-error: true``) probes,
-because the schema is known to have drift/create-migration debt today and a
-from-empty upgrade may legitimately fail. They MEASURE reality without blocking;
-promotion to blocking is a later task (5.2) driven by the measured results.
+The static single-head/revision-length guard is blocking. The historical
+from-empty replay, ``alembic check`` drift check, and downgrade/upgrade smoke
+remain visible advisory measurements because they exercise the entire legacy
+chain. The evidence migration additionally has a narrow blocking delta probe:
+it establishes only the exact parent-state precondition, runs the real
+``evidence_prov_20260816`` upgrade, checks the two columns, downgrades to the
+parent, and checks that both columns are gone.
 
 This is a pure YAML-parse contract test (no app import, no DB), mirroring
 ``test_generate_openapi.py::test_contract_job_verifies_generated_typescript``.
@@ -67,16 +65,49 @@ def test_static_check_remains_blocking_and_untouched() -> None:
 
 
 def test_upgrade_from_empty_is_advisory() -> None:
-    """From-empty ``upgrade head`` runs but cannot block (known drift debt)."""
+    """From-empty ``upgrade head`` is an explicit visible advisory measurement."""
     step = _step_running("alembic upgrade head")
     assert step is not None, "an `alembic upgrade head` step must exist"
     assert step.get("continue-on-error") is True, (
-        "from-empty upgrade must be advisory (continue-on-error: true) until "
-        "measured green — see Task 5.2"
+        "from-empty replay must remain advisory (continue-on-error: true) because "
+        "it measures the known legacy chain, not this migration's delta"
     )
     assert (
         "advisory" in (step.get("name") or "").lower()
     ), "label the upgrade step Advisory so its non-blocking intent is obvious"
+
+    run = step.get("run") or ""
+    assert ":x: FAIL" in run and "advisory" in run.lower(), (
+        "an empty-replay failure must be visible as FAIL/advisory, never reported "
+        "as PASS"
+    )
+
+
+def test_targeted_evidence_delta_probe_is_blocking() -> None:
+    """The exact evidence delta probe blocks and has no advisory override."""
+    step = _step_running("probe_evidence_migration.py")
+    assert step is not None, "the targeted evidence migration probe must exist"
+    assert (
+        step.get("continue-on-error") is not True
+    ), "the targeted evidence migration probe is the blocking execution guard"
+    assert "blocking" in (step.get("name") or "").lower()
+    run = step.get("run") or ""
+    assert "evidence_prov_20260816" in run
+    assert "i9j0k1l2m3n4" in run
+    assert "GITHUB_STEP_SUMMARY" in run
+    assert "ci_evidence_delta_" in run
+
+
+def test_targeted_probe_uses_separate_scratch_database() -> None:
+    """The blocking probe cannot consume the advisory replay's database."""
+    targeted = _step_running("probe_evidence_migration.py")
+    replay = _step_running("alembic upgrade head")
+    assert targeted is not None and replay is not None
+    targeted_run = targeted.get("run") or ""
+    replay_env = replay.get("env") or {}
+    assert "--admin-database-url" in targeted_run
+    assert "ci_evidence_delta_" in targeted_run
+    assert "ci_evidence_delta_" not in str(replay_env.get("DATABASE_URL", ""))
 
 
 def test_alembic_check_drift_is_advisory() -> None:
@@ -126,8 +157,13 @@ def test_db_url_passed_via_env_to_advisory_steps() -> None:
 
 
 def test_each_probe_writes_to_step_summary() -> None:
-    """Each of the three probes must annotate the measurement record."""
-    for fragment in ("alembic upgrade head", "alembic check", "alembic downgrade -1"):
+    """Every execution probe must annotate its outcome in the job summary."""
+    for fragment in (
+        "probe_evidence_migration.py",
+        "alembic upgrade head",
+        "alembic check",
+        "alembic downgrade -1",
+    ):
         step = _step_running(fragment)
         assert step is not None, f"step running {fragment!r} must exist"
         assert "GITHUB_STEP_SUMMARY" in (step.get("run") or ""), (
