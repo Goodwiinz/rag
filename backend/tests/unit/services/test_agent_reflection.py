@@ -199,7 +199,10 @@ class TestMakeReflectionGate:
         updates = await node_fn(state, config)
 
         assert updates["reflection_count"] == 2
-        assert "_reflection_result" not in updates
+        # The node wrapper defaults any omitted verdict to passing, so a capped
+        # turn exits cleanly instead of inheriting a stale major result.
+        assert updates["_reflection_result"].passed is True
+        assert route_fn({**state, **updates}) == "proceed"
 
         state.update(updates)
         route = route_fn(state)
@@ -216,7 +219,9 @@ class TestMakeReflectionGate:
         updates = await node_fn(state, config)
 
         assert updates["reflection_count"] == 0
-        assert "_reflection_result" not in updates
+        # Skipping the critique must still write an explicit passing verdict —
+        # omitting it leaves a prior major result live and loops the router.
+        assert updates["_reflection_result"].passed is True
 
         state.update(updates)
         route = route_fn(state)
@@ -233,7 +238,7 @@ class TestMakeReflectionGate:
         updates = await node_fn(state, config)
 
         assert updates["reflection_count"] == 0
-        assert "_reflection_result" not in updates
+        assert updates["_reflection_result"].passed is True
 
         state.update(updates)
         route = route_fn(state)
@@ -863,6 +868,86 @@ class TestIngestSuccessLieDetection:
             updates = await node_fn(state, {"configurable": {}})
             assert mock_build.called is False
 
-        # At max rounds the node returns just the counter, no result.
+        # At max rounds the node skips the critique; the wrapper still supplies
+        # a passing verdict so the router cannot read a stale major result.
         assert updates["reflection_count"] == 2
-        assert "_reflection_result" not in updates
+        assert updates["_reflection_result"].passed is True
+
+
+class TestStaleReflectionResultDoesNotLoop:
+    """Regression: non-incrementing early returns must clear the prior verdict.
+
+    Trace 01a00ce9 hit GraphRecursionError at superstep 145 with
+    reflection_count frozen at 1: a deterministic guard set a major verdict on
+    the first pass, and every later pass took the intent_filter early return,
+    which neither incremented the counter nor cleared the verdict. The router
+    kept reading the stale major result and routing back to llm_node forever.
+    """
+
+    @pytest.mark.asyncio
+    async def test_intent_outside_filter_clears_stale_major_verdict(self):
+        node_fn, route_fn = make_reflection_gate(intent_filter={"research"})
+        stale = ReflectionResult(
+            passed=False, issues=["fabricated draft id"], severity="major"
+        )
+        state = _make_state(
+            intent="general", reflection_count=1, _reflection_result=stale
+        )
+
+        updates = await node_fn(state, {})
+
+        # Counter must NOT advance on this path (no critique ran)...
+        assert updates["reflection_count"] == 1
+        # ...so the verdict must be cleared, or the router loops forever.
+        assert updates["_reflection_result"].passed is True
+        assert route_fn({**state, **updates}) == "proceed"
+
+    @pytest.mark.asyncio
+    async def test_missing_user_message_clears_stale_major_verdict(self):
+        from langchain_core.messages import AIMessage
+
+        node_fn, route_fn = make_reflection_gate(intent_filter={"research"})
+        stale = ReflectionResult(passed=False, issues=["bad"], severity="major")
+        state = _make_state(
+            intent="research",
+            reflection_count=1,
+            messages=[AIMessage(content="x" * 300)],
+            _reflection_result=stale,
+        )
+
+        updates = await node_fn(state, {})
+
+        assert updates["reflection_count"] == 1
+        assert updates["_reflection_result"].passed is True
+        assert route_fn({**state, **updates}) == "proceed"
+
+    def test_router_would_loop_on_stale_verdict(self):
+        """Guards the router contract the two tests above depend on."""
+        _node_fn, route_fn = make_reflection_gate()
+        stale = ReflectionResult(passed=False, issues=["x"], severity="major")
+        looping_state = _make_state(reflection_count=1, _reflection_result=stale)
+        assert route_fn(looping_state) == "revise"
+
+    @pytest.mark.asyncio
+    async def test_wrapper_supplies_verdict_when_impl_omits_it(self):
+        """Structural guard: no return path may leave the verdict unset.
+
+        reflection_route is a pure conditional-edge function and cannot clear
+        _reflection_result itself, so a node return that omits the key hands the
+        router the previous superstep's verdict. This pins the wrapper that makes
+        the invariant structural, so a future early return cannot reintroduce the
+        loop by forgetting to write the field.
+        """
+        node_fn, _route_fn = make_reflection_gate(intent_filter={"research"})
+
+        # Every branch the node can take, including the ones that skip early.
+        for state in (
+            _make_state(intent="general"),
+            _make_state(intent="research", reflection_count=2),
+            _make_state(intent="knowledge_graph"),
+        ):
+            updates = await node_fn(state, {"configurable": {}})
+            assert "_reflection_result" in updates, (
+                f"intent={state['intent']} count={state['reflection_count']} "
+                "returned no verdict — router would read a stale one"
+            )

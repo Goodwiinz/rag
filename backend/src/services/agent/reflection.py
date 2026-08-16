@@ -981,7 +981,7 @@ def make_reflection_gate(
     if intent_filter is None:
         intent_filter = {"research", "writing"}
 
-    async def reflection_node(state: dict, config: RunnableConfig) -> dict:
+    async def _reflection_node_impl(state: dict, config: RunnableConfig) -> dict:
         """Evaluate the last AI response and decide whether to revise.
 
         Skips reflection when:
@@ -1131,7 +1131,17 @@ def make_reflection_gate(
         # knowledge_graph deterministic lookups) skip only the probabilistic
         # reflection, not the fabrication guards.
         if intent not in intent_filter:
-            return {"reflection_count": current_count}
+            # Clear any prior verdict. This path does not increment, so leaving a
+            # stale major result in state makes reflection_route revise forever:
+            # revise -> llm_node -> reflection_gate -> here -> revise (trace
+            # 01a00ce9, GraphRecursionError at step 145 with reflection_count
+            # frozen at 1).
+            return {
+                "reflection_count": current_count,
+                "_reflection_result": ReflectionResult(
+                    passed=True, issues=[], severity="none"
+                ),
+            }
 
         # Cheap pre-LLM gate: skip critique for trivial / tool-less turns.
         skip, reason = _should_skip_reflection(state)
@@ -1162,7 +1172,13 @@ def make_reflection_gate(
 
         if last_ai_message is None or not original_user_message:
             logger.debug("Reflection skipped: missing AI or user message")
-            return {"reflection_count": current_count}
+            # Same stale-verdict hazard as the intent_filter return above.
+            return {
+                "reflection_count": current_count,
+                "_reflection_result": ReflectionResult(
+                    passed=True, issues=[], severity="none"
+                ),
+            }
 
         plan = state.get("plan")
 
@@ -1246,5 +1262,26 @@ def make_reflection_gate(
             pass
 
         return decision
+
+    async def reflection_node(state: dict, config: RunnableConfig) -> dict:
+        """Enforce the router contract: every return carries a fresh verdict.
+
+        ``reflection_route`` is a pure conditional-edge function — it can read
+        ``_reflection_result`` but cannot clear it. So any return path here that
+        omits the key leaves the PREVIOUS superstep's verdict live, and a stale
+        ``major`` verdict routes ``revise`` forever (the revise path also skips
+        the increment, so the ``>= 2`` cap never fires). That is exactly how
+        trace 01a00ce9 hit GraphRecursionError at step 145.
+
+        Defaulting to a passing verdict here makes the invariant structural
+        rather than a rule every future early return has to remember. Returns
+        that set ``_reflection_result`` explicitly are left untouched.
+        """
+        updates = await _reflection_node_impl(state, config)
+        updates.setdefault(
+            "_reflection_result",
+            ReflectionResult(passed=True, issues=[], severity="none"),
+        )
+        return updates
 
     return reflection_node, reflection_route
