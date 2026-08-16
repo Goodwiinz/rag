@@ -70,11 +70,11 @@ class ConsensusCalculator:
             return ConsensusLevel.LOW_AGREEMENT
 
     def _generate_reproducibility_hash(
-        self, claim_hash: str, source_ids: List[str], model_version: str
+        self, claim_hash: str, source_revisions: List[str], model_version: str
     ) -> str:
         """Generate hash for reproducibility tracking"""
-        # Sort source IDs for consistent ordering
-        sorted_sources = sorted(source_ids)
+        # Sort source revisions for consistent ordering
+        sorted_sources = sorted(source_revisions)
         source_hash = hashlib.sha256(
             "|".join(sorted_sources).encode("utf-8")
         ).hexdigest()[:16]
@@ -96,6 +96,7 @@ class ConsensusCalculator:
         claim: str,
         classifications: List[Dict],
         retracted_source_ids: Optional[List[str]] = None,
+        source_revisions: Optional[List[str]] = None,
     ) -> EvidenceMeter:
         """
         Calculate consensus metrics from stance classifications
@@ -104,6 +105,8 @@ class ConsensusCalculator:
             claim: Original claim text
             classifications: List of classification dicts from stance_classifier
             retracted_source_ids: Optional list of retracted source IDs to exclude
+            source_revisions: Optional ordered source content revisions. When omitted,
+                valid classification source IDs are used for legacy callers.
 
         Returns:
             EvidenceMeter with computed consensus metrics
@@ -158,9 +161,14 @@ class ConsensusCalculator:
             total_sources, supporting, opposing, neutral, not_addressed
         )
 
-        # Generate reproducibility hash
+        # Use source revisions when provided so content changes and withdrawn sources
+        # produce a distinct reproducibility identity. Legacy callers that do not have
+        # revisions retain the previous source-ID identity.
+        reproducibility_revisions = (
+            source_revisions if source_revisions is not None else source_ids
+        )
         reproducibility_hash = self._generate_reproducibility_hash(
-            claim_hash, source_ids, self.model_version
+            claim_hash, reproducibility_revisions, self.model_version
         )
 
         return EvidenceMeter(
