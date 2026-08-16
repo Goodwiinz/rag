@@ -28,7 +28,7 @@ def _source(arxiv_id: str = "2401.00001v1") -> SimpleNamespace:
     )
 
 
-def _storage_fields(checksum: str = "abc123") -> dict:
+def _storage_fields(checksum: str = "abc123") -> dict[str, object]:
     return {
         "filename": "2401.00001v1.pdf",
         "file_size_bytes": 12,
@@ -41,7 +41,7 @@ def _storage_fields(checksum: str = "abc123") -> dict:
     }
 
 
-async def test_exact_arxiv_replay_reuses_before_storage():
+async def test_exact_arxiv_replay_reuses_before_storage() -> None:
     existing_id = uuid4()
     db = MockAsyncSession().set_scalar_result(existing_id)
 
@@ -60,10 +60,10 @@ async def test_exact_arxiv_replay_reuses_before_storage():
     store.assert_not_called()
 
 
-async def test_checksum_reuse_deletes_newly_promoted_object():
+async def test_checksum_reuse_deletes_newly_promoted_object() -> None:
     existing_id = uuid4()
     db = MockAsyncSession()
-    db.execute = AsyncMock(
+    db.execute = AsyncMock(  # type: ignore[method-assign]
         side_effect=[
             MockResult(scalar_result=None),
             MockResult(scalar_result=existing_id),
@@ -90,7 +90,7 @@ async def test_checksum_reuse_deletes_newly_promoted_object():
     delete.assert_called_once_with(storage_fields)
 
 
-async def test_new_document_is_durable_searchable_and_json_safe():
+async def test_new_document_is_durable_searchable_and_json_safe() -> None:
     db = MockAsyncSession()
     storage_fields = _storage_fields()
     update_vectors = AsyncMock()
@@ -121,12 +121,12 @@ async def test_new_document_is_durable_searchable_and_json_safe():
     update_vectors.assert_awaited_once_with([str(document.id)], db)
 
 
-async def test_storage_promotion_runs_between_short_database_sessions():
+async def test_storage_promotion_runs_between_short_database_sessions() -> None:
     lookup_db = MockAsyncSession()
     write_db = MockAsyncSession()
     sessions = iter([lookup_db, write_db])
 
-    def _store(*_args):
+    def _store(*_args: object) -> dict[str, object]:
         assert lookup_db._closed is True
         assert write_db.execute_calls == []
         return _storage_fields()
@@ -147,9 +147,11 @@ async def test_storage_promotion_runs_between_short_database_sessions():
         )
 
 
-async def test_transaction_failure_compensates_promoted_storage():
+async def test_transaction_failure_compensates_promoted_storage() -> None:
     db = MockAsyncSession()
-    db.flush = AsyncMock(side_effect=RuntimeError("database unavailable"))
+    db.flush = AsyncMock(  # type: ignore[method-assign]
+        side_effect=RuntimeError("database unavailable")
+    )
     storage_fields = _storage_fields()
 
     with (
@@ -169,17 +171,17 @@ async def test_transaction_failure_compensates_promoted_storage():
     delete.assert_called_once_with(storage_fields)
 
 
-async def test_concurrent_checksum_loser_reuses_winner_and_cleans_storage():
+async def test_concurrent_checksum_loser_reuses_winner_and_cleans_storage() -> None:
     winner_id = uuid4()
     db = MockAsyncSession()
-    db.execute = AsyncMock(
+    db.execute = AsyncMock(  # type: ignore[method-assign]
         side_effect=[
             MockResult(scalar_result=None),
             MockResult(scalar_result=None),
             MockResult(scalar_result=winner_id),
         ]
     )
-    db.flush = AsyncMock(
+    db.flush = AsyncMock(  # type: ignore[method-assign]
         side_effect=IntegrityError(
             "INSERT INTO documents", {}, Exception("uq_documents_org_checksum_live")
         )
@@ -210,7 +212,7 @@ async def test_concurrent_checksum_loser_reuses_winner_and_cleans_storage():
 )
 async def test_kb_sync_outcome_is_persisted(
     sync_result: str | None, expected_status: str, expected_failed: bool
-):
+) -> None:
     db = MockAsyncSession()
     kb_db = MagicMock()
     kb_db.__aenter__ = AsyncMock(return_value=kb_db)
@@ -247,7 +249,7 @@ async def test_kb_sync_outcome_is_persisted(
     assert kb_db.commit.await_count == 2
 
 
-async def test_kb_exception_marks_document_reconcilable():
+async def test_kb_exception_marks_document_reconcilable() -> None:
     db = MockAsyncSession()
     kb_db = MagicMock()
     kb_db.__aenter__ = AsyncMock(return_value=kb_db)
