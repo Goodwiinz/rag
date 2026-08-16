@@ -3,15 +3,20 @@ Integration tests for Evidence Agreement Meter API endpoints
 """
 
 import hashlib
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
-from src.api.evidence.router import _save_stance_classifications, stance_classifier
+from src.api.evidence.router import (
+    _save_stance_classifications,
+    get_evidence_breakdown,
+    stance_classifier,
+)
 from src.core.database import get_db_sync
 from src.core.dependencies import get_current_user
 from src.main import app
@@ -292,7 +297,8 @@ class TestEvidenceMeterEndpoint:
         assert response.status_code == 400
         data = response.json()
         detail = data.get("detail") or data.get("error", {}).get("message", "")
-        assert "source_ids parameter required" in detail
+        assert detail == "source_ids parameter required"
+        assert "integration with search API pending" not in detail
 
     @patch("src.api.evidence.router.cache_service")
     def test_get_evidence_meter_cached_result(
@@ -556,6 +562,72 @@ class TestEvidenceMeterEndpoint:
         finally:
             db.close()
 
+    @patch("src.api.evidence.router.stance_classifier")
+    @patch("src.api.evidence.router.consensus_calculator")
+    @patch("src.api.evidence.router.cache_service")
+    def test_meter_commit_failure_returns_500_without_cache_write(
+        self,
+        mock_cache,
+        mock_consensus,
+        mock_classifier,
+        test_client,
+        mock_auth,
+    ):
+        from src.api.evidence.schemas import ConsensusLevel, EvidenceMeter
+
+        db = TestingSessionLocal()
+        document = seed_document(
+            db,
+            title="Persisted source",
+            content_text="Persisted source contains the commit failure claim.",
+        )
+        db.close()
+
+        mock_cache.get_evidence_meter = AsyncMock(return_value=None)
+        mock_cache.set_evidence_meter = AsyncMock(return_value=None)
+        mock_classifier.model_version = "gpt-4o-mini-2024-07-18"
+        mock_classifier.classify_sources_batch = AsyncMock(
+            return_value=[
+                {
+                    "source_id": str(document.id),
+                    "stance": "supporting",
+                    "confidence": 0.9,
+                    "justification_excerpt": "Persisted source contains the commit failure claim.",
+                    "source_content_hash": document.checksum_sha256,
+                }
+            ]
+        )
+        mock_consensus._generate_claim_hash.return_value = "commit_failure_hash"
+        mock_consensus.calculate_consensus.return_value = EvidenceMeter(
+            claim="Commit failure claim",
+            claim_hash="commit_failure_hash",
+            total_sources=1,
+            supporting=1,
+            opposing=0,
+            neutral=0,
+            not_addressed=0,
+            consensus_level=ConsensusLevel.INSUFFICIENT_DATA,
+            average_confidence=0.9,
+            retracted_sources=0,
+            cached=False,
+            reproducibility_hash="commit_failure_revision",
+        )
+
+        with patch.object(
+            Session, "commit", side_effect=RuntimeError("database unavailable")
+        ):
+            response = test_client.get(
+                "/api/v1/evidence/meter",
+                params={
+                    "claim": "Commit failure claim",
+                    "source_ids": str(document.id),
+                },
+            )
+
+        assert response.status_code == 500
+        assert response_message(response) == "Failed to generate evidence meter"
+        mock_cache.set_evidence_meter.assert_not_awaited()
+
 
 class TestEvidenceBreakdownEndpoint:
     """Test /api/v1/evidence/breakdown endpoint"""
@@ -691,6 +763,102 @@ class TestEvidenceBreakdownEndpoint:
 
         finally:
             db.close()
+
+    def test_breakdown_pagination_orders_equal_confidence_by_source_id(
+        self, test_client, mock_auth
+    ):
+        set_active_user(MockUser())
+        db = TestingSessionLocal()
+        source_ids = [uuid4() for _ in range(3)]
+        claim_hash = "equal_confidence_pagination_hash"
+
+        for source_id in source_ids:
+            seed_document(
+                db,
+                document_id=source_id,
+                title=f"Source {source_id}",
+                content_text="Equal confidence pagination source content",
+            )
+
+        for source_id in reversed(source_ids):
+            db.add(
+                StanceClassificationModel(
+                    claim_hash=claim_hash,
+                    claim_text="Equal confidence pagination claim",
+                    source_id=source_id,
+                    organization_id=TEST_ORG_ID,
+                    stance="supporting",
+                    confidence=0.75,
+                    justification_excerpt="Equal confidence pagination source content",
+                    model_version=stance_classifier.model_version,
+                )
+            )
+        db.commit()
+
+        try:
+            page_ids = []
+            for offset in range(len(source_ids)):
+                response = test_client.get(
+                    "/api/v1/evidence/breakdown",
+                    params={
+                        "claim_hash": claim_hash,
+                        "limit": 1,
+                        "offset": offset,
+                    },
+                )
+
+                assert response.status_code == 200
+                page_ids.append(response.json()["sources"][0]["source_id"])
+
+            expected_ids = [str(source_id) for source_id in sorted(source_ids)]
+            assert page_ids == expected_ids
+
+            repeat_response = test_client.get(
+                "/api/v1/evidence/breakdown",
+                params={"claim_hash": claim_hash, "limit": 1, "offset": 1},
+            )
+            assert repeat_response.status_code == 200
+            assert repeat_response.json()["sources"][0]["source_id"] == expected_ids[1]
+        finally:
+            db.close()
+
+    @pytest.mark.asyncio
+    async def test_breakdown_pagination_adds_source_id_tie_breaker(self):
+        db = Mock()
+        query = Mock()
+        db.query.return_value = query
+        query.join.return_value = query
+        query.filter.return_value = query
+        query.order_by.return_value = query
+        query.offset.return_value = query
+        query.limit.return_value = query
+        query.all.return_value = [
+            (
+                SimpleNamespace(
+                    source_id=uuid4(),
+                    claim_text="A deterministic claim",
+                    stance="supporting",
+                    confidence=0.75,
+                    justification_excerpt="A grounded excerpt",
+                ),
+                SimpleNamespace(title="A source"),
+            )
+        ]
+
+        await get_evidence_breakdown(
+            claim_hash="deterministic_pagination_hash",
+            stance_filter=None,
+            limit=1,
+            offset=1,
+            _rate_limit=True,
+            current_user=MockUser(),
+            db=db,
+        )
+
+        order_args = query.order_by.call_args.args
+        assert len(order_args) == 2
+        assert "source_id" in str(order_args[1])
+        assert "ASC" in str(order_args[1]).upper()
 
     def test_get_evidence_breakdown_not_found(self, test_client, mock_auth):
         """Test breakdown endpoint with non-existent claim hash"""

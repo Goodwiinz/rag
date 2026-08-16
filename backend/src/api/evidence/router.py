@@ -293,13 +293,8 @@ async def get_evidence_meter(
                     status_code=400, detail=f"Invalid source ID format: {e}"
                 )
 
-        # For MVP, we need actual source data - this would integrate with existing source service
-        # For now, return error if no sources provided
         if not parsed_source_ids:
-            raise HTTPException(
-                status_code=400,
-                detail="source_ids parameter required for MVP - integration with search API pending",
-            )
+            raise HTTPException(status_code=400, detail="source_ids parameter required")
 
         loaded = _load_sources_or_http_error(
             db,
@@ -368,9 +363,12 @@ async def get_evidence_meter(
         try:
             db.commit()
             logger.info("Saved/upserted stance classifications count=%d", saved_count)
-        except Exception:
+        except Exception as exc:
             db.rollback()
             logger.error("Failed to save stance classifications")
+            raise HTTPException(
+                status_code=500, detail="Failed to generate evidence meter"
+            ) from exc
 
         # Cache the result — keyed by org so cross-tenant requests never share entries
         meter_dict = evidence_meter.model_dump()
@@ -444,7 +442,10 @@ async def get_evidence_breakdown(
                 Document.is_deleted.is_(False),
                 Document.processing_status == ProcessingStatus.COMPLETED,
             )
-            .order_by(StanceClassificationModel.confidence.desc())
+            .order_by(
+                StanceClassificationModel.confidence.desc(),
+                StanceClassificationModel.source_id.asc(),
+            )
         )
 
         if stance_filter:
