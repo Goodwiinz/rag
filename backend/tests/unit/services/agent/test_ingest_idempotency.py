@@ -35,6 +35,12 @@ class _Result:
     def scalar_one_or_none(self) -> Any:
         return self._value
 
+    def scalars(self) -> "_Result":
+        return self
+
+    def all(self) -> list[Any]:
+        return [self._value] if self._value is not None else []
+
 
 class _DB:
     """Captures the statement so we can assert what was filtered on."""
@@ -49,10 +55,11 @@ class _DB:
 
 
 async def test_existing_copy_is_found_by_org_and_checksum() -> None:
+    from src.models.document import Document
     from src.services.arxiv.persistence import existing_document_id
 
     existing = uuid4()
-    db = _DB(found=existing)
+    db = _DB(found=Document(id=existing))
 
     got = await existing_document_id(db, uuid4(), "abc123")
 
@@ -69,9 +76,10 @@ async def test_existing_copy_is_found_by_org_and_checksum() -> None:
 async def test_existing_arxiv_copy_is_scoped_to_tenant_and_live_rows() -> None:
     from sqlalchemy.dialects import postgresql
 
+    from src.models.document import Document
     from src.services.arxiv.persistence import existing_arxiv_document_id
 
-    db = _DB(found=uuid4())
+    db = _DB(found=Document(id=uuid4()))
 
     await existing_arxiv_document_id(db, uuid4(), "2401.00001v1")
 
@@ -83,6 +91,26 @@ async def test_existing_arxiv_copy_is_scoped_to_tenant_and_live_rows() -> None:
     assert "organization_id" in sql
     assert "arxiv_id" in sql
     assert "is_deleted" in sql
+
+
+def test_exact_arxiv_constraint_is_non_destructive_and_tenant_scoped() -> None:
+    from pathlib import Path
+
+    migration = (
+        Path(__file__).resolve().parents[4]
+        / "alembic"
+        / "versions"
+        / "i9j0k1l2m3n4_add_documents_arxiv_id.py"
+    )
+    text = migration.read_text()
+    assert "uq_documents_org_arxiv_id_live" in text
+    assert '["organization_id", "arxiv_id"]' in text
+    assert "unique=True" in text
+    assert "BEFORE INSERT ON documents" in text
+    assert "NEW.document_metadata->>'arxiv_id'" in text
+    assert "LENGTH(candidate) <= 64" in text
+    assert "candidate ~ '^[0-9]" in text
+    assert "UPDATE documents" not in text
 
 
 async def test_no_existing_copy_returns_none() -> None:

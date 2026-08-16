@@ -293,8 +293,8 @@ async def force_sync_paper(
         from src.core.database import get_async_session
 
         async with get_async_session() as db:
-            # Check if the paper already exists for this org — lookup keys on the
-            # arxiv_id stored in document_metadata (no external_id column).
+            # Check if the paper already exists for this org. The lookup accepts
+            # canonical rows plus legacy metadata-only rows pending cleanup.
             existing = (
                 await db.execute(
                     change_tracker._paper_lookup_stmt(paper_id, organization_id)
@@ -309,11 +309,14 @@ async def force_sync_paper(
                 await change_tracker._update_knowledge_graph(paper)
                 action = "updated"
             else:
-                # Create new
-                await change_tracker._ingest_new_paper(
-                    db, paper, organization_id, user_id, update_kg=True
-                )
                 action = "created"
+
+        # Durable persistence owns its own short sessions and object-storage
+        # phase; do not hold the lookup transaction across that I/O.
+        if action == "created":
+            await change_tracker._ingest_new_paper(
+                paper, organization_id, user_id, update_kg=True
+            )
 
         # Update org-partitioned tracking state
         org_state = change_tracker._org_state(organization_id)

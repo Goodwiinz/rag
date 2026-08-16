@@ -397,6 +397,12 @@ async def _process_arxiv_ingestion(
                         f"{len(persisted.document_ids)}/{len(documents)} "
                         f"documents for org {organization_id}"
                     )
+                if persisted.failed_papers:
+                    logger.warning(
+                        "arXiv ingestion skipped papers after durable-storage "
+                        "failures: %s",
+                        sorted(persisted.failed_papers),
+                    )
 
     except Exception as e:
         logger.error(f"Background arXiv ingestion failed: {e}")

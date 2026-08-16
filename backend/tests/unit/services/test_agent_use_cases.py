@@ -62,6 +62,54 @@ def _make_mock_project(name="Test Project", proj_id=None):
     return proj
 
 
+async def test_ingest_surfaces_per_paper_storage_failure_as_partial() -> None:
+    from src.api.agent.execute import _tool_ingest_arxiv
+    from src.services.arxiv.persistence import ArxivPersistenceResult
+
+    user = _mock_user()
+    paper_ids = ["2401.00001v1", "2401.00002v1"]
+    papers = [_make_arxiv_paper(pid, f"Paper {pid}") for pid in paper_ids]
+    documents = [_make_ingested_doc(paper["title"], paper["id"]) for paper in papers]
+    service = AsyncMock()
+    service.get_papers_by_ids = AsyncMock(return_value=papers)
+    service.ingest_papers = AsyncMock(return_value=documents)
+    context = AsyncMock()
+    context.__aenter__ = AsyncMock(return_value=service)
+    context.__aexit__ = AsyncMock(return_value=False)
+
+    with (
+        patch(
+            "src.services.arxiv.arxiv_service.ArXivIngestionService",
+            return_value=context,
+        ),
+        patch(
+            "src.services.arxiv.persistence.persist_arxiv_documents",
+            new_callable=AsyncMock,
+            return_value=ArxivPersistenceResult(
+                document_ids=["document-1"],
+                reused_document_ids=set(),
+                failed_papers={"2401.00002v1": "durable storage promotion failed"},
+            ),
+        ),
+    ):
+        result = await _tool_ingest_arxiv(
+            args={"paper_ids": paper_ids},
+            user_id=str(user.id),
+            db=AsyncMock(),
+            current_user=user,
+        )
+
+    assert result["status"] == "ingestion_partial"
+    assert result["document_ids"] == ["document-1"]
+    assert result["failed_papers"] == [
+        {
+            "paper_id": "2401.00002v1",
+            "reason": "durable storage promotion failed",
+        }
+    ]
+    assert "error" in result
+
+
 # ---------------------------------------------------------------------------
 # Use Case: "Grab me all papers about X and add to my project"
 # ---------------------------------------------------------------------------

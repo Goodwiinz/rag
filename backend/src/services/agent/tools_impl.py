@@ -1335,6 +1335,7 @@ async def _tool_ingest_arxiv(
                     document_ids = persisted.document_ids
                     reused_document_ids = persisted.reused_document_ids
                     kb_sync_failed = persisted.kb_sync_failed
+                    failed_papers.update(persisted.failed_papers)
                 except Exception as db_err:
                     logger.error(
                         "Failed to persist ingested documents to DB", exc_info=db_err
@@ -1399,15 +1400,16 @@ async def _tool_ingest_arxiv(
                 message = (
                     f"Ingested 0 of {requested_count} paper(s). The arXiv IDs "
                     "may be invalid, very new (not yet on arxiv.org), or the "
-                    "download/extract step failed. Try again with different "
-                    "IDs or wait a few hours for very recent papers."
+                    "download, extraction, or durable-storage step failed. Try "
+                    "again with different IDs or wait a few hours for very "
+                    "recent papers."
                 )
             elif ingested_count < requested_count:
                 status = INGEST_STATUS_PARTIAL
                 message = (
                     f"Ingested {ingested_count} of {requested_count} paper(s). "
                     f"{requested_count - ingested_count} failed — likely "
-                    "invalid IDs or download errors."
+                    "invalid IDs, download errors, or storage errors."
                 )
             else:
                 status = INGEST_STATUS_COMPLETE
