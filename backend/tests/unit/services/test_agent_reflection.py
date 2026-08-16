@@ -1,6 +1,8 @@
 """Tests for agent reflection gate module."""
-import pytest
+
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from src.services.agent.reflection import (
     ReflectionResult,
@@ -485,9 +487,7 @@ class TestShouldSkipReflection:
             "tool_executions": [],
         }
 
-        with patch(
-            "src.services.agent.reflection._build_reflection_llm"
-        ) as mock_build:
+        with patch("src.services.agent.reflection._build_reflection_llm") as mock_build:
             updates = await node_fn(state, {"configurable": {}})
             assert mock_build.called is False
 
@@ -516,14 +516,10 @@ class TestIngestSuccessLieDetection:
         }
 
     def test_ingest_zero_count_detects_failed_status(self):
-        assert _ingest_zero_count(
-            self._ingest_te(status="ingestion_failed", count=0)
-        )
+        assert _ingest_zero_count(self._ingest_te(status="ingestion_failed", count=0))
 
     def test_ingest_zero_count_detects_partial_status(self):
-        assert _ingest_zero_count(
-            self._ingest_te(status="ingestion_partial", count=1)
-        )
+        assert _ingest_zero_count(self._ingest_te(status="ingestion_partial", count=1))
 
     def test_ingest_zero_count_ignores_complete(self):
         assert not _ingest_zero_count(
@@ -551,9 +547,7 @@ class TestIngestSuccessLieDetection:
                 HumanMessage(content="add 3 papers"),
                 AIMessage(content="Done — I added one paper to your project."),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         issue = _detect_ingest_success_lie(state)
         assert issue is not None
@@ -572,9 +566,7 @@ class TestIngestSuccessLieDetection:
                     )
                 ),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is None
 
@@ -586,9 +578,7 @@ class TestIngestSuccessLieDetection:
                 HumanMessage(content="add 3 papers"),
                 AIMessage(content="Here are some candidate papers to consider."),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is None
 
@@ -600,9 +590,7 @@ class TestIngestSuccessLieDetection:
                 HumanMessage(content="add 3 papers"),
                 AIMessage(content="I added 3 papers to your project."),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_complete", count=3)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_complete", count=3)],
         }
         assert _detect_ingest_success_lie(state) is None
 
@@ -614,9 +602,7 @@ class TestIngestSuccessLieDetection:
         node_fn, _ = make_reflection_gate(intent_filter={"research"})
         state = {
             "messages": [
-                HumanMessage(
-                    content="can you add 3 papers about Health Care in ML"
-                ),
+                HumanMessage(content="can you add 3 papers about Health Care in ML"),
                 AIMessage(
                     content=(
                         "Done — I added one paper to your project. "
@@ -635,9 +621,7 @@ class TestIngestSuccessLieDetection:
             ],
         }
 
-        with patch(
-            "src.services.agent.reflection._build_reflection_llm"
-        ) as mock_build:
+        with patch("src.services.agent.reflection._build_reflection_llm") as mock_build:
             updates = await node_fn(state, {"configurable": {}})
             assert mock_build.called is False
 
@@ -667,9 +651,7 @@ class TestIngestSuccessLieDetection:
                 HumanMessage(content="add 3 papers"),
                 AIMessage(content=long_claim),
             ],
-            tool_executions=[
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            tool_executions=[self._ingest_te(status="ingestion_failed", count=0)],
         )
         skip, _reason = _should_skip_reflection(state)
         assert skip is False
@@ -695,9 +677,7 @@ class TestIngestSuccessLieDetection:
                 HumanMessage(content="add 3 papers"),
                 AIMessage(content=verb_phrase),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is not None
 
@@ -727,9 +707,7 @@ class TestIngestSuccessLieDetection:
                 HumanMessage(content="add 3 papers"),
                 AIMessage(content=content),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is None
 
@@ -748,9 +726,7 @@ class TestIngestSuccessLieDetection:
                     )
                 ),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is None
 
@@ -797,9 +773,7 @@ class TestIngestSuccessLieDetection:
                     ]
                 ),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is not None
 
@@ -823,9 +797,7 @@ class TestIngestSuccessLieDetection:
 
         state = {
             "messages": [HumanMessage(content="anything")],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is None
 
@@ -858,13 +830,9 @@ class TestIngestSuccessLieDetection:
             ],
             "intent": "research",
             "reflection_count": 2,
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
-        with patch(
-            "src.services.agent.reflection._build_reflection_llm"
-        ) as mock_build:
+        with patch("src.services.agent.reflection._build_reflection_llm") as mock_build:
             updates = await node_fn(state, {"configurable": {}})
             assert mock_build.called is False
 
