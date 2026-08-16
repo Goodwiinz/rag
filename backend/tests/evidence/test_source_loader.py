@@ -38,7 +38,7 @@ def _db_with_documents(*documents: SimpleNamespace) -> Mock:
     return db
 
 
-def test_excerpt_is_a_contiguous_bounded_source_substring():
+def test_excerpt_is_a_contiguous_bounded_source_substring() -> None:
     content = "A" * 13_000 + " target evidence phrase " + "B" * 13_000
 
     excerpt = source_loader.ClaimExcerptSelector().select("target evidence", content)
@@ -48,7 +48,7 @@ def test_excerpt_is_a_contiguous_bounded_source_substring():
     assert "target evidence phrase" in excerpt
 
 
-def test_excerpt_falls_back_to_source_prefix_without_overlap():
+def test_excerpt_falls_back_to_source_prefix_without_overlap() -> None:
     content = "unrelated source text " * 1_000
 
     excerpt = source_loader.ClaimExcerptSelector().select("quantum gravity", content)
@@ -56,7 +56,7 @@ def test_excerpt_falls_back_to_source_prefix_without_overlap():
     assert excerpt == content[:12_000]
 
 
-def test_excerpt_scores_casefolded_claim_terms_and_prefers_earliest_window():
+def test_excerpt_scores_casefolded_claim_terms_and_prefers_earliest_window() -> None:
     content = "ALPHA " + "x" * 5_995 + "alpha " + "beta " + "y" * 12_000
 
     excerpt = source_loader.ClaimExcerptSelector().select("Alpha beta", content)
@@ -64,7 +64,7 @@ def test_excerpt_scores_casefolded_claim_terms_and_prefers_earliest_window():
     assert excerpt == content[:12_000]
 
 
-def test_source_types_expose_classifier_payload_and_revisions():
+def test_source_types_expose_classifier_payload_and_revisions() -> None:
     source_id = uuid4()
     source = source_loader.EvidenceSource(
         source_id=source_id,
@@ -88,7 +88,7 @@ def test_source_types_expose_classifier_payload_and_revisions():
     ]
 
 
-def test_loader_scopes_query_and_preserves_requested_order():
+def test_loader_scopes_query_and_preserves_requested_order() -> None:
     organization_id = uuid4()
     first = _document(uuid4(), organization_id=organization_id, title="First")
     second = _document(uuid4(), organization_id=organization_id, title="Second")
@@ -107,7 +107,7 @@ def test_loader_scopes_query_and_preserves_requested_order():
     assert all(argument.left.key != "is_deleted" for argument in filters)
 
 
-def test_loader_rejects_duplicate_ids_before_query():
+def test_loader_rejects_duplicate_ids_before_query() -> None:
     organization_id = uuid4()
     source_id = uuid4()
     db = Mock(spec=Session)
@@ -123,7 +123,7 @@ def test_loader_rejects_duplicate_ids_before_query():
     db.query.assert_not_called()
 
 
-def test_loader_fails_closed_without_org():
+def test_loader_fails_closed_without_org() -> None:
     db = Mock(spec=Session)
 
     with pytest.raises(source_loader.SourceSetNotFoundError):
@@ -134,7 +134,7 @@ def test_loader_fails_closed_without_org():
     db.query.assert_not_called()
 
 
-def test_loader_rejects_missing_or_cross_tenant_rows_without_identifying_id():
+def test_loader_rejects_missing_or_cross_tenant_rows_without_identifying_id() -> None:
     organization_id = uuid4()
     requested = [uuid4(), uuid4()]
     db = _db_with_documents(_document(requested[0], organization_id=organization_id))
@@ -150,7 +150,7 @@ def test_loader_rejects_missing_or_cross_tenant_rows_without_identifying_id():
     assert str(requested[1]) not in str(error.value)
 
 
-def test_loader_rejects_a_returned_cross_tenant_row():
+def test_loader_rejects_a_returned_cross_tenant_row() -> None:
     organization_id = uuid4()
     foreign_organization_id = uuid4()
     source_id = uuid4()
@@ -169,7 +169,7 @@ def test_loader_rejects_a_returned_cross_tenant_row():
     assert str(source_id) not in str(error.value)
 
 
-def test_loader_counts_soft_deleted_sources_but_never_classifies_them():
+def test_loader_counts_soft_deleted_sources_but_never_classifies_them() -> None:
     organization_id = uuid4()
     active = _document(uuid4(), organization_id=organization_id, title="Active")
     deleted = _document(
@@ -198,7 +198,7 @@ def test_loader_counts_soft_deleted_sources_but_never_classifies_them():
 )
 def test_loader_rejects_incomplete_or_blank_content_before_payloads(
     processing_status: ProcessingStatus, content_text: str | None
-):
+) -> None:
     organization_id = uuid4()
     source_id = uuid4()
     db = _db_with_documents(
@@ -219,7 +219,7 @@ def test_loader_rejects_incomplete_or_blank_content_before_payloads(
         )
 
 
-def test_loader_uses_stored_hash_or_hashes_source_content():
+def test_loader_uses_stored_hash_or_hashes_source_content() -> None:
     organization_id = uuid4()
     stored_hash = _document(
         uuid4(),
@@ -248,7 +248,7 @@ def test_loader_uses_stored_hash_or_hashes_source_content():
     )
 
 
-def test_loader_rejects_all_withdrawn_sources():
+def test_loader_rejects_all_withdrawn_sources() -> None:
     organization_id = uuid4()
     deleted = _document(uuid4(), organization_id=organization_id, is_deleted=True)
     db = _db_with_documents(deleted)

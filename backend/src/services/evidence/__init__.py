@@ -8,8 +8,8 @@ from .neo4j_templates import Neo4jTemplates
 from .source_loader import (
     MAX_EXCERPT_CHARS,
     WINDOW_STEP_CHARS,
-    ClassifierSource,
     ClaimExcerptSelector,
+    ClassifierSource,
     DuplicateSourceIdsError,
     EvidenceSource,
     EvidenceSourceError,

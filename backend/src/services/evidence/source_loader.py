@@ -4,7 +4,7 @@ import hashlib
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TypedDict
+from typing import TypedDict, cast
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -125,13 +125,15 @@ class EvidenceSourceLoader:
             .all()
         )
         requested_id_set = set(requested_ids)
-        returned_id_set = {document.id for document in documents}
+        returned_id_set = {cast(UUID, document.id) for document in documents}
         if returned_id_set != requested_id_set or any(
             document.organization_id != organization_id for document in documents
         ):
             raise SourceSetNotFoundError("Requested source set was not found")
 
-        documents_by_id = {document.id: document for document in documents}
+        documents_by_id: dict[UUID, Document] = {
+            cast(UUID, document.id): document for document in documents
+        }
         withdrawn_source_ids = tuple(
             str(source_id)
             for source_id in requested_ids
@@ -163,14 +165,14 @@ class EvidenceSourceLoader:
         )
 
     def _build_source(self, document: Document, claim: str) -> EvidenceSource:
-        content = document.content_text
-        content_hash = document.checksum_sha256
+        content = cast(str, document.content_text)
+        content_hash = cast(str | None, document.checksum_sha256)
         if not content_hash or not content_hash.strip():
             content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
         return EvidenceSource(
-            source_id=document.id,
-            title=document.title,
+            source_id=cast(UUID, document.id),
+            title=cast(str, document.title),
             excerpt=self._selector.select(claim, content),
             content_hash=content_hash,
         )
