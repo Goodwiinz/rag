@@ -3462,6 +3462,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/evidence/breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Evidence Breakdown
+         * @description Get detailed breakdown of source stances for a claim
+         *
+         *     Returns individual source classifications with excerpts and confidence scores
+         */
+        get: operations["get_evidence_breakdown_api_v1_evidence_breakdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence/classify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Classify Sources For Claim
+         * @description Internal endpoint to classify sources for a claim
+         *
+         *     This is used by other services to trigger stance classification
+         */
+        post: operations["classify_sources_for_claim_api_v1_evidence_classify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health Check
+         * @description Health check for evidence meter service
+         */
+        get: operations["health_check_api_v1_evidence_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence/meter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Evidence Meter
+         * @description Get consensus meter for a claim across sources
+         *
+         *     Returns aggregated stance statistics and consensus level
+         */
+        get: operations["get_evidence_meter_api_v1_evidence_meter_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/export/batch": {
         parameters: {
             query?: never;
@@ -9915,6 +10001,12 @@ export interface components {
             requires_api_key: boolean;
         };
         /**
+         * ConsensusLevel
+         * @description Consensus level categories
+         * @enum {string}
+         */
+        ConsensusLevel: "strong_agreement" | "moderate_agreement" | "mixed" | "low_agreement" | "insufficient_data";
+        /**
          * ConversationCreate
          * @description Create conversation request
          */
@@ -10566,6 +10658,90 @@ export interface components {
              * @default 5
              */
             questions_per_paper: number;
+        };
+        /**
+         * EvidenceBreakdown
+         * @description Detailed breakdown of source stances
+         */
+        EvidenceBreakdown: {
+            /**
+             * Claim
+             * @description Original claim text
+             */
+            claim: string;
+            /**
+             * Claim Hash
+             * @description SHA256 hash of normalized claim
+             */
+            claim_hash: string;
+            /**
+             * Sources
+             * @description List of source classifications
+             */
+            sources: components["schemas"]["StanceBreakdownItem"][];
+        };
+        /**
+         * EvidenceMeter
+         * @description Evidence agreement meter summary
+         */
+        EvidenceMeter: {
+            /**
+             * Average Confidence
+             * @description Average classification confidence
+             */
+            average_confidence: number;
+            /**
+             * Cached
+             * @description Whether result was served from cache
+             */
+            cached: boolean;
+            /**
+             * Claim
+             * @description Original claim text
+             */
+            claim: string;
+            /**
+             * Claim Hash
+             * @description SHA256 hash of normalized claim
+             */
+            claim_hash: string;
+            /** @description Overall consensus level */
+            consensus_level: components["schemas"]["ConsensusLevel"];
+            /**
+             * Neutral
+             * @description Number of neutral sources
+             */
+            neutral: number;
+            /**
+             * Not Addressed
+             * @description Number of sources not addressing the claim
+             */
+            not_addressed: number;
+            /**
+             * Opposing
+             * @description Number of sources opposing the claim
+             */
+            opposing: number;
+            /**
+             * Reproducibility Hash
+             * @description Hash for reproducibility tracking
+             */
+            reproducibility_hash: string;
+            /**
+             * Retracted Sources
+             * @description Number of retracted sources (excluded)
+             */
+            retracted_sources: number;
+            /**
+             * Supporting
+             * @description Number of sources supporting the claim
+             */
+            supporting: number;
+            /**
+             * Total Sources
+             * @description Total number of evaluated sources
+             */
+            total_sources: number;
         };
         /**
          * ExecutionMode
@@ -13424,6 +13600,35 @@ export interface components {
          * @enum {string}
          */
         SortOrder: "asc" | "desc";
+        /**
+         * Stance
+         * @description Stance classification options
+         * @enum {string}
+         */
+        Stance: "supporting" | "opposing" | "neutral" | "not_addressed";
+        /**
+         * StanceBreakdownItem
+         * @description Stance classification with source metadata for breakdown view
+         */
+        StanceBreakdownItem: {
+            /** Confidence */
+            confidence: number;
+            /**
+             * Is Retracted
+             * @default false
+             */
+            is_retracted: boolean;
+            /** Justification Excerpt */
+            justification_excerpt?: string | null;
+            /**
+             * Source Id
+             * Format: uuid
+             */
+            source_id: string;
+            stance: components["schemas"]["Stance"];
+            /** Title */
+            title: string;
+        };
         /**
          * StartChatFromProjectRequest
          * @description Request to start a new chat from a project with document context
@@ -20457,6 +20662,135 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_evidence_breakdown_api_v1_evidence_breakdown_get: {
+        parameters: {
+            query: {
+                /** @description SHA256 hash of claim */
+                claim_hash: string;
+                /** @description Filter by specific stance */
+                stance_filter?: components["schemas"]["Stance"] | null;
+                /** @description Maximum sources to return */
+                limit?: number;
+                /** @description Number of sources to skip */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceBreakdown"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    classify_sources_for_claim_api_v1_evidence_classify_post: {
+        parameters: {
+            query: {
+                claim: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": string[];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    health_check_api_v1_evidence_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_evidence_meter_api_v1_evidence_meter_get: {
+        parameters: {
+            query: {
+                /** @description The claim to evaluate */
+                claim: string;
+                /** @description Comma-separated source IDs */
+                source_ids?: string | null;
+                /** @description Optional query ID for context */
+                query_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceMeter"];
                 };
             };
             /** @description Validation Error */

@@ -48,6 +48,7 @@ from src.api.documents import (
     processing_router,
     table_extraction_router,
 )
+from src.api.evidence.router import router as evidence_router
 from src.api.infrastructure import evaluation_router, workers_router
 from src.api.quality import (
     performance_dashboard_router,
@@ -566,6 +567,7 @@ app.include_router(processing_router, prefix="/api/v1")
 app.include_router(knowledge_graph_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(search_quality_router, prefix="/api/v1")
+app.include_router(evidence_router, prefix="/api/v1/evidence", tags=["evidence"])
 app.include_router(quality_metrics_router, prefix="/api/v1/analytics/quality")
 app.include_router(user_behavior_router, prefix="/api/v1/analytics/behavior")
 app.include_router(performance_dashboard_router, prefix="/api/v1/analytics/performance")
