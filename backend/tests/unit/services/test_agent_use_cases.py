@@ -19,6 +19,7 @@ pytestmark = pytest.mark.asyncio
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _mock_user(org_id=None):
     user = Mock()
     user.id = uuid4()
@@ -40,7 +41,7 @@ def _make_arxiv_paper(paper_id: str, title: str):
     }
 
 
-def _make_ingested_doc(title: str):
+def _make_ingested_doc(title: str, arxiv_id: str):
     """Create a mock ingested document as returned by ingest_papers."""
     doc = Mock()
     doc.title = title
@@ -50,7 +51,7 @@ def _make_ingested_doc(title: str):
     doc.mime_type = "application/pdf"
     doc.content_text = f"Full text of {title}"
     doc.content_summary = f"Summary of {title}"
-    doc.document_metadata = {"source": "arxiv"}
+    doc.document_metadata = {"source": "arxiv", "arxiv_id": arxiv_id}
     return doc
 
 
@@ -116,8 +117,8 @@ class TestSearchIngestAddWorkflow:
 
         # --- Step 2: Ingest papers ---
         ingested_docs = [
-            _make_ingested_doc("Attention Is All You Need"),
-            _make_ingested_doc("Gated Sparse Attention"),
+            _make_ingested_doc("Attention Is All You Need", "2301.00001v1"),
+            _make_ingested_doc("Gated Sparse Attention", "2301.00002v1"),
         ]
 
         mock_service_2 = AsyncMock()
@@ -341,7 +342,7 @@ class TestIngestReturnsUsableUUIDs:
         from src.api.agent.execute import _tool_ingest_arxiv
 
         user = _mock_user()
-        ingested_doc = _make_ingested_doc("Test Paper")
+        ingested_doc = _make_ingested_doc("Test Paper", "2301.00001v1")
 
         mock_service = AsyncMock()
         mock_service.search_papers = AsyncMock(
@@ -407,7 +408,7 @@ class TestSharedSessionNeverUsedForWrites:
         user = _mock_user()
         shared_db = AsyncMock()
 
-        ingested_doc = _make_ingested_doc("Paper X")
+        ingested_doc = _make_ingested_doc("Paper X", "id1")
         mock_service = AsyncMock()
         mock_service.search_papers = AsyncMock(
             return_value=[_make_arxiv_paper("id1", "Paper X")]
