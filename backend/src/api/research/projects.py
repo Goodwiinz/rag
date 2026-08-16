@@ -184,7 +184,13 @@ async def get_project(
         # Get documents
         doc_query = (
             select(CollectionDocument)
-            .where(CollectionDocument.collection_id == project_id)
+            .join(Document, CollectionDocument.document_id == Document.id)
+            .where(
+                CollectionDocument.collection_id == project_id,
+                CollectionDocument.is_deleted == False,
+                Document.organization_id == current_user.organization_id,
+                Document.is_deleted == False,
+            )
             .options(selectinload(CollectionDocument.document))
             .order_by(CollectionDocument.sort_order)
         )
@@ -327,7 +333,13 @@ async def list_project_documents(
 
         query = (
             select(CollectionDocument)
-            .where(CollectionDocument.collection_id == project_id)
+            .join(Document, CollectionDocument.document_id == Document.id)
+            .where(
+                CollectionDocument.collection_id == project_id,
+                CollectionDocument.is_deleted == False,
+                Document.organization_id == current_user.organization_id,
+                Document.is_deleted == False,
+            )
             .options(selectinload(CollectionDocument.document))
             .order_by(CollectionDocument.sort_order)
         )
@@ -398,7 +410,11 @@ async def add_document_to_project(
         await _get_project_with_auth(project_id, current_user, db)
 
         # Verify document exists
-        doc_query = select(Document).where(Document.id == document_id)
+        doc_query = select(Document).where(
+            Document.id == document_id,
+            Document.organization_id == current_user.organization_id,
+            Document.is_deleted == False,
+        )
         doc_result = await db.execute(doc_query)
         document = doc_result.scalar_one_or_none()
 

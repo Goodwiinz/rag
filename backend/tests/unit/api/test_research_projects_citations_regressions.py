@@ -29,7 +29,9 @@ def _result(*, scalar=None, scalars=None, rows=None):
 
 
 def _make_user():
-    return SimpleNamespace(id=uuid4(), email="owner@example.com")
+    return SimpleNamespace(
+        id=uuid4(), organization_id=uuid4(), email="owner@example.com"
+    )
 
 
 def _make_document(**overrides):
@@ -252,6 +254,67 @@ async def test_add_document_to_project_rejects_unowned_private_document():
 
 
 @pytest.mark.asyncio
+async def test_add_document_to_project_scopes_document_lookup_to_org():
+    current_user = _make_user()
+    project_id = uuid4()
+    statements = []
+
+    async def capture_execute(statement):
+        statements.append(str(statement).lower())
+        return _result(scalar=None)
+
+    db = AsyncMock()
+    db.execute = AsyncMock(side_effect=capture_execute)
+
+    with patch.object(
+        projects_api,
+        "_get_project_with_auth",
+        AsyncMock(return_value=SimpleNamespace(id=project_id)),
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await projects_api.add_document_to_project(
+                project_id=project_id,
+                document_id=uuid4(),
+                current_user=current_user,
+                db=db,
+            )
+
+    assert exc_info.value.status_code == 404
+    assert "documents.organization_id" in statements[0]
+    assert "documents.is_deleted" in statements[0]
+
+
+@pytest.mark.asyncio
+async def test_list_project_documents_scopes_joined_documents_to_org():
+    current_user = _make_user()
+    project_id = uuid4()
+    statements = []
+
+    async def capture_execute(statement):
+        statements.append(str(statement).lower())
+        return _result(scalars=[])
+
+    db = AsyncMock()
+    db.execute = AsyncMock(side_effect=capture_execute)
+
+    with patch.object(
+        projects_api,
+        "_get_project_with_auth",
+        AsyncMock(return_value=SimpleNamespace(id=project_id)),
+    ):
+        response = await projects_api.list_project_documents(
+            project_id=project_id,
+            current_user=current_user,
+            db=db,
+        )
+
+    assert response["documents"] == []
+    assert "join documents" in statements[0]
+    assert "documents.organization_id" in statements[0]
+    assert "collection_documents.is_deleted" in statements[0]
+
+
+@pytest.mark.asyncio
 async def test_get_project_response_includes_notes_field():
     current_user = _make_user()
     project = _make_project()
@@ -267,13 +330,20 @@ async def test_get_project_response_includes_notes_field():
         sort_order=0,
     )
 
-    db = AsyncMock()
-    db.execute = AsyncMock(
-        side_effect=[
+    statements = []
+    results = iter(
+        [
             _result(scalars=[collection_doc]),
             _result(scalars=[note]),
         ]
     )
+
+    async def capture_execute(statement):
+        statements.append(str(statement).lower())
+        return next(results)
+
+    db = AsyncMock()
+    db.execute = AsyncMock(side_effect=capture_execute)
 
     with patch.object(projects_api, "ProjectService") as mock_service_cls:
         mock_service = mock_service_cls.return_value
@@ -288,3 +358,5 @@ async def test_get_project_response_includes_notes_field():
     assert hasattr(response, "notes")
     assert len(response.notes) == 1
     assert response.notes[0].title == "Note title"
+    assert "documents.organization_id" in statements[0]
+    assert "collection_documents.is_deleted" in statements[0]
