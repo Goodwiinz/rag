@@ -15,15 +15,17 @@ import argparse
 import os
 import re
 import secrets
+import signal
 import subprocess
 import sys
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TypeAlias
 
 import psycopg2  # type: ignore[import-untyped]
 from psycopg2 import sql  # type: ignore[import-untyped]
-from sqlalchemy.engine import make_url
+from sqlalchemy.engine import URL, make_url
 
 PARENT_REVISION = "i9j0k1l2m3n4"
 TARGET_REVISION = "evidence_prov_20260816"
@@ -103,6 +105,31 @@ def alembic_environment(
     return environment
 
 
+def postgres_url_from_environment(
+    environment: Mapping[str, str] | None = None,
+) -> str:
+    """Render a PostgreSQL URL from standard ``PG*`` fields safely.
+
+    The shell wrapper deliberately passes credentials as environment values.
+    ``URL.create`` performs the escaping, so characters such as ``@``, ``/``,
+    ``:``, and ``%`` cannot alter the host or database selected by the URL.
+    """
+    source = os.environ if environment is None else environment
+    port_value = source.get("PGPORT", "5432")
+    try:
+        port = int(port_value)
+    except ValueError as exc:
+        raise ProbeError("PGPORT must be an integer") from exc
+    return URL.create(
+        drivername="postgresql",
+        username=source.get("PGUSER", "postgres"),
+        password=source.get("PGPASSWORD", ""),
+        host=source.get("PGHOST", "127.0.0.1"),
+        port=port,
+        database=source.get("PGDATABASE", "postgres"),
+    ).render_as_string(hide_password=False)
+
+
 def _scratch_database_url(admin_database_url: str, database_name: str) -> str:
     parsed = make_url(admin_database_url)
     if parsed.drivername not in {"postgresql", "postgresql+psycopg2"}:
@@ -114,6 +141,21 @@ def _scratch_database_url(admin_database_url: str, database_name: str) -> str:
 
 def _connect(database_url: str):  # type: ignore[no-untyped-def]
     return psycopg2.connect(database_url)
+
+
+def _create_database(admin_connection, database_name: str) -> None:  # type: ignore[no-untyped-def]
+    """Create only a generated scratch database, never an arbitrary target."""
+    if not is_safe_scratch_database_name(database_name):
+        raise ProbeError(
+            f"refusing to create unrecognised scratch database {database_name!r}"
+        )
+    admin_connection.autocommit = True
+    with admin_connection.cursor() as cursor:
+        cursor.execute(
+            sql.SQL("CREATE DATABASE {} WITH TEMPLATE template0").format(
+                sql.Identifier(database_name)
+            )
+        )
 
 
 def _create_prior_state(connection) -> None:  # type: ignore[no-untyped-def]
@@ -208,52 +250,76 @@ def _drop_database(admin_connection, database_name: str) -> None:  # type: ignor
         )
 
 
+@contextmanager
+def _scoped_signal_handlers() -> Iterator[None]:
+    """Abort probe work on termination while always restoring prior handlers."""
+    signals = (signal.SIGTERM, signal.SIGINT)
+    previous = {signum: signal.getsignal(signum) for signum in signals}
+    installed: list[signal.Signals] = []
+
+    def handle(signum: int, _frame: object) -> None:
+        signal_name = signal.Signals(signum).name
+        raise ProbeError(f"received {signal_name}; aborting targeted migration probe")
+
+    try:
+        for signum in signals:
+            signal.signal(signum, handle)
+            installed.append(signum)
+        yield
+    finally:
+        for signum in reversed(installed):
+            signal.signal(signum, previous[signum])
+
+
 def run_probe(admin_database_url: str) -> None:
     """Run the exact-parent upgrade/downgrade probe and always clean up."""
     database_name = scratch_database_name()
+    if not is_safe_scratch_database_name(database_name):
+        raise ProbeError(
+            f"refusing to use unrecognised scratch database {database_name!r}"
+        )
     admin_connection = None
     scratch_created = False
     failure: Exception | None = None
     try:
-        admin_connection = _connect(admin_database_url)
-        admin_connection.autocommit = True
-        with admin_connection.cursor() as cursor:
-            cursor.execute(
-                sql.SQL("CREATE DATABASE {} WITH TEMPLATE template0").format(
-                    sql.Identifier(database_name)
-                )
-            )
-        scratch_created = True
-        database_url = _scratch_database_url(admin_database_url, database_name)
+        with _scoped_signal_handlers():
+            admin_connection = _connect(admin_database_url)
+            _create_database(admin_connection, database_name)
+            scratch_created = True
+            database_url = _scratch_database_url(admin_database_url, database_name)
 
-        connection = _connect(database_url)
-        try:
-            _create_prior_state(connection)
-            if _version(connection) != PARENT_REVISION:
-                raise ProbeError(
-                    "scratch database did not start at the exact parent revision"
-                )
-            verify_columns_absent(_all_target_column_names(connection))
-        finally:
-            connection.close()
+            connection = _connect(database_url)
+            try:
+                _create_prior_state(connection)
+                if _version(connection) != PARENT_REVISION:
+                    raise ProbeError(
+                        "scratch database did not start at the exact parent revision"
+                    )
+                verify_columns_absent(_all_target_column_names(connection))
+            finally:
+                connection.close()
 
-        _run_alembic(database_url, "upgrade", TARGET_REVISION)
-        connection = _connect(database_url)
-        try:
-            if _version(connection) != TARGET_REVISION:
-                raise ProbeError("upgrade did not record the target Alembic revision")
-            verify_added_columns(_column_rows(connection))
-        finally:
-            connection.close()
+            _run_alembic(database_url, "upgrade", TARGET_REVISION)
+            connection = _connect(database_url)
+            try:
+                if _version(connection) != TARGET_REVISION:
+                    raise ProbeError(
+                        "upgrade did not record the target Alembic revision"
+                    )
+                verify_added_columns(_column_rows(connection))
+            finally:
+                connection.close()
 
-        _run_alembic(database_url, "downgrade", PARENT_REVISION)
-        connection = _connect(database_url)
-        try:
-            if _version(connection) != PARENT_REVISION:
-                raise ProbeError("downgrade did not restore the exact parent revision")
-            verify_columns_absent(_all_target_column_names(connection))
-        finally:
-            connection.close()
+            _run_alembic(database_url, "downgrade", PARENT_REVISION)
+            connection = _connect(database_url)
+            try:
+                if _version(connection) != PARENT_REVISION:
+                    raise ProbeError(
+                        "downgrade did not restore the exact parent revision"
+                    )
+                verify_columns_absent(_all_target_column_names(connection))
+            finally:
+                connection.close()
     except Exception as exc:
         failure = exc
     finally:
@@ -266,7 +332,13 @@ def run_probe(admin_database_url: str) -> None:
                         f"scratch database cleanup failed: {cleanup_error}"
                     )
         if admin_connection is not None:
-            admin_connection.close()
+            try:
+                admin_connection.close()
+            except Exception as close_error:
+                if failure is None:
+                    failure = ProbeError(
+                        f"admin connection cleanup failed: {close_error}"
+                    )
     if failure is not None:
         raise failure
 
@@ -275,21 +347,36 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--admin-database-url",
-        default=os.environ.get("DATABASE_URL"),
+        default=None,
         help="PostgreSQL URL with permission to create/drop the generated scratch DB",
     )
+    parser.add_argument(
+        "--alembic-command",
+        nargs=argparse.REMAINDER,
+        help="run an Alembic command using the standard PG* environment fields",
+    )
     args = parser.parse_args(argv)
-    if not args.admin_database_url:
-        parser.error("--admin-database-url or DATABASE_URL is required")
+    if args.alembic_command is not None and not args.alembic_command:
+        parser.error("--alembic-command requires at least one Alembic argument")
     return args
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
-        run_probe(args.admin_database_url)
+        if args.alembic_command is not None:
+            _run_alembic(postgres_url_from_environment(), *args.alembic_command)
+            print(f"Alembic {' '.join(args.alembic_command)} passed")
+            return 0
+        admin_database_url = args.admin_database_url or postgres_url_from_environment()
+        run_probe(admin_database_url)
     except Exception as exc:
-        print(f"Targeted evidence migration probe failed: {exc}", file=sys.stderr)
+        label = (
+            "Alembic command"
+            if args.alembic_command is not None
+            else "Targeted evidence migration probe"
+        )
+        print(f"{label} failed: {exc}", file=sys.stderr)
         return 1
     print(
         "Targeted evidence migration probe passed: "

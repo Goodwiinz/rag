@@ -38,6 +38,13 @@ def _step_running(fragment: str) -> dict | None:
     return None
 
 
+def _step_named(name: str) -> dict:
+    """Select one exact workflow step name, never a substring collision."""
+    matches = [step for step in _steps() if step.get("name") == name]
+    assert len(matches) == 1, f"expected exactly one workflow step named {name!r}"
+    return matches[0]
+
+
 def test_job_has_postgres_15_service_with_healthcheck() -> None:
     """The advisory execution checks need a real Postgres to upgrade against."""
     job = _load_job()
@@ -56,8 +63,8 @@ def test_job_has_postgres_15_service_with_healthcheck() -> None:
 
 def test_static_check_remains_blocking_and_untouched() -> None:
     """The original static guard stays: same script, and NOT advisory."""
-    step = _step_running("scripts/ci/check_alembic.py")
-    assert step is not None, "static check_alembic.py step must remain in the job"
+    step = _step_named("Check single head + revision-id length")
+    assert "scripts/ci/check_alembic.py" in (step.get("run") or "")
     assert "continue-on-error" not in step, (
         "the static single-head / revision-length guard is the BLOCKING contract "
         "and must not be made advisory"
@@ -66,8 +73,8 @@ def test_static_check_remains_blocking_and_untouched() -> None:
 
 def test_upgrade_from_empty_is_advisory() -> None:
     """From-empty ``upgrade head`` is an explicit visible advisory measurement."""
-    step = _step_running("alembic upgrade head")
-    assert step is not None, "an `alembic upgrade head` step must exist"
+    step = _step_named("Advisory — upgrade head from empty DB")
+    assert "alembic upgrade head" in (step.get("run") or "")
     assert step.get("continue-on-error") is True, (
         "from-empty replay must remain advisory (continue-on-error: true) because "
         "it measures the known legacy chain, not this migration's delta"
@@ -85,8 +92,8 @@ def test_upgrade_from_empty_is_advisory() -> None:
 
 def test_targeted_evidence_delta_probe_is_blocking() -> None:
     """The exact evidence delta probe blocks and has no advisory override."""
-    step = _step_running("probe_evidence_migration.py")
-    assert step is not None, "the targeted evidence migration probe must exist"
+    step = _step_named("Blocking — evidence migration delta")
+    assert "probe_evidence_migration.py" in (step.get("run") or "")
     assert (
         step.get("continue-on-error") is not True
     ), "the targeted evidence migration probe is the blocking execution guard"
@@ -100,9 +107,8 @@ def test_targeted_evidence_delta_probe_is_blocking() -> None:
 
 def test_targeted_probe_uses_separate_scratch_database() -> None:
     """The blocking probe cannot consume the advisory replay's database."""
-    targeted = _step_running("probe_evidence_migration.py")
-    replay = _step_running("alembic upgrade head")
-    assert targeted is not None and replay is not None
+    targeted = _step_named("Blocking — evidence migration delta")
+    replay = _step_named("Advisory — upgrade head from empty DB")
     targeted_run = targeted.get("run") or ""
     replay_env = replay.get("env") or {}
     assert "--admin-database-url" in targeted_run
@@ -112,8 +118,8 @@ def test_targeted_probe_uses_separate_scratch_database() -> None:
 
 def test_alembic_check_drift_is_advisory() -> None:
     """``alembic check`` (models-vs-migrations drift) runs advisory."""
-    step = _step_running("alembic check")
-    assert step is not None, "an `alembic check` drift step must exist"
+    step = _step_named("Advisory — alembic check (models vs migrations drift)")
+    assert "alembic check" in (step.get("run") or "")
     assert step.get("continue-on-error") is True, (
         "drift check must be advisory (continue-on-error: true) — the schema is "
         "known to carry create-migration debt today"
@@ -123,8 +129,8 @@ def test_alembic_check_drift_is_advisory() -> None:
 
 def test_downgrade_smoke_is_advisory() -> None:
     """A ``downgrade -1`` then re-``upgrade head`` smoke, advisory."""
-    step = _step_running("alembic downgrade -1")
-    assert step is not None, "a downgrade smoke step must exist"
+    step = _step_named("Advisory — downgrade -1 then upgrade head (round-trip smoke)")
+    assert "alembic downgrade -1" in (step.get("run") or "")
     run = step.get("run") or ""
     assert "alembic upgrade head" in run, (
         "downgrade smoke must re-apply `upgrade head` to prove the last "
@@ -143,12 +149,19 @@ def test_db_url_passed_via_env_to_advisory_steps() -> None:
     (postgres/postgres against localhost) is fine and conventional — no secrets
     interpolation is expected here.
     """
-    for fragment in ("alembic upgrade head", "alembic check", "alembic downgrade -1"):
-        step = _step_running(fragment)
-        assert step is not None, f"step running {fragment!r} must exist"
+    for name, fragment in (
+        ("Advisory — upgrade head from empty DB", "alembic upgrade head"),
+        ("Advisory — alembic check (models vs migrations drift)", "alembic check"),
+        (
+            "Advisory — downgrade -1 then upgrade head (round-trip smoke)",
+            "alembic downgrade -1",
+        ),
+    ):
+        step = _step_named(name)
+        assert fragment in (step.get("run") or "")
         env = step.get("env") or {}
         assert "DATABASE_URL" in env, (
-            f"step {fragment!r} must pass DATABASE_URL so alembic/env.py can build "
+            f"step {name!r} must pass DATABASE_URL so alembic/env.py can build "
             "its engine URL"
         )
         assert "localhost" in str(
@@ -158,16 +171,15 @@ def test_db_url_passed_via_env_to_advisory_steps() -> None:
 
 def test_each_probe_writes_to_step_summary() -> None:
     """Every execution probe must annotate its outcome in the job summary."""
-    for fragment in (
-        "probe_evidence_migration.py",
-        "alembic upgrade head",
-        "alembic check",
-        "alembic downgrade -1",
+    for name in (
+        "Blocking — evidence migration delta",
+        "Advisory — upgrade head from empty DB",
+        "Advisory — alembic check (models vs migrations drift)",
+        "Advisory — downgrade -1 then upgrade head (round-trip smoke)",
     ):
-        step = _step_running(fragment)
-        assert step is not None, f"step running {fragment!r} must exist"
+        step = _step_named(name)
         assert "GITHUB_STEP_SUMMARY" in (step.get("run") or ""), (
-            f"probe {fragment!r} must write a PASS/FAIL line to "
+            f"probe {name!r} must write a PASS/FAIL line to "
             "$GITHUB_STEP_SUMMARY so the outcome is captured in the run record"
         )
 
@@ -175,8 +187,8 @@ def test_each_probe_writes_to_step_summary() -> None:
 def test_install_step_annotates_outcome_in_summary() -> None:
     """The probe-deps install writes its own outcome line so a failed install is
     visible in the record and readers know the probes below are unreliable."""
-    step = _step_running("pip install --build-constraint")
-    assert step is not None, "the backend-requirements install step must exist"
+    step = _step_named("Install backend requirements (for execution probes)")
+    assert "pip install --build-constraint" in (step.get("run") or "")
     assert step.get("continue-on-error") is True, (
         "install must stay advisory (continue-on-error: true) so a dependency "
         "hiccup never fails the blocking static guard that already ran"

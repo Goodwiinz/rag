@@ -27,3 +27,16 @@ def test_targeted_evidence_probe_is_blocking_and_separate() -> None:
     assert "targeted evidence migration delta" in script
     assert 'check "$TARGETED_EVIDENCE_RC" "targeted evidence migration delta"' in script
     assert "ci_evidence_delta_" in script
+
+
+def test_targeted_probe_receives_standard_pg_fields_not_a_shell_url() -> None:
+    script = _script()
+    start = script.index("targeted_evidence_migration_probe()")
+    end = script.index("alembic_upgrade_from_empty()", start)
+    targeted_block = script[start:end]
+
+    for field in ("PGHOST", "PGPORT", "PGUSER", "PGPASSWORD", "PGDATABASE"):
+        assert f"{field}=" in targeted_block
+    assert "--admin-database-url" not in targeted_block
+    assert "postgresql://$PG_USER:$PG_PW" not in targeted_block
+    assert "postgresql://$PG_USER:$PG_PW" not in script

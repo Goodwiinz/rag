@@ -177,7 +177,11 @@ _free_port() {
 # env.py resolves SUPABASE_DB_URL first, so it must be cleared or the probe
 # would silently migrate whatever that points at (Supabase dev, in this repo).
 _alembic_upgrade_head() {
-  ( cd backend && env -u SUPABASE_DB_URL DATABASE_URL="$1" "$PY" -m alembic upgrade head )
+  local pg_host="$1" pg_port="$2" pg_user="$3" pg_password="$4" pg_database="$5"
+  shift 5
+  PGHOST="$pg_host" PGPORT="$pg_port" PGUSER="$pg_user" \
+    PGPASSWORD="$pg_password" PGDATABASE="$pg_database" \
+    "$PY" scripts/ci/probe_evidence_migration.py --alembic-command "$@"
 }
 
 # 0 = targeted delta clean, 1 = targeted delta failed, 2 = no throwaway
@@ -214,8 +218,8 @@ targeted_evidence_migration_probe() (
       continue
     fi
     printf '  targeted evidence delta uses local Postgres 127.0.0.1:%s\n' "$port"
-    "$PY" scripts/ci/probe_evidence_migration.py \
-      --admin-database-url "postgresql://$PG_USER:$PG_PW@127.0.0.1:$port/postgres"
+    PGHOST=127.0.0.1 PGPORT="$port" PGUSER="$PG_USER" PGPASSWORD="$PG_PW" \
+      PGDATABASE=postgres "$PY" scripts/ci/probe_evidence_migration.py
     rc=$?
     if [ "$rc" -eq 0 ]; then exit 0; else exit 1; fi
   done
@@ -236,8 +240,8 @@ targeted_evidence_migration_probe() (
         done
         if [ "$ready" -eq 1 ]; then
           printf '  targeted probe container %s ready\n' "${cid:0:12}"
-          "$PY" scripts/ci/probe_evidence_migration.py \
-            --admin-database-url "postgresql://postgres:postgres@127.0.0.1:$port/postgres"
+          PGHOST=127.0.0.1 PGPORT="$port" PGUSER=postgres PGPASSWORD=postgres \
+            PGDATABASE=postgres "$PY" scripts/ci/probe_evidence_migration.py
           rc=$?
           if [ "$rc" -eq 0 ]; then exit 0; else exit 1; fi
         fi
@@ -290,7 +294,8 @@ alembic_upgrade_from_empty() (
     printf '  using local Postgres 127.0.0.1:%s (scratch database %s, dropped on exit)\n' "$port" "$db"
     # Normalise to 0/1: rc 2 is reserved for "no database available" and must
     # never be produced by a failed upgrade, or a failure would read as a skip.
-    if _alembic_upgrade_head "postgresql://$PG_USER:$PG_PW@127.0.0.1:$port/$db"; then exit 0; else exit 1; fi
+    if _alembic_upgrade_head 127.0.0.1 "$port" "$PG_USER" "$PG_PW" "$db" \
+        upgrade head; then exit 0; else exit 1; fi
   done
 
   # (b) a throwaway container.
@@ -309,7 +314,8 @@ alembic_upgrade_from_empty() (
         done
         if [ "$ready" -eq 1 ]; then
           printf '  container %s ready\n' "${cid:0:12}"
-          if _alembic_upgrade_head "postgresql://postgres:postgres@127.0.0.1:$port/postgres"; then exit 0; else exit 1; fi
+          if _alembic_upgrade_head 127.0.0.1 "$port" postgres postgres postgres \
+              upgrade head; then exit 0; else exit 1; fi
         fi
         printf '  throwaway container never became ready (60s)\n'
       else
