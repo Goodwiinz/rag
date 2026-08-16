@@ -1131,17 +1131,10 @@ def make_reflection_gate(
         # knowledge_graph deterministic lookups) skip only the probabilistic
         # reflection, not the fabrication guards.
         if intent not in intent_filter:
-            # Clear any prior verdict. This path does not increment, so leaving a
-            # stale major result in state makes reflection_route revise forever:
-            # revise -> llm_node -> reflection_gate -> here -> revise (trace
-            # 01a00ce9, GraphRecursionError at step 145 with reflection_count
-            # frozen at 1).
-            return {
-                "reflection_count": current_count,
-                "_reflection_result": ReflectionResult(
-                    passed=True, issues=[], severity="none"
-                ),
-            }
+            # No verdict is written here on purpose: no critique ran, so
+            # claiming one passed would surface a phantom "Reflection passed"
+            # SSE frame. The wrapper below clears a *stale* verdict instead.
+            return {"reflection_count": current_count}
 
         # Cheap pre-LLM gate: skip critique for trivial / tool-less turns.
         skip, reason = _should_skip_reflection(state)
@@ -1172,13 +1165,7 @@ def make_reflection_gate(
 
         if last_ai_message is None or not original_user_message:
             logger.debug("Reflection skipped: missing AI or user message")
-            # Same stale-verdict hazard as the intent_filter return above.
-            return {
-                "reflection_count": current_count,
-                "_reflection_result": ReflectionResult(
-                    passed=True, issues=[], severity="none"
-                ),
-            }
+            return {"reflection_count": current_count}
 
         plan = state.get("plan")
 
@@ -1264,24 +1251,30 @@ def make_reflection_gate(
         return decision
 
     async def reflection_node(state: dict, config: RunnableConfig) -> dict:
-        """Enforce the router contract: every return carries a fresh verdict.
+        """Enforce the router contract: never leave a stale verdict readable.
 
         ``reflection_route`` is a pure conditional-edge function — it can read
         ``_reflection_result`` but cannot clear it. So any return path here that
         omits the key leaves the PREVIOUS superstep's verdict live, and a stale
-        ``major`` verdict routes ``revise`` forever (the revise path also skips
-        the increment, so the ``>= 2`` cap never fires). That is exactly how
-        trace 01a00ce9 hit GraphRecursionError at step 145.
+        ``major`` verdict routes ``revise`` forever (those paths also skip the
+        increment, so the ``>= 2`` cap never fires). That is exactly how trace
+        01a00ce9 hit GraphRecursionError at step 145.
 
-        Defaulting to a passing verdict here makes the invariant structural
-        rather than a rule every future early return has to remember. Returns
-        that set ``_reflection_result`` explicitly are left untouched.
+        Clearing with ``None`` rather than a synthetic passing verdict keeps the
+        distinction between "evaluated and passed" and "not evaluated": both
+        ``reflection_route`` and the two SSE handlers in ``api/agent/streaming``
+        branch on ``is not None``, so a manufactured pass would emit a phantom
+        "Reflection passed" frame for every turn that skipped the critique.
+
+        The write only happens when there is something stale to clear, so a
+        first-pass skip still returns the counter alone.
         """
         updates = await _reflection_node_impl(state, config)
-        updates.setdefault(
-            "_reflection_result",
-            ReflectionResult(passed=True, issues=[], severity="none"),
-        )
+        if (
+            "_reflection_result" not in updates
+            and state.get("_reflection_result") is not None
+        ):
+            updates["_reflection_result"] = None
         return updates
 
     return reflection_node, reflection_route

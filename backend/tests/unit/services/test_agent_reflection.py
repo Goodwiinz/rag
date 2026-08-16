@@ -201,10 +201,9 @@ class TestMakeReflectionGate:
         updates = await node_fn(state, config)
 
         assert updates["reflection_count"] == 2
-        # The node wrapper defaults any omitted verdict to passing, so a capped
-        # turn exits cleanly instead of inheriting a stale major result.
-        assert updates["_reflection_result"].passed is True
-        assert route_fn({**state, **updates}) == "proceed"
+        # No critique ran and there was no prior verdict to clear, so the node
+        # writes the counter alone — it must not invent a passing result.
+        assert "_reflection_result" not in updates
 
         state.update(updates)
         route = route_fn(state)
@@ -221,9 +220,9 @@ class TestMakeReflectionGate:
         updates = await node_fn(state, config)
 
         assert updates["reflection_count"] == 0
-        # Skipping the critique must still write an explicit passing verdict —
-        # omitting it leaves a prior major result live and loops the router.
-        assert updates["_reflection_result"].passed is True
+        # Skipping the critique writes no verdict — reporting one would emit a
+        # phantom "Reflection passed" frame for a turn that was never evaluated.
+        assert "_reflection_result" not in updates
 
         state.update(updates)
         route = route_fn(state)
@@ -240,7 +239,7 @@ class TestMakeReflectionGate:
         updates = await node_fn(state, config)
 
         assert updates["reflection_count"] == 0
-        assert updates["_reflection_result"].passed is True
+        assert "_reflection_result" not in updates
 
         state.update(updates)
         route = route_fn(state)
@@ -836,10 +835,10 @@ class TestIngestSuccessLieDetection:
             updates = await node_fn(state, {"configurable": {}})
             assert mock_build.called is False
 
-        # At max rounds the node skips the critique; the wrapper still supplies
-        # a passing verdict so the router cannot read a stale major result.
+        # At max rounds the node skips the critique. With no prior verdict in
+        # state there is nothing to clear, so it writes the counter alone.
         assert updates["reflection_count"] == 2
-        assert updates["_reflection_result"].passed is True
+        assert "_reflection_result" not in updates
 
 
 class TestStaleReflectionResultDoesNotLoop:
@@ -866,8 +865,10 @@ class TestStaleReflectionResultDoesNotLoop:
 
         # Counter must NOT advance on this path (no critique ran)...
         assert updates["reflection_count"] == 1
-        # ...so the verdict must be cleared, or the router loops forever.
-        assert updates["_reflection_result"].passed is True
+        # ...so the stale verdict must be cleared, or the router loops forever.
+        # Cleared to None, not to a passing result: no evaluation happened, and
+        # the SSE handlers emit a reflection frame for any non-None verdict.
+        assert updates["_reflection_result"] is None
         assert route_fn({**state, **updates}) == "proceed"
 
     @pytest.mark.asyncio
@@ -886,7 +887,7 @@ class TestStaleReflectionResultDoesNotLoop:
         updates = await node_fn(state, {})
 
         assert updates["reflection_count"] == 1
-        assert updates["_reflection_result"].passed is True
+        assert updates["_reflection_result"] is None
         assert route_fn({**state, **updates}) == "proceed"
 
     def test_router_would_loop_on_stale_verdict(self):
@@ -897,25 +898,48 @@ class TestStaleReflectionResultDoesNotLoop:
         assert route_fn(looping_state) == "revise"
 
     @pytest.mark.asyncio
-    async def test_wrapper_supplies_verdict_when_impl_omits_it(self):
-        """Structural guard: no return path may leave the verdict unset.
+    async def test_no_skip_path_leaves_a_stale_verdict_readable(self):
+        """Structural guard covering every skip branch at once.
 
         reflection_route is a pure conditional-edge function and cannot clear
         _reflection_result itself, so a node return that omits the key hands the
-        router the previous superstep's verdict. This pins the wrapper that makes
-        the invariant structural, so a future early return cannot reintroduce the
-        loop by forgetting to write the field.
+        router the previous superstep's verdict. This pins the wrapper, so a
+        future early return cannot reintroduce the loop by forgetting to clear.
+        """
+        stale = ReflectionResult(passed=False, issues=["stale"], severity="major")
+        node_fn, route_fn = make_reflection_gate(intent_filter={"research"})
+
+        # Every branch that skips the critique, each entered with a live major
+        # verdict from a previous superstep.
+        for kwargs in (
+            {"intent": "general"},
+            {"intent": "research", "reflection_count": 2},
+            {"intent": "knowledge_graph"},
+        ):
+            state = _make_state(_reflection_result=stale, **kwargs)
+            updates = await node_fn(state, {"configurable": {}})
+            merged = {**state, **updates}
+            assert (
+                merged["_reflection_result"] is None
+            ), f"{kwargs} left a stale verdict readable — router would loop"
+            assert route_fn(merged) == "proceed"
+
+    @pytest.mark.asyncio
+    async def test_skip_paths_invent_no_verdict_without_a_stale_one(self):
+        """The clear must not become a manufactured pass.
+
+        Both SSE handlers in api/agent/streaming emit a reflection frame for any
+        non-None verdict, so writing a passing result on a skipped turn would
+        report "Reflection passed" for an evaluation that never ran.
         """
         node_fn, _route_fn = make_reflection_gate(intent_filter={"research"})
 
-        # Every branch the node can take, including the ones that skip early.
-        for state in (
-            _make_state(intent="general"),
-            _make_state(intent="research", reflection_count=2),
-            _make_state(intent="knowledge_graph"),
+        for kwargs in (
+            {"intent": "general"},
+            {"intent": "research", "reflection_count": 2},
+            {"intent": "knowledge_graph"},
         ):
-            updates = await node_fn(state, {"configurable": {}})
-            assert "_reflection_result" in updates, (
-                f"intent={state['intent']} count={state['reflection_count']} "
-                "returned no verdict — router would read a stale one"
-            )
+            updates = await node_fn(_make_state(**kwargs), {"configurable": {}})
+            assert (
+                "_reflection_result" not in updates
+            ), f"{kwargs} invented a verdict for a turn that was never evaluated"
