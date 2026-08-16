@@ -20,6 +20,18 @@ from .cache import EvidenceCacheService
 logger = logging.getLogger(__name__)
 
 
+def _normalize_grounding_text(value: str) -> str:
+    return " ".join(value.split()).casefold()
+
+
+def _has_grounded_justification(source_excerpt: str, justification: object) -> bool:
+    if not isinstance(justification, str) or not justification.strip():
+        return False
+    return _normalize_grounding_text(justification) in _normalize_grounding_text(
+        source_excerpt
+    )
+
+
 class StanceClassificationResult(BaseModel):
     """Result of stance classification"""
 
@@ -184,7 +196,12 @@ Respond with ONLY a valid JSON object in this exact format:
         return f"stance:{claim_hash}:{source_id}:{excerpt_hash}:{self.model_version}"
 
     async def classify_stance(
-        self, claim: str, claim_hash: str, source_id: UUID, source_excerpt: str
+        self,
+        claim: str,
+        claim_hash: str,
+        source_id: UUID,
+        source_excerpt: str,
+        source_content_hash: str = "",
     ) -> Optional[Dict]:
         """
         Classify a single source's stance on a claim
@@ -194,6 +211,7 @@ Respond with ONLY a valid JSON object in this exact format:
             claim_hash: SHA256 hash of normalized claim
             source_id: UUID of the source
             source_excerpt: Relevant text excerpt from source
+            source_content_hash: Content hash for the current source revision
 
         Returns:
             Classification result dict or None if failed
@@ -209,8 +227,18 @@ Respond with ONLY a valid JSON object in this exact format:
                 cache_key
             )
             if cached_result:
-                logger.debug(f"Using cached classification for source {source_id}")
-                return cached_result
+                if _has_grounded_justification(
+                    source_excerpt, cached_result.get("justification_excerpt")
+                ):
+                    cached_result = dict(cached_result)
+                    cached_result["source_content_hash"] = source_content_hash
+                    logger.debug(f"Using cached classification for source {source_id}")
+                    return cached_result
+
+                logger.warning(
+                    "Rejecting ungrounded cached stance classification for source %s",
+                    source_id,
+                )
 
         # Classify with LLM
         try:
@@ -220,6 +248,15 @@ Respond with ONLY a valid JSON object in this exact format:
                 logger.error(f"Failed to classify stance for source {source_id}")
                 return None
 
+            if not _has_grounded_justification(
+                source_excerpt, result.justification_excerpt
+            ):
+                logger.warning(
+                    "Rejecting ungrounded stance classification for source %s",
+                    source_id,
+                )
+                return None
+
             # Convert to dict for storage/caching
             result_dict = {
                 "source_id": str(source_id),
@@ -227,6 +264,7 @@ Respond with ONLY a valid JSON object in this exact format:
                 "confidence": result.confidence,
                 "justification_excerpt": result.justification_excerpt,
                 "model_version": self.model_version,
+                "source_content_hash": source_content_hash,
             }
 
             # Cache result
@@ -271,6 +309,7 @@ Respond with ONLY a valid JSON object in this exact format:
                 claim_hash=claim_hash,
                 source_id=source["source_id"],
                 source_excerpt=source["excerpt"],
+                source_content_hash=source["content_hash"],
             )
             tasks.append(task)
 
