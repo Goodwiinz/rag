@@ -18,6 +18,13 @@ import { cn } from '@/lib/utils';
 /** Recessed surface for request/result panels. */
 export const field = 'bg-foreground/[0.04] dark:bg-foreground/[0.06]';
 
+/**
+ * Raised surface for cards that sit on a recessed background — retrieval
+ * passages, source cards. Upstream reaches for a layered drop shadow; the
+ * NOUS surfaces are separated by a hairline instead, per DESIGN.md.
+ */
+export const paper = 'bg-(--nous-bg-1) border border-(--nous-border-1)';
+
 /** Small-caps monospace used for field labels and inline chips. */
 export const mono = 'font-mono text-[11px] tracking-tight';
 
