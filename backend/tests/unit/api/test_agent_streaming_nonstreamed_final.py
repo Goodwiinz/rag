@@ -140,6 +140,10 @@ async def test_stream_emits_nonstreamed_final_answer_as_token():
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
+        ),
     ):
         events = []
         async for event in stream_event_generator(body, request, current_user):
@@ -185,6 +189,10 @@ async def test_completed_stream_reuses_root_output_without_final_checkpoint_read
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
+        ),
     ):
         events = []
         async for event in stream_event_generator(body, request, current_user):
@@ -225,6 +233,10 @@ async def test_interrupted_root_still_reads_checkpoint_for_pending_tasks():
         patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
+        ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
         ),
     ):
         events = []

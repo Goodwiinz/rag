@@ -1244,20 +1244,13 @@ async def stream_event_generator(
         # Resolve the thread and verify ownership BEFORE acknowledging anything
         # — the acknowledgment is now a claim about durable state, so it cannot
         # precede the write it describes.
-        thread_obj = None
-        try:
-            thread_obj, _conversation_id = await _resolve_thread(
-                db, current_user, request_body
-            )
-            if thread_obj is not None:
-                resolved_thread_id = str(thread_obj.id)
-                if request_body.thread_id != resolved_thread_id:
-                    request_body.thread_id = resolved_thread_id
-        except Exception:
-            logger.warning(
-                "Failed to resolve agent thread before routing",
-                exc_info=True,
-            )
+        thread_obj, _conversation_id = await _resolve_thread(
+            db, current_user, request_body
+        )
+        if thread_obj is not None:
+            resolved_thread_id = str(thread_obj.id)
+            if request_body.thread_id != resolved_thread_id:
+                request_body.thread_id = resolved_thread_id
 
         # ------------------------------------------------------------------
         # Atomic accept (P0-C). One transaction commits the user message, the
@@ -2182,11 +2175,6 @@ async def stream_event_generator(
                 payload={
                     "code": "interrupt_not_checkpointed",
                     "message": "Interrupt state could not be saved.",
-                    # Same enum as the wire `category` key — the ledger's
-                    # `code`/`error_code` stay the historical SITE codes (they
-                    # are already persisted and identify where it broke, not
-                    # why), so this adds the category without renaming them.
-                    "category": AgentErrorCategory.CHECKPOINT_UNAVAILABLE.value,
                 },
                 error_code="interrupt_not_checkpointed",
                 error="Interrupt state could not be saved. Please retry.",
@@ -2227,9 +2215,6 @@ async def stream_event_generator(
             payload={
                 "code": "stream_failed",
                 "message": client_safe_error(e),
-                # See the interrupt branch above: `code`/`error_code` keep
-                # their historical site values; the category rides alongside.
-                "category": category.value,
             },
             error_code="stream_failed",
             error=client_safe_error(e),

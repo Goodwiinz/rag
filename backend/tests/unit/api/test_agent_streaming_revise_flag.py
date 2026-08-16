@@ -156,6 +156,10 @@ async def test_stream_event_generator_revising_true_when_major_fail_under_budget
         patch(patches[2][0], new=patches[2][1]),
         patch(patches[3][0], return_value=patches[3][1]),
         patch(patches[4][0], return_value=patches[4][1]),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
+        ),
     ):
         events = []
         async for event in stream_event_generator(body, request, current_user):
@@ -184,6 +188,10 @@ async def test_stream_event_generator_revising_false_when_passed():
         patch(patches[2][0], new=patches[2][1]),
         patch(patches[3][0], return_value=patches[3][1]),
         patch(patches[4][0], return_value=patches[4][1]),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
+        ),
     ):
         events = []
         async for event in stream_event_generator(body, request, current_user):
@@ -211,6 +219,10 @@ async def test_stream_event_generator_revising_false_when_minor_severity():
         patch(patches[2][0], new=patches[2][1]),
         patch(patches[3][0], return_value=patches[3][1]),
         patch(patches[4][0], return_value=patches[4][1]),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
+        ),
     ):
         events = []
         async for event in stream_event_generator(body, request, current_user):
@@ -237,6 +249,10 @@ async def test_stream_event_generator_revising_false_when_budget_exhausted():
         patch(patches[2][0], new=patches[2][1]),
         patch(patches[3][0], return_value=patches[3][1]),
         patch(patches[4][0], return_value=patches[4][1]),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
+        ),
     ):
         events = []
         async for event in stream_event_generator(body, request, current_user):
