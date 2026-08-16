@@ -67,6 +67,7 @@ const mockMeterData: EvidenceMeterData = {
   consensus_level: 'moderate_agreement',
   average_confidence: 0.87,
   retracted_sources: 0,
+  publication_retraction_check: 'not_performed',
   cached: true,
   reproducibility_hash: 'test_hash',
 };
@@ -323,7 +324,10 @@ describe('EvidenceMeter', () => {
         </TestWrapper>
       );
 
-      expect(screen.getByText(/2 retracted sources found/)).toBeInTheDocument();
+      expect(
+        screen.getByText('⚠️ 2 withdrawn workspace sources excluded')
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/retracted source/)).not.toBeInTheDocument();
     });
   });
 

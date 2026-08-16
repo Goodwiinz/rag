@@ -13,6 +13,12 @@ export type ConsensusLevel =
   | 'low_agreement' 
   | 'insufficient_data';
 
+/** Publication-level retraction checks are not performed by this API. */
+export type PublicationRetractionCheck = 'not_performed';
+
+/** Publication-level retraction status when no check was performed. */
+export type PublicationRetractionStatus = 'unknown';
+
 /** Classification for a single source */
 export interface StanceClassification {
   source_id: string;
@@ -21,6 +27,7 @@ export interface StanceClassification {
   confidence: number;
   justification_excerpt: string;
   is_retracted: boolean;
+  publication_retraction_status: PublicationRetractionStatus;
 }
 
 /** Evidence meter data from API */
@@ -35,6 +42,7 @@ export interface EvidenceMeterData {
   consensus_level: ConsensusLevel;
   average_confidence: number;
   retracted_sources: number;
+  publication_retraction_check: PublicationRetractionCheck;
   cached: boolean;
   reproducibility_hash: string;
 }

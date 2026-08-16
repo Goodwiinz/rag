@@ -256,6 +256,7 @@ class TestEvidenceMeterEndpoint:
             assert data["opposing"] == 1
             assert data["consensus_level"] == "moderate_agreement"
             assert data["average_confidence"] == 0.85
+            assert data["publication_retraction_check"] == "not_performed"
 
             payloads = mock_classifier.classify_sources_batch.await_args.kwargs[
                 "sources"
@@ -691,6 +692,7 @@ class TestEvidenceBreakdownEndpoint:
             assert data["claim"] == "Stored breakdown claim"
             assert len(data["sources"]) == 2
             assert data["sources"][0]["title"] == "First breakdown source"
+            assert data["sources"][0]["publication_retraction_status"] == "unknown"
             assert (
                 data["sources"][0]["confidence"] >= data["sources"][1]["confidence"]
             )  # Sorted by confidence

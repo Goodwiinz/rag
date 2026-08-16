@@ -10722,6 +10722,8 @@ export interface components {
              * @description Number of sources opposing the claim
              */
             opposing: number;
+            /** @default not_performed */
+            publication_retraction_check: components["schemas"]["PublicationRetractionCheck"];
             /**
              * Reproducibility Hash
              * @description Hash for reproducibility tracking
@@ -10729,7 +10731,7 @@ export interface components {
             reproducibility_hash: string;
             /**
              * Retracted Sources
-             * @description Number of retracted sources (excluded)
+             * @description Number of workspace-withdrawn sources excluded from classification
              */
             retracted_sources: number;
             /**
@@ -12432,6 +12434,18 @@ export interface components {
             tags?: string[] | null;
         };
         /**
+         * PublicationRetractionCheck
+         * @description Publication-level retraction check state.
+         * @enum {string}
+         */
+        PublicationRetractionCheck: "not_performed";
+        /**
+         * PublicationRetractionStatus
+         * @description Publication-level retraction status for an evidence source.
+         * @enum {string}
+         */
+        PublicationRetractionStatus: "unknown";
+        /**
          * QualityAlertResponse
          * @description Quality alert response
          */
@@ -13620,6 +13634,8 @@ export interface components {
             is_retracted: boolean;
             /** Justification Excerpt */
             justification_excerpt?: string | null;
+            /** @default unknown */
+            publication_retraction_status: components["schemas"]["PublicationRetractionStatus"];
             /**
              * Source Id
              * Format: uuid
