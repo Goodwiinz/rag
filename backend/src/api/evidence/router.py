@@ -18,12 +18,19 @@ from ...core.config import settings
 from ...core.database import get_db_sync
 from ...core.dependencies import get_current_user
 from ...middleware.rate_limiting import get_rate_limiter
+from ...models.document import Document, ProcessingStatus
 from ...models.evidence import StanceClassificationModel
 from ...services.evidence import (
     BatchClassificationLimitError,
     BatchClassificationTimeoutError,
     ConsensusCalculator,
+    DuplicateSourceIdsError,
     EvidenceCacheService,
+    EvidenceSourceLoader,
+    EvidenceSourceSet,
+    NoActiveSourcesError,
+    SourceNotReadyError,
+    SourceSetNotFoundError,
     StanceClassifier,
 )
 from .schemas import EvidenceBreakdown, EvidenceMeter, Stance, StanceBreakdownItem
@@ -113,6 +120,42 @@ router = APIRouter()
 cache_service = EvidenceCacheService()
 stance_classifier = StanceClassifier(cache_service)
 consensus_calculator = ConsensusCalculator()
+source_loader = EvidenceSourceLoader()
+
+
+def _load_sources_or_http_error(
+    db: Session,
+    *,
+    organization_id: UUID | None,
+    source_ids: List[UUID],
+    claim: str,
+) -> EvidenceSourceSet:
+    """Translate source-boundary failures into the public API contract."""
+    try:
+        return source_loader.load(
+            db,
+            organization_id=organization_id,
+            source_ids=source_ids,
+            claim=claim,
+        )
+    except DuplicateSourceIdsError as exc:
+        raise HTTPException(
+            status_code=400, detail="Duplicate source IDs are not allowed"
+        ) from exc
+    except SourceSetNotFoundError as exc:
+        raise HTTPException(
+            status_code=404, detail="Sources not found or unavailable"
+        ) from exc
+    except SourceNotReadyError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="One or more sources are not ready for evidence analysis",
+        ) from exc
+    except NoActiveSourcesError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="No active sources available for evidence analysis",
+        ) from exc
 
 
 def _save_stance_classifications(
@@ -213,13 +256,6 @@ def _save_stance_classifications(
     return len(rows)
 
 
-async def get_retracted_sources(source_ids: List[str], db: Session) -> List[str]:
-    """Get list of retracted source IDs (placeholder - integrate with actual retraction service)"""
-    # TODO: Integrate with actual retraction checking service
-    # For now, return empty list - retraction checking will be added in later phase
-    return []
-
-
 def _generate_reproducibility_hash(
     claim_hash: str, source_ids: List[str], model_version: str
 ) -> str:
@@ -265,38 +301,38 @@ async def get_evidence_meter(
                 detail="source_ids parameter required for MVP - integration with search API pending",
             )
 
+        loaded = _load_sources_or_http_error(
+            db,
+            organization_id=current_user.organization_id,
+            source_ids=parsed_source_ids,
+            claim=claim,
+        )
+        classifier_sources = [source.classifier_input() for source in loaded.sources]
+        source_revisions = loaded.revisions
+        retracted_source_ids = list(loaded.withdrawn_source_ids)
         claim_hash = consensus_calculator._generate_claim_hash(claim)
-        source_id_strings = [str(sid) for sid in parsed_source_ids]
 
         # Check cache first (keyed by org — see cache_service.set_evidence_meter)
         cached_meter = await cache_service.get_evidence_meter(
             claim_hash,
-            source_id_strings,
+            source_revisions,
             stance_classifier.model_version,
             current_user.organization_id,
         )
 
         if cached_meter:
-            logger.info(f"Returning cached evidence meter for claim: {claim[:50]}...")
+            logger.info(
+                "Returning cached evidence meter claim_hash=%s source_count=%d",
+                claim_hash,
+                len(source_revisions),
+            )
             cached_meter["cached"] = True
             return EvidenceMeter(**cached_meter)
 
-        # TODO: Fetch source excerpts from actual source service
-        # For MVP, this would integrate with the existing document/source retrieval system
-        # Mock source data structure for now:
-        sources_data = []
-        for source_id in parsed_source_ids:
-            # This would be replaced with actual source content retrieval
-            sources_data.append(
-                {
-                    "source_id": source_id,
-                    "excerpt": f"Mock excerpt for source {source_id} - integrate with actual source service",
-                    "title": f"Source {source_id}",
-                }
-            )
-
         logger.info(
-            f"Classifying stances for {len(sources_data)} sources on claim: {claim[:50]}..."
+            "Classifying evidence sources claim_hash=%s source_count=%d",
+            claim_hash,
+            len(classifier_sources),
         )
 
         # Classify stances in parallel
@@ -304,21 +340,19 @@ async def get_evidence_meter(
             classifications = await stance_classifier.classify_sources_batch(
                 claim=claim,
                 claim_hash=claim_hash,
-                sources=sources_data,
+                sources=classifier_sources,
             )
         except BatchClassificationLimitError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except BatchClassificationTimeoutError as e:
             raise HTTPException(status_code=504, detail=str(e))
 
-        # Get retracted sources
-        retracted_source_ids = await get_retracted_sources(source_id_strings, db)
-
         # Calculate consensus
         evidence_meter = consensus_calculator.calculate_consensus(
             claim=claim,
             classifications=classifications,
             retracted_source_ids=retracted_source_ids,
+            source_revisions=source_revisions,
         )
 
         # Store in database (upsert to avoid duplicates/races)
@@ -333,10 +367,10 @@ async def get_evidence_meter(
 
         try:
             db.commit()
-            logger.info(f"Saved/upserted {saved_count} stance classifications")
-        except Exception as e:
+            logger.info("Saved/upserted stance classifications count=%d", saved_count)
+        except Exception:
             db.rollback()
-            logger.error(f"Failed to save stance classifications: {e}")
+            logger.error("Failed to save stance classifications")
 
         # Cache the result — keyed by org so cross-tenant requests never share entries
         meter_dict = evidence_meter.model_dump()
@@ -344,7 +378,7 @@ async def get_evidence_meter(
 
         await cache_service.set_evidence_meter(
             claim_hash,
-            source_id_strings,
+            source_revisions,
             stance_classifier.model_version,
             current_user.organization_id,
             meter_dict,
@@ -352,14 +386,16 @@ async def get_evidence_meter(
         )
 
         logger.info(
-            f"Evidence meter generated: {evidence_meter.consensus_level} consensus"
+            "Evidence meter generated claim_hash=%s source_count=%d",
+            claim_hash,
+            len(source_revisions),
         )
         return evidence_meter
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Failed to generate evidence meter: {e}")
+    except Exception:
+        logger.error("Failed to generate evidence meter")
         raise HTTPException(status_code=500, detail="Failed to generate evidence meter")
 
 
@@ -392,14 +428,23 @@ async def get_evidence_breakdown(
                 status_code=404, detail="No classifications found for this claim"
             )
 
-        # Query stance classifications from database, scoped to the caller's org.
-        # Strict == (no IS NULL fallback): historical NULL-org rows are intentionally
-        # unreadable and regenerate on the next analysis — see alembic migration
-        # add_org_id_to_stance_classifications.
-        query = db.query(StanceClassificationModel).filter(
-            StanceClassificationModel.claim_hash == claim_hash,
-            StanceClassificationModel.model_version == stance_classifier.model_version,
-            StanceClassificationModel.organization_id == current_user.organization_id,
+        # Join classifications to their current, tenant-owned documents. This keeps
+        # deleted, incomplete, and legacy rows out of the provenance response.
+        query = (
+            db.query(StanceClassificationModel, Document)
+            .join(Document, StanceClassificationModel.source_id == Document.id)
+            .filter(
+                StanceClassificationModel.claim_hash == claim_hash,
+                StanceClassificationModel.model_version
+                == stance_classifier.model_version,
+                StanceClassificationModel.organization_id
+                == current_user.organization_id,
+                StanceClassificationModel.claim_text.isnot(None),
+                Document.organization_id == current_user.organization_id,
+                Document.is_deleted.is_(False),
+                Document.processing_status == ProcessingStatus.COMPLETED,
+            )
+            .order_by(StanceClassificationModel.confidence.desc())
         )
 
         if stance_filter:
@@ -407,8 +452,6 @@ async def get_evidence_breakdown(
                 StanceClassificationModel.stance == stance_filter.value
             )
 
-        # Apply pagination
-        total_count = query.count()
         classifications = query.offset(offset).limit(limit).all()
 
         if not classifications:
@@ -416,29 +459,21 @@ async def get_evidence_breakdown(
                 status_code=404, detail="No classifications found for this claim"
             )
 
-        # TODO: Fetch source titles from actual source service
-        # For now, create breakdown items with placeholder titles
         sources = []
-        for classification in classifications:
-            # This would integrate with actual source metadata service
-            source_title = f"Source {classification.source_id}"  # Placeholder
-            is_retracted = False  # Would check retraction service
-
+        for classification, document in classifications:
             breakdown_item = StanceBreakdownItem(
                 source_id=classification.source_id,
-                title=source_title,
-                stance=Stance(classification.stance.value),
+                title=document.title,
+                stance=Stance(
+                    getattr(classification.stance, "value", classification.stance)
+                ),
                 confidence=classification.confidence,
                 justification_excerpt=classification.justification_excerpt,
-                is_retracted=is_retracted,
+                is_retracted=False,
             )
             sources.append(breakdown_item)
 
-        # Sort by confidence (highest first)
-        sources.sort(key=lambda x: x.confidence, reverse=True)
-
-        # Get original claim text (would come from database or cache)
-        claim_text = "Original claim text"  # TODO: Retrieve from Claim node or cache
+        claim_text = classifications[0][0].claim_text
 
         breakdown = EvidenceBreakdown(
             claim=claim_text, claim_hash=claim_hash, sources=sources
@@ -451,8 +486,8 @@ async def get_evidence_breakdown(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Failed to get evidence breakdown: {e}")
+    except Exception:
+        logger.error("Failed to get evidence breakdown")
         raise HTTPException(status_code=500, detail="Failed to get evidence breakdown")
 
 
@@ -470,24 +505,21 @@ async def classify_sources_for_claim(
     """
 
     try:
+        loaded = _load_sources_or_http_error(
+            db,
+            organization_id=current_user.organization_id,
+            source_ids=source_ids,
+            claim=claim,
+        )
+        classifier_sources = [source.classifier_input() for source in loaded.sources]
         claim_hash = consensus_calculator._generate_claim_hash(claim)
-
-        # TODO: Fetch source excerpts from actual source service
-        sources_data = []
-        for source_id in source_ids:
-            sources_data.append(
-                {
-                    "source_id": source_id,
-                    "excerpt": f"Mock excerpt for source {source_id}",  # Placeholder
-                }
-            )
 
         # Classify stances
         try:
             classifications = await stance_classifier.classify_sources_batch(
                 claim=claim,
                 claim_hash=claim_hash,
-                sources=sources_data,
+                sources=classifier_sources,
             )
         except BatchClassificationLimitError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -516,9 +548,9 @@ async def classify_sources_for_claim(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         db.rollback()
-        logger.error(f"Failed to classify sources: {e}")
+        logger.error("Failed to classify sources")
         raise HTTPException(status_code=500, detail="Classification failed")
 
 

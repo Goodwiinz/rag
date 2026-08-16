@@ -2,19 +2,21 @@
 Integration tests for Evidence Agreement Meter API endpoints
 """
 
-import pytest
-from unittest.mock import Mock, patch, AsyncMock
+import hashlib
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.main import app
+from src.api.evidence.router import _save_stance_classifications, stance_classifier
 from src.core.database import get_db_sync
 from src.core.dependencies import get_current_user
+from src.main import app
+from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.evidence import StanceClassificationModel
-from src.api.evidence.router import _save_stance_classifications, stance_classifier
-from src.models.base import Base  # Use the models/base.py Base, not core/database
 
 # Test database setup
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_evidence.db"
@@ -82,10 +84,12 @@ app.dependency_overrides[get_current_user] = override_get_current_user
 def test_client():
     """Test client with database override"""
     # Only create the specific tables we need for testing (avoid PostgreSQL-specific types)
+    Document.__table__.create(bind=engine, checkfirst=True)
     StanceClassificationModel.__table__.create(bind=engine, checkfirst=True)
     with TestClient(app) as client:
         yield client
     StanceClassificationModel.__table__.drop(bind=engine, checkfirst=True)
+    Document.__table__.drop(bind=engine, checkfirst=True)
 
 
 @pytest.fixture
@@ -100,22 +104,84 @@ def sample_source_ids():
     return [str(uuid4()) for _ in range(3)]
 
 
+def seed_document(
+    db,
+    *,
+    organization_id=TEST_ORG_ID,
+    document_id=None,
+    title="Seeded evidence document",
+    content_text="This seeded document contains evidence for the test claim.",
+    checksum_sha256=None,
+    processing_status=ProcessingStatus.COMPLETED,
+    is_deleted=False,
+):
+    """Insert one caller-owned document with explicit evidence source metadata."""
+    checksum = (
+        checksum_sha256 or hashlib.sha256(content_text.encode("utf-8")).hexdigest()
+    )
+    document = Document(
+        id=document_id or uuid4(),
+        title=title,
+        filename="evidence.txt",
+        file_path="/tmp/evidence.txt",
+        file_size_bytes=len(content_text.encode("utf-8")),
+        mime_type="text/plain",
+        document_type=DocumentType.TEXT,
+        checksum_sha256=checksum,
+        content_text=content_text,
+        processing_status=processing_status,
+        organization_id=organization_id,
+        uploaded_by_user_id=TEST_USER_ID,
+        is_deleted=is_deleted,
+    )
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+    return document
+
+
+def response_message(response):
+    """Read either the FastAPI detail or this app's normalized error envelope."""
+    data = response.json()
+    return data.get("detail") or data.get("error", {}).get("message", "")
+
+
 class TestEvidenceMeterEndpoint:
     """Test /api/v1/evidence/meter endpoint"""
 
     @patch("src.api.evidence.router.stance_classifier")
     @patch("src.api.evidence.router.consensus_calculator")
     @patch("src.api.evidence.router.cache_service")
-    def test_get_evidence_meter_success(
+    def test_get_evidence_meter_real_source_success(
         self,
         mock_cache,
         mock_consensus,
         mock_classifier,
         test_client,
         mock_auth,
-        sample_source_ids,
     ):
         """Test successful evidence meter generation"""
+        set_active_user(MockUser())
+        db = TestingSessionLocal()
+        seeded_documents = [
+            seed_document(
+                db,
+                title="First real source",
+                content_text="First real source text supports the test claim.",
+            ),
+            seed_document(
+                db,
+                title="Second real source",
+                content_text="Second real source text gives additional evidence.",
+            ),
+            seed_document(
+                db,
+                title="Third real source",
+                content_text="Third real source text opposes the test claim.",
+            ),
+        ]
+        source_ids = [str(document.id) for document in seeded_documents]
+
         # Mock cache miss (async method)
         mock_cache.get_evidence_meter = AsyncMock(return_value=None)
         mock_cache.set_evidence_meter = AsyncMock(return_value=None)
@@ -123,22 +189,25 @@ class TestEvidenceMeterEndpoint:
         # Mock stance classifications
         mock_classifications = [
             {
-                "source_id": sample_source_ids[0],
+                "source_id": source_ids[0],
                 "stance": "supporting",
                 "confidence": 0.90,
                 "justification_excerpt": "Strong supporting evidence",
+                "source_content_hash": seeded_documents[0].checksum_sha256,
             },
             {
-                "source_id": sample_source_ids[1],
+                "source_id": source_ids[1],
                 "stance": "supporting",
                 "confidence": 0.85,
                 "justification_excerpt": "Additional support",
+                "source_content_hash": seeded_documents[1].checksum_sha256,
             },
             {
-                "source_id": sample_source_ids[2],
+                "source_id": source_ids[2],
                 "stance": "opposing",
                 "confidence": 0.80,
                 "justification_excerpt": "Contradictory findings",
+                "source_content_hash": seeded_documents[2].checksum_sha256,
             },
         ]
         mock_classifier.classify_sources_batch = AsyncMock(
@@ -147,7 +216,7 @@ class TestEvidenceMeterEndpoint:
         mock_classifier.model_version = "gpt-4o-mini-2024-07-18"
 
         # Mock consensus calculation
-        from src.api.evidence.schemas import EvidenceMeter, ConsensusLevel
+        from src.api.evidence.schemas import ConsensusLevel, EvidenceMeter
 
         mock_meter = EvidenceMeter(
             claim="Test claim",
@@ -166,21 +235,31 @@ class TestEvidenceMeterEndpoint:
         mock_consensus.calculate_consensus.return_value = mock_meter
         mock_consensus._generate_claim_hash.return_value = "abc123"
 
-        # Make request
-        response = test_client.get(
-            "/api/v1/evidence/meter",
-            params={"claim": "Test claim", "source_ids": ",".join(sample_source_ids)},
-        )
+        try:
+            # Make request
+            response = test_client.get(
+                "/api/v1/evidence/meter",
+                params={"claim": "Test claim", "source_ids": ",".join(source_ids)},
+            )
 
-        assert response.status_code == 200
-        data = response.json()
+            assert response.status_code == 200
+            data = response.json()
 
-        assert data["claim"] == "Test claim"
-        assert data["total_sources"] == 3
-        assert data["supporting"] == 2
-        assert data["opposing"] == 1
-        assert data["consensus_level"] == "moderate_agreement"
-        assert data["average_confidence"] == 0.85
+            assert data["claim"] == "Test claim"
+            assert data["total_sources"] == 3
+            assert data["supporting"] == 2
+            assert data["opposing"] == 1
+            assert data["consensus_level"] == "moderate_agreement"
+            assert data["average_confidence"] == 0.85
+
+            payloads = mock_classifier.classify_sources_batch.await_args.kwargs[
+                "sources"
+            ]
+            assert payloads[0]["excerpt"] in seeded_documents[0].content_text
+            assert "Mock excerpt" not in payloads[0]["excerpt"]
+            assert payloads[0]["content_hash"] == seeded_documents[0].checksum_sha256
+        finally:
+            db.close()
 
     def test_get_evidence_meter_missing_claim(self, test_client, mock_auth):
         """Test meter endpoint with missing claim parameter"""
@@ -220,6 +299,10 @@ class TestEvidenceMeterEndpoint:
         self, mock_cache, test_client, mock_auth, sample_source_ids
     ):
         """Test meter endpoint returning cached result"""
+        db = TestingSessionLocal()
+        for source_id in sample_source_ids:
+            seed_document(db, document_id=source_id)
+
         # Mock cache hit
         cached_data = {
             "claim": "Test claim",
@@ -237,14 +320,241 @@ class TestEvidenceMeterEndpoint:
         }
         mock_cache.get_evidence_meter = AsyncMock(return_value=cached_data)
 
+        try:
+            response = test_client.get(
+                "/api/v1/evidence/meter",
+                params={
+                    "claim": "Test claim",
+                    "source_ids": ",".join(sample_source_ids),
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["cached"] is True
+        finally:
+            db.close()
+
+    @patch("src.api.evidence.router.stance_classifier")
+    def test_meter_cross_tenant_source_returns_404_without_classifier(
+        self, mock_classifier, test_client, mock_auth
+    ):
+        db = TestingSessionLocal()
+        document = seed_document(db, organization_id=TEST_ORG_ID_B)
+        mock_classifier.classify_sources_batch = AsyncMock()
+
+        try:
+            response = test_client.get(
+                "/api/v1/evidence/meter",
+                params={"claim": "Cross tenant claim", "source_ids": str(document.id)},
+            )
+
+            assert response.status_code == 404
+            assert response_message(response) == "Sources not found or unavailable"
+            mock_classifier.classify_sources_batch.assert_not_awaited()
+        finally:
+            db.close()
+
+    @patch("src.api.evidence.router.stance_classifier")
+    def test_meter_missing_source_returns_404_without_classifier(
+        self, mock_classifier, test_client, mock_auth
+    ):
+        mock_classifier.classify_sources_batch = AsyncMock()
+
         response = test_client.get(
             "/api/v1/evidence/meter",
-            params={"claim": "Test claim", "source_ids": ",".join(sample_source_ids)},
+            params={"claim": "Missing source claim", "source_ids": str(uuid4())},
         )
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["cached"] is True
+        assert response.status_code == 404
+        assert response_message(response) == "Sources not found or unavailable"
+        mock_classifier.classify_sources_batch.assert_not_awaited()
+
+    @patch("src.api.evidence.router.stance_classifier")
+    def test_meter_null_org_returns_404_without_classifier(
+        self, mock_classifier, test_client, mock_auth
+    ):
+        set_active_user(MockUser(organization_id=None))
+        db = TestingSessionLocal()
+        document = seed_document(db, organization_id=TEST_ORG_ID)
+        mock_classifier.classify_sources_batch = AsyncMock()
+
+        try:
+            response = test_client.get(
+                "/api/v1/evidence/meter",
+                params={
+                    "claim": "Null organization claim",
+                    "source_ids": str(document.id),
+                },
+            )
+
+            assert response.status_code == 404
+            assert response_message(response) == "Sources not found or unavailable"
+            mock_classifier.classify_sources_batch.assert_not_awaited()
+        finally:
+            set_active_user(MockUser())
+            db.close()
+
+    @patch("src.api.evidence.router.stance_classifier")
+    def test_meter_mixed_tenant_sources_returns_404_without_classifier(
+        self, mock_classifier, test_client, mock_auth
+    ):
+        db = TestingSessionLocal()
+        owned = seed_document(db, organization_id=TEST_ORG_ID)
+        foreign = seed_document(db, organization_id=TEST_ORG_ID_B)
+        mock_classifier.classify_sources_batch = AsyncMock()
+
+        try:
+            response = test_client.get(
+                "/api/v1/evidence/meter",
+                params={
+                    "claim": "Mixed tenant claim",
+                    "source_ids": f"{owned.id},{foreign.id}",
+                },
+            )
+
+            assert response.status_code == 404
+            assert response_message(response) == "Sources not found or unavailable"
+            mock_classifier.classify_sources_batch.assert_not_awaited()
+        finally:
+            db.close()
+
+    @patch("src.api.evidence.router.stance_classifier")
+    def test_meter_rejects_pending_or_blank_content_readiness(
+        self, mock_classifier, test_client, mock_auth
+    ):
+        mock_classifier.classify_sources_batch = AsyncMock()
+        db = TestingSessionLocal()
+
+        try:
+            for status_value, content in (
+                (ProcessingStatus.PENDING, "Pending document content"),
+                (ProcessingStatus.COMPLETED, "   "),
+            ):
+                document = seed_document(
+                    db,
+                    processing_status=status_value,
+                    content_text=content,
+                )
+                response = test_client.get(
+                    "/api/v1/evidence/meter",
+                    params={
+                        "claim": "Source readiness claim",
+                        "source_ids": str(document.id),
+                    },
+                )
+
+                assert response.status_code == 409
+                assert (
+                    response_message(response)
+                    == "One or more sources are not ready for evidence analysis"
+                )
+                mock_classifier.classify_sources_batch.assert_not_awaited()
+        finally:
+            db.close()
+
+    @patch("src.api.evidence.router.stance_classifier")
+    @patch("src.api.evidence.router.consensus_calculator")
+    @patch("src.api.evidence.router.cache_service")
+    def test_meter_excludes_withdrawn_source_and_tracks_revision(
+        self,
+        mock_cache,
+        mock_consensus,
+        mock_classifier,
+        test_client,
+        mock_auth,
+    ):
+        from src.api.evidence.schemas import ConsensusLevel, EvidenceMeter
+
+        db = TestingSessionLocal()
+        active = seed_document(
+            db,
+            title="Active source",
+            content_text="Active source contains the evidence claim.",
+        )
+        withdrawn = seed_document(
+            db,
+            title="Withdrawn source",
+            content_text="Withdrawn source contained old evidence.",
+            is_deleted=True,
+        )
+        mock_cache.get_evidence_meter = AsyncMock(return_value=None)
+        mock_cache.set_evidence_meter = AsyncMock(return_value=None)
+        mock_classifier.model_version = "gpt-4o-mini-2024-07-18"
+        mock_classifier.classify_sources_batch = AsyncMock(
+            return_value=[
+                {
+                    "source_id": str(active.id),
+                    "stance": "supporting",
+                    "confidence": 0.9,
+                    "justification_excerpt": "Active source contains the evidence claim.",
+                    "source_content_hash": active.checksum_sha256,
+                }
+            ]
+        )
+        mock_consensus._generate_claim_hash.return_value = "withdrawn_claim_hash"
+        mock_consensus.calculate_consensus.return_value = EvidenceMeter(
+            claim="Withdrawn source claim",
+            claim_hash="withdrawn_claim_hash",
+            total_sources=1,
+            supporting=1,
+            opposing=0,
+            neutral=0,
+            not_addressed=0,
+            consensus_level=ConsensusLevel.INSUFFICIENT_DATA,
+            average_confidence=0.9,
+            retracted_sources=1,
+            cached=False,
+            reproducibility_hash="withdrawn_revision_hash",
+        )
+
+        try:
+            response = test_client.get(
+                "/api/v1/evidence/meter",
+                params={
+                    "claim": "Withdrawn source claim",
+                    "source_ids": f"{active.id},{withdrawn.id}",
+                },
+            )
+
+            assert response.status_code == 200
+            assert response.json()["retracted_sources"] == 1
+            payloads = mock_classifier.classify_sources_batch.await_args.kwargs[
+                "sources"
+            ]
+            assert [payload["source_id"] for payload in payloads] == [active.id]
+            consensus_kwargs = mock_consensus.calculate_consensus.call_args.kwargs
+            assert consensus_kwargs["retracted_source_ids"] == [str(withdrawn.id)]
+            assert (
+                f"{active.id}:{active.checksum_sha256}"
+                in consensus_kwargs["source_revisions"]
+            )
+            assert f"{withdrawn.id}:withdrawn" in consensus_kwargs["source_revisions"]
+        finally:
+            db.close()
+
+    @patch("src.api.evidence.router.stance_classifier")
+    def test_meter_rejects_duplicate_source_ids_without_classifier(
+        self, mock_classifier, test_client, mock_auth
+    ):
+        db = TestingSessionLocal()
+        document = seed_document(db)
+        mock_classifier.classify_sources_batch = AsyncMock()
+
+        try:
+            response = test_client.get(
+                "/api/v1/evidence/meter",
+                params={
+                    "claim": "Duplicate source claim",
+                    "source_ids": f"{document.id},{document.id}",
+                },
+            )
+
+            assert response.status_code == 400
+            assert response_message(response) == "Duplicate source IDs are not allowed"
+            mock_classifier.classify_sources_batch.assert_not_awaited()
+        finally:
+            db.close()
 
 
 class TestEvidenceBreakdownEndpoint:
@@ -259,11 +569,23 @@ class TestEvidenceBreakdownEndpoint:
         claim_hash = "test_claim_hash_123"
         source_ids = [uuid4() for _ in range(2)]
 
+        seed_document(
+            db,
+            document_id=source_ids[0],
+            title="First breakdown source",
+        )
+        seed_document(
+            db,
+            document_id=source_ids[1],
+            title="Second breakdown source",
+        )
+
         classifications = [
             StanceClassificationModel(
                 claim_hash=claim_hash,
                 source_id=source_ids[0],
                 organization_id=TEST_ORG_ID,
+                claim_text="Stored breakdown claim",
                 stance="supporting",
                 confidence=0.90,
                 justification_excerpt="Strong evidence",
@@ -273,6 +595,7 @@ class TestEvidenceBreakdownEndpoint:
                 claim_hash=claim_hash,
                 source_id=source_ids[1],
                 organization_id=TEST_ORG_ID,
+                claim_text="Stored breakdown claim",
                 stance="opposing",
                 confidence=0.85,
                 justification_excerpt="Contradictory evidence",
@@ -293,7 +616,9 @@ class TestEvidenceBreakdownEndpoint:
             data = response.json()
 
             assert data["claim_hash"] == claim_hash
+            assert data["claim"] == "Stored breakdown claim"
             assert len(data["sources"]) == 2
+            assert data["sources"][0]["title"] == "First breakdown source"
             assert (
                 data["sources"][0]["confidence"] >= data["sources"][1]["confidence"]
             )  # Sorted by confidence
@@ -310,11 +635,15 @@ class TestEvidenceBreakdownEndpoint:
         claim_hash = "test_filter_hash_456"
         source_ids = [uuid4() for _ in range(3)]
 
+        for source_id in source_ids:
+            seed_document(db, document_id=source_id)
+
         classifications = [
             StanceClassificationModel(
                 claim_hash=claim_hash,
                 source_id=source_ids[0],
                 organization_id=TEST_ORG_ID,
+                claim_text="Stored filtered claim",
                 stance="supporting",
                 confidence=0.90,
                 justification_excerpt="Support 1",
@@ -324,6 +653,7 @@ class TestEvidenceBreakdownEndpoint:
                 claim_hash=claim_hash,
                 source_id=source_ids[1],
                 organization_id=TEST_ORG_ID,
+                claim_text="Stored filtered claim",
                 stance="supporting",
                 confidence=0.85,
                 justification_excerpt="Support 2",
@@ -333,6 +663,7 @@ class TestEvidenceBreakdownEndpoint:
                 claim_hash=claim_hash,
                 source_id=source_ids[2],
                 organization_id=TEST_ORG_ID,
+                claim_text="Stored filtered claim",
                 stance="opposing",
                 confidence=0.80,
                 justification_excerpt="Opposition",
@@ -390,11 +721,27 @@ class TestEvidenceBreakdownEndpoint:
         org_a_excerpt = "ORG_A_SECRET_EXCERPT_DO_NOT_LEAK"
         org_b_excerpt = "ORG_B_SECRET_EXCERPT_DO_NOT_LEAK"
 
+        seed_document(
+            db,
+            document_id=org_a_source,
+            organization_id=TEST_ORG_ID,
+            title="Org A source",
+            content_text="Org A source content",
+        )
+        seed_document(
+            db,
+            document_id=org_b_source,
+            organization_id=TEST_ORG_ID_B,
+            title="Org B source",
+            content_text="Org B source content",
+        )
+
         rows = [
             StanceClassificationModel(
                 claim_hash=claim_hash,
                 source_id=org_a_source,
                 organization_id=TEST_ORG_ID,
+                claim_text="Shared tenant claim",
                 stance="supporting",
                 confidence=0.9,
                 justification_excerpt=org_a_excerpt,
@@ -404,6 +751,7 @@ class TestEvidenceBreakdownEndpoint:
                 claim_hash=claim_hash,
                 source_id=org_b_source,
                 organization_id=TEST_ORG_ID_B,
+                claim_text="Shared tenant claim",
                 stance="opposing",
                 confidence=0.8,
                 justification_excerpt=org_b_excerpt,
@@ -483,6 +831,88 @@ class TestEvidenceBreakdownEndpoint:
         finally:
             set_active_user(MockUser())  # reset to default org
 
+    def test_breakdown_uses_stored_claim_and_real_document_provenance(
+        self, test_client, mock_auth
+    ):
+        set_active_user(MockUser())
+        db = TestingSessionLocal()
+        document = seed_document(
+            db,
+            title="Real document title",
+            content_text="Grounded source excerpt for the stored claim.",
+        )
+        claim_hash = "stored_provenance_breakdown_hash"
+        db.add(
+            StanceClassificationModel(
+                claim_hash=claim_hash,
+                claim_text="Stored original claim",
+                source_id=document.id,
+                source_content_hash=document.checksum_sha256,
+                organization_id=TEST_ORG_ID,
+                stance="supporting",
+                confidence=0.91,
+                justification_excerpt="Grounded source excerpt for the stored claim.",
+                model_version=stance_classifier.model_version,
+            )
+        )
+        db.commit()
+
+        try:
+            response = test_client.get(
+                "/api/v1/evidence/breakdown", params={"claim_hash": claim_hash}
+            )
+
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["claim"] == "Stored original claim"
+            assert payload["sources"][0]["title"] == "Real document title"
+            assert payload["sources"][0]["justification_excerpt"] == (
+                "Grounded source excerpt for the stored claim."
+            )
+            assert "Original claim text" not in response.text
+            assert f"Source {document.id}" not in response.text
+        finally:
+            db.close()
+
+    def test_breakdown_does_not_render_legacy_null_claim_placeholder(
+        self, test_client, mock_auth
+    ):
+        set_active_user(MockUser())
+        db = TestingSessionLocal()
+        document = seed_document(
+            db,
+            title="Legacy source title",
+            content_text="Legacy source content",
+        )
+        claim_hash = "legacy_null_claim_breakdown_hash"
+        db.add(
+            StanceClassificationModel(
+                claim_hash=claim_hash,
+                claim_text=None,
+                source_id=document.id,
+                organization_id=TEST_ORG_ID,
+                stance="supporting",
+                confidence=0.8,
+                justification_excerpt="Legacy source content",
+                model_version=stance_classifier.model_version,
+            )
+        )
+        db.commit()
+
+        try:
+            response = test_client.get(
+                "/api/v1/evidence/breakdown", params={"claim_hash": claim_hash}
+            )
+
+            assert response.status_code == 404
+            assert (
+                response_message(response) == "No classifications found for this claim"
+            )
+            assert "Original claim text" not in response.text
+            assert f"Source {document.id}" not in response.text
+        finally:
+            db.close()
+
     def test_get_evidence_breakdown_missing_claim_hash(self, test_client, mock_auth):
         """Test breakdown endpoint with missing claim_hash parameter"""
         response = test_client.get("/api/v1/evidence/breakdown")
@@ -535,23 +965,41 @@ class TestClassifyEndpoint:
 
     @patch("src.api.evidence.router.stance_classifier")
     @patch("src.api.evidence.router.consensus_calculator")
-    def test_classify_sources_success(
-        self, mock_consensus, mock_classifier, test_client, mock_auth, sample_source_ids
+    def test_classify_sources_real_source_success(
+        self, mock_consensus, mock_classifier, test_client, mock_auth
     ):
         """Test successful source classification"""
+        set_active_user(MockUser())
+        db = TestingSessionLocal()
+        seeded_documents = [
+            seed_document(
+                db,
+                title="Classify source one",
+                content_text="Classify source one has the original claim evidence.",
+            ),
+            seed_document(
+                db,
+                title="Classify source two",
+                content_text="Classify source two gives neutral context.",
+            ),
+        ]
+        uuid_source_ids = [str(document.id) for document in seeded_documents]
+
         # Mock stance classifications
         mock_classifications = [
             {
-                "source_id": sample_source_ids[0],
+                "source_id": uuid_source_ids[0],
                 "stance": "supporting",
                 "confidence": 0.90,
-                "justification_excerpt": "Strong evidence",
+                "justification_excerpt": "Classify source one has the original claim evidence.",
+                "source_content_hash": seeded_documents[0].checksum_sha256,
             },
             {
-                "source_id": sample_source_ids[1],
+                "source_id": uuid_source_ids[1],
                 "stance": "neutral",
                 "confidence": 0.75,
-                "justification_excerpt": "Neutral statement",
+                "justification_excerpt": "Classify source two gives neutral context.",
+                "source_content_hash": seeded_documents[1].checksum_sha256,
             },
         ]
         mock_classifier.classify_sources_batch = AsyncMock(
@@ -560,22 +1008,40 @@ class TestClassifyEndpoint:
         mock_classifier.model_version = "gpt-4o-mini-2024-07-18"
         mock_consensus._generate_claim_hash.return_value = "test_hash"
 
-        # Convert to UUIDs for request
-        uuid_source_ids = [str(uuid4()) for _ in range(2)]
+        try:
+            response = test_client.post(
+                "/api/v1/evidence/classify",
+                params={"claim": "Test claim"},
+                json=uuid_source_ids,
+            )
 
-        response = test_client.post(
-            "/api/v1/evidence/classify",
-            params={"claim": "Test claim"},
-            json=uuid_source_ids,
-        )
+            assert response.status_code == 201
+            data = response.json()
 
-        assert response.status_code == 201
-        data = response.json()
+            assert data["status"] == "completed"
+            assert data["claim_hash"] == "test_hash"
+            assert data["classifications_created"] == 2
+            assert data["total_sources"] == 2
 
-        assert data["status"] == "completed"
-        assert data["claim_hash"] == "test_hash"
-        assert data["classifications_created"] == 2
-        assert data["total_sources"] == 2
+            payloads = mock_classifier.classify_sources_batch.await_args.kwargs[
+                "sources"
+            ]
+            assert payloads[0]["excerpt"] in seeded_documents[0].content_text
+            assert "Mock excerpt" not in payloads[0]["excerpt"]
+            assert payloads[0]["content_hash"] == seeded_documents[0].checksum_sha256
+
+            stored = (
+                db.query(StanceClassificationModel)
+                .filter(
+                    StanceClassificationModel.claim_hash == "test_hash",
+                    StanceClassificationModel.source_id == seeded_documents[0].id,
+                )
+                .one()
+            )
+            assert stored.claim_text == "Test claim"
+            assert stored.source_content_hash == seeded_documents[0].checksum_sha256
+        finally:
+            db.close()
 
 
 class TestHealthEndpoint:
