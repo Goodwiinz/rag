@@ -16,13 +16,14 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Set
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_async_session, get_db
-from src.models.document import Document, DocumentType, ProcessingStatus
+from src.models.document import Document
 from src.services.arxiv.arxiv_kg_integration import ArXivKnowledgeGraphIntegration
 from src.services.arxiv.arxiv_service import ArXivIngestionService
 from src.services.knowledge_graph import KnowledgeGraphService
@@ -360,7 +361,7 @@ class ArXivChangeTracker:
                         paper = await self._fetch_paper_details(change.paper_id)
                         if paper:
                             await self._ingest_new_paper(
-                                db, paper, organization_id, user_id, update_kg
+                                paper, organization_id, user_id, update_kg
                             )
                             summary["new"] += 1
                             logger.info(f"Added new paper: {change.paper_id}")
@@ -444,8 +445,8 @@ class ArXivChangeTracker:
     def _paper_metadata(paper: Dict[str, Any]) -> Dict[str, Any]:
         """Build the document_metadata payload for an arXiv paper.
 
-        The arXiv id lives in document_metadata (the Document model has no
-        external_id column); dedup/lookup keys on it.
+        Keep the arXiv id in metadata for API compatibility; durable ingest
+        also writes the canonical ``Document.arxiv_id`` key.
         """
         return {
             "arxiv_id": paper["id"],
@@ -461,67 +462,65 @@ class ArXivChangeTracker:
 
     @staticmethod
     def _paper_lookup_stmt(paper_id: str, organization_id: Any):
-        """Tenant-scoped lookup by the arxiv_id stored in document_metadata."""
-        return select(Document).where(
-            Document.organization_id == organization_id,
-            # .as_string(), NOT .astext — document_metadata is the generic
-            # sqlalchemy.JSON type, whose comparator has no astext (that's the
-            # postgres-dialect JSONB type). astext raises AttributeError at
-            # statement-build time.
-            Document.document_metadata["arxiv_id"].as_string() == paper_id,
+        """Tenant-scoped lookup supporting canonical and legacy arXiv rows."""
+        return (
+            select(Document)
+            .where(
+                Document.organization_id == organization_id,
+                or_(
+                    Document.arxiv_id == paper_id,
+                    # .as_string(), NOT .astext — document_metadata is generic
+                    # sqlalchemy.JSON; its comparator has no astext.
+                    Document.document_metadata["arxiv_id"].as_string() == paper_id,
+                ),
+                Document.is_deleted.is_(False),
+            )
+            .order_by(Document.arxiv_id.is_not(None).desc(), Document.created_at)
+            .limit(1)
         )
 
     async def _ingest_new_paper(
         self,
-        db: AsyncSession,
         paper: Dict[str, Any],
         organization_id: Any,
         user_id: Optional[Any],
         update_kg: bool,
     ):
         """Ingest a new paper into the database (tenant-scoped)."""
-        # Check if paper already exists for this organization
-        result = await db.execute(self._paper_lookup_stmt(paper["id"], organization_id))
-        existing = result.scalar_one_or_none()
+        from src.services.arxiv.persistence import persist_arxiv_documents
 
-        if not existing:
-            # Create new document record using the real Document columns.
-            pdf_url = paper.get("pdf_url") or ""
-            doc = Document(
-                title=paper.get("title", "") or "",
-                filename=f"{paper['id']}.pdf",
-                file_path=pdf_url,
-                file_size_bytes=0,
-                mime_type="application/pdf",
-                document_type=DocumentType.PDF,
-                content_text=paper.get("abstract", "") or "",
-                document_metadata=self._paper_metadata(paper),
-                processing_status=ProcessingStatus.COMPLETED,
-                organization_id=organization_id,
-                uploaded_by_user_id=user_id,
-                is_public=False,
+        source_document = SimpleNamespace(
+            title=paper.get("title", "") or "",
+            content_text=paper.get("abstract", "") or "",
+            content_summary=None,
+            document_metadata=self._paper_metadata(paper),
+        )
+        persisted = await persist_arxiv_documents(
+            [source_document], user_id=user_id, organization_id=organization_id
+        )
+        if not persisted.document_ids:
+            reason = persisted.failed_papers.get(
+                paper["id"], "durable persistence returned no document"
             )
-            db.add(doc)
-            await db.commit()
+            raise RuntimeError(f"arXiv {paper['id']} ingest failed: {reason}")
 
-            # Add to knowledge graph if requested
-            if update_kg:
-                try:
-                    logger.info(f"Adding paper {paper['id']} to knowledge graph...")
-                    async with ArXivKnowledgeGraphIntegration() as kg:
-                        result = await kg.process_paper_kg_integration(paper)
-                        if result:
-                            logger.info(
-                                f"Successfully added {paper['id']} to KG with {len(result.get('entities', []))} entities"
-                            )
-                        else:
-                            logger.warning(
-                                f"No result returned from KG integration for {paper['id']}"
-                            )
-                except Exception as e:
-                    logger.error(
-                        f"Failed to add paper {paper['id']} to KG: {e}", exc_info=True
-                    )
+        if update_kg:
+            try:
+                logger.info(f"Adding paper {paper['id']} to knowledge graph...")
+                async with ArXivKnowledgeGraphIntegration() as kg:
+                    result = await kg.process_paper_kg_integration(paper)
+                    if result:
+                        logger.info(
+                            f"Successfully added {paper['id']} to KG with {len(result.get('entities', []))} entities"
+                        )
+                    else:
+                        logger.warning(
+                            f"No result returned from KG integration for {paper['id']}"
+                        )
+            except Exception as e:
+                logger.error(
+                    f"Failed to add paper {paper['id']} to KG: {e}", exc_info=True
+                )
 
     async def _update_existing_paper(
         self,
@@ -535,11 +534,15 @@ class ArXivChangeTracker:
         doc = result.scalar_one_or_none()
 
         if doc:
-            # Update fields that changed
-            if "title" in changed_fields:
+            force_update = "force_update" in changed_fields
+            text_changed = force_update or bool(
+                {"title", "abstract"}.intersection(changed_fields)
+            )
+            if force_update or "title" in changed_fields:
                 doc.title = paper.get("title", doc.title) or doc.title
-            if "abstract" in changed_fields:
+            if force_update or "abstract" in changed_fields:
                 doc.content_text = paper.get("abstract", doc.content_text)
+            doc.arxiv_id = paper["id"]
 
             # Copy-update-reassign so SQLAlchemy detects the JSON mutation.
             md = dict(doc.document_metadata or {})
@@ -556,6 +559,14 @@ class ArXivChangeTracker:
             )
             doc.document_metadata = md
 
+            if text_changed:
+                from src.services.search.fulltext_search_service import (
+                    fulltext_search_service,
+                )
+
+                await fulltext_search_service.async_update_document_search_vectors(
+                    [str(doc.id)], db
+                )
             await db.commit()
 
     async def _update_knowledge_graph(self, paper: Dict[str, Any]):
