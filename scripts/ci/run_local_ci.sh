@@ -277,9 +277,39 @@ if [ "$SKIP_TESTS" -eq 0 ]; then
 fi
 
 if [ "$DO_FRONTEND" -eq 1 ]; then
-  step "Frontend type-check + lint (blocking)"
+  step "Frontend type-check + quality ratchet (blocking) + full lint (advisory)"
   ( cd frontend && pnpm run type-check ); check $? "pnpm type-check"
-  ( cd frontend && pnpm run lint );       check $? "pnpm lint"
+
+  # Keep one full ESLint JSON run as the input to the same blocking ratchets
+  # used by .github/workflows/test-pipeline.yml. ESLint returns nonzero when
+  # the known full-tree debt is present, so its exit status is intentionally
+  # not used as the ratchet verdict; the comparator below owns that decision.
+  ESLINT_REPORT="$(mktemp "${TMPDIR:-/tmp}/run_local_ci-eslint.XXXXXX.json")"
+  if [ -z "$ESLINT_REPORT" ] || [ ! -f "$ESLINT_REPORT" ]; then
+    warn "  could not create a temporary ESLint JSON report"
+    check 1 "frontend quality ratchet (report unavailable)"
+  else
+    ESLINT_JSON_RC=0
+    ( cd frontend && pnpm exec eslint app src --format json --output-file "$ESLINT_REPORT" ) || ESLINT_JSON_RC=$?
+    if [ "$ESLINT_JSON_RC" -ne 0 ]; then
+      warn "  ESLint JSON generation exited $ESLINT_JSON_RC; evaluating its report with the blocking ratchet"
+    fi
+    node scripts/ci/check_frontend_quality.mjs --report "$ESLINT_REPORT" --base "$BASE"
+    check $? "frontend quality ratchet"
+    $PY scripts/ci/check_tsconfig_exclusions.py --base "$BASE"
+    check $? "tsconfig exclusion ratchet"
+    rm -f -- "$ESLINT_REPORT"
+  fi
+
+  # Preserve the complete human-readable lint output for diagnosis, but keep
+  # the known baseline debt advisory just as the GitHub workflow does.
+  FULL_LINT_RC=0
+  ( cd frontend && pnpm run lint ) || FULL_LINT_RC=$?
+  if [ "$FULL_LINT_RC" -eq 0 ]; then
+    printf '\033[32m  ✓ pnpm lint (advisory)\033[0m\n'
+  else
+    warn "  ⚠ pnpm lint (advisory) exited $FULL_LINT_RC; full lint output is shown above"
+  fi
 fi
 
 printf '\n'
