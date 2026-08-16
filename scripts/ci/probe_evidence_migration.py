@@ -21,7 +21,7 @@ import sys
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
 import psycopg2  # type: ignore[import-untyped]
 from psycopg2 import sql  # type: ignore[import-untyped]
@@ -244,31 +244,117 @@ def _drop_database(admin_connection, database_name: str) -> None:  # type: ignor
     admin_connection.autocommit = True
     with admin_connection.cursor() as cursor:
         cursor.execute(
-            sql.SQL("DROP DATABASE {} WITH (FORCE)").format(
+            sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
                 sql.Identifier(database_name)
             )
         )
 
 
-@contextmanager
-def _scoped_signal_handlers() -> Iterator[None]:
-    """Abort probe work on termination while always restoring prior handlers."""
-    signals = (signal.SIGTERM, signal.SIGINT)
-    previous = {signum: signal.getsignal(signum) for signum in signals}
-    installed: list[signal.Signals] = []
+def _cleanup_scratch_database(
+    admin_database_url: str, database_name: str, admin_connection: Any
+) -> ProbeError | None:
+    """Drop the generated database through a fresh admin connection when possible."""
+    if not is_safe_scratch_database_name(database_name):
+        raise ProbeError(
+            f"refusing to clean up unrecognised scratch database {database_name!r}"
+        )
 
-    def handle(signum: int, _frame: object) -> None:
+    cleanup_errors: list[BaseException] = []
+    fresh_connection: Any = None
+    try:
+        try:
+            fresh_connection = _connect(admin_database_url)
+            _drop_database(fresh_connection, database_name)
+        except BaseException:
+            # If a create connection was already established, try it as a
+            # fallback. DROP ... IF EXISTS makes this retry harmless.
+            if admin_connection is None:
+                cleanup_errors.append(RuntimeError("fresh cleanup connection failed"))
+            else:
+                try:
+                    _drop_database(admin_connection, database_name)
+                except BaseException as fallback_error:
+                    cleanup_errors.append(fallback_error)
+        finally:
+            if (
+                fresh_connection is not None
+                and fresh_connection is not admin_connection
+            ):
+                try:
+                    fresh_connection.close()
+                except BaseException as close_error:
+                    cleanup_errors.append(close_error)
+            if admin_connection is not None:
+                try:
+                    admin_connection.close()
+                except BaseException as close_error:
+                    cleanup_errors.append(close_error)
+    except BaseException as cleanup_error:
+        cleanup_errors.append(cleanup_error)
+
+    if cleanup_errors:
+        return ProbeError("scratch database cleanup failed")
+    return None
+
+
+class _SignalScope:
+    """Scoped signal handlers with a bounded, deferred cleanup mode."""
+
+    _SIGNALS = (signal.SIGTERM, signal.SIGINT)
+
+    def __init__(self) -> None:
+        self._previous: dict[signal.Signals, Any] = {
+            signum: signal.getsignal(signum) for signum in self._SIGNALS
+        }
+        self._installed: list[signal.Signals] = []
+        self._cleanup_mode = False
+        self._pending: list[int] = []
+
+    def install(self) -> None:
+        try:
+            for signum in self._SIGNALS:
+                signal.signal(signum, self._handle)
+                self._installed.append(signum)
+        except BaseException:
+            self.restore()
+            raise
+
+    def begin_cleanup(self) -> None:
+        self._cleanup_mode = True
+
+    def pending_signal_names(self) -> tuple[str, ...]:
+        return tuple(signal.Signals(signum).name for signum in self._pending)
+
+    def _handle(self, signum: int, _frame: object) -> None:
+        if self._cleanup_mode:
+            if signum not in self._pending:
+                self._pending.append(signum)
+            return
         signal_name = signal.Signals(signum).name
         raise ProbeError(f"received {signal_name}; aborting targeted migration probe")
 
+    def restore(self) -> None:
+        restoration_error: BaseException | None = None
+        for signum in reversed(self._installed):
+            try:
+                signal.signal(signum, self._previous[signum])
+            except BaseException as exc:
+                if restoration_error is None:
+                    restoration_error = exc
+        self._installed.clear()
+        if restoration_error is not None:
+            raise restoration_error
+
+
+@contextmanager
+def _scoped_signal_handlers() -> Iterator[_SignalScope]:
+    """Keep termination handlers installed until guarded cleanup is complete."""
+    scope = _SignalScope()
+    scope.install()
     try:
-        for signum in signals:
-            signal.signal(signum, handle)
-            installed.append(signum)
-        yield
+        yield scope
     finally:
-        for signum in reversed(installed):
-            signal.signal(signum, previous[signum])
+        scope.restore()
 
 
 def run_probe(admin_database_url: str) -> None:
@@ -278,67 +364,66 @@ def run_probe(admin_database_url: str) -> None:
         raise ProbeError(
             f"refusing to use unrecognised scratch database {database_name!r}"
         )
-    admin_connection = None
-    scratch_created = False
+    admin_connection: Any = None
     failure: Exception | None = None
+    scope: _SignalScope | None = None
     try:
-        with _scoped_signal_handlers():
-            admin_connection = _connect(admin_database_url)
-            _create_database(admin_connection, database_name)
-            scratch_created = True
-            database_url = _scratch_database_url(admin_database_url, database_name)
-
-            connection = _connect(database_url)
+        with _scoped_signal_handlers() as scope:
             try:
-                _create_prior_state(connection)
-                if _version(connection) != PARENT_REVISION:
-                    raise ProbeError(
-                        "scratch database did not start at the exact parent revision"
-                    )
-                verify_columns_absent(_all_target_column_names(connection))
-            finally:
-                connection.close()
+                admin_connection = _connect(admin_database_url)
+                _create_database(admin_connection, database_name)
+                database_url = _scratch_database_url(admin_database_url, database_name)
 
-            _run_alembic(database_url, "upgrade", TARGET_REVISION)
-            connection = _connect(database_url)
-            try:
-                if _version(connection) != TARGET_REVISION:
-                    raise ProbeError(
-                        "upgrade did not record the target Alembic revision"
-                    )
-                verify_added_columns(_column_rows(connection))
-            finally:
-                connection.close()
+                connection = _connect(database_url)
+                try:
+                    _create_prior_state(connection)
+                    if _version(connection) != PARENT_REVISION:
+                        raise ProbeError(
+                            "scratch database did not start at the exact parent revision"
+                        )
+                    verify_columns_absent(_all_target_column_names(connection))
+                finally:
+                    connection.close()
 
-            _run_alembic(database_url, "downgrade", PARENT_REVISION)
-            connection = _connect(database_url)
-            try:
-                if _version(connection) != PARENT_REVISION:
-                    raise ProbeError(
-                        "downgrade did not restore the exact parent revision"
-                    )
-                verify_columns_absent(_all_target_column_names(connection))
+                _run_alembic(database_url, "upgrade", TARGET_REVISION)
+                connection = _connect(database_url)
+                try:
+                    if _version(connection) != TARGET_REVISION:
+                        raise ProbeError(
+                            "upgrade did not record the target Alembic revision"
+                        )
+                    verify_added_columns(_column_rows(connection))
+                finally:
+                    connection.close()
+
+                _run_alembic(database_url, "downgrade", PARENT_REVISION)
+                connection = _connect(database_url)
+                try:
+                    if _version(connection) != PARENT_REVISION:
+                        raise ProbeError(
+                            "downgrade did not restore the exact parent revision"
+                        )
+                    verify_columns_absent(_all_target_column_names(connection))
+                finally:
+                    connection.close()
+            except Exception as exc:
+                failure = exc
             finally:
-                connection.close()
+                scope.begin_cleanup()
+                try:
+                    cleanup_error = _cleanup_scratch_database(
+                        admin_database_url, database_name, admin_connection
+                    )
+                except BaseException:
+                    cleanup_error = ProbeError("scratch database cleanup failed")
+                if failure is None and cleanup_error is not None:
+                    failure = cleanup_error
     except Exception as exc:
-        failure = exc
-    finally:
-        if admin_connection is not None and scratch_created:
-            try:
-                _drop_database(admin_connection, database_name)
-            except Exception as cleanup_error:
-                if failure is None:
-                    failure = ProbeError(
-                        f"scratch database cleanup failed: {cleanup_error}"
-                    )
-        if admin_connection is not None:
-            try:
-                admin_connection.close()
-            except Exception as close_error:
-                if failure is None:
-                    failure = ProbeError(
-                        f"admin connection cleanup failed: {close_error}"
-                    )
+        if failure is None:
+            failure = exc
+    if failure is None and scope is not None and scope.pending_signal_names():
+        signal_names = ", ".join(scope.pending_signal_names())
+        failure = ProbeError(f"received {signal_names} during scratch cleanup")
     if failure is not None:
         raise failure
 

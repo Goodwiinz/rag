@@ -55,6 +55,7 @@ def _stub_lifecycle(
             FakeConnection("prior"),
             FakeConnection("upgrade"),
             FakeConnection("downgrade"),
+            FakeConnection("cleanup"),
         ]
     )
 
@@ -260,6 +261,145 @@ def test_run_probe_sigterm_restores_handlers_and_drops_scratch_database(
     assert ("drop", scratch_name) in events
     assert (signal.SIGTERM, previous[signal.SIGTERM]) in calls
     assert (signal.SIGINT, previous[signal.SIGINT]) in calls
+
+
+def test_sigterm_after_create_before_completion_still_attempts_guarded_drop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe = _load_probe()
+    events: list[tuple[str, Any]] = []
+    timeline: list[tuple[str, Any]] = []
+    installed: dict[signal.Signals, Any] = {}
+    previous = {signal.SIGTERM: "previous-term", signal.SIGINT: "previous-int"}
+
+    def fake_getsignal(signum: signal.Signals) -> Any:
+        return previous[signum]
+
+    def fake_signal(signum: signal.Signals, handler: Any) -> Any:
+        if callable(handler):
+            installed[signum] = handler
+        else:
+            timeline.append(("restore", signum))
+        return previous[signum]
+
+    monkeypatch.setattr(probe.signal, "getsignal", fake_getsignal)
+    monkeypatch.setattr(probe.signal, "signal", fake_signal)
+
+    def run_alembic(database_url: str, *arguments: str) -> None:
+        events.append(("alembic", arguments))
+
+    scratch_name = _stub_lifecycle(monkeypatch, probe, events, run_alembic)
+
+    def create_database(connection: Any, database_name: str) -> None:
+        events.append(("create", database_name))
+        installed[signal.SIGTERM](signal.SIGTERM, None)
+
+    monkeypatch.setattr(probe, "_create_database", create_database)
+    monkeypatch.setattr(
+        probe,
+        "_drop_database",
+        lambda connection, database_name: timeline.append(("drop", database_name)),
+    )
+
+    with pytest.raises(probe.ProbeError, match="SIGTERM"):
+        probe.run_probe("postgresql://admin@127.0.0.1/postgres")
+
+    assert ("drop", scratch_name) in timeline
+    assert timeline.index(("drop", scratch_name)) < timeline.index(
+        ("restore", signal.SIGTERM)
+    )
+
+
+def test_sigterm_during_cleanup_is_deferred_until_drop_and_handler_restore(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe = _load_probe()
+    events: list[tuple[str, Any]] = []
+    timeline: list[tuple[str, Any]] = []
+    active: dict[signal.Signals, Any] = {}
+    previous = {signal.SIGTERM: "previous-term", signal.SIGINT: "previous-int"}
+
+    def fake_getsignal(signum: signal.Signals) -> Any:
+        return previous[signum]
+
+    def fake_signal(signum: signal.Signals, handler: Any) -> Any:
+        active[signum] = handler
+        if not callable(handler):
+            timeline.append(("restore", signum))
+        return previous[signum]
+
+    monkeypatch.setattr(probe.signal, "getsignal", fake_getsignal)
+    monkeypatch.setattr(probe.signal, "signal", fake_signal)
+
+    def run_alembic(database_url: str, *arguments: str) -> None:
+        events.append(("alembic", arguments))
+
+    scratch_name = _stub_lifecycle(monkeypatch, probe, events, run_alembic)
+
+    def drop_database(connection: Any, database_name: str) -> None:
+        timeline.append(("drop-start", database_name))
+        active[signal.SIGTERM](signal.SIGTERM, None)
+        timeline.append(("drop-complete", database_name))
+
+    monkeypatch.setattr(probe, "_drop_database", drop_database)
+
+    with pytest.raises(probe.ProbeError, match="SIGTERM"):
+        probe.run_probe("postgresql://admin@127.0.0.1/postgres")
+
+    assert ("drop-complete", scratch_name) in timeline
+    assert timeline.index(("drop-complete", scratch_name)) < timeline.index(
+        ("restore", signal.SIGTERM)
+    )
+    assert active[signal.SIGTERM] == previous[signal.SIGTERM]
+
+
+def test_create_failure_still_attempts_drop_if_exists_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe = _load_probe()
+    events: list[tuple[str, Any]] = []
+
+    def run_alembic(database_url: str, *arguments: str) -> None:
+        events.append(("alembic", arguments))
+
+    scratch_name = _stub_lifecycle(monkeypatch, probe, events, run_alembic)
+
+    def create_database(connection: Any, database_name: str) -> None:
+        raise probe.ProbeError("create did not complete")
+
+    monkeypatch.setattr(probe, "_create_database", create_database)
+
+    with pytest.raises(probe.ProbeError, match="create did not complete"):
+        probe.run_probe("postgresql://admin@127.0.0.1/postgres")
+
+    assert ("drop", scratch_name) in events
+
+
+def test_drop_database_uses_if_exists_for_guarded_cleanup() -> None:
+    probe = _load_probe()
+    statements: list[Any] = []
+
+    class Cursor:
+        def __enter__(self) -> "Cursor":
+            return self
+
+        def __exit__(self, *args: Any) -> None:
+            return None
+
+        def execute(self, statement: Any) -> None:
+            statements.append(statement)
+
+    class Connection:
+        autocommit = False
+
+        def cursor(self) -> Cursor:
+            return Cursor()
+
+    probe._drop_database(Connection(), "ci_evidence_delta_123_test_12345678")
+
+    rendered = str(statements[0])
+    assert "DROP DATABASE IF EXISTS" in rendered
+    assert "WITH (FORCE)" in rendered
 
 
 def test_run_probe_fails_closed_before_connecting_for_an_unsafe_name(
