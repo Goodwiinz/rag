@@ -13,7 +13,7 @@ from src.main import app
 from src.core.database import get_db_sync
 from src.core.dependencies import get_current_user
 from src.models.evidence import StanceClassificationModel
-from src.api.evidence.router import stance_classifier
+from src.api.evidence.router import _save_stance_classifications, stance_classifier
 from src.models.base import Base  # Use the models/base.py Base, not core/database
 
 # Test database setup
@@ -488,6 +488,46 @@ class TestEvidenceBreakdownEndpoint:
         response = test_client.get("/api/v1/evidence/breakdown")
 
         assert response.status_code == 422  # Validation error
+
+
+class TestStanceClassificationPersistence:
+    """Test persistence of source and claim provenance."""
+
+    def test_save_stance_classifications_persists_provenance(self, test_client):
+        db = TestingSessionLocal()
+        source_id = uuid4()
+        source_content_hash = "b" * 64
+
+        try:
+            saved_count = _save_stance_classifications(
+                db=db,
+                classifications=[
+                    {
+                        "source_id": source_id,
+                        "stance": "supporting",
+                        "confidence": 0.9,
+                        "justification_excerpt": "Original claim appears in source",
+                        "source_content_hash": source_content_hash,
+                    }
+                ],
+                claim_hash="a" * 64,
+                claim_text="Original claim",
+                model_version="model",
+                organization_id=TEST_ORG_ID,
+            )
+            db.commit()
+
+            stored = (
+                db.query(StanceClassificationModel)
+                .filter(StanceClassificationModel.source_id == source_id)
+                .one()
+            )
+
+            assert saved_count == 1
+            assert stored.claim_text == "Original claim"
+            assert stored.source_content_hash == source_content_hash
+        finally:
+            db.close()
 
 
 class TestClassifyEndpoint:

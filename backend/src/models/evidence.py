@@ -43,8 +43,12 @@ class StanceClassificationModel(SQLBaseModel):
         index=True,
         doc="SHA256 hash of normalized claim text",
     )
+    claim_text = Column(Text, nullable=True, doc="Original normalized-input claim text")
     source_id = Column(
         GUID(), nullable=False, index=True, doc="UUID of the source document"
+    )
+    source_content_hash = Column(
+        String(64), nullable=True, doc="Content revision classified for this row"
     )
     organization_id = Column(
         GUID(),
@@ -114,11 +118,13 @@ class StanceClassificationModel(SQLBaseModel):
         return {
             "id": str(self.id),
             "claim_hash": self.claim_hash,
+            "claim_text": self.claim_text,
             "source_id": str(self.source_id),
+            "source_content_hash": self.source_content_hash,
             "organization_id": (
                 str(self.organization_id) if self.organization_id else None
             ),
-            "stance": self.stance.value,
+            "stance": getattr(self.stance, "value", self.stance),
             "confidence": self.confidence,
             "justification_excerpt": self.justification_excerpt,
             "model_version": self.model_version,

@@ -307,7 +307,24 @@ class TestOrganization:
 
 class TestEvidence:
     """Test Evidence/StanceClassification model"""
-    
+
+    def test_stance_classification_serializes_provenance(self):
+        classification = StanceClassificationModel(
+            claim_hash="a" * 64,
+            claim_text="Original claim",
+            source_id=uuid.uuid4(),
+            source_content_hash="b" * 64,
+            organization_id=uuid.uuid4(),
+            stance="supporting",
+            confidence=0.9,
+            model_version="model",
+        )
+
+        data = classification.to_dict()
+
+        assert data["claim_text"] == "Original claim"
+        assert data["source_content_hash"] == "b" * 64
+
     def test_stance_classification_creation(self, db_session):
         """Test stance classification creation"""
         classification = StanceClassificationModel(

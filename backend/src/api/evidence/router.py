@@ -119,6 +119,7 @@ def _save_stance_classifications(
     db: Session,
     classifications: List[Optional[Dict]],
     claim_hash: str,
+    claim_text: str,
     model_version: str,
     organization_id,
 ) -> int:
@@ -153,7 +154,9 @@ def _save_stance_classifications(
     rows = [
         {
             "claim_hash": claim_hash,
+            "claim_text": claim_text,
             "source_id": _as_uuid(classification["source_id"]),
+            "source_content_hash": classification.get("source_content_hash"),
             "organization_id": org_uuid,
             "stance": classification["stance"],
             "confidence": classification["confidence"],
@@ -178,6 +181,8 @@ def _save_stance_classifications(
                 "stance": insert_stmt.excluded.stance,
                 "confidence": insert_stmt.excluded.confidence,
                 "justification_excerpt": insert_stmt.excluded.justification_excerpt,
+                "claim_text": insert_stmt.excluded.claim_text,
+                "source_content_hash": insert_stmt.excluded.source_content_hash,
                 "updated_at": func.now(),
             },
         )
@@ -197,6 +202,8 @@ def _save_stance_classifications(
             .one_or_none()
         )
         if existing:
+            existing.claim_text = row["claim_text"]
+            existing.source_content_hash = row["source_content_hash"]
             existing.stance = row["stance"]
             existing.confidence = row["confidence"]
             existing.justification_excerpt = row["justification_excerpt"]
@@ -319,6 +326,7 @@ async def get_evidence_meter(
             db=db,
             classifications=classifications,
             claim_hash=claim_hash,
+            claim_text=claim,
             model_version=stance_classifier.model_version,
             organization_id=current_user.organization_id,
         )
@@ -491,6 +499,7 @@ async def classify_sources_for_claim(
             db=db,
             classifications=classifications,
             claim_hash=claim_hash,
+            claim_text=claim,
             model_version=stance_classifier.model_version,
             organization_id=current_user.organization_id,
         )
