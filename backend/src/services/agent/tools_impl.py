@@ -12,7 +12,7 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from uuid import UUID, uuid4
+from uuid import UUID
 
 # Matches the trailing ``vN`` revision suffix arXiv appends to paper IDs
 # (e.g. ``2605.10877v1``). Used to compare requested vs. ingested IDs
@@ -91,12 +91,7 @@ from src.models.document import Document
 from src.models.user import User
 
 from .error_recovery import tool_error_payload
-from .tool_helpers import (
-    _escape_like,
-    _resolve_document_id,
-    _sanitize_metadata,
-    _verify_project_ownership,
-)
+from .tool_helpers import _escape_like, _resolve_document_id, _verify_project_ownership
 
 logger = logging.getLogger(__name__)
 
@@ -1227,39 +1222,6 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
         return {**tool_error_payload("search_arxiv", e), "query": query}
 
 
-async def _existing_document_id(
-    db: AsyncSession, organization_id: Any, checksum: Optional[str]
-) -> Optional[Any]:
-    """Live document id for this org's copy of ``checksum``, if any.
-
-    Mirrors the partial unique index ``uq_documents_org_checksum_live``
-    (organization_id, checksum_sha256) WHERE NOT is_deleted — so the lookup
-    matches exactly what the database would reject.
-    """
-    if not checksum:
-        return None
-    from sqlalchemy import select as _select
-
-    stmt = (
-        _select(Document.id)
-        .where(
-            Document.organization_id == organization_id,
-            Document.checksum_sha256 == checksum,
-            Document.is_deleted.is_(False),
-        )
-        .limit(1)
-    )
-    return (await db.execute(stmt)).scalar_one_or_none()
-
-
-def _arxiv_document_title(document: Any) -> str:
-    """Use the arXiv metadata title when the transient title is a placeholder."""
-    metadata = getattr(document, "document_metadata", None)
-    metadata_title = metadata.get("title") if isinstance(metadata, dict) else None
-    title = metadata_title or getattr(document, "title", None)
-    return " ".join(str(title or "Untitled").split())
-
-
 async def _tool_ingest_arxiv(
     args: Dict[str, Any],
     user_id: str,
@@ -1267,7 +1229,6 @@ async def _tool_ingest_arxiv(
     current_user: Optional[User] = None,
 ) -> Dict[str, Any]:
     """Ingest arXiv papers into the RAG system by searching for them first, then ingesting."""
-    from src.models.document import ProcessingStatus
     from src.services.arxiv.arxiv_service import ArXivIngestionService
 
     paper_ids = args.get("paper_ids", [])
@@ -1363,148 +1324,18 @@ async def _tool_ingest_arxiv(
             reused_document_ids: set = set()
             kb_sync_failed = False
             if ingested and current_user:
-                # KEPT fresh sessions (audit B8 judgment): ingest is
-                # deliberately phase-isolated — this atomic ``begin()`` batch
-                # commits the documents independently of the KB dual-write
-                # (kb_db) and the project link (link_db) below, so a failure
-                # in a later phase can never roll back papers that already
-                # landed. The tool-call session from execute_tool may carry
-                # an open transaction, which ``begin()`` would reject.
-                from src.core.database import AsyncSessionLocal
-
-                promoted_storage: List[Dict[str, Any]] = []
                 try:
-                    persisted_documents: List[Document] = []
-                    async with AsyncSessionLocal() as fresh_db:
-                        async with fresh_db.begin():
-                            for doc in ingested:
-                                from src.services.arxiv.storage import store_arxiv_pdf
+                    from src.services.arxiv.persistence import persist_arxiv_documents
 
-                                document_id = uuid4()
-                                storage_fields = await asyncio.to_thread(
-                                    store_arxiv_pdf,
-                                    doc,
-                                    current_user.organization_id,
-                                    document_id,
-                                )
-                                promoted_storage.append(storage_fields)
-
-                                # Content-hash dedup is a PARTIAL unique index
-                                # (organization_id, checksum_sha256) over live
-                                # rows. Re-ingesting a paper the org already
-                                # has previously raised UniqueViolationError
-                                # out of the atomic begin() block, so ONE
-                                # duplicate destroyed the whole batch — nine
-                                # new papers lost to the tenth being familiar.
-                                # Reuse the existing row instead: the paper is
-                                # in the library, which is what the user asked
-                                # for, and the project link below still runs.
-                                existing_id = await _existing_document_id(
-                                    fresh_db,
-                                    current_user.organization_id,
-                                    storage_fields.get("checksum_sha256"),
-                                )
-                                if existing_id is not None:
-                                    logger.info(
-                                        "arxiv ingest: paper already in library "
-                                        "(document %s), reusing",
-                                        existing_id,
-                                    )
-                                    document_ids.append(str(existing_id))
-                                    reused_document_ids.add(str(existing_id))
-                                    continue
-
-                                document = Document(
-                                    id=document_id,
-                                    title=_arxiv_document_title(doc),
-                                    **storage_fields,
-                                    content_text=getattr(doc, "content_text", None),
-                                    content_summary=getattr(
-                                        doc, "content_summary", None
-                                    ),
-                                    document_metadata=_sanitize_metadata(
-                                        getattr(doc, "document_metadata", {})
-                                    ),
-                                    processing_status=ProcessingStatus.COMPLETED,
-                                    uploaded_by_user_id=current_user.id,
-                                    organization_id=current_user.organization_id,
-                                    is_public=False,
-                                )
-                                fresh_db.add(document)
-                                await fresh_db.flush()
-                                document_ids.append(str(document.id))
-                                persisted_documents.append(document)
-
-                            # Build search_vector so these COMPLETED docs are
-                            # findable — without it the NULL tsvector never
-                            # matches plainto_tsquery and the papers are
-                            # invisible to doc search / RAG.
-                            try:
-                                from src.services.search.fulltext_search_service import (
-                                    fulltext_search_service,
-                                )
-
-                                await fulltext_search_service.async_update_document_search_vectors(
-                                    document_ids, fresh_db
-                                )
-                            except Exception as vec_err:  # noqa: BLE001
-                                logger.warning(
-                                    "arxiv ingest: search_vector update failed: %s",
-                                    vec_err,
-                                )
-                            # begin() auto-commits on exit
-                    # The rows now own these objects. Later failure-isolated KB
-                    # or project work must never remove committed document data.
-                    promoted_storage.clear()
-                    logger.info(
-                        "Ingested %d documents to DB: %s",
-                        len(document_ids),
-                        document_ids,
+                    persisted = await persist_arxiv_documents(
+                        ingested,
+                        user_id=current_user.id,
+                        organization_id=current_user.organization_id,
                     )
-
-                    # Phase 2 dual-write: mirror into DO KB. Failure-isolated.
-                    from src.core.config import settings as _kb_settings
-
-                    if (
-                        getattr(_kb_settings, "DO_KB_ENABLED", False)
-                        and persisted_documents
-                    ):
-                        try:
-                            from src.services.do_kb import sync_documents_to_kb
-
-                            async with AsyncSessionLocal() as kb_db:
-                                # AsyncSession.merge() IS a coroutine in SQLAlchemy
-                                # 2.0 (inspect.iscoroutinefunction == True). Without
-                                # await, `merged` held unawaited coroutine objects
-                                # (RuntimeWarning) instead of Documents, the KB sync
-                                # then AttributeError'd and was swallowed below — so
-                                # the dual-write silently never ran. Await + commit so
-                                # the do_kb_data_source_uuid writes actually persist.
-                                merged = [
-                                    await kb_db.merge(d) for d in persisted_documents
-                                ]
-                                await sync_documents_to_kb(kb_db, merged)
-                                await kb_db.commit()
-                        except Exception as kb_err:  # noqa: BLE001
-                            kb_sync_failed = True
-                            logger.warning(
-                                "do_kb dual-write skipped for arxiv ingest: %s", kb_err
-                            )
+                    document_ids = persisted.document_ids
+                    reused_document_ids = persisted.reused_document_ids
+                    kb_sync_failed = persisted.kb_sync_failed
                 except Exception as db_err:
-                    from src.services.arxiv.storage import delete_arxiv_storage
-
-                    for storage_fields in reversed(promoted_storage):
-                        try:
-                            await asyncio.to_thread(
-                                delete_arxiv_storage, storage_fields
-                            )
-                        except Exception:  # noqa: BLE001
-                            logger.warning(
-                                "arxiv ingest rollback left an orphaned object: %s",
-                                storage_fields.get("storage_path")
-                                or storage_fields.get("file_path"),
-                                exc_info=True,
-                            )
                     logger.error(
                         "Failed to persist ingested documents to DB", exc_info=db_err
                     )

@@ -49,12 +49,12 @@ class _DB:
 
 
 async def test_existing_copy_is_found_by_org_and_checksum() -> None:
-    from src.services.agent.tools_impl import _existing_document_id
+    from src.services.arxiv.persistence import existing_document_id
 
     existing = uuid4()
     db = _DB(found=existing)
 
-    got = await _existing_document_id(db, uuid4(), "abc123")
+    got = await existing_document_id(db, uuid4(), "abc123")
 
     assert got == existing
     sql = str(db.executed[0]).lower()
@@ -66,20 +66,39 @@ async def test_existing_copy_is_found_by_org_and_checksum() -> None:
     )
 
 
-async def test_no_existing_copy_returns_none() -> None:
-    from src.services.agent.tools_impl import _existing_document_id
+async def test_existing_arxiv_copy_is_scoped_to_tenant_and_live_rows() -> None:
+    from sqlalchemy.dialects import postgresql
 
-    assert await _existing_document_id(_DB(found=None), uuid4(), "abc123") is None
+    from src.services.arxiv.persistence import existing_arxiv_document_id
+
+    db = _DB(found=uuid4())
+
+    await existing_arxiv_document_id(db, uuid4(), "2401.00001v1")
+
+    sql = str(
+        db.executed[0].compile(
+            dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+        )
+    ).lower()
+    assert "organization_id" in sql
+    assert "arxiv_id" in sql
+    assert "is_deleted" in sql
+
+
+async def test_no_existing_copy_returns_none() -> None:
+    from src.services.arxiv.persistence import existing_document_id
+
+    assert await existing_document_id(_DB(found=None), uuid4(), "abc123") is None
 
 
 async def test_missing_checksum_skips_the_lookup_entirely() -> None:
     """No checksum means nothing to collide with; don't spend a query."""
-    from src.services.agent.tools_impl import _existing_document_id
+    from src.services.arxiv.persistence import existing_document_id
 
     db = _DB(found=uuid4())
 
-    assert await _existing_document_id(db, uuid4(), None) is None
-    assert await _existing_document_id(db, uuid4(), "") is None
+    assert await existing_document_id(db, uuid4(), None) is None
+    assert await existing_document_id(db, uuid4(), "") is None
     assert db.executed == []
 
 
