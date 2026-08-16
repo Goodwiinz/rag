@@ -87,7 +87,13 @@ async def test_accepted_latency_measured_from_request_start(
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     current_user = Mock(id="user-1", organization_id="org-1")
 
-    with patch("src.api.agent.streaming.AsyncSessionLocal", return_value=AsyncMock()):
+    with (
+        patch("src.api.agent.streaming.AsyncSessionLocal", return_value=AsyncMock()),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
+        ),
+    ):
         response = await execute_mod.stream_agent(
             body,
             request,  # type: ignore[arg-type]

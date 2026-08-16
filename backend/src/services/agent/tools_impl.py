@@ -1976,6 +1976,8 @@ async def _tool_list_project_documents(
 
         base_where = (
             CollectionDocument.collection_id == project.id,
+            CollectionDocument.is_deleted == False,
+            Document.organization_id == current_user.organization_id,
             Document.is_deleted == False,
         )
 

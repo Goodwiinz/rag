@@ -65,6 +65,10 @@ async def test_stream_event_generator_emits_trace_event_before_workflow_events()
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
+        ),
     ):
         events = []
         async for event in stream_event_generator(body, request, current_user):
