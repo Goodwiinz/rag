@@ -1,7 +1,8 @@
 # Evidence API source-grounding repair — design
 
 Date: 2026-08-16
-Status: approved (brainstorm), pending implementation plan
+Status: approved; implementation plan in
+`docs/superpowers/plans/2026-08-16-evidence-api-source-grounding.md`
 Pull request: #1432 (`codex/disable-fabricated-evidence-api`)
 
 ## Goal
@@ -93,9 +94,11 @@ calculate consensus from grounded results. The optional `query_id` remains
 accepted for compatibility.
 
 The organization-scoped meter cache must include source content revisions, not
-only UUIDs. A revision is `Document.checksum_sha256` when present and otherwise
-SHA-256 of `content_text`. Changing a document therefore invalidates both the
-meter cache and reproducibility input without changing its UUID.
+only UUIDs. An active revision is `Document.checksum_sha256` when present and
+otherwise SHA-256 of `content_text`; a soft-deleted requested source contributes
+an explicit `document_id:withdrawn` marker. Changing document content or the
+requested withdrawal set therefore invalidates both the meter cache and
+reproducibility input without changing UUIDs.
 
 ### `POST /api/v1/evidence/classify`
 
@@ -151,10 +154,11 @@ timestamp. This makes a changed document replace its stale classification for
 the same model rather than creating ambiguous duplicate rows.
 
 Rename the meter cache's internal source-key argument to source revisions and
-hash ordered `document_id:content_hash` values together with the organization,
-claim hash, and model version. The public reproducibility hash uses the same
-revision-aware inputs. The per-stance cache already includes an excerpt hash and
-retains that behavior.
+hash `document_id:content_hash` values for active sources plus
+`document_id:withdrawn` markers together with the organization, claim hash, and
+model version. The public reproducibility hash uses the same revision-aware
+inputs. The per-stance cache already includes an excerpt hash and retains that
+behavior.
 
 ## Error handling and observability
 
