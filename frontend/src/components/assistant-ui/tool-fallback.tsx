@@ -4,8 +4,7 @@ import { memo, useCallback, useRef, useState } from "react";
 import {
   AlertCircleIcon,
   CheckIcon,
-  ChevronDownIcon,
-  LoaderIcon,
+  ChevronRightIcon,
   XCircleIcon,
 } from "lucide-react";
 import {
@@ -24,6 +23,7 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { field, mono, ShimmerLabel, SwapLabel } from "@/components/elements/surfaces";
 
 const ANIMATION_DURATION = 200;
 
@@ -88,9 +88,12 @@ function ToolFallbackRoot({
 
 type ToolStatus = ToolCallMessagePartStatus["type"];
 
-const statusIconMap: Record<ToolStatus, React.ElementType> = {
-  running: LoaderIcon,
-  complete: CheckIcon,
+/**
+ * Only the states that need their own mark. `running` is carried by the label
+ * shimmer and `complete` by the trailing check, so neither takes a leading
+ * icon — that slot stays empty rather than competing with them.
+ */
+const statusIconMap: Partial<Record<ToolStatus, React.ElementType>> = {
   incomplete: XCircleIcon,
   "requires-action": AlertCircleIcon,
 };
@@ -114,7 +117,8 @@ function ToolFallbackDuration({
     <span
       data-slot="tool-fallback-duration"
       className={cn(
-        "aui-tool-fallback-duration text-muted-foreground text-xs tabular-nums",
+        "aui-tool-fallback-duration bg-foreground/[0.06] text-foreground/70 shrink-0 rounded-md px-1.5 py-0.5 tabular-nums",
+        mono,
         className,
       )}
       {...props}
@@ -135,59 +139,55 @@ function ToolFallbackTrigger({
 }) {
   const statusType = status?.type ?? "complete";
   const isRunning = statusType === "running";
+  const isComplete = statusType === "complete";
   const isCancelled =
     status?.type === "incomplete" && status.reason === "cancelled";
 
   const Icon = statusIconMap[statusType];
-  const label = isCancelled ? "Cancelled tool" : "Used tool";
 
   return (
     <CollapsibleTrigger
       data-slot="tool-fallback-trigger"
       className={cn(
-        "aui-tool-fallback-trigger group/trigger text-muted-foreground hover:text-foreground flex w-fit origin-left items-center gap-2 py-1.5 text-sm transition-[color,scale] active:scale-[0.98]",
+        "aui-tool-fallback-trigger group/trigger text-foreground/55 hover:text-foreground/90 flex w-full origin-left items-center gap-2 py-1.5 text-[13.5px] transition-[color,scale] outline-none active:scale-[0.98]",
         className,
       )}
       {...props}
     >
-      <Icon
-        data-slot="tool-fallback-trigger-icon"
-        className={cn(
-          "aui-tool-fallback-trigger-icon size-4 shrink-0",
-          isCancelled && "text-muted-foreground",
-          isRunning && "animate-spin [animation-duration:0.6s]",
-        )}
-      />
-      <span
-        data-slot="tool-fallback-trigger-label"
-        className={cn(
-          "aui-tool-fallback-trigger-label-wrapper relative inline-block text-start leading-none",
-          isCancelled && "text-muted-foreground line-through",
-        )}
-      >
-        <span>
-          {label}: <b>{toolName}</b>
-        </span>
-        {isRunning && (
-          <span
-            aria-hidden
-            data-slot="tool-fallback-trigger-shimmer"
-            className="aui-tool-fallback-trigger-shimmer tool-shimmer pointer-events-none absolute inset-0 motion-reduce:animate-none"
-          >
-            {label}: <b>{toolName}</b>
-          </span>
-        )}
-      </span>
-      <ToolFallbackDuration />
-      <ChevronDownIcon
+      <ChevronRightIcon
         data-slot="tool-fallback-trigger-chevron"
         className={cn(
-          "aui-tool-fallback-trigger-chevron size-4 shrink-0",
+          "aui-tool-fallback-trigger-chevron size-3.5 shrink-0 opacity-60",
           "transition-transform duration-[var(--animation-duration)] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
-          "group-data-[state=closed]/trigger:-rotate-90",
-          "group-data-[state=open]/trigger:rotate-0",
+          "group-data-[state=open]/trigger:rotate-90",
         )}
       />
+      {Icon && (
+        <Icon
+          data-slot="tool-fallback-trigger-icon"
+          className="aui-tool-fallback-trigger-icon size-3.5 shrink-0"
+        />
+      )}
+      <SwapLabel active={isRunning ? 0 : 1} className="text-start">
+        <ShimmerLabel active={isRunning} className="relative inline-block leading-none">
+          Using <b>{toolName}</b>
+        </ShimmerLabel>
+        <span
+          data-slot="tool-fallback-trigger-label"
+          className={cn(isCancelled && "line-through")}
+        >
+          {isCancelled ? "Cancelled" : "Used"} <b>{toolName}</b>
+        </span>
+      </SwapLabel>
+      <ToolFallbackDuration />
+      <span className="ms-auto flex w-4 shrink-0 items-center justify-end">
+        {isComplete && (
+          <CheckIcon
+            data-slot="tool-fallback-trigger-check"
+            className="fade-in zoom-in-90 animate-in size-3.5 text-emerald-500 duration-200"
+          />
+        )}
+      </span>
     </CollapsibleTrigger>
   );
 }
@@ -215,7 +215,7 @@ function ToolFallbackContent({
     >
       <div
         className={cn(
-          "flex flex-col gap-2 ps-6 pt-1 pb-2 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none",
+          "flex flex-col gap-2 ps-5.5 pt-1 pb-2 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none",
           "group-data-[state=open]/collapsible-content:animate-in group-data-[state=open]/collapsible-content:fade-in-0 group-data-[state=open]/collapsible-content:slide-in-from-top-1",
           "group-data-[state=closed]/collapsible-content:animate-out group-data-[state=closed]/collapsible-content:fade-out-0 group-data-[state=closed]/collapsible-content:slide-out-to-top-1",
           "group-data-[state=closed]/collapsible-content:duration-[var(--animation-duration)] group-data-[state=open]/collapsible-content:duration-[var(--animation-duration)]",
@@ -239,10 +239,17 @@ function ToolFallbackArgs({
   return (
     <div
       data-slot="tool-fallback-args"
-      className={cn("aui-tool-fallback-args", className)}
+      className={cn(
+        "aui-tool-fallback-args overflow-hidden rounded-2xl px-3.5 pt-2.5 pb-3",
+        field,
+        className,
+      )}
       {...props}
     >
-      <pre className="aui-tool-fallback-args-value bg-muted/50 text-foreground/90 rounded-md p-2.5 text-xs whitespace-pre-wrap">
+      <p className={cn("aui-tool-fallback-args-header text-foreground/35 mb-1", mono)}>
+        Request
+      </p>
+      <pre className="aui-tool-fallback-args-value text-foreground/55 font-mono text-xs whitespace-pre-wrap">
         {argsText}
       </pre>
     </div>
@@ -261,13 +268,17 @@ function ToolFallbackResult({
   return (
     <div
       data-slot="tool-fallback-result"
-      className={cn("aui-tool-fallback-result", className)}
+      className={cn(
+        "aui-tool-fallback-result overflow-hidden rounded-2xl px-3.5 pt-2.5 pb-3",
+        field,
+        className,
+      )}
       {...props}
     >
-      <p className="aui-tool-fallback-result-header text-muted-foreground text-xs font-medium">
-        Result:
+      <p className={cn("aui-tool-fallback-result-header text-foreground/35 mb-1", mono)}>
+        Result
       </p>
-      <pre className="aui-tool-fallback-result-content bg-muted/50 text-foreground/90 mt-1 rounded-md p-2.5 text-xs whitespace-pre-wrap">
+      <pre className="aui-tool-fallback-result-content text-foreground/90 text-xs whitespace-pre-wrap">
         {typeof result === "string" ? result : JSON.stringify(result, null, 2)}
       </pre>
     </div>

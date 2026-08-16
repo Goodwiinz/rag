@@ -124,7 +124,11 @@ describe('AuiMessage', () => {
     expect(
       document.querySelector('[data-slot="tool-fallback-root"]')
     ).toBeTruthy();
-    expect(screen.getByText(/search_arxiv/)).toBeInTheDocument();
+    // The swap label renders the tool name on both layers, so scope the
+    // assertion to the resting one.
+    expect(
+      document.querySelector('[data-slot="tool-fallback-trigger-label"]')
+    ).toHaveTextContent('search_arxiv');
   });
 
   it('adds an autohiding action bar inside MessagePrimitive.Root for hover-driven controls', async () => {

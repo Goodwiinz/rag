@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { AuiToolParts } from '../AuiToolParts';
 import type { ActivityStep } from '@/components/chat/shared/cloudMessageView';
 
@@ -19,7 +19,11 @@ describe('AuiToolParts', () => {
     expect(
       document.querySelector('[data-slot="aui-tool-parts"]')
     ).toBeTruthy();
-    expect(screen.getByText(/search_arxiv/)).toBeInTheDocument();
+    // The trigger swaps between an active and a resting label, so the tool
+    // name is in the DOM twice — the inactive layer is aria-hidden.
+    expect(
+      document.querySelector('[data-slot="tool-fallback-trigger-label"]')
+    ).toHaveTextContent('Used search_arxiv');
   });
 
   it('renders nothing for empty steps', () => {
@@ -29,19 +33,19 @@ describe('AuiToolParts', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('running step while streaming shows running status (spinner icon)', () => {
+  it('running step while streaming shimmers the active label', () => {
     const running: ActivityStep = {
       tool: 'search_arxiv',
       label: 'Searching arXiv',
       status: 'running',
     };
     render(<AuiToolParts messageId="m1" steps={[running]} isStreaming />);
-    // running status spins the trigger icon
+    // running is carried by the shimmering "Using <tool>" label, and by the
+    // absence of the completion check.
+    expect(document.querySelector('.tool-shimmer')).toBeTruthy();
     expect(
-      document.querySelector(
-        '[data-slot="tool-fallback-trigger-icon"].animate-spin'
-      )
-    ).toBeTruthy();
+      document.querySelector('[data-slot="tool-fallback-trigger-check"]')
+    ).toBeNull();
   });
 
   it('running step on a non-streaming message reads as cancelled (incomplete)', () => {
@@ -53,13 +57,11 @@ describe('AuiToolParts', () => {
     render(
       <AuiToolParts messageId="m1" steps={[stale]} isStreaming={false} />
     );
-    // cancelled renders the "Cancelled tool" label, not a spinner
-    expect(screen.getByText(/Cancelled tool/)).toBeInTheDocument();
+    // cancelled reads as a struck-through resting label, never as running
     expect(
-      document.querySelector(
-        '[data-slot="tool-fallback-trigger-icon"].animate-spin'
-      )
-    ).toBeNull();
+      document.querySelector('[data-slot="tool-fallback-trigger-label"]')
+    ).toHaveTextContent('Cancelled search_arxiv');
+    expect(document.querySelector('.tool-shimmer')).toBeNull();
   });
 
   it('renders one row per step', () => {
