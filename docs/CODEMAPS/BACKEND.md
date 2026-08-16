@@ -83,7 +83,6 @@ src/
 | `/api/v1/research/` | research | Citations, drafts, notes, writer |
 | `/api/v1/research-engine/` | research_engine | Pipeline projects + runs |
 | `/api/v1/analytics/` | analytics | Behavior, quality, performance |
-| `/api/v1/evidence/` | evidence | Evidence meter |
 | `/api/v1/security/` | security | Encryption, compliance, RBAC |
 | `/api/v1/evaluation/` | evaluation | QA evaluation |
 | `/api/v1/auth/` | auth | Login, refresh, API keys |
