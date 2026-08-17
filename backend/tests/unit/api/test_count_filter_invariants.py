@@ -21,6 +21,7 @@ didn't reach this one.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -44,10 +45,10 @@ class TestThreadMessagesCountFilterParity:
     remaining" from ``total - received`` drift."""
 
     @staticmethod
-    def _capture_db(thread):
+    def _capture_db(thread: Any) -> tuple[Any, list[str]]:
         captured: list[str] = []
 
-        async def _execute(stmt, *a, **kw):
+        async def _execute(stmt: Any, *a: Any, **kw: Any) -> Any:
             captured.append(str(stmt.compile(compile_kwargs={"literal_binds": True})))
             call_num = len(captured)
             result = MagicMock()
@@ -68,7 +69,7 @@ class TestThreadMessagesCountFilterParity:
         db.execute = AsyncMock(side_effect=_execute)
         return db, captured
 
-    async def test_count_query_applies_before_cursor(self):
+    async def test_count_query_applies_before_cursor(self) -> None:
         from src.api.agent.execute import get_thread_messages
 
         thread_id = uuid4()
@@ -94,7 +95,9 @@ class TestThreadMessagesCountFilterParity:
             count_sql,
         )
 
-    async def test_full_history_path_has_single_query_no_drift_possible(self):
+    async def test_full_history_path_has_single_query_no_drift_possible(
+        self,
+    ) -> None:
         """Control: omitting both ``limit``/``before`` takes the unwindowed
         branch (``total = len(messages)``), which has no separate count
         statement to drift — only the windowed branch above is at risk."""
@@ -119,10 +122,10 @@ class TestListProjectsSearchEscaping:
     in ``search`` like every other agent-facing ilike() site does."""
 
     @staticmethod
-    def _capture_db(workspace_id):
+    def _capture_db(workspace_id: Any) -> tuple[Any, list[str]]:
         captured: list[str] = []
 
-        async def _execute(stmt, *a, **kw):
+        async def _execute(stmt: Any, *a: Any, **kw: Any) -> Any:
             captured.append(str(stmt.compile(compile_kwargs={"literal_binds": True})))
             call_num = len(captured)
             result = MagicMock()
@@ -143,7 +146,7 @@ class TestListProjectsSearchEscaping:
         db.execute = AsyncMock(side_effect=_execute)
         return db, captured
 
-    async def test_search_wildcards_are_escaped(self):
+    async def test_search_wildcards_are_escaped(self) -> None:
         from src.services.research.project_service import ProjectService
 
         db, captured = self._capture_db(uuid4())
@@ -156,7 +159,7 @@ class TestListProjectsSearchEscaping:
         assert len(captured) == 3, captured
         assert all("50\\%\\_done" in sql for sql in captured[1:]), captured
 
-    async def test_plain_search_term_is_unaffected(self):
+    async def test_plain_search_term_is_unaffected(self) -> None:
         """Control: a search with no LIKE metacharacters compiles to the same
         substring match as before escaping was added — the fix must not
         narrow ordinary searches."""
