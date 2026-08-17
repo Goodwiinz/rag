@@ -22,8 +22,14 @@ export interface UseChatComposerActionsParams {
   displayedMessages: ChatPageMessage[];
 }
 
+/** Whether one attached file made it to storage. */
+export interface AttachOutcome {
+  ok: boolean;
+}
+
 export interface UseChatComposerActionsReturn {
-  handleAttach: (files: FileList) => Promise<void>;
+  /** Per-file upload outcomes, in the order the files were given. */
+  handleAttach: (files: FileList) => Promise<AttachOutcome[]>;
   handleRegenerate: (assistantMessageIndex: number) => void;
   /** Edit a prior user message in place and re-send. Truncates the transcript
    * to just before the edited message (dropping its old answer + any
@@ -70,7 +76,9 @@ export function useChatComposerActions({
       if (!workspace) {
         console.warn('[Chat] Cannot attach: no workspace');
         toast.error('No workspace available — attachment was not uploaded.');
-        return;
+        // Every file failed, so the composer's chips must settle on error
+        // rather than sit in the uploading state forever.
+        return Array.from(files).map(() => ({ ok: false as const }));
       }
       const uploads = Array.from(files).map((file) =>
         enhancedDocumentService
@@ -92,6 +100,8 @@ export function useChatComposerActions({
             return { file, ok: false as const };
           })
       );
+      // Promise.all preserves order, so the caller can zip these onto the
+      // chips it created from the same FileList.
       const results = await Promise.all(uploads);
       const failed = results.filter((r) => !r.ok);
       if (failed.length > 0) {
@@ -101,6 +111,7 @@ export function useChatComposerActions({
             : `Upload failed for ${failed.length} of ${results.length} files.`
         );
       }
+      return results.map((r) => ({ ok: r.ok }));
     },
     [workspace]
   );
