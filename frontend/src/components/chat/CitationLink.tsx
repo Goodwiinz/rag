@@ -80,13 +80,20 @@ export function CitationLink({
         'font-nous-mono text-[10px] font-medium tabular-nums leading-none',
         'transition-colors duration-150',
         'focus:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40',
+        // Resting text sits at 60% rather than the upstream 45%: at this size
+        // 45% measures 3.1:1 (light) / 3.8:1 (dark) against the 6% chip, under
+        // the 4.5:1 AA floor, and hover cannot rescue it on touch. 60% is the
+        // lowest step that clears the floor in both themes (5.0 / 5.8).
         citation
           ? isActive
             ? 'bg-foreground text-background cursor-pointer'
             : canNavigate
-              ? 'bg-foreground/[0.06] text-foreground/45 hover:text-foreground/90 cursor-pointer'
+              ? 'bg-foreground/[0.06] text-foreground/60 hover:text-foreground/90 cursor-pointer'
               : 'border border-(--nous-border-1) text-(--nous-fg-3) cursor-default'
-          : 'bg-foreground/[0.06] text-foreground/30 cursor-not-allowed',
+          : // Unresolved markers still carry a number the reader has to match
+            // against the prose, so they stay readable and are set apart by a
+            // fainter chip rather than by dimmer text.
+            'bg-foreground/[0.03] text-foreground/60 cursor-not-allowed',
         className
       )}
     >

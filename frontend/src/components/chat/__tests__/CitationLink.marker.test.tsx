@@ -31,7 +31,9 @@ describe('CitationLink marker', () => {
     const { rerender } = render(
       <CitationLink citationNumber={1} citation={citation()} />
     );
-    expect(marker().className).toContain('text-foreground/45');
+    // 60% is the lowest step clearing 4.5:1 against the 6% chip in both
+    // themes; 45% (the upstream value) measures 3.1:1 in light.
+    expect(marker().className).toContain('text-foreground/60');
     expect(marker().className).not.toContain('bg-foreground text-background');
 
     rerender(<CitationLink citationNumber={1} citation={citation()} isActive />);
