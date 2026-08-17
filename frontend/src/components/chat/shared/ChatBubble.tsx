@@ -330,6 +330,38 @@ export const ChatBubble = React.memo(function ChatBubble({
   );
 });
 
+/**
+ * A 3×3 grid whose cells brighten on a diagonal sweep — the assistant-ui
+ * Elements loading-state figure, which reads as work in progress where a
+ * single pulsing dot reads as a stalled bullet.
+ *
+ * The sweep is CSS keyframes with a per-cell delay rather than the upstream
+ * `tick` prop: this sits in the streaming hot path under a memoized bubble,
+ * and a counter in React state would re-render the whole subtree several
+ * times a second to move nine squares.
+ *
+ * `aria-hidden` because the pill's label already says what is happening, and
+ * the pill itself is the live region.
+ */
+function ThinkingMatrix(): React.ReactElement {
+  return (
+    <span
+      aria-hidden
+      className="grid shrink-0 gap-[2px]"
+      style={{ gridTemplateColumns: 'repeat(3, 3px)' }}
+    >
+      {Array.from({ length: 9 }, (_, i) => (
+        <span
+          key={i}
+          className="nous-matrix-cell h-[3px] w-[3px] rounded-[1px] bg-(--nous-sol) opacity-25 dark:bg-(--nous-helios)"
+          // Diagonal sweep: cells on the same anti-diagonal light together.
+          style={{ animationDelay: `${((i % 3) + Math.floor(i / 3)) * 0.12}s` }}
+        />
+      ))}
+    </span>
+  );
+}
+
 function ThinkingPill({ label }: { label: string }) {
   const reduce = useReducedMotion();
   return (
@@ -341,13 +373,7 @@ function ThinkingPill({ label }: { label: string }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
     >
-      <span
-        className="w-2 h-2 rounded-full bg-(--nous-sol) dark:bg-(--nous-helios)"
-        style={{
-          boxShadow: '0 0 0 3px rgba(var(--nous-sol-rgb), 0.18)',
-          animation: 'nous-pulse 1.4s ease-in-out infinite',
-        }}
-      />
+      <ThinkingMatrix />
       <span>{label}</span>
     </motion.div>
   );
