@@ -10,7 +10,7 @@ import asyncio
 import contextlib
 import logging
 import re
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
@@ -142,7 +142,7 @@ async def stream_fast_path_chunks(
     messages: list[Any],
     persist_user: Callable[[], Awaitable[Any]],
     trace_metadata: dict[str, str] | None = None,
-) -> AsyncIterator[Any]:
+) -> AsyncGenerator[Any, None]:
     """Start Luna and user persistence together, releasing no token too early."""
     iterator = llm.astream(
         messages,

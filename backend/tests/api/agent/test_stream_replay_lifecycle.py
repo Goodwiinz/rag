@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -41,11 +42,13 @@ class _Request:
         return False
 
 
-async def _collect(agen):
+async def _collect(agen: Any) -> list[Any]:
     return [item async for item in agen]
 
 
-async def test_replay_emits_keepalive_during_silent_producer_gap(monkeypatch):
+async def test_replay_emits_keepalive_during_silent_producer_gap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A producer-silent stretch (planner/classifier/reflection, no buffered
     frame to replay) must not leave the follower with zero bytes until the
     terminal frame — that is exactly the gap an idle-timeout proxy kills."""
@@ -53,9 +56,11 @@ async def test_replay_emits_keepalive_during_silent_producer_gap(monkeypatch):
 
     # 12 empty polls (> _SSE_KEEPALIVE_SECONDS=10) before the run's terminal
     # frame lands, modelling a long silent internal phase.
-    poll_results = [[] for _ in range(12)] + [[_frame(1, "done")]]
+    poll_results: list[list[Any]] = [[] for _ in range(12)] + [[_frame(1, "done")]]
 
-    async def fake_read_after(_stream_id, _after, start_index=None):
+    async def fake_read_after(
+        _stream_id: str, _after: int, start_index: int | None = None
+    ) -> list[Any]:
         return poll_results.pop(0) if poll_results else []
 
     monkeypatch.setattr(streaming._stream_buffer, "read_after", fake_read_after)
@@ -76,7 +81,9 @@ async def test_replay_emits_keepalive_during_silent_producer_gap(monkeypatch):
     assert frames[-1] == _frame(1, "done").frame
 
 
-async def test_replay_with_steady_frames_never_interleaves_keepalive(monkeypatch):
+async def test_replay_with_steady_frames_never_interleaves_keepalive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Control: while the producer keeps emitting, no keepalive is injected
     mid-batch, and the idle counter doesn't carry over between batches."""
     monkeypatch.setattr(streaming.asyncio, "sleep", AsyncMock())
@@ -86,7 +93,9 @@ async def test_replay_with_steady_frames_never_interleaves_keepalive(monkeypatch
         [_frame(3, "done")],
     ]
 
-    async def fake_read_after(_stream_id, _after, start_index=None):
+    async def fake_read_after(
+        _stream_id: str, _after: int, start_index: int | None = None
+    ) -> list[Any]:
         return poll_results.pop(0) if poll_results else []
 
     monkeypatch.setattr(streaming._stream_buffer, "read_after", fake_read_after)
@@ -113,14 +122,14 @@ async def test_replay_with_steady_frames_never_interleaves_keepalive(monkeypatch
 class _TrackedAsyncGen:
     """Minimal LLM ``astream`` stand-in: tracks whether ``aclose`` ran."""
 
-    def __init__(self, items):
+    def __init__(self, items: list[Any]) -> None:
         self._items = list(items)
         self.aclose_called = False
 
-    def __aiter__(self):
+    def __aiter__(self) -> Any:
         return self
 
-    async def __anext__(self):
+    async def __anext__(self) -> Any:
         if not self._items:
             # An LLM stream that is still open when the caller walks away —
             # the only way out is an explicit close, never a StopAsyncIteration.
@@ -132,14 +141,14 @@ class _TrackedAsyncGen:
 
 
 class _StubLLM:
-    def __init__(self, gen):
+    def __init__(self, gen: Any) -> None:
         self._gen = gen
 
-    def astream(self, _messages, config=None):
+    def astream(self, _messages: Any, config: Any = None) -> Any:
         return self._gen
 
 
-async def test_fast_path_closes_llm_iterator_on_early_generator_close():
+async def test_fast_path_closes_llm_iterator_on_early_generator_close() -> None:
     """Closing the fast-path generator mid-stream (client disconnect) must
     close the underlying LLM astream iterator, not abandon it suspended."""
     gen = _TrackedAsyncGen(["chunk-1"])
@@ -159,24 +168,26 @@ async def test_fast_path_closes_llm_iterator_on_early_generator_close():
 class _ImmediateErrorGen:
     """LLM stream whose very first pull fails outright (no chunks emitted)."""
 
-    def __aiter__(self):
+    def __aiter__(self) -> Any:
         return self
 
-    async def __anext__(self):
+    async def __anext__(self) -> Any:
         raise RuntimeError("model errored")
 
     async def aclose(self) -> None:
         return None
 
 
-async def test_fast_path_logs_persist_failure_instead_of_swallowing_it(caplog):
+async def test_fast_path_logs_persist_failure_instead_of_swallowing_it(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """When the model fails before the belated cleanup-path persist runs, a
     failure in that persist must be logged, not dropped by a bare
     ``contextlib.suppress(Exception)``."""
     persist_started = asyncio.Event()
     persist_may_fail = asyncio.Event()
 
-    async def failing_persist_user():
+    async def failing_persist_user() -> None:
         persist_started.set()
         await persist_may_fail.wait()
         raise RuntimeError("db write failed")
@@ -207,57 +218,59 @@ async def test_fast_path_logs_persist_failure_instead_of_swallowing_it(caplog):
 
 
 class _RecordingPipeline:
-    def __init__(self):
+    def __init__(self) -> None:
         self.queued: list[tuple] = []
         self.executed = False
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Any:
         return self
 
-    async def __aexit__(self, *exc):
+    async def __aexit__(self, *exc: Any) -> bool:
         return False
 
-    def rpush(self, *args, **kwargs):
+    def rpush(self, *args: Any, **kwargs: Any) -> Any:
         self.queued.append(("rpush", args, kwargs))
 
-    def ltrim(self, *args, **kwargs):
+    def ltrim(self, *args: Any, **kwargs: Any) -> Any:
         self.queued.append(("ltrim", args, kwargs))
 
-    def expire(self, *args, **kwargs):
+    def expire(self, *args: Any, **kwargs: Any) -> Any:
         self.queued.append(("expire", args, kwargs))
 
-    async def execute(self):
+    async def execute(self) -> None:
         self.executed = True
 
 
 class _CallRecordingRedis:
     """Distinguishes top-level (unbatched) calls from pipelined ones."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.top_level_calls: list[str] = []
         self.pipelines: list[_RecordingPipeline] = []
 
-    async def rpush(self, *_args, **_kwargs):
+    async def rpush(self, *_args: Any, **_kwargs: Any) -> Any:
         self.top_level_calls.append("rpush")
 
-    async def ltrim(self, *_args, **_kwargs):
+    async def ltrim(self, *_args: Any, **_kwargs: Any) -> Any:
         self.top_level_calls.append("ltrim")
 
-    async def expire(self, *_args, **_kwargs):
+    async def expire(self, *_args: Any, **_kwargs: Any) -> Any:
         self.top_level_calls.append("expire")
 
-    def pipeline(self, transaction=True):
+    def pipeline(self, transaction: bool = True) -> Any:
         pipe = _RecordingPipeline()
         self.pipelines.append(pipe)
         return pipe
 
 
-async def test_append_pipelines_rpush_ltrim_expire(monkeypatch):
+async def test_append_pipelines_rpush_ltrim_expire(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A connection drop between separate rpush/ltrim/expire awaits can leave
     a no-TTL key that never expires; they must land as one pipeline."""
     redis = _CallRecordingRedis()
 
-    async def fake_get_redis():
+    async def fake_get_redis() -> Any:
         return redis
 
     monkeypatch.setattr(stream_buffer, "get_redis", fake_get_redis)
@@ -283,11 +296,11 @@ async def test_append_pipelines_rpush_ltrim_expire(monkeypatch):
 class _ListRedis:
     """Records the exact (start, stop) each lrange call requested."""
 
-    def __init__(self, items: list[str]):
+    def __init__(self, items: list[str]) -> None:
         self.items = items
         self.lrange_calls: list[tuple[int, int]] = []
 
-    async def lrange(self, _key, start, stop):
+    async def lrange(self, _key: str, start: int, stop: int) -> list[str]:
         self.lrange_calls.append((start, stop))
         if stop == -1:
             return self.items[start:]
@@ -298,12 +311,14 @@ def _entry(seq: int) -> str:
     return json.dumps({"seq": seq, "frame": f"frame-{seq}"})
 
 
-async def test_read_after_uses_start_index_hint_on_repeat_poll(monkeypatch):
+async def test_read_after_uses_start_index_hint_on_repeat_poll(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The second poll of an unchanged buffer should slice from the hint
     instead of re-fetching and re-parsing the entire buffer again."""
     redis = _ListRedis([_entry(1), _entry(2), _entry(3)])
 
-    async def fake_get_redis():
+    async def fake_get_redis() -> Any:
         return redis
 
     monkeypatch.setattr(stream_buffer, "get_redis", fake_get_redis)
@@ -322,13 +337,15 @@ async def test_read_after_uses_start_index_hint_on_repeat_poll(monkeypatch):
     ), f"expected a hinted (non-zero) slice, got {redis.lrange_calls[-1]!r}"
 
 
-async def test_read_after_falls_back_to_full_scan_after_trim(monkeypatch):
+async def test_read_after_falls_back_to_full_scan_after_trim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Risk case: an LTRIM between polls shifts every list index, so a stale
     start_index must not be trusted — the probe must catch the misalignment
     and re-scan, or a resumed replay silently skips frames past the trim."""
     redis = _ListRedis([_entry(1), _entry(2), _entry(3)])
 
-    async def fake_get_redis():
+    async def fake_get_redis() -> Any:
         return redis
 
     monkeypatch.setattr(stream_buffer, "get_redis", fake_get_redis)
