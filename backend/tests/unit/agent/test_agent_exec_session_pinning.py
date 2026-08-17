@@ -21,7 +21,9 @@ reuses ``job_store._is_newer_or_equal`` and job_store's own ``_seq`` counter
 from __future__ import annotations
 
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
@@ -30,7 +32,7 @@ import pytest
 pytestmark = pytest.mark.unit
 
 
-def _make_mock_user(user_id: str = "user-pinning-test"):
+def _make_mock_user(user_id: str = "user-pinning-test") -> Mock:
     user = Mock()
     user.id = user_id
     user.email = "pinning@example.com"
@@ -42,7 +44,7 @@ def _make_mock_user(user_id: str = "user-pinning-test"):
     return user
 
 
-def _make_mock_db():
+def _make_mock_db() -> AsyncMock:
     """Mirrors test_agent_cancellation.py's helper: every SELECT finds
     nothing, so ``_resolve_thread`` falls through to "no workspace" (no
     thread created, no commit) and ``get_run`` finds no durable row."""
@@ -55,7 +57,7 @@ def _make_mock_db():
 
 
 @asynccontextmanager
-async def _async_session_yielding(db):
+async def _async_session_yielding(db: Any) -> AsyncIterator[Any]:
     yield db
 
 
@@ -64,7 +66,7 @@ async def _async_session_yielding(db):
 # ---------------------------------------------------------------------------
 
 
-async def test_run_agent_graph_commits_before_ainvoke():
+async def test_run_agent_graph_commits_before_ainvoke() -> None:
     from src.services.agent.agent_execution_service import _run_agent_graph
     from src.services.agent.schemas import AgentExecuteRequest
 
@@ -82,10 +84,15 @@ async def test_run_agent_graph_commits_before_ainvoke():
         max_context_docs=5,
     )
 
+    def _record_ainvoke(*a: Any, **kw: Any) -> dict[str, Any]:
+        # `events.append(...) or {...}` reads as an expression but append
+        # returns None, which the type gate rejects; ordering is the whole
+        # point of this test, so record it explicitly.
+        events.append("ainvoke")
+        return {"messages": []}
+
     mock_graph = MagicMock()
-    mock_graph.ainvoke = AsyncMock(
-        side_effect=lambda *a, **kw: events.append("ainvoke") or {"messages": []}
-    )
+    mock_graph.ainvoke = AsyncMock(side_effect=_record_ainvoke)
     mock_graph.aget_state = AsyncMock(return_value=None)
 
     with (
@@ -112,7 +119,7 @@ async def test_run_agent_graph_commits_before_ainvoke():
     )
 
 
-async def test_resume_agent_graph_commits_before_ainvoke():
+async def test_resume_agent_graph_commits_before_ainvoke() -> None:
     from src.services.agent.agent_execution_service import _resume_agent_graph, _set_job
 
     job_id = str(uuid4())
@@ -140,10 +147,15 @@ async def test_resume_agent_graph_commits_before_ainvoke():
         },
     )
 
+    def _record_ainvoke(*a: Any, **kw: Any) -> dict[str, Any]:
+        # `events.append(...) or {...}` reads as an expression but append
+        # returns None, which the type gate rejects; ordering is the whole
+        # point of this test, so record it explicitly.
+        events.append("ainvoke")
+        return {"messages": []}
+
     mock_graph = MagicMock()
-    mock_graph.ainvoke = AsyncMock(
-        side_effect=lambda *a, **kw: events.append("ainvoke") or {"messages": []}
-    )
+    mock_graph.ainvoke = AsyncMock(side_effect=_record_ainvoke)
     mock_graph.aget_state = AsyncMock(return_value=None)
 
     with (
@@ -177,7 +189,7 @@ async def test_resume_agent_graph_commits_before_ainvoke():
 # ---------------------------------------------------------------------------
 
 
-def test_set_job_does_not_stomp_a_newer_l1_record():
+def test_set_job_does_not_stomp_a_newer_l1_record() -> None:
     from src.services.agent import job_store
     from src.services.agent.agent_execution_service import _set_job
 
@@ -208,7 +220,7 @@ def test_set_job_does_not_stomp_a_newer_l1_record():
             job_store._l1.pop(job_id, None)
 
 
-def test_set_job_still_writes_when_no_existing_record():
+def test_set_job_still_writes_when_no_existing_record() -> None:
     """The guard must be a no-op for the real-world case (audit's stated
     exposure): creation-time callers writing the FIRST record for a job."""
     from src.services.agent import job_store
