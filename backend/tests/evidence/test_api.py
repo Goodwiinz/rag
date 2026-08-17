@@ -14,7 +14,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from src.api.evidence.router import (
     _save_stance_classifications,
+    classify_sources_for_claim,
     get_evidence_breakdown,
+    get_evidence_meter,
     stance_classifier,
 )
 from src.core.database import get_db_sync
@@ -153,6 +155,79 @@ def response_message(response):
 
 class TestEvidenceMeterEndpoint:
     """Test /api/v1/evidence/meter endpoint"""
+
+    @patch("src.api.evidence.router.source_loader.load")
+    def test_meter_batch_limit_rejected_before_load(
+        self, mock_load, test_client, mock_auth
+    ):
+        """Oversized meter requests fail before touching the source loader."""
+        source_ids = [str(uuid4()) for _ in range(101)]
+        assert len(set(source_ids)) == 101
+
+        response = test_client.get(
+            "/api/v1/evidence/meter",
+            params={
+                "claim": "A claim with enough length",
+                "source_ids": ",".join(source_ids),
+            },
+        )
+
+        assert response.status_code == 400
+        assert (
+            response_message(response)
+            == "Maximum 100 sources allowed per batch classification request"
+        )
+        mock_load.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("src.api.evidence.router.cache_service")
+    async def test_meter_releases_loader_transaction_before_cache_await(
+        self, mock_cache
+    ):
+        """The loader read transaction is closed before the cache boundary."""
+        db = TestingSessionLocal()
+        document = seed_document(
+            db,
+            title="Transaction boundary source",
+            content_text="Transaction boundary source contains the cache claim.",
+        )
+        observed_in_transaction = []
+        cached_data = {
+            "claim": "Transaction boundary claim",
+            "claim_hash": "transaction_boundary_hash",
+            "total_sources": 1,
+            "supporting": 1,
+            "opposing": 0,
+            "neutral": 0,
+            "not_addressed": 0,
+            "consensus_level": "insufficient_data",
+            "average_confidence": 0.9,
+            "retracted_sources": 0,
+            "cached": True,
+            "reproducibility_hash": "transaction_boundary_revision",
+        }
+
+        async def observe_cache(*args, **kwargs):
+            observed_in_transaction.append(db.in_transaction())
+            return cached_data
+
+        mock_cache.get_evidence_meter = AsyncMock(side_effect=observe_cache)
+
+        try:
+            result = await get_evidence_meter(
+                claim="Transaction boundary claim",
+                source_ids=str(document.id),
+                query_id=None,
+                _rate_limit=True,
+                current_user=MockUser(),
+                db=db,
+            )
+
+            assert result.cached is True
+            assert observed_in_transaction == [False]
+            assert db.in_transaction() is False
+        finally:
+            db.close()
 
     @patch("src.api.evidence.router.stance_classifier")
     @patch("src.api.evidence.router.consensus_calculator")
@@ -1381,6 +1456,64 @@ class TestStanceClassificationPersistence:
 
 class TestClassifyEndpoint:
     """Test /api/v1/evidence/classify endpoint"""
+
+    @patch("src.api.evidence.router.source_loader.load")
+    def test_classify_batch_limit_rejected_before_load(
+        self, mock_load, test_client, mock_auth
+    ):
+        """Oversized classify requests fail before touching the source loader."""
+        source_ids = [str(uuid4()) for _ in range(101)]
+        assert len(set(source_ids)) == 101
+
+        response = test_client.post(
+            "/api/v1/evidence/classify",
+            params={"claim": "A claim with enough length"},
+            json=source_ids,
+        )
+
+        assert response.status_code == 400
+        assert (
+            response_message(response)
+            == "Maximum 100 sources allowed per batch classification request"
+        )
+        mock_load.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("src.api.evidence.router.stance_classifier")
+    async def test_classify_releases_loader_transaction_before_classifier_await(
+        self, mock_classifier
+    ):
+        """The loader read transaction is closed before classification awaits."""
+        db = TestingSessionLocal()
+        document = seed_document(
+            db,
+            title="Transaction boundary classify source",
+            content_text="Transaction boundary classify source contains the claim.",
+        )
+        observed_in_transaction = []
+
+        async def observe_classifier(*args, **kwargs):
+            observed_in_transaction.append(db.in_transaction())
+            return []
+
+        mock_classifier.model_version = "gpt-4o-mini-2024-07-18"
+        mock_classifier.classify_sources_batch = AsyncMock(
+            side_effect=observe_classifier
+        )
+
+        try:
+            result = await classify_sources_for_claim(
+                claim="Transaction boundary classify claim",
+                source_ids=[document.id],
+                current_user=MockUser(),
+                db=db,
+            )
+
+            assert result["status"] == "completed"
+            assert observed_in_transaction == [False]
+            assert db.in_transaction() is False
+        finally:
+            db.close()
 
     @patch("src.api.evidence.router.stance_classifier")
     @patch("src.api.evidence.router.consensus_calculator")

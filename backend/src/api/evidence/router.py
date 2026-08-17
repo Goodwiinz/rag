@@ -312,6 +312,11 @@ async def get_evidence_meter(
         if not parsed_source_ids:
             raise HTTPException(status_code=400, detail="source_ids parameter required")
 
+        try:
+            stance_classifier.validate_batch_size(len(parsed_source_ids))
+        except BatchClassificationLimitError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
         loaded = _load_sources_or_http_error(
             db,
             organization_id=current_user.organization_id,
@@ -321,6 +326,7 @@ async def get_evidence_meter(
         classifier_sources = [source.classifier_input() for source in loaded.sources]
         source_revisions = loaded.revisions
         retracted_source_ids = list(loaded.withdrawn_source_ids)
+        db.rollback()
         claim_hash = consensus_calculator._generate_claim_hash(claim)
 
         # Check cache first (keyed by org — see cache_service.set_evidence_meter)
@@ -533,6 +539,11 @@ async def classify_sources_for_claim(
     """
 
     try:
+        try:
+            stance_classifier.validate_batch_size(len(source_ids))
+        except BatchClassificationLimitError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
         loaded = _load_sources_or_http_error(
             db,
             organization_id=current_user.organization_id,
@@ -540,6 +551,7 @@ async def classify_sources_for_claim(
             claim=claim,
         )
         classifier_sources = [source.classifier_input() for source in loaded.sources]
+        db.rollback()
         claim_hash = consensus_calculator._generate_claim_hash(claim)
 
         # Classify stances

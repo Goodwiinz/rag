@@ -195,6 +195,13 @@ Respond with ONLY a valid JSON object in this exact format:
         """Generate cache key for stance classification"""
         return f"stance:{claim_hash}:{source_id}:{excerpt_hash}:{self.model_version}"
 
+    def validate_batch_size(self, source_count: int) -> None:
+        """Validate a batch size before any source loading or classification work."""
+        if source_count > self.max_batch_sources:
+            raise BatchClassificationLimitError(
+                f"Maximum {self.max_batch_sources} sources allowed per batch classification request"
+            )
+
     async def classify_stance(
         self,
         claim: str,
@@ -297,10 +304,7 @@ Respond with ONLY a valid JSON object in this exact format:
             List of classification results (None for failed classifications)
         """
 
-        if len(sources) > self.max_batch_sources:
-            raise BatchClassificationLimitError(
-                f"Maximum {self.max_batch_sources} sources allowed per batch classification request"
-            )
+        self.validate_batch_size(len(sources))
 
         tasks = []
         for source in sources:

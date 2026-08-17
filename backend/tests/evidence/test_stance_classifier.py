@@ -154,6 +154,14 @@ class TestStanceClassificationResult:
 class TestStanceClassifier:
     """Test StanceClassifier service"""
 
+    def test_batch_limit_validator_rejects_requests_over_limit(self, stance_classifier):
+        """The shared synchronous validator enforces the configured source limit."""
+        with pytest.raises(
+            BatchClassificationLimitError,
+            match="Maximum 100 sources allowed per batch classification request",
+        ):
+            stance_classifier.validate_batch_size(101)
+
     def test_build_classification_prompt(
         self, stance_classifier, sample_claim, sample_supporting_excerpt
     ):
