@@ -183,6 +183,27 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
     );
   }
 
+  it('keeps the rating outside the autohiding bar but on the same row', () => {
+    renderByIndex([
+      { id: 'a1', role: 'assistant', content: 'A', timestamp: 2 },
+    ]);
+
+    // ActionBarPrimitive.Root unmounts when the message is not hovered, so a
+    // rating rendered inside it would vanish — taking any half-typed feedback
+    // note with it. It must be a sibling, sharing the row.
+    const row = document.querySelector('.nous-msg-actionrow');
+    expect(row).toBeTruthy();
+    expect(row?.querySelector('.nous-msg-feedback')).toBeTruthy();
+    expect(
+      row?.querySelector('[aria-label="Good response"]')
+    ).toBeTruthy();
+
+    // Not hovered: the bar is absent, the rating is not.
+    expect(
+      document.querySelector('[data-slot="aui-message-actions"]')
+    ).toBeNull();
+  });
+
   it('renders assistant markdown (bold), not raw asterisks', () => {
     renderByIndex([
       {
