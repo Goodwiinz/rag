@@ -1,13 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   entityService,
   type ProcessingJobStatus,
 } from '@/services/entityService';
 
-/** Statuses that mean the job is still doing something. */
-const ACTIVE_STATUSES = new Set(['pending', 'queued', 'running', 'processing']);
+/**
+ * Mirrors `ProcessingJob.is_active` in backend/src/models/processing.py
+ * (queued, running, retrying) — a retried job is still working, and treating
+ * it as finished showed a success tick and dropped polling to the idle rate
+ * mid-run.
+ *
+ * `pending` is included here but not in the backend property: for the reader,
+ * a job that has not started yet is unfinished work, and the alternative is
+ * telling them it completed.
+ */
+const ACTIVE_STATUSES = new Set(['pending', 'queued', 'running', 'retrying']);
 
 export function isJobActive(job: ProcessingJobStatus): boolean {
   return ACTIVE_STATUSES.has(job.status.toLowerCase());
@@ -15,6 +24,18 @@ export function isJobActive(job: ProcessingJobStatus): boolean {
 
 export function isJobFailed(job: ProcessingJobStatus): boolean {
   return job.status.toLowerCase() === 'failed';
+}
+
+export function isJobCancelled(job: ProcessingJobStatus): boolean {
+  return job.status.toLowerCase() === 'cancelled';
+}
+
+/** Terminal, and neither a success nor a failure the user should act on. */
+export function jobStatusLabel(job: ProcessingJobStatus): string {
+  if (isJobFailed(job)) return 'Failed';
+  if (isJobCancelled(job)) return 'Cancelled';
+  if (isJobActive(job)) return 'Running';
+  return 'Completed';
 }
 
 /** Poll while work is in flight; fall back to a slow heartbeat when idle. */
@@ -43,59 +64,73 @@ export interface UseProcessingJobsResult {
  * traffic and adding a job topic to it costs more than this does; revisit if
  * job volume makes 4s feel slow.
  */
-export function useProcessingJobs(limit = 20): UseProcessingJobsResult {
+export function useProcessingJobs(limit = 50): UseProcessingJobsResult {
   const [jobs, setJobs] = useState<ProcessingJobStatus[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Read by the scheduler without making it a dependency — otherwise every
   // poll would tear down and rebuild the timer.
-  const hasActiveRef = useRef(false);
-  const cancelledRef = useRef(false);
-
-  const load = useCallback(async () => {
-    try {
-      const response = await entityService.listProcessingJobs({ limit });
-      if (cancelledRef.current) return;
-      const next = response.jobs ?? [];
-      setJobs(next);
-      hasActiveRef.current = next.some(isJobActive);
-      setError(null);
-    } catch (err) {
-      if (cancelledRef.current) return;
-      // A failed poll is not a failed job — keep the last known list on screen
-      // and say the freshness is in doubt, rather than blanking the panel.
-      setError(err instanceof Error ? err.message : 'Could not reach jobs');
-    } finally {
-      if (!cancelledRef.current) setIsInitialLoading(false);
-    }
-  }, [limit]);
+  const pollFastRef = useRef(false);
+  const refresh = useRef<() => void>(() => undefined);
 
   useEffect(() => {
-    cancelledRef.current = false;
+    // Per-effect cancellation. A shared ref breaks under Strict Mode: the
+    // first invocation is cleaned up while its load() is still in flight, the
+    // second resets the shared flag, and the first then schedules a timer its
+    // own cleanup can no longer clear — two pollers for the page's lifetime.
+    let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
+
+    const load = async (): Promise<void> => {
+      try {
+        const response = await entityService.listProcessingJobs({ limit });
+        if (cancelled) return;
+        const next = response.jobs ?? [];
+        setJobs(next);
+        // The list is newest-first and only the first page is fetched, so an
+        // older job could still be running past the page edge. When the page
+        // is full, hold the fast cadence rather than assuming an idle queue.
+        //
+        // ponytail: the count itself can still undercount past `limit`. The
+        // fix is a server-side is_active filter, not N calls (the endpoint
+        // takes one status per request); revisit if queues run deeper than 50.
+        const truncated = (response.total ?? next.length) > next.length;
+        pollFastRef.current = next.some(isJobActive) || truncated;
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        // A failed poll is not a failed job — keep the last known list on
+        // screen and say freshness is in doubt, rather than blanking.
+        setError(err instanceof Error ? err.message : 'Could not reach jobs');
+      } finally {
+        if (!cancelled) setIsInitialLoading(false);
+      }
+    };
+
+    refresh.current = () => void load();
 
     const tick = async (): Promise<void> => {
       await load();
-      if (cancelledRef.current) return;
+      if (cancelled) return;
       timer = setTimeout(
         tick,
-        hasActiveRef.current ? ACTIVE_INTERVAL_MS : IDLE_INTERVAL_MS
+        pollFastRef.current ? ACTIVE_INTERVAL_MS : IDLE_INTERVAL_MS
       );
     };
 
     void tick();
     return () => {
-      cancelledRef.current = true;
+      cancelled = true;
       clearTimeout(timer);
     };
-  }, [load]);
+  }, [limit]);
 
   return {
     jobs,
     activeCount: jobs.filter(isJobActive).length,
     isInitialLoading,
     error,
-    refresh: () => void load(),
+    refresh: () => refresh.current(),
   };
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Loader2, AlertCircle, Check, Activity } from 'lucide-react';
+import { Loader2, AlertCircle, Ban, Check, Activity } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -11,7 +11,9 @@ import { cn } from '@/lib/utils';
 import {
   useProcessingJobs,
   isJobActive,
+  isJobCancelled,
   isJobFailed,
+  jobStatusLabel,
 } from '@/hooks/chat/useProcessingJobs';
 import type { ProcessingJobStatus } from '@/services/entityService';
 
@@ -37,6 +39,8 @@ function elapsed(job: ProcessingJobStatus): string | null {
 function JobRow({ job }: { job: ProcessingJobStatus }): React.ReactElement {
   const active = isJobActive(job);
   const failed = isJobFailed(job);
+  const cancelled = isJobCancelled(job);
+  const status = jobStatusLabel(job);
   const time = elapsed(job);
   // A running job with no reported percentage still gets a bar, held at a
   // sliver — a missing bar reads as "not started", which is worse than vague.
@@ -51,6 +55,10 @@ function JobRow({ job }: { job: ProcessingJobStatus }): React.ReactElement {
             style={{ color: 'hsl(var(--destructive))' }}
             aria-hidden
           />
+        ) : cancelled ? (
+          // Terminal but not a success: a tick here told the reader their
+          // cancelled ingest had finished.
+          <Ban className="h-3.5 w-3.5 shrink-0 text-(--nous-fg-3)" aria-hidden />
         ) : active ? (
           <Loader2
             className="h-3.5 w-3.5 shrink-0 animate-spin text-(--nous-sol) motion-reduce:animate-none"
@@ -63,9 +71,18 @@ function JobRow({ job }: { job: ProcessingJobStatus }): React.ReactElement {
           />
         )}
 
-        <span className="min-w-0 flex-1 truncate font-nous-ui text-[12px] text-(--nous-fg-1)">
+        <span
+          className={cn(
+            'min-w-0 flex-1 truncate font-nous-ui text-[12px] text-(--nous-fg-1)',
+            cancelled && 'line-through text-(--nous-fg-3)'
+          )}
+        >
           {jobTitle(job)}
         </span>
+
+        {/* The icon is the only visual status marker and it is decorative, so
+            the state has to reach assistive tech as text. */}
+        <span className="sr-only">{status}</span>
 
         {time && (
           <span className="shrink-0 font-nous-mono text-[10px] tabular-nums text-(--nous-fg-3)">

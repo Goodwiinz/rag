@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const listProcessingJobs = vi.fn();
 vi.mock('@/services/entityService', () => ({
@@ -11,7 +11,9 @@ vi.mock('@/services/entityService', () => ({
 
 import { JobsIndicator } from '../JobsIndicator';
 
-function job(overrides: Record<string, unknown> = {}) {
+function job(
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
   return {
     id: 'job-1',
     job_type: 'arxiv_ingest',
@@ -53,6 +55,38 @@ describe('JobsIndicator', () => {
     expect(
       await screen.findByRole('button', { name: /2 running/i })
     ).toBeInTheDocument();
+  });
+
+  it('counts a retrying job as still working', async () => {
+    // Matches ProcessingJob.is_active on the backend — a retry is not a
+    // finish, and treating it as one showed a success tick mid-run.
+    listProcessingJobs.mockResolvedValue({
+      jobs: [job({ status: 'retrying' })],
+    });
+    render(<JobsIndicator />);
+
+    expect(
+      await screen.findByRole('button', { name: /1 running/i })
+    ).toBeInTheDocument();
+  });
+
+  it('names each terminal state for assistive tech', async () => {
+    listProcessingJobs.mockResolvedValue({
+      jobs: [
+        job({ id: 'a', status: 'completed' }),
+        job({ id: 'b', status: 'cancelled' }),
+        job({ id: 'c', status: 'failed' }),
+      ],
+    });
+    render(<JobsIndicator />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /background jobs/i }));
+
+    // The status icons are decorative, so the state must reach a reader as
+    // text — and cancelled must not read as completed.
+    expect(await screen.findByText('Completed')).toBeInTheDocument();
+    expect(screen.getByText('Cancelled')).toBeInTheDocument();
+    expect(screen.getByText('Failed')).toBeInTheDocument();
   });
 
   it('keeps the last known jobs when a poll fails', async () => {
