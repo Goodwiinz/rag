@@ -29,6 +29,27 @@ def test_targeted_evidence_probe_is_blocking_and_separate() -> None:
     assert "ci_evidence_delta_" in script
 
 
+def test_unavailable_targeted_probe_is_a_visible_skip_not_a_failure() -> None:
+    script = _script()
+    start = script.index("  TARGETED_EVIDENCE_RC=$?")
+    end = script.index('\n  fi\nfi\n\nstep "Alembic upgrade', start)
+    result_block = script[start:end]
+
+    unavailable_start = result_block.index(
+        '  if [ "$TARGETED_EVIDENCE_RC" -eq 2 ]; then'
+    )
+    unavailable_end = result_block.index("  else", unavailable_start)
+    unavailable_branch = result_block[unavailable_start:unavailable_end]
+    normal_branch = result_block[unavailable_end:]
+
+    assert 'skipped "targeted evidence migration delta"' in unavailable_branch
+    assert "check 1" not in unavailable_branch
+    assert (
+        'check "$TARGETED_EVIDENCE_RC" "targeted evidence migration delta"'
+        in normal_branch
+    )
+
+
 def test_targeted_probe_receives_standard_pg_fields_not_a_shell_url() -> None:
     script = _script()
     start = script.index("targeted_evidence_migration_probe()")

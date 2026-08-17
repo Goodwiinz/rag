@@ -11,14 +11,16 @@
 # adds the blocking gates pre-commit does not run at all: full-tree ruff, the
 # directory-docs lint, mypy on added files, the alembic head check, the
 # API-contract gates (OpenAPI snapshot + generated TS types), the targeted
-# evidence migration-delta probe, and the unit suite. The truly-empty Alembic
+# evidence migration-delta probe (blocking when it runs; visible skip when
+# PostgreSQL is unavailable), and the unit suite. The truly-empty Alembic
 # replay remains a visible advisory measurement of legacy-chain health.
 #
 # The three contract gates, and when each one runs:
 #   * OpenAPI snapshot drift        — ALWAYS (offline: in-memory SQLite + placeholder env)
 #   * generated frontend TS types   — only when backend/openapi.json or
 #                                     frontend/src/types/generated/ changed
-#   * targeted evidence migration delta — only when backend/alembic/versions/ changed
+#   * targeted evidence migration delta — only when backend/alembic/versions/ changed;
+#     blocking when runnable, visible SKIPPED when PostgreSQL is unavailable
 #   * empty-chain Alembic replay       — same conditional, advisory measurement
 # A conditional gate that cannot run is reported as SKIPPED, never as a pass:
 # the summary line lists skips separately so "not verified" never reads green.
@@ -151,7 +153,8 @@ step "Alembic single head + revision-id length (blocking)"
 # --------------------------------------------------------------------------
 # Alembic execution probes. check_alembic.py above is a STATIC read of the
 # revision graph — it never executes env.py, so it cannot see a migration that
-# fails to apply. The targeted evidence delta below is blocking; the truly-empty
+# fails to apply. The targeted evidence delta below is blocking when it runs and
+# a visible SKIPPED when no throwaway PostgreSQL is available; the truly-empty
 # `alembic upgrade head` replay is a separate advisory measurement against a
 # throwaway database, using whichever of these is available (in order):
 #   (a) a Postgres already listening locally — a scratch database is created and
@@ -326,7 +329,7 @@ alembic_upgrade_from_empty() (
   exit 2
 )
 
-step "Targeted evidence migration delta (blocking when migrations change) — base=$BASE"
+step "Targeted evidence migration delta (blocking when runnable; visible skip when PostgreSQL is unavailable) — base=$BASE"
 mapfile -t MIGRATION_FILES < <(changed_paths backend/alembic/versions)
 if [ "${#MIGRATION_FILES[@]}" -eq 0 ]; then
   skipped "targeted evidence migration delta" "backend/alembic/versions unchanged since $BASE"
@@ -336,7 +339,7 @@ else
   TARGETED_EVIDENCE_RC=$?
   if [ "$TARGETED_EVIDENCE_RC" -eq 2 ]; then
     warn "  targeted evidence migration delta could not run: no throwaway Postgres available"
-    check 1 "targeted evidence migration delta (Postgres unavailable)"
+    skipped "targeted evidence migration delta" "no throwaway Postgres available — see the warning above"
   else
     check "$TARGETED_EVIDENCE_RC" "targeted evidence migration delta"
   fi
