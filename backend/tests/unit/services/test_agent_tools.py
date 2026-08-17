@@ -544,25 +544,25 @@ class TestIngestArxiv:
 
         assert "error" in result
 
-    async def test_ingest_without_user_skips_db_persist(self):
-        """Without current_user, should return paper_ids only (no DB writes)."""
+    async def test_ingest_without_user_fails_closed(self):
+        """Without current_user, must fail closed like every sibling tool —
+        no ArXivIngestionService instantiation, no document_ids fabricated
+        from ingested-but-never-persisted objects (audit H1). Previously this
+        fell through to a fallback that returned ``getattr(doc, "id", None)``
+        for documents the DB never saw.
+        """
         from src.api.agent.execute import _tool_ingest_arxiv
 
-        mock_paper = Mock()
-        mock_paper.id = "arxiv-id-1"
-        mock_paper.title = "Fallback Paper"
-
-        mock_service = AsyncMock()
-        mock_service.search_papers = AsyncMock(return_value=[{"id": "id1"}])
-        mock_service.ingest_papers = AsyncMock(return_value=[mock_paper])
-
-        mock_service_ctx = AsyncMock()
-        mock_service_ctx.__aenter__ = AsyncMock(return_value=mock_service)
-        mock_service_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_service_ctor = Mock(
+            side_effect=AssertionError(
+                "ArXivIngestionService must not be instantiated without an "
+                "authenticated current_user"
+            )
+        )
 
         with patch(
             "src.services.arxiv.arxiv_service.ArXivIngestionService",
-            return_value=mock_service_ctx,
+            mock_service_ctor,
         ):
             result = await _tool_ingest_arxiv(
                 args={"paper_ids": ["2301.00001v1"]},
@@ -571,8 +571,8 @@ class TestIngestArxiv:
                 current_user=None,
             )
 
-        assert result["status"] == "ingestion_complete"
-        assert "arxiv-id-1" in result["document_ids"]
+        assert result == {"error": "Authentication required"}
+        mock_service_ctor.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
