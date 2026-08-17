@@ -71,18 +71,22 @@ export function CitationLink({
           : `Citation ${citationNumber}`
       }
       className={cn(
-        'inline-grid place-items-center align-text-top mx-[2px]',
-        'h-[18px] min-w-[18px] px-[5px] rounded-full',
-        'font-nous-ui text-[10px] font-semibold leading-none',
-        'transition-all duration-150 cursor-pointer',
+        // A dense synthesis paragraph can carry ten of these. The marker
+        // therefore rests as a quiet ink wash and only commits to full
+        // contrast once it is the one being read — a filled chip per
+        // reference speckles the manuscript column.
+        'inline-grid place-items-center align-middle mx-0.5 translate-y-[-2px]',
+        'h-4 min-w-4 px-1 rounded-[5px]',
+        'font-nous-mono text-[10px] font-medium tabular-nums leading-none',
+        'transition-colors duration-150',
         'focus:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40',
         citation
           ? isActive
-            ? 'bg-(--nous-sol) text-white shadow-[0_0_0_2px_rgba(var(--nous-sol-rgb),0.18)]'
+            ? 'bg-foreground text-background cursor-pointer'
             : canNavigate
-              ? 'bg-(--nous-aurum) text-(--nous-sol-safe) hover:bg-(--nous-sol) hover:text-white hover:-translate-y-px dark:bg-(--nous-ember) dark:text-(--nous-helios) dark:hover:bg-(--nous-helios) dark:hover:text-(--nous-nyx)'
-              : 'bg-transparent border border-(--nous-border-1) text-(--nous-fg-3) cursor-default'
-          : 'bg-(--nous-bg-2) text-(--nous-fg-3) cursor-not-allowed opacity-60',
+              ? 'bg-foreground/[0.06] text-foreground/45 hover:text-foreground/90 cursor-pointer'
+              : 'border border-(--nous-border-1) text-(--nous-fg-3) cursor-default'
+          : 'bg-foreground/[0.06] text-foreground/30 cursor-not-allowed',
         className
       )}
     >
