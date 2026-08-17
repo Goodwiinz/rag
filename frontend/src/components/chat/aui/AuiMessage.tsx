@@ -37,6 +37,7 @@ import { ChatInlinePlan } from '@/components/chat/shared/ChatInlinePlan';
 import { CitationChips } from '@/components/chat/shared/CitationChips';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { MessageFeedback } from '@/components/chat/shared/MessageFeedback';
+import { ThinkingMatrix } from '@/components/chat/shared/ThinkingMatrix';
 import { AuiToolParts } from '@/components/chat/aui/AuiToolParts';
 import {
   ToolStrip,
@@ -435,13 +436,7 @@ function StreamingThinkingPill({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
     >
-      <span
-        className="h-2 w-2 rounded-full bg-(--nous-sol) dark:bg-(--nous-helios)"
-        style={{
-          boxShadow: '0 0 0 3px rgba(var(--nous-sol-rgb), 0.18)',
-          animation: 'nous-pulse 1.4s ease-in-out infinite',
-        }}
-      />
+      <ThinkingMatrix />
       <span>{label}</span>
       {elapsed && (
         // aria-live off: the pill's own polite region announces the phase

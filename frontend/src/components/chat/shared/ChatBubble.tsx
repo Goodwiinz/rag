@@ -16,6 +16,7 @@ import { CitationRenderer } from '../CitationRenderer';
 import { ChatInlinePlan } from './ChatInlinePlan';
 import { ToolStrip } from './ToolStrip';
 import { CitationChips } from './CitationChips';
+import { ThinkingMatrix } from './ThinkingMatrix';
 import { AuiToolParts } from '@/components/chat/aui/AuiToolParts';
 import { useChatStore } from '@/store/chat-store';
 import type { ActivityStep } from './cloudMessageView';
@@ -329,38 +330,6 @@ export const ChatBubble = React.memo(function ChatBubble({
     </div>
   );
 });
-
-/**
- * A 3×3 grid whose cells brighten on a diagonal sweep — the assistant-ui
- * Elements loading-state figure, which reads as work in progress where a
- * single pulsing dot reads as a stalled bullet.
- *
- * The sweep is CSS keyframes with a per-cell delay rather than the upstream
- * `tick` prop: this sits in the streaming hot path under a memoized bubble,
- * and a counter in React state would re-render the whole subtree several
- * times a second to move nine squares.
- *
- * `aria-hidden` because the pill's label already says what is happening, and
- * the pill itself is the live region.
- */
-function ThinkingMatrix(): React.ReactElement {
-  return (
-    <span
-      aria-hidden
-      className="grid shrink-0 gap-[2px]"
-      style={{ gridTemplateColumns: 'repeat(3, 3px)' }}
-    >
-      {Array.from({ length: 9 }, (_, i) => (
-        <span
-          key={i}
-          className="nous-matrix-cell h-[3px] w-[3px] rounded-[1px] bg-(--nous-sol) opacity-25 dark:bg-(--nous-helios)"
-          // Diagonal sweep: cells on the same anti-diagonal light together.
-          style={{ animationDelay: `${((i % 3) + Math.floor(i / 3)) * 0.12}s` }}
-        />
-      ))}
-    </span>
-  );
-}
 
 function ThinkingPill({ label }: { label: string }) {
   const reduce = useReducedMotion();
