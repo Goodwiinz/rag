@@ -3,8 +3,11 @@
 import React from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import dynamic from 'next/dynamic';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import 'katex/dist/katex.min.css';
 
 const SyntaxHighlighter = dynamic(
   () =>
@@ -22,9 +25,30 @@ const SyntaxHighlighter = dynamic(
 );
 
 /** remark plugins every chat message renders with (GFM: tables, task lists,
- * strikethrough, autolinks). Shared so the plain and citation-segmented
- * paths can't drift apart again. */
-const REMARK_PLUGINS = [remarkGfm];
+ * strikethrough, autolinks; math: `$…$` and `$$…$$`). Shared so the plain and
+ * citation-segmented paths can't drift apart again.
+ *
+ * Single-dollar inline math is left on — it is how both arXiv sources and the
+ * model write inline expressions, and switching it off makes the feature
+ * near-useless on this corpus. The cost is that a sentence pairing two bare
+ * dollar amounts ("$5 to $10") renders the span between them as math; flip
+ * `singleDollarTextMath: false` here if that ever outweighs the math. */
+const REMARK_PLUGINS = [remarkGfm, remarkMath];
+
+/**
+ * KaTeX runs over model-authored text, so it must not be able to take the
+ * message down or reach out of the page:
+ * - `throwOnError: false` renders malformed LaTeX as inline red source rather
+ *   than throwing inside render and blanking the bubble.
+ * - `trust` stays at its default (false), which disables `\href`,
+ *   `\includegraphics` and friends — the same reasoning as the `rel` on
+ *   LLM-authored links below.
+ * - `strict: false` keeps unicode and other soft warnings out of the console;
+ *   they are not actionable for text we did not author.
+ */
+const REHYPE_PLUGINS: React.ComponentProps<
+  typeof ReactMarkdown
+>['rehypePlugins'] = [[rehypeKatex, { throwOnError: false, strict: false }]];
 
 /** Pull the language class and raw text out of the `<code>` element that
  * react-markdown places inside every block `<pre>`. */
@@ -131,6 +155,7 @@ export function ChatMarkdown({
   return (
     <ReactMarkdown
       remarkPlugins={REMARK_PLUGINS}
+      rehypePlugins={REHYPE_PLUGINS}
       components={inline ? inlineComponents : baseComponents}
     >
       {content}
