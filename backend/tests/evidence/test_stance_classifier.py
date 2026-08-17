@@ -214,6 +214,8 @@ class TestStanceClassifier:
     ):
         original = stance_classifier.classifier_version
         assert original == stance_classifier.classifier_version
+        assert len(original) == 50
+        assert len(original.rsplit("-", 1)[-1]) == 29
 
         stance_classifier.primary_model = "gpt-5-mini-2025-01-01"
         assert stance_classifier.classifier_version != original

@@ -2,6 +2,8 @@
 
 from uuid import uuid4
 
+import pytest
+
 from src.models.evidence import StanceClassificationModel
 
 
@@ -24,3 +26,16 @@ def test_stance_classification_serializes_provenance() -> None:
     assert data["source_content_hash"] == "b" * 64
     assert data["model_version"] == "classifier-v2"
     assert data["inference_model_version"] == "gpt-4o-mini-2024-07-18"
+
+
+def test_from_classification_requires_exact_inference_model() -> None:
+    with pytest.raises(KeyError):
+        StanceClassificationModel.from_classification(
+            {
+                "source_id": uuid4(),
+                "stance": "supporting",
+                "confidence": 0.9,
+            },
+            claim_hash="a" * 64,
+            classifier_version="classifier-v2",
+        )

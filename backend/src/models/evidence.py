@@ -151,5 +151,5 @@ class StanceClassificationModel(SQLBaseModel):
             confidence=classification_data["confidence"],
             justification_excerpt=classification_data.get("justification_excerpt"),
             model_version=classifier_version,
-            inference_model_version=classification_data.get("model_version"),
+            inference_model_version=classification_data["model_version"],
         )

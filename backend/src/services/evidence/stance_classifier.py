@@ -36,7 +36,9 @@ def _fingerprint_classifier(
         sort_keys=True,
         separators=(",", ":"),
     )
-    digest = hashlib.sha256(configuration.encode("utf-8")).hexdigest()[:16]
+    # Keep the readable implementation prefix while using the full 29 hex
+    # characters that fit the existing 50-character model-version namespace.
+    digest = hashlib.sha256(configuration.encode("utf-8")).hexdigest()[:29]
     return f"{_CLASSIFIER_IMPLEMENTATION}-{digest}"
 
 
