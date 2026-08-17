@@ -457,6 +457,7 @@ async def get_evidence_breakdown(
                 Document.organization_id == current_user.organization_id,
                 Document.is_deleted.is_(False),
                 Document.processing_status == ProcessingStatus.COMPLETED,
+                Document.content_text.isnot(None),
             )
             .order_by(
                 StanceClassificationModel.confidence.desc(),

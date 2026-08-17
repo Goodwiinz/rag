@@ -879,6 +879,48 @@ class TestEvidenceBreakdownEndpoint:
         finally:
             db.close()
 
+    def test_breakdown_hides_stale_row_with_null_document_content(
+        self, test_client, mock_auth
+    ):
+        set_active_user(MockUser())
+        db = TestingSessionLocal()
+        document = seed_document(
+            db,
+            title="Null-content source",
+            content_text="Content removed after classification.",
+        )
+        claim_hash = "stale_null_content_hash"
+        db.add(
+            StanceClassificationModel(
+                claim_hash=claim_hash,
+                claim_text="Null-content revision claim",
+                source_id=document.id,
+                source_content_hash="old-content-hash",
+                organization_id=TEST_ORG_ID,
+                stance="supporting",
+                confidence=0.9,
+                justification_excerpt="Content removed after classification.",
+                model_version=stance_classifier.model_version,
+            )
+        )
+        db.commit()
+
+        document.checksum_sha256 = None
+        document.content_text = None
+        db.commit()
+
+        try:
+            response = test_client.get(
+                "/api/v1/evidence/breakdown", params={"claim_hash": claim_hash}
+            )
+
+            assert response.status_code == 404
+            assert (
+                response_message(response) == "No classifications found for this claim"
+            )
+        finally:
+            db.close()
+
     def test_breakdown_stale_candidates_do_not_consume_pagination(
         self, test_client, mock_auth
     ):
