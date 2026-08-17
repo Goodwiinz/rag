@@ -96,12 +96,12 @@ function Relevance({
   const pct = Math.round(score * 100);
   // Tiered fill so a strong hit reads as strong at a glance, rather than
   // every passage sharing one accent and leaving the bar length to carry it.
-  const fill =
-    score >= 0.8
-      ? 'var(--nous-sol-intense)'
-      : score >= 0.5
-        ? 'var(--nous-sol)'
-        : 'var(--nous-sol-muted)';
+  //
+  // Varies opacity over the one opaque token rather than picking per-tier
+  // tokens: despite the names, `--nous-sol-intense` and `--nous-sol-muted`
+  // are 30%- and 5%-alpha *glow* values, so selecting by name would make a
+  // strong hit fainter than a middling one and a weak hit invisible.
+  const fillOpacity = score >= 0.8 ? 1 : score >= 0.5 ? 0.6 : 0.35;
   return (
     <span className="inline-flex items-center gap-1.5 shrink-0">
       <span
@@ -116,7 +116,8 @@ function Relevance({
           className="block h-full origin-left rounded-sm"
           style={{
             width: `${pct}%`,
-            background: fill,
+            background: 'var(--nous-sol)',
+            opacity: fillOpacity,
           }}
         />
       </span>
