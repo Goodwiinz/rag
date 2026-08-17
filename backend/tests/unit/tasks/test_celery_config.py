@@ -16,7 +16,7 @@ import pytest
 pytestmark = pytest.mark.unit
 
 
-def test_task_reject_on_worker_lost_is_enabled():
+def test_task_reject_on_worker_lost_is_enabled() -> None:
     from src.tasks.celery_app import celery_app
 
     assert celery_app.conf.task_acks_late is True
