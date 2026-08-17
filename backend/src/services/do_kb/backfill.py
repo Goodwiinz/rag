@@ -272,6 +272,14 @@ async def backfill_org(
             indexing_started=False,
         )
 
+    # A prior run with per-doc failures already advanced the cursor past the
+    # failed docs (the cursor query is `id > last_document_id`), so resuming
+    # from it would never revisit them and the run would silently finalize as
+    # "completed" with 0 run-local failures. Restart the scan from the top —
+    # cheap, because _next_batch already filters do_kb_data_source_uuid IS
+    # NULL, so already-synced docs are skipped regardless (codex P1).
+    restart_from_scratch = progress.status == "completed_with_failures"
+
     # Ensure KB exists before iterating; cheap idempotent.
     await ensure_kb_for_org(session, org_id, client=api)
 
@@ -283,7 +291,9 @@ async def backfill_org(
     failed = 0
     skipped = 0
     cursor: Optional[str] = (
-        str(progress.last_document_id) if progress.last_document_id else None
+        None
+        if restart_from_scratch
+        else (str(progress.last_document_id) if progress.last_document_id else None)
     )
 
     while True:
@@ -301,6 +311,11 @@ async def backfill_org(
             )
             if ds_uuid:
                 completed += 1
+                # R2-M20 (P2 follow-up): clear a prior failure mark on success
+                # so the reconciler doesn't keep reporting a now-healthy doc as
+                # drifted forever. Matches the value reconcile_tasks._redrive_do_kb
+                # writes on a successful re-sync.
+                doc.do_kb_sync_status = SatelliteSyncStatus.COMPLETED.value
             else:
                 failed += 1
                 # R2-M20: record the failure on the document itself so the

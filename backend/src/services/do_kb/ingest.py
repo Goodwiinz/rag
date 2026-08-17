@@ -161,8 +161,22 @@ async def sync_document_to_kb(
     # Defense in depth (R2-H11): callers (backfill/reconciler) should already
     # filter out soft-deleted docs, but a cheap re-check here means a stale
     # in-memory Document or a future caller that forgets the filter still
-    # can't push a deleted doc's content into DO KB.
-    if getattr(document, "is_deleted", False):
+    # can't push a deleted doc's content into DO KB. Refresh from the DB first
+    # (codex P1) — the Document instance may have been loaded by a batch query
+    # some time ago, and a delete committed since then would leave the cached
+    # `is_deleted` stale. A race after this refresh (delete lands mid-upload)
+    # still shrinks to milliseconds instead of minutes, and self-heals: the
+    # delete path only unsyncs a doc that already has a data-source uuid, so
+    # if the race sets the uuid just after delete, the reconciler's deleted-doc
+    # sweep (do_kb_data_source_uuid IS NOT NULL) retries the cleanup.
+    try:
+        await session.refresh(document, attribute_names=["is_deleted"])
+    except Exception as exc:  # noqa: BLE001 - refresh failure isn't fatal
+        logger.warning(
+            "do_kb is_deleted refresh failed — using cached value",
+            extra={"document_id": str(document.id), "error": str(exc)},
+        )
+    if document.is_deleted:
         logger.info(
             "do_kb skip — document soft-deleted",
             extra={"document_id": str(document.id)},

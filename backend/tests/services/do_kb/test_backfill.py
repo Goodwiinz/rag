@@ -386,6 +386,83 @@ async def test_backfill_marks_failed_doc_sync_status(stub_settings, monkeypatch)
     assert report.completed == 1
     assert report.failed == 1
     assert bad.do_kb_sync_status == "failed"
-    assert good.do_kb_sync_status is None
+    assert good.do_kb_sync_status == "completed"
     # Distinct status so a re-run doesn't short-circuit past the failed doc.
     assert session._progress.status == "completed_with_failures"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_backfill_clears_sync_status_on_success(stub_settings, monkeypatch):
+    """Codex P2: a doc previously marked do_kb_sync_status='failed' must be
+    cleared to 'completed' on a subsequent successful sync, or the reconciler
+    reports a now-healthy doc as permanently drifted."""
+    org = _FakeOrg("org-1")
+    doc = _FakeDoc("d00")
+    doc.do_kb_sync_status = "failed"  # left over from a prior failed run
+    session = _FakeSession(org, [doc])
+
+    batches = [[doc], []]
+
+    async def fake_next_batch(*args, **kwargs):
+        return batches.pop(0)
+
+    async def fake_sync(session_, d, *, client=None, trigger_indexing=True):
+        d.do_kb_data_source_uuid = "ds-d00"
+        return "ds-d00"
+
+    monkeypatch.setattr("src.services.do_kb.backfill._next_batch", fake_next_batch)
+    monkeypatch.setattr("src.services.do_kb.backfill.sync_document_to_kb", fake_sync)
+    monkeypatch.setattr(
+        "src.services.do_kb.backfill.ensure_kb_for_org",
+        AsyncMock(return_value="kb-1"),
+    )
+
+    api = MagicMock()
+    api.start_indexing = AsyncMock()
+
+    report = await backfill_org(session, org.id, batch_size=10, client=api)
+
+    assert report.completed == 1
+    assert doc.do_kb_sync_status == "completed"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_backfill_restarts_cursor_after_prior_run_had_failures(
+    stub_settings, monkeypatch
+):
+    """Codex P1: a prior run that ended 'completed_with_failures' already
+    advanced last_document_id past the failed doc (cursor query is
+    `id > last_document_id`). Resuming from that cursor would never revisit
+    it, so a retry must rescan from the start (cheap: _next_batch already
+    filters do_kb_data_source_uuid IS NULL, skipping already-synced docs)."""
+    org = _FakeOrg("org-1")
+    session = _FakeSession(org, [])
+    session._progress = DOKBBackfillProgress(
+        organization_id=org.id,
+        completed_count=1,
+        failed_count=1,
+        status="completed_with_failures",
+        last_document_id="d01",
+    )
+
+    seen_cursors: list[Any] = []
+
+    async def fake_next_batch(*args, after_document_id=None, **kwargs):
+        seen_cursors.append(after_document_id)
+        return []
+
+    monkeypatch.setattr("src.services.do_kb.backfill._next_batch", fake_next_batch)
+    monkeypatch.setattr(
+        "src.services.do_kb.backfill.ensure_kb_for_org",
+        AsyncMock(return_value="kb-1"),
+    )
+
+    api = MagicMock()
+    api.start_indexing = AsyncMock()
+
+    await backfill_org(session, org.id, batch_size=10, client=api)
+
+    # First (only) batch call must NOT resume from the stale "d01" cursor.
+    assert seen_cursors == [None]
