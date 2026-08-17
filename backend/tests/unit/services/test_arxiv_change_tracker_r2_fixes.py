@@ -12,6 +12,8 @@ content_text / search vector get updated.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -24,7 +26,11 @@ pytestmark = pytest.mark.unit
 ORG = "org-1"
 
 
-def _paper(paper_id="2401.00001v1", title="A Title", abstract="Original abstract."):
+def _paper(
+    paper_id: str = "2401.00001v1",
+    title: str = "A Title",
+    abstract: str = "Original abstract.",
+) -> Dict[str, Any]:
     return {
         "id": paper_id,
         "title": title,
@@ -36,24 +42,24 @@ def _paper(paper_id="2401.00001v1", title="A Title", abstract="Original abstract
 
 
 @pytest.fixture
-def tracker(tmp_path, monkeypatch):
+def tracker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ArXivChangeTracker:
     monkeypatch.chdir(tmp_path)
     return ArXivChangeTracker()
 
 
 @pytest.fixture
-def stub_session(monkeypatch):
+def stub_session(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     db = MagicMock()
 
     @asynccontextmanager
-    async def _fake_session():
+    async def _fake_session() -> Any:
         yield db
 
     monkeypatch.setattr(tracker_module, "get_async_session", _fake_session)
     return db
 
 
-def _stub_kg_integration(monkeypatch):
+def _stub_kg_integration(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Patch ArXivKnowledgeGraphIntegration with a mock we can assert calls on."""
     kg = MagicMock()
     kg.process_paper_kg_integration = AsyncMock(return_value={"entities": []})
@@ -66,7 +72,7 @@ def _stub_kg_integration(monkeypatch):
     return kg
 
 
-def test_abstract_only_change_is_detected(tracker):
+def test_abstract_only_change_is_detected(tracker: ArXivChangeTracker) -> None:
     """R2-H3: changing only the abstract must appear in fields_changed."""
     seed = tracker.detect_changes([_paper()], ORG)
     assert [c.change_type for c in seed] == ["new"]
@@ -81,12 +87,19 @@ def test_abstract_only_change_is_detected(tracker):
 
 @pytest.mark.asyncio
 async def test_abstract_change_triggers_content_update(
-    tracker, stub_session, monkeypatch
-):
+    tracker: ArXivChangeTracker,
+    stub_session: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """R2-H3: fields_changed=["abstract"] must reach _update_existing_paper's
     content-write gate (doc.content_text updated + search vectors refreshed)."""
     doc = MagicMock()
     doc.document_metadata = {}
+    # Existing content_text carries a PDF-extracted preview section, as real
+    # ingested documents do — the abstract-only update must not drop it.
+    doc.content_text = (
+        "# Abstract\n\nOriginal abstract.\n\n# Content Preview\n\nExtracted PDF text."
+    )
     result = MagicMock()
     result.scalar_one_or_none.return_value = doc
     stub_session.execute = AsyncMock(return_value=result)
@@ -105,13 +118,17 @@ async def test_abstract_change_triggers_content_update(
     updated = _paper(abstract="A materially different abstract.")
     await tracker._update_existing_paper(stub_session, updated, ["abstract"], ORG)
 
-    assert doc.content_text == "A materially different abstract."
+    assert "A materially different abstract." in doc.content_text
+    # PDF preview section must survive the abstract-only update.
+    assert "Extracted PDF text." in doc.content_text
     fulltext_mod.fulltext_search_service.async_update_document_search_vectors.assert_awaited_once()
     stub_session.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_ingest_new_paper_forwards_organization_id(tracker, monkeypatch):
+async def test_ingest_new_paper_forwards_organization_id(
+    tracker: ArXivChangeTracker, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """R2-H1: _ingest_new_paper must pass organization_id to the KG call so
     entities don't MERGE into the shared ""-org partition."""
     kg = _stub_kg_integration(monkeypatch)
@@ -132,8 +149,10 @@ async def test_ingest_new_paper_forwards_organization_id(tracker, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_apply_changes_update_forwards_organization_id(
-    tracker, stub_session, monkeypatch
-):
+    tracker: ArXivChangeTracker,
+    stub_session: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """R2-H1: the 'updated' path in apply_changes must thread organization_id
     through to _update_knowledge_graph -> process_paper_kg_integration."""
     kg = _stub_kg_integration(monkeypatch)
@@ -157,3 +176,66 @@ async def test_apply_changes_update_forwards_organization_id(
     kg.process_paper_kg_integration.assert_awaited_once()
     _, kwargs = kg.process_paper_kg_integration.call_args
     assert kwargs.get("organization_id") == ORG
+
+
+@pytest.mark.asyncio
+async def test_failed_abstract_update_reverts_metadata_not_just_hash(
+    tracker: ArXivChangeTracker,
+    stub_session: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Codex review, PR #1452: detect_changes overwrites paper_metadata
+    (including abstract_hash) BEFORE apply runs. If apply then fails and
+    _revert_change_state only restores "hash", the next scan compares the
+    paper against its own already-written new metadata, finds fields_changed
+    == [], and the real update is silently dropped instead of re-emitted."""
+    seed = tracker.detect_changes([_paper()], ORG)
+    monkeypatch.setattr(
+        tracker, "_fetch_paper_details", AsyncMock(return_value=_paper())
+    )
+    monkeypatch.setattr(tracker, "_ingest_new_paper", AsyncMock())
+    await tracker.apply_changes(seed, ORG, update_kg=False)
+
+    v2 = _paper(abstract="A materially different abstract.")
+    changes = tracker.detect_changes([v2], ORG)
+    assert changes[0].fields_changed == ["abstract"]
+
+    # apply-time fetch fails -> error path -> revert.
+    monkeypatch.setattr(tracker, "_fetch_paper_details", AsyncMock(return_value=None))
+    summary = await tracker.apply_changes(changes, ORG, update_kg=False)
+    assert summary["errors"] == 1
+
+    # Next scan must still see the abstract as changed (not silently dropped).
+    redetected = tracker.detect_changes([v2], ORG)
+    assert len(redetected) == 1
+    assert redetected[0].fields_changed == ["abstract"]
+
+
+def test_compose_content_text_preserves_pdf_preview() -> None:
+    """R2-H3 follow-up: an abstract revision must rebuild the Abstract/
+    Authors/Categories header but keep any existing PDF-extracted preview
+    section intact — not wipe it wholesale."""
+    existing = (
+        "# Abstract\n\nOld abstract.\n\n# Authors\n\nAda\n\n"
+        "# Content Preview\n\nExtracted PDF text goes here."
+    )
+    paper = _paper(abstract="New abstract.")
+
+    result = ArXivChangeTracker._compose_content_text(paper, existing)
+
+    assert "New abstract." in result
+    assert "Ada" in result  # authors section rebuilt
+    assert "Extracted PDF text goes here." in result  # preview preserved
+
+
+def test_compose_content_text_without_existing_preview() -> None:
+    """No prior preview section (e.g. tracker-ingested, abstract-only doc) ->
+    just the rebuilt header, no crash on missing marker."""
+    paper = _paper(abstract="New abstract.")
+
+    result = ArXivChangeTracker._compose_content_text(paper, None)
+
+    assert (
+        result
+        == "# Abstract\n\nNew abstract.\n\n# Authors\n\nAda\n\n# Categories\n\ncs.AI"
+    )
