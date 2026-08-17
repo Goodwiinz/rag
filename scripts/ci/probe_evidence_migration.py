@@ -21,7 +21,7 @@ import sys
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Any, TypeAlias, cast
 from urllib.parse import quote
 
 import psycopg2  # type: ignore[import-untyped]
@@ -128,14 +128,17 @@ def postgres_url_from_environment(
         port = int(port_value)
     except ValueError as exc:
         raise ProbeError("PGPORT must be an integer") from exc
-    return URL.create(
-        drivername="postgresql",
-        username=source.get("PGUSER", "postgres"),
-        password=source.get("PGPASSWORD", ""),
-        host=source.get("PGHOST", "127.0.0.1"),
-        port=port,
-        database=source.get("PGDATABASE", "postgres"),
-    ).render_as_string(hide_password=False)
+    return cast(
+        str,
+        URL.create(
+            drivername="postgresql",
+            username=source.get("PGUSER", "postgres"),
+            password=source.get("PGPASSWORD", ""),
+            host=source.get("PGHOST", "127.0.0.1"),
+            port=port,
+            database=source.get("PGDATABASE", "postgres"),
+        ).render_as_string(hide_password=False),
+    )
 
 
 def _scratch_database_url(admin_database_url: str, database_name: str) -> str:
@@ -144,7 +147,9 @@ def _scratch_database_url(admin_database_url: str, database_name: str) -> str:
         raise ProbeError(
             "targeted evidence migration probe requires a PostgreSQL admin URL"
         )
-    return parsed.set(database=database_name).render_as_string(hide_password=False)
+    return cast(
+        str, parsed.set(database=database_name).render_as_string(hide_password=False)
+    )
 
 
 def _redact_credentials(message: str, database_urls: Iterable[str]) -> str:
