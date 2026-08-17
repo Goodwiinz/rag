@@ -12,7 +12,7 @@ allowBuilds:
   unrs-resolver: true
 
 overrides:
-  next: 16.2.9
+  next: 16.2.11
   react: 18.3.1
   react-dom: 18.3.1
   # Security pins use this workspace-level map as the sole pnpm authority.
