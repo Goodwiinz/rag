@@ -64,6 +64,7 @@ async def test_classification_discards_ungrounded_quotation(stance_classifier):
             stance="supporting",
             confidence=0.9,
             justification_excerpt="words absent from the document",
+            model_version=stance_classifier.primary_model,
         )
     )
 
@@ -80,6 +81,7 @@ async def test_classification_accepts_whitespace_normalized_quote(stance_classif
             stance="supporting",
             confidence=0.9,
             justification_excerpt="actual grounded source text",
+            model_version=stance_classifier.primary_model,
         )
     )
 
@@ -105,7 +107,8 @@ async def test_classification_ignores_ungrounded_cached_quotation(
         "stance": "supporting",
         "confidence": 0.9,
         "justification_excerpt": "quotation from an older source revision",
-        "model_version": stance_classifier.model_version,
+        "model_version": stance_classifier.primary_model,
+        "classifier_version": stance_classifier.classifier_version,
         "source_content_hash": "old-content-hash",
     }
     mock_cache_service.get_stance_classification.return_value = cached_result
@@ -114,6 +117,7 @@ async def test_classification_ignores_ungrounded_cached_quotation(
             stance="supporting",
             confidence=0.8,
             justification_excerpt=source_excerpt,
+            model_version=stance_classifier.primary_model,
         )
     )
 
@@ -134,12 +138,16 @@ class TestStanceClassificationResult:
     def test_valid_result(self):
         """Test valid result creation"""
         result = StanceClassificationResult(
-            stance="supporting", confidence=0.85, justification_excerpt="Test excerpt"
+            stance="supporting",
+            confidence=0.85,
+            justification_excerpt="Test excerpt",
+            model_version="gpt-4o-mini-2024-07-18",
         )
 
         assert result.stance == "supporting"
         assert result.confidence == 0.85
         assert result.justification_excerpt == "Test excerpt"
+        assert result.model_version == "gpt-4o-mini-2024-07-18"
 
     def test_validation_error_invalid_confidence(self):
         """Test validation error for invalid confidence"""
@@ -148,6 +156,15 @@ class TestStanceClassificationResult:
                 stance="supporting",
                 confidence=1.5,  # Invalid confidence
                 justification_excerpt="Test",
+                model_version="gpt-4o-mini-2024-07-18",
+            )
+
+    def test_model_version_is_required_for_honest_provenance(self):
+        with pytest.raises(Exception):
+            StanceClassificationResult(
+                stance="supporting",
+                confidence=0.85,
+                justification_excerpt="Test excerpt",
             )
 
 
@@ -189,8 +206,29 @@ class TestStanceClassifier:
         assert claim_hash in key
         assert source_id in key
         assert excerpt_hash in key
-        assert stance_classifier.model_version in key
+        assert stance_classifier.classifier_version in key
         assert key.startswith("stance:")
+
+    def test_classifier_version_is_deterministic_and_changes_with_configuration(
+        self, stance_classifier
+    ):
+        original = stance_classifier.classifier_version
+        assert original == stance_classifier.classifier_version
+
+        stance_classifier.primary_model = "gpt-5-mini-2025-01-01"
+        assert stance_classifier.classifier_version != original
+
+        stance_classifier.primary_model = "gpt-4o-mini-2024-07-18"
+        stance_classifier.fallback_confidence_threshold = 0.9
+        assert stance_classifier.classifier_version != original
+
+    def test_model_names_with_different_families_do_not_share_stance_keys(
+        self, stance_classifier
+    ):
+        first = stance_classifier._generate_cache_key("claim", "source", "excerpt")
+        stance_classifier.primary_model = "gpt-5-mini-2025-01-01"
+        second = stance_classifier._generate_cache_key("claim", "source", "excerpt")
+        assert first != second
 
     @patch("src.services.evidence.stance_classifier.openai")
     async def test_classify_with_openai_success(
@@ -223,6 +261,31 @@ class TestStanceClassifier:
         assert result.stance == "supporting"
         assert result.confidence == 0.92
         assert "meta-analysis" in result.justification_excerpt
+        assert result.model_version == "gpt-4o-mini"
+
+    async def test_selected_fallback_retains_fallback_model(self, stance_classifier):
+        primary = StanceClassificationResult(
+            stance="supporting",
+            confidence=0.4,
+            justification_excerpt="grounded source",
+            model_version=stance_classifier.primary_model,
+        )
+        fallback = StanceClassificationResult(
+            stance="supporting",
+            confidence=0.95,
+            justification_excerpt="grounded source",
+            model_version=stance_classifier.fallback_model,
+        )
+        stance_classifier._classify_with_openai = AsyncMock(
+            side_effect=[primary, fallback]
+        )
+
+        result = await stance_classifier._classify_with_fallback(
+            "claim", "grounded source"
+        )
+
+        assert result is fallback
+        assert result.model_version == stance_classifier.fallback_model
 
     @patch("src.services.evidence.stance_classifier.openai")
     async def test_classify_with_openai_invalid_json(
@@ -292,6 +355,7 @@ class TestStanceClassifier:
             "confidence": 0.85,
             "justification_excerpt": excerpt,
             "model_version": "gpt-4o-mini-2024-07-18",
+            "classifier_version": stance_classifier.classifier_version,
             "source_content_hash": "stale-content-hash",
         }
         mock_cache_service.get_stance_classification.return_value = cached_result
@@ -315,6 +379,39 @@ class TestStanceClassifier:
         assert expected_excerpt_hash in cache_key
         mock_cache_service.set_stance_classification.assert_not_called()
 
+    async def test_classify_stance_rejects_legacy_cached_provenance(
+        self, stance_classifier, sample_claim, mock_cache_service
+    ):
+        source_id = uuid4()
+        mock_cache_service.get_stance_classification.return_value = {
+            "source_id": str(source_id),
+            "stance": "supporting",
+            "confidence": 0.85,
+            "justification_excerpt": sample_claim,
+            "model_version": stance_classifier.primary_model,
+            "source_content_hash": "legacy-content-hash",
+        }
+        stance_classifier._classify_with_fallback = AsyncMock(
+            return_value=StanceClassificationResult(
+                stance="supporting",
+                confidence=0.9,
+                justification_excerpt=sample_claim,
+                model_version=stance_classifier.primary_model,
+            )
+        )
+
+        result = await stance_classifier.classify_stance(
+            sample_claim,
+            "claim-hash",
+            source_id,
+            sample_claim,
+            "current-content-hash",
+        )
+
+        assert result is not None
+        stance_classifier._classify_with_fallback.assert_awaited_once()
+        mock_cache_service.set_stance_classification.assert_awaited_once()
+
     @patch(
         "src.services.evidence.stance_classifier.StanceClassifier._classify_with_fallback"
     )
@@ -334,6 +431,7 @@ class TestStanceClassifier:
             stance="supporting",
             confidence=0.90,
             justification_excerpt=excerpt,
+            model_version=stance_classifier.primary_model,
         )
         mock_classify.return_value = mock_result
 
@@ -345,6 +443,8 @@ class TestStanceClassifier:
         assert result["confidence"] == 0.90
         assert result["source_id"] == str(source_id)
         assert result["source_content_hash"] == "source-content-hash"
+        assert result["model_version"] == stance_classifier.primary_model
+        assert result["classifier_version"] == stance_classifier.classifier_version
         mock_cache_service.get_stance_classification.assert_called_once()
         mock_cache_service.set_stance_classification.assert_called_once()
 

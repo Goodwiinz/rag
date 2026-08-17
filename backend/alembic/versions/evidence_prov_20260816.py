@@ -22,8 +22,13 @@ def upgrade() -> None:
         "stance_classifications",
         sa.Column("source_content_hash", sa.String(64), nullable=True),
     )
+    op.add_column(
+        "stance_classifications",
+        sa.Column("inference_model_version", sa.String(100), nullable=True),
+    )
 
 
 def downgrade() -> None:
+    op.drop_column("stance_classifications", "inference_model_version")
     op.drop_column("stance_classifications", "source_content_hash")
     op.drop_column("stance_classifications", "claim_text")

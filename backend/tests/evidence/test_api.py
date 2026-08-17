@@ -273,6 +273,7 @@ class TestEvidenceMeterEndpoint:
                 "stance": "supporting",
                 "confidence": 0.90,
                 "justification_excerpt": "Strong supporting evidence",
+                "model_version": "gpt-4o-mini-2024-07-18",
                 "source_content_hash": seeded_documents[0].checksum_sha256,
             },
             {
@@ -280,6 +281,7 @@ class TestEvidenceMeterEndpoint:
                 "stance": "supporting",
                 "confidence": 0.85,
                 "justification_excerpt": "Additional support",
+                "model_version": "gpt-4o-mini-2024-07-18",
                 "source_content_hash": seeded_documents[1].checksum_sha256,
             },
             {
@@ -287,6 +289,7 @@ class TestEvidenceMeterEndpoint:
                 "stance": "opposing",
                 "confidence": 0.80,
                 "justification_excerpt": "Contradictory findings",
+                "model_version": "gpt-4o-mini-2024-07-18",
                 "source_content_hash": seeded_documents[2].checksum_sha256,
             },
         ]
@@ -570,6 +573,7 @@ class TestEvidenceMeterEndpoint:
                     "stance": "supporting",
                     "confidence": 0.9,
                     "justification_excerpt": "Active source contains the evidence claim.",
+                    "model_version": "gpt-4o-mini-2024-07-18",
                     "source_content_hash": active.checksum_sha256,
                 }
             ]
@@ -669,6 +673,7 @@ class TestEvidenceMeterEndpoint:
                     "stance": "supporting",
                     "confidence": 0.9,
                     "justification_excerpt": "Persisted source contains the commit failure claim.",
+                    "model_version": "gpt-4o-mini-2024-07-18",
                     "source_content_hash": document.checksum_sha256,
                 }
             ]
@@ -738,7 +743,7 @@ class TestEvidenceBreakdownEndpoint:
                 stance="supporting",
                 confidence=0.90,
                 justification_excerpt="Strong evidence",
-                model_version="gpt-4o-mini-2024-07-18",
+                model_version=stance_classifier.classifier_version,
             ),
             StanceClassificationModel(
                 claim_hash=claim_hash,
@@ -749,7 +754,7 @@ class TestEvidenceBreakdownEndpoint:
                 stance="opposing",
                 confidence=0.85,
                 justification_excerpt="Contradictory evidence",
-                model_version="gpt-4o-mini-2024-07-18",
+                model_version=stance_classifier.classifier_version,
             ),
         ]
 
@@ -801,7 +806,7 @@ class TestEvidenceBreakdownEndpoint:
                 stance="supporting",
                 confidence=0.90,
                 justification_excerpt="Support 1",
-                model_version="gpt-4o-mini-2024-07-18",
+                model_version=stance_classifier.classifier_version,
             ),
             StanceClassificationModel(
                 claim_hash=claim_hash,
@@ -812,7 +817,7 @@ class TestEvidenceBreakdownEndpoint:
                 stance="supporting",
                 confidence=0.85,
                 justification_excerpt="Support 2",
-                model_version="gpt-4o-mini-2024-07-18",
+                model_version=stance_classifier.classifier_version,
             ),
             StanceClassificationModel(
                 claim_hash=claim_hash,
@@ -823,7 +828,7 @@ class TestEvidenceBreakdownEndpoint:
                 stance="opposing",
                 confidence=0.80,
                 justification_excerpt="Opposition",
-                model_version="gpt-4o-mini-2024-07-18",
+                model_version=stance_classifier.classifier_version,
             ),
         ]
 
@@ -876,7 +881,7 @@ class TestEvidenceBreakdownEndpoint:
                     confidence=0.75,
                     justification_excerpt="Equal confidence pagination source content",
                     source_content_hash=documents[source_id].checksum_sha256,
-                    model_version=stance_classifier.model_version,
+                    model_version=stance_classifier.classifier_version,
                 )
             )
         db.commit()
@@ -930,7 +935,7 @@ class TestEvidenceBreakdownEndpoint:
                 stance="supporting",
                 confidence=0.95,
                 justification_excerpt=original_content,
-                model_version=stance_classifier.model_version,
+                model_version=stance_classifier.classifier_version,
             )
         )
         db.commit()
@@ -975,7 +980,7 @@ class TestEvidenceBreakdownEndpoint:
                 stance="supporting",
                 confidence=0.9,
                 justification_excerpt="Content removed after classification.",
-                model_version=stance_classifier.model_version,
+                model_version=stance_classifier.classifier_version,
             )
         )
         db.commit()
@@ -1017,7 +1022,7 @@ class TestEvidenceBreakdownEndpoint:
                 stance="supporting",
                 confidence=0.9,
                 justification_excerpt="Content available when classified.",
-                model_version=stance_classifier.model_version,
+                model_version=stance_classifier.classifier_version,
             )
         )
         db.commit()
@@ -1068,7 +1073,7 @@ class TestEvidenceBreakdownEndpoint:
                     stance="supporting",
                     confidence=0.99,
                     justification_excerpt="Original stale source content.",
-                    model_version=stance_classifier.model_version,
+                    model_version=stance_classifier.classifier_version,
                 ),
                 StanceClassificationModel(
                     claim_hash=claim_hash,
@@ -1079,7 +1084,7 @@ class TestEvidenceBreakdownEndpoint:
                     stance="supporting",
                     confidence=0.80,
                     justification_excerpt="Current first source content.",
-                    model_version=stance_classifier.model_version,
+                    model_version=stance_classifier.classifier_version,
                 ),
                 StanceClassificationModel(
                     claim_hash=claim_hash,
@@ -1090,7 +1095,7 @@ class TestEvidenceBreakdownEndpoint:
                     stance="supporting",
                     confidence=0.70,
                     justification_excerpt="Current second source content.",
-                    model_version=stance_classifier.model_version,
+                    model_version=stance_classifier.classifier_version,
                 ),
             ]
         )
@@ -1202,7 +1207,7 @@ class TestEvidenceBreakdownEndpoint:
         """
         db = TestingSessionLocal()
         claim_hash = "shared_claim_hash_tenant_regression"
-        model_version = stance_classifier.model_version
+        model_version = stance_classifier.classifier_version
 
         org_a_source = uuid4()
         org_b_source = uuid4()
@@ -1298,7 +1303,7 @@ class TestEvidenceBreakdownEndpoint:
         """
         db = TestingSessionLocal()
         claim_hash = "null_org_claim_hash_regression"
-        model_version = stance_classifier.model_version
+        model_version = stance_classifier.classifier_version
         secret_excerpt = "NULL_ORG_BUCKET_SHOULD_NOT_LEAK"
 
         db.add(
@@ -1346,7 +1351,7 @@ class TestEvidenceBreakdownEndpoint:
                 stance="supporting",
                 confidence=0.91,
                 justification_excerpt="Grounded source excerpt for the stored claim.",
-                model_version=stance_classifier.model_version,
+                model_version=stance_classifier.classifier_version,
             )
         )
         db.commit()
@@ -1388,7 +1393,7 @@ class TestEvidenceBreakdownEndpoint:
                 stance="supporting",
                 confidence=0.8,
                 justification_excerpt="Legacy source content",
-                model_version=stance_classifier.model_version,
+                model_version=stance_classifier.classifier_version,
             )
         )
         db.commit()
@@ -1431,12 +1436,13 @@ class TestStanceClassificationPersistence:
                         "stance": "supporting",
                         "confidence": 0.9,
                         "justification_excerpt": "Original claim appears in source",
+                        "model_version": "gpt-4o-mini-2024-07-18",
                         "source_content_hash": source_content_hash,
                     }
                 ],
                 claim_hash="a" * 64,
                 claim_text="Original claim",
-                model_version="model",
+                classifier_version="classifier-v2",
                 organization_id=TEST_ORG_ID,
             )
             db.commit()
@@ -1450,6 +1456,34 @@ class TestStanceClassificationPersistence:
             assert saved_count == 1
             assert stored.claim_text == "Original claim"
             assert stored.source_content_hash == source_content_hash
+            assert stored.model_version == "classifier-v2"
+            assert stored.inference_model_version == "gpt-4o-mini-2024-07-18"
+
+            _save_stance_classifications(
+                db=db,
+                classifications=[
+                    {
+                        "source_id": source_id,
+                        "stance": "opposing",
+                        "confidence": 0.8,
+                        "justification_excerpt": "Updated classification",
+                        "model_version": "gpt-4o-2024-08-06",
+                        "source_content_hash": source_content_hash,
+                    }
+                ],
+                claim_hash="a" * 64,
+                claim_text="Original claim",
+                classifier_version="classifier-v2",
+                organization_id=TEST_ORG_ID,
+            )
+            db.commit()
+            stored = (
+                db.query(StanceClassificationModel)
+                .filter(StanceClassificationModel.source_id == source_id)
+                .one()
+            )
+            assert stored.inference_model_version == "gpt-4o-2024-08-06"
+            assert stored.stance == "opposing"
         finally:
             db.close()
 
@@ -1544,6 +1578,7 @@ class TestClassifyEndpoint:
                 "stance": "supporting",
                 "confidence": 0.90,
                 "justification_excerpt": "Classify source one has the original claim evidence.",
+                "model_version": "gpt-4o-mini-2024-07-18",
                 "source_content_hash": seeded_documents[0].checksum_sha256,
             },
             {
@@ -1551,6 +1586,7 @@ class TestClassifyEndpoint:
                 "stance": "neutral",
                 "confidence": 0.75,
                 "justification_excerpt": "Classify source two gives neutral context.",
+                "model_version": "gpt-4o-mini-2024-07-18",
                 "source_content_hash": seeded_documents[1].checksum_sha256,
             },
         ]

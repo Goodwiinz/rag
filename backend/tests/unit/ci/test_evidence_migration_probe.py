@@ -90,6 +90,7 @@ def _stub_lifecycle(
         lambda connection: [
             ("claim_text", "text", None, "YES"),
             ("source_content_hash", "character varying", 64, "YES"),
+            ("inference_model_version", "character varying", 100, "YES"),
         ],
     )
     monkeypatch.setattr(probe, "_run_alembic", run_alembic)
@@ -109,6 +110,7 @@ def test_probe_targets_exact_parent_and_revision() -> None:
     assert probe.EXPECTED_COLUMNS == {
         "claim_text": ("text", None),
         "source_content_hash": ("character varying", 64),
+        "inference_model_version": ("character varying", 100),
     }
 
 
@@ -117,6 +119,7 @@ def test_verify_added_columns_requires_nullable_text_and_varchar_64() -> None:
     rows: Iterable[tuple[str, str, int | None, str]] = (
         ("claim_text", "text", None, "YES"),
         ("source_content_hash", "character varying", 64, "YES"),
+        ("inference_model_version", "character varying", 100, "YES"),
     )
 
     probe.verify_added_columns(rows)
@@ -127,6 +130,7 @@ def test_verify_added_columns_rejects_wrong_type_or_nullability() -> None:
     rows: Iterable[tuple[str, str, int | None, str]] = (
         ("claim_text", "character varying", 64, "NO"),
         ("source_content_hash", "character varying", 32, "YES"),
+        ("inference_model_version", "character varying", 100, "YES"),
     )
 
     with pytest.raises(probe.ProbeError, match="claim_text"):
@@ -135,8 +139,8 @@ def test_verify_added_columns_rejects_wrong_type_or_nullability() -> None:
 
 def test_verify_columns_absent_rejects_any_target_column() -> None:
     probe = _load_probe()
-    with pytest.raises(probe.ProbeError, match="source_content_hash"):
-        probe.verify_columns_absent(("source_content_hash",))
+    with pytest.raises(probe.ProbeError, match="inference_model_version"):
+        probe.verify_columns_absent(("inference_model_version",))
 
 
 def test_scratch_database_name_is_generated_and_guarded() -> None:

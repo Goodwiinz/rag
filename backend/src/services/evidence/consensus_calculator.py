@@ -17,9 +17,6 @@ logger = logging.getLogger(__name__)
 class ConsensusCalculator:
     """Service for calculating consensus metrics from stance classifications"""
 
-    def __init__(self):
-        self.model_version = "gpt-4o-mini-2024-07-18"
-
     def _normalize_claim(self, claim: str) -> str:
         """Normalize claim text for consistent hashing"""
         # Convert to lowercase, strip whitespace, normalize spaces
@@ -70,7 +67,7 @@ class ConsensusCalculator:
             return ConsensusLevel.LOW_AGREEMENT
 
     def _generate_reproducibility_hash(
-        self, claim_hash: str, source_revisions: List[str], model_version: str
+        self, claim_hash: str, source_revisions: List[str], classifier_version: str
     ) -> str:
         """Generate hash for reproducibility tracking"""
         # Sort source revisions for consistent ordering
@@ -79,14 +76,16 @@ class ConsensusCalculator:
             "|".join(sorted_sources).encode("utf-8")
         ).hexdigest()[:16]
 
+        classifier_hash = hashlib.sha256(
+            classifier_version.encode("utf-8")
+        ).hexdigest()[:16]
+
         components = [
             "meter_v1",
             claim_hash[:16],
             f"{len(sorted_sources)}src",
             source_hash,
-            model_version.split("-")[
-                0
-            ],  # e.g. "gpt-4o-mini" from "gpt-4o-mini-2024-07-18"
+            classifier_hash,
         ]
 
         return "_".join(components)
@@ -97,6 +96,8 @@ class ConsensusCalculator:
         classifications: List[Dict],
         retracted_source_ids: Optional[List[str]] = None,
         source_revisions: Optional[List[str]] = None,
+        *,
+        classifier_version: str,
     ) -> EvidenceMeter:
         """
         Calculate consensus metrics from stance classifications
@@ -107,6 +108,7 @@ class ConsensusCalculator:
             retracted_source_ids: Optional list of retracted source IDs to exclude
             source_revisions: Optional ordered source content revisions. When omitted,
                 valid classification source IDs are used for legacy callers.
+            classifier_version: Fingerprint of the complete stance classifier pipeline.
 
         Returns:
             EvidenceMeter with computed consensus metrics
@@ -168,7 +170,7 @@ class ConsensusCalculator:
             source_revisions if source_revisions is not None else source_ids
         )
         reproducibility_hash = self._generate_reproducibility_hash(
-            claim_hash, reproducibility_revisions, self.model_version
+            claim_hash, reproducibility_revisions, classifier_version
         )
 
         return EvidenceMeter(

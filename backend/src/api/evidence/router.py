@@ -125,6 +125,14 @@ consensus_calculator = ConsensusCalculator()
 source_loader = EvidenceSourceLoader()
 
 
+def _classifier_version() -> str:
+    """Read the classifier pipeline identity while tolerating test doubles."""
+    classifier_version = getattr(stance_classifier, "classifier_version", None)
+    if isinstance(classifier_version, str):
+        return classifier_version
+    return str(getattr(stance_classifier, "model_version"))
+
+
 def _parse_source_id(value: object) -> UUID:
     """Parse classify request IDs while preserving the endpoint's 400 contract."""
     try:
@@ -179,7 +187,7 @@ def _save_stance_classifications(
     classifications: List[Optional[Dict]],
     claim_hash: str,
     claim_text: str,
-    model_version: str,
+    classifier_version: str,
     organization_id,
 ) -> int:
     """
@@ -220,7 +228,8 @@ def _save_stance_classifications(
             "stance": classification["stance"],
             "confidence": classification["confidence"],
             "justification_excerpt": classification.get("justification_excerpt"),
-            "model_version": model_version,
+            "model_version": classifier_version,
+            "inference_model_version": classification["model_version"],
         }
         for classification in valid_classifications
     ]
@@ -242,6 +251,7 @@ def _save_stance_classifications(
                 "justification_excerpt": insert_stmt.excluded.justification_excerpt,
                 "claim_text": insert_stmt.excluded.claim_text,
                 "source_content_hash": insert_stmt.excluded.source_content_hash,
+                "inference_model_version": insert_stmt.excluded.inference_model_version,
                 "updated_at": func.now(),
             },
         )
@@ -266,6 +276,7 @@ def _save_stance_classifications(
             existing.stance = row["stance"]
             existing.confidence = row["confidence"]
             existing.justification_excerpt = row["justification_excerpt"]
+            existing.inference_model_version = row["inference_model_version"]
         else:
             db.add(StanceClassificationModel(**row))
 
@@ -273,11 +284,11 @@ def _save_stance_classifications(
 
 
 def _generate_reproducibility_hash(
-    claim_hash: str, source_ids: List[str], model_version: str
+    claim_hash: str, source_ids: List[str], classifier_version: str
 ) -> str:
     """Generate reproducibility hash for API response"""
     return consensus_calculator._generate_reproducibility_hash(
-        claim_hash, source_ids, model_version
+        claim_hash, source_ids, classifier_version
     )
 
 
@@ -328,12 +339,13 @@ async def get_evidence_meter(
         retracted_source_ids = list(loaded.withdrawn_source_ids)
         db.rollback()
         claim_hash = consensus_calculator._generate_claim_hash(claim)
+        classifier_version = _classifier_version()
 
         # Check cache first (keyed by org — see cache_service.set_evidence_meter)
         cached_meter = await cache_service.get_evidence_meter(
             claim_hash,
             source_revisions,
-            stance_classifier.model_version,
+            classifier_version,
             current_user.organization_id,
         )
 
@@ -370,6 +382,7 @@ async def get_evidence_meter(
             classifications=classifications,
             retracted_source_ids=retracted_source_ids,
             source_revisions=source_revisions,
+            classifier_version=classifier_version,
         )
 
         # Store in database (upsert to avoid duplicates/races)
@@ -378,7 +391,7 @@ async def get_evidence_meter(
             classifications=classifications,
             claim_hash=claim_hash,
             claim_text=claim,
-            model_version=stance_classifier.model_version,
+            classifier_version=classifier_version,
             organization_id=current_user.organization_id,
         )
 
@@ -399,7 +412,7 @@ async def get_evidence_meter(
         await cache_service.set_evidence_meter(
             claim_hash,
             source_revisions,
-            stance_classifier.model_version,
+            classifier_version,
             current_user.organization_id,
             meter_dict,
             ttl=86400,  # 24 hour cache
@@ -455,8 +468,7 @@ async def get_evidence_breakdown(
             .join(Document, StanceClassificationModel.source_id == Document.id)
             .filter(
                 StanceClassificationModel.claim_hash == claim_hash,
-                StanceClassificationModel.model_version
-                == stance_classifier.model_version,
+                StanceClassificationModel.model_version == _classifier_version(),
                 StanceClassificationModel.organization_id
                 == current_user.organization_id,
                 StanceClassificationModel.claim_text.isnot(None),
@@ -553,6 +565,7 @@ async def classify_sources_for_claim(
         classifier_sources = [source.classifier_input() for source in loaded.sources]
         db.rollback()
         claim_hash = consensus_calculator._generate_claim_hash(claim)
+        classifier_version = _classifier_version()
 
         # Classify stances
         try:
@@ -572,7 +585,7 @@ async def classify_sources_for_claim(
             classifications=classifications,
             claim_hash=claim_hash,
             claim_text=claim,
-            model_version=stance_classifier.model_version,
+            classifier_version=classifier_version,
             organization_id=current_user.organization_id,
         )
 
@@ -583,7 +596,7 @@ async def classify_sources_for_claim(
             "claim_hash": claim_hash,
             "classifications_created": saved_count,
             "total_sources": len(source_ids),
-            "model_version": stance_classifier.model_version,
+            "model_version": classifier_version,
         }
 
     except HTTPException:
@@ -606,7 +619,7 @@ async def health_check(_current_user=Depends(get_current_user)):
         return {
             "status": "healthy",
             "cache_connected": cache_connected,
-            "model_version": stance_classifier.model_version,
+            "model_version": _classifier_version(),
             "components": {
                 "stance_classifier": "operational",
                 "consensus_calculator": "operational",

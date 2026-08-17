@@ -92,6 +92,11 @@ def sample_classifications_not_addressed():
     ]
 
 
+@pytest.fixture
+def classifier_version():
+    return "classifier-v2-primary-gpt-4o-fallback-gpt-4o-threshold-0.85"
+
+
 class TestConsensusCalculator:
     """Test ConsensusCalculator service"""
 
@@ -180,37 +185,67 @@ class TestConsensusCalculator:
         """Test reproducibility hash generation"""
         claim_hash = "abc123456789"
         source_revisions = ["id1:rev-1", "id3:rev-3", "id2:rev-2"]  # Unsorted
-        model_version = "gpt-4o-mini-2024-07-18"
+        classifier_version = "classifier-v2-gpt-4o-mini-2024-07-18"
 
         hash1 = consensus_calculator._generate_reproducibility_hash(
-            claim_hash, source_revisions, model_version
+            claim_hash, source_revisions, classifier_version
         )
 
         # Test with same data in different order
         source_revisions_shuffled = ["id2:rev-2", "id1:rev-1", "id3:rev-3"]
         hash2 = consensus_calculator._generate_reproducibility_hash(
-            claim_hash, source_revisions_shuffled, model_version
+            claim_hash, source_revisions_shuffled, classifier_version
         )
 
         assert hash1 == hash2  # Should be same regardless of order
         assert "meter_v1" in hash1
         assert "3src" in hash1  # Source count
-        assert "gpt" in hash1  # Model prefix
+        assert classifier_version not in hash1
+        assert len(hash1.rsplit("_", 1)[-1]) == 16
 
     def test_reproducibility_hash_changes_with_content_revision(
         self, consensus_calculator
     ):
         old = consensus_calculator._generate_reproducibility_hash(
-            "claim", ["doc-1:old"], consensus_calculator.model_version
+            "claim", ["doc-1:old"], "classifier-v2-gpt-4o-mini"
         )
         new = consensus_calculator._generate_reproducibility_hash(
-            "claim", ["doc-1:new"], consensus_calculator.model_version
+            "claim", ["doc-1:new"], "classifier-v2-gpt-4o-mini"
         )
 
         assert old != new
 
-    def test_calculate_consensus_uses_content_revision_for_reproducibility(
+    def test_reproducibility_hash_changes_with_complete_classifier_identity(
         self, consensus_calculator
+    ):
+        old = consensus_calculator._generate_reproducibility_hash(
+            "claim", ["doc-1:rev"], "classifier-v2-gpt-4o-mini-2024-07-18"
+        )
+        new = consensus_calculator._generate_reproducibility_hash(
+            "claim", ["doc-1:rev"], "classifier-v2-gpt-5-mini-2025-01-01"
+        )
+
+        assert old != new
+
+    def test_meter_cache_key_changes_with_classifier_identity(self):
+        cache = EvidenceCacheService.__new__(EvidenceCacheService)
+        common = ("claim", ["doc-1:rev"], "org")
+
+        primary_key = cache._generate_meter_cache_key(
+            common[0], common[1], "classifier-v2-gpt-4o-threshold-0.85", common[2]
+        )
+        fallback_key = cache._generate_meter_cache_key(
+            common[0], common[1], "classifier-v2-gpt-5-threshold-0.85", common[2]
+        )
+        threshold_key = cache._generate_meter_cache_key(
+            common[0], common[1], "classifier-v2-gpt-4o-threshold-0.90", common[2]
+        )
+
+        assert primary_key != fallback_key
+        assert primary_key != threshold_key
+
+    def test_calculate_consensus_uses_content_revision_for_reproducibility(
+        self, consensus_calculator, classifier_version
     ):
         classifications = [
             {"source_id": "doc-1", "stance": "supporting", "confidence": 0.9}
@@ -222,11 +257,13 @@ class TestConsensusCalculator:
             "claim",
             classifications,
             source_revisions=active_revisions,
+            classifier_version=classifier_version,
         )
         withdrawn_meter = consensus_calculator.calculate_consensus(
             "claim",
             classifications,
             source_revisions=with_withdrawn_revision,
+            classifier_version=classifier_version,
         )
 
         assert active_meter.reproducibility_hash != withdrawn_meter.reproducibility_hash
@@ -235,13 +272,13 @@ class TestConsensusCalculator:
         active_key = cache._generate_meter_cache_key(
             active_meter.claim_hash,
             active_revisions,
-            consensus_calculator.model_version,
+            classifier_version,
             "org",
         )
         withdrawn_key = cache._generate_meter_cache_key(
             withdrawn_meter.claim_hash,
             with_withdrawn_revision,
-            consensus_calculator.model_version,
+            classifier_version,
             "org",
         )
         assert active_key != withdrawn_key
@@ -251,10 +288,13 @@ class TestConsensusCalculator:
         consensus_calculator,
         sample_claim,
         sample_classifications_strong_agreement,
+        classifier_version,
     ):
         """Test consensus calculation with strong agreement"""
         meter = consensus_calculator.calculate_consensus(
-            sample_claim, sample_classifications_strong_agreement
+            sample_claim,
+            sample_classifications_strong_agreement,
+            classifier_version=classifier_version,
         )
 
         assert meter.claim == sample_claim
@@ -269,11 +309,17 @@ class TestConsensusCalculator:
         assert not meter.cached  # Set by calculate_consensus
 
     def test_calculate_consensus_mixed(
-        self, consensus_calculator, sample_claim, sample_classifications_mixed
+        self,
+        consensus_calculator,
+        sample_claim,
+        sample_classifications_mixed,
+        classifier_version,
     ):
         """Test consensus calculation with mixed results"""
         meter = consensus_calculator.calculate_consensus(
-            sample_claim, sample_classifications_mixed
+            sample_claim,
+            sample_classifications_mixed,
+            classifier_version=classifier_version,
         )
 
         assert meter.supporting == 2
@@ -282,22 +328,34 @@ class TestConsensusCalculator:
         assert meter.consensus_level == ConsensusLevel.MIXED
 
     def test_calculate_consensus_insufficient(
-        self, consensus_calculator, sample_claim, sample_classifications_insufficient
+        self,
+        consensus_calculator,
+        sample_claim,
+        sample_classifications_insufficient,
+        classifier_version,
     ):
         """Test consensus calculation with insufficient data"""
         meter = consensus_calculator.calculate_consensus(
-            sample_claim, sample_classifications_insufficient
+            sample_claim,
+            sample_classifications_insufficient,
+            classifier_version=classifier_version,
         )
 
         assert meter.total_sources == 2
         assert meter.consensus_level == ConsensusLevel.INSUFFICIENT_DATA
 
     def test_calculate_consensus_not_addressed(
-        self, consensus_calculator, sample_claim, sample_classifications_not_addressed
+        self,
+        consensus_calculator,
+        sample_claim,
+        sample_classifications_not_addressed,
+        classifier_version,
     ):
         """Test consensus calculation with mostly not_addressed stances"""
         meter = consensus_calculator.calculate_consensus(
-            sample_claim, sample_classifications_not_addressed
+            sample_claim,
+            sample_classifications_not_addressed,
+            classifier_version=classifier_version,
         )
 
         assert meter.not_addressed == 3
@@ -309,13 +367,17 @@ class TestConsensusCalculator:
         consensus_calculator,
         sample_claim,
         sample_classifications_strong_agreement,
+        classifier_version,
     ):
         """Test consensus calculation excluding retracted sources"""
         # Mark first source as retracted
         retracted_ids = [sample_classifications_strong_agreement[0]["source_id"]]
 
         meter = consensus_calculator.calculate_consensus(
-            sample_claim, sample_classifications_strong_agreement, retracted_ids
+            sample_claim,
+            sample_classifications_strong_agreement,
+            retracted_ids,
+            classifier_version=classifier_version,
         )
 
         assert meter.total_sources == 4  # Excluded 1 retracted
@@ -323,7 +385,7 @@ class TestConsensusCalculator:
         assert meter.supporting == 3  # Reduced from 4 to 3
 
     def test_calculate_consensus_with_none_classifications(
-        self, consensus_calculator, sample_claim
+        self, consensus_calculator, sample_claim, classifier_version
     ):
         """Test consensus calculation with None values in classifications"""
         classifications = [
@@ -333,7 +395,9 @@ class TestConsensusCalculator:
             None,  # Another failed classification
         ]
 
-        meter = consensus_calculator.calculate_consensus(sample_claim, classifications)
+        meter = consensus_calculator.calculate_consensus(
+            sample_claim, classifications, classifier_version=classifier_version
+        )
 
         assert meter.total_sources == 2  # Only valid classifications
         assert meter.supporting == 1

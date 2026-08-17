@@ -41,6 +41,7 @@ ColumnRow: TypeAlias = tuple[str, str, int | None, str]
 EXPECTED_COLUMNS: dict[str, tuple[str, int | None]] = {
     "claim_text": ("text", None),
     "source_content_hash": ("character varying", 64),
+    "inference_model_version": ("character varying", 100),
 }
 
 _SCRATCH_DATABASE_RE = re.compile(

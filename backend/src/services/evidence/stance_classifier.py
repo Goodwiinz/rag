@@ -19,6 +19,26 @@ from .cache import EvidenceCacheService
 
 logger = logging.getLogger(__name__)
 
+_CLASSIFIER_IMPLEMENTATION = "stance-classifier-v2"
+
+
+def _fingerprint_classifier(
+    primary_model: str, fallback_model: str, fallback_threshold: float
+) -> str:
+    """Return a deterministic namespace for one classifier pipeline config."""
+    configuration = json.dumps(
+        {
+            "implementation": _CLASSIFIER_IMPLEMENTATION,
+            "primary_model": primary_model,
+            "fallback_model": fallback_model,
+            "fallback_threshold": fallback_threshold,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    digest = hashlib.sha256(configuration.encode("utf-8")).hexdigest()[:16]
+    return f"{_CLASSIFIER_IMPLEMENTATION}-{digest}"
+
 
 def _normalize_grounding_text(value: str) -> str:
     return " ".join(value.split()).casefold()
@@ -38,6 +58,7 @@ class StanceClassificationResult(BaseModel):
     stance: str
     confidence: float = Field(ge=0.0, le=1.0)
     justification_excerpt: str
+    model_version: str
 
 
 class BatchClassificationLimitError(ValueError):
@@ -53,10 +74,43 @@ class StanceClassifier:
 
     def __init__(self, cache_service: Optional[EvidenceCacheService] = None):
         self.cache_service = cache_service
-        self.model_version = "gpt-4o-mini-2024-07-18"
+        self.primary_model = "gpt-4o-mini-2024-07-18"
         self.fallback_model = "gpt-4o-2024-08-06"
+        self.fallback_confidence_threshold = 0.85
         self.max_batch_sources = 100
         self.batch_timeout_seconds = 60.0
+
+    @property
+    def classifier_version(self) -> str:
+        """Fingerprint the complete classifier pipeline configuration."""
+        return _fingerprint_classifier(
+            self.primary_model,
+            self.fallback_model,
+            self.fallback_confidence_threshold,
+        )
+
+    @property
+    def model_version(self) -> str:
+        """Compatibility alias for configuring the primary inference model.
+
+        The persisted/cache namespace is exposed separately as
+        :attr:`classifier_version`; this alias keeps older service callers able to
+        change the primary model without creating a second source of truth.
+        """
+        return self.primary_model
+
+    @model_version.setter
+    def model_version(self, value: str) -> None:
+        self.primary_model = value
+
+    @property
+    def fallback_threshold(self) -> float:
+        """Compatibility alias for the single configured fallback threshold."""
+        return self.fallback_confidence_threshold
+
+    @fallback_threshold.setter
+    def fallback_threshold(self, value: float) -> None:
+        self.fallback_confidence_threshold = value
 
     def _build_classification_prompt(self, claim: str, source_excerpt: str) -> str:
         """Build the prompt for stance classification"""
@@ -149,6 +203,7 @@ Respond with ONLY a valid JSON object in this exact format:
                 stance=result_data["stance"],
                 confidence=confidence,
                 justification_excerpt=justification,
+                model_version=model,
             )
 
         except json.JSONDecodeError as e:
@@ -168,11 +223,11 @@ Respond with ONLY a valid JSON object in this exact format:
 
         # Try primary model first
         result = await self._classify_with_openai(
-            claim, source_excerpt, self.model_version
+            claim, source_excerpt, self.primary_model
         )
 
         # If confidence is low, retry with better model
-        if result and result.confidence < 0.85:
+        if result and result.confidence < self.fallback_confidence_threshold:
             logger.info(
                 f"Low confidence ({result.confidence:.2f}), trying fallback model"
             )
@@ -193,7 +248,18 @@ Respond with ONLY a valid JSON object in this exact format:
         self, claim_hash: str, source_id: str, excerpt_hash: str
     ) -> str:
         """Generate cache key for stance classification"""
-        return f"stance:{claim_hash}:{source_id}:{excerpt_hash}:{self.model_version}"
+        return (
+            f"stance:{claim_hash}:{source_id}:{excerpt_hash}:{self.classifier_version}"
+        )
+
+    def _has_honest_cached_provenance(self, cached_result: Dict) -> bool:
+        """Reject cache entries that predate exact model and pipeline provenance."""
+        return cached_result.get(
+            "classifier_version"
+        ) == self.classifier_version and cached_result.get("model_version") in {
+            self.primary_model,
+            self.fallback_model,
+        }
 
     def validate_batch_size(self, source_count: int) -> None:
         """Validate a batch size before any source loading or classification work."""
@@ -234,7 +300,9 @@ Respond with ONLY a valid JSON object in this exact format:
                 cache_key
             )
             if cached_result:
-                if _has_grounded_justification(
+                if self._has_honest_cached_provenance(
+                    cached_result
+                ) and _has_grounded_justification(
                     source_excerpt, cached_result.get("justification_excerpt")
                 ):
                     cached_result = dict(cached_result)
@@ -270,7 +338,8 @@ Respond with ONLY a valid JSON object in this exact format:
                 "stance": result.stance,
                 "confidence": result.confidence,
                 "justification_excerpt": result.justification_excerpt,
-                "model_version": self.model_version,
+                "model_version": result.model_version,
+                "classifier_version": self.classifier_version,
                 "source_content_hash": source_content_hash,
             }
 
