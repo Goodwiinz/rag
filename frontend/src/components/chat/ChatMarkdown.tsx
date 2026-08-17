@@ -3,11 +3,8 @@
 import React from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
 import dynamic from 'next/dynamic';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import 'katex/dist/katex.min.css';
 
 const SyntaxHighlighter = dynamic(
   () =>
@@ -24,31 +21,11 @@ const SyntaxHighlighter = dynamic(
   }
 );
 
-/** remark plugins every chat message renders with (GFM: tables, task lists,
- * strikethrough, autolinks; math: `$…$` and `$$…$$`). Shared so the plain and
- * citation-segmented paths can't drift apart again.
- *
- * Single-dollar inline math is left on — it is how both arXiv sources and the
- * model write inline expressions, and switching it off makes the feature
- * near-useless on this corpus. The cost is that a sentence pairing two bare
- * dollar amounts ("$5 to $10") renders the span between them as math; flip
- * `singleDollarTextMath: false` here if that ever outweighs the math. */
-const REMARK_PLUGINS = [remarkGfm, remarkMath];
-
-/**
- * KaTeX runs over model-authored text, so it must not be able to take the
- * message down or reach out of the page:
- * - `throwOnError: false` renders malformed LaTeX as inline red source rather
- *   than throwing inside render and blanking the bubble.
- * - `trust` stays at its default (false), which disables `\href`,
- *   `\includegraphics` and friends — the same reasoning as the `rel` on
- *   LLM-authored links below.
- * - `strict: false` keeps unicode and other soft warnings out of the console;
- *   they are not actionable for text we did not author.
- */
-const REHYPE_PLUGINS: React.ComponentProps<
-  typeof ReactMarkdown
->['rehypePlugins'] = [[rehypeKatex, { throwOnError: false, strict: false }]];
+/** remark plugins the eager renderer uses (GFM: tables, task lists,
+ * strikethrough, autolinks). Math lives in ChatMarkdownMath so KaTeX stays
+ * out of this chunk. Shared so the plain and citation-segmented paths can't
+ * drift apart again. */
+const REMARK_PLUGINS = [remarkGfm];
 
 /** Pull the language class and raw text out of the `<code>` element that
  * react-markdown places inside every block `<pre>`. */
@@ -81,7 +58,7 @@ function extractCodeChild(children: React.ReactNode): {
  * unlanguaged/indented blocks get a plain `<pre>`, inline spans get the
  * NOUS pill styling.
  */
-const baseComponents: Components = {
+export const baseComponents: Components = {
   pre({ children }) {
     const { className, value } = extractCodeChild(children);
     const match = /language-(\w+)/.exec(className);
@@ -134,12 +111,30 @@ const baseComponents: Components = {
 
 /** Variant for citation text segments: paragraphs unwrap to spans so a
  * <CitationLink> can sit inline between two markdown fragments. */
-const inlineComponents: Components = {
+export const inlineComponents: Components = {
   ...baseComponents,
   p({ children }) {
     return <span>{children}</span>;
   },
 };
+
+/**
+ * Cheap check for anything KaTeX would render: `$$…$$`, `$…$`, `\(…\)` or
+ * `\[…\]`. Only decides whether to fetch the math chunk, so a false positive
+ * costs one request and a false negative renders the source as written —
+ * neither changes what remark-math itself does with the text.
+ */
+const MATH_DELIMITERS = /\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\(|\\\[/;
+
+/**
+ * KaTeX plus its stylesheet is ~557kB, over 5% of the bundle, and most turns
+ * carry no math — so it loads only for the messages that need it. Until the
+ * chunk arrives the same content renders through the plain path, so the reader
+ * sees text rather than a spinner and the math resolves in place.
+ */
+const ChatMarkdownMath = React.lazy(() =>
+  import('./ChatMarkdownMath').then((m) => ({ default: m.ChatMarkdownMath }))
+);
 
 export interface ChatMarkdownProps {
   content: string;
@@ -147,19 +142,33 @@ export interface ChatMarkdownProps {
   inline?: boolean;
 }
 
+/** Markdown without math — also the fallback while the math chunk loads. */
+function PlainMarkdown({
+  content,
+  inline,
+}: ChatMarkdownProps): React.ReactElement {
+  return (
+    <ReactMarkdown
+      remarkPlugins={REMARK_PLUGINS}
+      components={inline ? inlineComponents : baseComponents}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
+
 /** The single markdown renderer for chat message bodies. */
 export function ChatMarkdown({
   content,
   inline = false,
 }: ChatMarkdownProps): React.ReactElement {
+  const plain = <PlainMarkdown content={content} inline={inline} />;
+  if (!MATH_DELIMITERS.test(content)) return plain;
+
   return (
-    <ReactMarkdown
-      remarkPlugins={REMARK_PLUGINS}
-      rehypePlugins={REHYPE_PLUGINS}
-      components={inline ? inlineComponents : baseComponents}
-    >
-      {content}
-    </ReactMarkdown>
+    <React.Suspense fallback={plain}>
+      <ChatMarkdownMath content={content} inline={inline} />
+    </React.Suspense>
   );
 }
 
