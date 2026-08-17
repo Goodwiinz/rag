@@ -145,8 +145,8 @@ def _resolve_active_project_id(
 
 async def _user_owns_project(
     session, project_id: Optional[str], user_id: Optional[str]
-) -> bool:
-    """True if the user ``user_id`` owns the project (collection) ``project_id``.
+) -> Optional[bool]:
+    """Ownership of project (collection) ``project_id`` by ``user_id``.
 
     The DO KB is org-scoped, and ``resolve_and_filter_chunks`` happily filters
     chunks by ANY project id it's handed. ``project_id`` here originates from
@@ -156,7 +156,17 @@ async def _user_owns_project(
     tools use (``_verify_project_ownership``); kept inline to avoid a
     services→api import. Takes the scalar ``user_id`` from the ids-only
     configurable (audit B8). A non-UUID id is treated as not-owned (drop the
-    scope).
+    scope) — malformed input is a deterministic negative, not a transient
+    failure, so it does not need the three-way return below.
+
+    Returns ``True``/``False`` for an actual answer (checked, owned or not),
+    and ``None`` when the check could not run at all (DB error/timeout) —
+    callers MUST NOT treat ``None`` the same as ``False``. Collapsing them
+    was audit M2: a transient DB blip during this check made the caller drop
+    the project scope and fall through to an ORG-WIDE read, i.e. exactly the
+    fail-*open* behavior the "fail closed" comment below was meant to
+    prevent. ``None`` means "couldn't verify" — the caller must abort the
+    scoped operation rather than silently widen it.
     """
     if not project_id or not user_id:
         return False
@@ -184,9 +194,34 @@ async def _user_owns_project(
         )
         result = await session.execute(stmt)
         return result.scalar_one_or_none() is not None
-    except Exception:  # noqa: BLE001 — fail closed: unverifiable => not owned
-        logger.warning("project ownership check failed; dropping scope", exc_info=True)
-        return False
+    except Exception:  # noqa: BLE001 — unverifiable, NOT a verified negative
+        logger.warning("project ownership check failed; unverifiable", exc_info=True)
+        return None
+
+
+async def _verify_extracted_project_id(
+    extracted_pid: Optional[str], user_id: Optional[str]
+) -> Optional[str]:
+    """Ownership-gate a project id parsed from raw message text (audit M3).
+
+    ``_extract_project_id_from_text``'s bare-UUID fallback matches ANY UUID
+    in the message — a document id, a run id, another org member's project
+    link — not just a genuine ``/projects/<uuid>`` paste. Promoting it
+    unverified sets ``current_project_id`` and forces ``page_context.type =
+    "project"``, which downstream consumers (``_with_injected_project_id``,
+    the page-context prompt line telling the LLM "do NOT ask") treat as
+    trusted context. Unlike the DO KB read's own scope check (M2), which can
+    fall back to hybrid search on an unverifiable result, promoting into
+    state has no softer fallback — so both an explicit "not owned" (False)
+    and "couldn't check" (None) block promotion here.
+    """
+    if not extracted_pid or not user_id:
+        return None
+    from src.services.agent.tool_session import tool_session
+
+    async with tool_session() as session:
+        owned = await _user_owns_project(session, extracted_pid, user_id)
+    return extracted_pid if owned is True else None
 
 
 def is_conversational(content: str) -> bool:
@@ -399,16 +434,32 @@ async def _try_primary_do_kb_read_impl(
             # Only scope by project_id if the caller actually owns it; otherwise
             # drop the scope (org-wide read, the same as no project context)
             # rather than filter by — and thereby disclose membership of — a
-            # project that isn't theirs.
+            # project that isn't theirs. A verified negative (False) still
+            # drops to org-wide, same as before (documented membership-
+            # inference defense). An unverifiable check (None — DB blip)
+            # must NOT be treated as "not owned": that used to fall through
+            # to the org-wide branch below, WIDENING scope during exactly
+            # the outage that should have narrowed it (audit M2). Abort the
+            # primary read instead so the caller falls back to
+            # ``_legacy_hybrid_search_fallback``, which re-verifies
+            # ownership itself and fails closed to no results, never org-wide.
             scoped_project_id = project_id
-            if project_id and not await _user_owns_project(
-                session, project_id, user_id
-            ):
-                logger.info(
-                    "do_kb_read: project %s not owned by caller — dropping scope",
-                    project_id,
-                )
-                scoped_project_id = None
+            if project_id:
+                owns = await _user_owns_project(session, project_id, user_id)
+                if owns is None:
+                    logger.warning(
+                        "do_kb_read: ownership check for project %s unverifiable "
+                        "— aborting primary read",
+                        project_id,
+                    )
+                    _record_do_kb_read("do_kb_ownership_unverifiable")
+                    return None
+                if owns is False:
+                    logger.info(
+                        "do_kb_read: project %s not owned by caller — dropping scope",
+                        project_id,
+                    )
+                    scoped_project_id = None
 
             title_by_key, chunks_to_emit = await resolve_and_filter_chunks(
                 chunks=result.chunks,
@@ -692,6 +743,12 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
         # Still surface a UUID extracted from the text or carried in state
         # so downstream nodes can act on the project context.
         extracted_pid = _extract_project_id_from_text(last_user_msg or "")
+        if extracted_pid and not existing_project_id:
+            # Only the text-extraction path needs gating (audit M3) —
+            # ``existing_project_id`` already flows through a verified path
+            # and takes precedence in ``_resolve_active_project_id`` anyway,
+            # so skip the DB round trip when it won't change the outcome.
+            extracted_pid = await _verify_extracted_project_id(extracted_pid, user_id)
         resolved_pid: Optional[str] = _resolve_active_project_id(
             existing_project_id, extracted_pid
         )
@@ -713,6 +770,10 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     # /projects/<uuid> URL) so downstream nodes carry the context across
     # turns without depending on the client always re-sending page_context.
     extracted_pid = _extract_project_id_from_text(last_user_msg or "")
+    if extracted_pid and not existing_project_id:
+        # Gate the text-extraction path only (audit M3) — see the identical
+        # comment in the conversational branch above.
+        extracted_pid = await _verify_extracted_project_id(extracted_pid, user_id)
 
     resolved_project_id: Optional[str] = _resolve_active_project_id(
         existing_project_id, extracted_pid

@@ -5,6 +5,7 @@ Builds a ``StateGraph`` that chains:
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -74,6 +75,10 @@ def _sanitize_messages(raw: list) -> list:
       ``"skipped"`` placeholder if no real one exists).
     - ToolMessages whose ``tool_call_id`` doesn't match any AI tool_call
       are dropped — they're orphans that confuse the API.
+    - An AIMessage tool_call with no usable id (empty/missing id, or a
+      duplicate of one another message already answered) is stripped from
+      that AIMessage's ``tool_calls`` rather than merely left unanswered —
+      keeping it would still violate invariant 1 above (audit L1).
     - Consecutive HumanMessages are merged into one (LangGraph state
       occasionally appends them separately on retries / interrupts).
 
@@ -94,18 +99,28 @@ def _sanitize_messages(raw: list) -> list:
             # Standalone TMs are re-inserted via their parent AI (below)
             # or dropped if no parent claims them.
             continue
-        rebuilt.append(msg)
         if not (isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None)):
+            rebuilt.append(msg)
             continue
+        kept_tool_calls = []
+        answers: list = []
         for tc in msg.tool_calls:
             tc_id = _tool_call_id(tc)
             if not tc_id or tc_id in placed_tm_ids:
+                # Unidentifiable, or already answered by an earlier message
+                # in this list — drop it from tool_calls too (see docstring)
+                # instead of just skipping its ToolMessage.
                 continue
+            kept_tool_calls.append(tc)
             tm = tm_by_id.get(tc_id)
             if tm is None:
                 tm = ToolMessage(content=_TOOL_PLACEHOLDER_CONTENT, tool_call_id=tc_id)
-            rebuilt.append(tm)
+            answers.append(tm)
             placed_tm_ids.add(tc_id)
+        if len(kept_tool_calls) != len(msg.tool_calls):
+            msg = msg.model_copy(update={"tool_calls": kept_tool_calls})
+        rebuilt.append(msg)
+        rebuilt.extend(answers)
 
     # Pass 3: collapse consecutive HumanMessages.
     #
@@ -200,7 +215,7 @@ def _safe_json_loads(s: str) -> Any:
 # LLM construction
 # ---------------------------------------------------------------------------
 
-_LLM_CACHE: dict[tuple[str, str], BaseChatModel] = {}
+_LLM_CACHE: dict[tuple[str, str, str], BaseChatModel] = {}
 
 
 def _build_llm(model_override: str | None = None):
@@ -209,8 +224,13 @@ def _build_llm(model_override: str | None = None):
     ``model_override`` lets a per-request deployment name win over the configured
     default — used to make the agent honor ``request.model`` from the API.
 
-    Clients are cached by ``(endpoint_type, deployment)`` to avoid rebuilding
-    the HTTP client on every ``llm_node`` invocation (~30-50 ms each).
+    Clients are cached by ``(endpoint_type, deployment, credential_fingerprint)``
+    to avoid rebuilding the HTTP client on every ``llm_node`` invocation
+    (~30-50 ms each). The fingerprint is part of the key (not just endpoint +
+    deployment) so that rotating ``AZURE_OPENAI_CHAT_API_KEY``/endpoint in
+    settings naturally misses the cache and builds a fresh client — without
+    it, a rotated credential kept authenticating requests with the dead key
+    until process restart (audit L4).
     """
     settings = get_settings()
 
@@ -241,7 +261,10 @@ def _build_llm(model_override: str | None = None):
         )
 
     endpoint_type = classify_openai_endpoint(endpoint)
-    cache_key = (endpoint_type, deployment)
+    credential_fingerprint = hashlib.sha256(
+        f"{endpoint}:{api_key}".encode()
+    ).hexdigest()[:12]
+    cache_key = (endpoint_type, deployment, credential_fingerprint)
     if cache_key in _LLM_CACHE:
         return _LLM_CACHE[cache_key]
 
