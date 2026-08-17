@@ -981,7 +981,7 @@ def make_reflection_gate(
     if intent_filter is None:
         intent_filter = {"research", "writing"}
 
-    async def reflection_node(state: dict, config: RunnableConfig) -> dict:
+    async def _reflection_node_impl(state: dict, config: RunnableConfig) -> dict:
         """Evaluate the last AI response and decide whether to revise.
 
         Skips reflection when:
@@ -1131,6 +1131,9 @@ def make_reflection_gate(
         # knowledge_graph deterministic lookups) skip only the probabilistic
         # reflection, not the fabrication guards.
         if intent not in intent_filter:
+            # No verdict is written here on purpose: no critique ran, so
+            # claiming one passed would surface a phantom "Reflection passed"
+            # SSE frame. The wrapper below clears a *stale* verdict instead.
             return {"reflection_count": current_count}
 
         # Cheap pre-LLM gate: skip critique for trivial / tool-less turns.
@@ -1246,5 +1249,32 @@ def make_reflection_gate(
             pass
 
         return decision
+
+    async def reflection_node(state: dict, config: RunnableConfig) -> dict:
+        """Enforce the router contract: never leave a stale verdict readable.
+
+        ``reflection_route`` is a pure conditional-edge function — it can read
+        ``_reflection_result`` but cannot clear it. So any return path here that
+        omits the key leaves the PREVIOUS superstep's verdict live, and a stale
+        ``major`` verdict routes ``revise`` forever (those paths also skip the
+        increment, so the ``>= 2`` cap never fires). That is exactly how trace
+        01a00ce9 hit GraphRecursionError at step 145.
+
+        Clearing with ``None`` rather than a synthetic passing verdict keeps the
+        distinction between "evaluated and passed" and "not evaluated": both
+        ``reflection_route`` and the two SSE handlers in ``api/agent/streaming``
+        branch on ``is not None``, so a manufactured pass would emit a phantom
+        "Reflection passed" frame for every turn that skipped the critique.
+
+        The write only happens when there is something stale to clear, so a
+        first-pass skip still returns the counter alone.
+        """
+        updates = await _reflection_node_impl(state, config)
+        if (
+            "_reflection_result" not in updates
+            and state.get("_reflection_result") is not None
+        ):
+            updates["_reflection_result"] = None
+        return updates
 
     return reflection_node, reflection_route
