@@ -27,17 +27,19 @@ vi.mock('framer-motion', () => ({
 
 vi.mock('@assistant-ui/react', async () => {
   const React = await import('react');
+  const MockComposerRoot = React.forwardRef<HTMLFormElement, any>(
+    ({ children, asChild: _asChild, ...props }, ref) => (
+      <form ref={ref} {...props}>
+        {children}
+      </form>
+    )
+  );
+  MockComposerRoot.displayName = 'MockComposerRoot';
   return {
     AssistantRuntimeProvider: ({ children }: any) => <>{children}</>,
     useExternalStoreRuntime: () => ({}),
     ComposerPrimitive: {
-      Root: React.forwardRef<HTMLFormElement, any>(
-        ({ children, asChild: _asChild, ...props }, ref) => (
-          <form ref={ref} {...props}>
-            {children}
-          </form>
-        )
-      ),
+      Root: MockComposerRoot,
       Input: ({ children, asChild: _asChild, ...props }: any) =>
         React.cloneElement(React.Children.only(children), props),
     },
