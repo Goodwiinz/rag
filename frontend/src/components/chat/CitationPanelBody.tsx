@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { paper } from '@/components/elements/surfaces';
 import { Citation, getCitationIdentifier } from '@/utils/citationParser';
 
 export interface CitationPanelBodyProps {
@@ -93,6 +94,14 @@ function Relevance({
   // not retrieval hits, so showing a "0%" relevance meter would be misleading.
   if (score <= 0) return null;
   const pct = Math.round(score * 100);
+  // Tiered fill so a strong hit reads as strong at a glance, rather than
+  // every passage sharing one accent and leaving the bar length to carry it.
+  //
+  // Varies opacity over the one opaque token rather than picking per-tier
+  // tokens: despite the names, `--nous-sol-intense` and `--nous-sol-muted`
+  // are 30%- and 5%-alpha *glow* values, so selecting by name would make a
+  // strong hit fainter than a middling one and a weak hit invisible.
+  const fillOpacity = score >= 0.8 ? 1 : score >= 0.5 ? 0.6 : 0.35;
   return (
     <span className="inline-flex items-center gap-1.5 shrink-0">
       <span
@@ -108,6 +117,7 @@ function Relevance({
           style={{
             width: `${pct}%`,
             background: 'var(--nous-sol)',
+            opacity: fillOpacity,
           }}
         />
       </span>
@@ -208,7 +218,13 @@ function SourceGroupRow({
             <div className="space-y-3 pb-3 pl-8 pr-3">
               {group.chunks.map((chunk, i) =>
                 chunk.content ? (
-                  <figure key={i} className="space-y-1.5">
+                  <figure
+                    key={i}
+                    className={cn(
+                      paper,
+                      'space-y-1.5 rounded-(--nous-radius-md) px-3 py-2.5'
+                    )}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <Quote
                         className="h-3 w-3 shrink-0"

@@ -184,7 +184,7 @@ function ToolFallbackTrigger({
         {isComplete && (
           <CheckIcon
             data-slot="tool-fallback-trigger-check"
-            className="fade-in zoom-in-90 animate-in size-3.5 text-emerald-500 duration-200"
+            className="fade-in zoom-in-90 animate-in size-3.5 text-(--nous-sol) duration-200"
           />
         )}
       </span>

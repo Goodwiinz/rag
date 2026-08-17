@@ -10,8 +10,10 @@ import {
 import { useSlashCommandMenu } from './useSlashCommandMenu';
 import type { SlashCommand, SlashCommandId } from './slashCommands';
 import {
+  AlertCircle,
   ArrowRight,
   Image as ImageIcon,
+  Loader2,
   Mic,
   Paperclip,
   Square,
@@ -36,7 +38,12 @@ interface ChatInputProps {
   enableRAG: boolean;
   onRAGToggle: (enabled: boolean) => void;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
-  onAttach?: (files: FileList) => void;
+  /**
+   * Hands the picked files to the host, which owns the upload. Resolving with
+   * one outcome per file (in the same order) settles the composer's chips;
+   * returning void keeps them optimistic.
+   */
+  onAttach?: (files: FileList) => void | Promise<{ ok: boolean }[] | void>;
   // Slash commands
   onCommand?: (id: SlashCommandId) => void;
 }
@@ -108,8 +115,16 @@ export function ChatInput({
     name: string;
     isImage: boolean;
     url?: string;
+    /**
+     * A chip that shows the filename the instant it is picked implies the
+     * file landed, so it tracks the upload the page is actually running.
+     * Hosts whose `onAttach` reports nothing back stay on 'done'.
+     */
+    state: 'uploading' | 'done' | 'error';
   };
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // Monotonic counter behind each chip's id — see addFiles.
+  const attachSeq = useRef(0);
   // Keep a live ref so the unmount cleanup revokes the current object URLs
   // without re-running on every attachment change.
   const attachmentsRef = useRef<Attachment[]>(attachments);
@@ -120,17 +135,55 @@ export function ChatInput({
   }, [attachments]);
 
   const addFiles = (files: FileList): void => {
+    // Kick the upload off first: whether the host reports back decides
+    // whether the chips start optimistic or start pending.
+    const outcomes = onAttach?.(files);
+
     const next: Attachment[] = Array.from(files).map((file) => {
       const isImage = file.type.startsWith('image/');
       return {
-        id: `${file.name}-${file.size}-${file.lastModified}`,
+        // Identity is per pick, not per file: the input is reset after every
+        // selection so the same file can be attached twice, and outcomes are
+        // routed by id. A metadata-derived id would make those two chips
+        // indistinguishable, letting one batch settle the other's chips.
+        id: `att-${(attachSeq.current += 1)}`,
         name: file.name,
         isImage,
         url: isImage ? URL.createObjectURL(file) : undefined,
+        state: outcomes ? ('uploading' as const) : ('done' as const),
       };
     });
     setAttachments((prev) => [...prev, ...next]);
-    onAttach?.(files);
+
+    if (!outcomes) return;
+
+    // Outcomes come back in FileList order, so they zip onto this batch's ids
+    // by index. A chip the user removed mid-upload is absent from `prev` and
+    // is simply skipped.
+    const indexById = new Map(next.map((att, i) => [att.id, i]));
+    const settle = (results: { ok: boolean }[] | void): void =>
+      setAttachments((prev) =>
+        prev.map((att) => {
+          const i = indexById.get(att.id);
+          if (i === undefined) return att;
+          const result = results?.[i];
+          // A host that resolves without per-file outcomes gets the old
+          // behaviour rather than a chip stuck on 'uploading'.
+          if (!result) return { ...att, state: 'done' as const };
+          return { ...att, state: result.ok ? ('done' as const) : ('error' as const) };
+        })
+      );
+
+    // A rejecting host must not strand the chips as uploading, and must not
+    // surface as an unhandled rejection — the prop contract accepts a promise,
+    // so normalising every failure into `{ ok: false }` is not the host's job.
+    void Promise.resolve(outcomes).then(settle, () =>
+      setAttachments((prev) =>
+        prev.map((att) =>
+          indexById.has(att.id) ? { ...att, state: 'error' as const } : att
+        )
+      )
+    );
   };
 
   const removeAttachment = (id: string): void => {
@@ -430,10 +483,17 @@ export function ChatInput({
                 {attachments.map((att) => (
                   <li
                     key={att.id}
-                    className="group inline-flex items-center gap-2 h-9 rounded-md pl-1.5 pr-1 font-nous-mono text-[11px]"
+                    className={cn(
+                      'group inline-flex items-center gap-2 h-9 rounded-md pl-1.5 pr-1 font-nous-mono text-[11px]',
+                      att.state === 'uploading' && 'opacity-70'
+                    )}
                     style={{
                       background: 'var(--nous-bg-1)',
-                      border: '1px solid var(--nous-border-1)',
+                      border: `1px solid ${
+                        att.state === 'error'
+                          ? 'hsl(var(--destructive))'
+                          : 'var(--nous-border-1)'
+                      }`,
                       color: 'var(--nous-fg-2)',
                     }}
                   >
@@ -455,9 +515,41 @@ export function ChatInput({
                         <Paperclip className="w-3 h-3" strokeWidth={1.7} />
                       </span>
                     )}
-                    <span className="max-w-[140px] truncate" title={att.name}>
+                    <span
+                      className="max-w-[140px] truncate"
+                      title={
+                        att.state === 'error'
+                          ? `${att.name} — upload failed`
+                          : att.name
+                      }
+                    >
                       {att.name}
                     </span>
+                    {att.state !== 'done' && (
+                      <span
+                        className="shrink-0"
+                        style={{
+                          color:
+                            att.state === 'error'
+                              ? 'hsl(var(--destructive))'
+                              : 'var(--nous-fg-3)',
+                        }}
+                      >
+                        {att.state === 'uploading' ? (
+                          <Loader2
+                            className="w-3 h-3 animate-spin"
+                            strokeWidth={2}
+                            aria-label={`Uploading ${att.name}`}
+                          />
+                        ) : (
+                          <AlertCircle
+                            className="w-3 h-3"
+                            strokeWidth={2}
+                            aria-label={`Upload failed for ${att.name}`}
+                          />
+                        )}
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() => removeAttachment(att.id)}
