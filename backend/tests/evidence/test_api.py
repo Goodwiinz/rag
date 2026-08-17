@@ -229,6 +229,78 @@ class TestEvidenceMeterEndpoint:
         finally:
             db.close()
 
+    @pytest.mark.asyncio
+    @patch("src.api.evidence.router.cache_service")
+    async def test_meter_cache_revision_changes_when_content_changes_without_checksum_update(
+        self, mock_cache, test_client
+    ):
+        db = TestingSessionLocal()
+        document = seed_document(
+            db,
+            title="Cache revision source",
+            content_text="Original extracted content for cache identity.",
+        )
+        uploaded_checksum = document.checksum_sha256
+        observed_revisions = []
+        cached_data = {
+            "claim": "Cache revision claim",
+            "claim_hash": "cache_revision_hash",
+            "total_sources": 1,
+            "supporting": 1,
+            "opposing": 0,
+            "neutral": 0,
+            "not_addressed": 0,
+            "consensus_level": "insufficient_data",
+            "average_confidence": 0.9,
+            "retracted_sources": 0,
+            "cached": True,
+            "reproducibility_hash": "cache_revision_reproducibility",
+        }
+
+        async def observe_cache(*args, **kwargs):
+            observed_revisions.append(args[1])
+            return cached_data
+
+        mock_cache.get_evidence_meter = AsyncMock(side_effect=observe_cache)
+
+        try:
+            first = await get_evidence_meter(
+                claim="Cache revision claim",
+                source_ids=str(document.id),
+                query_id=None,
+                _rate_limit=True,
+                current_user=MockUser(),
+                db=db,
+            )
+
+            document.content_text = "Revised extracted content for cache identity."
+            db.commit()
+
+            second = await get_evidence_meter(
+                claim="Cache revision claim",
+                source_ids=str(document.id),
+                query_id=None,
+                _rate_limit=True,
+                current_user=MockUser(),
+                db=db,
+            )
+
+            assert first.cached is True
+            assert second.cached is True
+            assert len(observed_revisions) == 2
+            assert observed_revisions[0] != observed_revisions[1]
+            assert document.checksum_sha256 == uploaded_checksum
+            assert observed_revisions[0] == [
+                f"{document.id}:"
+                f"{hashlib.sha256('Original extracted content for cache identity.'.encode('utf-8')).hexdigest()}"
+            ]
+            assert observed_revisions[1] == [
+                f"{document.id}:"
+                f"{hashlib.sha256('Revised extracted content for cache identity.'.encode('utf-8')).hexdigest()}"
+            ]
+        finally:
+            db.close()
+
     @patch("src.api.evidence.router.stance_classifier")
     @patch("src.api.evidence.router.consensus_calculator")
     @patch("src.api.evidence.router.cache_service")
@@ -941,10 +1013,8 @@ class TestEvidenceBreakdownEndpoint:
         db.commit()
 
         revised_content = "Changed source content invalidates the old classification."
+        uploaded_checksum = document.checksum_sha256
         document.content_text = revised_content
-        document.checksum_sha256 = hashlib.sha256(
-            revised_content.encode("utf-8")
-        ).hexdigest()
         db.commit()
 
         try:
@@ -956,6 +1026,7 @@ class TestEvidenceBreakdownEndpoint:
             assert (
                 response_message(response) == "No classifications found for this claim"
             )
+            assert document.checksum_sha256 == uploaded_checksum
         finally:
             db.close()
 
@@ -1001,21 +1072,21 @@ class TestEvidenceBreakdownEndpoint:
         finally:
             db.close()
 
-    def test_breakdown_keeps_row_when_source_content_hash_is_authoritative(
+    def test_breakdown_hides_row_when_document_content_is_null_even_with_checksum(
         self, test_client, mock_auth
     ):
         set_active_user(MockUser())
         db = TestingSessionLocal()
         document = seed_document(
             db,
-            title="Checksum-authoritative source",
+            title="Null-content source with uploaded checksum",
             content_text="Content available when classified.",
         )
-        claim_hash = "null_content_authoritative_hash"
+        claim_hash = "null_content_uploaded_checksum_hash"
         db.add(
             StanceClassificationModel(
                 claim_hash=claim_hash,
-                claim_text="Checksum-authoritative revision claim",
+                claim_text="Null-content uploaded checksum revision claim",
                 source_id=document.id,
                 source_content_hash=document.checksum_sha256,
                 organization_id=TEST_ORG_ID,
@@ -1035,8 +1106,10 @@ class TestEvidenceBreakdownEndpoint:
                 "/api/v1/evidence/breakdown", params={"claim_hash": claim_hash}
             )
 
-            assert response.status_code == 200
-            assert response.json()["sources"][0]["source_id"] == str(document.id)
+            assert response.status_code == 404
+            assert (
+                response_message(response) == "No classifications found for this claim"
+            )
         finally:
             db.close()
 
@@ -1102,10 +1175,8 @@ class TestEvidenceBreakdownEndpoint:
         db.commit()
 
         revised_content = "Revised stale source content."
+        uploaded_checksum = stale_document.checksum_sha256
         stale_document.content_text = revised_content
-        stale_document.checksum_sha256 = hashlib.sha256(
-            revised_content.encode("utf-8")
-        ).hexdigest()
         db.commit()
 
         try:
@@ -1124,51 +1195,53 @@ class TestEvidenceBreakdownEndpoint:
             assert second_page.json()["sources"][0]["source_id"] == str(
                 current_second.id
             )
+            assert stale_document.checksum_sha256 == uploaded_checksum
         finally:
             db.close()
 
     @pytest.mark.asyncio
-    async def test_breakdown_pagination_adds_source_id_tie_breaker(self):
+    async def test_breakdown_pagination_stops_after_enough_current_rows(self):
         db = Mock()
         query = Mock()
         db.query.return_value = query
         query.join.return_value = query
         query.filter.return_value = query
         query.order_by.return_value = query
-        query.offset.return_value = query
-        query.limit.return_value = query
         first_source_id = uuid4()
         second_source_id = uuid4()
-        query.all.return_value = [
+        first_content = "A grounded excerpt"
+        second_content = "Another grounded excerpt"
+        first_hash = hashlib.sha256(first_content.encode("utf-8")).hexdigest()
+        second_hash = hashlib.sha256(second_content.encode("utf-8")).hexdigest()
+        rows = [
             (
-                SimpleNamespace(
-                    source_id=first_source_id,
-                    claim_text="A deterministic claim",
-                    stance="supporting",
-                    confidence=0.75,
-                    justification_excerpt="A grounded excerpt",
-                    source_content_hash="hash-a",
-                ),
-                SimpleNamespace(
-                    title="A source", checksum_sha256="hash-a", content_text="source"
-                ),
+                first_source_id,
+                "A deterministic claim",
+                "supporting",
+                0.75,
+                "A grounded excerpt",
+                first_hash,
+                "A source",
+                first_content,
             ),
             (
-                SimpleNamespace(
-                    source_id=second_source_id,
-                    claim_text="A deterministic claim",
-                    stance="supporting",
-                    confidence=0.7,
-                    justification_excerpt="Another grounded excerpt",
-                    source_content_hash="hash-b",
-                ),
-                SimpleNamespace(
-                    title="Another source",
-                    checksum_sha256="hash-b",
-                    content_text="source",
-                ),
+                second_source_id,
+                "A deterministic claim",
+                "supporting",
+                0.7,
+                "Another grounded excerpt",
+                second_hash,
+                "Another source",
+                second_content,
             ),
         ]
+
+        def candidate_rows():
+            yield rows[0]
+            yield rows[1]
+            raise AssertionError("breakdown consumed beyond the requested page")
+
+        query.yield_per.return_value = candidate_rows()
 
         await get_evidence_breakdown(
             claim_hash="deterministic_pagination_hash",
@@ -1180,10 +1253,7 @@ class TestEvidenceBreakdownEndpoint:
             db=db,
         )
 
-        order_args = query.order_by.call_args.args
-        assert len(order_args) == 2
-        assert "source_id" in str(order_args[1])
-        assert "ASC" in str(order_args[1]).upper()
+        assert query.yield_per.called
 
     def test_get_evidence_breakdown_not_found(self, test_client, mock_auth):
         """Test breakdown endpoint with non-existent claim hash"""

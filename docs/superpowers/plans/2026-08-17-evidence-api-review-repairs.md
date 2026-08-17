@@ -17,7 +17,7 @@
 - Preserve the 400 batch-limit text exactly: `Maximum 100 sources allowed per batch classification request` with the configured value substituted through `max_batch_sources`.
 - Tenant organization, active-document, completed-processing, non-null claim, current classifier, and current content revision must all be satisfied before a breakdown row is visible.
 - Breakdown sorting remains confidence descending then source UUID ascending; apply offset/limit only after stale rows are removed.
-- The current revision is the nonblank `Document.checksum_sha256`, otherwise lowercase SHA-256 of UTF-8 `Document.content_text`.
+- The current revision is the lowercase SHA-256 of the current extracted `Document.content_text` encoded as UTF-8. Null or blank extracted content has no revision and fails closed; the uploaded-file `Document.checksum_sha256` is not authoritative for evidence identity.
 - `model_version` in a classification dictionary is the exact model that generated the selected classification. `classifier_version` is a deterministic collision-resistant fingerprint of the full primary/fallback/threshold configuration.
 - Keep the database's existing `model_version` uniqueness column as the classifier pipeline namespace; persist the exact generator in nullable `inference_model_version VARCHAR(100)`, populated on every new write.
 - Cache keys, persisted-row selection, breakdown selection, and reproducibility hashes use `classifier_version`; the consensus calculator must receive it explicitly and must not own a hardcoded model identity.
@@ -35,11 +35,12 @@
 
 **Step 1: Add failing current-revision tests**
 
-Add a source-loader unit test proving the shared revision helper prefers a nonblank
-checksum and falls back to SHA-256 of UTF-8 content. Add API regressions proving a
-classification becomes invisible after its document checksum/content changes, and
-that a stale higher-confidence candidate does not consume `offset` or `limit` before
-a current lower-confidence candidate.
+Add source-loader unit tests proving the shared revision helper hashes current
+extracted UTF-8 content, fails closed for null/blank content, and changes when
+extracted content changes even if the uploaded-file checksum is unchanged. Add API
+regressions proving cached meter/breakdown visibility changes with extracted content,
+and that a stale higher-confidence candidate does not consume `offset` or `limit`
+before a current lower-confidence candidate.
 
 Run:
 
@@ -48,17 +49,17 @@ source /tmp/rag-pr-1432.Dbvr1G/venv/bin/activate
 pytest -q backend/tests/evidence/test_source_loader.py backend/tests/evidence/test_api.py -k 'content_hash or stale or pagination' -p no:cacheprovider --no-cov
 ```
 
-Expected: FAIL because `/breakdown` currently paginates before comparing revisions
-and the reusable helper does not exist.
+Expected: FAIL because the existing helper still trusts the uploaded checksum and
+`/breakdown` still materializes all candidates before stale filtering and pagination.
 
-**Step 2: Implement one revision helper and post-filter pagination**
+**Step 2: Implement one revision helper and bounded post-filter pagination**
 
 Add a pure helper in `source_loader.py` implementing the Global Constraints revision
-rule, and call it from `EvidenceSourceLoader._build_source`. In `/breakdown`, fetch
-the deterministically ordered candidates without database offset/limit, retain only
-rows whose persisted hash equals the helper's current hash, then slice the current
-list with `offset : offset + limit`. Preserve the existing 404 behavior when the
-visible page is empty.
+rule, and call it from `EvidenceSourceLoader._build_source`. In `/breakdown`, project
+only the required candidate columns, iterate the deterministically ordered stream,
+discard rows whose persisted hash does not equal the helper's current extracted-text
+hash (including null/blank content), and stop after `offset + limit` current rows have
+been observed. Preserve the existing 404 behavior when the visible page is empty.
 
 **Step 3: Verify and commit**
 

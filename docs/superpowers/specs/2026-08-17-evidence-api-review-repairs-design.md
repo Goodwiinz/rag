@@ -17,19 +17,25 @@ pool.
 
 ### Current-revision breakdown
 
-`source_loader.py` will expose one pure content-revision helper. It returns a
-nonblank stored checksum when present and otherwise hashes the current document
-text. Both source loading and `/breakdown` will use that helper.
+`source_loader.py` will expose one pure content-revision helper. It hashes the
+current extracted `Document.content_text` as UTF-8 and returns no revision for
+null or blank content. The uploaded-file checksum is deliberately not used for
+evidence identity, because extracted text can change while that checksum remains
+unchanged. Both source loading and `/breakdown` will use that helper.
 
-`/breakdown` will query the tenant-scoped, active, completed candidates in its
-existing deterministic order, discard candidates whose persisted
-`source_content_hash` does not equal the current document revision, and only then
-apply `offset` and `limit`. This makes pagination operate on the visible current
-result set, so a stale high-confidence row cannot consume a page slot.
+`/breakdown` will project only the required columns from tenant-scoped, active,
+completed candidates in its existing deterministic order, stream those candidates,
+discard rows whose persisted `source_content_hash` does not equal the current
+extracted-text revision, and stop after collecting `offset + limit` current rows.
+This makes pagination operate on the visible current result set, so a stale
+high-confidence row cannot consume a page slot without materializing an unbounded
+candidate set.
 
-An alternative was a SQL-only checksum expression. It was rejected because the
-fallback hash must exactly match Python's UTF-8 SHA-256 behavior across SQLite tests
-and PostgreSQL production; sharing one pure helper is less drift-prone.
+An alternative was to trust the uploaded checksum or compute a SQL-only hash
+expression. Trusting the uploaded checksum was rejected because it can remain
+unchanged when extracted text changes. A SQL-only expression was rejected because
+the hash must exactly match Python's UTF-8 SHA-256 behavior across SQLite tests and
+PostgreSQL production; sharing one pure helper is less drift-prone.
 
 ### Early source limit and session lifetime
 

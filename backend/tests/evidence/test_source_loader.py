@@ -220,7 +220,7 @@ def test_loader_rejects_incomplete_or_blank_content_before_payloads(
         )
 
 
-def test_loader_uses_stored_hash_or_hashes_source_content() -> None:
+def test_loader_hashes_current_content_even_when_uploaded_checksum_is_stale() -> None:
     organization_id = uuid4()
     stored_hash = _document(
         uuid4(),
@@ -243,26 +243,59 @@ def test_loader_uses_stored_hash_or_hashes_source_content() -> None:
         claim="checksum content",
     )
 
-    assert loaded.sources[0].content_hash == "stored-hash"
+    assert (
+        loaded.sources[0].content_hash
+        == hashlib.sha256(stored_hash.content_text.encode("utf-8")).hexdigest()
+    )
     assert loaded.sources[1].content_hash == (
         "f0a3ddf786e1fe1ac9060c678917fb5d83d5d0008669310cb3ed1d1a1e8f9bdd"
     )
 
 
-def test_current_content_hash_prefers_nonblank_checksum_and_hashes_utf8_content() -> (
-    None
-):
-    assert source_loader.current_content_hash("stored-hash", "ignored content") == (
-        "stored-hash"
-    )
-    assert source_loader.current_content_hash("stored-hash", None) == "stored-hash"
-
+def test_current_content_hash_hashes_utf8_content_and_fails_closed() -> None:
     content = "révision café"
     assert (
-        source_loader.current_content_hash("  \n\t", content)
+        source_loader.current_content_hash(content)
         == hashlib.sha256(content.encode("utf-8")).hexdigest()
     )
-    assert source_loader.current_content_hash(None, None) is None
+    assert source_loader.current_content_hash(None) is None
+    assert source_loader.current_content_hash("") is None
+    assert source_loader.current_content_hash("  \n\t") is None
+
+
+def test_loader_revision_changes_when_extracted_content_changes_without_checksum_update() -> (
+    None
+):
+    organization_id = uuid4()
+    original = "original extracted text"
+    document = _document(
+        uuid4(),
+        organization_id=organization_id,
+        content_text=original,
+        checksum_sha256="uploaded-file-checksum",
+    )
+    db = _db_with_documents(document)
+
+    first = source_loader.EvidenceSourceLoader().load(
+        db,
+        organization_id=organization_id,
+        source_ids=[document.id],
+        claim="extracted text",
+    )
+
+    document.content_text = "revised extracted text"
+    second = source_loader.EvidenceSourceLoader().load(
+        db,
+        organization_id=organization_id,
+        source_ids=[document.id],
+        claim="extracted text",
+    )
+
+    assert first.revisions != second.revisions
+    assert (
+        second.sources[0].content_hash
+        == hashlib.sha256(document.content_text.encode("utf-8")).hexdigest()
+    )
 
 
 def test_loader_rejects_all_withdrawn_sources() -> None:

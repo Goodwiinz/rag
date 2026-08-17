@@ -205,10 +205,10 @@ def _save_stance_classifications(
     if not valid_classifications:
         return 0
 
-    def _as_uuid(value) -> UUID:
+    def _as_uuid(value: object) -> UUID:
         return value if isinstance(value, UUID) else UUID(str(value))
 
-    def _org_as_uuid(value):
+    def _org_as_uuid(value: object) -> UUID | None:
         # organization_id may legitimately be None for a user without an org; keep it
         # NULL rather than coercing. The /breakdown read explicitly rejects NULL-org
         # users, so NULL-org rows are never returned to anyone (fail-closed).
@@ -464,7 +464,16 @@ async def get_evidence_breakdown(
         # Join classifications to their current, tenant-owned documents. This keeps
         # deleted, incomplete, and legacy rows out of the provenance response.
         query = (
-            db.query(StanceClassificationModel, Document)
+            db.query(
+                StanceClassificationModel.source_id,
+                StanceClassificationModel.claim_text,
+                StanceClassificationModel.stance,
+                StanceClassificationModel.confidence,
+                StanceClassificationModel.justification_excerpt,
+                StanceClassificationModel.source_content_hash,
+                Document.title,
+                Document.content_text,
+            )
             .join(Document, StanceClassificationModel.source_id == Document.id)
             .filter(
                 StanceClassificationModel.claim_hash == claim_hash,
@@ -487,18 +496,42 @@ async def get_evidence_breakdown(
                 StanceClassificationModel.stance == stance_filter.value
             )
 
-        candidates = query.all()
         current_classifications = []
-        for classification, document in candidates:
-            current_hash = current_content_hash(
-                document.checksum_sha256, document.content_text
+        visible_current_count = 0
+        for candidate in query.yield_per(100):
+            (
+                source_id,
+                claim_text,
+                stance,
+                confidence,
+                justification_excerpt,
+                source_content_hash,
+                title,
+                content_text,
+            ) = candidate
+            current_hash = current_content_hash(content_text)
+            if current_hash is None or source_content_hash != current_hash:
+                continue
+
+            if visible_current_count < offset:
+                visible_current_count += 1
+                continue
+
+            current_classifications.append(
+                (
+                    source_id,
+                    claim_text,
+                    stance,
+                    confidence,
+                    justification_excerpt,
+                    title,
+                )
             )
-            if (
-                current_hash is not None
-                and classification.source_content_hash == current_hash
-            ):
-                current_classifications.append((classification, document))
-        classifications = current_classifications[offset : offset + limit]
+            visible_current_count += 1
+            if len(current_classifications) >= limit:
+                break
+
+        classifications = current_classifications
 
         if not classifications:
             raise HTTPException(
@@ -506,20 +539,25 @@ async def get_evidence_breakdown(
             )
 
         sources = []
-        for classification, document in classifications:
+        for (
+            source_id,
+            _claim_text,
+            stance,
+            confidence,
+            justification_excerpt,
+            title,
+        ) in classifications:
             breakdown_item = StanceBreakdownItem(
-                source_id=classification.source_id,
-                title=document.title,
-                stance=Stance(
-                    getattr(classification.stance, "value", classification.stance)
-                ),
-                confidence=classification.confidence,
-                justification_excerpt=classification.justification_excerpt,
+                source_id=source_id,
+                title=title,
+                stance=Stance(getattr(stance, "value", stance)),
+                confidence=confidence,
+                justification_excerpt=justification_excerpt,
                 is_retracted=False,
             )
             sources.append(breakdown_item)
 
-        claim_text = classifications[0][0].claim_text
+        claim_text = classifications[0][1]
 
         breakdown = EvidenceBreakdown(
             claim=claim_text, claim_hash=claim_hash, sources=sources

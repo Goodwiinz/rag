@@ -133,7 +133,7 @@ class ConsensusCalculator:
         }
 
         confidence_scores = []
-        source_ids = []
+        source_ids: List[str] = []
 
         for classification in valid_classifications:
             stance = classification.get("stance")
@@ -143,7 +143,7 @@ class ConsensusCalculator:
             if stance in stance_counts:
                 stance_counts[stance] += 1
                 confidence_scores.append(confidence)
-                source_ids.append(source_id)
+                source_ids.append(str(source_id))
             else:
                 logger.warning(f"Unknown stance value: {stance}")
 
@@ -166,7 +166,7 @@ class ConsensusCalculator:
         # Use source revisions when provided so content changes and withdrawn sources
         # produce a distinct reproducibility identity. Legacy callers that do not have
         # revisions retain the previous source-ID identity.
-        reproducibility_revisions = (
+        reproducibility_revisions: List[str] = (
             source_revisions if source_revisions is not None else source_ids
         )
         reproducibility_hash = self._generate_reproducibility_hash(
@@ -209,7 +209,7 @@ class ConsensusCalculator:
             "low": 0,  # <0.7
         }
 
-        stance_confidence = {
+        stance_confidence: Dict[str, List[float]] = {
             "supporting": [],
             "opposing": [],
             "neutral": [],
