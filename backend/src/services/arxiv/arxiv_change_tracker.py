@@ -221,6 +221,11 @@ class ArXivChangeTracker:
                             :5
                         ],  # Store first 5 authors
                         "primary_category": paper.get("primary_category"),
+                        # sha256 only (not the full abstract) to keep the state
+                        # file small; enough to detect abstract-only edits.
+                        "abstract_hash": hashlib.sha256(
+                            (paper.get("abstract") or "").encode()
+                        ).hexdigest(),
                     },
                 }
 
@@ -257,6 +262,11 @@ class ArXivChangeTracker:
                         "primary_category", ""
                     ):
                         fields_changed.append("category")
+                    new_abstract_hash = hashlib.sha256(
+                        (paper.get("abstract") or "").encode()
+                    ).hexdigest()
+                    if new_abstract_hash != stored_metadata.get("abstract_hash", ""):
+                        fields_changed.append("abstract")
 
                     change = ChangeRecord(
                         paper_id=paper["id"],
@@ -278,6 +288,7 @@ class ArXivChangeTracker:
                         "title": paper.get("title", ""),
                         "authors": paper.get("authors", [])[:5],
                         "primary_category": paper.get("primary_category"),
+                        "abstract_hash": new_abstract_hash,
                     }
 
         # Track missing papers — increment miss_count instead of instant deletion.
@@ -377,7 +388,9 @@ class ArXivChangeTracker:
                                 db, paper, change.fields_changed, organization_id
                             )
                             if update_kg:
-                                await self._update_knowledge_graph(paper)
+                                await self._update_knowledge_graph(
+                                    paper, organization_id
+                                )
                             summary["updated"] += 1
                             logger.info(
                                 f"Updated paper: {change.paper_id}, changed fields: {change.fields_changed}"
@@ -508,7 +521,9 @@ class ArXivChangeTracker:
             try:
                 logger.info(f"Adding paper {paper['id']} to knowledge graph...")
                 async with ArXivKnowledgeGraphIntegration() as kg:
-                    result = await kg.process_paper_kg_integration(paper)
+                    result = await kg.process_paper_kg_integration(
+                        paper, organization_id=str(organization_id)
+                    )
                     if result:
                         logger.info(
                             f"Successfully added {paper['id']} to KG with {len(result.get('entities', []))} entities"
@@ -569,12 +584,16 @@ class ArXivChangeTracker:
                 )
             await db.commit()
 
-    async def _update_knowledge_graph(self, paper: Dict[str, Any]):
-        """Update knowledge graph with changed paper"""
+    async def _update_knowledge_graph(
+        self, paper: Dict[str, Any], organization_id: Any
+    ):
+        """Update knowledge graph with changed paper (tenant-scoped)."""
         try:
             async with ArXivKnowledgeGraphIntegration() as kg:
                 # Extract new entities and relationships
-                await kg.process_paper_kg_integration(paper)
+                await kg.process_paper_kg_integration(
+                    paper, organization_id=str(organization_id)
+                )
         except Exception as e:
             logger.warning(f"Failed to update KG for paper {paper['id']}: {e}")
 

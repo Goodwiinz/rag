@@ -306,7 +306,7 @@ async def force_sync_paper(
                 await change_tracker._update_existing_paper(
                     db, paper, ["force_update"], organization_id
                 )
-                await change_tracker._update_knowledge_graph(paper)
+                await change_tracker._update_knowledge_graph(paper, organization_id)
                 action = "updated"
             else:
                 action = "created"

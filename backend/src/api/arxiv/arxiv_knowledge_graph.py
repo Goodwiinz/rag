@@ -214,10 +214,9 @@ async def bulk_ingest_with_kg(
                 "kg_entries_created": 0,
             }
 
-        # Ingest papers
-        ingested_count = await arxiv_service.ingest_papers(
-            papers=papers, extract_entities=request.create_kg_entries
-        )
+        # Ingest papers. Entity extraction happens separately via the KG
+        # integration call below — ingest_papers has no extract_entities param.
+        ingested_count = await arxiv_service.ingest_papers(papers=papers)
 
         # Create knowledge graph entries if requested
         kg_entries_count = 0
