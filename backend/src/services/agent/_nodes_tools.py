@@ -171,7 +171,10 @@ async def _write_hitl_audit_row(
             )
             await session.commit()
     except Exception:
-        logger.debug("hitl audit row write failed", exc_info=True)
+        # ERROR, not debug: this is the durable "who approved the destructive
+        # action" record. A silent failure here means a compliance-critical
+        # audit trail has a gap with no visible signal at default log level.
+        logger.error("hitl audit row write failed", exc_info=True)
 
 
 def hitl_log_raised(config: RunnableConfig, destructive_calls: list) -> None:

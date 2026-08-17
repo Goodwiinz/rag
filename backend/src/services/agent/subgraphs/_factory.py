@@ -38,7 +38,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
 
 from src.services.agent.compactor import make_compactor_node
-from src.services.agent.graph import _sanitize_messages
+from src.services.agent.graph import _TOOL_PLACEHOLDER_CONTENT, _sanitize_messages
 from src.services.agent.observability import track_node_execution
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
@@ -63,6 +63,7 @@ class SpecialistParts(NamedTuple):
     should_continue: _RouteFn
     route_after_tool_node: _RouteFn
     reflection_route: _RouteFn
+    reflection_node: _NodeFn
     force_synthesis_node: _NodeFn
     interrupt_node: Optional[_NodeFn]
     after_interrupt: Optional[_RouteFn]
@@ -116,6 +117,34 @@ def _execution_evidence_state(
 def _is_execution_evidence(message: ToolMessage) -> bool:
     """Return whether a ToolMessage proves a tool started or completed."""
     return _execution_evidence_state(message) != "none"
+
+
+# Emitted only when the breaker trips (error_count >= 3) AND the model's
+# final AIMessage carries no content of its own (a pure tool-calls
+# response). Extraction (agent_execution_service._run_agent_graph) needs
+# SOME content-bearing AIMessage to persist as this turn's answer; without
+# it, the walk falls through to whatever content-bearing AIMessage precedes
+# this turn (a stale prior-turn answer, or nothing at all on turn one).
+_BREAKER_DEGRADED_ANSWER = (
+    "I hit repeated tool errors and I'm stopping here without finishing the "
+    "remaining steps. Let me know how you'd like to proceed."
+)
+
+
+def _placeholder_tool_messages(tool_calls: list, content: str) -> list[ToolMessage]:
+    """Answer every pending ``tool_call`` with a fixed-content placeholder.
+
+    Shared by the HITL-deny and breaker-exit paths below: both abandon a
+    tool_calls batch without ever reaching the tool node, so without this
+    the trailing AIMessage's tool_calls stay dangling in the checkpoint
+    until ``_sanitize_messages`` (graph.py) repairs it on the NEXT turn.
+    That is too late for THIS turn's extraction walk
+    (``agent_execution_service._run_agent_graph``, which skips
+    content-less AIMessages hunting for the final answer) and for a
+    same-turn reflection revise-loop back into the LLM, which needs a
+    wire-valid history immediately.
+    """
+    return [ToolMessage(content=content, tool_call_id=tc["id"]) for tc in tool_calls]
 
 
 def make_specialist_subgraph(
@@ -387,8 +416,17 @@ def make_specialist_subgraph(
             if confirmed:
                 return {"pending_confirmation": {}, "user_confirmed": True}
 
+            # should_continue sends the WHOLE batch to interrupt when ANY
+            # member is destructive, so last.tool_calls (not just
+            # destructive_calls) were all routed here unexecuted. Every one
+            # needs an answer or the checkpoint keeps an OpenAI-invalid
+            # dangling tool_calls AIMessage until _sanitize_messages repairs
+            # it next turn.
             return {
                 "messages": [
+                    *_placeholder_tool_messages(
+                        last.tool_calls, '{"status": "cancelled_by_user"}'
+                    ),
                     AIMessage(
                         content=(
                             "Action cancelled by user. Let me know if you'd "
@@ -410,6 +448,48 @@ def make_specialist_subgraph(
             return reflection
 
         after_interrupt = _rename(after_interrupt_fn, f"{name}_after_interrupt")
+
+    # The gate's own router is deliberately discarded: it returns
+    # proceed/revise labels and emits metrics, while the historical
+    # subgraph routers return node names / END and emit nothing. Adopting
+    # it would change conditional-edge labels (topology snapshot) and
+    # observability — out of scope for a behavior-preserving refactor.
+    _raw_reflection_node, _canonical_route = make_reflection_gate(
+        intent_filter=reflection_intent_filter,
+    )
+
+    async def reflection_entry_node(state: AgentState, config: RunnableConfig) -> dict:
+        """Answer dangling tool_calls before delegating to the reflection gate.
+
+        should_continue's error-ceiling branch (checked BEFORE the
+        tool_calls check — see should_continue) routes straight here
+        without ever visiting the tool node, so the trailing AIMessage can
+        still carry unanswered tool_calls. Every OTHER edge into this node
+        already leaves tool_calls answered or absent — force_synthesis
+        never emits tool_calls (no bind_tools) and the interrupt-deny
+        branch answers them itself (interrupt_node_fn) — so "last message
+        is an AIMessage with tool_calls" unambiguously identifies the
+        breaker path; no separate flag needs threading through state.
+        Left unrepaired, the dangling call would survive to
+        agent_execution_service._run_agent_graph's extraction walk, which
+        skips content-less AIMessages and would persist a STALE prior-turn
+        answer as this turn's result.
+        """
+        last = state["messages"][-1] if state.get("messages") else None
+        extra_messages: list = []
+        if isinstance(last, AIMessage) and last.tool_calls:
+            extra_messages = _placeholder_tool_messages(
+                last.tool_calls, _TOOL_PLACEHOLDER_CONTENT
+            )
+            if not (isinstance(last.content, str) and last.content.strip()):
+                extra_messages.append(AIMessage(content=_BREAKER_DEGRADED_ANSWER))
+
+        updates = await _raw_reflection_node(state, config)
+        if extra_messages:
+            updates = {**updates, "messages": extra_messages}
+        return updates
+
+    _rename(reflection_entry_node, reflection)
 
     def route_after_tool_node(state: AgentState) -> str:
         """Route from the tool node: skip the re-plan loop when the batch was fully deduped.
@@ -456,15 +536,6 @@ def make_specialist_subgraph(
 
         planner = make_planner_node(tool_names_list)
         compactor = make_compactor_node()
-        # The gate's own router is deliberately discarded: it returns
-        # proceed/revise labels and emits metrics, while the historical
-        # subgraph routers return node names / END and emit nothing.
-        # Adopting it would change conditional-edge labels (topology
-        # snapshot) and observability — out of scope for a
-        # behavior-preserving refactor.
-        reflection_node, _canonical_route = make_reflection_gate(
-            intent_filter=reflection_intent_filter,
-        )
 
         graph = StateGraph(AgentState)
 
@@ -478,7 +549,7 @@ def make_specialist_subgraph(
             graph.add_node(interrupt_name, interrupt_node)  # type: ignore[arg-type]
         graph.add_node(compactor_name, compactor)
         graph.add_node(force_synthesis, force_synthesis_node)
-        graph.add_node(reflection, reflection_node)
+        graph.add_node(reflection, reflection_entry_node)
 
         graph.set_entry_point(planner_name)
         graph.add_edge(planner_name, llm)
@@ -536,6 +607,7 @@ def make_specialist_subgraph(
         should_continue=should_continue,
         route_after_tool_node=route_after_tool_node,
         reflection_route=reflection_route,
+        reflection_node=reflection_entry_node,
         force_synthesis_node=force_synthesis_node,
         interrupt_node=interrupt_node,
         after_interrupt=after_interrupt,
