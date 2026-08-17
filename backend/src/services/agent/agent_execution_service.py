@@ -44,8 +44,10 @@ logger = logging.getLogger(__name__)
 # All writes go through ``job_store.set_job()`` (async) or the
 # ``_set_job`` sync wrapper which sprays to both L1 and Redis.
 
+from src.services.agent import job_store as _job_store
 from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent.agent_run_service import get_run
+from src.services.agent.job_store import _is_newer_or_equal
 from src.services.agent.job_store import _l1 as _jobs
 from src.services.agent.job_store import _l1_lock as _jobs_lock
 from src.services.agent.job_store import _write_to_redis_only
@@ -141,7 +143,21 @@ def _set_job(job_id: str, data: dict):
             and existing.get("organization_id")
         ):
             data["organization_id"] = existing["organization_id"]
-        _jobs[job_id] = data
+        # Monotonic guard (L11): callers of this sync path (execute.py) only
+        # ever write the FIRST record for a job, so `existing` is normally
+        # None and this is a no-op — but without it, this write is an
+        # unconditional stomp of whatever L1 currently holds, including a
+        # newer record another worker wrote to Redis and this process just
+        # folded in (job_store.get_job/get_job_fresh, under this same guard).
+        # `_seq` must be job_store's own counter, not a local copy: `from
+        # job_store import _seq` binds the value at import time and would
+        # never see later increments, so this writer and job_store.set_job
+        # would each hand out colliding sequence numbers instead of sharing
+        # one order.
+        _job_store._seq += 1
+        data["_seq"] = _job_store._seq
+        if existing is None or _is_newer_or_equal(data, existing):
+            _jobs[job_id] = data
 
     # Durable projection (fire-and-forget; Redis stays authoritative). Has its
     # own no-running-loop guard, so it is safe outside the try below.
@@ -2239,6 +2255,17 @@ async def _run_agent_graph(
                 # old one would block this turn forever.
                 await _clear_stale_pending_confirmation(graph, config)
 
+                # Everything the graph needs is already materialized into
+                # initial_state/config above — commit now (cheap: a read-only
+                # txn end) so the up-to-360s ainvoke below doesn't pin this
+                # session's pooled connection for the run's duration (audit
+                # M9). `db` stays open (not closed) because the post-ainvoke
+                # block below still uses it; safe because AsyncSessionLocal is
+                # expire_on_commit=False (database.py), so thread_obj and
+                # other already-loaded attributes stay readable without a
+                # fresh round-trip.
+                await db.commit()
+
                 async with asyncio.timeout(360):
                     final_state = await graph.ainvoke(initial_state, config=config)
 
@@ -2587,6 +2614,11 @@ async def _resume_agent_graph(
                     durable_run.client_message_id if durable_run is not None else None
                 ),
             )
+
+            # See the parallel commit in _run_agent_graph above (audit M9) —
+            # get_run() above is a bare SELECT, so without this the session
+            # holds its pooled connection through the whole confirm run.
+            await db.commit()
 
             async with asyncio.timeout(360):
                 final_state = await graph.ainvoke(
