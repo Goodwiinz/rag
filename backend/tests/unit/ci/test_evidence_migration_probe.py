@@ -1,6 +1,7 @@
 """Unit contracts for the targeted evidence migration probe."""
 
 import signal
+import subprocess
 from collections.abc import Callable, Iterable
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -310,6 +311,56 @@ def test_sigterm_after_create_before_completion_still_attempts_guarded_drop(
     )
 
 
+def test_signal_in_operation_exception_handoff_cannot_skip_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe = _load_probe()
+    _require_api(probe, "ProbeInterrupted")
+    events: list[tuple[str, Any]] = []
+    timeline: list[tuple[str, Any]] = []
+    installed: dict[signal.Signals, Any] = {}
+    previous = {signal.SIGTERM: "previous-term", signal.SIGINT: "previous-int"}
+
+    def fake_getsignal(signum: signal.Signals) -> Any:
+        return previous[signum]
+
+    def fake_signal(signum: signal.Signals, handler: Any) -> Any:
+        if callable(handler):
+            installed[signum] = handler
+        else:
+            timeline.append(("restore", signum))
+        return previous[signum]
+
+    monkeypatch.setattr(probe.signal, "getsignal", fake_getsignal)
+    monkeypatch.setattr(probe.signal, "signal", fake_signal)
+
+    scratch_name = _stub_lifecycle(
+        monkeypatch,
+        probe,
+        events,
+        lambda database_url, *arguments: None,
+    )
+
+    def create_database(connection: Any, database_name: str) -> None:
+        installed[signal.SIGTERM](signal.SIGTERM, None)
+        raise probe.ProbeError("create failed after deferred signal")
+
+    monkeypatch.setattr(probe, "_create_database", create_database)
+    monkeypatch.setattr(
+        probe,
+        "_drop_database",
+        lambda connection, database_name: timeline.append(("drop", database_name)),
+    )
+
+    with pytest.raises(probe.ProbeInterrupted, match="create failed"):
+        probe.run_probe("postgresql://admin@127.0.0.1/postgres")
+
+    assert ("drop", scratch_name) in timeline
+    assert timeline.index(("drop", scratch_name)) < timeline.index(
+        ("restore", signal.SIGTERM)
+    )
+
+
 def test_sigterm_during_cleanup_is_deferred_until_drop_and_handler_restore(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -353,6 +404,70 @@ def test_sigterm_during_cleanup_is_deferred_until_drop_and_handler_restore(
     assert active[signal.SIGTERM] == previous[signal.SIGTERM]
 
 
+def test_signal_scope_defers_every_signal_without_raising() -> None:
+    probe = _load_probe()
+    _require_api(probe, "_SignalScope", "ProbeInterrupted")
+    scope = probe._SignalScope()
+
+    scope._handle(signal.SIGTERM, None)
+    scope._handle(signal.SIGTERM, None)
+    scope._handle(signal.SIGINT, None)
+
+    assert scope.pending_signal_names() == ("SIGTERM", "SIGINT")
+
+
+def test_repeated_signals_are_deferred_once_until_cleanup_and_restore(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe = _load_probe()
+    _require_api(probe, "ProbeInterrupted")
+    events: list[tuple[str, Any]] = []
+    timeline: list[tuple[str, Any]] = []
+    active: dict[signal.Signals, Any] = {}
+    previous = {signal.SIGTERM: "previous-term", signal.SIGINT: "previous-int"}
+
+    def fake_getsignal(signum: signal.Signals) -> Any:
+        return previous[signum]
+
+    def fake_signal(signum: signal.Signals, handler: Any) -> Any:
+        active[signum] = handler
+        if callable(handler):
+            pass
+        else:
+            timeline.append(("restore", signum))
+        return previous[signum]
+
+    monkeypatch.setattr(probe.signal, "getsignal", fake_getsignal)
+    monkeypatch.setattr(probe.signal, "signal", fake_signal)
+
+    def run_alembic(database_url: str, *arguments: str) -> None:
+        events.append(("alembic", arguments))
+        if arguments == ("upgrade", probe.TARGET_REVISION):
+            for _ in range(2):
+                active[signal.SIGTERM](signal.SIGTERM, None)
+                active[signal.SIGINT](signal.SIGINT, None)
+
+    scratch_name = _stub_lifecycle(monkeypatch, probe, events, run_alembic)
+
+    def drop_database(connection: Any, database_name: str) -> None:
+        timeline.append(("drop-start", database_name))
+        active[signal.SIGTERM](signal.SIGTERM, None)
+        active[signal.SIGINT](signal.SIGINT, None)
+        timeline.append(("drop-complete", database_name))
+
+    monkeypatch.setattr(probe, "_drop_database", drop_database)
+
+    with pytest.raises(probe.ProbeInterrupted, match="SIGTERM.*SIGINT"):
+        probe.run_probe("postgresql://admin@127.0.0.1/postgres")
+
+    assert timeline.count(("drop-start", scratch_name)) == 1
+    assert timeline.index(("drop-complete", scratch_name)) < timeline.index(
+        ("restore", signal.SIGTERM)
+    )
+    assert active[signal.SIGTERM] == previous[signal.SIGTERM]
+    assert active[signal.SIGINT] == previous[signal.SIGINT]
+
+
 def test_create_failure_still_attempts_drop_if_exists_cleanup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -386,7 +501,7 @@ def test_drop_database_uses_if_exists_for_guarded_cleanup() -> None:
         def __exit__(self, *args: Any) -> None:
             return None
 
-        def execute(self, statement: Any) -> None:
+        def execute(self, statement: Any, *parameters: Any) -> None:
             statements.append(statement)
 
     class Connection:
@@ -397,9 +512,77 @@ def test_drop_database_uses_if_exists_for_guarded_cleanup() -> None:
 
     probe._drop_database(Connection(), "ci_evidence_delta_123_test_12345678")
 
-    rendered = str(statements[0])
+    rendered_statements = [str(statement) for statement in statements]
+    assert any("statement_timeout" in statement for statement in rendered_statements)
+    rendered = next(
+        statement
+        for statement in rendered_statements
+        if "DROP DATABASE IF EXISTS" in statement
+    )
     assert "DROP DATABASE IF EXISTS" in rendered
     assert "WITH (FORCE)" in rendered
+
+
+def test_connect_uses_finite_timeout_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe = _load_probe()
+    _require_api(probe, "CONNECT_TIMEOUT_SECONDS", "STATEMENT_TIMEOUT_MS")
+    captured: dict[str, Any] = {}
+
+    def fake_connect(database_url: str, **kwargs: Any) -> object:
+        captured["database_url"] = database_url
+        captured["kwargs"] = kwargs
+        return object()
+
+    monkeypatch.setattr(probe.psycopg2, "connect", fake_connect)
+
+    probe._connect("postgresql://admin@127.0.0.1/postgres")
+
+    assert captured["kwargs"]["connect_timeout"] == probe.CONNECT_TIMEOUT_SECONDS
+    assert str(probe.STATEMENT_TIMEOUT_MS) in captured["kwargs"]["options"]
+
+
+def test_run_alembic_uses_timeout_and_converts_timeout_expiry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe = _load_probe()
+    _require_api(probe, "ALEMBIC_TIMEOUT_SECONDS")
+    captured: dict[str, Any] = {}
+
+    def fake_run(command: Any, **kwargs: Any) -> Any:
+        captured["timeout"] = kwargs["timeout"]
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(probe.subprocess, "run", fake_run)
+
+    with pytest.raises(probe.ProbeError, match="timed out"):
+        probe._run_alembic(
+            "postgresql://admin@127.0.0.1/postgres",
+            "upgrade",
+            probe.TARGET_REVISION,
+        )
+
+    assert captured["timeout"] == probe.ALEMBIC_TIMEOUT_SECONDS
+
+
+def test_run_probe_cleans_up_after_alembic_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe = _load_probe()
+    events: list[tuple[str, Any]] = []
+    real_run_alembic = probe._run_alembic
+
+    def fake_subprocess_run(command: Any, **kwargs: Any) -> Any:
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(probe.subprocess, "run", fake_subprocess_run)
+    scratch_name = _stub_lifecycle(monkeypatch, probe, events, real_run_alembic)
+
+    with pytest.raises(probe.ProbeError, match="timed out"):
+        probe.run_probe("postgresql://admin@127.0.0.1/postgres")
+
+    assert events.count(("drop", scratch_name)) == 1
 
 
 def test_run_probe_fails_closed_before_connecting_for_an_unsafe_name(
@@ -462,5 +645,27 @@ def test_main_reports_probe_failure_without_leaking_admin_password(
     captured = capsys.readouterr()
     assert result == 1
     assert "injected failure" in captured.err
+    assert secret not in captured.out
+    assert secret not in captured.err
+
+
+def test_main_redacts_password_from_lower_level_probe_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    probe = _load_probe()
+    secret = "p@ss/w:rd%with?chars#"
+
+    def fail_connect(database_url: str) -> Any:
+        raise RuntimeError(secret)
+
+    monkeypatch.setattr(probe, "_connect", fail_connect)
+
+    result = probe.main(
+        ["--admin-database-url", f"postgresql://operator:{secret}@127.0.0.1/postgres"]
+    )
+
+    captured = capsys.readouterr()
+    assert result == 1
     assert secret not in captured.out
     assert secret not in captured.err

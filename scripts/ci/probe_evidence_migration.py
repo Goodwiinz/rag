@@ -22,6 +22,7 @@ from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, TypeAlias
+from urllib.parse import quote
 
 import psycopg2  # type: ignore[import-untyped]
 from psycopg2 import sql  # type: ignore[import-untyped]
@@ -31,6 +32,9 @@ PARENT_REVISION = "i9j0k1l2m3n4"
 TARGET_REVISION = "evidence_prov_20260816"
 TABLE_NAME = "stance_classifications"
 SCRATCH_DATABASE_PREFIX = "ci_evidence_delta_"
+CONNECT_TIMEOUT_SECONDS = 15
+ALEMBIC_TIMEOUT_SECONDS = 120
+STATEMENT_TIMEOUT_MS = 30_000
 
 ColumnRow: TypeAlias = tuple[str, str, int | None, str]
 
@@ -46,6 +50,10 @@ _SCRATCH_DATABASE_RE = re.compile(
 
 class ProbeError(RuntimeError):
     """Raised when the targeted migration contract is not satisfied."""
+
+
+class ProbeInterrupted(ProbeError):
+    """Raised after a deferred termination signal and guarded cleanup."""
 
 
 def scratch_database_name(label: str = "probe") -> str:
@@ -139,8 +147,50 @@ def _scratch_database_url(admin_database_url: str, database_name: str) -> str:
     return parsed.set(database=database_name).render_as_string(hide_password=False)
 
 
+def _redact_credentials(message: str, database_urls: Iterable[str]) -> str:
+    """Remove raw and URL-encoded passwords from diagnostic text."""
+    secrets_to_redact: set[str] = set()
+    rendered_urls: set[str] = set()
+    for database_url in database_urls:
+        if not database_url:
+            continue
+        rendered_urls.add(database_url)
+        try:
+            parsed = make_url(database_url)
+        except Exception:
+            parsed = None
+        if parsed is not None:
+            rendered_urls.add(parsed.render_as_string(hide_password=False))
+            rendered_urls.add(parsed.render_as_string(hide_password=True))
+            if parsed.password:
+                secrets_to_redact.add(parsed.password)
+                secrets_to_redact.add(quote(parsed.password, safe=""))
+
+        # The CLI accepts a URL for backwards compatibility.  Recover the raw
+        # authority password even when unescaped punctuation makes that URL
+        # impossible for a URL parser to normalize safely.
+        if "://" in database_url and "@" in database_url:
+            authority = database_url.split("://", 1)[1].rsplit("@", 1)[0]
+            if ":" in authority:
+                raw_password = authority.split(":", 1)[1]
+                if raw_password:
+                    secrets_to_redact.add(raw_password)
+
+    redacted = message
+    for rendered_url in sorted(rendered_urls, key=len, reverse=True):
+        if rendered_url:
+            redacted = redacted.replace(rendered_url, "<database-url>")
+    for secret in sorted(secrets_to_redact, key=len, reverse=True):
+        redacted = redacted.replace(secret, "<redacted>")
+    return redacted
+
+
 def _connect(database_url: str):  # type: ignore[no-untyped-def]
-    return psycopg2.connect(database_url)
+    return psycopg2.connect(
+        database_url,
+        connect_timeout=CONNECT_TIMEOUT_SECONDS,
+        options=f"-c statement_timeout={STATEMENT_TIMEOUT_MS}",
+    )
 
 
 def _create_database(admin_connection, database_name: str) -> None:  # type: ignore[no-untyped-def]
@@ -220,14 +270,22 @@ def _version(connection) -> str:  # type: ignore[no-untyped-def]
 
 def _run_alembic(database_url: str, *arguments: str) -> None:
     repo_root = Path(__file__).resolve().parents[2]
-    result = subprocess.run(
-        [sys.executable, "-m", "alembic", *arguments],
-        cwd=repo_root / "backend",
-        env=alembic_environment(database_url),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    command = [sys.executable, "-m", "alembic", *arguments]
+    try:
+        result = subprocess.run(
+            command,
+            cwd=repo_root / "backend",
+            env=alembic_environment(database_url),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=ALEMBIC_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ProbeError(
+            f"alembic {' '.join(arguments)} timed out after "
+            f"{ALEMBIC_TIMEOUT_SECONDS}s"
+        ) from exc
     if result.returncode != 0:
         output = "\n".join(part for part in (result.stdout, result.stderr) if part)
         raise ProbeError(
@@ -243,6 +301,11 @@ def _drop_database(admin_connection, database_name: str) -> None:  # type: ignor
         )
     admin_connection.autocommit = True
     with admin_connection.cursor() as cursor:
+        cursor.execute(
+            sql.SQL("SET statement_timeout = {}").format(
+                sql.Literal(STATEMENT_TIMEOUT_MS)
+            )
+        )
         cursor.execute(
             sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
                 sql.Identifier(database_name)
@@ -298,7 +361,7 @@ def _cleanup_scratch_database(
 
 
 class _SignalScope:
-    """Scoped signal handlers with a bounded, deferred cleanup mode."""
+    """Scoped handlers that defer termination for the whole probe lifecycle."""
 
     _SIGNALS = (signal.SIGTERM, signal.SIGINT)
 
@@ -307,8 +370,8 @@ class _SignalScope:
             signum: signal.getsignal(signum) for signum in self._SIGNALS
         }
         self._installed: list[signal.Signals] = []
-        self._cleanup_mode = False
         self._pending: list[int] = []
+        self._cleanup_started = False
 
     def install(self) -> None:
         try:
@@ -320,18 +383,19 @@ class _SignalScope:
             raise
 
     def begin_cleanup(self) -> None:
-        self._cleanup_mode = True
+        """Mark cleanup for callers while keeping the handler fully deferred."""
+        self._cleanup_started = True
 
     def pending_signal_names(self) -> tuple[str, ...]:
         return tuple(signal.Signals(signum).name for signum in self._pending)
 
     def _handle(self, signum: int, _frame: object) -> None:
-        if self._cleanup_mode:
-            if signum not in self._pending:
-                self._pending.append(signum)
-            return
-        signal_name = signal.Signals(signum).name
-        raise ProbeError(f"received {signal_name}; aborting targeted migration probe")
+        # Never raise from a signal handler.  An asynchronous exception here
+        # can land between the operation's ``except`` and ``finally`` blocks,
+        # or while cleanup is being entered, which would leak the scratch DB.
+        signum_value = int(signum)
+        if signum_value not in self._pending:
+            self._pending.append(signum_value)
 
     def restore(self) -> None:
         restoration_error: BaseException | None = None
@@ -365,7 +429,8 @@ def run_probe(admin_database_url: str) -> None:
             f"refusing to use unrecognised scratch database {database_name!r}"
         )
     admin_connection: Any = None
-    failure: Exception | None = None
+    operation_failure: BaseException | None = None
+    cleanup_failure: BaseException | None = None
     scope: _SignalScope | None = None
     try:
         with _scoped_signal_handlers() as scope:
@@ -406,26 +471,46 @@ def run_probe(admin_database_url: str) -> None:
                     verify_columns_absent(_all_target_column_names(connection))
                 finally:
                     connection.close()
-            except Exception as exc:
-                failure = exc
+            except BaseException as exc:
+                operation_failure = exc
             finally:
                 scope.begin_cleanup()
                 try:
-                    cleanup_error = _cleanup_scratch_database(
+                    cleanup_failure = _cleanup_scratch_database(
                         admin_database_url, database_name, admin_connection
                     )
-                except BaseException:
-                    cleanup_error = ProbeError("scratch database cleanup failed")
-                if failure is None and cleanup_error is not None:
-                    failure = cleanup_error
-    except Exception as exc:
-        if failure is None:
-            failure = exc
-    if failure is None and scope is not None and scope.pending_signal_names():
-        signal_names = ", ".join(scope.pending_signal_names())
-        failure = ProbeError(f"received {signal_names} during scratch cleanup")
-    if failure is not None:
-        raise failure
+                except BaseException as exc:
+                    cleanup_failure = ProbeError("scratch database cleanup failed")
+                    cleanup_failure.__cause__ = exc
+    except BaseException as exc:
+        if operation_failure is None:
+            operation_failure = exc
+
+    def safe_failure_message(failure: BaseException) -> str:
+        return _redact_credentials(str(failure), (admin_database_url,))
+
+    pending_signal_names = scope.pending_signal_names() if scope is not None else ()
+    if pending_signal_names:
+        context: list[str] = []
+        if operation_failure is not None:
+            context.append(
+                f"operation failed: {safe_failure_message(operation_failure)}"
+            )
+        if cleanup_failure is not None:
+            context.append(f"cleanup failed: {cleanup_failure}")
+        context.append(f"received {', '.join(pending_signal_names)}")
+        raise ProbeInterrupted("; ".join(context))
+    if operation_failure is not None and cleanup_failure is not None:
+        raise ProbeError(
+            f"{safe_failure_message(operation_failure)}; cleanup failed: {cleanup_failure}"
+        ) from operation_failure
+    if operation_failure is not None:
+        safe_message = safe_failure_message(operation_failure)
+        if safe_message != str(operation_failure):
+            raise ProbeError(safe_message) from operation_failure
+        raise operation_failure
+    if cleanup_failure is not None:
+        raise cleanup_failure
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -448,12 +533,16 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(argv)
+    diagnostic_urls: list[str] = []
     try:
         if args.alembic_command is not None:
-            _run_alembic(postgres_url_from_environment(), *args.alembic_command)
+            database_url = postgres_url_from_environment()
+            diagnostic_urls.append(database_url)
+            _run_alembic(database_url, *args.alembic_command)
             print(f"Alembic {' '.join(args.alembic_command)} passed")
             return 0
         admin_database_url = args.admin_database_url or postgres_url_from_environment()
+        diagnostic_urls.append(admin_database_url)
         run_probe(admin_database_url)
     except Exception as exc:
         label = (
@@ -461,7 +550,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.alembic_command is not None
             else "Targeted evidence migration probe"
         )
-        print(f"{label} failed: {exc}", file=sys.stderr)
+        print(
+            f"{label} failed: {_redact_credentials(str(exc), diagnostic_urls)}",
+            file=sys.stderr,
+        )
         return 1
     print(
         "Targeted evidence migration probe passed: "
