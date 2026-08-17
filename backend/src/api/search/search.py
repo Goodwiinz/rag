@@ -89,15 +89,25 @@ def _ensure_deterministic_response_fields(result: Any) -> SearchResponse:
 
 
 def _calculate_source_coverage(response: SearchResponse) -> float:
+    """Mirrors HybridSearchService._calculate_deterministic_coverage: coverage
+    is the fraction of results backed by a content-bearing source
+    (fulltext/vector), not a requirement that every result also have a
+    knowledge-graph co-hit. The two must stay in lockstep — this is only a
+    fallback path (see caller) for when the service's own coverage value is
+    missing.
+    """
     if not response.results:
         return 0.0
 
-    multi_source = sum(
+    evidenced = sum(
         1
         for result in response.results
-        if (result.metadata or {}).get("source_count", 1) >= 2
+        if any(
+            s in ("fulltext", "vector")
+            for s in (result.metadata or {}).get("original_sources", [])
+        )
     )
-    return round(multi_source / len(response.results), 4)
+    return round(evidenced / len(response.results), 4)
 
 
 def _has_conflicting_signals(response: SearchResponse) -> bool:
