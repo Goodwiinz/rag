@@ -21,6 +21,7 @@ import {
 import toast from 'react-hot-toast';
 import { memo, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { JobsIndicator } from './JobsIndicator';
 
 export const EXPORT_BLOCKED_REASON =
   'Export is available when the response finishes';
@@ -137,6 +138,10 @@ export const ChatHeader = memo(function ChatHeader({
 
       {/* Right: chat actions */}
       <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+        {/* Background work (uploads, ingests, extraction) — renders nothing
+            until there is a job to report. */}
+        <JobsIndicator />
+
         {messages.length > 0 && onCopyAll && (
           <IconButton
             label="Copy all messages"
