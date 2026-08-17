@@ -118,9 +118,6 @@ export function MessageFeedback({
       className="nous-msg-feedback inline-flex flex-col items-start gap-1.5"
       role="group"
       aria-label="Rate this response"
-      // Read by the action row's CSS: once a rating is given or its reason
-      // form is open, the row stops hiding on pointer-out.
-      data-feedback-engaged={choice != null || showForm ? 'true' : 'false'}
     >
       <div className="flex items-center gap-1">
         <button

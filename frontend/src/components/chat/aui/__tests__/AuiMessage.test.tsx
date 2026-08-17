@@ -183,25 +183,25 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
     );
   }
 
-  it('puts the rating control inside the action row', async () => {
+  it('keeps the rating outside the autohiding bar but on the same row', () => {
     renderByIndex([
-      { id: 'u1', role: 'user', content: 'Q', timestamp: 1 },
       { id: 'a1', role: 'assistant', content: 'A', timestamp: 2 },
     ]);
 
-    // The row autohides, so reveal it the way a reader would.
-    const root = document.querySelector('[data-role="assistant"]');
-    fireEvent.mouseEnter(root as Element);
+    // ActionBarPrimitive.Root unmounts when the message is not hovered, so a
+    // rating rendered inside it would vanish — taking any half-typed feedback
+    // note with it. It must be a sibling, sharing the row.
+    const row = document.querySelector('.nous-msg-actionrow');
+    expect(row).toBeTruthy();
+    expect(row?.querySelector('.nous-msg-feedback')).toBeTruthy();
+    expect(
+      row?.querySelector('[aria-label="Good response"]')
+    ).toBeTruthy();
 
-    // Copy, regenerate and rate read as one row of actions; a separate
-    // control beneath the bar reads as a second, unrelated affordance.
-    const bar = await waitFor(() => {
-      const node = document.querySelector('[data-slot="aui-message-actions"]');
-      expect(node).toBeTruthy();
-      return node as Element;
-    });
-    expect(bar.querySelector('.nous-msg-feedback')).toBeTruthy();
-    expect(bar.querySelector('[aria-label="Good response"]')).toBeTruthy();
+    // Not hovered: the bar is absent, the rating is not.
+    expect(
+      document.querySelector('[data-slot="aui-message-actions"]')
+    ).toBeNull();
   });
 
   it('renders assistant markdown (bold), not raw asterisks', () => {
