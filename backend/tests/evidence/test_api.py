@@ -1213,6 +1213,19 @@ class TestClassifyEndpoint:
         finally:
             db.close()
 
+    def test_classify_sources_rejects_malformed_source_ids_with_400(
+        self, test_client, mock_auth
+    ):
+        """Malformed source IDs follow the evidence API's 400 contract."""
+        response = test_client.post(
+            "/api/v1/evidence/classify",
+            params={"claim": "Test claim"},
+            json=["not-a-uuid"],
+        )
+
+        assert response.status_code == 400
+        assert response_message(response) == "Invalid source ID format"
+
 
 class TestHealthEndpoint:
     """Test /api/v1/evidence/health endpoint"""

@@ -5,11 +5,12 @@ Evidence Agreement Meter API endpoints
 import logging
 import threading
 import time
-from typing import Dict, List, Optional
+from typing import Annotated, Dict, List, Optional
 from uuid import UUID
 
 import redis
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BeforeValidator
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
@@ -121,6 +122,20 @@ cache_service = EvidenceCacheService()
 stance_classifier = StanceClassifier(cache_service)
 consensus_calculator = ConsensusCalculator()
 source_loader = EvidenceSourceLoader()
+
+
+def _parse_source_id(value: object) -> UUID:
+    """Parse classify request IDs while preserving the endpoint's 400 contract."""
+    try:
+        return UUID(str(value))
+    except (AttributeError, TypeError, ValueError) as exc:
+        # FastAPI normally turns UUID validation failures into a 422 before the
+        # handler runs. The evidence API intentionally exposes malformed IDs as
+        # a caller error (400), matching the meter endpoint and public contract.
+        raise HTTPException(status_code=400, detail="Invalid source ID format") from exc
+
+
+EvidenceSourceId = Annotated[UUID, BeforeValidator(_parse_source_id)]
 
 
 def _load_sources_or_http_error(
@@ -495,7 +510,7 @@ async def get_evidence_breakdown(
 @router.post("/classify", status_code=201)
 async def classify_sources_for_claim(
     claim: str,
-    source_ids: List[UUID],
+    source_ids: List[EvidenceSourceId],
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db_sync),
 ):
