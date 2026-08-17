@@ -1251,6 +1251,28 @@ async def stream_event_generator(
             resolved_thread_id = str(thread_obj.id)
             if request_body.thread_id != resolved_thread_id:
                 request_body.thread_id = resolved_thread_id
+        elif request_body.thread_id:
+            # Degraded path: `_resolve_thread` returned None, so the ownership
+            # join matched nothing AND no live workspace existed to create a
+            # thread under. The client's thread id was therefore never verified
+            # — it may name another tenant's thread — and it must not survive
+            # into the graph config below, where it becomes the CHECKPOINT KEY
+            # (`configurable.thread_id`). `astream_events` against a
+            # checkpointer merges this turn into whatever checkpoint that key
+            # names: the other user's history would enter the model context and
+            # stream back as tokens, this turn would be appended to their
+            # checkpoint, and the checkpoint's `user_id` channel would be
+            # overwritten with ours — locking them out of their own
+            # `/stream/confirm` (see the ownership check in
+            # `stream_confirm_event_generator`). Null it, exactly as `/execute`
+            # already does on this same miss, so `stream_thread_id` falls back
+            # to a fresh UUID and the turn runs in an ephemeral checkpoint.
+            logger.warning(
+                "Discarding unverified thread id on the degraded stream path: "
+                "no owned thread and no workspace to create one",
+                extra={"user_id": str(current_user.id)},
+            )
+            request_body.thread_id = None
 
         # ------------------------------------------------------------------
         # Atomic accept (P0-C). One transaction commits the user message, the
