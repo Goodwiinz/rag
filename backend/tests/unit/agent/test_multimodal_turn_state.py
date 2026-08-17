@@ -165,8 +165,11 @@ class TestM5MultimodalMemoryRecall:
         assert result == {"user_memories": []}
         search_mock.assert_awaited_once()
         # search_memories(store, user_id, query, limit=...) — query is the
-        # third positional argument.
-        called_query = search_mock.await_args.args[2]
+        # third positional argument. assert_awaited_once above guarantees
+        # await_args is set; the local rebind is what narrows Optional for mypy.
+        await_args = search_mock.await_args
+        assert await_args is not None
+        called_query = await_args.args[2]
         assert called_query == "what does this chart show"
 
     async def test_image_only_message_coerces_to_empty_and_skips_search(
