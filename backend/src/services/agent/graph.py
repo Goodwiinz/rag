@@ -5,7 +5,6 @@ Builds a ``StateGraph`` that chains:
 """
 
 import asyncio
-import hashlib
 import json
 import logging
 import os
@@ -157,6 +156,7 @@ from src.services.agent.error_recovery import (
     classify_error_from_payload,
     retry_transient,
 )
+from src.services.agent.llm_factory import credential_fingerprint
 from src.services.agent.observability import track_node_execution
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
@@ -261,10 +261,9 @@ def _build_llm(model_override: str | None = None):
         )
 
     endpoint_type = classify_openai_endpoint(endpoint)
-    credential_fingerprint = hashlib.sha256(
-        f"{endpoint}:{api_key}".encode()
-    ).hexdigest()[:12]
-    cache_key = (endpoint_type, deployment, credential_fingerprint)
+    # Shared with the llm_factory caches so a credential rotation invalidates
+    # every cached client, not just this one.
+    cache_key = (endpoint_type, deployment, credential_fingerprint())
     if cache_key in _LLM_CACHE:
         return _LLM_CACHE[cache_key]
 

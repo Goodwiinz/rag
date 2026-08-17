@@ -23,7 +23,7 @@ import sys
 import types
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Optional
+from typing import Any, AsyncIterator, Iterator, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -188,6 +188,36 @@ async def _noop_tool_session() -> AsyncIterator[MagicMock]:
     yield MagicMock()
 
 
+@asynccontextmanager
+async def _failing_tool_session() -> AsyncIterator[MagicMock]:
+    """A session that cannot be acquired — pool exhausted / DB down."""
+    raise RuntimeError("QueuePool limit of size 5 overflow 10 reached")
+    yield MagicMock()  # pragma: no cover — unreachable, keeps this a generator
+
+
+@pytest.mark.asyncio
+async def test_unacquirable_session_does_not_abort_the_turn() -> None:
+    """The M3 gate must fail closed, not fail loudly.
+
+    ``_user_owns_project`` converts its own failures into ``None``, but it
+    never runs if the session cannot be acquired. Unguarded, that raises
+    straight out of ``rag_node`` — which has no handler — so ``_RETRY_POLICY``
+    burns three attempts and the turn dies, all because a check whose only
+    power is to WITHHOLD a promotion could not run. The turn must proceed
+    with the id simply not promoted.
+    """
+    user_id = str(uuid.uuid4())
+
+    with patch("src.services.agent.tool_session.tool_session", _failing_tool_session):
+        result = await rag_node(
+            _rag_state(_PASTED_UUID_QUERY),
+            config={"configurable": {"user_id": user_id}},
+        )
+
+    assert result.get("current_project_id") is None
+    assert result.get("page_context", {}).get("type") != "project"
+
+
 @pytest.mark.asyncio
 async def test_unowned_extracted_uuid_not_promoted() -> None:
     """M3 bug: a bare UUID pasted into message text (could be a document
@@ -325,8 +355,32 @@ def _set_chat_settings(monkeypatch: pytest.MonkeyPatch, **overrides: Any) -> Non
         monkeypatch.setattr(settings, key, value, raising=False)
 
 
+@pytest.fixture
+def clean_llm_caches() -> Iterator[None]:
+    """Clear every LLM cache around the test, not just before it.
+
+    These caches are module globals keyed on settings that other test modules
+    (e.g. ``test_agent_build_llm.py``) also build against. Clearing only on
+    entry leaves this test's MagicMock clients sitting in those globals for
+    whoever runs next, making their correctness depend on each of them
+    clearing first. Clearing on exit too keeps the leak from ever escaping.
+    """
+    from src.services.agent import graph as graph_module
+    from src.services.agent import llm_factory
+
+    def _clear() -> None:
+        graph_module._LLM_CACHE.clear()
+        llm_factory.reset_llm_caches()
+
+    _clear()
+    try:
+        yield
+    finally:
+        _clear()
+
+
 def test_llm_cache_misses_on_credential_rotation(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, clean_llm_caches: None
 ) -> None:
     """L4 bug: the cache key omitted credentials, so rotating
     ``AZURE_OPENAI_CHAT_API_KEY`` kept serving the OLD (dead-key) client
@@ -335,7 +389,6 @@ def test_llm_cache_misses_on_credential_rotation(
     """
     from src.services.agent import graph as graph_module
 
-    graph_module._LLM_CACHE.clear()
     _set_chat_settings(monkeypatch)
     mock_lc = _make_langchain_openai_mock()
 
@@ -345,3 +398,33 @@ def test_llm_cache_misses_on_credential_rotation(
         second = graph_module._build_llm()
 
     assert first is not second
+
+
+def test_factory_llm_caches_miss_on_credential_rotation(
+    monkeypatch: pytest.MonkeyPatch, clean_llm_caches: None
+) -> None:
+    """The same rotation must invalidate the llm_factory caches too.
+
+    ``_LLM_CACHE`` only backs ``llm_node``. The classifier, reflection,
+    compactor, synthesis and fast-path clients come from these three caches,
+    so keying only the first one would leave most of the agent authenticating
+    with the dead key after a rotation.
+    """
+    from src.services.agent import llm_factory
+
+    _set_chat_settings(monkeypatch)
+    mock_lc = _make_langchain_openai_mock()
+
+    with patch.dict(sys.modules, {"langchain_openai": mock_lc}):
+        first_light = llm_factory.build_lightweight_llm()
+        first_synth = llm_factory.build_synthesis_llm()
+        first_fast = llm_factory.build_fast_path_llm()
+
+        # Same credentials -> same cached instances (the cache still works).
+        assert llm_factory.build_lightweight_llm() is first_light
+
+        _set_chat_settings(monkeypatch, AZURE_OPENAI_CHAT_API_KEY="rotated-key")
+
+        assert llm_factory.build_lightweight_llm() is not first_light
+        assert llm_factory.build_synthesis_llm() is not first_synth
+        assert llm_factory.build_fast_path_llm() is not first_fast

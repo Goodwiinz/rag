@@ -219,8 +219,21 @@ async def _verify_extracted_project_id(
         return None
     from src.services.agent.tool_session import tool_session
 
-    async with tool_session() as session:
-        owned = await _user_owns_project(session, extracted_pid, user_id)
+    try:
+        async with tool_session() as session:
+            owned = await _user_owns_project(session, extracted_pid, user_id)
+    except Exception:  # noqa: BLE001 — unverifiable, same as a failed check
+        # `_user_owns_project` converts its OWN failures into None, but it
+        # never runs if the session cannot be acquired (pool exhausted, DB
+        # down). Without this, a blip raises out of `rag_node` — which has no
+        # handler — and `_RETRY_POLICY` burns three attempts before failing
+        # the turn, for a check whose only job is to withhold a promotion.
+        # Unverifiable collapses to "do not promote", exactly like None.
+        logger.warning(
+            "extracted project id could not be verified; not promoting",
+            exc_info=True,
+        )
+        return None
     return extracted_pid if owned is True else None
 
 
@@ -404,6 +417,42 @@ async def _try_primary_do_kb_read_impl(
             if not kb_uuid:
                 return None
 
+            # Resolved BEFORE the retrieve: this check needs only the session
+            # and the ids, and both of its non-owning outcomes (abort, or drop
+            # to org-wide) are decided independently of what comes back — so
+            # running it first keeps the abort path from paying for a remote
+            # retrieve it discards.
+            #
+            # Only scope by project_id if the caller actually owns it; otherwise
+            # drop the scope (org-wide read, the same as no project context)
+            # rather than filter by — and thereby disclose membership of — a
+            # project that isn't theirs. A verified negative (False) still
+            # drops to org-wide, same as before (documented membership-
+            # inference defense). An unverifiable check (None — DB blip)
+            # must NOT be treated as "not owned": that would fall through
+            # to the org-wide branch, WIDENING scope during exactly the
+            # outage that should have narrowed it (audit M2). Abort the
+            # primary read instead so the caller falls back to
+            # ``_legacy_hybrid_search_fallback``, which re-verifies
+            # ownership itself and fails closed to no results, never org-wide.
+            scoped_project_id = project_id
+            if project_id:
+                owns = await _user_owns_project(session, project_id, user_id)
+                if owns is None:
+                    logger.warning(
+                        "do_kb_read: ownership check for project %s unverifiable "
+                        "— aborting primary read",
+                        project_id,
+                    )
+                    _record_do_kb_read("do_kb_ownership_unverifiable")
+                    return None
+                if owns is False:
+                    logger.info(
+                        "do_kb_read: project %s not owned by caller — dropping scope",
+                        project_id,
+                    )
+                    scoped_project_id = None
+
             # Shared retrieve core (audit B2): timeout wrap + 404/other logging
             # live in ``retrieve_kb_chunks``; this node keeps its own telemetry
             # + fallback-to-None semantics by mapping the outcome.
@@ -430,36 +479,6 @@ async def _try_primary_do_kb_read_impl(
                 return None
 
             from src.services.do_kb.resolve import resolve_and_filter_chunks
-
-            # Only scope by project_id if the caller actually owns it; otherwise
-            # drop the scope (org-wide read, the same as no project context)
-            # rather than filter by — and thereby disclose membership of — a
-            # project that isn't theirs. A verified negative (False) still
-            # drops to org-wide, same as before (documented membership-
-            # inference defense). An unverifiable check (None — DB blip)
-            # must NOT be treated as "not owned": that used to fall through
-            # to the org-wide branch below, WIDENING scope during exactly
-            # the outage that should have narrowed it (audit M2). Abort the
-            # primary read instead so the caller falls back to
-            # ``_legacy_hybrid_search_fallback``, which re-verifies
-            # ownership itself and fails closed to no results, never org-wide.
-            scoped_project_id = project_id
-            if project_id:
-                owns = await _user_owns_project(session, project_id, user_id)
-                if owns is None:
-                    logger.warning(
-                        "do_kb_read: ownership check for project %s unverifiable "
-                        "— aborting primary read",
-                        project_id,
-                    )
-                    _record_do_kb_read("do_kb_ownership_unverifiable")
-                    return None
-                if owns is False:
-                    logger.info(
-                        "do_kb_read: project %s not owned by caller — dropping scope",
-                        project_id,
-                    )
-                    scoped_project_id = None
 
             title_by_key, chunks_to_emit = await resolve_and_filter_chunks(
                 chunks=result.chunks,
