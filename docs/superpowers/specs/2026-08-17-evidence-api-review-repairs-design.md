@@ -92,4 +92,3 @@ PostgreSQL, so the authoritative CI probe remains blocking.
   unavailable status is a skip.
 - Every repair is test-first, committed separately, and reviewed before the next
   repair builds on it.
-
