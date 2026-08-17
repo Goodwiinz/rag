@@ -9,8 +9,6 @@ corrupting job state:
   mid-run and re-runs the pipeline *idempotently* — its Postgres ``Entity``
   writes are replaced, not appended (closes the entity-duplication half of the
   hunt-9 #912 follow-up), while a finished job is skipped outright.
-* ``process_document_upload`` gains the same atomic claim (it previously reset a
-  redelivered job back to QUEUED and reprocessed the whole document).
 
 The claim decision itself lives in ``src.tasks.replay_guard``. These tests use a
 real in-memory SQLite schema so "no duplicate entities" is a real row count.
@@ -31,7 +29,6 @@ pytestmark = pytest.mark.unit
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.entity import Entity, EntityType, ExtractionMethod
 from src.models.processing import JobStatus, JobType, ProcessingJob
-from src.tasks import document_processing_tasks as dpt
 from src.tasks import processing_tasks as pt
 from src.tasks.replay_guard import claim_job_for_processing
 
@@ -419,86 +416,3 @@ def test_ingestion_skips_completed_job_without_reprocessing(
     result = pt.process_document_ingestion.apply(args=(str(job_id),)).get()
     assert result["skipped"] == "terminal"
     assert result["status"] == "completed"
-
-
-# ---------------------------------------------------------------------------
-# process_document_upload — enhanced pipeline task
-# ---------------------------------------------------------------------------
-
-
-def test_upload_task_skips_terminal_job_without_reset(session_factory, monkeypatch):
-    """A redelivered COMPLETED job must not be reset to QUEUED or reprocessed."""
-    Session = session_factory
-    org_id, doc_id, job_id = uuid4(), uuid4(), uuid4()
-    setup = Session()
-    _seed_document(
-        setup,
-        doc_id=doc_id,
-        org_id=org_id,
-        content_text="x",
-        status=ProcessingStatus.COMPLETED,
-    )
-    _seed_job(
-        setup, job_id=job_id, doc_id=doc_id, org_id=org_id, status=JobStatus.COMPLETED
-    )
-    setup.commit()
-    setup.close()
-
-    monkeypatch.setattr(dpt, "SessionLocal", Session)
-    calls = {"process": 0}
-
-    class _FakeMultimodal:
-        def __init__(self, db):
-            pass
-
-        async def process_document(self, *a, **k):
-            calls["process"] += 1
-            return {"success": True, "errors": []}
-
-    monkeypatch.setattr(dpt, "MultimodalProcessingService", _FakeMultimodal)
-
-    result = dpt.process_document_upload.apply(args=(str(job_id), None)).get()
-
-    assert result["status"] == "skipped"
-    assert result["reason"] == "terminal"
-    assert calls["process"] == 0
-    check = Session()
-    job = check.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
-    assert job.status == JobStatus.COMPLETED  # never regressed to QUEUED
-    check.close()
-
-
-def test_upload_task_claims_and_processes_queued_job(session_factory, monkeypatch):
-    Session = session_factory
-    org_id, doc_id, job_id = uuid4(), uuid4(), uuid4()
-    setup = Session()
-    _seed_document(setup, doc_id=doc_id, org_id=org_id, content_text="x")
-    _seed_job(
-        setup, job_id=job_id, doc_id=doc_id, org_id=org_id, status=JobStatus.QUEUED
-    )
-    setup.commit()
-    setup.close()
-
-    monkeypatch.setattr(dpt, "SessionLocal", Session)
-    calls = {"process": 0}
-
-    class _FakeMultimodal:
-        def __init__(self, db):
-            self.db = db
-
-        async def process_document(self, document, job, upload_id=None):
-            calls["process"] += 1
-            job.complete_job(result={"ok": True})
-            self.db.commit()
-            return {"success": True, "errors": [], "processing_time": 0.1}
-
-    monkeypatch.setattr(dpt, "MultimodalProcessingService", _FakeMultimodal)
-
-    result = dpt.process_document_upload.apply(args=(str(job_id), None)).get()
-
-    assert result["status"] == "completed"
-    assert calls["process"] == 1
-    check = Session()
-    job = check.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
-    assert job.status == JobStatus.COMPLETED
-    check.close()

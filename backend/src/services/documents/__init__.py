@@ -12,13 +12,6 @@ __all__ = [
     "FileService",
     "FileValidationError",
     "FileStorageErrorBase",
-    # Enhanced file service
-    "EnhancedFileService",
-    "EnhancedFileValidationError",
-    "SecurityScanError",
-    "EnhancedFileStorageError",
-    "FileIntegrityError",
-    "SecurityThreat",
     # Document management
     "DocumentUploadRequest",
     "DocumentUpdateRequest",
@@ -40,31 +33,6 @@ _EXPORTS: Dict[str, Tuple[str, str]] = {
         "FileValidationError",
     ),
     "FileStorageErrorBase": ("src.services.documents.file_service", "FileStorageError"),
-    # Enhanced file service
-    "EnhancedFileService": (
-        "src.services.documents.enhanced_file_service",
-        "EnhancedFileService",
-    ),
-    "EnhancedFileValidationError": (
-        "src.services.documents.enhanced_file_service",
-        "EnhancedFileValidationError",
-    ),
-    "SecurityScanError": (
-        "src.services.documents.enhanced_file_service",
-        "SecurityScanError",
-    ),
-    "EnhancedFileStorageError": (
-        "src.services.documents.enhanced_file_service",
-        "FileStorageError",
-    ),
-    "FileIntegrityError": (
-        "src.services.documents.enhanced_file_service",
-        "FileIntegrityError",
-    ),
-    "SecurityThreat": (
-        "src.services.documents.enhanced_file_service",
-        "SecurityThreat",
-    ),
     # Document management
     "DocumentUploadRequest": (
         "src.services.documents.document_management",
