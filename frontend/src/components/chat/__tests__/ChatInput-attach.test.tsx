@@ -223,6 +223,71 @@ describe('ChatInput file attach', () => {
       ).not.toBeNull();
     });
 
+    it('marks the chip failed when the host rejects', async () => {
+      const onAttach = vi.fn(() => Promise.reject(new Error('network down')));
+      const { container } = renderWithChatRuntime(
+        <ChatInput {...baseProps} onAttach={onAttach} />
+      );
+
+      await act(async () => {
+        attachOne(container);
+      });
+
+      expect(
+        container.querySelector('[aria-label="Upload failed for paper.pdf"]')
+      ).not.toBeNull();
+      expect(
+        container.querySelector('[aria-label="Uploading paper.pdf"]')
+      ).toBeNull();
+    });
+
+    it('settles each pick of the same file independently', async () => {
+      // The file input is reset after every selection, so the identical file
+      // can be attached twice; the two chips must not share an identity.
+      let settleSecond: (r: { ok: boolean }[]) => void = () => {};
+      const onAttach = vi
+        .fn()
+        .mockResolvedValueOnce([{ ok: false }])
+        .mockImplementationOnce(
+          () =>
+            new Promise<{ ok: boolean }[]>((resolve) => {
+              settleSecond = resolve;
+            })
+        );
+
+      const { container } = renderWithChatRuntime(
+        <ChatInput {...baseProps} onAttach={onAttach} />
+      );
+
+      await act(async () => {
+        attachOne(container);
+      });
+      await act(async () => {
+        attachOne(container);
+      });
+
+      // First pick failed; second is still in flight — one of each, not two
+      // chips sharing whichever outcome landed last.
+      expect(
+        container.querySelectorAll('[aria-label="Upload failed for paper.pdf"]')
+      ).toHaveLength(1);
+      expect(
+        container.querySelectorAll('[aria-label="Uploading paper.pdf"]')
+      ).toHaveLength(1);
+
+      await act(async () => {
+        settleSecond([{ ok: true }]);
+      });
+
+      // The successful second pick must not have cleared the first failure.
+      expect(
+        container.querySelectorAll('[aria-label="Upload failed for paper.pdf"]')
+      ).toHaveLength(1);
+      expect(
+        container.querySelectorAll('[aria-label="Uploading paper.pdf"]')
+      ).toHaveLength(0);
+    });
+
     it('leaves the chip settled when the host reports nothing back', async () => {
       const onAttach = vi.fn();
       const { container } = renderWithChatRuntime(

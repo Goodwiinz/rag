@@ -123,6 +123,8 @@ export function ChatInput({
     state: 'uploading' | 'done' | 'error';
   };
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // Monotonic counter behind each chip's id — see addFiles.
+  const attachSeq = useRef(0);
   // Keep a live ref so the unmount cleanup revokes the current object URLs
   // without re-running on every attachment change.
   const attachmentsRef = useRef<Attachment[]>(attachments);
@@ -140,7 +142,11 @@ export function ChatInput({
     const next: Attachment[] = Array.from(files).map((file) => {
       const isImage = file.type.startsWith('image/');
       return {
-        id: `${file.name}-${file.size}-${file.lastModified}`,
+        // Identity is per pick, not per file: the input is reset after every
+        // selection so the same file can be attached twice, and outcomes are
+        // routed by id. A metadata-derived id would make those two chips
+        // indistinguishable, letting one batch settle the other's chips.
+        id: `att-${(attachSeq.current += 1)}`,
         name: file.name,
         isImage,
         url: isImage ? URL.createObjectURL(file) : undefined,
@@ -150,13 +156,16 @@ export function ChatInput({
     setAttachments((prev) => [...prev, ...next]);
 
     if (!outcomes) return;
-    // Outcomes come back in FileList order, so they zip onto `next` by index.
-    // A chip the user removed mid-upload is simply not found, and is skipped.
-    void outcomes.then((results) => {
+
+    // Outcomes come back in FileList order, so they zip onto this batch's ids
+    // by index. A chip the user removed mid-upload is absent from `prev` and
+    // is simply skipped.
+    const indexById = new Map(next.map((att, i) => [att.id, i]));
+    const settle = (results: { ok: boolean }[] | void): void =>
       setAttachments((prev) =>
         prev.map((att) => {
-          const i = next.findIndex((n) => n.id === att.id);
-          if (i === -1) return att;
+          const i = indexById.get(att.id);
+          if (i === undefined) return att;
           const result = results?.[i];
           // A host that resolves without per-file outcomes gets the old
           // behaviour rather than a chip stuck on 'uploading'.
@@ -164,7 +173,17 @@ export function ChatInput({
           return { ...att, state: result.ok ? ('done' as const) : ('error' as const) };
         })
       );
-    });
+
+    // A rejecting host must not strand the chips as uploading, and must not
+    // surface as an unhandled rejection — the prop contract accepts a promise,
+    // so normalising every failure into `{ ok: false }` is not the host's job.
+    void Promise.resolve(outcomes).then(settle, () =>
+      setAttachments((prev) =>
+        prev.map((att) =>
+          indexById.has(att.id) ? { ...att, state: 'error' as const } : att
+        )
+      )
+    );
   };
 
   const removeAttachment = (id: string): void => {
