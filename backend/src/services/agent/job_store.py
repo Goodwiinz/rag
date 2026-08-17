@@ -8,13 +8,18 @@ so the hot path (polling) avoids a Redis round-trip.
 
 Every status write is additionally projected into the durable ``agent_runs``
 Postgres table. Non-terminal writes remain fire-and-forget; thread-scoped
-terminal writes land before L1/Redis publication so completion cannot leave
-the database's single-writer slot held.
+terminal writes land before L1/Redis publication on the happy path, so
+completion does not hold the database's single-writer slot longer than
+necessary. A failed strict write does not cost the terminal status itself: it
+falls back to the same best-effort re-projection non-terminal writes use, so
+a Postgres blip at completion narrows durability instead of losing the
+result (see ``set_job``).
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json as _json
 import logging
 import time
@@ -126,12 +131,23 @@ async def _get_redis() -> Optional[Any]:  # noqa: ANN401
     if not settings.REDIS_URL:
         logger.warning("REDIS_URL not configured — job store using in-memory only")
         return None
+    client: Optional[Any] = None
     try:
-        _redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-        await _redis.ping()
+        client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        await client.ping()
     except Exception:
         logger.exception("Failed to connect to Redis for job store")
+        # `from_url` allocates a connection pool synchronously; a failed ping
+        # leaves it open with nothing left to close it if we just drop the
+        # reference — one leaked pool per retry cycle for the life of a Redis
+        # outage. Best-effort close: this path already logged and is about to
+        # degrade to in-memory-only, so a second failure here is not fatal.
+        if client is not None:
+            with contextlib.suppress(Exception):
+                await client.aclose()
         _redis = None
+        return _redis
+    _redis = client
     return _redis
 
 
@@ -337,24 +353,53 @@ async def set_job(job_id: str, data: dict) -> None:
         and status.is_terminal
         and projection_payload.get("thread_id")
     )
+    projection_failed = False
     if strict_terminal_projection:
         # Release the durable single-writer slot before L1/Redis can expose a
-        # terminal result to the client.
+        # terminal result to the client — but that ordering must not cost the
+        # terminal status itself. Every caller of set_job for a terminal write
+        # sits directly in an except-handler body with no try/except of its
+        # own (agent_execution_service._run_agent_graph's COMPLETED/FAILED
+        # branches); letting record_job_status's exception escape here kills
+        # the background task with L1/Redis stuck on "running" until the
+        # sweeper's stale window, which then overwrites the real error with a
+        # generic "swept as stale" message. Fall through instead: the
+        # single-writer slot is released late rather than the result being
+        # lost, and the best-effort seam below (shared with non-terminal
+        # writes) retries the durable row — the sweeper also repairs the
+        # projection from the live store on its next pass regardless.
         from src.services.agent.agent_run_service import record_job_status
 
-        await record_job_status(job_id, projection_payload, raise_on_error=True)
+        try:
+            await record_job_status(job_id, projection_payload, raise_on_error=True)
+        except Exception:
+            logger.exception(
+                "Terminal agent_runs projection failed for job %s; exposing "
+                "L1/Redis anyway and rescheduling a best-effort re-projection",
+                job_id,
+            )
+            projection_failed = True
 
-    # L1: in-memory cache (monotonic guard — never overwrite newer data)
+    # L1: in-memory cache (monotonic guard — never overwrite newer data).
+    # Re-read `existing` here rather than reusing the pre-projection snapshot
+    # above: the strict projection just awaited a Postgres round-trip, and a
+    # newer write (e.g. get_job_fresh folding in a fresher Redis read, or a
+    # concurrent set_job) may have landed in L1 during that window. Comparing
+    # against the stale snapshot would let this write stomp it; the lock is
+    # the only place the comparison is valid. (The pre-await snapshot above
+    # is still correct for the owner/org carry-forward — that races nothing.)
     with _l1_lock:
         _seq += 1
         data["_seq"] = _seq
+        existing = _l1.get(job_id)
         if existing is None or _is_newer_or_equal(data, existing):
             _l1[job_id] = data
         _l1_maybe_cleanup()
 
     # Non-terminal and threadless writes retain the rollout's best-effort
-    # projection behavior. Thread-scoped terminal writes landed above.
-    if not strict_terminal_projection:
+    # projection behavior. Thread-scoped terminal writes landed above, unless
+    # the strict projection failed — that case falls back here too.
+    if not strict_terminal_projection or projection_failed:
         schedule_run_projection(job_id, data)
 
     # L2: Redis

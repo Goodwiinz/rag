@@ -11,6 +11,7 @@ from structlog import get_logger
 
 from src.models import Collection, Workspace
 from src.models.project_note import ProjectNote
+from src.services.agent.tool_helpers import _escape_like
 from src.shared.research_schemas import ProjectCreate, ProjectUpdate
 
 logger = get_logger(__name__)
@@ -69,7 +70,13 @@ class ProjectService:
         if tag:
             filters.append(Collection.tags.contains([tag]))
         if search:
-            filters.append(Collection.name.ilike(f"%{search}%"))
+            # search is agent- and user-supplied free text; unescaped '%'/'_'
+            # would act as LIKE wildcards instead of literal characters (the
+            # same invariant every other ilike() site in the agent path
+            # enforces via this helper — see tool_helpers.py).
+            filters.append(
+                Collection.name.ilike(f"%{_escape_like(search)}%", escape="\\")
+            )
 
         count_query = select(func.count(Collection.id)).where(and_(*filters))
         total_result = await self.db.execute(count_query)

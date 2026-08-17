@@ -107,7 +107,7 @@ class EvidenceCacheService:
     def _generate_meter_cache_key(
         self,
         claim_hash: str,
-        source_ids: List[str],
+        source_revisions: List[str],
         model_version: str,
         organization_id,
     ) -> str:
@@ -116,8 +116,8 @@ class EvidenceCacheService:
         ``organization_id`` is part of the key so meter results are never shared across
         tenants — a cache hit for one org must not surface another org's analysis.
         """
-        # Sort source IDs for consistent caching
-        sorted_sources = sorted(source_ids)
+        # Sort source revisions for consistent caching
+        sorted_sources = sorted(source_revisions)
         sources_hash = hashlib.sha256(
             "|".join(sorted_sources).encode("utf-8")
         ).hexdigest()[:16]
@@ -126,7 +126,7 @@ class EvidenceCacheService:
     async def get_evidence_meter(
         self,
         claim_hash: str,
-        source_ids: List[str],
+        source_revisions: List[str],
         model_version: str,
         organization_id,
     ) -> Optional[Dict]:
@@ -135,7 +135,7 @@ class EvidenceCacheService:
             return None
 
         cache_key = self._generate_meter_cache_key(
-            claim_hash, source_ids, model_version, organization_id
+            claim_hash, source_revisions, model_version, organization_id
         )
 
         try:
@@ -152,7 +152,7 @@ class EvidenceCacheService:
     async def set_evidence_meter(
         self,
         claim_hash: str,
-        source_ids: List[str],
+        source_revisions: List[str],
         model_version: str,
         organization_id,
         meter_data: Dict,
@@ -163,7 +163,7 @@ class EvidenceCacheService:
             return False
 
         cache_key = self._generate_meter_cache_key(
-            claim_hash, source_ids, model_version, organization_id
+            claim_hash, source_revisions, model_version, organization_id
         )
 
         try:
@@ -247,7 +247,7 @@ class EvidenceCacheService:
             # Find all keys for this claim
             patterns = [
                 f"stance:{claim_hash}:*",
-                f"meter:{claim_hash}:*",
+                f"meter:*:{claim_hash}:*",
             ]
 
             deleted_count = 0
