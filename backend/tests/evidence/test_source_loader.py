@@ -1,3 +1,4 @@
+import hashlib
 from types import SimpleNamespace
 from unittest.mock import Mock
 from uuid import UUID, uuid4
@@ -245,6 +246,20 @@ def test_loader_uses_stored_hash_or_hashes_source_content() -> None:
     assert loaded.sources[0].content_hash == "stored-hash"
     assert loaded.sources[1].content_hash == (
         "f0a3ddf786e1fe1ac9060c678917fb5d83d5d0008669310cb3ed1d1a1e8f9bdd"
+    )
+
+
+def test_current_content_hash_prefers_nonblank_checksum_and_hashes_utf8_content() -> (
+    None
+):
+    assert source_loader.current_content_hash("stored-hash", "ignored content") == (
+        "stored-hash"
+    )
+
+    content = "révision café"
+    assert (
+        source_loader.current_content_hash("  \n\t", content)
+        == hashlib.sha256(content.encode("utf-8")).hexdigest()
     )
 
 

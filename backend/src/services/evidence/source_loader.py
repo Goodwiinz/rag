@@ -17,6 +17,13 @@ WINDOW_STEP_CHARS = MAX_EXCERPT_CHARS // 2
 _CLAIM_TERM_PATTERN = re.compile(r"\w{3,}", re.UNICODE)
 
 
+def current_content_hash(checksum_sha256: str | None, content_text: str) -> str:
+    """Return the document revision used by evidence persistence and reads."""
+    if checksum_sha256 and checksum_sha256.strip():
+        return checksum_sha256
+    return hashlib.sha256(content_text.encode("utf-8")).hexdigest()
+
+
 class ClassifierSource(TypedDict):
     source_id: UUID
     excerpt: str
@@ -166,9 +173,7 @@ class EvidenceSourceLoader:
 
     def _build_source(self, document: Document, claim: str) -> EvidenceSource:
         content = cast(str, document.content_text)
-        content_hash = cast(str | None, document.checksum_sha256)
-        if not content_hash or not content_hash.strip():
-            content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        content_hash = current_content_hash(document.checksum_sha256, content)
 
         return EvidenceSource(
             source_id=cast(UUID, document.id),

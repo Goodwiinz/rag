@@ -642,12 +642,12 @@ class TestEvidenceBreakdownEndpoint:
         claim_hash = "test_claim_hash_123"
         source_ids = [uuid4() for _ in range(2)]
 
-        seed_document(
+        first_document = seed_document(
             db,
             document_id=source_ids[0],
             title="First breakdown source",
         )
-        seed_document(
+        second_document = seed_document(
             db,
             document_id=source_ids[1],
             title="Second breakdown source",
@@ -659,6 +659,7 @@ class TestEvidenceBreakdownEndpoint:
                 source_id=source_ids[0],
                 organization_id=TEST_ORG_ID,
                 claim_text="Stored breakdown claim",
+                source_content_hash=first_document.checksum_sha256,
                 stance="supporting",
                 confidence=0.90,
                 justification_excerpt="Strong evidence",
@@ -669,6 +670,7 @@ class TestEvidenceBreakdownEndpoint:
                 source_id=source_ids[1],
                 organization_id=TEST_ORG_ID,
                 claim_text="Stored breakdown claim",
+                source_content_hash=second_document.checksum_sha256,
                 stance="opposing",
                 confidence=0.85,
                 justification_excerpt="Contradictory evidence",
@@ -709,8 +711,10 @@ class TestEvidenceBreakdownEndpoint:
         claim_hash = "test_filter_hash_456"
         source_ids = [uuid4() for _ in range(3)]
 
-        for source_id in source_ids:
-            seed_document(db, document_id=source_id)
+        documents = {
+            source_id: seed_document(db, document_id=source_id)
+            for source_id in source_ids
+        }
 
         classifications = [
             StanceClassificationModel(
@@ -718,6 +722,7 @@ class TestEvidenceBreakdownEndpoint:
                 source_id=source_ids[0],
                 organization_id=TEST_ORG_ID,
                 claim_text="Stored filtered claim",
+                source_content_hash=documents[source_ids[0]].checksum_sha256,
                 stance="supporting",
                 confidence=0.90,
                 justification_excerpt="Support 1",
@@ -728,6 +733,7 @@ class TestEvidenceBreakdownEndpoint:
                 source_id=source_ids[1],
                 organization_id=TEST_ORG_ID,
                 claim_text="Stored filtered claim",
+                source_content_hash=documents[source_ids[1]].checksum_sha256,
                 stance="supporting",
                 confidence=0.85,
                 justification_excerpt="Support 2",
@@ -738,6 +744,7 @@ class TestEvidenceBreakdownEndpoint:
                 source_id=source_ids[2],
                 organization_id=TEST_ORG_ID,
                 claim_text="Stored filtered claim",
+                source_content_hash=documents[source_ids[2]].checksum_sha256,
                 stance="opposing",
                 confidence=0.80,
                 justification_excerpt="Opposition",
@@ -773,9 +780,10 @@ class TestEvidenceBreakdownEndpoint:
         db = TestingSessionLocal()
         source_ids = [uuid4() for _ in range(3)]
         claim_hash = "equal_confidence_pagination_hash"
+        documents = {}
 
         for source_id in source_ids:
-            seed_document(
+            documents[source_id] = seed_document(
                 db,
                 document_id=source_id,
                 title=f"Source {source_id}",
@@ -792,6 +800,7 @@ class TestEvidenceBreakdownEndpoint:
                     stance="supporting",
                     confidence=0.75,
                     justification_excerpt="Equal confidence pagination source content",
+                    source_content_hash=documents[source_id].checksum_sha256,
                     model_version=stance_classifier.model_version,
                 )
             )
@@ -824,6 +833,139 @@ class TestEvidenceBreakdownEndpoint:
         finally:
             db.close()
 
+    def test_breakdown_hides_classification_after_document_revision_changes(
+        self, test_client, mock_auth
+    ):
+        set_active_user(MockUser())
+        db = TestingSessionLocal()
+        original_content = "Original source content for revision filtering."
+        document = seed_document(
+            db,
+            title="Revised source",
+            content_text=original_content,
+        )
+        claim_hash = "stale_revision_visibility_hash"
+        db.add(
+            StanceClassificationModel(
+                claim_hash=claim_hash,
+                claim_text="Revision filtering claim",
+                source_id=document.id,
+                source_content_hash=document.checksum_sha256,
+                organization_id=TEST_ORG_ID,
+                stance="supporting",
+                confidence=0.95,
+                justification_excerpt=original_content,
+                model_version=stance_classifier.model_version,
+            )
+        )
+        db.commit()
+
+        revised_content = "Changed source content invalidates the old classification."
+        document.content_text = revised_content
+        document.checksum_sha256 = hashlib.sha256(
+            revised_content.encode("utf-8")
+        ).hexdigest()
+        db.commit()
+
+        try:
+            response = test_client.get(
+                "/api/v1/evidence/breakdown", params={"claim_hash": claim_hash}
+            )
+
+            assert response.status_code == 404
+            assert (
+                response_message(response) == "No classifications found for this claim"
+            )
+        finally:
+            db.close()
+
+    def test_breakdown_stale_candidates_do_not_consume_pagination(
+        self, test_client, mock_auth
+    ):
+        set_active_user(MockUser())
+        db = TestingSessionLocal()
+        claim_hash = "stale_candidate_pagination_hash"
+        stale_document = seed_document(
+            db,
+            title="Stale high-confidence source",
+            content_text="Original stale source content.",
+        )
+        current_first = seed_document(
+            db,
+            title="Current first source",
+            content_text="Current first source content.",
+        )
+        current_second = seed_document(
+            db,
+            title="Current second source",
+            content_text="Current second source content.",
+        )
+
+        db.add_all(
+            [
+                StanceClassificationModel(
+                    claim_hash=claim_hash,
+                    claim_text="Stale pagination claim",
+                    source_id=stale_document.id,
+                    source_content_hash=stale_document.checksum_sha256,
+                    organization_id=TEST_ORG_ID,
+                    stance="supporting",
+                    confidence=0.99,
+                    justification_excerpt="Original stale source content.",
+                    model_version=stance_classifier.model_version,
+                ),
+                StanceClassificationModel(
+                    claim_hash=claim_hash,
+                    claim_text="Stale pagination claim",
+                    source_id=current_first.id,
+                    source_content_hash=current_first.checksum_sha256,
+                    organization_id=TEST_ORG_ID,
+                    stance="supporting",
+                    confidence=0.80,
+                    justification_excerpt="Current first source content.",
+                    model_version=stance_classifier.model_version,
+                ),
+                StanceClassificationModel(
+                    claim_hash=claim_hash,
+                    claim_text="Stale pagination claim",
+                    source_id=current_second.id,
+                    source_content_hash=current_second.checksum_sha256,
+                    organization_id=TEST_ORG_ID,
+                    stance="supporting",
+                    confidence=0.70,
+                    justification_excerpt="Current second source content.",
+                    model_version=stance_classifier.model_version,
+                ),
+            ]
+        )
+        db.commit()
+
+        revised_content = "Revised stale source content."
+        stale_document.content_text = revised_content
+        stale_document.checksum_sha256 = hashlib.sha256(
+            revised_content.encode("utf-8")
+        ).hexdigest()
+        db.commit()
+
+        try:
+            first_page = test_client.get(
+                "/api/v1/evidence/breakdown",
+                params={"claim_hash": claim_hash, "limit": 1, "offset": 0},
+            )
+            second_page = test_client.get(
+                "/api/v1/evidence/breakdown",
+                params={"claim_hash": claim_hash, "limit": 1, "offset": 1},
+            )
+
+            assert first_page.status_code == 200
+            assert second_page.status_code == 200
+            assert first_page.json()["sources"][0]["source_id"] == str(current_first.id)
+            assert second_page.json()["sources"][0]["source_id"] == str(
+                current_second.id
+            )
+        finally:
+            db.close()
+
     @pytest.mark.asyncio
     async def test_breakdown_pagination_adds_source_id_tie_breaker(self):
         db = Mock()
@@ -834,17 +976,37 @@ class TestEvidenceBreakdownEndpoint:
         query.order_by.return_value = query
         query.offset.return_value = query
         query.limit.return_value = query
+        first_source_id = uuid4()
+        second_source_id = uuid4()
         query.all.return_value = [
             (
                 SimpleNamespace(
-                    source_id=uuid4(),
+                    source_id=first_source_id,
                     claim_text="A deterministic claim",
                     stance="supporting",
                     confidence=0.75,
                     justification_excerpt="A grounded excerpt",
+                    source_content_hash="hash-a",
                 ),
-                SimpleNamespace(title="A source"),
-            )
+                SimpleNamespace(
+                    title="A source", checksum_sha256="hash-a", content_text="source"
+                ),
+            ),
+            (
+                SimpleNamespace(
+                    source_id=second_source_id,
+                    claim_text="A deterministic claim",
+                    stance="supporting",
+                    confidence=0.7,
+                    justification_excerpt="Another grounded excerpt",
+                    source_content_hash="hash-b",
+                ),
+                SimpleNamespace(
+                    title="Another source",
+                    checksum_sha256="hash-b",
+                    content_text="source",
+                ),
+            ),
         ]
 
         await get_evidence_breakdown(
@@ -912,6 +1074,9 @@ class TestEvidenceBreakdownEndpoint:
                 source_id=org_a_source,
                 organization_id=TEST_ORG_ID,
                 claim_text="Shared tenant claim",
+                source_content_hash=hashlib.sha256(
+                    "Org A source content".encode("utf-8")
+                ).hexdigest(),
                 stance="supporting",
                 confidence=0.9,
                 justification_excerpt=org_a_excerpt,
@@ -922,6 +1087,9 @@ class TestEvidenceBreakdownEndpoint:
                 source_id=org_b_source,
                 organization_id=TEST_ORG_ID_B,
                 claim_text="Shared tenant claim",
+                source_content_hash=hashlib.sha256(
+                    "Org B source content".encode("utf-8")
+                ).hexdigest(),
                 stance="opposing",
                 confidence=0.8,
                 justification_excerpt=org_b_excerpt,

@@ -34,6 +34,7 @@ from ...services.evidence import (
     SourceSetNotFoundError,
     StanceClassifier,
 )
+from ...services.evidence.source_loader import current_content_hash
 from .schemas import EvidenceBreakdown, EvidenceMeter, Stance, StanceBreakdownItem
 
 logger = logging.getLogger(__name__)
@@ -468,7 +469,14 @@ async def get_evidence_breakdown(
                 StanceClassificationModel.stance == stance_filter.value
             )
 
-        classifications = query.offset(offset).limit(limit).all()
+        candidates = query.all()
+        current_classifications = [
+            (classification, document)
+            for classification, document in candidates
+            if classification.source_content_hash
+            == current_content_hash(document.checksum_sha256, document.content_text)
+        ]
+        classifications = current_classifications[offset : offset + limit]
 
         if not classifications:
             raise HTTPException(
