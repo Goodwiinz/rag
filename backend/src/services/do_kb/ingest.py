@@ -158,6 +158,17 @@ async def sync_document_to_kb(
     if document.do_kb_data_source_uuid:
         return document.do_kb_data_source_uuid
 
+    # Defense in depth (R2-H11): callers (backfill/reconciler) should already
+    # filter out soft-deleted docs, but a cheap re-check here means a stale
+    # in-memory Document or a future caller that forgets the filter still
+    # can't push a deleted doc's content into DO KB.
+    if getattr(document, "is_deleted", False):
+        logger.info(
+            "do_kb skip — document soft-deleted",
+            extra={"document_id": str(document.id)},
+        )
+        return None
+
     api = client or get_do_kb_client()
 
     try:
