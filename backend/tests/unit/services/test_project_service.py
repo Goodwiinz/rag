@@ -23,7 +23,9 @@ def mock_db() -> AsyncMock:
 
 
 @pytest.mark.asyncio
-async def test_list_projects_returns_filtered_paginated_result(mock_db: AsyncMock) -> None:
+async def test_list_projects_returns_filtered_paginated_result(
+    mock_db: AsyncMock,
+) -> None:
     service = ProjectService(mock_db)
     workspace_id = uuid4()
     user_id = uuid4()
@@ -111,7 +113,9 @@ async def test_update_project_rejects_invalid_status_transition(
 
 
 @pytest.mark.asyncio
-async def test_update_project_allows_valid_status_transition(mock_db: AsyncMock) -> None:
+async def test_update_project_allows_valid_status_transition(
+    mock_db: AsyncMock,
+) -> None:
     service = ProjectService(mock_db)
     user_id = uuid4()
     project_id = uuid4()
