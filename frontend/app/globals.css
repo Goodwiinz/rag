@@ -483,27 +483,48 @@
     opacity: 1;
     transform: translateY(0);
   }
+  /* Ghost buttons: the row sits under every assistant turn, so an outlined
+     box per action stacked up as chrome. Weight arrives on hover instead. */
   .nous-msg-action {
     width: 28px;
     height: 28px;
     display: grid;
     place-items: center;
     background: transparent;
-    border: 1px solid var(--nous-border-1);
-    border-radius: 6px;
+    border: none;
+    border-radius: 9999px;
     color: var(--nous-fg-3);
-    transition: all 150ms;
+    transition:
+      background-color 150ms,
+      color 150ms,
+      scale 150ms;
     cursor: pointer;
   }
   .nous-msg-action:hover {
-    border-color: var(--nous-sol);
-    color: var(--nous-sol-safe);
-    background: var(--nous-bg-2);
+    color: var(--nous-fg-1);
+    background: rgba(var(--nous-erebus-rgb), 0.06);
+  }
+  .nous-msg-action:active {
+    scale: 0.96;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .nous-msg-action {
+      transition: none;
+    }
+    .nous-msg-action:active {
+      scale: 1;
+    }
   }
   .dark .nous-msg-action:hover {
-    background: var(--nous-obsidian);
-    border-color: var(--nous-helios);
-    color: var(--nous-helios);
+    color: var(--nous-ivory);
+    background: rgba(245, 240, 232, 0.09);
+  }
+
+  /* A rating, or its open reason form, pins the row: the reader must not have
+     to keep the pointer still to finish giving feedback. */
+  .nous-msg-actions:has([data-feedback-engaged='true']) {
+    opacity: 1;
+    transform: translateY(0);
   }
   .nous-msg-action:focus-visible {
     outline: none;

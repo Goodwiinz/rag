@@ -186,6 +186,7 @@ function MessageActions({
   retryDisabled,
   onEdit,
   editButtonRef,
+  rating,
 }: {
   assistant?: boolean;
   onRetry?: () => void;
@@ -195,6 +196,9 @@ function MessageActions({
   onEdit?: () => void;
   /** Focus target the inline editor returns to on cancel/save. */
   editButtonRef?: React.Ref<HTMLButtonElement>;
+  /** Rating control, rendered inline so copy / rate / regenerate read as one
+   * row of actions rather than a bar with a second control beneath it. */
+  rating?: ReactNode;
 }): ReactElement {
   return (
     <ActionBarPrimitive.Root
@@ -210,7 +214,13 @@ function MessageActions({
         aria-label={assistant ? 'Copy assistant message' : 'Copy user message'}
         title="Copy message"
       >
-        <Copy className="h-3.5 w-3.5" />
+        {/* The action confirms itself rather than relying on a toast. */}
+        <MessagePrimitive.If copied={false}>
+          <Copy className="h-3.5 w-3.5" />
+        </MessagePrimitive.If>
+        <MessagePrimitive.If copied>
+          <Check className="h-3.5 w-3.5 text-(--nous-terra)" />
+        </MessagePrimitive.If>
       </ActionBarPrimitive.Copy>
       {!assistant && onEdit ? (
         <button
@@ -244,6 +254,7 @@ function MessageActions({
           <RotateCcw className="h-3.5 w-3.5" />
         </ActionBarPrimitive.Reload>
       ) : null}
+      {rating}
     </ActionBarPrimitive.Root>
   );
 }
@@ -696,16 +707,22 @@ export function AuiAssistantMessage({
             onCitationClick={onCitationClick}
           />
         )}
+        {/* Per-response feedback rides inside the action row — only for
+         * persisted (server-canonical) assistant turns; optimistic/local-only
+         * rows have no id to PATCH. */}
         <MessageActions
           assistant
           onRetry={onRetry}
           retryDisabled={retryDisabled}
+          rating={
+            message?.id ? (
+              <MessageFeedback
+                messageId={message.id}
+                feedback={message.feedback}
+              />
+            ) : null
+          }
         />
-        {/* Per-response feedback — only for persisted (server-canonical)
-         * assistant turns; optimistic/local-only rows have no id to PATCH. */}
-        {message?.id ? (
-          <MessageFeedback messageId={message.id} feedback={message.feedback} />
-        ) : null}
       </div>
     </MessagePrimitive.Root>
   );

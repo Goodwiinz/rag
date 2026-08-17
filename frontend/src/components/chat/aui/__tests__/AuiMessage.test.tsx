@@ -183,6 +183,27 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
     );
   }
 
+  it('puts the rating control inside the action row', async () => {
+    renderByIndex([
+      { id: 'u1', role: 'user', content: 'Q', timestamp: 1 },
+      { id: 'a1', role: 'assistant', content: 'A', timestamp: 2 },
+    ]);
+
+    // The row autohides, so reveal it the way a reader would.
+    const root = document.querySelector('[data-role="assistant"]');
+    fireEvent.mouseEnter(root as Element);
+
+    // Copy, regenerate and rate read as one row of actions; a separate
+    // control beneath the bar reads as a second, unrelated affordance.
+    const bar = await waitFor(() => {
+      const node = document.querySelector('[data-slot="aui-message-actions"]');
+      expect(node).toBeTruthy();
+      return node as Element;
+    });
+    expect(bar.querySelector('.nous-msg-feedback')).toBeTruthy();
+    expect(bar.querySelector('[aria-label="Good response"]')).toBeTruthy();
+  });
+
   it('renders assistant markdown (bold), not raw asterisks', () => {
     renderByIndex([
       {
