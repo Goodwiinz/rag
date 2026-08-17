@@ -1727,16 +1727,21 @@ input:-webkit-autofill ~ button svg {
     background-position: -200% 0;
   }
 }
-.tool-shimmer {
-  color: transparent;
-  background-image: linear-gradient(
-    100deg,
-    transparent 42%,
-    hsl(var(--foreground)) 50%,
-    transparent 58%
-  );
-  background-size: 250% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: tool-shimmer 2.5s linear infinite;
+/* The effect works by making the text transparent and painting a moving
+   gradient through it, so it must not apply at all under reduced motion —
+   killing only the animation would leave a near-invisible static label. */
+@media (prefers-reduced-motion: no-preference) {
+  .tool-shimmer {
+    color: transparent;
+    background-image: linear-gradient(
+      100deg,
+      transparent 42%,
+      hsl(var(--foreground)) 50%,
+      transparent 58%
+    );
+    background-size: 250% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: tool-shimmer 2.5s linear infinite;
+  }
 }

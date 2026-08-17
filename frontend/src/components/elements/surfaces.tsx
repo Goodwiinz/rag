@@ -30,19 +30,17 @@ export const mono = 'font-mono text-[11px] tracking-tight';
 
 /**
  * Upstream emits `.shimmer`, which in our globals.css is the grey
- * skeleton-loader gradient. `.tool-shimmer` is the text-clipped one.
+ * skeleton-loader gradient. `.tool-shimmer` is the text-clipped one, and it
+ * only paints under `prefers-reduced-motion: no-preference` — it makes the
+ * text itself transparent, so stopping just the animation would leave the
+ * label invisible rather than still.
  */
 export function ShimmerLabel({
   active = true,
   className,
   ...props
-}: ComponentProps<'span'> & { active?: boolean }) {
-  return (
-    <span
-      className={cn(active && 'tool-shimmer motion-reduce:animate-none', className)}
-      {...props}
-    />
-  );
+}: ComponentProps<'span'> & { active?: boolean }): React.ReactElement {
+  return <span className={cn(active && 'tool-shimmer', className)} {...props} />;
 }
 
 const labelSwap =
@@ -62,14 +60,15 @@ export function SwapLabel({
   active: 0 | 1;
   children: [React.ReactNode, React.ReactNode];
   className?: string;
-}) {
+}): React.ReactElement {
   const layers = [useRef<HTMLSpanElement>(null), useRef<HTMLSpanElement>(null)];
   const [width, setWidth] = useState<number | null>(null);
 
   useLayoutEffect(() => {
     const target = layers[active]?.current;
     if (!target) return undefined;
-    const measure = () => setWidth(Math.ceil(target.getBoundingClientRect().width));
+    const measure = (): void =>
+      setWidth(Math.ceil(target.getBoundingClientRect().width));
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(target);
