@@ -457,7 +457,6 @@ async def get_evidence_breakdown(
                 Document.organization_id == current_user.organization_id,
                 Document.is_deleted.is_(False),
                 Document.processing_status == ProcessingStatus.COMPLETED,
-                Document.content_text.isnot(None),
             )
             .order_by(
                 StanceClassificationModel.confidence.desc(),
@@ -471,12 +470,16 @@ async def get_evidence_breakdown(
             )
 
         candidates = query.all()
-        current_classifications = [
-            (classification, document)
-            for classification, document in candidates
-            if classification.source_content_hash
-            == current_content_hash(document.checksum_sha256, document.content_text)
-        ]
+        current_classifications = []
+        for classification, document in candidates:
+            current_hash = current_content_hash(
+                document.checksum_sha256, document.content_text
+            )
+            if (
+                current_hash is not None
+                and classification.source_content_hash == current_hash
+            ):
+                current_classifications.append((classification, document))
         classifications = current_classifications[offset : offset + limit]
 
         if not classifications:

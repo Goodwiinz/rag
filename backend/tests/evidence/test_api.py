@@ -921,6 +921,45 @@ class TestEvidenceBreakdownEndpoint:
         finally:
             db.close()
 
+    def test_breakdown_keeps_row_when_source_content_hash_is_authoritative(
+        self, test_client, mock_auth
+    ):
+        set_active_user(MockUser())
+        db = TestingSessionLocal()
+        document = seed_document(
+            db,
+            title="Checksum-authoritative source",
+            content_text="Content available when classified.",
+        )
+        claim_hash = "null_content_authoritative_hash"
+        db.add(
+            StanceClassificationModel(
+                claim_hash=claim_hash,
+                claim_text="Checksum-authoritative revision claim",
+                source_id=document.id,
+                source_content_hash=document.checksum_sha256,
+                organization_id=TEST_ORG_ID,
+                stance="supporting",
+                confidence=0.9,
+                justification_excerpt="Content available when classified.",
+                model_version=stance_classifier.model_version,
+            )
+        )
+        db.commit()
+
+        document.content_text = None
+        db.commit()
+
+        try:
+            response = test_client.get(
+                "/api/v1/evidence/breakdown", params={"claim_hash": claim_hash}
+            )
+
+            assert response.status_code == 200
+            assert response.json()["sources"][0]["source_id"] == str(document.id)
+        finally:
+            db.close()
+
     def test_breakdown_stale_candidates_do_not_consume_pagination(
         self, test_client, mock_auth
     ):

@@ -17,10 +17,14 @@ WINDOW_STEP_CHARS = MAX_EXCERPT_CHARS // 2
 _CLAIM_TERM_PATTERN = re.compile(r"\w{3,}", re.UNICODE)
 
 
-def current_content_hash(checksum_sha256: str | None, content_text: str) -> str:
+def current_content_hash(
+    checksum_sha256: str | None, content_text: str | None
+) -> str | None:
     """Return the document revision used by evidence persistence and reads."""
     if checksum_sha256 and checksum_sha256.strip():
         return checksum_sha256
+    if content_text is None:
+        return None
     return hashlib.sha256(content_text.encode("utf-8")).hexdigest()
 
 
@@ -174,6 +178,8 @@ class EvidenceSourceLoader:
     def _build_source(self, document: Document, claim: str) -> EvidenceSource:
         content = cast(str, document.content_text)
         content_hash = current_content_hash(document.checksum_sha256, content)
+        if content_hash is None:
+            raise SourceNotReadyError("One or more sources are not ready")
 
         return EvidenceSource(
             source_id=cast(UUID, document.id),

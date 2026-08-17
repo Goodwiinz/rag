@@ -255,12 +255,14 @@ def test_current_content_hash_prefers_nonblank_checksum_and_hashes_utf8_content(
     assert source_loader.current_content_hash("stored-hash", "ignored content") == (
         "stored-hash"
     )
+    assert source_loader.current_content_hash("stored-hash", None) == "stored-hash"
 
     content = "révision café"
     assert (
         source_loader.current_content_hash("  \n\t", content)
         == hashlib.sha256(content.encode("utf-8")).hexdigest()
     )
+    assert source_loader.current_content_hash(None, None) is None
 
 
 def test_loader_rejects_all_withdrawn_sources() -> None:
