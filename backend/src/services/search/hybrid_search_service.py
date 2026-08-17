@@ -678,9 +678,10 @@ class HybridSearchService:
                     continue
 
                 entity_id = getattr(result, "id", None)
-                relevance_score = max(
-                    0.0, min(getattr(result, "confidence_score", 0.8) or 0.8, 1.0)
-                )
+                confidence_score = getattr(result, "confidence_score", None)
+                if confidence_score is None:
+                    confidence_score = 0.8
+                relevance_score = max(0.0, min(confidence_score, 1.0))
 
                 # Create SearchResult from knowledge graph result
                 search_result = SearchResult(
@@ -759,8 +760,29 @@ class HybridSearchService:
         # Collect all results with their document IDs
         all_results = {}
 
-        # Process results from each source
-        for source_type, source_result in source_results.items():
+        # Process content-bearing sources before KNOWLEDGE_GRAPH (regardless
+        # of source_results dict/thread-completion order — see the sort key
+        # below), so a KG hit can only ever corroborate a document another
+        # source already surfaced. KG's document_id comes from
+        # EntityResponse.source_document_id, which
+        # KnowledgeGraphService.create_entity sets only in its ON CREATE
+        # branch and never updates on ON MATCH — entities are MERGEd across
+        # documents by (name, type, org), so a shared entity's
+        # source_document_id permanently identifies whichever document
+        # created the node first, which can be stale or even deleted (see
+        # test_delete_document_graph_shared_node_semantics_documented). That
+        # property is safe as a corroboration boost for a document another
+        # source already verified; it is not safe as the sole source of a
+        # returned result — it can misboost or return the wrong/dead
+        # document, or 404 as an "open document" target. So a KG-only
+        # document_id (no other source already matched it) is dropped here
+        # rather than turned into a standalone result.
+        ordered_source_types = sorted(
+            source_results.keys(),
+            key=lambda st: 1 if st == SearchSourceType.KNOWLEDGE_GRAPH else 0,
+        )
+        for source_type in ordered_source_types:
+            source_result = source_results[source_type]
             if not source_result.success:
                 continue
 
@@ -768,6 +790,8 @@ class HybridSearchService:
                 document_id = result.document_id
 
                 if document_id not in all_results:
+                    if source_type == SearchSourceType.KNOWLEDGE_GRAPH:
+                        continue
                     all_results[document_id] = {
                         "document_id": document_id,
                         "sources": {},
@@ -1156,14 +1180,26 @@ class HybridSearchService:
         content-bearing source (fulltext/vector). KG hits still boost ranking
         via the diversity boost in _fuse_search_results, but don't gate
         coverage — see _EVIDENCE_SOURCE_VALUES above.
+
+        Results without an "original_sources" key (metadata from before
+        R2-H10, or any caller that built a SearchResult by hand) fall back to
+        the old ">=2 sources" reading via "source_count" instead of reading
+        as zero coverage — keep in lockstep with
+        api.search.search._calculate_source_coverage.
         """
         if not results:
             return 0.0
 
         evidenced_results = 0
         for result in results:
-            original_sources = (result.metadata or {}).get("original_sources", [])
-            if any(s in self._EVIDENCE_SOURCE_VALUES for s in original_sources):
+            metadata = result.metadata or {}
+            if "original_sources" in metadata:
+                if any(
+                    s in self._EVIDENCE_SOURCE_VALUES
+                    for s in metadata["original_sources"]
+                ):
+                    evidenced_results += 1
+            elif metadata.get("source_count", 1) >= 2:
                 evidenced_results += 1
 
         return round(evidenced_results / len(results), 4)

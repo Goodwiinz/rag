@@ -95,18 +95,24 @@ def _calculate_source_coverage(response: SearchResponse) -> float:
     knowledge-graph co-hit. The two must stay in lockstep — this is only a
     fallback path (see caller) for when the service's own coverage value is
     missing.
+
+    Results whose metadata predates R2-H10 (no "original_sources" key —
+    hand-built responses, fixtures, or any producer this endpoint doesn't
+    control the shape of) fall back to the old ">=2 sources" semantics via
+    "source_count" instead of reading as zero coverage.
     """
     if not response.results:
         return 0.0
 
-    evidenced = sum(
-        1
-        for result in response.results
-        if any(
-            s in ("fulltext", "vector")
-            for s in (result.metadata or {}).get("original_sources", [])
-        )
-    )
+    evidenced = 0
+    for result in response.results:
+        metadata = result.metadata or {}
+        if "original_sources" in metadata:
+            if any(s in ("fulltext", "vector") for s in metadata["original_sources"]):
+                evidenced += 1
+        elif metadata.get("source_count", 1) >= 2:
+            evidenced += 1
+
     return round(evidenced / len(response.results), 4)
 
 

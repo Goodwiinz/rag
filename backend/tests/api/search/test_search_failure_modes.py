@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
 from src.models.search_schemas import SearchResponse, SearchResult, SearchType
 
 
@@ -239,3 +240,29 @@ def test_hybrid_search_returns_no_match_when_confidence_is_too_low() -> None:
     finally:
         app.router.lifespan_context = original_lifespan
         app.dependency_overrides.clear()
+
+
+def test_calculate_source_coverage_falls_back_to_legacy_source_count() -> None:
+    """R2-H10 follow-up: results whose metadata predates the "original_sources"
+    key (e.g. hand-built SearchResponses like the fixtures above) must keep
+    reading via the old "source_count>=2" rule, not silently read as zero
+    coverage."""
+    _, search_module = _build_app()
+
+    response = SearchResponse(
+        query="q",
+        search_id="search-legacy",
+        search_type=SearchType.HYBRID,
+        results=[
+            _make_result("doc-1", "legacy metadata one", source_count=2),
+            _make_result("doc-2", "legacy metadata two", source_count=1),
+        ],
+        total_results=2,
+        returned_results=2,
+        search_time_ms=1.0,
+        limit=20,
+        offset=0,
+        has_more=False,
+    )
+
+    assert search_module._calculate_source_coverage(response) == 0.5

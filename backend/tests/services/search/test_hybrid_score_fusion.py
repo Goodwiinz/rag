@@ -17,7 +17,13 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from src.models.search_schemas import SearchResult
+from src.models.search_schemas import (
+    DocumentType,
+    SearchQuery,
+    SearchResult,
+    SearchSortOrder,
+    SearchType,
+)
 from src.services.search.hybrid_search_service import (
     HybridSearchService,
     RawSearchResult,
@@ -26,12 +32,23 @@ from src.services.search.hybrid_search_service import (
 )
 
 
+def _search_query(query: str) -> SearchQuery:
+    return SearchQuery(
+        query=query,
+        search_type=SearchType.HYBRID,
+        limit=10,
+        offset=0,
+        sort_order=SearchSortOrder.RELEVANCE,
+        filters=None,
+    )
+
+
 def _search_result(document_id: str, relevance_score: float) -> SearchResult:
     now = datetime(2026, 8, 17, tzinfo=timezone.utc)
     return SearchResult(
         document_id=document_id,
         title=f"Title {document_id}",
-        document_type="text",
+        document_type=DocumentType.TEXT,
         content_preview="preview",
         snippets=[],
         relevance_score=relevance_score,
@@ -52,7 +69,7 @@ def _search_result(document_id: str, relevance_score: float) -> SearchResult:
 # ---------------------------------------------------------------------------
 
 
-def test_normalize_score_fulltext_undoes_sql_x10_and_clamps():
+def test_normalize_score_fulltext_undoes_sql_x10_and_clamps() -> None:
     svc = HybridSearchService()
 
     # fulltext_search_service returns ts_rank_cd(...) * 10; a strong match in
@@ -66,7 +83,7 @@ def test_normalize_score_fulltext_undoes_sql_x10_and_clamps():
     assert svc._normalize_score(25.0, SearchSourceType.FULLTEXT) == 1.0
 
 
-def test_normalize_score_knowledge_graph_is_already_0_to_1():
+def test_normalize_score_knowledge_graph_is_already_0_to_1() -> None:
     svc = HybridSearchService()
 
     # KG entity confidence is already a 0-1 score — must NOT be re-divided
@@ -80,7 +97,7 @@ def test_normalize_score_knowledge_graph_is_already_0_to_1():
 # ---------------------------------------------------------------------------
 
 
-def test_kg_search_maps_to_source_document_id_not_entity_id():
+def test_kg_search_maps_to_source_document_id_not_entity_id() -> None:
     svc = HybridSearchService()
 
     entity_with_doc = SimpleNamespace(
@@ -104,10 +121,9 @@ def test_kg_search_maps_to_source_document_id_not_entity_id():
         return_value=[entity_with_doc, entity_without_doc],
     ):
         result = svc._execute_knowledge_graph_search(
-            SimpleNamespace(query="who discovered radium"),
+            _search_query("who discovered radium"),
             user_id="user-1",
             organization_id="org-1",
-            db=None,
         )
 
     assert result.success
@@ -118,12 +134,73 @@ def test_kg_search_maps_to_source_document_id_not_entity_id():
     assert all(r.document_id != "entity-uuid-2" for r in result.results)
 
 
+def test_kg_search_preserves_explicit_zero_confidence() -> None:
+    """`confidence_score or 0.8` would promote an explicit 0.0 to 0.8 —
+    only a missing (None) confidence should default."""
+    svc = HybridSearchService()
+
+    zero_confidence_entity = SimpleNamespace(
+        id="entity-uuid-3",
+        name="Low Confidence Entity",
+        confidence_score=0.0,
+        context="",
+        source_document_id="doc-zero-conf",
+    )
+
+    with patch(
+        "src.services.knowledge_graph.knowledge_graph_service.knowledge_graph_service"
+        ".search_entities",
+        return_value=[zero_confidence_entity],
+    ):
+        result = svc._execute_knowledge_graph_search(
+            _search_query("who is this"),
+            user_id="user-1",
+            organization_id="org-1",
+        )
+
+    assert result.results[0].relevance_score == 0.0
+
+
+def test_kg_only_hit_is_dropped_not_returned_as_a_standalone_result() -> None:
+    """P1 follow-up: Entity.source_document_id is set only ON CREATE and never
+    updated on MATCH (entities are MERGEd across documents), so it can point
+    at a stale or deleted document. That's tolerable as a corroboration boost
+    for a document another source already verified, but not as the sole
+    source of a returned result — a KG-only document_id must never surface on
+    its own.
+    """
+    svc = HybridSearchService()
+
+    source_results = {
+        SearchSourceType.KNOWLEDGE_GRAPH: SearchSourceResult(
+            source_type=SearchSourceType.KNOWLEDGE_GRAPH,
+            results=[
+                RawSearchResult(
+                    document_id="doc-only-in-kg",
+                    source_type=SearchSourceType.KNOWLEDGE_GRAPH,
+                    relevance_score=0.9,
+                    metadata={"source": "knowledge_graph"},
+                    search_result=_search_result("doc-only-in-kg", 0.9),
+                )
+            ],
+            search_time_ms=1.0,
+            total_available=1,
+            success=True,
+        ),
+    }
+
+    request = _search_query("who discovered radium")
+    fused = svc._fuse_search_results(source_results, request)
+
+    assert fused == []
+
+
 # ---------------------------------------------------------------------------
 # Coupled: fusion + coverage/confidence behave sanely with mixed sources
 # ---------------------------------------------------------------------------
 
 
-def test_fusion_merges_kg_and_fulltext_hits_on_same_document():
+def test_fusion_merges_kg_and_fulltext_hits_on_same_document() -> None:
     svc = HybridSearchService()
 
     source_results = {
@@ -159,7 +236,7 @@ def test_fusion_merges_kg_and_fulltext_hits_on_same_document():
         ),
     }
 
-    request = SimpleNamespace(query="who discovered radium")
+    request = _search_query("who discovered radium")
     fused = svc._fuse_search_results(source_results, request)
 
     assert len(fused) == 1
@@ -171,7 +248,7 @@ def test_fusion_merges_kg_and_fulltext_hits_on_same_document():
     assert doc.metadata["boost_factors"].get("diversity", 0.0) > 0.0
 
 
-def test_confidence_and_coverage_gate_pass_for_multi_source_batch():
+def test_confidence_and_coverage_gate_pass_for_multi_source_batch() -> None:
     svc = HybridSearchService()
 
     results = [
@@ -189,7 +266,7 @@ def test_confidence_and_coverage_gate_pass_for_multi_source_batch():
     assert coverage >= 0.5  # clears the INSUFFICIENT_EVIDENCE coverage gate
 
 
-def test_coverage_does_not_hard_fail_on_fulltext_only_results():
+def test_coverage_does_not_hard_fail_on_fulltext_only_results() -> None:
     """KG only activates for entity-indicator queries, so most hybrid
     results are legitimately fulltext-only. That must not zero out coverage
     (the H10 bug) — a fulltext-backed result IS evidence on its own.
@@ -204,7 +281,7 @@ def test_coverage_does_not_hard_fail_on_fulltext_only_results():
     assert coverage == 1.0
 
 
-def test_coverage_zero_for_kg_only_results_with_no_fulltext_backing():
+def test_coverage_zero_for_kg_only_results_with_no_fulltext_backing() -> None:
     """A pure KG (entity metadata, no document text) result correctly reads
     as low coverage — it's enrichment, not evidence, even after H10 wires up
     correct document ids.
