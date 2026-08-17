@@ -13,7 +13,9 @@ exact miss (``execute.py``); these tests pin the same contract for ``/stream``,
 and the control case pins that an owned thread still reaches the config.
 """
 
+from collections.abc import AsyncIterator
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID
 
@@ -29,11 +31,13 @@ VICTIM_THREAD_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 class _ConfigCapturingGraph:
     """Records the (state, config) the generator would run the turn under."""
 
-    def __init__(self):
-        self.initial_state = None
-        self.config = None
+    def __init__(self) -> None:
+        self.initial_state: Any = None
+        self.config: Any = None
 
-    async def astream_events(self, initial_state, *, config=None, **kwargs):
+    async def astream_events(
+        self, initial_state: Any, *, config: Any = None, **kwargs: Any
+    ) -> AsyncIterator[dict[str, Any]]:
         self.initial_state = initial_state
         self.config = config
         yield {
@@ -43,7 +47,7 @@ class _ConfigCapturingGraph:
             "data": {"chunk": SimpleNamespace(content="hello")},
         }
 
-    async def aget_state(self, config):
+    async def aget_state(self, config: Any) -> SimpleNamespace:
         return SimpleNamespace(
             values={
                 "user_id": "user-1",
@@ -54,14 +58,16 @@ class _ConfigCapturingGraph:
         )
 
 
-async def _run_stream(thread_obj, *, started_streams):
+async def _run_stream(
+    thread_obj: Any, *, started_streams: list[str]
+) -> tuple[_ConfigCapturingGraph, Any]:
     """Drive the generator with ``_resolve_thread`` returning ``thread_obj``."""
     graph = _ConfigCapturingGraph()
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     body = make_stream_request(thread_id=VICTIM_THREAD_ID, use_rag=False)
     current_user = Mock(id="user-1", organization_id="org-1")
 
-    async def start_stream(thread_id, *, run_id=None):
+    async def start_stream(thread_id: str, *, run_id: str | None = None) -> str:
         started_streams.append(thread_id)
         return f"sid-{thread_id}"
 
@@ -128,7 +134,7 @@ async def _run_stream(thread_obj, *, started_streams):
 
 
 @pytest.mark.asyncio
-async def test_unverified_thread_id_never_becomes_the_checkpoint_key():
+async def test_unverified_thread_id_never_becomes_the_checkpoint_key() -> None:
     """No owned thread + no workspace => the client's id is discarded."""
     started_streams: list[str] = []
 
@@ -150,7 +156,7 @@ async def test_unverified_thread_id_never_becomes_the_checkpoint_key():
 
 
 @pytest.mark.asyncio
-async def test_owned_thread_id_still_reaches_the_graph_config():
+async def test_owned_thread_id_still_reaches_the_graph_config() -> None:
     """Control: the ownership-verified id is exactly what the turn runs under."""
     started_streams: list[str] = []
     owned = SimpleNamespace(id=VICTIM_THREAD_ID)
