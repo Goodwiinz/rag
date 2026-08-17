@@ -15,29 +15,37 @@ function citation(overrides: Partial<Citation>): Citation {
   } as Citation;
 }
 
-/** The bar's inline `background`, which encodes the relevance tier. */
-function fillsFor(container: HTMLElement): string[] {
+/** The bar fills, in render order, as (background, opacity) pairs. */
+function fillsFor(container: HTMLElement): { bg: string; opacity: number }[] {
   return Array.from(
     container.querySelectorAll<HTMLElement>('span.origin-left')
-  ).map((el) => el.style.background);
+  ).map((el) => ({ bg: el.style.background, opacity: Number(el.style.opacity) }));
 }
 
 describe('CitationPanelBody relevance meter', () => {
-  it('tiers the bar fill by score', () => {
-    const { container } = render(
-      <CitationPanelBody
-        citations={[
-          citation({ number: 1, title: 'Strong hit', score: 0.92 }),
-          citation({ number: 2, title: 'Middling hit', score: 0.61 }),
-          citation({ number: 3, title: 'Weak hit', score: 0.22 }),
-        ]}
-      />
-    );
+  it('tiers the bar fill so a stronger score is never fainter', () => {
+    // Rendered one at a time: a group can auto-expand and repeat its top
+    // score on a chunk bar, so a single render's bars are not one-per-score.
+    const opacityAt = (score: number): number => {
+      const { container, unmount } = render(
+        <CitationPanelBody citations={[citation({ score })]} />
+      );
+      const fills = fillsFor(container);
+      // One opaque accent throughout — the tier rides on opacity, because the
+      // *-intense / *-muted tokens are low-alpha glows despite their names.
+      expect(fills.every((f) => f.bg === 'var(--nous-sol)')).toBe(true);
+      const { opacity } = fills[0];
+      unmount();
+      return opacity;
+    };
 
-    const fills = fillsFor(container);
-    expect(fills).toContain('var(--nous-sol-intense)');
-    expect(fills).toContain('var(--nous-sol)');
-    expect(fills).toContain('var(--nous-sol-muted)');
+    const strong = opacityAt(0.92);
+    const middling = opacityAt(0.61);
+    const weak = opacityAt(0.22);
+
+    expect(strong).toBeGreaterThan(middling);
+    expect(middling).toBeGreaterThan(weak);
+    expect(weak).toBeGreaterThan(0);
   });
 
   it('renders no meter for synthetic zero-score citations', () => {
