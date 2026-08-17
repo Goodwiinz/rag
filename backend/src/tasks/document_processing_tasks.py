@@ -611,9 +611,8 @@ def health_check():
     """
     Health check task for monitoring system status
     """
+    db = SessionLocal()
     try:
-        db = SessionLocal()
-
         # Check database connectivity. Wrap in text() so SQLAlchemy 2.x accepts
         # the literal SQL — passing a raw string here used to fail every minute.
         db.execute(text("SELECT 1"))
@@ -622,8 +621,6 @@ def health_check():
         # as `.client`; `.result_backend` does not exist (AttributeError every
         # run made health_check report unhealthy unconditionally).
         celery_app.backend.client.ping()
-
-        db.close()
 
         return {
             "status": "healthy",
@@ -639,6 +636,9 @@ def health_check():
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e),
         }
+
+    finally:
+        db.close()
 
 
 # Schedule periodic tasks
@@ -672,9 +672,8 @@ def update_processing_metrics():
     """
     Update processing metrics for monitoring
     """
+    db = SessionLocal()
     try:
-        db = SessionLocal()
-
         # Get current queue lengths
         from src.models.processing import ProcessingJob
 
@@ -697,8 +696,6 @@ def update_processing_metrics():
             .count()
         )
 
-        db.close()
-
         return {
             "timestamp": datetime.utcnow().isoformat(),
             "queue_lengths": queue_stats,
@@ -708,3 +705,6 @@ def update_processing_metrics():
     except Exception as e:
         logger.error(f"Metrics update failed: {str(e)}")
         return {"timestamp": datetime.utcnow().isoformat(), "error": str(e)}
+
+    finally:
+        db.close()
