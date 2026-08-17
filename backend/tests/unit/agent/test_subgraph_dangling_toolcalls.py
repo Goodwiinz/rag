@@ -22,6 +22,7 @@ default log level.
 from __future__ import annotations
 
 import logging
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -38,13 +39,13 @@ from src.services.agent.subgraphs.research_agent import (
 pytestmark = pytest.mark.unit
 
 
-def _extract_last_ai_content(messages: list) -> str:
+def _extract_last_ai_content(messages: list[Any]) -> str:
     """Verbatim copy of agent_execution_service._run_agent_graph's
     extraction walk (~lines 2280-2283), so the regression assertion below
     exercises the SAME predicate production code runs, not a stand-in."""
     for msg in reversed(messages):
         if hasattr(msg, "type") and msg.type == "ai" and msg.content:
-            return msg.content
+            return str(msg.content)
     return ""
 
 
@@ -53,7 +54,9 @@ def _extract_last_ai_content(messages: list) -> str:
 # ---------------------------------------------------------------------------
 
 
-async def test_deny_answers_every_pending_tool_call_before_cancellation(monkeypatch):
+async def test_deny_answers_every_pending_tool_call_before_cancellation(
+    monkeypatch: Any,
+) -> None:
     """A denied destructive batch must get a ToolMessage per tool_call_id,
     all ordered before the cancellation AIMessage."""
     tool_a, tool_b = sorted(RESEARCH_DESTRUCTIVE_TOOLS)[:2]
@@ -64,12 +67,13 @@ async def test_deny_answers_every_pending_tool_call_before_cancellation(monkeypa
             {"id": "tc-2", "name": tool_b, "args": {}},
         ],
     )
-    state = {"messages": [HumanMessage(content="go"), dangling]}
+    state: Any = {"messages": [HumanMessage(content="go"), dangling]}
 
     monkeypatch.setattr(
         "src.services.agent.subgraphs._factory.interrupt",
         lambda _payload: {"confirmed": False},
     )
+    assert research_interrupt_node is not None  # research binds destructive tools
     with patch.object(_nodes_tools, "_write_hitl_audit_row", new=AsyncMock()):
         result = await research_interrupt_node(state, {"configurable": {}})
 
@@ -94,7 +98,7 @@ async def test_deny_answers_every_pending_tool_call_before_cancellation(monkeypa
 # ---------------------------------------------------------------------------
 
 
-async def test_breaker_exit_answers_every_pending_tool_call(monkeypatch):
+async def test_breaker_exit_answers_every_pending_tool_call(monkeypatch: Any) -> None:
     """error_count >= 3 with a trailing tool_calls AIMessage must reach the
     reflection gate with every pending call answered and a content-bearing
     final AIMessage -- the shape extraction requires."""
@@ -111,7 +115,7 @@ async def test_breaker_exit_answers_every_pending_tool_call(monkeypatch):
             {"id": "tc-10", "name": "search_arxiv", "args": {"query": "y"}},
         ],
     )
-    state = {
+    state: Any = {
         "messages": [HumanMessage(content="find papers"), dangling],
         "error_count": 3,
         "intent": "research",
@@ -133,7 +137,9 @@ async def test_breaker_exit_answers_every_pending_tool_call(monkeypatch):
     ].content, "final message must carry content for extraction to find"
 
 
-async def test_breaker_exit_extraction_finds_this_turn_not_prior_turn(monkeypatch):
+async def test_breaker_exit_extraction_finds_this_turn_not_prior_turn(
+    monkeypatch: Any,
+) -> None:
     """The reversed-walk extraction predicate must land on THIS turn's
     (degraded) answer, not a stale AIMessage from an earlier turn."""
     monkeypatch.setattr(
@@ -153,7 +159,7 @@ async def test_breaker_exit_extraction_finds_this_turn_not_prior_turn(monkeypatc
         HumanMessage(content="second question"),
         dangling,
     ]
-    state = {
+    state: Any = {
         "messages": history,
         "error_count": 3,
         "intent": "research",
@@ -176,7 +182,9 @@ async def test_breaker_exit_extraction_finds_this_turn_not_prior_turn(monkeypatc
 # ---------------------------------------------------------------------------
 
 
-async def test_hitl_audit_row_failure_logs_at_error(caplog):
+async def test_hitl_audit_row_failure_logs_at_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     with patch(
         "src.core.database.AsyncSessionLocal",
         side_effect=RuntimeError("db unavailable"),
