@@ -180,4 +180,38 @@ describe('agentChatService stream resilience', () => {
     // Category stays undefined: an expired session is not an invalid request.
     expect(onError.mock.calls[0][1]).toBeUndefined();
   });
+
+  it('finishes as soon as the terminal frame arrives, even if EOF never comes', async () => {
+    vi.useFakeTimers();
+    const encoder = new TextEncoder();
+    let handedTerminal = false;
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => ({
+          async read() {
+            if (handedTerminal) return new Promise<never>(() => {});
+            handedTerminal = true;
+            return {
+              done: false,
+              value: encoder.encode(
+                'event: done\ndata: {"status":"complete"}\n\n'
+              ),
+            };
+          },
+          async cancel() {},
+          releaseLock() {},
+        }),
+      },
+    })) as unknown as typeof fetch;
+
+    const onDone = vi.fn();
+    const onError = vi.fn();
+    // Resolves without waiting on the half-open socket's watchdog.
+    await agentChatService.streamMessage(request, { onDone, onError });
+
+    expect(onDone).toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
 });

@@ -382,6 +382,11 @@ async function consumeSse(
           dispatchData(eventType, line);
         }
       }
+
+      // The terminal frame is the end of the stream as far as the protocol is
+      // concerned. Waiting for transport EOF too meant a half-open socket ran
+      // into the silence watchdog and reported a completed turn as stalled.
+      if (terminalSeen) break;
     }
     // Defensive flush: if the server's final chunk ended without a
     // trailing \n (the backend always \n\n-terminates, so this is

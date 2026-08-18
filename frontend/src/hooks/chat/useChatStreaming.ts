@@ -514,6 +514,11 @@ export function useChatStreaming(
       /** Resume: a replay that yields no tokens (nothing buffered / 204)
        * must unwind quietly instead of rendering a "no response" bubble. */
       quietWhenEmpty?: boolean;
+      /** Resume: consulted before committing the rebuilt answer. A replay that
+       * started past our cursor is missing a prefix, so the local
+       * reconstruction must not be shown as this turn's answer — the reconcile
+       * that follows brings the complete server row instead. */
+      suppressCommit?: () => boolean;
       start: (
         callbacks: AgentStreamCallbacks,
         signal: AbortSignal
@@ -525,6 +530,7 @@ export function useChatStreaming(
         newMessages,
         assistantRuntimeId,
         quietWhenEmpty,
+        suppressCommit,
         start,
       } = opts;
 
@@ -1027,7 +1033,9 @@ export function useChatStreaming(
           ),
           reconciledAssistantMessage,
         ];
-        if (isTurnDisplayed()) setMessages(finalMessages);
+        if (isTurnDisplayed() && !suppressCommit?.()) {
+          setMessages(finalMessages);
+        }
 
         // Conversation state is sidebar metadata only. The transcript remains
         // the Zustand canonical page plus this hook's local overlay.
@@ -1413,12 +1421,14 @@ export function useChatStreaming(
     // ponytail: messages is the snapshot at effect time — if thread history
     // is still loading, the resumed commit appends to a stale list; a
     // reload reconciles from the server-persisted rows.
+    let replayGapSeen = false;
     void runStreamTurn({
       currentThreadId: threadId,
       currentConversationId: threadId,
       newMessages: messages,
       assistantRuntimeId: `resume:${threadId}:${run.startedAt}`,
       quietWhenEmpty: true,
+      suppressCommit: () => replayGapSeen,
       start: async (streamCallbacks, signal) => {
         // The buffer trims old frames: if the replay starts past our cursor,
         // whatever we rebuild locally is missing a prefix of the answer. The
@@ -1430,6 +1440,7 @@ export function useChatStreaming(
             console.warn(
               `[Chat] Resume replay gap: buffer starts at ${firstSeq}, expected ${expectedSeq}`
             );
+            replayGapSeen = true;
             useChatStore.getState().markMessagesStale(threadId);
           },
         };
@@ -1449,9 +1460,16 @@ export function useChatStreaming(
           }
           const latestRun =
             useAgentActivityStore.getState().runs[threadId] ?? run;
+          // onSeq defers its store write through a rAF, which a backgrounded
+          // tab may never run — read the pending cursor too, or a retry
+          // replays frames this turn already processed.
+          const pendingSeq =
+            pendingSeqRef.current?.threadId === threadId
+              ? pendingSeqRef.current.seq
+              : 0;
           const res = await agentChatService.resumeStream(
             threadId,
-            latestRun.streamSeq ?? 0,
+            Math.max(latestRun.streamSeq ?? 0, pendingSeq),
             gapAwareCallbacks,
             signal,
             latestRun.streamId
