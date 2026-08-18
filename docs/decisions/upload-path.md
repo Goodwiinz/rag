@@ -25,10 +25,18 @@ upload path.** It is the only registered upload route and the only one the
 deployed frontend calls.
 
 `EnhancedFileService.upload_file` is **deprecated** (see its docstring). We do
-**not** unify the two stacks (explicitly rejected — big-bang refactor). The
-non-canonical service is kept because `EnhancedFileService` is still imported for
-non-upload use (`backend/src/tasks/document_processing_tasks.py:17`) and the v2
-router may be re-wired later; if so, re-audit before enabling.
+**not** unify the two stacks (explicitly rejected — big-bang refactor).
+
+**Update (PR #1453):** `EnhancedFileService`, `document_upload.py`, and the
+tasks that only that dead v2 router dispatched (`process_document_upload`,
+`batch_process_documents`, `process_high_priority_document`,
+`process_low_priority_document`) have been **deleted**, not just left
+unregistered — the "re-wire later" option below is closed. They duplicated
+`processing_tasks.py` minus its rollback-first fixes, which is what audit
+findings R2-H5 (fail-then-retry self-destruct), R2-H6 (no rollback before
+`fail_job`), R2-H7 (doc stuck `PROCESSING`), and R2-M9 tracked. `FileService.upload_file`
+via `POST /api/v1/files/upload` is now the only upload path in the codebase,
+canonical by construction rather than by convention.
 
 ## Failure-semantics parity audit
 

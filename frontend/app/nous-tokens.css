@@ -207,20 +207,27 @@
   color: var(--nous-fg-1);
 }
 
-/* Citation pill used inline in assistant messages */
+/* Citation marker used inline in assistant messages. Mirrors CitationLink's
+   resting state — a paragraph can carry ten of these, so the marker stays a
+   quiet ink wash and only the active one reaches full contrast. Text sits at
+   60% because 45% falls under the 4.5:1 AA floor at this size. */
 .nous-cite-ref {
   display: inline-grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 9999px;
-  background: var(--nous-aurum);
-  color: var(--nous-sol-safe);
-  font-family: var(--nous-font-ui);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 5px;
+  background: hsl(var(--foreground) / 0.06);
+  color: hsl(var(--foreground) / 0.6);
+  font-family: var(--nous-font-mono);
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
   margin: 0 2px;
-  vertical-align: text-top;
+  vertical-align: middle;
+  transform: translateY(-2px);
 }
 
 @keyframes nous-pulse {
@@ -234,6 +241,26 @@
 }
 .nous-pulse {
   animation: nous-pulse 1.4s ease-in-out infinite;
+}
+
+/* Thinking matrix — the pre-token loading indicator's cells. Animation only,
+   never colour: the cells carry their own theme classes so they stay visible
+   when this rule doesn't apply. Under reduced motion the grid holds at its
+   resting opacity rather than disappearing, because the animation raises
+   opacity rather than revealing the cell. */
+@keyframes nous-matrix {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .nous-matrix-cell {
+    animation: nous-matrix 1.4s ease-in-out infinite;
+  }
 }
 
 /* ─── App Rail ─── */

@@ -16,6 +16,7 @@ import { CitationRenderer } from '../CitationRenderer';
 import { ChatInlinePlan } from './ChatInlinePlan';
 import { ToolStrip } from './ToolStrip';
 import { CitationChips } from './CitationChips';
+import { ThinkingMatrix } from './ThinkingMatrix';
 import { AuiToolParts } from '@/components/chat/aui/AuiToolParts';
 import { useChatStore } from '@/store/chat-store';
 import type { ActivityStep } from './cloudMessageView';
@@ -341,13 +342,7 @@ function ThinkingPill({ label }: { label: string }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
     >
-      <span
-        className="w-2 h-2 rounded-full bg-(--nous-sol) dark:bg-(--nous-helios)"
-        style={{
-          boxShadow: '0 0 0 3px rgba(var(--nous-sol-rgb), 0.18)',
-          animation: 'nous-pulse 1.4s ease-in-out infinite',
-        }}
-      />
+      <ThinkingMatrix />
       <span>{label}</span>
     </motion.div>
   );

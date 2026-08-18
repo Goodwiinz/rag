@@ -20,17 +20,10 @@ overrides:
   '@modelcontextprotocol/sdk': '^1.26.0'
   '@opentelemetry/core': 2.10.0
   '@trigger.dev/core': 4.5.6
-  # brace-expansion must be pinned per major, not blanket-pinned. minimatch 10
-  # (via test-exclude, @typescript-eslint, @ts-morph, @sentry/bundler-plugin-core)
-  # needs the v5 line, which exports `expand` as a *named* export and accepts a
-  # `max` option; v1/v2 export the function as `module.exports`. A single
-  # `brace-expansion: 1.1.18` entry forced v1 into every slot, so
-  # @vitest/coverage-v8 died with `(0 , brace_expansion_1.expand) is not a
-  # function` after the suite passed. Each line below is at or above its
-  # CVE-2025-5889 fix (1.1.12 / 2.0.2 / 5.x).
+  # Scoped per major: minimatch@10 needs brace-expansion@^5, so a blanket v1 pin
+  # downgrades it and its CJS `expand` named export disappears.
   brace-expansion@1: 1.1.18
   brace-expansion@2: 2.1.4
-  brace-expansion@5: 5.0.9
   cookie: 0.7.2
   dompurify: 3.4.13
   engine.io: 6.6.7

@@ -1,12 +1,15 @@
-"""DB-audit regressions: delete ordering, atomic quota, dedup-race 409.
+"""DB-audit regressions: delete ordering, atomic quota.
 
 - delete_document must commit the soft-delete BEFORE removing the storage
   object (mirrors FileService.delete_file's fix; the endpoint used to bypass it).
 - Organization storage accounting must be a single server-side UPDATE, not a
   Python read-modify-write (lost updates under concurrency).
-- A concurrent duplicate upload that loses the check-then-insert race hits the
-  uq_documents_org_checksum_live unique index; upload_file must map that
-  IntegrityError to the same 409 as the pre-check.
+
+Split out of test_delete_ordering_and_dedup_race.py (PR #1453): the dedup-race
+test that lived alongside these exercised the since-deleted EnhancedFileService
+upload path, not delete_document/storage_usage_update, so it did not survive
+the cluster deletion. These four remain the only regression coverage for the
+live delete_document endpoint's commit-before-physical-delete ordering.
 """
 
 from __future__ import annotations
@@ -17,12 +20,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
 
 from src.api.documents import documents as documents_mod
-from src.models.document import DocumentType
 from src.models.organization import Organization
-from src.services.documents.enhanced_file_service import EnhancedFileService
 
 pytestmark = pytest.mark.unit
 
@@ -113,56 +113,6 @@ def test_storage_usage_update_is_server_side_atomic():
     sql = str(stmt.compile(compile_kwargs={"literal_binds": False})).lower()
     # Arithmetic + clamp happen inside the UPDATE, not in Python.
     assert "greatest" in sql
-    assert "storage_used_bytes +" in sql.replace("organizations.storage_used_bytes", "storage_used_bytes")
-
-
-def test_upload_dedup_race_maps_integrity_error_to_409():
-    svc = object.__new__(EnhancedFileService)  # skip filesystem __init__
-    svc._storage_backend = "s3"
-    svc._s3_helper = MagicMock()  # backs the lazy s3_helper property
-    svc.db = MagicMock()
-    svc.db.commit = MagicMock(
-        side_effect=IntegrityError(
-            "INSERT INTO documents ...",
-            {},
-            Exception(
-                'duplicate key value violates unique constraint '
-                '"uq_documents_org_checksum_live"'
-            ),
-        )
+    assert "storage_used_bytes +" in sql.replace(
+        "organizations.storage_used_bytes", "storage_used_bytes"
     )
-    svc._find_org_duplicate = MagicMock(return_value=None)  # race: check passed
-    svc._best_effort_delete_object = MagicMock()
-
-    file = MagicMock()
-    file.filename = "paper.pdf"
-    file.read = AsyncMock(return_value=b"content")
-    user = MagicMock(id=uuid.uuid4())
-    org = MagicMock(id=uuid.uuid4())
-    validation_result = {
-        "basic_validation": {
-            "detected_mime_type": "application/pdf",
-            "file_size": 7,
-            "document_type": DocumentType.PDF,
-        },
-        "security_scan": {},
-        "integrity_check": {},
-    }
-
-    with pytest.raises(HTTPException) as exc:
-        asyncio.run(
-            svc.upload_file(
-                file=file,
-                title="t",
-                description=None,
-                user=user,
-                organization=org,
-                tags=[],
-                is_public=False,
-                custom_metadata={},
-                validation_result=validation_result,
-            )
-        )
-    assert exc.value.status_code == 409
-    # The loser's already-uploaded object gets cleaned up.
-    svc._best_effort_delete_object.assert_called_once()
