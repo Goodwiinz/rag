@@ -9605,6 +9605,8 @@ export interface components {
             }[] | null;
             /** Tool Name */
             tool_name?: string | null;
+            /** Ttft Ms */
+            ttft_ms?: number | null;
             /**
              * Updated At
              * Format: date-time

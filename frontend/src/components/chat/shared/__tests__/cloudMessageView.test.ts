@@ -7,6 +7,7 @@ import {
   summarizeToolArgs,
   summarizeToolResult,
 } from '../cloudMessageView';
+import type { ChatMessage } from '@/types/workspace';
 
 describe('cloudMessageView', () => {
   it('maps persisted store messages into chat page message shape', () => {
@@ -151,6 +152,41 @@ describe('cloudMessageView', () => {
       });
       expect(fromSingle.metadata?.responseTimeMs).toBe(900);
       expect(fromSingle).toEqual(fromArray);
+    });
+
+    it('carries ttft_ms so a reloaded turn keeps its timing split', () => {
+      const db = {
+        id: 'm-ttft',
+        role: 'assistant',
+        content: 'Answer',
+        created_at: '2026-03-09T12:00:00Z',
+        citations: [],
+        latency_ms: 25_800,
+        ttft_ms: 24_100,
+      } as unknown as ChatMessage;
+
+      const fromSingle = mapDbMessageToChatPageMessage(db);
+      const [fromArray] = mapStoreMessagesToChatMessages([db]);
+
+      expect(fromSingle.metadata?.ttftMs).toBe(24_100);
+      expect(fromSingle).toEqual(fromArray);
+    });
+
+    it('builds metadata from ttft_ms alone', () => {
+      // A turn can carry a first-token reading with no latency (the confirm
+      // path writes latency_ms=None on one branch). Gating metadata on
+      // latency_ms alone would drop the split on those rows.
+      const msg = mapDbMessageToChatPageMessage({
+        id: 'm-ttft-only',
+        role: 'assistant',
+        content: 'Answer',
+        created_at: '2026-03-09T12:00:00Z',
+        citations: [],
+        ttft_ms: 1200,
+      } as unknown as ChatMessage);
+
+      expect(msg.metadata?.ttftMs).toBe(1200);
+      expect(msg.metadata?.responseTimeMs).toBeUndefined();
     });
 
     it('omits plan/metadata when the row carries no provenance', () => {

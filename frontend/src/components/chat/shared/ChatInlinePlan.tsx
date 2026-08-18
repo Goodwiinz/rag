@@ -6,7 +6,10 @@ import Plan, { type Task } from '@/components/ui/agent-plan';
 import { mapPlanToTasks } from '@/components/agent-chat/planMapping';
 import type { PlanStep, ToolExecution } from '@/types/agent-chat';
 import type { ActivityStep } from '@/components/chat/shared/cloudMessageView';
-import { formatTurnDuration } from '@/components/chat/shared/formatStreamingElapsed';
+import {
+  formatTurnDuration,
+  formatTurnSplit,
+} from '@/components/chat/shared/formatStreamingElapsed';
 
 /**
  * Adapt the chat page's ActivityStep records onto the agent-chat
@@ -41,6 +44,7 @@ export const ChatInlinePlan = React.memo(function ChatInlinePlan({
   toolExecutions,
   streaming = false,
   elapsedMs,
+  ttftMs,
 }: {
   plan: PlanStep[];
   /** Planner's top-level rationale for `plan`, shown when expanded. */
@@ -52,6 +56,10 @@ export const ChatInlinePlan = React.memo(function ChatInlinePlan({
   /** Committed turn's total elapsed time (message.metadata.responseTimeMs).
    * Ignored while streaming — the turn hasn't finished yet. */
   elapsedMs?: number;
+  /** Committed turn's time to first token (message.metadata.ttftMs). Splits
+   * the header clock into the wait this plan accounts for and the time spent
+   * writing the answer. Ignored while streaming, like `elapsedMs`. */
+  ttftMs?: number;
 }): React.JSX.Element {
   const [isExpanded, setIsExpanded] = useState(streaming);
 
@@ -63,6 +71,10 @@ export const ChatInlinePlan = React.memo(function ChatInlinePlan({
   const elapsed = streaming
     ? null
     : formatTurnDuration(elapsedMs ?? null);
+  // Whole seconds, matching `elapsed` above.
+  const split = streaming
+    ? { suffix: null, title: undefined }
+    : formatTurnSplit(elapsedMs, ttftMs, (ms) => formatTurnDuration(ms));
 
   return (
     <div className="border border-[var(--nous-border-1)] rounded-[var(--nous-radius-md)] bg-[var(--nous-bg-2)] my-2 overflow-hidden">
@@ -79,8 +91,12 @@ export const ChatInlinePlan = React.memo(function ChatInlinePlan({
         </span>
         <span className="ml-auto flex items-center gap-2 shrink-0">
           {elapsed && (
-            <span className="tabular-nums text-[10px] text-[var(--nous-fg-3)] font-nous-ui">
+            <span
+              className="tabular-nums text-[10px] text-[var(--nous-fg-3)] font-nous-ui"
+              title={split.title}
+            >
               took {elapsed}
+              {split.suffix ? ` · ${split.suffix}` : ''}
             </span>
           )}
           <span className="tabular-nums text-[10px] text-[var(--nous-fg-3)] font-nous-ui">

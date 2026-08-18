@@ -695,6 +695,7 @@ export function AuiAssistantMessage({
             reasoning={message.planReasoning}
             toolExecutions={message.toolExecutions}
             elapsedMs={message.metadata?.responseTimeMs}
+            ttftMs={message.metadata?.ttftMs}
           />
         )}
         {/* Tool strip — tools/sources/time/tokens/stopped */}

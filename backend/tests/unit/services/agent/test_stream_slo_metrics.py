@@ -97,3 +97,45 @@ def test_tracker_is_a_noop_when_prometheus_is_unavailable(
     tracker.record(AgentStreamEvent.STATUS, {"phase": "accepted"})
     tracker.record(AgentStreamEvent.TOKEN, {})
     tracker.record(AgentStreamEvent.DONE, {})
+
+
+class TestFirstTokenRetention:
+    """``first_token_at`` is persisted per-message, not just observed."""
+
+    def test_stamped_without_prometheus(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # The histogram is optional; chat_messages.ttft_ms is not. A deployment
+        # without prometheus_client must still record the reading.
+        monkeypatch.setattr(observability, "_METRICS_AVAILABLE", False)
+        # ``started_at`` is supplied, so __init__ never reads the clock: the
+        # first reading a tracker takes is the one record() stamps.
+        clock = iter([104.5, 109.0])
+        tracker = observability.AgentStreamSLOTracker(
+            clock=lambda: next(clock), started_at=100.0
+        )
+        assert tracker.first_token_at is None
+        tracker.record(AgentStreamEvent.TOKEN, {"content": "hi"})
+        assert tracker.first_token_at == 104.5
+
+    def test_keeps_the_first_reading_only(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(observability, "_METRICS_AVAILABLE", False)
+        ticks = iter([104.5, 105.0, 106.0])
+        tracker = observability.AgentStreamSLOTracker(
+            clock=lambda: next(ticks), started_at=100.0
+        )
+        for _ in range(3):
+            tracker.record(AgentStreamEvent.TOKEN, {"content": "x"})
+        assert tracker.first_token_at == 104.5
+
+    def test_absent_when_no_token_streamed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # An error before generation leaves ttft_ms NULL rather than 0.
+        monkeypatch.setattr(observability, "_METRICS_AVAILABLE", False)
+        tracker = observability.AgentStreamSLOTracker(
+            clock=lambda: 100.0, started_at=100.0
+        )
+        tracker.record(AgentStreamEvent.STATUS, {"phase": "accepted"})
+        tracker.record(AgentStreamEvent.ERROR, {"message": "boom"})
+        assert tracker.first_token_at is None

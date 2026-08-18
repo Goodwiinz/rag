@@ -38,6 +38,8 @@ export interface ChatBubbleMessage {
   metadata?: {
     toolsUsed?: string[];
     responseTimeMs?: number;
+    /** Time to first token, same origin as `responseTimeMs`. */
+    ttftMs?: number;
     sourcesCount?: number;
     stopped?: boolean;
     tokenUsage?: { input: number; output: number };
@@ -204,6 +206,7 @@ export const ChatBubble = React.memo(function ChatBubble({
             toolExecutions={activitySteps}
             streaming={isStreaming}
             elapsedMs={message.metadata?.responseTimeMs}
+            ttftMs={message.metadata?.ttftMs}
           />
         )}
 
@@ -213,6 +216,7 @@ export const ChatBubble = React.memo(function ChatBubble({
             toolsUsed={stripToolsUsed}
             sourcesCount={stripSourcesCount}
             responseTimeMs={stripResponseMs}
+            ttftMs={hasPlan ? undefined : message.metadata?.ttftMs}
             stopped={message.metadata?.stopped}
             tokenUsage={message.metadata?.tokenUsage}
           />
