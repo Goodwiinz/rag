@@ -243,6 +243,31 @@
   animation: nous-pulse 1.4s ease-in-out infinite;
 }
 
+/* Streamed text that has just arrived. It lands in the accent and settles to
+   ink as more follows, so the eye can find the growing edge of a long answer.
+
+   Colour only — the text is fully legible at every point of the transition, so
+   there is nothing to restore when motion is reduced; only the easing is
+   dropped. */
+[data-fresh='true'] {
+  color: var(--nous-sol);
+  animation: nous-fresh-settle 700ms ease-out forwards;
+}
+@keyframes nous-fresh-settle {
+  from {
+    color: var(--nous-sol);
+  }
+  to {
+    color: inherit;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-fresh='true'] {
+    animation: none;
+    color: inherit;
+  }
+}
+
 /* Thinking matrix — the pre-token loading indicator's cells. Animation only,
    never colour: the cells carry their own theme classes so they stay visible
    when this rule doesn't apply. Under reduced motion the grid holds at its

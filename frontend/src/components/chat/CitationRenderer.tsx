@@ -17,6 +17,8 @@ interface CitationRendererProps {
   onCitationClick?: (citation: Citation) => void;
   activeCitationIndex?: number;
   className?: string;
+  /** Tint the trailing text while a turn is still arriving. */
+  freshTail?: boolean;
 }
 
 /** Split a message into fenced-code chunks and prose chunks. Citation
@@ -63,6 +65,7 @@ export function CitationRenderer({
   onCitationClick,
   activeCitationIndex,
   className,
+  freshTail = false,
 }: CitationRendererProps): React.ReactElement {
   const chunks = useMemo(() => splitOnCodeFences(content), [content]);
 
@@ -79,7 +82,7 @@ export function CitationRenderer({
       <div
         className={cn('prose prose-sm dark:prose-invert max-w-none', className)}
       >
-        <ChatMarkdown content={content} />
+        <ChatMarkdown freshTail={freshTail} content={content} />
       </div>
     );
   }
@@ -96,7 +99,7 @@ export function CitationRenderer({
         }
         return (
           <Fragment key={`prose-${chunkIndex}`}>
-            {parseMessageWithCitations(chunk.content).map((segment, index) => {
+            {parseMessageWithCitations(chunk.content).map((segment, index, segments) => {
               if (
                 segment.type === 'citation' &&
                 segment.citationIndex !== undefined
@@ -117,7 +120,18 @@ export function CitationRenderer({
               }
               return (
                 <Fragment key={`text-${chunkIndex}-${index}`}>
-                  <ChatMarkdown content={segment.content} inline />
+                  {/* Only the final segment of the final chunk holds text
+                      that just arrived; tinting every segment's tail would
+                      light up the whole message. */}
+                  <ChatMarkdown
+                    freshTail={
+                      freshTail &&
+                      chunkIndex === chunks.length - 1 &&
+                      index === segments.length - 1
+                    }
+                    content={segment.content}
+                    inline
+                  />
                 </Fragment>
               );
             })}

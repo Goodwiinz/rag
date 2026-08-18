@@ -254,6 +254,7 @@ export const ChatBubble = React.memo(function ChatBubble({
                     available until the stream commits. */}
                 <CitationRenderer
                   content={completeStreamingMarkdown(streamingContent)}
+                  freshTail
                   citations={[]}
                   onCitationClick={() => {}}
                 />

@@ -524,6 +524,7 @@ function AuiStreamingBody(): ReactElement {
         <div className="nous-chat-body">
           <CitationRenderer
             content={completeStreamingMarkdown(content)}
+            freshTail
             citations={[]}
             onCitationClick={() => {}}
           />
