@@ -63,6 +63,7 @@ which is keyed only by a server-generated run id.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -744,6 +745,10 @@ async def mark_submission_dispatched(
 # One retry only: a second consecutive disconnect means the database is
 # genuinely unreachable, and the stale-run sweeper is the correct backstop.
 _FINALIZE_ATTEMPTS = 2
+# Breather before that retry. The observed incident was a node-level network
+# blip that killed the Redis and Postgres sockets in the same second, so an
+# instant retry tends to land on the same dead network. Tests zero this out.
+_FINALIZE_RETRY_BACKOFF_S = 0.2
 
 
 async def finalize_submission(
@@ -841,6 +846,7 @@ async def finalize_submission(
                     "finalize_submission lost its connection for run %s, retrying",
                     run_id,
                 )
+                await asyncio.sleep(_FINALIZE_RETRY_BACKOFF_S)
                 continue
             logger.warning(
                 "finalize_submission failed for run %s", run_id, exc_info=True
