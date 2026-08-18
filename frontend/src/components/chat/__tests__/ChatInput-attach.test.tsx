@@ -165,6 +165,107 @@ describe('ChatInput file attach', () => {
     vi.unstubAllGlobals();
   });
 
+  describe('attachment ids handed to the send', () => {
+    function attachFiles(container: HTMLElement, names: string[]): void {
+      const input = container.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      Object.defineProperty(input, 'files', {
+        value: names.map(
+          (n) => new File(['x'], n, { type: 'application/pdf' })
+        ) as unknown as FileList,
+        configurable: true,
+      });
+      fireEvent.change(input);
+    }
+
+    it('sends the document ids of the uploaded chips', async () => {
+      const onSubmit = vi.fn();
+      const onAttach = vi.fn(async () => [
+        { ok: true, documentId: 'doc-1' },
+        { ok: true, documentId: 'doc-2' },
+      ]);
+      const { container } = renderWithChatRuntime(
+        <ChatInput
+          {...baseProps}
+          value="hi"
+          onSubmit={onSubmit}
+          onAttach={onAttach}
+        />
+      );
+      await act(async () => {
+        attachFiles(container, ['a.pdf', 'b.pdf']);
+      });
+
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+
+      expect(onSubmit).toHaveBeenCalledWith(['doc-1', 'doc-2']);
+    });
+
+    it('un-attaches a document when its chip is removed', async () => {
+      // The chips are the visible contract: a file the user took back off the
+      // composer must not ride along with the turn anyway.
+      const onSubmit = vi.fn();
+      const onAttach = vi.fn(async () => [
+        { ok: true, documentId: 'doc-1' },
+        { ok: true, documentId: 'doc-2' },
+      ]);
+      const { container, getByLabelText } = renderWithChatRuntime(
+        <ChatInput
+          {...baseProps}
+          value="hi"
+          onSubmit={onSubmit}
+          onAttach={onAttach}
+        />
+      );
+      await act(async () => {
+        attachFiles(container, ['a.pdf', 'b.pdf']);
+      });
+
+      fireEvent.click(getByLabelText('Remove a.pdf'));
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+
+      expect(onSubmit).toHaveBeenCalledWith(['doc-2']);
+    });
+
+    it('sends no id for a file that failed to upload', async () => {
+      const onSubmit = vi.fn();
+      const onAttach = vi.fn(async () => [
+        { ok: true, documentId: 'doc-1' },
+        { ok: false },
+      ]);
+      const { container } = renderWithChatRuntime(
+        <ChatInput
+          {...baseProps}
+          value="hi"
+          onSubmit={onSubmit}
+          onAttach={onAttach}
+        />
+      );
+      await act(async () => {
+        attachFiles(container, ['a.pdf', 'b.pdf']);
+      });
+
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+
+      expect(onSubmit).toHaveBeenCalledWith(['doc-1']);
+    });
+
+    it('sends an empty list when a host reports no outcomes', () => {
+      // Hosts that return nothing leave the chips optimistic; they are a
+      // visual record only and must not fabricate ids.
+      const onSubmit = vi.fn();
+      const { container } = renderWithChatRuntime(
+        <ChatInput {...baseProps} value="hi" onSubmit={onSubmit} />
+      );
+      attachFiles(container, ['a.pdf']);
+
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+
+      expect(onSubmit).toHaveBeenCalledWith([]);
+    });
+  });
+
   describe('upload state on the chips', () => {
     function attachOne(container: HTMLElement, name = 'paper.pdf'): void {
       const input = container.querySelector(

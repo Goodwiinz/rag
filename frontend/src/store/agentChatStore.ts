@@ -38,6 +38,16 @@ function invalidateProjectQueries(projectId?: string): void {
 
 // Each thread load owns a monotonically increasing token. A late response must
 // never replace the transcript selected after it started.
+// Bumped whenever the transcript is wiped (clearMessages/newThread).
+// confirmAction captures it and refuses to restore its card if the wipe
+// happened while its stream was in flight — the abort path would otherwise
+// re-insert a confirmation into a thread the user just cleared.
+let transcriptEpoch = 0;
+
+// Monotonic suffix for tool-execution ids: `Date.now()` alone collides for
+// tools that start within the same millisecond, which duplicates React keys.
+let toolExecutionSeq = 0;
+
 let threadLoadEpoch = 0;
 
 // Identity for the in-flight thread-list fetch. Module scope, unique token
@@ -58,6 +68,24 @@ interface AgentChatStore extends AgentChatState, AgentChatActions {
    */
   _abortController: AbortController | null;
   reset: () => void;
+}
+
+/**
+ * Settle a message that a terminated generation left mid-flight: stop its
+ * streaming cursor and fail any tool execution still marked 'running'. Error,
+ * stop and supersede paths all used to leave both spinning forever.
+ */
+function settleStreamingMessage(
+  message: AgentMessage,
+  options: { fallbackContent?: string } = {}
+): void {
+  message.isStreaming = false;
+  for (const execution of message.toolExecutions ?? []) {
+    if (execution.status === 'running') execution.status = 'failed';
+  }
+  if (!message.content && options.fallbackContent) {
+    message.content = options.fallbackContent;
+  }
 }
 
 const initialState: AgentChatState = {
@@ -141,6 +169,10 @@ export const useAgentChatStore = create<AgentChatStore>()(
         (state as unknown as AgentChatStore)._abortController = abortController;
       });
 
+      // Declared outside the try so the outer catch can settle the placeholder
+      // it left behind (round-3 M8).
+      const placeholderId = `msg-${Date.now()}-assistant`;
+
       try {
         const { agentChatService } =
           await import('@/services/agentChatService');
@@ -167,8 +199,6 @@ export const useAgentChatStore = create<AgentChatStore>()(
         };
 
         // Step 2: Add a streaming placeholder message
-        const placeholderId = `msg-${Date.now()}-assistant`;
-
         // Try SSE streaming first, fall back to polling
         let useStreaming = true;
         if (useStreaming) {
@@ -224,7 +254,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     if (idx !== -1) {
                       const existing = state.messages[idx].toolExecutions || [];
                       existing.push({
-                        id: `te-${Date.now()}`,
+                        id: `te-${Date.now()}-${(toolExecutionSeq += 1)}`,
                         toolName: tool,
                         toolDisplayName: tool
                           .replace(/_/g, ' ')
@@ -236,7 +266,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     }
                   });
                 },
-                onToolEnd: (tool: string, result: string) => {
+                onToolEnd: (tool: string, result: string, isError = false) => {
                   if (!isCurrentGeneration()) return;
                   set((state) => {
                     const idx = state.messages.findIndex(
@@ -244,12 +274,26 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     );
                     if (idx !== -1) {
                       const execs = state.messages[idx].toolExecutions || [];
-                      const teIdx = [...execs]
+                      // Settle the newest still-running execution of this tool;
+                      // falling back to the newest one at all keeps parallel
+                      // same-tool calls from being dropped entirely.
+                      const runningIdx = [...execs]
                         .reverse()
-                        .findIndex((te) => te.toolName === tool);
+                        .findIndex(
+                          (te) => te.toolName === tool && te.status === 'running'
+                        );
+                      const teIdx =
+                        runningIdx !== -1
+                          ? runningIdx
+                          : [...execs]
+                              .reverse()
+                              .findIndex((te) => te.toolName === tool);
                       if (teIdx !== -1) {
                         const actualIdx = execs.length - 1 - teIdx;
-                        execs[actualIdx].status = 'completed';
+                        // The service forwards the frame's is_error flag; a failed
+                        // tool must not render as a completed one.
+                        execs[actualIdx].status = isError ? 'failed' : 'completed';
+                        if (isError) execs[actualIdx].error = result;
                         try {
                           execs[actualIdx].result = JSON.parse(result);
                         } catch {
@@ -350,6 +394,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                       threadId,
                       assistantMessageId: placeholderId,
                       jobId: threadId, // thread_id used as job identifier for SSE
+                      origin: 'sse',
                       tools:
                         (confirmation.tools as Array<{
                           name: string;
@@ -399,13 +444,19 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     if (idx !== -1) {
                       state.messages[idx].content =
                         streamedContent || error || 'An error occurred.';
-                      state.messages[idx].isStreaming = false;
                       state.messages[idx].isError = !streamedContent;
+                      settleStreamingMessage(state.messages[idx]);
                     }
                     if (didMutateProjectData) {
                       state.projectDataVersion += 1;
                     }
                     state.isStreaming = false;
+                    // A dead turn's plan is not the next turn's plan, and the
+                    // controller slot must be released or stopGeneration ends
+                    // up aborting an already-finished stream.
+                    state.currentPlan = null;
+                    (state as unknown as AgentChatStore)._abortController =
+                      null;
                   });
                   if (didMutateProjectData) {
                     invalidateProjectQueries(pageContext.projectId);
@@ -435,6 +486,27 @@ export const useAgentChatStore = create<AgentChatStore>()(
         const { runId } =
           await agentChatService.startDurableRun(requestPayload);
         set((state) => {
+          // The SSE attempt may have streamed tokens before throwing, in which
+          // case its placeholder is still in the list. Pushing a second
+          // message with the same id duplicated the React key, sent polling
+          // updates into the first (partial) bubble and left the second one
+          // streaming forever — reuse the existing bubble instead.
+          const existingIdx = state.messages.findIndex(
+            (m) => m.id === placeholderId
+          );
+          if (existingIdx !== -1) {
+            state.messages[existingIdx].content = '';
+            state.messages[existingIdx].isStreaming = true;
+            state.messages[existingIdx].isError = false;
+            // The abandoned SSE attempt may have produced citations, a plan
+            // and tool executions. The durable answer replaces the text only,
+            // so leaving them attached showed the new answer with the old
+            // attempt's sources and permanently 'running' tools.
+            state.messages[existingIdx].citations = undefined;
+            state.messages[existingIdx].plan = undefined;
+            state.messages[existingIdx].toolExecutions = undefined;
+            return;
+          }
           state.messages.push({
             id: placeholderId,
             role: 'assistant',
@@ -489,6 +561,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                 threadId: ownerThreadId,
                 assistantMessageId: placeholderId,
                 jobId: runId,
+                origin: 'durable',
                 tools:
                   ((meta.confirmation as Record<string, unknown>)?.tools as
                     | Array<{ name: string; args: Record<string, unknown> }>
@@ -593,8 +666,22 @@ export const useAgentChatStore = create<AgentChatStore>()(
         };
 
         set((state) => {
+          // The durable path's placeholder is still streaming when
+          // startDurableRun/getDurableRunStatus throws; without this it sat
+          // next to the error bubble with a blinking cursor forever.
+          const placeholderIdx = state.messages.findIndex(
+            (m) => m.id === placeholderId
+          );
+          if (placeholderIdx !== -1) {
+            if (!state.messages[placeholderIdx].content) {
+              state.messages.splice(placeholderIdx, 1);
+            } else {
+              settleStreamingMessage(state.messages[placeholderIdx]);
+            }
+          }
           state.messages.push(errorMessage);
           state.isStreaming = false;
+          state.currentPlan = null;
           (state as unknown as AgentChatStore)._abortController = null;
         });
       }
@@ -619,7 +706,22 @@ export const useAgentChatStore = create<AgentChatStore>()(
       // the same way stopGeneration would, then take ownership.
       const previousController = (get() as unknown as AgentChatStore)
         ._abortController;
-      if (previousController) previousController.abort();
+      if (previousController) {
+        previousController.abort();
+        // The superseded turn's stream resolves silently (the service swallows
+        // AbortError) and its onDone/onError are blocked by the identity
+        // guard, so nothing else ever finishes its bubble. Drop an empty
+        // placeholder and settle a partial one here instead of leaving a
+        // blinking cursor behind forever.
+        set((state) => {
+          state.messages = state.messages.filter(
+            (m) => !(m.isStreaming && !m.content)
+          );
+          for (const message of state.messages) {
+            if (message.isStreaming) settleStreamingMessage(message);
+          }
+        });
+      }
       const abortController = new AbortController();
 
       // Capture identity ONCE, before any await: which thread and message
@@ -628,6 +730,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
       // message" — the user can switch threads mid-confirm, and the newly
       // visible thread's last assistant message would then belong to a
       // different conversation entirely (cross-thread corruption).
+      const confirmEpoch = transcriptEpoch;
       const confirmThreadId = pendingConfirmation.threadId;
       const targetMessageId = pendingConfirmation.assistantMessageId;
       // The thread-id clause is defense-in-depth: today every thread switch
@@ -694,7 +797,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   if (idx !== -1) {
                     const existing = state.messages[idx].toolExecutions || [];
                     existing.push({
-                      id: `te-${Date.now()}`,
+                      id: `te-${Date.now()}-${(toolExecutionSeq += 1)}`,
                       toolName: tool,
                       toolDisplayName: tool
                         .replace(/_/g, ' ')
@@ -706,7 +809,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }
                 });
               },
-              onToolEnd: (tool: string, result: string) => {
+              onToolEnd: (tool: string, result: string, isError = false) => {
                 if (!isCurrentGeneration()) return;
                 set((state) => {
                   const idx = state.messages.findIndex(
@@ -714,12 +817,26 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   );
                   if (idx !== -1) {
                     const execs = state.messages[idx].toolExecutions || [];
-                    const teIdx = [...execs]
+                    // Settle the newest still-running execution of this tool;
+                    // falling back to the newest one at all keeps parallel
+                    // same-tool calls from being dropped entirely.
+                    const runningIdx = [...execs]
                       .reverse()
-                      .findIndex((te) => te.toolName === tool);
+                      .findIndex(
+                        (te) => te.toolName === tool && te.status === 'running'
+                      );
+                    const teIdx =
+                      runningIdx !== -1
+                        ? runningIdx
+                        : [...execs]
+                            .reverse()
+                            .findIndex((te) => te.toolName === tool);
                     if (teIdx !== -1) {
                       const actualIdx = execs.length - 1 - teIdx;
-                      execs[actualIdx].status = 'completed';
+                      // The service forwards the frame's is_error flag; a failed
+                      // tool must not render as a completed one.
+                      execs[actualIdx].status = isError ? 'failed' : 'completed';
+                      if (isError) execs[actualIdx].error = result;
                       try {
                         execs[actualIdx].result = JSON.parse(result);
                       } catch {
@@ -808,6 +925,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     threadId,
                     assistantMessageId: targetMessageId,
                     jobId: threadId,
+                    origin: 'sse',
                     tools:
                       (confirmation.tools as Array<{
                         name: string;
@@ -952,8 +1070,38 @@ export const useAgentChatStore = create<AgentChatStore>()(
               return;
             }
           }
+
+          // Falling off the loop end left isConfirming/isStreaming true with a
+          // live controller: spinner forever, composer locked, Stop aborting a
+          // dead controller. Surface the timeout and release the composer.
+          // The card is NOT restored: the decision already consumed its wait
+          // token server-side, so Approve would fail on every click.
+          if (!isCurrentGeneration()) return;
+          set((state) => {
+            const idx = state.messages.findIndex(
+              (m) => m.id === targetMessageId
+            );
+            if (idx !== -1) {
+              settleStreamingMessage(state.messages[idx], {
+                fallbackContent:
+                  'This action is taking longer than expected. It may still be running — please try again shortly.',
+              });
+            }
+            state.isStreaming = false;
+            state.isConfirming = false;
+            (state as unknown as AgentChatStore)._abortController = null;
+          });
         } else {
-          // Legacy polling fallback for SSE-originated confirmations
+          // Legacy polling fallback. It addresses `/agent/confirm/{job_id}`,
+          // which resolves a job UUID — an SSE-originated confirmation carries
+          // the THREAD id in `jobId`, so this call 404s and the following poll
+          // loop can never resolve it. Fail fast into the outer catch, which
+          // restores the card and keeps Approve retryable.
+          if (pendingConfirmation.origin === 'sse') {
+            throw new Error(
+              'Confirmation stream failed and this confirmation has no durable job to fall back to'
+            );
+          }
           await agentChatService.confirmAction(jobId, confirmed);
 
           const MAX_POLLS = 120;
@@ -1034,15 +1182,40 @@ export const useAgentChatStore = create<AgentChatStore>()(
               return;
             }
           }
+
+          // Falling off the loop end left isConfirming/isStreaming true with a
+          // live controller: spinner forever, composer locked, Stop aborting a
+          // dead controller. Surface the timeout and release the composer.
+          // The card is NOT restored: the decision already consumed its wait
+          // token server-side, so Approve would fail on every click.
+          if (!isCurrentGeneration()) return;
+          set((state) => {
+            const idx = state.messages.findIndex(
+              (m) => m.id === targetMessageId
+            );
+            if (idx !== -1) {
+              settleStreamingMessage(state.messages[idx], {
+                fallbackContent:
+                  'This action is taking longer than expected. It may still be running — please try again shortly.',
+              });
+            }
+            state.isStreaming = false;
+            state.isConfirming = false;
+            (state as unknown as AgentChatStore)._abortController = null;
+          });
         }
       } catch {
         // If superseded (stopGeneration / thread switch already aborted this
         // generation), its own reset already ran — don't clobber whatever
         // owns the slot now. Mirrors sendMessage's outer catch guard.
         if (abortController.signal.aborted) {
-          set((state) => {
-            state.pendingConfirmations[threadId] ??= pendingConfirmation;
-          });
+          // clearMessages/newThread abort in-flight work; restoring the card
+          // afterwards resurrected it on a thread the user just wiped.
+          if (transcriptEpoch === confirmEpoch) {
+            set((state) => {
+              state.pendingConfirmations[threadId] ??= pendingConfirmation;
+            });
+          }
           return;
         }
         set((state) => {
@@ -1073,13 +1246,14 @@ export const useAgentChatStore = create<AgentChatStore>()(
         if (lastAsst) {
           const idx = state.messages.findIndex((m) => m.id === lastAsst.id);
           if (idx !== -1) {
-            state.messages[idx].isStreaming = false;
-            if (!state.messages[idx].content) {
-              state.messages[idx].content = 'Generation stopped.';
-            }
+            settleStreamingMessage(state.messages[idx], {
+              fallbackContent: 'Generation stopped.',
+            });
           }
         }
         state.isStreaming = false;
+        state.isConfirming = false;
+        state.currentPlan = null;
         (state as unknown as AgentChatStore)._abortController = null;
       });
     },
@@ -1107,18 +1281,31 @@ export const useAgentChatStore = create<AgentChatStore>()(
       void get().sendMessage();
     },
 
-    clearMessages: () =>
+    clearMessages: () => {
+      transcriptEpoch += 1;
       set((state) => {
+        // Nulling the controller without aborting left the generation running
+        // and still owning the thread: onTrace re-set activeThreadId after the
+        // clear, onConfirmation re-armed a card on the wiped transcript, and
+        // the next send silently continued the "cleared" thread. Mirrors
+        // newThread's abort.
+        const store = state as unknown as AgentChatStore;
+        if (store._abortController) {
+          store._abortController.abort();
+          store._abortController = null;
+        }
         state.messages = [];
         state.activeThreadId = null;
         state.isStreaming = false;
+        state.isConfirming = false;
         state.pendingConfirmations = {};
         state.currentPlan = null;
-        (state as unknown as AgentChatStore)._abortController = null;
-      }),
+      });
+    },
 
     // Threads
-    newThread: () =>
+    newThread: () => {
+      transcriptEpoch += 1;
       set((state) => {
         threadLoadEpoch += 1;
         // A sendMessage/confirmAction generation left running against the
@@ -1136,7 +1323,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
         state.isLoadingMessages = false;
         state.isStreaming = false;
         state.isConfirming = false;
-      }),
+      });
+    },
 
     selectThread: (threadId: string) =>
       set((state) => {

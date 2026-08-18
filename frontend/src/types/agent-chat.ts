@@ -96,7 +96,13 @@ export type AgentUIMode = 'closed' | 'panel' | 'sidebar';
 export interface PendingConfirmation {
   threadId: string;
   assistantMessageId: string;
+  /** Durable runs put their run id here; SSE-originated confirmations reuse
+   * the thread id, which is what `/agent/stream/confirm` wants — but NOT what
+   * the legacy `/agent/confirm/{job_id}` endpoint accepts. `origin` keeps the
+   * two apart so a confirmation is never routed to an endpoint that cannot
+   * resolve its id. */
   jobId: string;
+  origin?: 'sse' | 'durable';
   tools: Array<{ name: string; args: Record<string, unknown> }>;
   message: string;
   waitTokenId?: string;

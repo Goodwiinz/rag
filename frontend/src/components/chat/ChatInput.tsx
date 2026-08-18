@@ -29,7 +29,9 @@ import React, {
 interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: () => void;
+  /** Sends the composed turn. Receives the document ids of the attachment
+   * chips still present, so removing a chip un-attaches its document. */
+  onSubmit: (attachmentIds: string[]) => void;
   onStop: () => void;
   isLoading: boolean;
   /** Hard-disables the composer without swapping Send for Stop — used while
@@ -43,7 +45,9 @@ interface ChatInputProps {
    * one outcome per file (in the same order) settles the composer's chips;
    * returning void keeps them optimistic.
    */
-  onAttach?: (files: FileList) => void | Promise<{ ok: boolean }[] | void>;
+  onAttach?: (
+    files: FileList
+  ) => void | Promise<{ ok: boolean; documentId?: string }[] | void>;
   // Slash commands
   onCommand?: (id: SlashCommandId) => void;
 }
@@ -121,6 +125,10 @@ export function ChatInput({
      * Hosts whose `onAttach` reports nothing back stay on 'done'.
      */
     state: 'uploading' | 'done' | 'error';
+    /** The uploaded document this chip stands for, once the host reports it.
+     * Absent while uploading, on failure, and for hosts that report no
+     * outcomes — those chips are a visual record only and attach nothing. */
+    documentId?: string;
   };
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   // Monotonic counter behind each chip's id — see addFiles.
@@ -161,7 +169,9 @@ export function ChatInput({
     // by index. A chip the user removed mid-upload is absent from `prev` and
     // is simply skipped.
     const indexById = new Map(next.map((att, i) => [att.id, i]));
-    const settle = (results: { ok: boolean }[] | void): void =>
+    const settle = (
+      results: { ok: boolean; documentId?: string }[] | void
+    ): void =>
       setAttachments((prev) =>
         prev.map((att) => {
           const i = indexById.get(att.id);
@@ -170,7 +180,11 @@ export function ChatInput({
           // A host that resolves without per-file outcomes gets the old
           // behaviour rather than a chip stuck on 'uploading'.
           if (!result) return { ...att, state: 'done' as const };
-          return { ...att, state: result.ok ? ('done' as const) : ('error' as const) };
+          return {
+            ...att,
+            state: result.ok ? ('done' as const) : ('error' as const),
+            ...(result.documentId ? { documentId: result.documentId } : {}),
+          };
         })
       );
 
@@ -193,6 +207,14 @@ export function ChatInput({
       return prev.filter((a) => a.id !== id);
     });
   };
+
+  // Document ids for the chips still on screen at send time. Chips the user
+  // removed are already out of state, so removing one un-attaches its
+  // document; chips that failed to upload never carry an id.
+  const attachedDocumentIds = (): string[] =>
+    attachments.flatMap((a) =>
+      a.state === 'done' && a.documentId ? [a.documentId] : []
+    );
 
   // Clear composer chips + revoke their blob URLs once a message is sent —
   // otherwise stale chips linger into the next turn and every image object URL
@@ -297,7 +319,7 @@ export function ChatInput({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (!isDisabled && value.trim() && !isOverLimit) {
-        onSubmit();
+        onSubmit(attachedDocumentIds());
         clearAttachments();
       } else {
         console.warn('[Chat] Composer Enter swallowed', {
@@ -313,7 +335,7 @@ export function ChatInput({
   const handleComposerSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
     if (!isDisabled && value.trim() && !isOverLimit) {
-      onSubmit();
+      onSubmit(attachedDocumentIds());
       clearAttachments();
     } else {
       console.warn('[Chat] Composer submit swallowed', {
