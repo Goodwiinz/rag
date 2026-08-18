@@ -3,6 +3,7 @@
 import React from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { rehypeFreshTail } from '@/lib/rehypeFreshTail';
 import dynamic from 'next/dynamic';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -126,6 +127,11 @@ export const inlineComponents: Components = {
  */
 const MATH_DELIMITERS = /\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\(|\\\[/;
 
+/** Applied only while a turn streams — see `freshTail`. */
+const FRESH_TAIL_PLUGINS: React.ComponentProps<
+  typeof ReactMarkdown
+>['rehypePlugins'] = [rehypeFreshTail];
+
 /**
  * KaTeX plus its stylesheet is ~557kB, over 5% of the bundle, and most turns
  * carry no math — so it loads only for the messages that need it. Until the
@@ -140,16 +146,23 @@ export interface ChatMarkdownProps {
   content: string;
   /** Unwrap paragraphs to spans (citation-segment interleaving). */
   inline?: boolean;
+  /**
+   * Tag the trailing characters so the newest text can be tinted while a turn
+   * streams. Off for committed messages — nothing there is "new".
+   */
+  freshTail?: boolean;
 }
 
 /** Markdown without math — also the fallback while the math chunk loads. */
 function PlainMarkdown({
   content,
   inline,
+  freshTail,
 }: ChatMarkdownProps): React.ReactElement {
   return (
     <ReactMarkdown
       remarkPlugins={REMARK_PLUGINS}
+      rehypePlugins={freshTail ? FRESH_TAIL_PLUGINS : undefined}
       components={inline ? inlineComponents : baseComponents}
     >
       {content}
@@ -161,13 +174,20 @@ function PlainMarkdown({
 export function ChatMarkdown({
   content,
   inline = false,
+  freshTail = false,
 }: ChatMarkdownProps): React.ReactElement {
-  const plain = <PlainMarkdown content={content} inline={inline} />;
+  const plain = (
+    <PlainMarkdown content={content} inline={inline} freshTail={freshTail} />
+  );
   if (!MATH_DELIMITERS.test(content)) return plain;
 
   return (
     <React.Suspense fallback={plain}>
-      <ChatMarkdownMath content={content} inline={inline} />
+      <ChatMarkdownMath
+        content={content}
+        inline={inline}
+        freshTail={freshTail}
+      />
     </React.Suspense>
   );
 }
