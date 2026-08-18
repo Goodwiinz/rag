@@ -262,6 +262,14 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     didMutateProjectData = true;
                   }
                 },
+                // The event's second argument (the planner's rationale) is
+                // deliberately ignored: the global sidebar renders plans as a
+                // compact progress tracker, and this store doesn't rehydrate
+                // plan provenance on reload (loadThreadMessages drops `plan`
+                // too), so live-only reasoning would vanish on thread switch.
+                // /chat is the surface that shows it. Thread it through
+                // (AgentMessage field + both renderers) if this surface
+                // should ever match.
                 onPlan: (steps: Array<Record<string, unknown>>) => {
                   if (!isCurrentGeneration()) return;
                   set((state) => {
@@ -724,6 +732,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }
                 });
               },
+              // Second argument (planner rationale) deliberately ignored —
+              // same reasoning as the onPlan above.
               onPlan: (steps: Array<Record<string, unknown>>) => {
                 if (!isCurrentGeneration()) return;
                 set((state) => {
