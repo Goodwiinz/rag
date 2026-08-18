@@ -376,6 +376,10 @@ class ChatMessageResponse(ChatMessageBase, TimestampMixin):
     user_id: Optional[UUID] = None
     token_count: int = 0
     latency_ms: Optional[int] = None
+    # Time to first token, same origin as latency_ms — the difference is the
+    # time spent writing. Null when the turn streamed no token, and on rows
+    # written before the column existed.
+    ttft_ms: Optional[int] = None
     stopped: Optional[bool] = None
     model_name: Optional[str] = None
     model_version: Optional[str] = None

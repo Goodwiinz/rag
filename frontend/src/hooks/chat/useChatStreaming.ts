@@ -592,6 +592,12 @@ export function useChatStreaming(
         let streamHadError = false;
         let streamHadConfirmation = false;
         const responseStart = Date.now();
+        // Stamped on the first token so the committed bubble can split the
+        // clock into working vs writing straight away. The backend persists
+        // its own reading (chat_messages.ttft_ms) for the post-reload row —
+        // this mirrors responseTimeMs, which is likewise client-measured
+        // in-session and server-measured after a reload.
+        let firstTokenAt: number | null = null;
 
         // Per-turn step tracking — reset each send
         const turnSteps: ActivityStep[] = [];
@@ -652,6 +658,7 @@ export function useChatStreaming(
         await start(
           {
             onToken: (content) => {
+              if (firstTokenAt === null) firstTokenAt = Date.now();
               assistantContent += content;
               lastStreamedContentRef.current = assistantContent;
               pendingStreamContentRef.current = assistantContent;
@@ -979,6 +986,9 @@ export function useChatStreaming(
           planReasoning: turnPlanReasoning || undefined,
           metadata: {
             responseTimeMs,
+            ...(firstTokenAt !== null
+              ? { ttftMs: firstTokenAt - responseStart }
+              : {}),
             ...(wasStopped ? { stopped: true } : {}),
             ...(finalTurnSteps.length > 0
               ? {

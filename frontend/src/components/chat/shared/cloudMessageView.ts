@@ -129,6 +129,10 @@ export interface ChatPageMessage {
   metadata?: {
     toolsUsed?: string[];
     responseTimeMs?: number;
+    /** Time to first token, same origin as `responseTimeMs` — the difference
+     * is the time spent writing the answer. Absent when the turn streamed no
+     * token, and on rows persisted before the column existed. */
+    ttftMs?: number;
     sourcesCount?: number;
     /** The user stopped this response mid-stream; the text is partial. */
     stopped?: boolean;
@@ -156,7 +160,8 @@ export interface ChatPageMessage {
 export function mapDbMessageToChatPageMessage(
   dbMsg: ChatMessage
 ): ChatPageMessage {
-  const hasMetadata = dbMsg.latency_ms || dbMsg.stopped || dbMsg.token_usage;
+  const hasMetadata =
+    dbMsg.latency_ms || dbMsg.ttft_ms || dbMsg.stopped || dbMsg.token_usage;
   const hasFeedback =
     dbMsg.feedback_rating != null || !!dbMsg.feedback_text;
   return {
@@ -190,6 +195,7 @@ export function mapDbMessageToChatPageMessage(
     metadata: hasMetadata
       ? {
           ...(dbMsg.latency_ms ? { responseTimeMs: dbMsg.latency_ms } : {}),
+          ...(dbMsg.ttft_ms ? { ttftMs: dbMsg.ttft_ms } : {}),
           ...(dbMsg.stopped ? { stopped: true } : {}),
           ...(dbMsg.token_usage
             ? {

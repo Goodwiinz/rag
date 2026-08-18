@@ -1064,6 +1064,7 @@ def _format_message_response(message) -> ChatMessageResponse:
         content=message.content,
         token_count=message.token_count,
         latency_ms=message.latency_ms,
+        ttft_ms=message.ttft_ms,
         stopped=message.stopped,
         # Serve-time redaction of persisted raw tool args (see execute.py
         # get_thread_messages — same finding, same funnel discipline).

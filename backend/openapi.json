@@ -2419,6 +2419,17 @@
             ],
             "title": "Tool Name"
           },
+          "ttft_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ttft Ms"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
