@@ -259,7 +259,10 @@ export interface UseChatStreamingReturn {
     /** Edit-and-resend: the `client_message_id` of the user turn being
      * replaced. Sent as `supersedes_client_message_id` so the server
      * tombstones that turn and everything after it. */
-    supersedesClientMessageId?: string
+    supersedesClientMessageId?: string,
+    /** Documents the composer uploaded for this turn, sent as
+     * `attachment_ids` so the server links them to the persisted user row. */
+    attachmentIds?: string[]
   ) => Promise<void>;
   handleStop: () => void;
   pendingConfirmation: PendingConfirmation | null;
@@ -1090,7 +1093,8 @@ export function useChatStreaming(
     async (
       contentOverride?: string,
       historyOverride?: ChatPageMessage[],
-      supersedesClientMessageId?: string
+      supersedesClientMessageId?: string,
+      attachmentIds?: string[]
     ) => {
       if (submitLockRef.current) {
         console.warn('[Chat] Send ignored: submit already in flight');
@@ -1283,6 +1287,12 @@ export function useChatStreaming(
                   },
                   use_rag: enableRAG,
                   thread_id: existingAgentThreadId,
+                  // Documents the composer uploaded for this turn. The server
+                  // links them to the user row it persists and drops any the
+                  // caller's org does not own.
+                  ...(attachmentIds && attachmentIds.length > 0
+                    ? { attachment_ids: attachmentIds }
+                    : {}),
                   // Edit-and-resend turns only: omitted entirely otherwise (and
                   // when the edited turn was never persisted with a cmid).
                   ...(supersedesClientMessageId
