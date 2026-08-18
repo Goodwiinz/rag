@@ -23,7 +23,9 @@ def mock_db() -> AsyncMock:
 
 
 @pytest.mark.asyncio
-async def test_list_projects_returns_filtered_paginated_result(mock_db: AsyncMock) -> None:
+async def test_list_projects_returns_filtered_paginated_result(
+    mock_db: AsyncMock,
+) -> None:
     service = ProjectService(mock_db)
     workspace_id = uuid4()
     user_id = uuid4()
@@ -111,7 +113,9 @@ async def test_update_project_rejects_invalid_status_transition(
 
 
 @pytest.mark.asyncio
-async def test_update_project_allows_valid_status_transition(mock_db: AsyncMock) -> None:
+async def test_update_project_allows_valid_status_transition(
+    mock_db: AsyncMock,
+) -> None:
     service = ProjectService(mock_db)
     user_id = uuid4()
     project_id = uuid4()
@@ -134,3 +138,36 @@ async def test_update_project_allows_valid_status_transition(mock_db: AsyncMock)
     assert project.is_private is True
     mock_db.commit.assert_awaited_once()
     mock_db.refresh.assert_awaited_once_with(project)
+
+
+@pytest.mark.asyncio
+async def test_delete_project_soft_deletes_instead_of_hard_delete(
+    mock_db: AsyncMock,
+) -> None:
+    """R2-H2: hard ``db.delete`` hits RESTRICT FKs from project_skills /
+
+    agent_runtime_snapshots (no ORM cascade) and raises an unhandled
+    IntegrityError. delete_project must flip ``is_deleted`` instead of
+    calling ``db.delete`` -- which also means a project with skill/snapshot
+    rows can never trip that FK, since the row is never actually removed.
+    """
+    from src.models.collection import Collection
+
+    service = ProjectService(mock_db)
+    user_id = uuid4()
+    project_id = uuid4()
+
+    project = Collection()
+    project.is_deleted = False
+
+    project_result = MagicMock()
+    project_result.scalar_one_or_none.return_value = project
+    mock_db.execute.return_value = project_result
+
+    await service.delete_project(user_id=user_id, project_id=project_id)
+
+    assert project.is_deleted is True
+    assert project.deleted_at is not None
+    mock_db.delete.assert_not_awaited()
+    mock_db.delete.assert_not_called()
+    mock_db.commit.assert_awaited_once()
