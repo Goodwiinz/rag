@@ -19,6 +19,10 @@
   --nous-corona: #f59e0b;
   --nous-mars: #ef4444;
   --nous-sol-safe: #996d1a;
+  /* Fresh-tail ink — the streamed-text tint. Its own step because sol-safe
+     is 4.30:1 on --nous-bg-1, under the 4.5:1 that 14-15px body text needs;
+     this is 4.80:1 on #f7f7f5. Dark theme maps it to helios (10.13:1 on nyx). */
+  --nous-fresh-ink: #8f6618;
 
   /* Sol alpha steps (replace legacy --phosphor-green-{subtle,muted,glow}) */
   --nous-sol-subtle: rgba(212, 160, 57, 0.08);
@@ -98,6 +102,7 @@
   --nous-fg-3: #9a9080; /* AA-safe tertiary on tinted dark cards (was dust #8a8070) */
   --nous-fg-accent: var(--nous-helios);
   --nous-fg-accent-safe: var(--nous-helios);
+  --nous-fresh-ink: var(--nous-helios);
 
   --nous-bg-1: var(--nous-nyx);
   --nous-bg-2: var(--nous-obsidian);
@@ -243,29 +248,15 @@
   animation: nous-pulse 1.4s ease-in-out infinite;
 }
 
-/* Streamed text that has just arrived. It lands in the accent and settles to
-   ink as more follows, so the eye can find the growing edge of a long answer.
-
-   Colour only — the text is fully legible at every point of the transition, so
-   there is nothing to restore when motion is reduced; only the easing is
-   dropped. */
+/* Streamed text that has just arrived, so the eye can find the growing edge
+   of a long answer. Deliberately a static tint: React reconciles the tail
+   span across token renders and only swaps its text, so a CSS animation
+   would run once on the first tokens and never restart. The settle effect
+   comes from the span itself — it always holds the newest characters, and
+   each render moves older ones out of it, back to ink. Colour only, no
+   motion, so there is no reduced-motion branch to need. */
 [data-fresh='true'] {
-  color: var(--nous-sol);
-  animation: nous-fresh-settle 700ms ease-out forwards;
-}
-@keyframes nous-fresh-settle {
-  from {
-    color: var(--nous-sol);
-  }
-  to {
-    color: inherit;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-fresh='true'] {
-    animation: none;
-    color: inherit;
-  }
+  color: var(--nous-fresh-ink);
 }
 
 /* Thinking matrix — the pre-token loading indicator's cells. Animation only,

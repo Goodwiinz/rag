@@ -72,7 +72,7 @@ describe('useChatComposerActions', () => {
     });
 
     expect(setInput).toHaveBeenCalledWith('first turn');
-    expect(handleSubmit).toHaveBeenCalledWith('first turn', []);
+    expect(handleSubmit).toHaveBeenCalledWith('first turn', [], undefined);
   });
 
   it('retryLast regenerates the most recent assistant turn', async () => {
@@ -85,7 +85,37 @@ describe('useChatComposerActions', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(handleSubmit).toHaveBeenCalledWith('first turn', []);
+    expect(handleSubmit).toHaveBeenCalledWith('first turn', [], undefined);
+  });
+
+  it('handleRegenerate tombstones the replaced turn when it has a client id', async () => {
+    const cmid = 'cmid-regen';
+    const { result, handleSubmit } = setup({
+      displayedMessages: [
+        makeChatPageMessage({
+          id: 'u1',
+          role: 'user',
+          content: 'first turn',
+          timestamp: 1,
+          clientMessageId: cmid,
+        }),
+        makeChatPageMessage({
+          id: 'a1',
+          role: 'assistant',
+          content: 'first reply',
+          timestamp: 2,
+        }),
+      ],
+    });
+
+    act(() => {
+      result.current.handleRegenerate(1);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(handleSubmit).toHaveBeenCalledWith('first turn', [], cmid);
   });
 
   describe('handleEditUserMessage', () => {
@@ -191,14 +221,31 @@ describe('useChatComposerActions', () => {
     });
   });
 
-  it('submit forwards to handleSubmit without arguments', () => {
+  it('submit forwards a plain send with no overrides', () => {
     const { result, handleSubmit } = setup();
 
     act(() => {
       result.current.submit();
     });
 
-    expect(handleSubmit).toHaveBeenCalledWith();
+    // Content/history/supersedes/attachments all absent: a bare composer send
+    // lets handleSubmit read the live input and history itself.
+    expect(handleSubmit).toHaveBeenCalledWith(
+      undefined,
+      undefined,
+      undefined,
+      undefined
+    );
+  });
+
+  it('submit forwards the composer attachment ids', () => {
+    const { result, handleSubmit } = setup();
+
+    act(() => {
+      result.current.submit(['doc-1', 'doc-2']);
+    });
+
+    expect(handleSubmit.mock.calls[0][3]).toEqual(['doc-1', 'doc-2']);
   });
 
   it('handleAttach uploads every file and reports partial failure', async () => {
@@ -217,6 +264,29 @@ describe('useChatComposerActions', () => {
 
     expect(uploadDocumentMock).toHaveBeenCalledTimes(2);
     expect(toastErrorMock).toHaveBeenCalledWith('Upload failed for b.pdf.');
+  });
+
+  it('handleAttach reports the document each upload became', async () => {
+    // The id is the whole point of the upload: without it the file lands in
+    // the library and nothing links it to the turn the user attached it to.
+    uploadDocumentMock
+      .mockResolvedValueOnce({ response: { document_id: 'doc-1' } })
+      .mockRejectedValueOnce(new Error('boom'));
+    const { result } = setup();
+    const files = [
+      new File(['a'], 'a.pdf'),
+      new File(['b'], 'b.pdf'),
+    ] as unknown as FileList;
+
+    let outcomes;
+    await act(async () => {
+      outcomes = await result.current.handleAttach(files);
+    });
+
+    expect(outcomes).toEqual([
+      { ok: true, documentId: 'doc-1' },
+      { ok: false },
+    ]);
   });
 
   it('handleAttach refuses to upload without a workspace', async () => {
