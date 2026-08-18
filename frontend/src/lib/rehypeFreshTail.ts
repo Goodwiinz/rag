@@ -5,6 +5,15 @@ const DEFAULT_TAIL_CHARS = 24;
 
 type Parent = Root | Element;
 
+/** KaTeX output — generated markup, not streamed prose. Tinting inside it
+ * would colour a single glyph of a rendered expression. */
+function isKatexElement(node: Element): boolean {
+  const cls = node.properties?.className;
+  // hast normalises space-separated properties, so className is an array.
+  const classes = Array.isArray(cls) ? cls : [];
+  return classes.includes('katex') || classes.includes('katex-display');
+}
+
 /** Depth-first walk to the last text node that carries visible characters. */
 function findLastTextNode(
   node: Parent
@@ -18,6 +27,9 @@ function findLastTextNode(
       // Code keeps its own colouring; tinting inside it would fight the
       // syntax highlighter and read as a highlight rather than as freshness.
       if (child.tagName === 'code' || child.tagName === 'pre') continue;
+      // Skip the whole expression: a message that ends with math gets its
+      // tint on the prose before it instead.
+      if (isKatexElement(child)) continue;
       const found = findLastTextNode(child);
       if (found) return found;
     }
@@ -49,7 +61,17 @@ export function rehypeFreshTail(options?: { chars?: number }) {
 
     const { parent, index, text } = found;
     const value = text.value;
-    const splitAt = Math.max(0, value.length - chars);
+    let splitAt = Math.max(0, value.length - chars);
+    // A raw UTF-16 index can land between the halves of a surrogate pair
+    // (an emoji, say), leaving lone surrogates in sibling DOM nodes that
+    // render as replacement characters. Step back one unit so the whole
+    // pair stays in the tail. ponytail: code-point guard only — a ZWJ
+    // sequence can still split into valid separate emoji for the one render
+    // where the boundary crosses it; reach for Intl.Segmenter if that shows.
+    const codeUnit = value.charCodeAt(splitAt);
+    if (splitAt > 0 && codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      splitAt -= 1;
+    }
     const head = value.slice(0, splitAt);
     const tail = value.slice(splitAt);
     if (tail === '') return;

@@ -742,45 +742,13 @@ class ChatService:
     ) -> List[UUID]:
         """Return only the document ids the caller's organization owns.
 
-        Mirrors the documents-service access convention
-        (``Document.organization_id == <caller org>`` + ``is_deleted == False``).
-        The caller's org is resolved from ``user_id``. Ids that don't survive
-        the filter (foreign-org, deleted, or nonexistent) are dropped and logged
-        rather than raised, so a mixed batch still attaches the owned ones.
+        Thin delegate: the predicate lives in ``workspace_access`` so the
+        agent stream's user-turn persist can apply the identical scoping on
+        its own session.
         """
-        if not document_ids:
-            return []
-
-        org_result = await self.db.execute(
-            select(User.organization_id).where(User.id == user_id)
+        return await workspace_access.filter_owned_document_ids(
+            self.db, document_ids, user_id
         )
-        organization_id = org_result.scalar_one_or_none()
-        if organization_id is None:
-            logger.warning(
-                "User %s has no organization; dropping %d attachment id(s)",
-                user_id,
-                len(document_ids),
-            )
-            return []
-
-        owned_result = await self.db.execute(
-            select(Document.id).where(
-                Document.id.in_(document_ids),
-                Document.organization_id == organization_id,
-                Document.is_deleted == False,  # noqa: E712
-            )
-        )
-        owned_ids = list(owned_result.scalars().all())
-
-        dropped = set(document_ids) - set(owned_ids)
-        if dropped:
-            logger.warning(
-                "Dropped %d attachment id(s) not owned by org %s: %s",
-                len(dropped),
-                organization_id,
-                sorted(str(d) for d in dropped),
-            )
-        return owned_ids
 
     async def create_assistant_message(
         self,
