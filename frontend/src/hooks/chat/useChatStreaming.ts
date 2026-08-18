@@ -351,7 +351,13 @@ export function useChatStreaming(
   // onSeq fires per frame, but the activity store only needs the latest value
   // once per paint.
   const seqRafRef = useRef<number | null>(null);
-  const pendingSeqRef = useRef<{ threadId: string; seq: number } | null>(null);
+  // Carries the stream id alongside the cursor so the unmount flush can write
+  // both without reaching into another ref from inside effect cleanup.
+  const pendingSeqRef = useRef<{
+    threadId: string;
+    seq: number;
+    streamId?: string;
+  } | null>(null);
   // Run-correlation id per thread (envelope stream_id) — persisted with the
   // seq cursor so resume pins to the run the cursor came from.
   const streamIdByThreadRef = useRef<Record<string, string>>({});
@@ -489,11 +495,7 @@ export function useChatStreaming(
           // point at, gets a 204, and closes the run without the answer.
           useAgentActivityStore
             .getState()
-            .setStreamSeq(
-              pending.threadId,
-              pending.seq,
-              streamIdByThreadRef.current[pending.threadId]
-            );
+            .setStreamSeq(pending.threadId, pending.seq, pending.streamId);
         }
       }
       pendingSeqRef.current = null;
@@ -700,7 +702,11 @@ export function useChatStreaming(
             },
             onSeq: (seq) => {
               if (!currentThreadId) return;
-              pendingSeqRef.current = { threadId: currentThreadId, seq };
+              pendingSeqRef.current = {
+                threadId: currentThreadId,
+                seq,
+                streamId: streamIdByThreadRef.current[currentThreadId],
+              };
               if (seqRafRef.current === null) {
                 seqRafRef.current = requestAnimationFrame(() => {
                   seqRafRef.current = null;
@@ -1716,7 +1722,11 @@ export function useChatStreaming(
               onSeq: (seq) => {
                 const seqThreadId = pendingConfirmation.workspaceThreadId;
                 if (!seqThreadId) return;
-                pendingSeqRef.current = { threadId: seqThreadId, seq };
+                pendingSeqRef.current = {
+                  threadId: seqThreadId,
+                  seq,
+                  streamId: streamIdByThreadRef.current[seqThreadId],
+                };
                 if (seqRafRef.current === null) {
                   seqRafRef.current = requestAnimationFrame(() => {
                     seqRafRef.current = null;
