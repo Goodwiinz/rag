@@ -9,8 +9,6 @@ from .integrity import router as integrity_router
 from .processing import router as processing_router
 from .table_extraction import router as table_extraction_router
 
-# document_upload provides upload utilities, not a router
-
 __all__ = [
     "documents_router",
     "figures_router",

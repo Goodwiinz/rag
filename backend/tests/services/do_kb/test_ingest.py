@@ -34,14 +34,19 @@ class _FakeDoc:
         self.do_kb_data_source_uuid: str | None = None
         self.do_kb_indexed_at: datetime | None = None
         self.do_kb_index_status: str | None = None
+        self.is_deleted = False
 
 
 class _FakeSession:
     def __init__(self) -> None:
         self.commits = 0
+        self.refresh_calls: list[tuple[Any, tuple]] = []
 
     async def commit(self) -> None:
         self.commits += 1
+
+    async def refresh(self, obj: Any, attribute_names: tuple = ()) -> None:
+        self.refresh_calls.append((obj, attribute_names))
 
 
 @pytest.fixture
@@ -81,6 +86,51 @@ async def test_returns_existing_uuid_when_already_synced(stub_settings):
     result = await sync_document_to_kb(_FakeSession(), doc, client=client)
 
     assert result == "ds-existing"
+    client.add_spaces_data_source.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_skips_when_cached_document_already_deleted(stub_settings):
+    """Cheap defense-in-depth check: a caller that forgot the is_deleted filter
+    still can't push a deleted doc's content into DO KB."""
+    from src.services.do_kb.ingest import sync_document_to_kb
+
+    session = _FakeSession()
+    doc = _FakeDoc()
+    doc.is_deleted = True
+
+    client = MagicMock()
+    result = await sync_document_to_kb(session, doc, client=client)
+
+    assert result is None
+    client.add_spaces_data_source.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_skips_when_refresh_reveals_delete_since_batch_load(stub_settings):
+    """Codex P1: the Document instance may have been loaded by a batch query
+    some time before this call runs; a delete committed in between must be
+    caught by refreshing from the DB, not by trusting the cached instance."""
+    from src.services.do_kb.ingest import sync_document_to_kb
+
+    class _RefreshingSession(_FakeSession):
+        async def refresh(self, obj: Any, attribute_names: tuple = ()) -> None:
+            await super().refresh(obj, attribute_names)
+            # Simulate: another transaction soft-deleted the doc after it was
+            # loaded into this batch but before this refresh.
+            obj.is_deleted = True
+
+    session = _RefreshingSession()
+    doc = _FakeDoc()
+    doc.is_deleted = False  # stale cached value
+
+    client = MagicMock()
+    result = await sync_document_to_kb(session, doc, client=client)
+
+    assert result is None
+    assert session.refresh_calls == [(doc, ["is_deleted"])]
     client.add_spaces_data_source.assert_not_called()
 
 

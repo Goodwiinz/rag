@@ -116,7 +116,11 @@ async def test_thread_terminal_projection_lands_before_job_publication():
 
 
 @pytest.mark.asyncio
-async def test_thread_terminal_projection_failure_is_not_published():
+async def test_thread_terminal_projection_failure_still_publishes_and_retries():
+    """H2: a failed strict projection must not cost the terminal status —
+    set_job falls through to L1/Redis instead of raising, and reschedules a
+    best-effort re-projection (the same seam non-terminal writes use) rather
+    than losing the durable row outright."""
     recorded = AsyncMock(side_effect=RuntimeError("db unavailable"))
     redis_write = AsyncMock()
     js._l1["job-terminal"] = {
@@ -129,12 +133,15 @@ async def test_thread_terminal_projection_failure_is_not_published():
     with (
         patch.object(js, "set_job_redis_only", redis_write),
         patch("src.services.agent.agent_run_service.record_job_status", new=recorded),
-        pytest.raises(RuntimeError, match="db unavailable"),
     ):
         await js.set_job("job-terminal", {"status": JobStatus.COMPLETED})
+        await _drain_projection_tasks()
 
-    assert js._l1["job-terminal"]["status"] is JobStatus.RUNNING
-    redis_write.assert_not_awaited()
+    assert js._l1["job-terminal"]["status"] is JobStatus.COMPLETED
+    redis_write.assert_awaited_once()
+    # First call is the strict (failed) attempt; falling through to the
+    # best-effort seam below fires a second, retried one.
+    assert recorded.await_count == 2
 
 
 @pytest.mark.asyncio

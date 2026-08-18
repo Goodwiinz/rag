@@ -5029,13 +5029,17 @@
             "title": "Opposing",
             "type": "integer"
           },
+          "publication_retraction_check": {
+            "$ref": "#/components/schemas/PublicationRetractionCheck",
+            "default": "not_performed"
+          },
           "reproducibility_hash": {
             "description": "Hash for reproducibility tracking",
             "title": "Reproducibility Hash",
             "type": "string"
           },
           "retracted_sources": {
-            "description": "Number of retracted sources (excluded)",
+            "description": "Number of workspace-withdrawn sources excluded from classification",
             "minimum": 0.0,
             "title": "Retracted Sources",
             "type": "integer"
@@ -8666,6 +8670,22 @@
         "title": "ProjectUpdate",
         "type": "object"
       },
+      "PublicationRetractionCheck": {
+        "description": "Publication-level retraction check state.",
+        "enum": [
+          "not_performed"
+        ],
+        "title": "PublicationRetractionCheck",
+        "type": "string"
+      },
+      "PublicationRetractionStatus": {
+        "description": "Publication-level retraction status for an evidence source.",
+        "enum": [
+          "unknown"
+        ],
+        "title": "PublicationRetractionStatus",
+        "type": "string"
+      },
       "QualityAlertResponse": {
         "description": "Quality alert response",
         "properties": {
@@ -11168,6 +11188,10 @@
               }
             ],
             "title": "Justification Excerpt"
+          },
+          "publication_retraction_status": {
+            "$ref": "#/components/schemas/PublicationRetractionStatus",
+            "default": "unknown"
           },
           "source_id": {
             "format": "uuid",

@@ -81,7 +81,13 @@ async def test_stream_event_generator_emits_trace_event_before_workflow_events()
     assert sse_event_name(workflow[0]) == "trace"
     assert sse_event_name(workflow[1]) == "token"
     trace_payload = workflow[0].split("data: ", 1)[1].strip()
-    assert '"thread_id": "11111111-1111-1111-1111-111111111501"' in trace_payload
+    # `_resolve_thread` is mocked to miss, which is the degraded path: nothing
+    # about the client's thread id was verified, so it is discarded and the
+    # turn runs under a fresh ephemeral id. The trace must therefore NOT echo
+    # the id back — doing so would advertise a checkpoint the caller does not
+    # own. (This assertion previously required the opposite, encoding the
+    # pre-fix behaviour.)
+    assert '"thread_id": "11111111-1111-1111-1111-111111111501"' not in trace_payload
     assert '"cli_session_id": ""' in trace_payload
     assert '"langsmith_run_id": ""' in trace_payload
     assert '"langsmith_url": ""' in trace_payload

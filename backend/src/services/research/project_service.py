@@ -11,6 +11,7 @@ from structlog import get_logger
 
 from src.models import Collection, Workspace
 from src.models.project_note import ProjectNote
+from src.services.agent.tool_helpers import _escape_like
 from src.shared.research_schemas import ProjectCreate, ProjectUpdate
 
 logger = get_logger(__name__)
@@ -69,7 +70,13 @@ class ProjectService:
         if tag:
             filters.append(Collection.tags.contains([tag]))
         if search:
-            filters.append(Collection.name.ilike(f"%{search}%"))
+            # search is agent- and user-supplied free text; unescaped '%'/'_'
+            # would act as LIKE wildcards instead of literal characters (the
+            # same invariant every other ilike() site in the agent path
+            # enforces via this helper — see tool_helpers.py).
+            filters.append(
+                Collection.name.ilike(f"%{_escape_like(search)}%", escape="\\")
+            )
 
         count_query = select(func.count(Collection.id)).where(and_(*filters))
         total_result = await self.db.execute(count_query)
@@ -226,11 +233,19 @@ class ProjectService:
         return project
 
     async def delete_project(self, user_id: UUID, project_id: UUID) -> None:
-        """Delete project if owned by user."""
+        """Soft-delete project if owned by user.
+
+        Not a hard ``db.delete`` (R2-H2): ``project_skills.project_id`` and
+        ``agent_runtime_snapshots.project_id`` are ``ForeignKey("collections.id",
+        ondelete="RESTRICT")`` with no ORM cascade, so deleting a project with
+        either row raised an unhandled IntegrityError -> 500. Soft delete also
+        matches the ``is_deleted`` convention every read path already filters on
+        (see ``get_project_for_user`` / ``list_projects``).
+        """
         project = await self.get_project_for_user(
             project_id=project_id, user_id=user_id
         )
-        await self.db.delete(project)
+        project.soft_delete()
         await self.db.commit()
 
     async def _get_workspace_ids_for_user(self, user_id: UUID) -> List[UUID]:

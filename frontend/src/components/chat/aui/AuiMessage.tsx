@@ -210,7 +210,13 @@ function MessageActions({
         aria-label={assistant ? 'Copy assistant message' : 'Copy user message'}
         title="Copy message"
       >
-        <Copy className="h-3.5 w-3.5" />
+        {/* The action confirms itself rather than relying on a toast. */}
+        <MessagePrimitive.If copied={false}>
+          <Copy className="h-3.5 w-3.5" />
+        </MessagePrimitive.If>
+        <MessagePrimitive.If copied>
+          <Check className="h-3.5 w-3.5 text-(--nous-terra)" />
+        </MessagePrimitive.If>
       </ActionBarPrimitive.Copy>
       {!assistant && onEdit ? (
         <button
@@ -696,16 +702,28 @@ export function AuiAssistantMessage({
             onCitationClick={onCitationClick}
           />
         )}
-        <MessageActions
-          assistant
-          onRetry={onRetry}
-          retryDisabled={retryDisabled}
-        />
-        {/* Per-response feedback — only for persisted (server-canonical)
-         * assistant turns; optimistic/local-only rows have no id to PATCH. */}
-        {message?.id ? (
-          <MessageFeedback messageId={message.id} feedback={message.feedback} />
-        ) : null}
+        {/* Copy / regenerate / rate read as one row, but rating sits beside
+         * the action bar rather than inside it: ActionBarPrimitive.Root
+         * *unmounts* when the message is not hovered, which would discard a
+         * half-typed feedback note and hide a rating the reader already gave.
+         *
+         * Rating renders first so the bar mounting on hover extends the row
+         * to the right instead of shifting the thumbs under the pointer.
+         * Persisted (server-canonical) turns only — optimistic rows have no
+         * id to PATCH. */}
+        <div className="nous-msg-actionrow">
+          {message?.id ? (
+            <MessageFeedback
+              messageId={message.id}
+              feedback={message.feedback}
+            />
+          ) : null}
+          <MessageActions
+            assistant
+            onRetry={onRetry}
+            retryDisabled={retryDisabled}
+          />
+        </div>
       </div>
     </MessagePrimitive.Root>
   );
