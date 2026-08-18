@@ -1304,14 +1304,21 @@ async def get_thread_messages(
         # then reversed to chronological order for the client. Backed by the
         # existing ix_chat_messages_thread_created (thread_id, created_at) index.
         eff_limit = limit or 50
-        page_stmt = select(ChatMessage).where(
+        # Built once and reused for both statements below — a count query
+        # built from its own copy of these filters silently drifts from the
+        # page query the moment one of them changes (M12: the count used to
+        # omit ``created_at < before``, so a ``before=`` page reported the
+        # full-thread total instead of the filtered one).
+        filters = [
             ChatMessage.thread_id == thread_id,
             ChatMessage.superseded_by_message_id.is_(None),
-        )
+        ]
         if before is not None:
-            page_stmt = page_stmt.where(ChatMessage.created_at < before)
+            filters.append(ChatMessage.created_at < before)
         page_stmt = (
-            page_stmt.options(selectinload(ChatMessage.citations))
+            select(ChatMessage)
+            .where(*filters)
+            .options(selectinload(ChatMessage.citations))
             .order_by(ChatMessage.created_at.desc())
             .limit(eff_limit + 1)  # +1 sentinel to detect older messages
         )
@@ -1319,14 +1326,7 @@ async def get_thread_messages(
         has_more = len(rows) > eff_limit
         messages = list(reversed(rows[:eff_limit]))
         total = (
-            await db.execute(
-                select(func.count(ChatMessage.id)).where(
-                    # Same filters as the page query — a drifted count
-                    # over-reports ``total`` and yields phantom has_more pages.
-                    ChatMessage.thread_id == thread_id,
-                    ChatMessage.superseded_by_message_id.is_(None),
-                )
-            )
+            await db.execute(select(func.count(ChatMessage.id)).where(*filters))
         ).scalar() or 0
 
     message_responses = []

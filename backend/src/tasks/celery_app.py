@@ -113,15 +113,6 @@ celery_app.conf.update(
         },
     },
     task_routes={
-        "src.tasks.document_processing_tasks.process_document_upload": {
-            "queue": "document_processing",
-        },
-        "src.tasks.document_processing_tasks.process_high_priority_document": {
-            "queue": "high_priority",
-        },
-        "src.tasks.document_processing_tasks.process_low_priority_document": {
-            "queue": "low_priority",
-        },
         "src.tasks.agent_run_tasks.run_agent_job": {
             "queue": "agent_runs",
         },
