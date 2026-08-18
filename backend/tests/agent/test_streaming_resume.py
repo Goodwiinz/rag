@@ -523,7 +523,7 @@ def test_resume_just_finished_named_stream_replays(monkeypatch):
         AsyncMock(return_value=THREAD_ID),
     )
 
-    async def read_after(stream_id, after_seq):
+    async def read_after(stream_id, after_seq, start_index=None):
         assert stream_id == sid
         return [f for f in _frames() if f.seq > after_seq]
 
@@ -559,7 +559,7 @@ def test_resume_replays_frames_and_stops_after_done(monkeypatch):
         execute_mod._stream_buffer, "active_stream_id", AsyncMock(return_value="sid-1")
     )
 
-    async def read_after(sid, after_seq):
+    async def read_after(sid, after_seq, start_index=None):
         assert sid == "sid-1"
         return [f for f in _frames() if f.seq > after_seq]
 
@@ -584,7 +584,7 @@ def test_resume_excludes_frames_at_or_below_after(monkeypatch):
         execute_mod._stream_buffer, "active_stream_id", AsyncMock(return_value="sid-1")
     )
 
-    async def read_after(sid, after_seq):
+    async def read_after(sid, after_seq, start_index=None):
         return [f for f in _frames() if f.seq > after_seq]
 
     monkeypatch.setattr(execute_mod._stream_buffer, "read_after", read_after)
@@ -599,7 +599,7 @@ def test_resume_uses_last_event_id_header_as_cursor(monkeypatch):
     )
     cursors: list[int] = []
 
-    async def read_after(sid, after_seq):
+    async def read_after(sid, after_seq, start_index=None):
         cursors.append(after_seq)
         return [f for f in _frames() if f.seq > after_seq]
 
@@ -649,7 +649,7 @@ def test_resume_token_containing_terminal_text_does_not_stop_replay(monkeypatch)
         BufferedFrame(seq=3, frame="id: 3\nevent: done\ndata: {}\n\n"),
     ]
 
-    async def read_after(sid, after_seq):
+    async def read_after(sid, after_seq, start_index=None):
         return [f for f in frames if f.seq > after_seq]
 
     monkeypatch.setattr(execute_mod._stream_buffer, "read_after", read_after)
@@ -721,7 +721,7 @@ def test_resume_matching_stream_param_replays(monkeypatch):
         execute_mod._stream_buffer, "active_stream_id", AsyncMock(return_value=active)
     )
 
-    async def read_after(sid, after_seq):
+    async def read_after(sid, after_seq, start_index=None):
         assert sid == active
         return [f for f in _frames() if f.seq > after_seq]
 

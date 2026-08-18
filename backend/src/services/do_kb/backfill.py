@@ -15,8 +15,9 @@ from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
-from src.models.document import Document
+from src.models.document import Document, ProcessingStatus
 from src.models.organization import Organization
+from src.shared.enums import SatelliteSyncStatus
 
 from .backfill_model import DOKBBackfillProgress
 from .client import DOKnowledgeBaseClient, get_do_kb_client
@@ -148,12 +149,19 @@ async def _next_batch(
     after_document_id: Optional[str],
     batch_size: int,
 ) -> list[Document]:
+    # Mirror reprovision_org / reconcile_tasks._reconcilable_filters: only
+    # non-deleted, fully-processed docs are eligible. Without this, soft-deleted
+    # docs (deleted pre-sync, or whose unsync failed) and PENDING/FAILED docs
+    # get ingested into DO KB and stay retrievable via RAG after deletion
+    # (R2-H11 — data exposure).
     stmt = (
         select(Document)
         .where(
             and_(
                 Document.organization_id == org_id,
                 Document.do_kb_data_source_uuid.is_(None),
+                Document.is_deleted.is_(False),
+                Document.processing_status == ProcessingStatus.COMPLETED,
             )
         )
         .order_by(Document.id)
@@ -163,6 +171,60 @@ async def _next_batch(
         stmt = stmt.where(Document.id > after_document_id)
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+async def _dry_run_report(
+    session: AsyncSession,
+    org_id: str,
+    *,
+    batch_size: int,
+) -> BackfillReport:
+    """Read-only dry run: counts what WOULD be synced without writing anything.
+
+    R2-M19: the old dry-run path still set progress.status="in_progress" /
+    "dry_run_done" and committed, clobbering the real resumable progress row.
+    This reads the existing progress (if any) but never adds/mutates/commits it.
+    """
+    progress = await session.get(DOKBBackfillProgress, org_id)
+    if progress is not None and progress.status == "completed":
+        return BackfillReport(
+            organization_id=str(org_id),
+            completed=progress.completed_count,
+            failed=progress.failed_count,
+            skipped=0,
+            last_document_id=(
+                str(progress.last_document_id) if progress.last_document_id else None
+            ),
+            finished=True,
+            indexing_started=False,
+        )
+
+    skipped = 0
+    cursor: Optional[str] = (
+        str(progress.last_document_id)
+        if progress is not None and progress.last_document_id
+        else None
+    )
+    while True:
+        batch = await _next_batch(
+            session, org_id, after_document_id=cursor, batch_size=batch_size
+        )
+        if not batch:
+            break
+        for doc in batch:
+            cursor = str(doc.id)
+            skipped += 1
+
+    return BackfillReport(
+        organization_id=str(org_id),
+        completed=0,
+        failed=0,
+        skipped=skipped,
+        last_document_id=cursor,
+        finished=True,
+        indexing_started=False,
+        indexing_attempted=False,
+    )
 
 
 async def backfill_org(
@@ -176,16 +238,20 @@ async def backfill_org(
     """Backfill all unsynced documents in one organization.
 
     Caller is responsible for transaction boundaries. We commit progress
-    rows so a crash mid-run preserves the cursor.
+    rows so a crash mid-run preserves the cursor. dry_run is fully read-only
+    (see _dry_run_report) — it never touches the progress table.
     """
     if not settings.DO_KB_ENABLED:
         raise RuntimeError("DO_KB_ENABLED must be true to run backfill")
 
-    api = client or get_do_kb_client()
     org = await session.get(Organization, org_id)
     if org is None:
         raise ValueError(f"organization {org_id} not found")
 
+    if dry_run:
+        return await _dry_run_report(session, org_id, batch_size=batch_size)
+
+    api = client or get_do_kb_client()
     progress = await _load_progress(session, org_id)
     if progress.status == "completed":
         logger.info(
@@ -206,9 +272,16 @@ async def backfill_org(
             indexing_started=False,
         )
 
-    if not dry_run:
-        # Ensure KB exists before iterating; cheap idempotent.
-        await ensure_kb_for_org(session, org_id, client=api)
+    # A prior run with per-doc failures already advanced the cursor past the
+    # failed docs (the cursor query is `id > last_document_id`), so resuming
+    # from it would never revisit them and the run would silently finalize as
+    # "completed" with 0 run-local failures. Restart the scan from the top —
+    # cheap, because _next_batch already filters do_kb_data_source_uuid IS
+    # NULL, so already-synced docs are skipped regardless (codex P1).
+    restart_from_scratch = progress.status == "completed_with_failures"
+
+    # Ensure KB exists before iterating; cheap idempotent.
+    await ensure_kb_for_org(session, org_id, client=api)
 
     progress.status = "in_progress"
     progress.started_at = progress.started_at or datetime.now(timezone.utc)
@@ -218,7 +291,9 @@ async def backfill_org(
     failed = 0
     skipped = 0
     cursor: Optional[str] = (
-        str(progress.last_document_id) if progress.last_document_id else None
+        None
+        if restart_from_scratch
+        else (str(progress.last_document_id) if progress.last_document_id else None)
     )
 
     while True:
@@ -230,17 +305,26 @@ async def backfill_org(
 
         for doc in batch:
             cursor = str(doc.id)
-            if dry_run:
-                skipped += 1
-                continue
 
             ds_uuid = await sync_document_to_kb(
                 session, doc, client=api, trigger_indexing=False
             )
             if ds_uuid:
                 completed += 1
+                # R2-M20 (P2 follow-up): clear a prior failure mark on success
+                # so the reconciler doesn't keep reporting a now-healthy doc as
+                # drifted forever. Matches the value reconcile_tasks._redrive_do_kb
+                # writes on a successful re-sync.
+                doc.do_kb_sync_status = SatelliteSyncStatus.COMPLETED.value
             else:
                 failed += 1
+                # R2-M20: record the failure on the document itself so the
+                # scheduled reconciler (reconcile_tasks._reconcilable_filters,
+                # which queries do_kb_sync_status) picks it up and re-drives it.
+                # Without this the cursor still advances past the doc, the run
+                # ends "completed", and a re-run short-circuits — the failed
+                # doc is silently skipped forever.
+                doc.do_kb_sync_status = SatelliteSyncStatus.FAILED.value
 
             progress.last_document_id = doc.id
             progress.completed_count = (progress.completed_count or 0) + (
@@ -248,21 +332,16 @@ async def backfill_org(
             )
             progress.failed_count = (progress.failed_count or 0) + (0 if ds_uuid else 1)
 
-        if dry_run:
-            # In dry-run we still iterate every batch but never commit indexing.
-            continue
-
         # Commit once per BATCH (not per document). The cursor advances by whole
         # batches; a crash re-runs at most one batch, which is safe because
         # sync_document_to_kb is idempotent (skips docs that already have a
         # data-source uuid). Avoids N round-trips per batch (audit A2).
         await session.commit()
 
-    # A dry-run never kicks indexing; treat it as "not started" (there's nothing
-    # to index). Only flip to True when the kick actually returns without raising.
+    # Only flip to True when the kick actually returns without raising.
     indexing_started = False
     indexing_attempted = False
-    if not dry_run and org.do_kb_uuid:
+    if org.do_kb_uuid:
         indexing_attempted = True
         try:
             await api.start_indexing(kb_uuid=org.do_kb_uuid)
@@ -282,7 +361,11 @@ async def backfill_org(
                 },
             )
 
-    progress.status = "completed" if not dry_run else "dry_run_done"
+    # R2-M20: a run with per-doc failures still resolves to a distinct status
+    # (not the plain "completed" the short-circuit checks for) so a re-run
+    # doesn't skip retrying the failed docs. The reconciler also picks them up
+    # independently via do_kb_sync_status='failed' above.
+    progress.status = "completed_with_failures" if failed > 0 else "completed"
     progress.finished_at = datetime.now(timezone.utc)
     await session.commit()
 

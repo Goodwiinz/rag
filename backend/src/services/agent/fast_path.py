@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import re
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -139,7 +142,7 @@ async def stream_fast_path_chunks(
     messages: list[Any],
     persist_user: Callable[[], Awaitable[Any]],
     trace_metadata: dict[str, str] | None = None,
-) -> AsyncIterator[Any]:
+) -> AsyncGenerator[Any, None]:
     """Start Luna and user persistence together, releasing no token too early."""
     iterator = llm.astream(
         messages,
@@ -163,6 +166,20 @@ async def stream_fast_path_chunks(
             with contextlib.suppress(asyncio.CancelledError):
                 await first_task
         if not persist_task.done():
-            # The durable user row remains mandatory even if Luna fails early.
-            with contextlib.suppress(Exception):
+            # The durable user row remains mandatory even if Luna fails early
+            # — but unlike the happy path's unguarded `await persist_task`
+            # above, a failure reaching this belated cleanup await has no
+            # other chance to surface. Log it instead of dropping it.
+            try:
                 await persist_task
+            except Exception:
+                logger.error(
+                    "Fast-path user-message persist failed during stream cleanup",
+                    exc_info=True,
+                )
+        # Never leave the model's astream suspended mid-response: closing
+        # this generator early (client disconnect) without closing `iterator`
+        # abandons its HTTP stream open until GC-driven asyncgen finalization
+        # picks it up, instead of releasing it now.
+        with contextlib.suppress(Exception):
+            await iterator.aclose()
