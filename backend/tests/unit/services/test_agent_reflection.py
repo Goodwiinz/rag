@@ -1,6 +1,8 @@
 """Tests for agent reflection gate module."""
-import pytest
+
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from src.services.agent.reflection import (
     ReflectionResult,
@@ -199,6 +201,8 @@ class TestMakeReflectionGate:
         updates = await node_fn(state, config)
 
         assert updates["reflection_count"] == 2
+        # No critique ran and there was no prior verdict to clear, so the node
+        # writes the counter alone — it must not invent a passing result.
         assert "_reflection_result" not in updates
 
         state.update(updates)
@@ -216,6 +220,8 @@ class TestMakeReflectionGate:
         updates = await node_fn(state, config)
 
         assert updates["reflection_count"] == 0
+        # Skipping the critique writes no verdict — reporting one would emit a
+        # phantom "Reflection passed" frame for a turn that was never evaluated.
         assert "_reflection_result" not in updates
 
         state.update(updates)
@@ -480,9 +486,7 @@ class TestShouldSkipReflection:
             "tool_executions": [],
         }
 
-        with patch(
-            "src.services.agent.reflection._build_reflection_llm"
-        ) as mock_build:
+        with patch("src.services.agent.reflection._build_reflection_llm") as mock_build:
             updates = await node_fn(state, {"configurable": {}})
             assert mock_build.called is False
 
@@ -511,14 +515,10 @@ class TestIngestSuccessLieDetection:
         }
 
     def test_ingest_zero_count_detects_failed_status(self):
-        assert _ingest_zero_count(
-            self._ingest_te(status="ingestion_failed", count=0)
-        )
+        assert _ingest_zero_count(self._ingest_te(status="ingestion_failed", count=0))
 
     def test_ingest_zero_count_detects_partial_status(self):
-        assert _ingest_zero_count(
-            self._ingest_te(status="ingestion_partial", count=1)
-        )
+        assert _ingest_zero_count(self._ingest_te(status="ingestion_partial", count=1))
 
     def test_ingest_zero_count_ignores_complete(self):
         assert not _ingest_zero_count(
@@ -546,9 +546,7 @@ class TestIngestSuccessLieDetection:
                 HumanMessage(content="add 3 papers"),
                 AIMessage(content="Done — I added one paper to your project."),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         issue = _detect_ingest_success_lie(state)
         assert issue is not None
@@ -567,9 +565,7 @@ class TestIngestSuccessLieDetection:
                     )
                 ),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is None
 
@@ -581,9 +577,7 @@ class TestIngestSuccessLieDetection:
                 HumanMessage(content="add 3 papers"),
                 AIMessage(content="Here are some candidate papers to consider."),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is None
 
@@ -595,9 +589,7 @@ class TestIngestSuccessLieDetection:
                 HumanMessage(content="add 3 papers"),
                 AIMessage(content="I added 3 papers to your project."),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_complete", count=3)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_complete", count=3)],
         }
         assert _detect_ingest_success_lie(state) is None
 
@@ -609,9 +601,7 @@ class TestIngestSuccessLieDetection:
         node_fn, _ = make_reflection_gate(intent_filter={"research"})
         state = {
             "messages": [
-                HumanMessage(
-                    content="can you add 3 papers about Health Care in ML"
-                ),
+                HumanMessage(content="can you add 3 papers about Health Care in ML"),
                 AIMessage(
                     content=(
                         "Done — I added one paper to your project. "
@@ -630,9 +620,7 @@ class TestIngestSuccessLieDetection:
             ],
         }
 
-        with patch(
-            "src.services.agent.reflection._build_reflection_llm"
-        ) as mock_build:
+        with patch("src.services.agent.reflection._build_reflection_llm") as mock_build:
             updates = await node_fn(state, {"configurable": {}})
             assert mock_build.called is False
 
@@ -662,9 +650,7 @@ class TestIngestSuccessLieDetection:
                 HumanMessage(content="add 3 papers"),
                 AIMessage(content=long_claim),
             ],
-            tool_executions=[
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            tool_executions=[self._ingest_te(status="ingestion_failed", count=0)],
         )
         skip, _reason = _should_skip_reflection(state)
         assert skip is False
@@ -690,9 +676,7 @@ class TestIngestSuccessLieDetection:
                 HumanMessage(content="add 3 papers"),
                 AIMessage(content=verb_phrase),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is not None
 
@@ -722,9 +706,7 @@ class TestIngestSuccessLieDetection:
                 HumanMessage(content="add 3 papers"),
                 AIMessage(content=content),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is None
 
@@ -743,9 +725,7 @@ class TestIngestSuccessLieDetection:
                     )
                 ),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is None
 
@@ -792,9 +772,7 @@ class TestIngestSuccessLieDetection:
                     ]
                 ),
             ],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is not None
 
@@ -818,9 +796,7 @@ class TestIngestSuccessLieDetection:
 
         state = {
             "messages": [HumanMessage(content="anything")],
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
         assert _detect_ingest_success_lie(state) is None
 
@@ -853,16 +829,117 @@ class TestIngestSuccessLieDetection:
             ],
             "intent": "research",
             "reflection_count": 2,
-            "tool_executions": [
-                self._ingest_te(status="ingestion_failed", count=0)
-            ],
+            "tool_executions": [self._ingest_te(status="ingestion_failed", count=0)],
         }
-        with patch(
-            "src.services.agent.reflection._build_reflection_llm"
-        ) as mock_build:
+        with patch("src.services.agent.reflection._build_reflection_llm") as mock_build:
             updates = await node_fn(state, {"configurable": {}})
             assert mock_build.called is False
 
-        # At max rounds the node returns just the counter, no result.
+        # At max rounds the node skips the critique. With no prior verdict in
+        # state there is nothing to clear, so it writes the counter alone.
         assert updates["reflection_count"] == 2
         assert "_reflection_result" not in updates
+
+
+class TestStaleReflectionResultDoesNotLoop:
+    """Regression: non-incrementing early returns must clear the prior verdict.
+
+    Trace 01a00ce9 hit GraphRecursionError at superstep 145 with
+    reflection_count frozen at 1: a deterministic guard set a major verdict on
+    the first pass, and every later pass took the intent_filter early return,
+    which neither incremented the counter nor cleared the verdict. The router
+    kept reading the stale major result and routing back to llm_node forever.
+    """
+
+    @pytest.mark.asyncio
+    async def test_intent_outside_filter_clears_stale_major_verdict(self):
+        node_fn, route_fn = make_reflection_gate(intent_filter={"research"})
+        stale = ReflectionResult(
+            passed=False, issues=["fabricated draft id"], severity="major"
+        )
+        state = _make_state(
+            intent="general", reflection_count=1, _reflection_result=stale
+        )
+
+        updates = await node_fn(state, {})
+
+        # Counter must NOT advance on this path (no critique ran)...
+        assert updates["reflection_count"] == 1
+        # ...so the stale verdict must be cleared, or the router loops forever.
+        # Cleared to None, not to a passing result: no evaluation happened, and
+        # the SSE handlers emit a reflection frame for any non-None verdict.
+        assert updates["_reflection_result"] is None
+        assert route_fn({**state, **updates}) == "proceed"
+
+    @pytest.mark.asyncio
+    async def test_missing_user_message_clears_stale_major_verdict(self):
+        from langchain_core.messages import AIMessage
+
+        node_fn, route_fn = make_reflection_gate(intent_filter={"research"})
+        stale = ReflectionResult(passed=False, issues=["bad"], severity="major")
+        state = _make_state(
+            intent="research",
+            reflection_count=1,
+            messages=[AIMessage(content="x" * 300)],
+            _reflection_result=stale,
+        )
+
+        updates = await node_fn(state, {})
+
+        assert updates["reflection_count"] == 1
+        assert updates["_reflection_result"] is None
+        assert route_fn({**state, **updates}) == "proceed"
+
+    def test_router_would_loop_on_stale_verdict(self):
+        """Guards the router contract the two tests above depend on."""
+        _node_fn, route_fn = make_reflection_gate()
+        stale = ReflectionResult(passed=False, issues=["x"], severity="major")
+        looping_state = _make_state(reflection_count=1, _reflection_result=stale)
+        assert route_fn(looping_state) == "revise"
+
+    @pytest.mark.asyncio
+    async def test_no_skip_path_leaves_a_stale_verdict_readable(self):
+        """Structural guard covering every skip branch at once.
+
+        reflection_route is a pure conditional-edge function and cannot clear
+        _reflection_result itself, so a node return that omits the key hands the
+        router the previous superstep's verdict. This pins the wrapper, so a
+        future early return cannot reintroduce the loop by forgetting to clear.
+        """
+        stale = ReflectionResult(passed=False, issues=["stale"], severity="major")
+        node_fn, route_fn = make_reflection_gate(intent_filter={"research"})
+
+        # Every branch that skips the critique, each entered with a live major
+        # verdict from a previous superstep.
+        for kwargs in (
+            {"intent": "general"},
+            {"intent": "research", "reflection_count": 2},
+            {"intent": "knowledge_graph"},
+        ):
+            state = _make_state(_reflection_result=stale, **kwargs)
+            updates = await node_fn(state, {"configurable": {}})
+            merged = {**state, **updates}
+            assert (
+                merged["_reflection_result"] is None
+            ), f"{kwargs} left a stale verdict readable — router would loop"
+            assert route_fn(merged) == "proceed"
+
+    @pytest.mark.asyncio
+    async def test_skip_paths_invent_no_verdict_without_a_stale_one(self):
+        """The clear must not become a manufactured pass.
+
+        Both SSE handlers in api/agent/streaming emit a reflection frame for any
+        non-None verdict, so writing a passing result on a skipped turn would
+        report "Reflection passed" for an evaluation that never ran.
+        """
+        node_fn, _route_fn = make_reflection_gate(intent_filter={"research"})
+
+        for kwargs in (
+            {"intent": "general"},
+            {"intent": "research", "reflection_count": 2},
+            {"intent": "knowledge_graph"},
+        ):
+            updates = await node_fn(_make_state(**kwargs), {"configurable": {}})
+            assert (
+                "_reflection_result" not in updates
+            ), f"{kwargs} invented a verdict for a turn that was never evaluated"

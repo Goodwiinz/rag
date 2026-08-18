@@ -29,6 +29,18 @@ class ConsensusLevel(str, Enum):
     INSUFFICIENT_DATA = "insufficient_data"  # <3 sources
 
 
+class PublicationRetractionCheck(str, Enum):
+    """Publication-level retraction check state."""
+
+    NOT_PERFORMED = "not_performed"
+
+
+class PublicationRetractionStatus(str, Enum):
+    """Publication-level retraction status for an evidence source."""
+
+    UNKNOWN = "unknown"
+
+
 class StanceClassification(BaseModel):
     """Individual source stance classification"""
 
@@ -60,6 +72,9 @@ class StanceBreakdownItem(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0)
     justification_excerpt: Optional[str] = None
     is_retracted: bool = False
+    publication_retraction_status: PublicationRetractionStatus = (
+        PublicationRetractionStatus.UNKNOWN
+    )
 
 
 class EvidenceMeter(BaseModel):
@@ -85,7 +100,12 @@ class EvidenceMeter(BaseModel):
         ..., ge=0.0, le=1.0, description="Average classification confidence"
     )
     retracted_sources: int = Field(
-        ..., ge=0, description="Number of retracted sources (excluded)"
+        ...,
+        ge=0,
+        description="Number of workspace-withdrawn sources excluded from classification",
+    )
+    publication_retraction_check: PublicationRetractionCheck = (
+        PublicationRetractionCheck.NOT_PERFORMED
     )
     cached: bool = Field(..., description="Whether result was served from cache")
     reproducibility_hash: str = Field(

@@ -161,25 +161,32 @@ async def memory_retrieval_node(state: AgentState, config: RunnableConfig) -> di
     if not user_id:
         return {"user_memories": []}
 
-    # Find the last user message for memory search.
+    # Find the last user message for memory search. Coerced (M5) — a
+    # multimodal HumanMessage's content is a list, and is_conversational()
+    # below does content.strip(), which raises AttributeError on a list.
     last_user_msg = ""
     for msg in reversed(state["messages"]):
         if isinstance(msg, HumanMessage):
-            last_user_msg = msg.content
+            last_user_msg = _coerce_text(msg.content)
             break
 
-    # Greeting / acknowledgement fast-path. Conversational turns ("hi",
-    # "thanks", "ok") never benefit from long-term recall, and the save gate
-    # in ``memory_save_node`` never persists them — so there is provably
-    # nothing to retrieve. Skip the Cohere query-embedding + Postgres
-    # semantic search (~0.5-2s on the parallel-preprocessing critical path).
-    # Shares the predicate with ``rag_node`` so both nodes agree on what
-    # counts as small talk. (Trace 019e9ef7: "hi" embedded the query and
-    # recalled 5 sub-0.5-score noise memories.)
-    if is_conversational(last_user_msg):
-        return {"user_memories": []}
-
     try:
+        # Greeting / acknowledgement fast-path. Conversational turns ("hi",
+        # "thanks", "ok") never benefit from long-term recall, and the save
+        # gate in ``memory_save_node`` never persists them — so there is
+        # provably nothing to retrieve. Skip the Cohere query-embedding +
+        # Postgres semantic search (~0.5-2s on the parallel-preprocessing
+        # critical path). Shares the predicate with ``rag_node`` so both
+        # nodes agree on what counts as small talk. (Trace 019e9ef7: "hi"
+        # embedded the query and recalled 5 sub-0.5-score noise memories.)
+        # Inside the try (M5): a predicate failure must degrade like every
+        # other memory-recall failure (WARNING + empty result) instead of
+        # escaping the node, where preprocessing_node's
+        # gather(return_exceptions=True) swallows it into the same default
+        # with no more than a log line — same outcome, but only on purpose.
+        if is_conversational(last_user_msg):
+            return {"user_memories": []}
+
         from src.services.agent.memory import get_memory_store, search_memories
 
         store = await get_memory_store()

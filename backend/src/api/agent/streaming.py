@@ -931,11 +931,20 @@ async def replay_buffered_stream(
     last_seq = after
     saw_frame = False
     empty_start_polls = 0
+    idle_polls = 0
+    # Count of frames this loop has ever returned to its caller, threaded
+    # back into read_after as the start_index hint (L15) so a long-running
+    # replay stops re-fetching and re-parsing the whole buffer every poll.
+    # Starts at 0 (full scan): on a resume with after > 0 we don't yet know
+    # where that seq sits in the list, so there is nothing to hint.
+    consumed = 0
     # Hard bound: ~10 minutes once the stream has started. A replayed POST can
     # win the small accept->buffer race, so give its original request 5 seconds
     # to publish the first frame without ever dispatching the graph again.
     for _ in range(600):
-        frames = await _stream_buffer.read_after(stream_id, last_seq)
+        frames = await _stream_buffer.read_after(
+            stream_id, last_seq, start_index=consumed
+        )
         if not frames:
             if await request.is_disconnected():
                 return
@@ -946,9 +955,14 @@ async def replay_buffered_stream(
                     continue
                 # The terminal append and active-pointer delete are separate
                 # Redis operations. Close their race with one final read.
-                frames = await _stream_buffer.read_after(stream_id, last_seq)
+                frames = await _stream_buffer.read_after(
+                    stream_id, last_seq, start_index=consumed
+                )
                 if not frames:
                     return
+        if frames:
+            consumed += len(frames)
+            idle_polls = 0
         for buffered in frames:
             saw_frame = True
             yield buffered.frame
@@ -963,6 +977,21 @@ async def replay_buffered_stream(
             )
             if event_line.removeprefix("event: ") in TERMINAL_STREAM_EVENTS:
                 return
+        if not frames:
+            # M13: the producer (planner/classifier/reflection) can go silent
+            # for 20s+ with no buffered frame to replay. Left alone this loop
+            # would poll for up to 600s yielding nothing, and a proxy with a
+            # ~30s idle timeout kills the connection mid-run (see the
+            # keepalive comment above _SSE_KEEPALIVE_SECONDS). A comment line
+            # is spec-legal SSE that any client already has to tolerate
+            # (frontend parsers only react to recognized `event:`/`data:`/
+            # `id:` prefixes) — and, like the live path's `buffer=False`
+            # heartbeat, it is connection liveness, not replayable content,
+            # so it must never enter the resumable buffer.
+            idle_polls += 1
+            if idle_polls >= _SSE_KEEPALIVE_SECONDS:
+                idle_polls = 0
+                yield ": keepalive\n\n"
         if await request.is_disconnected():
             return
         # ponytail: poll-follow; pub/sub if latency matters
@@ -1251,6 +1280,28 @@ async def stream_event_generator(
             resolved_thread_id = str(thread_obj.id)
             if request_body.thread_id != resolved_thread_id:
                 request_body.thread_id = resolved_thread_id
+        elif request_body.thread_id:
+            # Degraded path: `_resolve_thread` returned None, so the ownership
+            # join matched nothing AND no live workspace existed to create a
+            # thread under. The client's thread id was therefore never verified
+            # — it may name another tenant's thread — and it must not survive
+            # into the graph config below, where it becomes the CHECKPOINT KEY
+            # (`configurable.thread_id`). `astream_events` against a
+            # checkpointer merges this turn into whatever checkpoint that key
+            # names: the other user's history would enter the model context and
+            # stream back as tokens, this turn would be appended to their
+            # checkpoint, and the checkpoint's `user_id` channel would be
+            # overwritten with ours — locking them out of their own
+            # `/stream/confirm` (see the ownership check in
+            # `stream_confirm_event_generator`). Null it, exactly as `/execute`
+            # already does on this same miss, so `stream_thread_id` falls back
+            # to a fresh UUID and the turn runs in an ephemeral checkpoint.
+            logger.warning(
+                "Discarding unverified thread id on the degraded stream path: "
+                "no owned thread and no workspace to create one",
+                extra={"user_id": str(current_user.id)},
+            )
+            request_body.thread_id = None
 
         # ------------------------------------------------------------------
         # Atomic accept (P0-C). One transaction commits the user message, the

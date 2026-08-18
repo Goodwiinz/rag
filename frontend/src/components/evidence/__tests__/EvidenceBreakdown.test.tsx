@@ -55,6 +55,7 @@ const mockSources: StanceClassification[] = [
     confidence: 0.92,
     justification_excerpt: 'Our meta-analysis found a 40% reduction in ICU admission rates.',
     is_retracted: false,
+    publication_retraction_status: 'unknown',
   },
   {
     source_id: 'src-2',
@@ -63,6 +64,7 @@ const mockSources: StanceClassification[] = [
     confidence: 0.88,
     justification_excerpt: 'Evidence supports vitamin D supplementation.',
     is_retracted: false,
+    publication_retraction_status: 'unknown',
   },
   {
     source_id: 'src-3',
@@ -71,6 +73,7 @@ const mockSources: StanceClassification[] = [
     confidence: 0.85,
     justification_excerpt: 'No significant correlation was found between vitamin D and outcomes.',
     is_retracted: false,
+    publication_retraction_status: 'unknown',
   },
   {
     source_id: 'src-4',
@@ -79,6 +82,7 @@ const mockSources: StanceClassification[] = [
     confidence: 0.78,
     justification_excerpt: 'Results were inconclusive and require further investigation.',
     is_retracted: false,
+    publication_retraction_status: 'unknown',
   },
   {
     source_id: 'src-5',
@@ -87,6 +91,7 @@ const mockSources: StanceClassification[] = [
     confidence: 0.90,
     justification_excerpt: 'This paper was later retracted.',
     is_retracted: true,
+    publication_retraction_status: 'unknown',
   },
 ];
 

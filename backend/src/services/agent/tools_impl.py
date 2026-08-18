@@ -1229,6 +1229,14 @@ async def _tool_ingest_arxiv(
     current_user: Optional[User] = None,
 ) -> Dict[str, Any]:
     """Ingest arXiv papers into the RAG system by searching for them first, then ingesting."""
+    # Every sibling tool fails closed here; this one didn't, so an unresolved
+    # current_user (bad/missing user_id in configurable — see tools.py
+    # _tool_context) drove the full download+extract+ingest pipeline
+    # unauthenticated instead of hitting the documented "Authentication
+    # required" seam the wrapper relies on this impl to provide.
+    if not db or not current_user:
+        return {"error": "Authentication required"}
+
     from src.services.arxiv.arxiv_service import ArXivIngestionService
 
     paper_ids = args.get("paper_ids", [])
@@ -1316,9 +1324,17 @@ async def _tool_ingest_arxiv(
                 aid = meta.get("arxiv_id") if isinstance(meta, dict) else None
                 if aid:
                     ingested_arxiv_ids.append(str(aid))
-            for pid in _find_missing_arxiv_ids(paper_ids, ingested_arxiv_ids):
+            missing_after_ingest = _find_missing_arxiv_ids(
+                paper_ids, ingested_arxiv_ids
+            )
+            for pid in missing_after_ingest:
                 if pid not in failed_papers:
                     failed_papers[pid] = "PDF download or content extraction failed"
+            # IDs the ingest step actually produced a Document for. A paper can
+            # land here via the stub-paper fallback even after the *batch*
+            # metadata lookup for the whole request failed (_paper_or_stub) —
+            # used below to undo that pessimistic marking once we know better.
+            landed_arxiv_ids = set(paper_ids) - set(missing_after_ingest)
 
             document_ids = []
             reused_document_ids: set = set()
@@ -1336,18 +1352,21 @@ async def _tool_ingest_arxiv(
                     reused_document_ids = persisted.reused_document_ids
                     kb_sync_failed = persisted.kb_sync_failed
                     failed_papers.update(persisted.failed_papers)
+                    # Reconcile against the artifact, not the earlier guess: a
+                    # paper marked failed above (metadata fetch failure, or
+                    # presumed dropped during ingest) that nonetheless landed
+                    # and persisted cleanly must not still be reported failed.
+                    # Papers persistence itself just failed are already back
+                    # in failed_papers via the update() immediately above.
+                    for pid in landed_arxiv_ids:
+                        if pid in failed_papers and pid not in persisted.failed_papers:
+                            del failed_papers[pid]
                 except Exception as db_err:
                     logger.error(
                         "Failed to persist ingested documents to DB", exc_info=db_err
                     )
                     document_ids = []
                     return tool_error_payload("ingest_arxiv_papers", db_err)
-            elif ingested:
-                # Fallback: no current_user, return paper_ids only
-                for doc in ingested:
-                    doc_id = getattr(doc, "id", None)
-                    if doc_id:
-                        document_ids.append(str(doc_id))
 
             # Auto-attach to active project if one is in context.
             linked_project_id: Optional[str] = None
@@ -2000,6 +2019,8 @@ async def _tool_list_project_documents(
         result = await db.execute(stmt)
         docs = result.scalars().all()
 
+        from src.shared.enums import ApiDocumentStatus
+
         return {
             "project_name": project.name,
             "documents": [
@@ -2007,8 +2028,13 @@ async def _tool_list_project_documents(
                     "id": str(d.id),
                     "title": d.title,
                     "type": d.document_type.value if d.document_type else None,
+                    # Mirror search_documents' mapping (not the raw db value)
+                    # so the same document doesn't report two different
+                    # statuses depending on which tool the model called.
                     "status": (
-                        d.processing_status.value if d.processing_status else None
+                        ApiDocumentStatus.from_db(d.processing_status).value
+                        if d.processing_status
+                        else None
                     ),
                 }
                 for d in docs
@@ -3025,6 +3051,7 @@ async def _tool_search_external_database(args: Dict[str, Any]) -> Dict[str, Any]
 
         results = []
         connectors_searched = []
+        failures = 0
         for connector, result in zip(targets, all_results):
             connectors_searched.append(connector.info.name)
             if isinstance(result, BaseException):
@@ -3033,6 +3060,7 @@ async def _tool_search_external_database(args: Dict[str, Any]) -> Dict[str, Any]
                     connector.info.name,
                     str(result),
                 )
+                failures += 1
                 continue
             for r in result:
                 results.append(
@@ -3047,6 +3075,19 @@ async def _tool_search_external_database(args: Dict[str, Any]) -> Dict[str, Any]
                         "document_type": r.document_type,
                     }
                 )
+
+        if failures == len(targets):
+            # Every attempted connector raised. `total_results: 0` here is
+            # indistinguishable from "searched and found nothing" to
+            # _nodes_tools' `"error" in result` classifier — that made a
+            # total outage look like a completed search, so tool_dedupe
+            # cached the empty payload as good (short-circuiting a same-turn
+            # retry) and find_repeated_failures never saw the failure to trip
+            # the circuit breaker. A partial failure is still a real result.
+            return {
+                "error": f"All {len(targets)} connector(s) failed",
+                "connectors_searched": connectors_searched,
+            }
 
         return {
             "query": query,
