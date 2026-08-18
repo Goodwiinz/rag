@@ -72,6 +72,10 @@ async def test_force_update_refreshes_text_and_search_vector() -> None:
 
     assert document.arxiv_id == paper["id"]
     assert document.title == "New title"
-    assert document.content_text == "New abstract"
+    # _compose_content_text rebuilds an "# Abstract" section rather than
+    # overwriting content_text wholesale — a bare overwrite silently
+    # deletes any PDF-extracted "# Content Preview" section normal ingestion
+    # builds (see ArXivChangeTracker._compose_content_text).
+    assert document.content_text == "# Abstract\n\nNew abstract"
     update_vectors.assert_awaited_once_with([str(document.id)], db)
     db.commit.assert_awaited_once()

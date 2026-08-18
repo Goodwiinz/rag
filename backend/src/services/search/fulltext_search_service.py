@@ -226,7 +226,12 @@ class FullTextSearchService:
         # Prepare search terms
         search_terms = self._prepare_search_terms(search_request.query)
 
-        # Base query with full-text search
+        # Base query with full-text search.
+        # Scale contract: raw ts_rank_cd() is naturally bounded ~0-1 for
+        # typical matches; the x10 here only exists to make relevance_score
+        # read better on this endpoint's plain response. HybridSearchService
+        # ._normalize_score() undoes this x10 before fusing across sources —
+        # if this multiplier ever changes, that undo must change with it.
         query_parts = [
             "SELECT",
             "    d.id, d.title, d.document_type, d.content_text, d.content_summary,",
