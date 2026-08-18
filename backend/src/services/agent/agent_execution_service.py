@@ -1587,7 +1587,9 @@ async def _persist_user_message(
     from sqlalchemy.dialects.postgresql import insert
 
     from src.models.chat_message import ChatMessage, MessageRole
+    from src.models.message_attachment import MessageAttachment
     from src.models.thread import Thread
+    from src.services.threads import workspace_access
 
     if request.thread_id is None:
         return False
@@ -1617,18 +1619,25 @@ async def _persist_user_message(
             index_where=text("client_message_id IS NOT NULL AND role = 'user'"),
         )
     )
-    if supersedes is not None:
-        # RETURNING is only added on the edit path: the tombstone UPDATE needs
-        # the replacement row's PK, and ON CONFLICT DO NOTHING ... RETURNING
-        # yields exactly one row when inserted and zero when deduped — the same
-        # signal ``rowcount`` carries, without disturbing the hot path.
+    attachment_ids = list(getattr(request, "attachment_ids", None) or [])
+    # RETURNING is added only for the paths that need the row's PK: the
+    # tombstone UPDATE needs the replacement's id, and attachments need a
+    # parent to hang off. ON CONFLICT DO NOTHING ... RETURNING yields exactly
+    # one row when inserted and zero when deduped — the same signal
+    # ``rowcount`` carries, without disturbing the hot path.
+    needs_row_id = supersedes is not None or bool(attachment_ids)
+    if needs_row_id:
         stmt = stmt.returning(ChatMessage.id)
 
     result = await db.execute(stmt)
     tombstoned_count = 0
-    if supersedes is not None:
+    new_row_id = None
+    if needs_row_id:
         new_row_id = result.scalar_one_or_none()
         inserted = new_row_id is not None
+    else:
+        inserted = result.rowcount == 1
+    if supersedes is not None:
         tombstoned_count = await apply_edit_resend_tombstones(
             db,
             current_user,
@@ -1638,8 +1647,15 @@ async def _persist_user_message(
             inserted_row_id=new_row_id,
             tombstoned_out=tombstoned_out,
         )
-    else:
-        inserted = result.rowcount == 1
+    # Attach only to a row this call actually inserted. On an SSE retry the
+    # insert dedups and new_row_id is None, so the attachments are not written
+    # twice against the turn that already owns them.
+    if attachment_ids and new_row_id is not None:
+        owned_ids = await workspace_access.filter_owned_document_ids(
+            db, attachment_ids, current_user.id
+        )
+        for doc_id in owned_ids:
+            db.add(MessageAttachment(message_id=new_row_id, document_id=doc_id))
     if inserted or tombstoned_count:
         thread = await db.get(Thread, UUID(request.thread_id))
         if thread is not None:

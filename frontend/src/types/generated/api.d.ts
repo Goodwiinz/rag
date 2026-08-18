@@ -8584,6 +8584,11 @@ export interface components {
         /** AgentExecuteRequest */
         AgentExecuteRequest: {
             /**
+             * Attachment Ids
+             * @description Document ids to attach to this user turn. The documents are uploaded separately (POST /documents) and referenced here, so the stream body never carries file bytes. Ids the caller's organization does not own are dropped server-side, not rejected — a mixed batch still attaches the owned ones.
+             */
+            attachment_ids?: string[] | null;
+            /**
              * Max Context Docs
              * @default 5
              */

@@ -358,9 +358,9 @@ export function ChatSurface({
           <ChatInput
             value={input}
             onChange={setInput}
-            onSubmit={() => {
+            onSubmit={(attachmentIds) => {
               if (isSessionInteractive) {
-                submitMessage();
+                submitMessage(attachmentIds);
               } else {
                 console.warn('[Chat] Send ignored: session not interactive', {
                   isAuthenticated,
