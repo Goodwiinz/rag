@@ -27,11 +27,14 @@ filter on who may join or view it (a public workspace is visible cross-org
 by design; a member can be invited from any org). Tenant scoping for
 *documents* attached under a workspace (collection contents, message
 attachments) is a separate, real predicate, enforced here by
-``get_accessible_document_or_none`` and — for message attachments,
-out of scope for this consolidation — ``ChatService._filter_owned_document_ids``.
+``get_accessible_document_or_none`` and, for message attachments, by
+``filter_owned_document_ids`` below — which moved here from
+``ChatService`` once the agent stream needed the same predicate on its own
+session (see ``_persist_user_message``).
 """
 
-from typing import Optional
+import logging
+from typing import List, Optional, Sequence
 from uuid import UUID
 
 from sqlalchemy import select
@@ -45,7 +48,10 @@ from src.models.conversation import Conversation
 from src.models.document import Document
 from src.models.message_attachment import MessageAttachment
 from src.models.thread import Thread
+from src.models.user import User
 from src.models.workspace import Workspace
+
+logger = logging.getLogger(__name__)
 
 
 def user_can_access_workspace(workspace: Workspace, user_id: UUID) -> bool:
@@ -326,3 +332,54 @@ async def get_accessible_document_or_none(
     result = await db.execute(select(Document).where(*filters))
     document: Optional[Document] = result.scalars().first()
     return document
+
+
+async def filter_owned_document_ids(
+    db: AsyncSession, document_ids: Sequence[UUID], user_id: UUID
+) -> List[UUID]:
+    """Return only the document ids the caller's organization owns.
+
+    Mirrors the documents-service access convention
+    (``Document.organization_id == <caller org>`` + ``is_deleted == False``).
+    The caller's org is resolved from ``user_id``. Ids that don't survive the
+    filter (foreign-org, deleted, or nonexistent) are dropped and logged rather
+    than raised, so a mixed batch still attaches the owned ones.
+
+    An unscoped attach let a guessed foreign document UUID leak its title and
+    mime type into a thread through the attachment response (IDOR), so both
+    write paths — ``ChatService.create_message`` and the agent stream's
+    ``_persist_user_message`` — funnel through here.
+    """
+    if not document_ids:
+        return []
+
+    org_result = await db.execute(
+        select(User.organization_id).where(User.id == user_id)
+    )
+    organization_id = org_result.scalar_one_or_none()
+    if organization_id is None:
+        logger.warning(
+            "User %s has no organization; dropping %d attachment id(s)",
+            user_id,
+            len(document_ids),
+        )
+        return []
+
+    owned_result = await db.execute(
+        select(Document.id).where(
+            Document.id.in_(document_ids),
+            Document.organization_id == organization_id,
+            Document.is_deleted == False,  # noqa: E712
+        )
+    )
+    owned_ids = list(owned_result.scalars().all())
+
+    dropped = set(document_ids) - set(owned_ids)
+    if dropped:
+        logger.warning(
+            "Dropped %d attachment id(s) not owned by org %s: %s",
+            len(dropped),
+            organization_id,
+            sorted(str(d) for d in dropped),
+        )
+    return owned_ids
