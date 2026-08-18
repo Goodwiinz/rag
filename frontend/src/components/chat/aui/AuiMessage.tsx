@@ -597,6 +597,9 @@ export function AuiAssistantMessage({
     inlineCitations.length > 0 ? inlineCitations : allCitations;
 
   const assistantText = message ? (
+    // Committed assistant prose is quotable (see QuoteToolbar). Streaming
+    // content is deliberately excluded — the text is still moving.
+    <div data-quotable>
     <CitationRenderer
       content={message.content}
       citations={allCitations}
@@ -610,6 +613,7 @@ export function AuiAssistantMessage({
         }
       }}
     />
+    </div>
   ) : undefined;
 
   // In-flight turn: render the store-driven streaming body instead of the

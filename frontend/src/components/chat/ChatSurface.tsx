@@ -22,6 +22,7 @@ import type { UseChatThreadActionsReturn } from '@/hooks/chat/useChatThreadActio
 import type { UseChatDrawerReturn } from '@/hooks/chat/useChatDrawer';
 import type { UseCitationPanelReturn } from '@/hooks/chat/useCitationPanel';
 import type { UseChatComposerActionsReturn } from '@/hooks/chat/useChatComposerActions';
+import { QuoteToolbar } from '@/components/chat/shared/QuoteToolbar';
 import type { UseSlashCommandsReturn } from '@/hooks/chat/useSlashCommands';
 
 interface ChatSurfaceProps {
@@ -354,6 +355,10 @@ export function ChatSurface({
             onLoadOlder={loadOlderMessages}
             messagePagination={messagePagination}
           />
+
+          {/* Raises a Quote action on a selection inside a committed
+              answer; mounted once rather than per message. */}
+          <QuoteToolbar />
 
           <ChatInput
             value={input}
