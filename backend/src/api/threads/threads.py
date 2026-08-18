@@ -1069,6 +1069,7 @@ def _format_message_response(message) -> ChatMessageResponse:
         # get_thread_messages — same finding, same funnel discipline).
         tool_executions=redact_tool_executions(message.tool_executions),
         plan=message.plan,
+        plan_reasoning=message.plan_reasoning,
         token_usage=message.token_usage,
         model_name=message.model_name,
         model_version=message.model_version,

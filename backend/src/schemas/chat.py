@@ -391,6 +391,8 @@ class ChatMessageResponse(ChatMessageBase, TimestampMixin):
     # [{step, description, tool, args_hint, depends_on}]; token_usage:
     # {input_tokens, output_tokens}. Null for legacy/non-agent rows.
     plan: Optional[List[dict]] = None
+    # Planner's top-level rationale for `plan`. Null for legacy/non-agent rows.
+    plan_reasoning: Optional[str] = None
     token_usage: Optional[dict] = None
 
     # Nested data

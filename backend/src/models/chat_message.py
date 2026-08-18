@@ -147,6 +147,8 @@ class ChatMessage(BaseModel):
     # chat-model calls.
     plan = Column(JSONB, nullable=True)
     token_usage = Column(JSONB, nullable=True)
+    # Planner's top-level rationale for `plan` (capped 2000 chars in planner_node).
+    plan_reasoning = Column(Text, nullable=True)
 
     # Feedback
     feedback_rating = Column(Integer, nullable=True)  # 1-5 rating

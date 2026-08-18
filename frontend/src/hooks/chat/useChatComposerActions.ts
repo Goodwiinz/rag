@@ -30,6 +30,10 @@ export interface AttachOutcome {
 export interface UseChatComposerActionsReturn {
   /** Per-file upload outcomes, in the order the files were given. */
   handleAttach: (files: FileList) => Promise<AttachOutcome[]>;
+  /** Re-send the user turn preceding an assistant message, truncating the
+   * transcript to just before it. When that turn carries a persisted
+   * `clientMessageId` it rides along as `supersedes_client_message_id`, so the
+   * server tombstones the replaced turn instead of persisting a second pair. */
   handleRegenerate: (assistantMessageIndex: number) => void;
   /** Edit a prior user message in place and re-send. Truncates the transcript
    * to just before the edited message (dropping its old answer + any
@@ -139,7 +143,16 @@ export function useChatComposerActions({
       // its closure, and `setInput` above only schedules a state update — the
       // deferred `handleSubmit` would otherwise see the stale pre-setInput value.
       const contentToSend = priorUser.content;
-      setTimeout(() => handleSubmit(contentToSend, regenerationHistory), 0);
+      // Durable regenerate: name the turn being replaced so the server
+      // tombstones it, exactly as edit-and-resend does. Without it the
+      // regenerated turn persists as an extra pair and the canonical page
+      // renders both answers after reconcile/reload. Omitted for legacy rows
+      // with no persisted client_message_id (FE-only truncation, as before).
+      const supersedes = priorUser.clientMessageId;
+      setTimeout(
+        () => handleSubmit(contentToSend, regenerationHistory, supersedes),
+        0
+      );
     },
     [displayedMessages, handleSubmit, isLoading, storeIsStreaming, setInput]
   );

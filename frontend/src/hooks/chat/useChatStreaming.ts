@@ -142,6 +142,8 @@ export interface PendingConfirmation {
   /** Structured plan emitted before the interrupt — carried so the
    * confirmed turn commits with its inline plan. */
   plan?: PlanStep[];
+  /** Planner's top-level rationale for `plan`, carried the same way. */
+  planReasoning?: string;
   /** RAG citations retrieved before the interrupt — the interrupt exit
    * clears streamingCitations, so they must ride the confirmation. */
   citations?: Array<Record<string, unknown>>;
@@ -620,6 +622,8 @@ export function useChatStreaming(
         // Structured plan snapshot for the committed message (the activity
         // store only keeps flattened strings for the ContextRail).
         let turnPlan: PlanStep[] = [];
+        // Planner's top-level rationale for turnPlan, carried the same way.
+        let turnPlanReasoning = '';
         const toolStartTimes = new Map<string, number>();
         // Per-turn LLM token usage, captured from the `usage` SSE event that
         // fires just before `done`. Null until (and unless) it arrives.
@@ -776,10 +780,11 @@ export function useChatStreaming(
                 isRetrievingRag: false,
               });
             },
-            onPlan: (steps) => {
+            onPlan: (steps, reasoning) => {
               // Structured copy for the inline transcript plan — keeps
               // tool/depends_on so status derivation works after commit.
               turnPlan = toTurnPlan(steps);
+              turnPlanReasoning = reasoning;
               // Live copy for the in-flight transcript row (AuiStreamingBody)
               // — lets the plan render WHILE the turn streams, not only
               // after commit. Plan events fire once per run, not per token.
@@ -814,6 +819,7 @@ export function useChatStreaming(
                 // duplicate it.
                 steps: turnSteps.filter((s) => s.status !== 'running'),
                 plan: [...turnPlan],
+                planReasoning: turnPlanReasoning || undefined,
                 // Snapshot NOW — the streamHadConfirmation exit below clears
                 // streamingCitations before the confirm stream starts.
                 citations: useChatStore.getState().streamingCitations,
@@ -994,6 +1000,7 @@ export function useChatStreaming(
           toolExecutions:
             finalTurnSteps.length > 0 ? finalTurnSteps : undefined,
           plan: turnPlan.length > 0 ? turnPlan : undefined,
+          planReasoning: turnPlanReasoning || undefined,
           metadata: {
             responseTimeMs,
             ...(wasStopped ? { stopped: true } : {}),
@@ -1646,6 +1653,7 @@ export function useChatStreaming(
         // exit cleared the live streaming state, so restore it here.
         const carriedCitations = pendingConfirmation.citations ?? [];
         let confirmPlan: PlanStep[] = [...(pendingConfirmation.plan ?? [])];
+        let confirmPlanReasoning = pendingConfirmation.planReasoning ?? '';
         // CX5: the confirm-resume path is a SEPARATE live-stream owner from
         // runStreamTurn (a resumed HITL turn belongs to the confirmation's
         // workspace thread, which may differ from whatever thread is
@@ -1711,6 +1719,9 @@ export function useChatStreaming(
               ? { toolExecutions: [...confirmSteps] }
               : {}),
             ...(confirmPlan.length > 0 ? { plan: [...confirmPlan] } : {}),
+            ...(confirmPlanReasoning
+              ? { planReasoning: confirmPlanReasoning }
+              : {}),
             metadata: {
               responseTimeMs: Date.now() - confirmStart,
               ...(stopped ? { stopped: true } : {}),
@@ -1842,8 +1853,9 @@ export function useChatStreaming(
                   isRetrievingRag: false,
                 });
               },
-              onPlan: (steps) => {
+              onPlan: (steps, reasoning) => {
                 confirmPlan = toTurnPlan(steps);
+                confirmPlanReasoning = reasoning;
                 useChatStore.setState({ streamingPlan: [...confirmPlan] });
                 const items = toActivityPlanItems(steps);
                 if (pendingConfirmation.workspaceThreadId && items.length > 0) {
@@ -1859,6 +1871,7 @@ export function useChatStreaming(
                   confirmation,
                   steps: confirmSteps.filter((s) => s.status !== 'running'),
                   plan: [...confirmPlan],
+                  planReasoning: confirmPlanReasoning || undefined,
                   citations: [...carriedCitations, ...resumeCitations],
                   userRuntimeId: pendingConfirmation.userRuntimeId,
                   assistantRuntimeId: pendingConfirmation.assistantRuntimeId,
