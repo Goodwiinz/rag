@@ -75,11 +75,15 @@ async def test_missing_inputs_are_not_owned():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_db_error_fails_closed():
+async def test_db_error_is_unverifiable_not_a_negative():
     pid = str(uuid.uuid4())
     user_id = str(uuid.uuid4())
     session = MagicMock()
     session.execute = AsyncMock(side_effect=RuntimeError("db down"))
 
-    # Unverifiable ownership must fail closed (not owned → scope dropped).
-    assert await _user_owns_project(session, pid, user_id) is False
+    # A DB error means "couldn't check", distinct from a verified "not
+    # owned" (audit M2) — collapsing the two into False previously let a
+    # transient DB blip drop the project scope and fall through to an
+    # org-wide read at the caller, widening exposure during an outage
+    # instead of narrowing it. Callers must branch on None separately.
+    assert await _user_owns_project(session, pid, user_id) is None
