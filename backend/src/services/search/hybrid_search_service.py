@@ -641,8 +641,17 @@ class HybridSearchService:
         start_time = time.time()
 
         try:
-            # Import and use knowledge graph service
-            from src.services.knowledge_graph import knowledge_graph_service
+            # Import and use knowledge graph service. Must import the
+            # *submodule* attribute, not the package: `from
+            # src.services.knowledge_graph import knowledge_graph_service`
+            # binds the `knowledge_graph_service` *module* object (the
+            # package's __init__.py never re-exports the singleton), which
+            # has no `.search_entities` — every call raised AttributeError,
+            # silently caught below, so the KG arm has been contributing
+            # nothing regardless of any fusion/normalization fix.
+            from src.services.knowledge_graph.knowledge_graph_service import (
+                knowledge_graph_service,
+            )
 
             # Execute search using the available interface. organization_id MUST
             # be threaded through — without it search_entities runs unscoped over
@@ -654,19 +663,34 @@ class HybridSearchService:
                 organization_id=organization_id,
             )
 
-            # Convert to raw results
+            # Convert to raw results. Entities live in a different UUID space
+            # than Document rows (Neo4j entity id != Document.id) — fusing on
+            # the entity id can never merge with the fulltext arm, and the
+            # entity id 404s client-side as an "open document" target. Only
+            # entities carrying a real source_document_id (the Document they
+            # were extracted from) are usable as document-level evidence;
+            # entities without one are skipped rather than fabricating a
+            # document_id from the entity's own uuid.
             raw_results = []
             for result in kg_result:
+                document_id = getattr(result, "source_document_id", None)
+                if not document_id:
+                    continue
+
+                entity_id = getattr(result, "id", None)
+                confidence_score = getattr(result, "confidence_score", None)
+                if confidence_score is None:
+                    confidence_score = 0.8
+                relevance_score = max(0.0, min(confidence_score, 1.0))
+
                 # Create SearchResult from knowledge graph result
                 search_result = SearchResult(
-                    document_id=(
-                        str(result.id) if hasattr(result, "id") else str(uuid.uuid4())
-                    ),
+                    document_id=str(document_id),
                     title=getattr(result, "name", "Entity"),
                     document_type=DocumentType.TEXT,
-                    content_preview=getattr(result, "description", ""),
+                    content_preview=getattr(result, "context", "") or "",
                     snippets=[],
-                    relevance_score=0.8,  # Default score
+                    relevance_score=relevance_score,
                     file_size_bytes=0,
                     created_at=datetime.utcnow(),
                     updated_at=datetime.utcnow(),
@@ -675,7 +699,10 @@ class HybridSearchService:
                     is_public=False,
                     uploaded_by_user_id=user_id or "",
                     organization_id=organization_id,
-                    metadata={},
+                    metadata={
+                        "entity_id": entity_id,
+                        "entity_name": getattr(result, "name", None),
+                    },
                 )
 
                 raw_results.append(
@@ -687,6 +714,7 @@ class HybridSearchService:
                             "original_score": search_result.relevance_score,
                             "source": "knowledge_graph",
                             "entities": [],
+                            "entity_id": entity_id,
                         },
                         search_result=search_result,
                     )
@@ -732,8 +760,29 @@ class HybridSearchService:
         # Collect all results with their document IDs
         all_results = {}
 
-        # Process results from each source
-        for source_type, source_result in source_results.items():
+        # Process content-bearing sources before KNOWLEDGE_GRAPH (regardless
+        # of source_results dict/thread-completion order — see the sort key
+        # below), so a KG hit can only ever corroborate a document another
+        # source already surfaced. KG's document_id comes from
+        # EntityResponse.source_document_id, which
+        # KnowledgeGraphService.create_entity sets only in its ON CREATE
+        # branch and never updates on ON MATCH — entities are MERGEd across
+        # documents by (name, type, org), so a shared entity's
+        # source_document_id permanently identifies whichever document
+        # created the node first, which can be stale or even deleted (see
+        # test_delete_document_graph_shared_node_semantics_documented). That
+        # property is safe as a corroboration boost for a document another
+        # source already verified; it is not safe as the sole source of a
+        # returned result — it can misboost or return the wrong/dead
+        # document, or 404 as an "open document" target. So a KG-only
+        # document_id (no other source already matched it) is dropped here
+        # rather than turned into a standalone result.
+        ordered_source_types = sorted(
+            source_results.keys(),
+            key=lambda st: 1 if st == SearchSourceType.KNOWLEDGE_GRAPH else 0,
+        )
+        for source_type in ordered_source_types:
+            source_result = source_results[source_type]
             if not source_result.success:
                 continue
 
@@ -741,6 +790,8 @@ class HybridSearchService:
                 document_id = result.document_id
 
                 if document_id not in all_results:
+                    if source_type == SearchSourceType.KNOWLEDGE_GRAPH:
+                        continue
                     all_results[document_id] = {
                         "document_id": document_id,
                         "sources": {},
@@ -798,7 +849,7 @@ class HybridSearchService:
                     "sources": doc_data["sources"],
                     "source_count": source_count,
                     "boost_factors": doc_data["boost_factors"],
-                    "original_sources": list(doc_data["sources"].keys()),
+                    "original_sources": [s.value for s in doc_data["sources"].keys()],
                 },
                 search_result=doc_data["search_result"],
             )
@@ -830,13 +881,13 @@ class HybridSearchService:
     def _get_source_quality_tier(self, result: RawSearchResult) -> int:
         """Return best (lowest) source quality tier for the result."""
         source_tier_map = {
-            SearchSourceType.FULLTEXT: 0,
-            SearchSourceType.VECTOR: 1,
-            SearchSourceType.KNOWLEDGE_GRAPH: 2,
+            SearchSourceType.FULLTEXT.value: 0,
+            SearchSourceType.VECTOR.value: 1,
+            SearchSourceType.KNOWLEDGE_GRAPH.value: 2,
         }
         original_sources = result.metadata.get("original_sources", [])
         if not original_sources:
-            return source_tier_map.get(result.source_type, 99)
+            return source_tier_map.get(result.source_type.value, 99)
 
         tiers = [source_tier_map.get(source, 99) for source in original_sources]
         return min(tiers) if tiers else 99
@@ -874,19 +925,30 @@ class HybridSearchService:
         return default_weights.get(source_type, 0.33)
 
     def _normalize_score(self, score: float, source_type: SearchSourceType) -> float:
-        """Normalize score to 0-1 range for fusion"""
-        # Different sources have different score ranges
+        """Normalize a raw per-source score onto a common 0-1 scale for fusion.
+
+        Scale contract per source (see fulltext_search_service.py and
+        _execute_knowledge_graph_search below for where these are produced):
+          - FULLTEXT: fulltext_search_service's SQL selects
+            ``ts_rank_cd(...) * 10 AS relevance_score``. Raw ts_rank_cd is
+            naturally bounded ~0-1 for typical matches, so undo that app-level
+            x10 scaling here before clamping — dividing by 50 (the old,
+            wrong assumption) crushed real scores to ~0.001-0.02 and starved
+            the fusion weight of any signal.
+          - VECTOR: retired (no vector backend deployed); kept 0-1 for any
+            legacy/test caller that still feeds it a score.
+          - KNOWLEDGE_GRAPH: entity match confidence is already produced on a
+            0-1 scale (see _execute_knowledge_graph_search) — do not
+            re-divide it.
+        """
         if source_type == SearchSourceType.FULLTEXT:
-            # Full-text search typically uses tf-idf scores
-            return min(score / 50.0, 1.0)  # Normalize assuming max score of 50
+            return max(0.0, min(score / 10.0, 1.0))
         elif source_type == SearchSourceType.VECTOR:
-            # Vector similarity is already 0-1
-            return score
+            return max(0.0, min(score, 1.0))
         elif source_type == SearchSourceType.KNOWLEDGE_GRAPH:
-            # Knowledge graph scores vary widely
-            return min(score / 10.0, 1.0)  # Normalize assuming max score of 10
+            return max(0.0, min(score, 1.0))
         else:
-            return min(score, 1.0)
+            return max(0.0, min(score, 1.0))
 
     def _calculate_recency_boost(self, search_result: SearchResult) -> float:
         """Calculate recency boost for a search result"""
@@ -1098,18 +1160,49 @@ class HybridSearchService:
         ]
         return any(marker in content for marker in noisy_markers)
 
+    # Sources that carry real document content and can stand as "evidence" on
+    # their own. KNOWLEDGE_GRAPH results only carry entity metadata (name,
+    # extracted context) with no full document text, so a KG-only hit is
+    # enrichment, not evidence — it must not count toward coverage, and it
+    # must not be *required* for coverage either. Requiring a KG co-hit is
+    # what made coverage 0.0 on every populated response before: the KG arm
+    # only activates for entity-indicator queries (see _route_search_query),
+    # so most hybrid results are fulltext-only by design, not by bug.
+    _EVIDENCE_SOURCE_VALUES = {
+        SearchSourceType.FULLTEXT.value,
+        SearchSourceType.VECTOR.value,
+    }
+
     def _calculate_deterministic_coverage(self, results: List[SearchResult]) -> float:
-        """Calculate deterministic evidence coverage from fused metadata."""
+        """Calculate deterministic evidence coverage from fused metadata.
+
+        Coverage = fraction of returned results backed by at least one
+        content-bearing source (fulltext/vector). KG hits still boost ranking
+        via the diversity boost in _fuse_search_results, but don't gate
+        coverage — see _EVIDENCE_SOURCE_VALUES above.
+
+        Results without an "original_sources" key (metadata from before
+        R2-H10, or any caller that built a SearchResult by hand) fall back to
+        the old ">=2 sources" reading via "source_count" instead of reading
+        as zero coverage — keep in lockstep with
+        api.search.search._calculate_source_coverage.
+        """
         if not results:
             return 0.0
 
-        multi_source_results = 0
+        evidenced_results = 0
         for result in results:
-            source_count = (result.metadata or {}).get("source_count", 1)
-            if source_count >= 2:
-                multi_source_results += 1
+            metadata = result.metadata or {}
+            if "original_sources" in metadata:
+                if any(
+                    s in self._EVIDENCE_SOURCE_VALUES
+                    for s in metadata["original_sources"]
+                ):
+                    evidenced_results += 1
+            elif metadata.get("source_count", 1) >= 2:
+                evidenced_results += 1
 
-        return round(multi_source_results / len(results), 4)
+        return round(evidenced_results / len(results), 4)
 
     def _calculate_deterministic_confidence(self, results: List[SearchResult]) -> float:
         """Calculate deterministic confidence from final relevance scores."""
