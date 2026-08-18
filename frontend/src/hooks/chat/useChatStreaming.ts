@@ -1098,12 +1098,19 @@ export function useChatStreaming(
         setIsLoading(false);
         // A token that landed just before an exception can leave a scheduled
         // rAF behind; it would fire after this teardown and write stale
-        // streamingContent back into the store.
-        if (streamingRafRef.current !== null) {
+        // streamingContent back into the store. Scoped to the owner: the rAF
+        // slot is shared, so cancelling it while a confirm stream owns the
+        // slice would drop that stream's first flush.
+        if (
+          streamOwnerRef.current === streamOwner &&
+          streamingRafRef.current !== null
+        ) {
           cancelAnimationFrame(streamingRafRef.current);
           streamingRafRef.current = null;
         }
-        pendingStreamContentRef.current = null;
+        if (streamOwnerRef.current === streamOwner) {
+          pendingStreamContentRef.current = null;
+        }
         // Only tear the slice down if nothing newer claimed it. On a
         // confirmation pause the awaits above hand the user a live approval
         // card; approving starts the confirm stream, and an unconditional wipe
