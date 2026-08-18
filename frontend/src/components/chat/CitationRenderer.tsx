@@ -69,12 +69,17 @@ export function CitationRenderer({
 }: CitationRendererProps): React.ReactElement {
   const chunks = useMemo(() => splitOnCodeFences(content), [content]);
 
+  // Bare bracketed numbers only resolve against the sources this message
+  // actually carries (round-3 M11) — same rule as the agent panel's renderer.
+  const citationCount = citations.length;
   const hasInlineCitations = useMemo(
     () =>
       chunks.some(
-        (chunk) => chunk.type === 'prose' && hasCitations(chunk.content)
+        (chunk) =>
+          chunk.type === 'prose' &&
+          hasCitations(chunk.content, { citationCount })
       ),
-    [chunks]
+    [chunks, citationCount]
   );
 
   if (!hasInlineCitations) {
@@ -99,42 +104,44 @@ export function CitationRenderer({
         }
         return (
           <Fragment key={`prose-${chunkIndex}`}>
-            {parseMessageWithCitations(chunk.content).map((segment, index, segments) => {
-              if (
-                segment.type === 'citation' &&
-                segment.citationIndex !== undefined
-              ) {
-                const citation = getCitationByIndex(
-                  citations,
-                  segment.citationIndex
-                );
+            {parseMessageWithCitations(chunk.content, { citationCount }).map(
+              (segment, index, segments) => {
+                if (
+                  segment.type === 'citation' &&
+                  segment.citationIndex !== undefined
+                ) {
+                  const citation = getCitationByIndex(
+                    citations,
+                    segment.citationIndex
+                  );
+                  return (
+                    <CitationLink
+                      key={`citation-${chunkIndex}-${index}-${segment.citationIndex}`}
+                      citationNumber={segment.citationIndex}
+                      citation={citation}
+                      onClick={onCitationClick}
+                      isActive={activeCitationIndex === segment.citationIndex}
+                    />
+                  );
+                }
                 return (
-                  <CitationLink
-                    key={`citation-${chunkIndex}-${index}-${segment.citationIndex}`}
-                    citationNumber={segment.citationIndex}
-                    citation={citation}
-                    onClick={onCitationClick}
-                    isActive={activeCitationIndex === segment.citationIndex}
-                  />
-                );
-              }
-              return (
-                <Fragment key={`text-${chunkIndex}-${index}`}>
-                  {/* Only the final segment of the final chunk holds text
+                  <Fragment key={`text-${chunkIndex}-${index}`}>
+                    {/* Only the final segment of the final chunk holds text
                       that just arrived; tinting every segment's tail would
                       light up the whole message. */}
-                  <ChatMarkdown
-                    freshTail={
-                      freshTail &&
-                      chunkIndex === chunks.length - 1 &&
-                      index === segments.length - 1
-                    }
-                    content={segment.content}
-                    inline
-                  />
-                </Fragment>
-              );
-            })}
+                    <ChatMarkdown
+                      freshTail={
+                        freshTail &&
+                        chunkIndex === chunks.length - 1 &&
+                        index === segments.length - 1
+                      }
+                      content={segment.content}
+                      inline
+                    />
+                  </Fragment>
+                );
+              }
+            )}
           </Fragment>
         );
       })}

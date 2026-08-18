@@ -97,3 +97,21 @@ describe('bare bracketed numbers that are not citations (round-3 M11)', () => {
     ).toBe(1);
   });
 });
+
+describe('chained bare citations (verification follow-up)', () => {
+  it('keeps both halves of [1][2]', () => {
+    const indices = parseMessageWithCitations('evidence [1][2].', {
+      citationCount: 3,
+    })
+      .filter((segment) => segment.type === 'citation')
+      .map((segment) => segment.citationIndex);
+    expect(indices).toEqual([1, 2]);
+  });
+
+  it('still rejects the second half of an index expression', () => {
+    const segments = parseMessageWithCitations('m[1][2] is a cell.', {
+      citationCount: 3,
+    });
+    expect(segments.every((segment) => segment.type === 'text')).toBe(true);
+  });
+});

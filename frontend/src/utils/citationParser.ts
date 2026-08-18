@@ -127,6 +127,7 @@ export function parseMessageWithCitations(
   let match: RegExpExecArray | null;
 
   BRACKET_GROUP_PATTERN.lastIndex = 0;
+  let previousCitationEnd = -1;
 
   while ((match = BRACKET_GROUP_PATTERN.exec(content)) !== null) {
     if (match.index > lastIndex) {
@@ -140,8 +141,11 @@ export function parseMessageWithCitations(
     // A labelled group ([Doc 1], [Source 2]) is unambiguous; only bare numeric
     // groups need the surrounding syntax checks.
     const isLabelled = CITATION_LABEL_PATTERN.test(groupContent);
+    // `[1][2]` is a chained citation, not indexing: the `]` in front only
+    // disqualifies the group when it does NOT close a citation of its own.
     const precededByIndexExpression =
       !isLabelled &&
+      !(previousCitationEnd === match.index) &&
       INDEX_EXPRESSION_PREFIX.test(content.slice(0, match.index));
     const nextChar = content.charAt(match.index + match[0].length);
     const isMarkdownLink =
@@ -174,6 +178,7 @@ export function parseMessageWithCitations(
     }
 
     lastIndex = match.index + match[0].length;
+    if (citationIndices) previousCitationEnd = lastIndex;
   }
 
   // Add remaining text after last citation
