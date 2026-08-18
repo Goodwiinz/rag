@@ -20,7 +20,12 @@ overrides:
   '@modelcontextprotocol/sdk': '^1.26.0'
   '@opentelemetry/core': 2.10.0
   '@trigger.dev/core': 4.5.6
-  brace-expansion: 1.1.18
+  # Scoped to the 1.x line only. A bare `brace-expansion: 1.1.18` pinned
+  # every consumer to v1, including minimatch@10 which declares ^5.0.8 and
+  # calls the named `expand` export that only exists from v2 onward — that
+  # broke `pnpm test:coverage` with
+  # `TypeError: (0, brace_expansion_1.expand) is not a function`.
+  brace-expansion@1: 1.1.18
   cookie: 0.7.2
   dompurify: 3.4.13
   engine.io: 6.6.7
