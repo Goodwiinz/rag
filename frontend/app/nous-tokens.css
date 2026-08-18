@@ -236,6 +236,26 @@
   animation: nous-pulse 1.4s ease-in-out infinite;
 }
 
+/* Thinking matrix — the pre-token loading indicator's cells. Animation only,
+   never colour: the cells carry their own theme classes so they stay visible
+   when this rule doesn't apply. Under reduced motion the grid holds at its
+   resting opacity rather than disappearing, because the animation raises
+   opacity rather than revealing the cell. */
+@keyframes nous-matrix {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .nous-matrix-cell {
+    animation: nous-matrix 1.4s ease-in-out infinite;
+  }
+}
+
 /* ─── App Rail ─── */
 .rail-icon {
   stroke-width: 1.6;
