@@ -44,8 +44,12 @@ export interface ParsedSegment {
 const BRACKET_GROUP_PATTERN = /\[([^\]]+)\]/g;
 /** Bare `[12]` is only a citation when nothing before the bracket makes it an
  * index expression (`arr[0]`, `matrix[1][2]`) and nothing after it makes it a
- * markdown link or link definition (`[1](url)`, `[1]: url`). */
-const INDEX_EXPRESSION_PREFIX = /[\w$\])]$/;
+ * markdown link or link definition (`[1](url)`, `[1]: url`).
+ *
+ * Only a closing bracket or paren counts as that prefix: an identifier in
+ * front is ambiguous (`arr[1]` vs the compact citation style `claim[1]`), and
+ * the resolvability check is the real discriminator there. */
+const INDEX_EXPRESSION_PREFIX = /[\])]$/;
 /** Bare numbers above this are years, quantities and identifiers far more
  * often than citation indices; an explicit `Doc`/`Source`/`Ref` prefix is
  * always honoured regardless. */

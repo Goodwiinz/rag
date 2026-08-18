@@ -26,6 +26,27 @@ describe('AgentCitationBadge', () => {
     expect(screen.getByText('Attention Is All You Need')).toBeInTheDocument();
   });
 
+  it('opens the source preview on a touch tap', () => {
+    // Radix suppresses the compatibility click on touch, so the tap has to be
+    // handled from the pointer event.
+    render(<AgentCitationBadge citationNumber={1} citation={citation} />);
+
+    const badge = screen.getByRole('button', { name: /^Citation 1/ });
+    fireEvent.pointerUp(badge, { pointerType: 'touch' });
+
+    expect(badge).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('does not double-toggle when a mouse click follows its pointerup', () => {
+    render(<AgentCitationBadge citationNumber={1} citation={citation} />);
+
+    const badge = screen.getByRole('button', { name: /^Citation 1/ });
+    fireEvent.pointerUp(badge, { pointerType: 'mouse' });
+    fireEvent.click(badge, { pointerType: 'mouse' });
+
+    expect(badge).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('stays inert when the index resolves to no source', () => {
     render(<AgentCitationBadge citationNumber={7} />);
 

@@ -50,10 +50,21 @@ describe('citationParser', () => {
 
 describe('bare bracketed numbers that are not citations (round-3 M11)', () => {
   it('leaves array indexing as plain text', () => {
-    const segments = parseMessageWithCitations('Read arr[0] then arr[1].', {
+    // `[0]` is never a citation index, and a bracket chained off a
+    // non-citation bracket reads as indexing.
+    const segments = parseMessageWithCitations('Read arr[0] then arr[0][2].', {
       citationCount: 3,
     });
     expect(segments.every((segment) => segment.type === 'text')).toBe(true);
+  });
+
+  it('keeps a compact citation attached to a word', () => {
+    const segments = parseMessageWithCitations('as claimed[1].', {
+      citationCount: 2,
+    });
+    expect(
+      segments.find((segment) => segment.type === 'citation')?.citationIndex
+    ).toBe(1);
   });
 
   it('leaves years alone', () => {
@@ -108,8 +119,8 @@ describe('chained bare citations (verification follow-up)', () => {
     expect(indices).toEqual([1, 2]);
   });
 
-  it('still rejects the second half of an index expression', () => {
-    const segments = parseMessageWithCitations('m[1][2] is a cell.', {
+  it('still rejects a bracket chained off a non-citation bracket', () => {
+    const segments = parseMessageWithCitations('m[0][2] is a cell.', {
       citationCount: 3,
     });
     expect(segments.every((segment) => segment.type === 'text')).toBe(true);
