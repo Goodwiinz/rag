@@ -7,6 +7,7 @@ once via ``AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT`` (env/settings).
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import Any
 
@@ -28,12 +29,32 @@ def _main_chat_deployment() -> str:
     )
 
 
+def credential_fingerprint() -> str:
+    """Short digest of the endpoint + API key the chat builders will use.
+
+    Belongs in every LLM cache key. Credentials are settings-derived and so
+    were assumed stable, but they are exactly the settings that DO change
+    without a restart: an Infisical sync can rotate `AZURE_OPENAI_CHAT_API_KEY`
+    while the pods keep running. A cache keyed without them then hands back a
+    client authenticating with the dead key on every subsequent call, and no
+    amount of retrying fixes it. Including the digest makes a rotation miss the
+    cache and rebuild, which is the desired behaviour and costs one hash per
+    build. The value is truncated and never logged.
+    """
+    settings = get_settings()
+    endpoint = (
+        settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT or ""
+    )
+    api_key = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY or ""
+    return hashlib.sha256(f"{endpoint}:{api_key}".encode()).hexdigest()[:12]
+
+
 # Cache built chat models keyed by the builder's input args. Constructing a
 # ChatOpenAI/AzureChatOpenAI spins up an HTTP client (~30-50ms); the synthesis
 # path previously rebuilt one on every turn. deployment / reasoning_effort /
 # max_retries / resolved request_timeout are settings-derived and stable at
-# runtime, so they need not be part of the key — the same assumption the
-# classifier / compactor / reflection single-instance caches already rely on.
+# runtime, so they need not be part of the key — but the CREDENTIALS are not
+# (see `credential_fingerprint`), so every key below carries their digest.
 _LIGHTWEIGHT_LLM_CACHE: dict[tuple, BaseChatModel] = {}
 _SYNTHESIS_LLM_CACHE: dict[tuple, BaseChatModel] = {}
 _FAST_PATH_LLM_CACHE: dict[tuple, BaseChatModel] = {}
@@ -87,6 +108,7 @@ def build_fast_path_llm() -> BaseChatModel:
         deployment,
         settings.AGENT_FAST_PATH_MAX_OUTPUT_TOKENS,
         settings.AGENT_FAST_PATH_REQUEST_TIMEOUT,
+        credential_fingerprint(),
     )
     if cache_key not in _FAST_PATH_LLM_CACHE:
         _FAST_PATH_LLM_CACHE[cache_key] = _build_chat_llm(
@@ -247,7 +269,14 @@ def build_lightweight_llm(
     ``tool_calling=True`` so ``reasoning_effort`` is dropped; see
     ``_reasoning_effort_for``.
     """
-    key = (temperature, max_tokens, request_timeout, use_responses_api, tool_calling)
+    key = (
+        temperature,
+        max_tokens,
+        request_timeout,
+        use_responses_api,
+        tool_calling,
+        credential_fingerprint(),
+    )
     cached = _LIGHTWEIGHT_LLM_CACHE.get(key)
     if cached is not None:
         return cached
@@ -284,7 +313,14 @@ def build_synthesis_llm(
     runs one deployment everywhere. Set it only to make prose cheaper than
     the tool-decision path — not the other way round.
     """
-    key = (temperature, max_tokens, request_timeout, use_responses_api, tool_calling)
+    key = (
+        temperature,
+        max_tokens,
+        request_timeout,
+        use_responses_api,
+        tool_calling,
+        credential_fingerprint(),
+    )
     cached = _SYNTHESIS_LLM_CACHE.get(key)
     if cached is not None:
         return cached
