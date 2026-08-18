@@ -116,10 +116,23 @@ const MessageRow = memo(function MessageRow({ index, style, data }: RowProps) {
     // `style`, so measuring the outer node feeds the stale imposed height back
     // into the cache. The inner node carries the natural content height.
     const inner = rowRef.current?.children[0] as HTMLElement | undefined;
-    if (inner) {
+    if (!inner) return undefined;
+
+    const measure = (): void => {
       const height = inner.getBoundingClientRect().height + MEASURE_PADDING;
       setRowHeight(message.id ?? `row-${index}`, height, index);
-    }
+    };
+    measure();
+
+    // A dependency list cannot see everything that grows a streaming row.
+    // Live tool cards and the live execution plan both arrive from the store
+    // without touching `message.content` or `storeIsStreaming`, so a row
+    // measured before they land keeps a stale height and its content spills
+    // outside the allocated space until the turn commits. Observing the node
+    // catches every such change, including ones added later.
+    const observer = new ResizeObserver(measure);
+    observer.observe(inner);
+    return () => observer.disconnect();
   }, [
     index,
     message.id,

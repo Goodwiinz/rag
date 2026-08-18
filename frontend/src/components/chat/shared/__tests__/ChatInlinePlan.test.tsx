@@ -14,6 +14,15 @@ const plan: PlanStep[] = [
 ];
 
 describe('ChatInlinePlan', () => {
+  it('still reports a sub-second duration', () => {
+    // ToolStrip suppresses its clock for planned turns, so if the header
+    // rounded 900ms away the turn would show no duration at all.
+    render(
+      <ChatInlinePlan plan={plan} toolExecutions={[]} elapsedMs={900} />
+    );
+    expect(screen.getByText(/took 0\.9s/)).toBeInTheDocument();
+  });
+
   it('defaults collapsed for a committed (non-streaming) instance', () => {
     render(<ChatInlinePlan plan={plan} />);
 

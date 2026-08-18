@@ -6,7 +6,7 @@ import Plan, { type Task } from '@/components/ui/agent-plan';
 import { mapPlanToTasks } from '@/components/agent-chat/planMapping';
 import type { PlanStep, ToolExecution } from '@/types/agent-chat';
 import type { ActivityStep } from '@/components/chat/shared/cloudMessageView';
-import { formatStreamingElapsed } from '@/components/chat/shared/formatStreamingElapsed';
+import { formatTurnDuration } from '@/components/chat/shared/formatStreamingElapsed';
 
 /**
  * Adapt the chat page's ActivityStep records onto the agent-chat
@@ -59,7 +59,7 @@ export const ChatInlinePlan = React.memo(function ChatInlinePlan({
   const doneCount = tasks.filter((t) => t.status === 'completed').length;
   const elapsed = streaming
     ? null
-    : formatStreamingElapsed(elapsedMs ?? null);
+    : formatTurnDuration(elapsedMs ?? null);
 
   return (
     <div className="border border-[var(--nous-border-1)] rounded-[var(--nous-radius-md)] bg-[var(--nous-bg-2)] my-2 overflow-hidden">
