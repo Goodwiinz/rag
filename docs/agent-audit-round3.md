@@ -35,7 +35,7 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round3-details.md
 | R3-L6 | finally omits streamingSteps reset → stale tool-strip if rendered ungated (useChatStreaming.ts:1052-1057) | low | fixed | claude | #1469 | 08-18 |
 | R3-L7 | cold-thread confirmation probe attaches to live runs, consumes whole run server-side, discards tokens (useChatStreaming.ts:1448-1468) | low | open | — | — | 08-18 |
 | R3-L8 | same-tool parallel calls corrupt durationMs (useChatStreaming.ts:599, 706, 731-732) | low | fixed | claude | #1474 | 08-18 |
-| R3-L9 | deprecated v2 streamingService: no tail flush, drops frame-less data — orphaned, latent (streamingService.ts:189-215) | low | fixed | claude | #1474 | 08-18 |
+| R3-L9 | deprecated v2 streamingService: no tail flush, drops frame-less data — still live, imported by streamingSlice.ts:64 (streamingService.ts:189-215) | low | fixed | claude | #1474 | 08-18 |
 | R3-L10 | uiMode captured at send start → close-panel-mid-stream never sets unread badge (agentChatStore.ts:121, 379) | low | fixed | claude | #1474 | 08-18 |
 | R3-L11 | context chips never sent to backend — dead toggles (useProjectChatWidget.ts:171; widget tree currently dead code) | low | deferred | — | — | 08-18 |
 | R3-L12 | startChatFromProject fetch has no AbortController (useProjectChatWidget.ts:153-181) | low | deferred | — | — | 08-18 |
@@ -46,8 +46,9 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round3-details.md
 | R3-L17 | Escape in ConfirmationCard doesn't stopPropagation → closes whole chat panel too (ConfirmationCard.tsx:72-74, GlobalAgentChat.tsx:116-118) | low | fixed | claude | #1472 | 08-18 |
 
 ## Log
-- 2026-08-18: round 3 created. 37 findings (8 high, 15 med, 17 low incl L9 dead code). Verified-clean: XSS (react-markdown no raw HTML, urlTransform strips javascript:), SSE parsing (CRLF/chunk-split/JSON-safe), no EventSource (fetch+auth header), reader lock released, done-frame double-render blocked, replay dedup, terminal job states exhaustive, thread-switch bleed regression (requestCoordinator generations/tokens sound — R3-M1 is a new parking hole, R3-H1 a HITL variant), double-confirm guarded, eviction FIFO sound, persist ids-only.
-- 2026-08-18 (remediation): 30 of 37 findings shipped across six PRs — #1467
+- 2026-08-18: round 3 created. 40 findings (8 high, 15 med, 17 low) — the
+  original "37" was an arithmetic slip in this line, not a change to the table. Verified-clean: XSS (react-markdown no raw HTML, urlTransform strips javascript:), SSE parsing (CRLF/chunk-split/JSON-safe), no EventSource (fetch+auth header), reader lock released, done-frame double-render blocked, replay dedup, terminal job states exhaustive, thread-switch bleed regression (requestCoordinator generations/tokens sound — R3-M1 is a new parking hole, R3-H1 a HITL variant), double-confirm guarded, eviction FIFO sound, persist ids-only.
+- 2026-08-18 (remediation): 33 of 40 findings shipped across six PRs — #1467
   (H4/H3/M12/L13), #1469 (H2/H8/H1/L1/L6), #1470 (H5/H6/M3/M6/M7/M8/M13),
   #1472 (M9/M10/M11/L14–L17), #1473 (H7/M4/M5/M15), #1474 (M14/L3/L5/L8/L9/L10).
   Every fix but H1 has a regression test verified failing without it.
