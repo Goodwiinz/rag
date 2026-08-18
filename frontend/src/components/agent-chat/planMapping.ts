@@ -6,6 +6,25 @@ import type { PlanStep, ToolExecution } from '@/types/agent-chat';
  * display status in the agent-plan component's status vocabulary
  * ('pending' | 'in-progress' | 'completed' | 'failed').
  */
+/**
+ * Group executions into attempts: a failed execution is a retry of the same
+ * step (the tool node re-plans transient failures), so it belongs with the
+ * execution that follows it rather than consuming a later step's slot.
+ */
+function groupAttempts(executions: ToolExecution[]): ToolExecution[][] {
+  const groups: ToolExecution[][] = [];
+  let current: ToolExecution[] = [];
+  for (const execution of executions) {
+    current.push(execution);
+    if (execution.status !== 'failed') {
+      groups.push(current);
+      current = [];
+    }
+  }
+  if (current.length > 0) groups.push(current);
+  return groups;
+}
+
 export function deriveStepStatus(
   step: PlanStep,
   toolExecutions: ToolExecution[],
@@ -15,16 +34,22 @@ export function deriveStepStatus(
   const matching = toolExecutions.filter((te) => te.toolName === step.tool);
   // A plan can name the same tool in several steps (2x search_documents is
   // common); correlate positionally so one execution can't complete every
-  // such step. The last step using a tool absorbs the remaining executions,
-  // which keeps retries of a single-step tool aggregating as before.
+  // such step. The last step using a tool absorbs the remaining attempts,
+  // which keeps a single-step tool's retries aggregating as before.
+  const attempts = groupAttempts(matching);
   const isLastForTool = occurrence === occurrencesForTool - 1;
-  const window = isLastForTool
-    ? matching.slice(occurrence)
-    : matching.slice(occurrence, occurrence + 1);
-  if (window.length === 0) return 'pending';
-  if (window.some((te) => te.status === 'failed')) return 'failed';
-  if (window.some((te) => te.status === 'running')) return 'in-progress';
-  if (window.some((te) => te.status === 'completed')) return 'completed';
+  const window = (
+    isLastForTool
+      ? attempts.slice(occurrence)
+      : attempts.slice(occurrence, occurrence + 1)
+  ).flat();
+  // The newest attempt decides: a retry that succeeded is not a failed step,
+  // and a failure after an earlier success is not a completed one.
+  const newest = window[window.length - 1];
+  if (!newest) return 'pending';
+  if (newest.status === 'running') return 'in-progress';
+  if (newest.status === 'completed') return 'completed';
+  if (newest.status === 'failed') return 'failed';
   return 'pending';
 }
 
