@@ -67,7 +67,7 @@ describe('cloudMessageView', () => {
     expect(plain.metadata).toBeUndefined();
   });
 
-  it('maps persisted plan and token usage into the chat page message', () => {
+  it('maps persisted plan, plan_reasoning and token usage into the chat page message', () => {
     const [msg] = mapStoreMessagesToChatMessages([
       {
         id: 'm-1',
@@ -84,16 +84,20 @@ describe('cloudMessageView', () => {
             depends_on: [],
           },
         ],
+        plan_reasoning: 'Search first, then answer from the results.',
         token_usage: { input_tokens: 1200, output_tokens: 340 },
       } as any,
     ]);
 
     expect(msg.plan).toHaveLength(1);
     expect(msg.plan?.[0].tool).toBe('search_documents');
+    expect(msg.planReasoning).toBe(
+      'Search first, then answer from the results.'
+    );
     expect(msg.metadata?.tokenUsage).toEqual({ input: 1200, output: 340 });
   });
 
-  it('leaves plan and tokenUsage absent for rows persisted without them', () => {
+  it('leaves plan, planReasoning and tokenUsage absent for rows persisted without them', () => {
     const [msg] = mapStoreMessagesToChatMessages([
       {
         id: 'm-2',
@@ -105,6 +109,7 @@ describe('cloudMessageView', () => {
     ]);
 
     expect(msg.plan).toBeUndefined();
+    expect(msg.planReasoning).toBeUndefined();
     expect(msg.metadata).toBeUndefined();
   });
 
@@ -402,6 +407,7 @@ describe('selectDisplayedMessages local-provenance merge', () => {
           content: 'Answer',
           timestamp: 1,
           plan,
+          planReasoning: 'Search arXiv, then answer.',
           metadata: {
             responseTimeMs: 1800,
             tokenUsage: { input: 1200, output: 300 },
@@ -413,6 +419,7 @@ describe('selectDisplayedMessages local-provenance merge', () => {
     });
 
     expect(result[0].plan).toEqual(plan);
+    expect(result[0].planReasoning).toBe('Search arXiv, then answer.');
     expect(result[0].metadata?.tokenUsage).toEqual({
       input: 1200,
       output: 300,

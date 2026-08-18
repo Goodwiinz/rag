@@ -102,9 +102,7 @@ class TestGeneratePlan:
         with patch(
             "src.services.agent.planner._build_planner_llm", return_value=mock_llm
         ):
-            result = await generate_plan(
-                "search for papers", TOOL_NAMES, PAGE_CONTEXT
-            )
+            result = await generate_plan("search for papers", TOOL_NAMES, PAGE_CONTEXT)
 
         ainvoke = mock_llm.with_structured_output.return_value.ainvoke
         (messages,), _ = ainvoke.call_args
@@ -218,5 +216,92 @@ class TestPlannerNode:
         assert len(result["plan"]) == 3
         assert result["plan"][0]["tool"] == "search_arxiv"
         assert result["plan"][2]["depends_on"] == [2]
+        # Phase 1: the planner's rationale is plumbed through, not dropped.
+        assert result["plan_reasoning"] == "Multi-step research workflow"
         # Single planner LLM call — the old separate complexity check is gone.
         build_llm.assert_called_once()
+
+    async def test_planner_node_caps_reasoning_at_2000_chars(self):
+        """plan_reasoning is capped to 2000 chars in planner_node, once,
+        regardless of how long the model's rationale string is."""
+        long_reasoning = "x" * 2500
+        expected_plan = AgentPlan(
+            steps=[
+                PlanStep(
+                    step=1,
+                    description="Search arXiv",
+                    tool="search_arxiv",
+                    args_hint={"query": "transformers"},
+                    depends_on=[],
+                ),
+                PlanStep(
+                    step=2,
+                    description="Ingest paper",
+                    tool="ingest_arxiv",
+                    args_hint={"paper_id": "123"},
+                    depends_on=[1],
+                ),
+                PlanStep(
+                    step=3,
+                    description="Create note",
+                    tool="create_note",
+                    args_hint={"title": "Summary"},
+                    depends_on=[2],
+                ),
+            ],
+            reasoning=long_reasoning,
+        )
+
+        mock_llm_plan = _mock_llm_structured(expected_plan)
+
+        with patch(
+            "src.services.agent.planner._build_planner_llm",
+            return_value=mock_llm_plan,
+        ):
+            node_fn = make_planner_node(TOOL_NAMES)
+
+            state = {
+                "messages": [
+                    HumanMessage(
+                        content=(
+                            "Find recent transformer papers, ingest them into my "
+                            "project, summarize each, and create a research note"
+                        )
+                    )
+                ],
+                "page_context": PAGE_CONTEXT,
+                "plan": [],
+            }
+
+            result = await node_fn(state, {})
+
+        assert len(result["plan_reasoning"]) == 2000
+        assert result["plan_reasoning"] == long_reasoning[:2000]
+
+    async def test_planner_node_skip_paths_omit_reasoning(self):
+        """Every skip path returns a bare {} — no plan_reasoning key leaks
+        through when the planner never ran (state reset already seeds the
+        AgentState default of "" for these turns)."""
+        node_fn = make_planner_node(TOOL_NAMES)
+
+        # Skip: plan already exists this turn.
+        result = await node_fn(
+            {
+                "messages": [HumanMessage(content="Do something complex")],
+                "page_context": PAGE_CONTEXT,
+                "plan": [{"step": 1, "tool": "search_arxiv", "description": "x"}],
+            },
+            {},
+        )
+        assert result == {}
+
+        # Skip: non-project page context.
+        result = await node_fn(
+            {
+                "messages": [HumanMessage(content="Do something complex")],
+                "page_context": {"type": "chat"},
+                "plan": [],
+            },
+            {},
+        )
+        assert result == {}

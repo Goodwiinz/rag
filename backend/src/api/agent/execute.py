@@ -1176,6 +1176,7 @@ class MessageResponse(BaseModel):
     tool_executions: Optional[List[Dict[str, Any]]] = None
     # Per-turn agent provenance (assistant rows only; None for legacy rows).
     plan: Optional[List[Dict[str, Any]]] = None
+    plan_reasoning: Optional[str] = None
     token_usage: Optional[Dict[str, int]] = None
 
 
@@ -1350,6 +1351,7 @@ async def get_thread_messages(
                 # redacting here is what covers historical rows on reload.
                 tool_executions=redact_tool_executions(msg.tool_executions),
                 plan=msg.plan,
+                plan_reasoning=msg.plan_reasoning,
                 token_usage=msg.token_usage,
             )
         )

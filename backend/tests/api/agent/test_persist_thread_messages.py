@@ -23,8 +23,12 @@ import pytest
 from sqlalchemy import func, select
 
 from src.api.agent.execute import AgentExecuteRequest, AgentMessage
-from src.services.agent.agent_execution_service import _persist_assistant_message, _persist_user_message
+from src.api.threads.threads import _format_message_response
 from src.models.chat_message import ChatMessage, MessageRole
+from src.services.agent.agent_execution_service import (
+    _persist_assistant_message,
+    _persist_user_message,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -146,6 +150,7 @@ async def test_assistant_plan_and_token_usage_round_trip(db_session, thread_fact
         },
     ]
     usage = {"input_tokens": 1200, "output_tokens": 340}
+    reasoning = "Search documents first, then summarize the findings."
 
     msg_id = await _persist_assistant_message(
         db_session,
@@ -154,13 +159,20 @@ async def test_assistant_plan_and_token_usage_round_trip(db_session, thread_fact
         model_name="gpt-5-mini",
         tool_executions_out=None,
         plan=plan,
+        plan_reasoning=reasoning,
         token_usage=usage,
     )
 
     row = await db_session.get(ChatMessage, UUID(msg_id))
     assert row is not None
     assert row.plan == plan
+    assert row.plan_reasoning == reasoning
     assert row.token_usage == usage
+
+    # Full round trip: persist kwarg -> column -> read serializer. Same
+    # formatter threads.py's list-messages endpoint uses.
+    response = _format_message_response(row)
+    assert response.plan_reasoning == reasoning
 
     db_session.info["_created"]["chat_messages"].append(row.id)
 
@@ -183,6 +195,7 @@ async def test_assistant_without_provenance_persists_null_columns(
     row = await db_session.get(ChatMessage, UUID(msg_id))
     assert row is not None
     assert row.plan is None
+    assert row.plan_reasoning is None
     assert row.token_usage is None
 
     db_session.info["_created"]["chat_messages"].append(row.id)

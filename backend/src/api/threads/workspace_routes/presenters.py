@@ -216,6 +216,7 @@ def _message_to_response(message: ChatMessage) -> ChatMessageResponse:
         tool_call_id=message.tool_call_id,
         feedback_rating=message.feedback_rating,
         feedback_text=message.feedback_text,
+        plan_reasoning=message.plan_reasoning,
         citations=(
             [_citation_to_response(c) for c in message.citations]
             if message.citations

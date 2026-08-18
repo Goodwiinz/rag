@@ -212,6 +212,9 @@ export type ChatMessage = Omit<
   /** Planner steps persisted for this turn (chat_messages.plan JSONB).
    * Absent for legacy rows, user rows, and turns without a plan. */
   plan?: PlanStep[];
+  /** Planner's top-level rationale for `plan` (chat_messages.plan_reasoning).
+   * Absent for legacy rows, user rows, and turns without a plan. */
+  plan_reasoning?: string;
   /** Aggregated per-turn LLM token usage (chat_messages.token_usage JSONB).
    * Absent when the turn reported no usage. */
   token_usage?: { input_tokens: number; output_tokens: number };
