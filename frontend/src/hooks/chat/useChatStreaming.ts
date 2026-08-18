@@ -480,7 +480,16 @@ export function useChatStreaming(
       }
       if (seqRafRef.current !== null) {
         cancelAnimationFrame(seqRafRef.current);
+        // The cursor update was throttled through that rAF: dropping it here
+        // makes the next resume replay from an older seq than we actually saw.
+        const pending = pendingSeqRef.current;
+        if (pending) {
+          useAgentActivityStore
+            .getState()
+            .setStreamSeq(pending.threadId, pending.seq);
+        }
       }
+      pendingSeqRef.current = null;
       // Abort this instance's in-flight SSE fetch. The backend run survives a
       // client disconnect (buffered stream) and the mount-time resume effect
       // reattaches. Leaving the fetch orphaned instead kept the stream owned
@@ -600,7 +609,9 @@ export function useChatStreaming(
         let turnPlan: PlanStep[] = [];
         // Planner's top-level rationale for turnPlan, carried the same way.
         let turnPlanReasoning = '';
-        const toolStartTimes = new Map<string, number>();
+        // One entry per invocation: two parallel calls to the same tool used
+        // to share a slot, so the second end read the first's start time.
+        const toolStartTimes = new Map<string, number[]>();
         // Per-turn LLM token usage, captured from the `usage` SSE event that
         // fires just before `done`. Null until (and unless) it arrives.
         let turnTokenUsage: { input: number; output: number } | null = null;
@@ -708,7 +719,10 @@ export function useChatStreaming(
                   .pushToolStart(currentThreadId, tool);
               }
               // Per-turn tracking for inline activity strip
-              toolStartTimes.set(tool, Date.now());
+              toolStartTimes.set(tool, [
+                ...(toolStartTimes.get(tool) ?? []),
+                Date.now(),
+              ]);
               turnSteps.push({
                 tool,
                 label: toolLabel(tool),
@@ -733,7 +747,8 @@ export function useChatStreaming(
                 currentThreadId || null
               );
               // Update last matching running step for this tool
-              const startTime = toolStartTimes.get(tool);
+              // Newest-first, matching the newest running step settled below.
+              const startTime = toolStartTimes.get(tool)?.pop();
               const durationMs = startTime ? Date.now() - startTime : undefined;
               const idx = [...turnSteps]
                 .map((s, i) => ({ s, i }))
@@ -1569,7 +1584,7 @@ export function useChatStreaming(
         const confirmSteps: ActivityStep[] = [
           ...(pendingConfirmation.steps ?? []),
         ];
-        const confirmToolStartTimes = new Map<string, number>();
+        const confirmToolStartTimes = new Map<string, number[]>();
         // Pre-interrupt provenance carried on the confirmation — the interrupt
         // exit cleared the live streaming state, so restore it here.
         const carriedCitations = pendingConfirmation.citations ?? [];
@@ -1716,7 +1731,10 @@ export function useChatStreaming(
                 useAgentActivityStore
                   .getState()
                   .pushToolStart(pendingConfirmation.workspaceThreadId, tool);
-                confirmToolStartTimes.set(tool, Date.now());
+                confirmToolStartTimes.set(tool, [
+                  ...(confirmToolStartTimes.get(tool) ?? []),
+                  Date.now(),
+                ]);
                 confirmSteps.push({
                   tool,
                   label: toolLabel(tool),
@@ -1746,7 +1764,7 @@ export function useChatStreaming(
                   isError,
                   pendingConfirmation.workspaceThreadId
                 );
-                const startTime = confirmToolStartTimes.get(tool);
+                const startTime = confirmToolStartTimes.get(tool)?.pop();
                 const durationMs = startTime
                   ? Date.now() - startTime
                   : undefined;
@@ -1910,6 +1928,13 @@ export function useChatStreaming(
             role: 'assistant',
             content: `Confirmation failed: ${errorMessage}`,
             timestamp: Date.now(),
+            // Without the error block this bubble rendered as plain assistant
+            // prose: no failure styling and no retry affordance, unlike every
+            // other failed turn.
+            error: {
+              message: 'This action failed to complete. Please try again.',
+              category: 'exception',
+            },
           };
           if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
           confirmThrew = true;

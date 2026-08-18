@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { MessageSquare } from 'lucide-react';
+import { AlertCircle, MessageSquare } from 'lucide-react';
 import type { AgentThread } from '@/types/agent-chat';
 
 interface AgentThreadListProps {
@@ -9,6 +9,10 @@ interface AgentThreadListProps {
   activeThreadId: string | null;
   onSelectThread: (threadId: string) => void;
   isLoading: boolean;
+  /** Non-null when the list failed to load — rendering the empty state for a
+   * failed request read as "you have no conversations". */
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 export function AgentThreadList({
@@ -16,6 +20,8 @@ export function AgentThreadList({
   activeThreadId,
   onSelectThread,
   isLoading,
+  error = null,
+  onRetry,
 }: AgentThreadListProps) {
   if (isLoading) {
     return (
@@ -23,6 +29,26 @@ export function AgentThreadList({
         {[1, 2, 3].map((i) => (
           <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />
         ))}
+      </div>
+    );
+  }
+
+  if (error && threads.length === 0) {
+    return (
+      <div
+        role="alert"
+        className="p-4 text-center text-xs text-muted-foreground space-y-2"
+      >
+        <AlertCircle aria-hidden className="h-4 w-4 mx-auto text-destructive" />
+        <p>Could not load your conversations.</p>
+        {onRetry ? (
+          <button
+            onClick={onRetry}
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            Try again
+          </button>
+        ) : null}
       </div>
     );
   }

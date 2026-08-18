@@ -25,6 +25,8 @@ export const AgentMessageList = React.memo(function AgentMessageList({
   const isConfirming = useAgentChatStore((s) => s.isConfirming);
   const retryLastMessage = useAgentChatStore((s) => s.retryLastMessage);
   const isLoadingMessages = useAgentChatStore((s) => s.isLoadingMessages);
+  const messagesError = useAgentChatStore((s) => s.messagesError);
+  const loadThreadMessages = useAgentChatStore((s) => s.loadThreadMessages);
   const latestContent = messages[messages.length - 1]?.content;
 
   useEffect(() => {
@@ -44,6 +46,32 @@ export const AgentMessageList = React.memo(function AgentMessageList({
         className="flex-1 flex items-center justify-center px-6 text-sm text-muted-foreground"
       >
         Loading conversation…
+      </div>
+    );
+  }
+
+  // A failed load rendered the greeting, so an existing thread looked empty
+  // and the user assumed it had been lost.
+  if (messagesError && messages.length === 0) {
+    return (
+      <div
+        role="alert"
+        className="flex-1 flex flex-col items-center justify-center text-center px-6 gap-2"
+      >
+        <p className="text-sm font-medium text-foreground">
+          Could not load this conversation
+        </p>
+        <p className="text-xs text-muted-foreground max-w-[260px]">
+          Its messages are still on the server — this was a problem reaching it.
+        </p>
+        {activeThreadId ? (
+          <button
+            onClick={() => void loadThreadMessages(activeThreadId)}
+            className="text-xs underline underline-offset-2 text-muted-foreground hover:text-foreground"
+          >
+            Try again
+          </button>
+        ) : null}
       </div>
     );
   }

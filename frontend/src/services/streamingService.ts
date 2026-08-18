@@ -213,6 +213,13 @@ export async function* streamChatMessage(
         }
       }
     }
+    // Defensive flush: a final chunk that ended without a trailing newline
+    // leaves the last event sitting in the buffer, silently dropped.
+    const tail = buffer.trim();
+    if (tail.startsWith('data: ') && currentEventType) {
+      const event = parseSSELine(currentEventType, tail.slice(6));
+      if (event) yield event;
+    }
   } finally {
     reader.releaseLock();
   }

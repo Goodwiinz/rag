@@ -130,6 +130,11 @@ export interface AgentChatState {
   /** Loading states */
   isLoadingThreads: boolean;
   isLoadingMessages: boolean;
+  /** Set when the thread list or a thread's messages failed to load. Without
+   * it a failed load rendered the empty state, which reads as "this thread is
+   * gone" rather than "we could not reach the server". */
+  threadsError: string | null;
+  messagesError: string | null;
   /** Pending human-in-the-loop confirmation */
   pendingConfirmations: Record<string, PendingConfirmation>;
   /** Whether a confirmation action is in progress */
