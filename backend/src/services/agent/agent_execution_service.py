@@ -1822,14 +1822,16 @@ async def _persist_assistant_message(
     stopped: bool = False,
     client_message_id: Optional[str] = None,
     plan: Optional[list] = None,
+    plan_reasoning: Optional[str] = None,
     token_usage: Optional[dict] = None,
 ) -> Optional[str]:
     """Insert the assistant turn and bump ``thread.message_count`` by 1.
 
-    ``plan`` (planner steps) and ``token_usage``
+    ``plan`` (planner steps), ``plan_reasoning`` (the planner's top-level
+    rationale for ``plan``), and ``token_usage``
     ({input_tokens, output_tokens}) are per-turn provenance persisted as
-    JSONB so a page reload can rehydrate them; pass ``None`` when the turn
-    produced neither (they stay NULL, not empty containers).
+    JSONB/text so a page reload can rehydrate them; pass ``None`` when the
+    turn produced none of them (they stay NULL, not empty containers).
 
     Commits independently of ``_persist_user_message``. A failure here
     after a successful user-row commit leaves the user message durable
@@ -1880,6 +1882,7 @@ async def _persist_assistant_message(
         stopped=stopped,
         client_message_id=client_message_id,
         plan=plan,
+        plan_reasoning=plan_reasoning,
         token_usage=token_usage,
     )
 
@@ -1972,6 +1975,7 @@ async def _persist_assistant_message_safe(
     stopped: bool = False,
     client_message_id: Optional[str] = None,
     plan: Optional[list] = None,
+    plan_reasoning: Optional[str] = None,
     token_usage: Optional[dict] = None,
     required: bool = False,
 ) -> Optional[str]:
@@ -1999,6 +2003,7 @@ async def _persist_assistant_message_safe(
                 stopped=stopped,
                 client_message_id=client_message_id,
                 plan=plan,
+                plan_reasoning=plan_reasoning,
                 token_usage=token_usage,
             )
             if required and persisted_id is None:
@@ -2207,6 +2212,7 @@ async def _run_agent_graph(
                 "user_memories": [],
                 "project_memories": project_memories,
                 "plan": [],
+                "plan_reasoning": "",
                 "reflection_count": 0,
                 "compaction_count": 0,
                 "intent_confidence": 0.0,
@@ -2346,6 +2352,7 @@ async def _run_agent_graph(
                         tool_executions_out=tool_executions_out,
                         retrieved_contexts=final_state.get("retrieved_contexts"),
                         plan=final_state.get("plan") or None,
+                        plan_reasoning=final_state.get("plan_reasoning") or None,
                         token_usage=(
                             {
                                 "input_tokens": _job_in_tok,
@@ -2712,6 +2719,7 @@ async def _resume_agent_graph(
                             tool_executions_out=tool_executions_out,
                             retrieved_contexts=final_state.get("retrieved_contexts"),
                             plan=final_state.get("plan") or None,
+                            plan_reasoning=final_state.get("plan_reasoning") or None,
                             token_usage=(
                                 {
                                     "input_tokens": in_tok,

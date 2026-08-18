@@ -33,6 +33,8 @@ export interface ChatBubbleMessage {
   toolExecutions?: ActivityStep[];
   /** Structured execution plan emitted by the agent planner for this turn. */
   plan?: PlanStep[];
+  /** Planner's top-level rationale for `plan`. */
+  planReasoning?: string;
   metadata?: {
     toolsUsed?: string[];
     responseTimeMs?: number;
@@ -198,6 +200,7 @@ export const ChatBubble = React.memo(function ChatBubble({
         {!isUser && activePlan.length > 0 && (
           <ChatInlinePlan
             plan={activePlan}
+            reasoning={message.planReasoning}
             toolExecutions={activitySteps}
             streaming={isStreaming}
             elapsedMs={message.metadata?.responseTimeMs}

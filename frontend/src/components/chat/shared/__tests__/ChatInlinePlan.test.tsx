@@ -57,6 +57,33 @@ describe('ChatInlinePlan', () => {
     expect(screen.queryByText(/took/)).not.toBeInTheDocument();
   });
 
+  it('renders the reasoning paragraph only while expanded', () => {
+    render(
+      <ChatInlinePlan
+        plan={plan}
+        reasoning="Search arXiv first, then summarize the top hit."
+      />
+    );
+    // Collapsed by default (non-streaming) — reasoning not yet in the DOM.
+    expect(
+      screen.queryByText('Search arXiv first, then summarize the top hit.')
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Toggle execution plan' })
+    );
+    expect(
+      screen.getByText('Search arXiv first, then summarize the top hit.')
+    ).toBeInTheDocument();
+  });
+
+  it('omits the reasoning paragraph when no reasoning is provided', () => {
+    render(<ChatInlinePlan plan={plan} streaming />);
+    expect(
+      screen.queryByText(/search arxiv first/i)
+    ).not.toBeInTheDocument();
+  });
+
   it('toggles aria-expanded and visible content on click', () => {
     render(<ChatInlinePlan plan={plan} />);
     const button = screen.getByRole('button', { name: 'Toggle execution plan' });

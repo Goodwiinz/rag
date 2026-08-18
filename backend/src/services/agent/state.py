@@ -34,6 +34,7 @@ class AgentState(TypedDict):
     # recalled across all its threads (list[str])
     # --- v2 additions ---
     plan: list  # [{step, tool, args_hint}] advisory plan
+    plan_reasoning: str  # Planner's top-level rationale for `plan`, capped 2000 chars
     reflection_count: int  # Max 2 per turn, reset per user message
     compaction_count: int  # Increments each compaction, reset per turn
     intent_confidence: float  # LLM classifier confidence 0-1

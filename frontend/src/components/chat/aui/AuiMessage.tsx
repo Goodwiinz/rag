@@ -687,6 +687,7 @@ export function AuiAssistantMessage({
         {message?.plan && message.plan.length > 0 && (
           <ChatInlinePlan
             plan={message.plan}
+            reasoning={message.planReasoning}
             toolExecutions={message.toolExecutions}
             elapsedMs={message.metadata?.responseTimeMs}
           />
