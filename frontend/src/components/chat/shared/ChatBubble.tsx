@@ -43,6 +43,7 @@ export interface ChatBubbleMessage {
 }
 
 const EMPTY_STEPS: ActivityStep[] = [];
+const EMPTY_PLAN: PlanStep[] = [];
 
 export interface ChatBubbleProps {
   message: ChatBubbleMessage;
@@ -81,6 +82,9 @@ export const ChatBubble = React.memo(function ChatBubble({
   // trigger re-renders on every tool start/end during streaming.
   const storeStreamingSteps = useChatStore((s) =>
     isStreaming ? s.streamingSteps : EMPTY_STEPS
+  );
+  const storeStreamingPlan = useChatStore((s) =>
+    isStreaming ? s.streamingPlan : EMPTY_PLAN
   );
 
   const timestamp = message.timestamp
@@ -125,7 +129,10 @@ export const ChatBubble = React.memo(function ChatBubble({
     (message.toolExecutions && message.toolExecutions.length > 0
       ? message.toolExecutions.map((s) => s.label)
       : undefined);
-  const stripResponseMs = message.metadata?.responseTimeMs;
+  // The execution plan's header shows its own "took …" duration — when a
+  // plan is present, the clock moved there (see ToolStrip.getToolStripProps).
+  const hasPlan = !!message.plan && message.plan.length > 0;
+  const stripResponseMs = hasPlan ? undefined : message.metadata?.responseTimeMs;
 
   // Steps to show in the activity strip:
   // — while streaming: live store steps (scoped to this turn)
@@ -133,6 +140,12 @@ export const ChatBubble = React.memo(function ChatBubble({
   const activitySteps: ActivityStep[] = isStreaming
     ? storeStreamingSteps
     : (message.toolExecutions ?? []);
+
+  // Execution plan: live streaming plan while in flight, committed plan
+  // after — same streaming/committed split as activitySteps above.
+  const activePlan: PlanStep[] = isStreaming
+    ? storeStreamingPlan
+    : (message.plan ?? []);
 
   return (
     <div className="group relative mb-7 sm:mb-8">
@@ -181,11 +194,13 @@ export const ChatBubble = React.memo(function ChatBubble({
           </span>
         </div>
 
-        {/* Execution plan — committed provenance for agent turns */}
-        {!isUser && !isStreaming && message.plan && message.plan.length > 0 && (
+        {/* Execution plan — live while streaming, committed provenance after */}
+        {!isUser && activePlan.length > 0 && (
           <ChatInlinePlan
-            plan={message.plan}
-            toolExecutions={message.toolExecutions}
+            plan={activePlan}
+            toolExecutions={activitySteps}
+            streaming={isStreaming}
+            elapsedMs={message.metadata?.responseTimeMs}
           />
         )}
 

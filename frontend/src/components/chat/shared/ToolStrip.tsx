@@ -29,6 +29,10 @@ export function getToolStripProps(
   message: ChatPageMessage,
   visibleCitationsCount: number
 ): ToolStripProps {
+  // The execution plan's header shows its own "took …" duration (Chat
+  // InlinePlan) — when a plan is present, the clock moved there. Showing it
+  // twice is worse than moving it, so the strip omits it in that case.
+  const hasPlan = !!message.plan && message.plan.length > 0;
   return {
     toolsUsed:
       message.metadata?.toolsUsed ??
@@ -36,7 +40,7 @@ export function getToolStripProps(
         ? message.toolExecutions.map((s) => s.label)
         : undefined),
     sourcesCount: message.metadata?.sourcesCount ?? visibleCitationsCount,
-    responseTimeMs: message.metadata?.responseTimeMs,
+    responseTimeMs: hasPlan ? undefined : message.metadata?.responseTimeMs,
     stopped: message.metadata?.stopped,
     tokenUsage: message.metadata?.tokenUsage,
   };

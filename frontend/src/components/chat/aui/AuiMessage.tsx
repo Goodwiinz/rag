@@ -35,6 +35,7 @@ import { ToolFallback } from '@/components/assistant-ui/tool-fallback';
 import { CitationRenderer } from '@/components/chat/CitationRenderer';
 import { ChatInlinePlan } from '@/components/chat/shared/ChatInlinePlan';
 import { CitationChips } from '@/components/chat/shared/CitationChips';
+import { formatStreamingElapsed } from '@/components/chat/shared/formatStreamingElapsed';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { MessageFeedback } from '@/components/chat/shared/MessageFeedback';
 import { ThinkingMatrix } from '@/components/chat/shared/ThinkingMatrix';
@@ -407,20 +408,10 @@ export function AuiUserMessage({
   );
 }
 
-/** Elapsed run time for the pill: "47s", "2m 05s". Sub-second readings are
- * noise while the first token is still plausibly imminent. */
-export function formatStreamingElapsed(
-  elapsedMs: number | null
-): string | null {
-  if (elapsedMs === null || !Number.isFinite(elapsedMs) || elapsedMs < 1000) {
-    return null;
-  }
-  const totalSeconds = Math.floor(elapsedMs / 1000);
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
-}
+// Re-exported so existing `from '../AuiMessage'` test imports keep working —
+// the implementation now lives in shared/formatStreamingElapsed.ts (moving it
+// INTO ChatInlinePlan, which this file imports, would create an import cycle).
+export { formatStreamingElapsed };
 
 /** Pre-first-token status pill (mirrors the legacy ChatBubble ThinkingPill). */
 function StreamingThinkingPill({
@@ -456,6 +447,24 @@ function StreamingThinkingPill({
 }
 
 /**
+ * Live in-flight execution plan. A separate component (rather than reading
+ * `streamingPlan` inside AuiStreamingBody directly) so its own store
+ * subscription doesn't widen AuiStreamingBody's re-render surface.
+ */
+function StreamingPlanSection(): ReactElement | null {
+  const streamingPlan = useChatStore((s) => s.streamingPlan);
+  const streamingSteps = useChatStore((s) => s.streamingSteps);
+  if (streamingPlan.length === 0) return null;
+  return (
+    <ChatInlinePlan
+      plan={streamingPlan}
+      toolExecutions={streamingSteps}
+      streaming
+    />
+  );
+}
+
+/**
  * Body of the in-flight assistant turn path. The message itself is
  * a stable placeholder in the transcript; its live text/steps/citations are
  * read from the streaming store here, so token updates re-render only this
@@ -486,6 +495,7 @@ function AuiStreamingBody(): ReactElement {
   return (
     <>
       <InlineAgentSummary threadId={threadId} />
+      <StreamingPlanSection />
       {streamingCitations.length > 0 && (
         <div
           role="status"
@@ -678,6 +688,7 @@ export function AuiAssistantMessage({
           <ChatInlinePlan
             plan={message.plan}
             toolExecutions={message.toolExecutions}
+            elapsedMs={message.metadata?.responseTimeMs}
           />
         )}
         {/* Tool strip — tools/sources/time/tokens/stopped */}
