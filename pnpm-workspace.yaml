@@ -20,7 +20,10 @@ overrides:
   '@modelcontextprotocol/sdk': '^1.26.0'
   '@opentelemetry/core': 2.10.0
   '@trigger.dev/core': 4.5.6
-  brace-expansion: 1.1.18
+  # Scoped per major: minimatch@10 needs brace-expansion@^5, so a blanket v1 pin
+  # downgrades it and its CJS `expand` named export disappears.
+  brace-expansion@1: 1.1.18
+  brace-expansion@2: 2.1.4
   cookie: 0.7.2
   dompurify: 3.4.13
   engine.io: 6.6.7
