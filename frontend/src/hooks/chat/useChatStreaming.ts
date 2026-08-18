@@ -120,6 +120,11 @@ export function toCitationCreate(ctx: Record<string, unknown>): CitationCreate {
 // the ['project', …] queries — useProjectWorkingFolders caches them for 5
 // minutes, so without this the rail misses documents/notes the agent just
 // created until a reload.
+/** Reattach attempts per thread activation, and the waits between them. A
+ * proxy-killed resume is usually transient; the run itself keeps going. */
+const RESUME_MAX_ATTEMPTS = 3;
+const RESUME_BACKOFF_MS = [1_000, 4_000];
+
 const PROJECT_MUTATING_TOOLS = new Set([
   'ingest_arxiv',
   'add_document_to_project',
@@ -1011,7 +1016,17 @@ export function useChatStreaming(
         const reconciledAssistantMessage = doneIds.assistant_message_id
           ? { ...finalAssistantMessage, id: doneIds.assistant_message_id }
           : finalAssistantMessage;
-        const finalMessages = [...newMessages, reconciledAssistantMessage];
+        // A turn that failed mid-stream and then recovered (the resume effect
+        // re-attaches and commits the real answer) would otherwise render the
+        // transient "Something went wrong" bubble ABOVE its own answer until
+        // the next reload — the recovery snapshot includes it.
+        const finalMessages = [
+          ...newMessages.filter(
+            (message) =>
+              !(message.source === 'local-only' && message.error !== undefined)
+          ),
+          reconciledAssistantMessage,
+        ];
         if (isTurnDisplayed()) setMessages(finalMessages);
 
         // Conversation state is sidebar metadata only. The transcript remains
@@ -1405,19 +1420,55 @@ export function useChatStreaming(
       assistantRuntimeId: `resume:${threadId}:${run.startedAt}`,
       quietWhenEmpty: true,
       start: async (streamCallbacks, signal) => {
-        const res = await agentChatService.resumeStream(
-          threadId,
-          run.streamSeq ?? 0,
-          streamCallbacks,
-          signal,
-          run.streamId
-        );
-        if (res.status === 'idle') {
-          // Nothing active server-side — clear the stale run record.
-          useAgentActivityStore.getState().finishRun(threadId, 'done');
-        } else if (res.status === 'failed') {
-          throw new Error(res.error);
+        // The buffer trims old frames: if the replay starts past our cursor,
+        // whatever we rebuild locally is missing a prefix of the answer. The
+        // server rows are complete, so mark the thread stale and let the
+        // reconcile that follows this turn replace the overlay wholesale.
+        const gapAwareCallbacks: AgentStreamCallbacks = {
+          ...streamCallbacks,
+          onReplayGap: (firstSeq, expectedSeq) => {
+            console.warn(
+              `[Chat] Resume replay gap: buffer starts at ${firstSeq}, expected ${expectedSeq}`
+            );
+            useChatStore.getState().markMessagesStale(threadId);
+          },
+        };
+        // A reattach can be killed by an idle proxy long before the run
+        // itself is done (the resume path emits no heartbeats during silent
+        // planner phases). One failure used to be terminal for the whole
+        // activation; retry with backoff, always from the latest cursor so a
+        // retry never replays what already committed.
+        let lastError = 'Stream resume failed';
+        for (let attempt = 0; attempt < RESUME_MAX_ATTEMPTS; attempt += 1) {
+          if (signal.aborted) return;
+          if (attempt > 0) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, RESUME_BACKOFF_MS[attempt - 1])
+            );
+            if (signal.aborted) return;
+          }
+          const latestRun =
+            useAgentActivityStore.getState().runs[threadId] ?? run;
+          const res = await agentChatService.resumeStream(
+            threadId,
+            latestRun.streamSeq ?? 0,
+            gapAwareCallbacks,
+            signal,
+            latestRun.streamId
+          );
+          if (res.status === 'idle') {
+            // Nothing active server-side — clear the stale run record.
+            useAgentActivityStore.getState().finishRun(threadId, 'done');
+            return;
+          }
+          if (res.status === 'resumed' || res.status === 'aborted') return;
+          lastError = res.error ?? lastError;
+          console.warn(
+            `[Chat] Resume attempt ${attempt + 1} failed:`,
+            lastError
+          );
         }
+        throw new Error(lastError);
       },
     });
     // storeIsStreaming is a dep so a thread with a stale run gets re-checked

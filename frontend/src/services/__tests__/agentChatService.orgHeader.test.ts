@@ -74,9 +74,9 @@ describe('agentChatService stream auth headers', () => {
     await agentChatService.streamMessage(request, { onDone: vi.fn() });
 
     const init = vi.mocked(global.fetch).mock.calls[0][1] as RequestInit;
-    const headers = init.headers as Record<string, string>;
-    expect(headers['Authorization']).toBe('Bearer session-token');
-    expect(headers).not.toHaveProperty('X-Organization-ID');
+    const headers = new Headers(init.headers);
+    expect(headers.get('Authorization')).toBe('Bearer session-token');
+    expect(headers.has('X-Organization-ID')).toBe(false);
   });
 
   it('sends Authorization but never X-Organization-ID on resumeStream', async () => {

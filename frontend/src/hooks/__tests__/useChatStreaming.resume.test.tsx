@@ -144,7 +144,10 @@ describe('useChatStreaming stream resume on mount', () => {
     await act(async () => {
       renderHook(() => useChatStreaming(makeParams()), { wrapper });
     });
-    await waitFor(() => expect(resumeStreamMock).toHaveBeenCalledTimes(1));
+    // Each activation retries with backoff before giving up (round-3 H7).
+    await waitFor(() => expect(resumeStreamMock).toHaveBeenCalledTimes(3), {
+      timeout: 10_000,
+    });
     expect(useAgentActivityStore.getState().runs['thread-A'].state).toBe(
       'running'
     );
@@ -152,12 +155,13 @@ describe('useChatStreaming stream resume on mount', () => {
     act(() => useChatStore.setState({ currentThreadId: 'thread-B' }));
     act(() => useChatStore.setState({ currentThreadId: 'thread-A' }));
 
-    await waitFor(() => expect(resumeStreamMock).toHaveBeenCalledTimes(2));
-    expect(resumeStreamMock.mock.calls.map(([threadId]) => threadId)).toEqual([
-      'thread-A',
-      'thread-A',
-    ]);
-  });
+    await waitFor(() => expect(resumeStreamMock).toHaveBeenCalledTimes(4), {
+      timeout: 10_000,
+    });
+    expect(
+      new Set(resumeStreamMock.mock.calls.map(([threadId]) => threadId))
+    ).toEqual(new Set(['thread-A']));
+  }, 20_000);
 
   it('does not resume a stream when there is no run for the thread', async () => {
     // With no run record the hook still asks ONCE whether the thread is parked
