@@ -1532,6 +1532,7 @@ async def stream_event_generator(
             "user_memories": [],
             "project_memories": project_memories,
             "plan": [],
+            "plan_reasoning": "",
             "reflection_count": 0,
             "compaction_count": 0,
             "intent_confidence": 0.0,
@@ -1833,7 +1834,11 @@ async def stream_event_generator(
                                 if plan_steps:
                                     frame = await emitter.emit(
                                         AgentStreamEvent.PLAN,
-                                        {"steps": plan_steps, "reasoning": ""},
+                                        {
+                                            "steps": plan_steps,
+                                            "reasoning": output.get("plan_reasoning")
+                                            or "",
+                                        },
                                     )
                                     if not client_disconnected:
                                         yield frame
@@ -2017,6 +2022,7 @@ async def stream_event_generator(
                     stopped=False,
                     client_message_id=assistant_cmid,
                     plan=final_values.get("plan") or None,
+                    plan_reasoning=final_values.get("plan_reasoning") or None,
                     token_usage=(
                         {
                             "input_tokens": turn_input_tokens,
@@ -2848,7 +2854,10 @@ async def stream_confirm_event_generator(
                         if plan_steps:
                             frame = await emitter.emit(
                                 AgentStreamEvent.PLAN,
-                                {"steps": plan_steps, "reasoning": ""},
+                                {
+                                    "steps": plan_steps,
+                                    "reasoning": output.get("plan_reasoning") or "",
+                                },
                             )
                             if not client_disconnected:
                                 yield frame
@@ -2967,6 +2976,7 @@ async def stream_confirm_event_generator(
                 tool_executions_out=tool_executions_out,
                 retrieved_contexts=final_values.get("retrieved_contexts"),
                 plan=final_values.get("plan") or None,
+                plan_reasoning=final_values.get("plan_reasoning") or None,
                 token_usage=token_usage_payload,
                 client_message_id=assistant_cmid,
                 latency_ms=int((time.monotonic() - stream_started_at) * 1000),

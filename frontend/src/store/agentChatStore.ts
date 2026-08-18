@@ -44,6 +44,10 @@ function invalidateProjectQueries(projectId?: string): void {
 // re-insert a confirmation into a thread the user just cleared.
 let transcriptEpoch = 0;
 
+// Monotonic suffix for tool-execution ids: `Date.now()` alone collides for
+// tools that start within the same millisecond, which duplicates React keys.
+let toolExecutionSeq = 0;
+
 let threadLoadEpoch = 0;
 
 // Identity for the in-flight thread-list fetch. Module scope, unique token
@@ -250,7 +254,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     if (idx !== -1) {
                       const existing = state.messages[idx].toolExecutions || [];
                       existing.push({
-                        id: `te-${Date.now()}`,
+                        id: `te-${Date.now()}-${(toolExecutionSeq += 1)}`,
                         toolName: tool,
                         toolDisplayName: tool
                           .replace(/_/g, ' ')
@@ -262,7 +266,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     }
                   });
                 },
-                onToolEnd: (tool: string, result: string) => {
+                onToolEnd: (tool: string, result: string, isError = false) => {
                   if (!isCurrentGeneration()) return;
                   set((state) => {
                     const idx = state.messages.findIndex(
@@ -270,12 +274,26 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     );
                     if (idx !== -1) {
                       const execs = state.messages[idx].toolExecutions || [];
-                      const teIdx = [...execs]
+                      // Settle the newest still-running execution of this tool;
+                      // falling back to the newest one at all keeps parallel
+                      // same-tool calls from being dropped entirely.
+                      const runningIdx = [...execs]
                         .reverse()
-                        .findIndex((te) => te.toolName === tool);
+                        .findIndex(
+                          (te) => te.toolName === tool && te.status === 'running'
+                        );
+                      const teIdx =
+                        runningIdx !== -1
+                          ? runningIdx
+                          : [...execs]
+                              .reverse()
+                              .findIndex((te) => te.toolName === tool);
                       if (teIdx !== -1) {
                         const actualIdx = execs.length - 1 - teIdx;
-                        execs[actualIdx].status = 'completed';
+                        // The service forwards the frame's is_error flag; a failed
+                        // tool must not render as a completed one.
+                        execs[actualIdx].status = isError ? 'failed' : 'completed';
+                        if (isError) execs[actualIdx].error = result;
                         try {
                           execs[actualIdx].result = JSON.parse(result);
                         } catch {
@@ -288,6 +306,14 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     didMutateProjectData = true;
                   }
                 },
+                // The event's second argument (the planner's rationale) is
+                // deliberately ignored: the global sidebar renders plans as a
+                // compact progress tracker, and this store doesn't rehydrate
+                // plan provenance on reload (loadThreadMessages drops `plan`
+                // too), so live-only reasoning would vanish on thread switch.
+                // /chat is the surface that shows it. Thread it through
+                // (AgentMessage field + both renderers) if this surface
+                // should ever match.
                 onPlan: (steps: Array<Record<string, unknown>>) => {
                   if (!isCurrentGeneration()) return;
                   set((state) => {
@@ -771,7 +797,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   if (idx !== -1) {
                     const existing = state.messages[idx].toolExecutions || [];
                     existing.push({
-                      id: `te-${Date.now()}`,
+                      id: `te-${Date.now()}-${(toolExecutionSeq += 1)}`,
                       toolName: tool,
                       toolDisplayName: tool
                         .replace(/_/g, ' ')
@@ -783,7 +809,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }
                 });
               },
-              onToolEnd: (tool: string, result: string) => {
+              onToolEnd: (tool: string, result: string, isError = false) => {
                 if (!isCurrentGeneration()) return;
                 set((state) => {
                   const idx = state.messages.findIndex(
@@ -791,12 +817,26 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   );
                   if (idx !== -1) {
                     const execs = state.messages[idx].toolExecutions || [];
-                    const teIdx = [...execs]
+                    // Settle the newest still-running execution of this tool;
+                    // falling back to the newest one at all keeps parallel
+                    // same-tool calls from being dropped entirely.
+                    const runningIdx = [...execs]
                       .reverse()
-                      .findIndex((te) => te.toolName === tool);
+                      .findIndex(
+                        (te) => te.toolName === tool && te.status === 'running'
+                      );
+                    const teIdx =
+                      runningIdx !== -1
+                        ? runningIdx
+                        : [...execs]
+                            .reverse()
+                            .findIndex((te) => te.toolName === tool);
                     if (teIdx !== -1) {
                       const actualIdx = execs.length - 1 - teIdx;
-                      execs[actualIdx].status = 'completed';
+                      // The service forwards the frame's is_error flag; a failed
+                      // tool must not render as a completed one.
+                      execs[actualIdx].status = isError ? 'failed' : 'completed';
+                      if (isError) execs[actualIdx].error = result;
                       try {
                         execs[actualIdx].result = JSON.parse(result);
                       } catch {
@@ -809,6 +849,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }
                 });
               },
+              // Second argument (planner rationale) deliberately ignored —
+              // same reasoning as the onPlan above.
               onPlan: (steps: Array<Record<string, unknown>>) => {
                 if (!isCurrentGeneration()) return;
                 set((state) => {

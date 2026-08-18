@@ -226,7 +226,7 @@ describe('useChatStreaming HITL confirm tool steps', () => {
               tool: 'ingest_arxiv_papers',
             },
           ],
-          ''
+          'Ingest first, then summarize.'
         );
         cb.onRagContext([{ document_id: 'doc-1', content: 'ctx' }]);
         cb.onConfirmation('agent-thread-1', { tool: 'ingest_arxiv_papers' });
@@ -251,6 +251,9 @@ describe('useChatStreaming HITL confirm tool steps', () => {
     expect(result.current.pendingConfirmation?.plan).toMatchObject([
       { description: 'Ingest the papers' },
     ]);
+    expect(result.current.pendingConfirmation?.planReasoning).toBe(
+      'Ingest first, then summarize.'
+    );
     expect(result.current.pendingConfirmation?.citations).toHaveLength(1);
 
     await act(async () => {
@@ -262,6 +265,7 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       role: 'assistant',
       content: 'confirmed answer',
       plan: [{ description: 'Ingest the papers' }],
+      planReasoning: 'Ingest first, then summarize.',
       citations: [expect.any(Object)],
     });
   });

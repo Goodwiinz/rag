@@ -80,7 +80,7 @@ describe('useChatStreaming streamingPlan', () => {
       (_req: unknown, cb: StreamCallbacks) => {
         cb.onPlan(
           [{ step: 1, description: 'Search arXiv', tool: 'search_arxiv' }],
-          ''
+          'Search arXiv, then summarize the top result.'
         );
         planDuringStream.push([...useChatStore.getState().streamingPlan]);
         cb.onToken('the answer');
@@ -101,6 +101,17 @@ describe('useChatStreaming streamingPlan', () => {
     ]);
     // Stream ended (committed) — the live copy must not leak into the next turn.
     expect(useChatStore.getState().streamingPlan).toEqual([]);
+    // The rationale rides the committed message alongside the plan.
+    const committedWithReasoning = (params.setMessages as ReturnType<
+      typeof vi.fn
+    >).mock.calls
+      .map((c) => c[0])
+      .filter((arg): arg is ChatPageMessage[] => Array.isArray(arg))
+      .flatMap((arr) => arr)
+      .find((m) => m.role === 'assistant' && !m.isStreaming);
+    expect(committedWithReasoning?.planReasoning).toBe(
+      'Search arXiv, then summarize the top result.'
+    );
   });
 
   it('seeds streamingPlan from the carried pre-interrupt plan on a confirm resume, then clears it', async () => {

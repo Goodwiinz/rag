@@ -430,6 +430,9 @@ def make_planner_node(
             logger.info("Planner judged query simple (<3 steps); no plan stored")
             return {}
 
-        return {"plan": [step.model_dump() for step in plan.steps]}
+        return {
+            "plan": [step.model_dump() for step in plan.steps],
+            "plan_reasoning": (plan.reasoning or "")[:2000],
+        }
 
     return planner_node
