@@ -31,7 +31,8 @@ class StanceClassificationModel(SQLBaseModel):
     SQLAlchemy model for stance classifications
 
     Stores individual source classifications on claims with confidence scores
-    and justification excerpts. Includes model version for reproducibility.
+    and justification excerpts. Stores the classifier pipeline namespace and the
+    exact inference model used for reproducibility.
     """
 
     __tablename__ = "stance_classifications"
@@ -43,8 +44,12 @@ class StanceClassificationModel(SQLBaseModel):
         index=True,
         doc="SHA256 hash of normalized claim text",
     )
+    claim_text = Column(Text, nullable=True, doc="Original normalized-input claim text")
     source_id = Column(
         GUID(), nullable=False, index=True, doc="UUID of the source document"
+    )
+    source_content_hash = Column(
+        String(64), nullable=True, doc="Content revision classified for this row"
     )
     organization_id = Column(
         GUID(),
@@ -67,7 +72,12 @@ class StanceClassificationModel(SQLBaseModel):
     model_version = Column(
         String(50),
         nullable=False,
-        doc="Model version used for classification (for reproducibility)",
+        doc="Classifier pipeline version used for classification and uniqueness",
+    )
+    inference_model_version = Column(
+        String(100),
+        nullable=True,
+        doc="Exact inference model that produced the selected classification",
     )
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -114,21 +124,24 @@ class StanceClassificationModel(SQLBaseModel):
         return {
             "id": str(self.id),
             "claim_hash": self.claim_hash,
+            "claim_text": self.claim_text,
             "source_id": str(self.source_id),
+            "source_content_hash": self.source_content_hash,
             "organization_id": (
                 str(self.organization_id) if self.organization_id else None
             ),
-            "stance": self.stance.value,
+            "stance": getattr(self.stance, "value", self.stance),
             "confidence": self.confidence,
             "justification_excerpt": self.justification_excerpt,
             "model_version": self.model_version,
+            "inference_model_version": self.inference_model_version,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
     @classmethod
     def from_classification(
-        cls, classification_data: dict, claim_hash: str, model_version: str
+        cls, classification_data: dict, claim_hash: str, classifier_version: str
     ):
         """Create instance from stance classification result"""
         return cls(
@@ -137,5 +150,6 @@ class StanceClassificationModel(SQLBaseModel):
             stance=StanceEnum(classification_data["stance"]),
             confidence=classification_data["confidence"],
             justification_excerpt=classification_data.get("justification_excerpt"),
-            model_version=model_version,
+            model_version=classifier_version,
+            inference_model_version=classification_data["model_version"],
         )

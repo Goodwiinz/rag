@@ -315,7 +315,8 @@ export function EvidenceMeter({
         >
           <AlertTriangle className="h-3 w-3" />
           <span>
-            ⚠️ {data.retracted_sources} retracted source{data.retracted_sources > 1 ? 's' : ''} found (excluded from count)
+            ⚠️ {data.retracted_sources} withdrawn workspace source
+            {data.retracted_sources > 1 ? 's' : ''} excluded
           </span>
         </div>
       )}

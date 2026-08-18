@@ -10,14 +10,18 @@
 # ratchets every changed file against the base branch, the way CI does, and
 # adds the blocking gates pre-commit does not run at all: full-tree ruff, the
 # directory-docs lint, mypy on added files, the alembic head check, the
-# API-contract gates (OpenAPI snapshot + generated TS types), the
-# alembic upgrade-from-empty probe, and the unit suite.
+# API-contract gates (OpenAPI snapshot + generated TS types), the targeted
+# evidence migration-delta probe (blocking when it runs; visible skip when
+# PostgreSQL is unavailable), and the unit suite. The truly-empty Alembic
+# replay remains a visible advisory measurement of legacy-chain health.
 #
 # The three contract gates, and when each one runs:
 #   * OpenAPI snapshot drift        — ALWAYS (offline: in-memory SQLite + placeholder env)
 #   * generated frontend TS types   — only when backend/openapi.json or
 #                                     frontend/src/types/generated/ changed
-#   * alembic upgrade from empty DB — only when backend/alembic/versions/ changed
+#   * targeted evidence migration delta — only when backend/alembic/versions/ changed;
+#     blocking when runnable, visible SKIPPED when PostgreSQL is unavailable
+#   * empty-chain Alembic replay       — same conditional, advisory measurement
 # A conditional gate that cannot run is reported as SKIPPED, never as a pass:
 # the summary line lists skips separately so "not verified" never reads green.
 #
@@ -147,10 +151,12 @@ step "Alembic single head + revision-id length (blocking)"
 ( cd backend && $PY ../scripts/ci/check_alembic.py ); check $? "check_alembic"
 
 # --------------------------------------------------------------------------
-# Alembic upgrade-from-empty. check_alembic.py above is a STATIC read of the
+# Alembic execution probes. check_alembic.py above is a STATIC read of the
 # revision graph — it never executes env.py, so it cannot see a migration that
-# fails to apply. This runs the real `alembic upgrade head` against a THROWAWAY
-# database, using whichever of these is available (in order):
+# fails to apply. The targeted evidence delta below is blocking when it runs and
+# a visible SKIPPED when no throwaway PostgreSQL is available; the truly-empty
+# `alembic upgrade head` replay is a separate advisory measurement against a
+# throwaway database, using whichever of these is available (in order):
 #   (a) a Postgres already listening locally — a scratch database is created and
 #       dropped again in a trap, so a failure cannot leave it behind;
 #   (b) a disposable `docker run --rm -d postgres:16-alpine` on a free port;
@@ -174,8 +180,82 @@ _free_port() {
 # env.py resolves SUPABASE_DB_URL first, so it must be cleared or the probe
 # would silently migrate whatever that points at (Supabase dev, in this repo).
 _alembic_upgrade_head() {
-  ( cd backend && env -u SUPABASE_DB_URL DATABASE_URL="$1" "$PY" -m alembic upgrade head )
+  local pg_host="$1" pg_port="$2" pg_user="$3" pg_password="$4" pg_database="$5"
+  shift 5
+  PGHOST="$pg_host" PGPORT="$pg_port" PGUSER="$pg_user" \
+    PGPASSWORD="$pg_password" PGDATABASE="$pg_database" \
+    "$PY" scripts/ci/probe_evidence_migration.py --alembic-command "$@"
 }
+
+# 0 = targeted delta clean, 1 = targeted delta failed, 2 = no throwaway
+# database available. The Python probe creates and drops its own generated
+# database; this wrapper owns only a disposable Postgres container, if needed.
+targeted_evidence_migration_probe() (
+  # probe_evidence_migration.py generates and guards ci_evidence_delta_* names;
+  # this shell function never drops an arbitrary database.
+  CLEAN_KIND=""; CLEAN_CID=""
+  PG_USER="${PGUSER:-postgres}"; PG_PW="${PGPASSWORD:-postgres}"
+  # shellcheck disable=SC2329  # invoked indirectly, by the trap below
+  cleanup() {
+    case "$CLEAN_KIND" in
+      docker)
+        if [ -n "$CLEAN_CID" ] && docker inspect --type container "$CLEAN_CID" >/dev/null 2>&1; then
+          docker rm -f "$CLEAN_CID" >/dev/null 2>&1 || true
+        fi
+        ;;
+    esac
+  }
+  trap cleanup EXIT INT TERM
+
+  # (a) a local Postgres with credentials that can connect to its disposable
+  # admin database. The Python probe creates a uniquely named child database.
+  for port in $ALEMBIC_PROBE_PG_PORTS; do
+    _pg_port_ready "$port" || continue
+    if ! command -v psql >/dev/null 2>&1; then
+      printf '  Postgres is up on :%s but psql is not installed — trying docker\n' "$port"
+      break
+    fi
+    if ! PGPASSWORD="$PG_PW" psql -h 127.0.0.1 -p "$port" -U "$PG_USER" \
+        -d postgres -v ON_ERROR_STOP=1 -q -c "SELECT 1" >/dev/null 2>&1; then
+      printf '  local Postgres on :%s is not usable with the configured credentials — trying docker\n' "$port"
+      continue
+    fi
+    printf '  targeted evidence delta uses local Postgres 127.0.0.1:%s\n' "$port"
+    PGHOST=127.0.0.1 PGPORT="$port" PGUSER="$PG_USER" PGPASSWORD="$PG_PW" \
+      PGDATABASE=postgres "$PY" scripts/ci/probe_evidence_migration.py
+    rc=$?
+    if [ "$rc" -eq 0 ]; then exit 0; else exit 1; fi
+  done
+
+  # (b) a disposable container, isolated from any local application database.
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    port="$(_free_port)"
+    if [ -n "$port" ]; then
+      printf '  starting throwaway postgres:16-alpine for targeted evidence delta on 127.0.0.1:%s\n' "$port"
+      cid="$(docker run --rm -d -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
+             -e POSTGRES_DB=postgres -p "127.0.0.1:$port:5432" postgres:16-alpine 2>&1 | tail -1)"
+      if [ -n "$cid" ] && docker inspect --type container "$cid" >/dev/null 2>&1; then
+        CLEAN_KIND="docker"; CLEAN_CID="$cid"
+        ready=0
+        for _ in $(seq 1 60); do
+          if docker exec "$cid" pg_isready -U postgres -q >/dev/null 2>&1; then ready=1; break; fi
+          sleep 1
+        done
+        if [ "$ready" -eq 1 ]; then
+          printf '  targeted probe container %s ready\n' "${cid:0:12}"
+          PGHOST=127.0.0.1 PGPORT="$port" PGUSER=postgres PGPASSWORD=postgres \
+            PGDATABASE=postgres "$PY" scripts/ci/probe_evidence_migration.py
+          rc=$?
+          if [ "$rc" -eq 0 ]; then exit 0; else exit 1; fi
+        fi
+        printf '  targeted probe container never became ready (60s)\n'
+      else
+        printf '  docker run failed: %s\n' "$cid"
+      fi
+    fi
+  fi
+  exit 2
+)
 
 # 0 = upgrade clean, 1 = upgrade failed, 2 = no throwaway database available.
 alembic_upgrade_from_empty() (
@@ -184,9 +264,17 @@ alembic_upgrade_from_empty() (
   # shellcheck disable=SC2329  # invoked indirectly, by the trap below
   cleanup() {
     case "$CLEAN_KIND" in
-      db) PGPASSWORD="$PG_PW" psql -h 127.0.0.1 -p "$CLEAN_PORT" -U "$PG_USER" \
-            -d postgres -q -c "DROP DATABASE IF EXISTS \"$CLEAN_DB\"" >/dev/null 2>&1 || true;;
-      docker) docker rm -f "$CLEAN_CID" >/dev/null 2>&1 || true;;
+      db)
+        if [[ "$CLEAN_DB" =~ ^ci_alembic_from_empty_[0-9]+$ ]]; then
+          PGPASSWORD="$PG_PW" psql -h 127.0.0.1 -p "$CLEAN_PORT" -U "$PG_USER" \
+            -d postgres -q -c "DROP DATABASE IF EXISTS \"$CLEAN_DB\"" >/dev/null 2>&1 || true
+        fi
+        ;;
+      docker)
+        if [ -n "$CLEAN_CID" ] && docker inspect --type container "$CLEAN_CID" >/dev/null 2>&1; then
+          docker rm -f "$CLEAN_CID" >/dev/null 2>&1 || true
+        fi
+        ;;
     esac
   }
   trap cleanup EXIT INT TERM
@@ -209,7 +297,8 @@ alembic_upgrade_from_empty() (
     printf '  using local Postgres 127.0.0.1:%s (scratch database %s, dropped on exit)\n' "$port" "$db"
     # Normalise to 0/1: rc 2 is reserved for "no database available" and must
     # never be produced by a failed upgrade, or a failure would read as a skip.
-    if _alembic_upgrade_head "postgresql://$PG_USER:$PG_PW@127.0.0.1:$port/$db"; then exit 0; else exit 1; fi
+    if _alembic_upgrade_head 127.0.0.1 "$port" "$PG_USER" "$PG_PW" "$db" \
+        upgrade head; then exit 0; else exit 1; fi
   done
 
   # (b) a throwaway container.
@@ -228,7 +317,8 @@ alembic_upgrade_from_empty() (
         done
         if [ "$ready" -eq 1 ]; then
           printf '  container %s ready\n' "${cid:0:12}"
-          if _alembic_upgrade_head "postgresql://postgres:postgres@127.0.0.1:$port/postgres"; then exit 0; else exit 1; fi
+          if _alembic_upgrade_head 127.0.0.1 "$port" postgres postgres postgres \
+              upgrade head; then exit 0; else exit 1; fi
         fi
         printf '  throwaway container never became ready (60s)\n'
       else
@@ -239,17 +329,32 @@ alembic_upgrade_from_empty() (
   exit 2
 )
 
-step "Alembic upgrade head from an empty DB (blocking when migrations change) — base=$BASE"
+step "Targeted evidence migration delta (blocking when runnable; visible skip when PostgreSQL is unavailable) — base=$BASE"
 mapfile -t MIGRATION_FILES < <(changed_paths backend/alembic/versions)
 if [ "${#MIGRATION_FILES[@]}" -eq 0 ]; then
-  skipped "alembic upgrade (from empty)" "backend/alembic/versions unchanged since $BASE"
+  skipped "targeted evidence migration delta" "backend/alembic/versions unchanged since $BASE"
 else
   printf '  %d migration file(s) changed\n' "${#MIGRATION_FILES[@]}"
+  targeted_evidence_migration_probe
+  TARGETED_EVIDENCE_RC=$?
+  if [ "$TARGETED_EVIDENCE_RC" -eq 2 ]; then
+    warn "  targeted evidence migration delta could not run: no throwaway Postgres available"
+    skipped "targeted evidence migration delta" "no throwaway Postgres available — see the warning above"
+  else
+    check "$TARGETED_EVIDENCE_RC" "targeted evidence migration delta"
+  fi
+fi
+
+step "Alembic upgrade head from an empty DB (advisory measurement) — base=$BASE"
+if [ "${#MIGRATION_FILES[@]}" -eq 0 ]; then
+  skipped "alembic upgrade (from empty) advisory measurement" "backend/alembic/versions unchanged since $BASE"
+else
+  printf '  %d migration file(s) changed; measuring the legacy chain separately\n' "${#MIGRATION_FILES[@]}"
   alembic_upgrade_from_empty
   ALEMBIC_RC=$?
   if [ "$ALEMBIC_RC" -eq 2 ]; then
     warn "  ────────────────────────────────────────────────────────────────────"
-    warn "  ⚠  NOT VERIFIED: alembic upgrade head from an empty database."
+    warn "  ⚠  NOT VERIFIED: alembic upgrade head from an empty database (advisory measurement)."
     warn "     This branch changes backend/alembic/versions/, but no throwaway"
     warn "     Postgres was reachable:"
     warn "       · nothing usable on 127.0.0.1: $ALEMBIC_PROBE_PG_PORTS"
@@ -262,9 +367,11 @@ else
     warn "     To verify: start any local Postgres (or the dev compose stack),"
     warn "     or make docker available, then re-run this script."
     warn "  ────────────────────────────────────────────────────────────────────"
-    skipped "alembic upgrade (from empty)" "no throwaway Postgres available — see the warning above"
+    skipped "alembic upgrade (from empty) advisory measurement" "no throwaway Postgres available — see the warning above"
+  elif [ "$ALEMBIC_RC" -eq 0 ]; then
+    printf '\033[32m  ✓ alembic upgrade (from empty) advisory measurement completed\033[0m\n'
   else
-    check "$ALEMBIC_RC" "alembic upgrade (from empty)"
+    warn "  ⚠ alembic upgrade (from empty) advisory measurement failed (rc=$ALEMBIC_RC); this legacy-chain result is visible but non-blocking"
   fi
 fi
 
@@ -277,9 +384,39 @@ if [ "$SKIP_TESTS" -eq 0 ]; then
 fi
 
 if [ "$DO_FRONTEND" -eq 1 ]; then
-  step "Frontend type-check + lint (blocking)"
+  step "Frontend type-check + quality ratchet (blocking) + full lint (advisory)"
   ( cd frontend && pnpm run type-check ); check $? "pnpm type-check"
-  ( cd frontend && pnpm run lint );       check $? "pnpm lint"
+
+  # Keep one full ESLint JSON run as the input to the same blocking ratchets
+  # used by .github/workflows/test-pipeline.yml. ESLint returns nonzero when
+  # the known full-tree debt is present, so its exit status is intentionally
+  # not used as the ratchet verdict; the comparator below owns that decision.
+  ESLINT_REPORT="$(mktemp "${TMPDIR:-/tmp}/run_local_ci-eslint.XXXXXX.json")"
+  if [ -z "$ESLINT_REPORT" ] || [ ! -f "$ESLINT_REPORT" ]; then
+    warn "  could not create a temporary ESLint JSON report"
+    check 1 "frontend quality ratchet (report unavailable)"
+  else
+    ESLINT_JSON_RC=0
+    ( cd frontend && pnpm exec eslint app src --format json --output-file "$ESLINT_REPORT" ) || ESLINT_JSON_RC=$?
+    if [ "$ESLINT_JSON_RC" -ne 0 ]; then
+      warn "  ESLint JSON generation exited $ESLINT_JSON_RC; evaluating its report with the blocking ratchet"
+    fi
+    node scripts/ci/check_frontend_quality.mjs --report "$ESLINT_REPORT" --base "$BASE"
+    check $? "frontend quality ratchet"
+    $PY scripts/ci/check_tsconfig_exclusions.py --base "$BASE"
+    check $? "tsconfig exclusion ratchet"
+    rm -f -- "$ESLINT_REPORT"
+  fi
+
+  # Preserve the complete human-readable lint output for diagnosis, but keep
+  # the known baseline debt advisory just as the GitHub workflow does.
+  FULL_LINT_RC=0
+  ( cd frontend && pnpm run lint ) || FULL_LINT_RC=$?
+  if [ "$FULL_LINT_RC" -eq 0 ]; then
+    printf '\033[32m  ✓ pnpm lint (advisory)\033[0m\n'
+  else
+    warn "  ⚠ pnpm lint (advisory) exited $FULL_LINT_RC; full lint output is shown above"
+  fi
 fi
 
 printf '\n'
