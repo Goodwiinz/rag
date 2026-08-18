@@ -37,11 +37,14 @@ function toToolExecutions(steps: ActivityStep[]): ToolExecution[] {
  */
 export const ChatInlinePlan = React.memo(function ChatInlinePlan({
   plan,
+  reasoning,
   toolExecutions,
   streaming = false,
   elapsedMs,
 }: {
   plan: PlanStep[];
+  /** Planner's top-level rationale for `plan`, shown when expanded. */
+  reasoning?: string;
   toolExecutions?: ActivityStep[];
   /** True for the live in-flight instance — mounts expanded instead of the
    * committed default (collapsed), so streamed-in steps are visible. */
@@ -92,6 +95,11 @@ export const ChatInlinePlan = React.memo(function ChatInlinePlan({
       </button>
       {isExpanded && (
         <div className="border-t border-[var(--nous-border-1)] max-h-[320px] overflow-y-auto">
+          {reasoning && (
+            <p className="px-3 py-2 text-xs text-[var(--nous-fg-3)] font-nous-ui border-b border-[var(--nous-border-1)]">
+              {reasoning}
+            </p>
+          )}
           <Plan tasks={tasks} readOnly />
         </div>
       )}

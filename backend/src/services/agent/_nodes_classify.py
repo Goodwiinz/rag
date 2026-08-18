@@ -221,6 +221,7 @@ async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
         # Per-turn resets — must come BEFORE merging subtask results so a
         # subtask that explicitly sets one of these keys still wins.
         "plan": [],
+        "plan_reasoning": "",
         "reflection_count": 0,
         "_reflection_result": None,
         "tool_loop_count": 0,

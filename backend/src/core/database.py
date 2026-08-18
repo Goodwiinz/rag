@@ -163,9 +163,22 @@ if _is_sqlite:
     )
 else:
     # PostgreSQL async configuration
-    # Note: pool_pre_ping is disabled for async engine as it can cause
-    # MissingGreenlet errors with asyncpg when ping runs outside greenlet context.
-    # Instead, we rely on pool_recycle to handle stale connections.
+    # pool_pre_ping MUST stay enabled. Supabase's pooler drops idle server-side
+    # connections well before ``pool_recycle`` expires them, and QueuePool is
+    # FIFO by default, so a checkout preferentially hands back the *stalest*
+    # connection. Without the liveness ping the first statement on that
+    # connection (the transaction's BEGIN) raises
+    # ``asyncpg.ConnectionDoesNotExistError``; on the agent stream path that
+    # aborts finalize_submission after the answer was already produced, leaving
+    # the run non-terminal so ``uq_agent_runs_active_thread`` rejects the user's
+    # next turn until the stale-run sweeper marks a successful turn "failed"
+    # (Sentry JAVASCRIPT-NEXTJS-4W).
+    #
+    # It was flipped to False in 77dfe97e citing MissingGreenlet, but that was
+    # speculative: MissingGreenlet in this codebase comes from ORM lazy-loads,
+    # never from the pool ping, which SQLAlchemy 2.x runs inside the greenlet
+    # context via the async adapter. Verified against SQLAlchemy 2.0.51 /
+    # asyncpg 0.31 — see tests/unit/core/test_database_helpers.py.
     #
     # Pool sizing: Supabase's session-mode pooler caps each client at pool_size
     # slots (Nano defaults to 15, Small to 25). Defaults below target the Small
@@ -182,7 +195,7 @@ else:
         max_overflow=_env_int("DB_ASYNC_MAX_OVERFLOW", 5),
         pool_timeout=_env_int("DB_ASYNC_POOL_TIMEOUT", 30),
         pool_recycle=_env_int("DB_ASYNC_POOL_RECYCLE", 1500),
-        pool_pre_ping=False,  # Disabled - causes greenlet issues with asyncpg
+        pool_pre_ping=True,  # See the note above — must not be disabled.
         connect_args={
             "prepared_statement_cache_size": _stmt_cache,
             "statement_cache_size": _stmt_cache,

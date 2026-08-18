@@ -19,7 +19,6 @@ import pytest
 from src.core import database
 from src.core.database import _env_int, get_db
 
-
 # ---------------------------------------------------------------------------
 # _env_int — graceful integer env parsing (never raises at import time)
 # ---------------------------------------------------------------------------
@@ -163,6 +162,36 @@ def test_no_misuse_of_session_context_managers():
     offenders = [
         str(path.relative_to(src_root))
         for path in src_root.rglob("*.py")
-        if any(p.search(path.read_text(encoding="utf-8", errors="ignore")) for p in patterns)
+        if any(
+            p.search(path.read_text(encoding="utf-8", errors="ignore"))
+            for p in patterns
+        )
     ]
     assert offenders == []
+
+
+# ---------------------------------------------------------------------------
+# async engine pool liveness — Sentry JAVASCRIPT-NEXTJS-4W
+# ---------------------------------------------------------------------------
+
+
+def test_async_engine_has_pool_pre_ping_enabled():
+    """The async pool must liveness-check connections before handing them out.
+
+    Supabase's pooler closes idle server-side connections long before
+    ``pool_recycle`` expires them, and QueuePool is FIFO by default, so a
+    checkout preferentially returns the stalest connection in the pool. Without
+    the ping, the transaction's ``BEGIN`` raises
+    ``asyncpg.ConnectionDoesNotExistError`` and ``finalize_submission`` aborts
+    *after* the agent already produced its answer — the run never reaches a
+    terminal status and the thread's single-writer slot stays held.
+
+    This regressed twice by accident: 77dfe97e disabled the ping inside an
+    unrelated parameter-shadowing commit (compensating with
+    ``pool_recycle=300``), then 92d114cd relaxed recycle to 1500 and removed the
+    compensation without noticing. Hence an assertion on the flag itself rather
+    than on any behaviour a stubbed engine could fake.
+    """
+    if database._is_sqlite:  # pragma: no cover - SQLite pools take no options
+        pytest.skip("SQLite engine does not take pool options")
+    assert database.async_engine.pool._pre_ping is True

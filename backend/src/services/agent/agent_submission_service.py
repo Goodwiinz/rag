@@ -63,6 +63,7 @@ which is keyed only by a server-generated run id.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -741,6 +742,15 @@ async def mark_submission_dispatched(
             logger.debug("rollback after dispatch stamp failure failed", exc_info=True)
 
 
+# One retry only: a second consecutive disconnect means the database is
+# genuinely unreachable, and the stale-run sweeper is the correct backstop.
+_FINALIZE_ATTEMPTS = 2
+# Breather before that retry. The observed incident was a node-level network
+# blip that killed the Redis and Postgres sockets in the same second, so an
+# instant retry tends to land on the same dead network. Tests zero this out.
+_FINALIZE_RETRY_BACKOFF_S = 0.2
+
+
 async def finalize_submission(
     db: AsyncSession,
     *,
@@ -790,39 +800,60 @@ async def finalize_submission(
                 "finalize_submission: non-UUID assistant_message_id %r ignored",
                 raw_assistant_id,
             )
-    try:
-        await db.execute(
-            update(AgentRun)
-            .where(
-                AgentRun.job_id == run_id,
-                AgentRun.status.notin_(_TERMINAL_RUN_STATUSES),
-            )
-            .values(**values)
-            .execution_options(synchronize_session=False)
-        )
-        if event_type is not None:
-            try:
-                await append_event(
-                    db,
-                    run_id=run_id,
-                    event_type=event_type,
-                    payload=payload or {},
-                    organization_id=organization_id,
-                )
-            except RunAlreadyTerminalError:
-                # Absorbing terminal ledger — another writer closed it first.
-                logger.debug(
-                    "finalize_submission: ledger already closed for %s", run_id
-                )
-        await db.commit()
-    except Exception:
-        logger.warning("finalize_submission failed for run %s", run_id, exc_info=True)
+    # A pooled connection dropped by the pooler must not turn a finished turn
+    # into a failed one: this runs after the answer was already streamed, and a
+    # raise here leaves the run non-terminal so the thread's single-writer slot
+    # keeps rejecting the user's next turn. The write is idempotent — the
+    # UPDATE is guarded on a non-terminal status and append_event absorbs
+    # RunAlreadyTerminalError — so a lost connection is rolled back and retried
+    # once. SQLAlchemy has already discarded the dead connection by then, so
+    # the retry checks out a fresh one (see pool_pre_ping in src/core/database).
+    for attempt in range(_FINALIZE_ATTEMPTS):
         try:
-            await db.rollback()
-        except Exception:
-            logger.debug("rollback after finalize failure failed", exc_info=True)
-        if status in TERMINAL_JOB_STATUSES:
-            raise
+            await db.execute(
+                update(AgentRun)
+                .where(
+                    AgentRun.job_id == run_id,
+                    AgentRun.status.notin_(_TERMINAL_RUN_STATUSES),
+                )
+                .values(**values)
+                .execution_options(synchronize_session=False)
+            )
+            if event_type is not None:
+                try:
+                    await append_event(
+                        db,
+                        run_id=run_id,
+                        event_type=event_type,
+                        payload=payload or {},
+                        organization_id=organization_id,
+                    )
+                except RunAlreadyTerminalError:
+                    # Absorbing terminal ledger — another writer closed it first.
+                    logger.debug(
+                        "finalize_submission: ledger already closed for %s", run_id
+                    )
+            await db.commit()
+            return
+        except Exception as exc:
+            try:
+                await db.rollback()
+            except Exception:
+                logger.debug("rollback after finalize failure failed", exc_info=True)
+            lost_connection = bool(getattr(exc, "connection_invalidated", False))
+            if lost_connection and attempt + 1 < _FINALIZE_ATTEMPTS:
+                logger.warning(
+                    "finalize_submission lost its connection for run %s, retrying",
+                    run_id,
+                )
+                await asyncio.sleep(_FINALIZE_RETRY_BACKOFF_S)
+                continue
+            logger.warning(
+                "finalize_submission failed for run %s", run_id, exc_info=True
+            )
+            if status in TERMINAL_JOB_STATUSES:
+                raise
+            return
 
 
 __all__ = [

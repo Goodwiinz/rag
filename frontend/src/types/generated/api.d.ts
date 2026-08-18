@@ -9577,6 +9577,8 @@ export interface components {
             plan?: {
                 [key: string]: unknown;
             }[] | null;
+            /** Plan Reasoning */
+            plan_reasoning?: string | null;
             /** @default user */
             role: components["schemas"]["MessageRole-Output"];
             /** Stopped */
@@ -11608,6 +11610,8 @@ export interface components {
             plan?: {
                 [key: string]: unknown;
             }[] | null;
+            /** Plan Reasoning */
+            plan_reasoning?: string | null;
             /** Role */
             role: string;
             /** Token Usage */
