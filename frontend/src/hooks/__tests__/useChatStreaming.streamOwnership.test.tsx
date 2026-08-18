@@ -12,7 +12,7 @@ import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { useChatStore } from '@/store/chat-store';
 
-function wrapper({ children }: { children: ReactNode }) {
+function wrapper({ children }: { children: ReactNode }): JSX.Element {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
