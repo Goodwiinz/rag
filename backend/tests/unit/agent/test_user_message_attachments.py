@@ -50,7 +50,9 @@ def _db(returned_row_id: Any) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_attaches_owned_documents_to_the_inserted_row(monkeypatch) -> None:
+async def test_attaches_owned_documents_to_the_inserted_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     row_id, doc_a, doc_b = uuid4(), uuid4(), uuid4()
     monkeypatch.setattr(
         "src.services.threads.workspace_access.filter_owned_document_ids",
@@ -67,7 +69,9 @@ async def test_attaches_owned_documents_to_the_inserted_row(monkeypatch) -> None
 
 
 @pytest.mark.asyncio
-async def test_drops_documents_the_caller_does_not_own(monkeypatch) -> None:
+async def test_drops_documents_the_caller_does_not_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # A guessed foreign UUID must not attach: an unscoped attach leaks the
     # document's title and mime into the thread through the attachment
     # response. The owned half of a mixed batch still lands.
@@ -85,7 +89,9 @@ async def test_drops_documents_the_caller_does_not_own(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_deduped_retry_attaches_nothing(monkeypatch) -> None:
+async def test_a_deduped_retry_attaches_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # An SSE retry re-sends the same turn; the insert dedups on
     # (thread_id, client_message_id) and RETURNING yields no row. Attaching
     # again would double every attachment on the turn that already owns them.
