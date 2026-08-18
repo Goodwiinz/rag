@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from asyncpg.exceptions import ConnectionDoesNotExistError
 from sqlalchemy.exc import DBAPIError
 
 from src.services.agent.agent_submission_service import finalize_submission
@@ -122,8 +123,17 @@ async def test_terminal_finalize_failure_propagates_after_rollback(
 
 
 def _lost_connection_error() -> DBAPIError:
-    """A DBAPIError shaped like a pooler-dropped connection."""
-    exc = DBAPIError("UPDATE agent_runs", {}, Exception("connection was closed"))
+    """The production failure shape (Sentry JAVASCRIPT-NEXTJS-4W): SQLAlchemy
+    wrapping the asyncpg error raised when the pooler closes the socket
+    mid-operation. The asyncpg dialect's ``is_disconnect`` reports
+    ``connection.is_closed()`` for errors on a live connection, so SQLAlchemy
+    invalidates the pooled connection and stamps ``connection_invalidated`` —
+    the exact signal the retry gate keys on."""
+    exc = DBAPIError(
+        "UPDATE agent_runs",
+        {},
+        ConnectionDoesNotExistError("connection was closed in the middle of operation"),
+    )
     exc.connection_invalidated = True
     return exc
 
@@ -141,6 +151,7 @@ async def test_finalize_retries_once_when_the_connection_is_lost(
     import src.services.agent.agent_submission_service as svc
 
     monkeypatch.setattr(svc, "append_event", AsyncMock())
+    monkeypatch.setattr(svc, "_FINALIZE_RETRY_BACKOFF_S", 0.0)
     db = _spy_db()
     db.execute = AsyncMock(side_effect=[_lost_connection_error(), None])
 
@@ -169,6 +180,7 @@ async def test_finalize_raises_when_the_retry_also_loses_the_connection(
     import src.services.agent.agent_submission_service as svc
 
     monkeypatch.setattr(svc, "append_event", AsyncMock())
+    monkeypatch.setattr(svc, "_FINALIZE_RETRY_BACKOFF_S", 0.0)
     db = _spy_db()
     db.execute = AsyncMock(
         side_effect=[_lost_connection_error(), _lost_connection_error()]
