@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   HoverCard,
   HoverCardContent,
@@ -30,8 +30,15 @@ export function AgentCitationBadge({
   citationNumber,
   citation,
 }: AgentCitationBadgeProps) {
+  // HoverCard alone opens on pointer hover (and focus) only, so the source
+  // preview was unreachable on touch. Drive it as a controlled popover and let
+  // a tap/click toggle it too.
+  const [open, setOpen] = useState(false);
   const badge = (
     <button
+      type="button"
+      onClick={citation ? () => setOpen((current) => !current) : undefined}
+      aria-expanded={citation ? open : undefined}
       className={cn(
         'inline-flex items-center justify-center',
         'px-1.5 py-0.5 mx-0.5',
@@ -59,7 +66,12 @@ export function AgentCitationBadge({
     : null;
 
   return (
-    <HoverCard openDelay={150} closeDelay={100}>
+    <HoverCard
+      open={open}
+      onOpenChange={setOpen}
+      openDelay={150}
+      closeDelay={100}
+    >
       <HoverCardTrigger asChild>{badge}</HoverCardTrigger>
       <HoverCardContent
         align="start"

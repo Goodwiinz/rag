@@ -6,8 +6,8 @@
  */
 
 export interface Citation {
-  documentId?: string;  // Optional: may be undefined for external references
-  externalReferenceId?: string;  // For non-database references (e.g., arXiv IDs)
+  documentId?: string; // Optional: may be undefined for external references
+  externalReferenceId?: string; // For non-database references (e.g., arXiv IDs)
   title: string;
   score: number;
   content?: string;
@@ -42,11 +42,25 @@ export interface ParsedSegment {
  * - [Doc 2, Doc 3, Doc 4]
  */
 const BRACKET_GROUP_PATTERN = /\[([^\]]+)\]/g;
-const CITATION_ITEM_PATTERN = /(?:(Doc|Source|Ref)[\s\u00a0\u2002\u2003]*)?(\d+)/gi;
+/** Bare `[12]` is only a citation when nothing before the bracket makes it an
+ * index expression (`arr[0]`, `matrix[1][2]`) and nothing after it makes it a
+ * markdown link or link definition (`[1](url)`, `[1]: url`). */
+const INDEX_EXPRESSION_PREFIX = /[\w$\])]$/;
+/** Bare numbers above this are years, quantities and identifiers far more
+ * often than citation indices; an explicit `Doc`/`Source`/`Ref` prefix is
+ * always honoured regardless. */
+const MAX_BARE_CITATION_INDEX = 99;
+const CITATION_LABEL_PATTERN = /(Doc|Source|Ref)/i;
+const CITATION_ITEM_PATTERN =
+  /(?:(Doc|Source|Ref)[\s\u00a0\u2002\u2003]*)?(\d+)/gi;
 const GROUP_DELIMITER_PATTERN = /^[,\s\u00a0\u2002\u2003]*$/;
 
-function parseCitationGroup(content: string): number[] | null {
+function parseCitationGroup(
+  content: string,
+  maxIndex: number
+): number[] | null {
   const indices: number[] = [];
+  let sawLabel = false;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -58,6 +72,7 @@ function parseCitationGroup(content: string): number[] | null {
       return null;
     }
 
+    if (match[1]) sawLabel = true;
     indices.push(parseInt(match[2], 10));
     lastIndex = match.index + match[0].length;
   }
@@ -68,6 +83,12 @@ function parseCitationGroup(content: string): number[] | null {
 
   const trailing = content.slice(lastIndex);
   if (!GROUP_DELIMITER_PATTERN.test(trailing)) {
+    return null;
+  }
+
+  // An unlabelled group has to look like a citation index to be treated as
+  // one: `[0]` and `[2023]` are almost always something else.
+  if (!sawLabel && indices.some((index) => index < 1 || index > maxIndex)) {
     return null;
   }
 
@@ -88,7 +109,19 @@ function parseCitationGroup(content: string): number[] | null {
  * //   { type: 'text', content: ', the answer is...' }
  * // ]
  */
-export function parseMessageWithCitations(content: string): ParsedSegment[] {
+export function parseMessageWithCitations(
+  content: string,
+  options: {
+    /** Highest index the caller can actually resolve to a source. Bare
+     * bracketed numbers above it stay plain text instead of rendering as an
+     * inert badge (or, worse, linking to the wrong document). */
+    citationCount?: number;
+  } = {}
+): ParsedSegment[] {
+  const maxIndex = Math.min(
+    options.citationCount ?? MAX_BARE_CITATION_INDEX,
+    MAX_BARE_CITATION_INDEX
+  );
   const segments: ParsedSegment[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -104,7 +137,19 @@ export function parseMessageWithCitations(content: string): ParsedSegment[] {
     }
 
     const groupContent = match[1];
-    const citationIndices = parseCitationGroup(groupContent);
+    // A labelled group ([Doc 1], [Source 2]) is unambiguous; only bare numeric
+    // groups need the surrounding syntax checks.
+    const isLabelled = CITATION_LABEL_PATTERN.test(groupContent);
+    const precededByIndexExpression =
+      !isLabelled &&
+      INDEX_EXPRESSION_PREFIX.test(content.slice(0, match.index));
+    const nextChar = content.charAt(match.index + match[0].length);
+    const isMarkdownLink =
+      !isLabelled && (nextChar === '(' || nextChar === ':');
+    const citationIndices =
+      precededByIndexExpression || isMarkdownLink
+        ? null
+        : parseCitationGroup(groupContent, maxIndex);
 
     if (!citationIndices) {
       segments.push({
@@ -148,8 +193,11 @@ export function parseMessageWithCitations(content: string): ParsedSegment[] {
  * @param content - The message content to check
  * @returns True if content contains citation patterns
  */
-export function hasCitations(content: string): boolean {
-  return extractCitationIndices(content).length > 0;
+export function hasCitations(
+  content: string,
+  options: { citationCount?: number } = {}
+): boolean {
+  return extractCitationIndices(content, options).length > 0;
 }
 
 /**
@@ -158,8 +206,11 @@ export function hasCitations(content: string): boolean {
  * @param content - The message content to scan
  * @returns Array of unique citation indices (1-based)
  */
-export function extractCitationIndices(content: string): number[] {
-  const indices = parseMessageWithCitations(content)
+export function extractCitationIndices(
+  content: string,
+  options: { citationCount?: number } = {}
+): number[] {
+  const indices = parseMessageWithCitations(content, options)
     .filter((segment) => segment.type === 'citation')
     .map((segment) => segment.citationIndex)
     .filter((index): index is number => typeof index === 'number');
@@ -206,7 +257,10 @@ export function getReferencedCitations(
  * @param index - 1-based citation index
  * @returns The citation at the given index, or undefined
  */
-export function getCitationByIndex(citations: Citation[], index: number): Citation | undefined {
+export function getCitationByIndex(
+  citations: Citation[],
+  index: number
+): Citation | undefined {
   // Citations array is 0-indexed, but [Doc N] uses 1-based indexing
   return citations[index - 1];
 }

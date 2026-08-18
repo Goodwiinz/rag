@@ -1,6 +1,12 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
 import {
   User,
   Bot,
@@ -12,6 +18,7 @@ import {
   Check,
   RefreshCw,
   ListChecks,
+  Loader2,
 } from 'lucide-react';
 import { ToolExecutionCard } from './ToolExecutionCard';
 import { AgentMarkdownRenderer } from './AgentMarkdownRenderer';
@@ -50,11 +57,19 @@ export const AgentMessageItem = React.memo(function AgentMessageItem({
   const isUser = message.role === 'user';
   const isError = message.isError;
   const [copied, setCopied] = useState(false);
+  const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copyResetRef.current) clearTimeout(copyResetRef.current);
+    },
+    []
+  );
 
   const handleCopy = useCallback(() => {
     void navigator.clipboard.writeText(message.content);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyResetRef.current) clearTimeout(copyResetRef.current);
+    copyResetRef.current = setTimeout(() => setCopied(false), 2000);
   }, [message.content]);
 
   const toolGroups = message.toolExecutions
@@ -245,7 +260,14 @@ function ToolExecutionGroupCard({
           <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
         ) : allCompleted ? (
           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-        ) : null}
+        ) : (
+          // Still running: the group used to render no icon at all, so it read
+          // as an unstarted row while its tools were executing.
+          <Loader2
+            aria-hidden
+            className="h-3.5 w-3.5 text-muted-foreground shrink-0 animate-spin"
+          />
+        )}
         <span className="text-foreground font-medium">
           {executions[0].toolDisplayName}
         </span>
