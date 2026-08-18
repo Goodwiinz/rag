@@ -51,7 +51,9 @@ export function ChatMarkdownMath({
   inline?: boolean;
   freshTail?: boolean;
 }): React.ReactElement {
-  // Fresh-tail runs after KaTeX so it never splits a rendered expression.
+  // Fresh-tail runs after KaTeX and skips its generated markup (.katex /
+  // .katex-display subtrees), so it never tints inside a rendered
+  // expression; a message that ends with math tints the prose before it.
   const rehypePlugins = freshTail
     ? [...(REHYPE_PLUGINS ?? []), rehypeFreshTail]
     : REHYPE_PLUGINS;

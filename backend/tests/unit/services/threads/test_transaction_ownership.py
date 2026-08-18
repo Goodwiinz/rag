@@ -155,6 +155,11 @@ LEAF_TXN: Dict[str, Dict[str, FrozenSet[str]]] = {
         "get_message": frozenset(),
         "get_collection": frozenset(),
         "get_accessible_document_or_none": frozenset(),
+        # Two SELECTs (caller's org, then owned ids) — the message-attachment
+        # tenant filter, moved here from ChatService so the agent stream's
+        # user-turn persist applies the identical predicate. The caller owns
+        # the transaction the attachment rows are added to.
+        "filter_owned_document_ids": frozenset(),
     },
     "workspace_service": {
         # PR 3 Task 3.2 (workspaces + members flips): commit -> flush; the
