@@ -75,6 +75,13 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     task_acks_late=True,
+    # replay_guard.py's claim-based idempotency assumes the broker redelivers a
+    # task when the worker child dies mid-run (e.g. OOM-killed by the memory
+    # limits below). Without this, task_acks_late's default reject_on_worker_lost
+    # (False) ACKs the message anyway on child death, so it's silently dropped
+    # instead of redelivered. claim_job_for_processing already makes redelivery
+    # idempotent, so redelivering is safe.
+    task_reject_on_worker_lost=True,
     worker_prefetch_multiplier=1,
     # Bound worker memory to stop unbounded RSS growth from OOM-evicting the pod.
     # A child process is recycled after 100 tasks, or once its resident memory
