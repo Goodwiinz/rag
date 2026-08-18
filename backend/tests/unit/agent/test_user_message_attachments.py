@@ -8,6 +8,7 @@ vanished.
 """
 
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -16,7 +17,14 @@ import pytest
 from src.services.agent.agent_execution_service import _persist_user_message
 
 
-def _request(attachment_ids=None, thread_id=None):
+def _user() -> Any:
+    # Annotated Any, not User: these stand in for ORM objects the function only
+    # reads attributes off, and the blocking mypy lane rejects a SimpleNamespace
+    # passed to a User-typed parameter.
+    return SimpleNamespace(id=uuid4())
+
+
+def _request(attachment_ids: Any = None, thread_id: Any = None) -> Any:
     return SimpleNamespace(
         thread_id=thread_id or str(uuid4()),
         messages=[
@@ -29,7 +37,7 @@ def _request(attachment_ids=None, thread_id=None):
     )
 
 
-def _db(returned_row_id):
+def _db(returned_row_id: Any) -> Any:
     """A session whose INSERT ... RETURNING yields ``returned_row_id``."""
     result = MagicMock(rowcount=1 if returned_row_id else 0)
     result.scalar_one_or_none.return_value = returned_row_id
@@ -50,9 +58,7 @@ async def test_attaches_owned_documents_to_the_inserted_row(monkeypatch) -> None
     )
     db = _db(row_id)
 
-    inserted = await _persist_user_message(
-        db, SimpleNamespace(id=uuid4()), _request([doc_a, doc_b])
-    )
+    inserted = await _persist_user_message(db, _user(), _request([doc_a, doc_b]))
 
     assert inserted is True
     attached = [c.args[0] for c in db.add.call_args_list]
@@ -72,9 +78,7 @@ async def test_drops_documents_the_caller_does_not_own(monkeypatch) -> None:
     )
     db = _db(row_id)
 
-    await _persist_user_message(
-        db, SimpleNamespace(id=uuid4()), _request([mine, theirs])
-    )
+    await _persist_user_message(db, _user(), _request([mine, theirs]))
 
     attached = [c.args[0] for c in db.add.call_args_list]
     assert [a.document_id for a in attached] == [mine]
@@ -92,9 +96,7 @@ async def test_a_deduped_retry_attaches_nothing(monkeypatch) -> None:
     )
     db = _db(None)
 
-    inserted = await _persist_user_message(
-        db, SimpleNamespace(id=uuid4()), _request([doc])
-    )
+    inserted = await _persist_user_message(db, _user(), _request([doc]))
 
     assert inserted is False
     db.add.assert_not_called()
@@ -107,9 +109,7 @@ async def test_turn_without_attachments_keeps_the_rowcount_path() -> None:
     db = _db(None)
     db.execute.return_value.rowcount = 1
 
-    inserted = await _persist_user_message(
-        db, SimpleNamespace(id=uuid4()), _request(None)
-    )
+    inserted = await _persist_user_message(db, _user(), _request(None))
 
     assert inserted is True
     assert "RETURNING" not in str(db.execute.await_args.args[0]).upper()
