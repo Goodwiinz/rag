@@ -49,12 +49,13 @@ describe('agentChatStore generation lifecycle', () => {
   });
 
   it('reuses the streamed placeholder when SSE throws mid-stream (H5)', async () => {
-    serviceMocks.streamMessage.mockImplementation(
-      (async (_req: unknown, callbacks: AgentStreamCallbacks) => {
-        callbacks.onToken?.('partial answer');
-        throw new Error('socket hang up');
-      }) as never
-    );
+    serviceMocks.streamMessage.mockImplementation((async (
+      _req: unknown,
+      callbacks: AgentStreamCallbacks
+    ) => {
+      callbacks.onToken?.('partial answer');
+      throw new Error('socket hang up');
+    }) as never);
 
     useAgentChatStore.getState().setInputValue('hello');
     const send = useAgentChatStore.getState().sendMessage();
@@ -187,9 +188,58 @@ describe('agentChatStore generation lifecycle', () => {
     expect(useAgentChatStore.getState().isConfirming).toBe(false);
     expect(useAgentChatStore.getState().isStreaming).toBe(false);
     expect(getAbortController()).toBeNull();
+    // The card is gone: the approval already consumed its wait token, so
+    // re-offering Approve would fail on every click.
     expect(
       useAgentChatStore.getState().pendingConfirmations['thread-A']
-    ).toBeDefined();
+    ).toBeUndefined();
+    expect(useAgentChatStore.getState().messages[0].content).toContain(
+      'taking longer than expected'
+    );
+  });
+
+  it('does not restore a confirmation into a transcript that was cleared', async () => {
+    const pending = {
+      threadId: 'thread-A',
+      assistantMessageId: 'a-1',
+      jobId: 'thread-A',
+      origin: 'sse' as const,
+      tools: [{ name: 'ingest_arxiv', args: {} }],
+      message: 'Confirm?',
+    };
+    // Real aborts surface as a rejection out of streamConfirm.
+    let failConfirm: (() => void) | undefined;
+    serviceMocks.streamConfirm.mockImplementation(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          failConfirm = () => reject(new Error('aborted'));
+        })
+    );
+    useAgentChatStore.setState({
+      activeThreadId: 'thread-A',
+      messages: [
+        {
+          id: 'a-1',
+          role: 'assistant',
+          content: 'Waiting for your confirmation...',
+          timestamp: new Date(),
+        },
+      ],
+      pendingConfirmations: { 'thread-A': pending },
+    });
+
+    const confirming = useAgentChatStore
+      .getState()
+      .confirmAction('thread-A', true);
+    // Let the dynamic service import resolve so streamConfirm is in flight.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    useAgentChatStore.getState().clearMessages();
+    failConfirm?.();
+    await confirming;
+
+    expect(
+      useAgentChatStore.getState().pendingConfirmations['thread-A']
+    ).toBeUndefined();
   });
 
   it('aborts the in-flight generation when the transcript is cleared (M6)', () => {

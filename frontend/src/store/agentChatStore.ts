@@ -38,6 +38,12 @@ function invalidateProjectQueries(projectId?: string): void {
 
 // Each thread load owns a monotonically increasing token. A late response must
 // never replace the transcript selected after it started.
+// Bumped whenever the transcript is wiped (clearMessages/newThread).
+// confirmAction captures it and refuses to restore its card if the wipe
+// happened while its stream was in flight — the abort path would otherwise
+// re-insert a confirmation into a thread the user just cleared.
+let transcriptEpoch = 0;
+
 let threadLoadEpoch = 0;
 
 // Identity for the in-flight thread-list fetch. Module scope, unique token
@@ -466,6 +472,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
             state.messages[existingIdx].content = '';
             state.messages[existingIdx].isStreaming = true;
             state.messages[existingIdx].isError = false;
+            // The abandoned SSE attempt may have produced citations, a plan
+            // and tool executions. The durable answer replaces the text only,
+            // so leaving them attached showed the new answer with the old
+            // attempt's sources and permanently 'running' tools.
+            state.messages[existingIdx].citations = undefined;
+            state.messages[existingIdx].plan = undefined;
+            state.messages[existingIdx].toolExecutions = undefined;
             return;
           }
           state.messages.push({
@@ -691,6 +704,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
       // message" — the user can switch threads mid-confirm, and the newly
       // visible thread's last assistant message would then belong to a
       // different conversation entirely (cross-thread corruption).
+      const confirmEpoch = transcriptEpoch;
       const confirmThreadId = pendingConfirmation.threadId;
       const targetMessageId = pendingConfirmation.assistantMessageId;
       // The thread-id clause is defense-in-depth: today every thread switch
@@ -1017,8 +1031,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
 
           // Falling off the loop end left isConfirming/isStreaming true with a
           // live controller: spinner forever, composer locked, Stop aborting a
-          // dead controller. Surface the timeout and restore the card so the
-          // action stays retryable.
+          // dead controller. Surface the timeout and release the composer.
+          // The card is NOT restored: the decision already consumed its wait
+          // token server-side, so Approve would fail on every click.
           if (!isCurrentGeneration()) return;
           set((state) => {
             const idx = state.messages.findIndex(
@@ -1032,7 +1047,6 @@ export const useAgentChatStore = create<AgentChatStore>()(
             }
             state.isStreaming = false;
             state.isConfirming = false;
-            state.pendingConfirmations[threadId] = pendingConfirmation;
             (state as unknown as AgentChatStore)._abortController = null;
           });
         } else {
@@ -1129,8 +1143,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
 
           // Falling off the loop end left isConfirming/isStreaming true with a
           // live controller: spinner forever, composer locked, Stop aborting a
-          // dead controller. Surface the timeout and restore the card so the
-          // action stays retryable.
+          // dead controller. Surface the timeout and release the composer.
+          // The card is NOT restored: the decision already consumed its wait
+          // token server-side, so Approve would fail on every click.
           if (!isCurrentGeneration()) return;
           set((state) => {
             const idx = state.messages.findIndex(
@@ -1144,7 +1159,6 @@ export const useAgentChatStore = create<AgentChatStore>()(
             }
             state.isStreaming = false;
             state.isConfirming = false;
-            state.pendingConfirmations[threadId] = pendingConfirmation;
             (state as unknown as AgentChatStore)._abortController = null;
           });
         }
@@ -1153,9 +1167,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
         // generation), its own reset already ran — don't clobber whatever
         // owns the slot now. Mirrors sendMessage's outer catch guard.
         if (abortController.signal.aborted) {
-          set((state) => {
-            state.pendingConfirmations[threadId] ??= pendingConfirmation;
-          });
+          // clearMessages/newThread abort in-flight work; restoring the card
+          // afterwards resurrected it on a thread the user just wiped.
+          if (transcriptEpoch === confirmEpoch) {
+            set((state) => {
+              state.pendingConfirmations[threadId] ??= pendingConfirmation;
+            });
+          }
           return;
         }
         set((state) => {
@@ -1221,7 +1239,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
       void get().sendMessage();
     },
 
-    clearMessages: () =>
+    clearMessages: () => {
+      transcriptEpoch += 1;
       set((state) => {
         // Nulling the controller without aborting left the generation running
         // and still owning the thread: onTrace re-set activeThreadId after the
@@ -1239,10 +1258,12 @@ export const useAgentChatStore = create<AgentChatStore>()(
         state.isConfirming = false;
         state.pendingConfirmations = {};
         state.currentPlan = null;
-      }),
+      });
+    },
 
     // Threads
-    newThread: () =>
+    newThread: () => {
+      transcriptEpoch += 1;
       set((state) => {
         threadLoadEpoch += 1;
         // A sendMessage/confirmAction generation left running against the
@@ -1260,7 +1281,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
         state.isLoadingMessages = false;
         state.isStreaming = false;
         state.isConfirming = false;
-      }),
+      });
+    },
 
     selectThread: (threadId: string) =>
       set((state) => {
