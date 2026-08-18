@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from src.core.circuit_breaker import ServiceUnavailableError as CircuitBreakerError
 from src.core.database import get_db_sync
 from src.core.dependencies import get_current_user
-from src.models.collection import CollectionDocument
+from src.models.collection import Collection, CollectionDocument
 from src.models.document import Document
 from src.models.graph import (
     BatchEntityRequest,
@@ -41,6 +41,7 @@ from src.models.graph import (
 )
 from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
 from src.models.user import User, UserRole
+from src.models.workspace import Workspace
 from src.services.knowledge_graph.knowledge_graph_service import (
     RelationshipScopeError,
     knowledge_graph_service,
@@ -81,29 +82,39 @@ def _get_org_document_ids(db, organization_id) -> List[str]:
     ]
 
 
-def _get_project_document_ids(db, organization_id, project_id: UUID) -> List[str]:
-    """Get document IDs in a specific project, intersected with org scope."""
+def _get_project_document_ids(
+    db, organization_id, user_id, project_id: UUID
+) -> List[str]:
+    """Get document IDs in a project owned by the caller and their org."""
     return [
         str(doc_id)
         for (doc_id,) in db.query(CollectionDocument.document_id)
+        .join(Collection, Collection.id == CollectionDocument.collection_id)
+        .join(Workspace, Workspace.id == Collection.workspace_id)
         .join(Document, Document.id == CollectionDocument.document_id)
         .filter(
-            CollectionDocument.collection_id == project_id,
+            Collection.id == project_id,
+            Workspace.owner_id == user_id,
+            Collection.is_deleted == False,  # noqa: E712
+            CollectionDocument.is_deleted == False,  # noqa: E712
             Document.organization_id == organization_id,
+            Document.is_deleted == False,  # noqa: E712
         )
         .all()
     ]
 
 
-def _scope_doc_ids(db, organization_id, project_id: Optional[UUID]) -> List[str]:
+def _scope_doc_ids(db, current_user: User, project_id: Optional[UUID]) -> List[str]:
     """Return the set of document IDs that bound a knowledge-graph query.
 
     Without `project_id`, scopes to the user's organization. With `project_id`,
     further narrows to documents attached to that project (still org-bound).
     """
     if project_id is None:
-        return _get_org_document_ids(db, organization_id)
-    return _get_project_document_ids(db, organization_id, project_id)
+        return _get_org_document_ids(db, current_user.organization_id)
+    return _get_project_document_ids(
+        db, current_user.organization_id, current_user.id, project_id
+    )
 
 
 def _is_neo4j_unavailable_error(error: Exception) -> bool:
@@ -285,7 +296,7 @@ def get_all_entities(
             scope_doc_ids = None
         else:
             org_scope = None
-            scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+            scope_doc_ids = _scope_doc_ids(db, current_user, project_id)
             if not scope_doc_ids:
                 return PaginatedEntitiesResponse(
                     entities=[], total=0, limit=limit, offset=offset, has_more=False
@@ -340,7 +351,7 @@ def search_entities(
             scope_doc_ids = None
         else:
             org_scope = None
-            scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+            scope_doc_ids = _scope_doc_ids(db, current_user, project_id)
             if not scope_doc_ids:
                 return []
         entities = knowledge_graph_service.search_entities(
@@ -454,7 +465,7 @@ def get_all_relationships(
 ):
     """Get all relationships with pagination and optional filtering"""
     try:
-        scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+        scope_doc_ids = _scope_doc_ids(db, current_user, project_id)
         if project_id is not None and not scope_doc_ids:
             return []
         relationships = knowledge_graph_service.get_all_relationships(
@@ -1066,7 +1077,7 @@ def get_graph_analytics(
 ):
     """Get comprehensive graph analytics"""
     try:
-        scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+        scope_doc_ids = _scope_doc_ids(db, current_user, project_id)
         if project_id is not None and not scope_doc_ids:
             return GraphAnalytics()
         analytics = knowledge_graph_service.get_graph_analytics(

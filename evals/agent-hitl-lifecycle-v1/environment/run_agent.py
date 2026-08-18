@@ -38,7 +38,7 @@ from evals.harbor_common.network import validate_network_boundary
 from evals.harbor_common.serialization import json_safe, utc_now
 
 BENCHMARK_ID = "agent-hitl-lifecycle-v1"
-SOURCE_REVISION = os.environ.get("HARBOR_SOURCE_REVISION", "")
+SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 AGENT_REVISION = SOURCE_REVISION
 
 ORG_ID = UUID("00000000-0000-4000-8000-000000000801")
@@ -113,8 +113,18 @@ async def start_application() -> tuple[asyncio.subprocess.Process, Any]:
         "8081",
         "--log-level",
         "info",
+        # Two workers to mirror the deployed multi-worker topology: the
+        # confirm/cancel/resume request may land on a different worker than
+        # the stream it targets, so cross-worker job/stream state (Redis) is
+        # actually exercised instead of silently bypassed.
+        "--workers",
+        "2",
         stdout=log_handle,
         stderr=asyncio.subprocess.STDOUT,
+        # Own process group: with --workers 2 uvicorn forks children, and
+        # killing only the parent after the escalation timeout would orphan
+        # them holding the shared port-8081 listener (codex audit on #1405).
+        start_new_session=True,
     )
     return process, log_handle
 
@@ -131,8 +141,26 @@ async def wait_for_application(process: asyncio.subprocess.Process) -> dict[str,
             try:
                 response = await client.get(f"{APP_URL}/api/v1/agent/health")
                 if response.status_code == 200:
-                    return {"ready": True, "status_code": response.status_code}
-                last_error = f"HTTP {response.status_code}"
+                    # One 200 only proves ONE worker accepted; a still-starting
+                    # or crash-looping sibling behind the shared listener would
+                    # be masked (codex audit on #1405). Require a short streak
+                    # of consecutive 200s (spread over ~1s) so both workers
+                    # have had to serve, and startup crash-loops reset it.
+                    streak = 1
+                    while streak < 4:
+                        await asyncio.sleep(0.25)
+                        try:
+                            confirm = await client.get(f"{APP_URL}/api/v1/agent/health")
+                        except (httpx.HTTPError, ValueError):
+                            break
+                        if confirm.status_code != 200:
+                            break
+                        streak += 1
+                    if streak >= 4:
+                        return {"ready": True, "status_code": 200}
+                    last_error = f"readiness streak broke at {streak}"
+                else:
+                    last_error = f"HTTP {response.status_code}"
             except (httpx.HTTPError, ValueError) as exc:
                 last_error = f"{type(exc).__name__}: {exc}"
             await asyncio.sleep(0.25)
@@ -149,8 +177,24 @@ async def stop_application(
             try:
                 await asyncio.wait_for(process.wait(), timeout=10)
             except asyncio.TimeoutError:
-                process.kill()
+                # SIGKILL the whole group — the parent alone leaves uvicorn
+                # workers orphaned on the shared listener (codex audit).
+                import os as _os
+                import signal as _signal
+
+                try:
+                    _os.killpg(process.pid, _signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
                 await process.wait()
+        # Reap any stray group members even after a clean parent exit.
+        import os as _os
+        import signal as _signal
+
+        try:
+            _os.killpg(process.pid, _signal.SIGKILL)
+        except ProcessLookupError:
+            pass
         exit_code = process.returncode
     if log_handle is not None:
         log_handle.flush()

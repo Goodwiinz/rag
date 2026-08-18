@@ -236,13 +236,14 @@ git push origin v1.0.0
 
 ### Health Checks
 
-The system provides comprehensive health endpoints:
+The system exposes two unauthenticated probe endpoints:
 
-- **Basic Health**: `GET /health`
-- **Detailed Health**: `GET /health/detailed`
-- **Component Health**: `GET /health/check/{component}`
+- **Liveness Probe**: `GET /health`
 - **Readiness Probe**: `GET /health/readiness`
-- **Liveness Probe**: `GET /health/liveness`
+
+Use authenticated service endpoints, application logs, and infrastructure
+monitoring for component diagnosis. The public probes intentionally do not
+expose dependency details.
 
 ### Metrics Collection
 
@@ -507,13 +508,17 @@ docker-compose up -d
 
 ```bash
 # Manual health check
-curl -f http://localhost:8000/health
+curl -fsS http://localhost:8000/health
 
-# Detailed health check
-curl http://localhost:8000/health/detailed | jq .
+# Dependency readiness (database and Redis)
+curl -fsS http://localhost:8000/health/readiness
 
-# Component-specific check
-curl http://localhost:8000/health/check/database
+# Authenticated component checks
+curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/workers/health
+curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/knowledge-graph/health
+
+# Diagnose remaining failures from backend logs
+docker-compose logs --tail=200 backend
 ```
 
 ## Maintenance Procedures

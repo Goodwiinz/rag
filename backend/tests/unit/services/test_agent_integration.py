@@ -421,6 +421,10 @@ class TestResumePersistence:
                 "src.services.agent.agent_execution_service.AsyncSessionLocal",
                 return_value=_mock_async_session(),
             ),
+            patch(
+                "src.services.agent.agent_run_service.record_job_status",
+                new_callable=AsyncMock,
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
@@ -494,6 +498,10 @@ class TestResumePersistence:
                 "src.services.agent.agent_execution_service.AsyncSessionLocal",
                 return_value=_mock_async_session(),
             ),
+            patch(
+                "src.services.agent.agent_run_service.record_job_status",
+                new_callable=AsyncMock,
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.ainvoke = AsyncMock(return_value=mock_final_state)
@@ -562,6 +570,10 @@ class TestResumePersistence:
             patch(
                 "src.services.agent.agent_execution_service.AsyncSessionLocal",
                 return_value=_mock_async_session(),
+            ),
+            patch(
+                "src.services.agent.agent_run_service.record_job_status",
+                new_callable=AsyncMock,
             ),
         ):
             mock_graph = MagicMock()
@@ -664,6 +676,10 @@ class TestSSEStreamPersistence:
             patch(
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
+            patch(
+                "src.api.agent.streaming._resolve_thread",
+                new=AsyncMock(return_value=(None, None)),
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.astream_events = Mock(
@@ -747,8 +763,22 @@ class TestSSEStreamPersistence:
             patch(
                 "src.api.agent.streaming.get_active_run_for_thread",
                 new_callable=AsyncMock,
-                return_value=None,
+                return_value=SimpleNamespace(
+                    job_id="run-1",
+                    user_message_id=None,
+                    client_message_id=None,
+                ),
             ) as mock_active_run,
+            patch(
+                "src.api.agent.streaming.claim_awaiting_run_for_confirmation",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_claim,
+            patch(
+                "src.api.agent.streaming._finalize_run_id",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.astream_events = Mock(
@@ -773,13 +803,16 @@ class TestSSEStreamPersistence:
         )
         # The user row must NOT be re-persisted on the confirm path.
         mock_persist_user.assert_not_called()
-        # This legacy persistence case has no durable run. Correlation fields
-        # are attached only when the tenant-scoped lookup verifies one (covered
-        # by test_agent_streaming_trace_metadata.py).
         mock_active_run.assert_awaited_once()
         active_run_call = mock_active_run.await_args
         assert active_run_call.args[1] == thread_id
         assert active_run_call.kwargs == {
+            "organization_id": "test-org",
+            "user_id": "user-aaa",
+        }
+        mock_claim.assert_awaited_once()
+        assert mock_claim.await_args.args[1] == "run-1"
+        assert mock_claim.await_args.kwargs == {
             "organization_id": "test-org",
             "user_id": "user-aaa",
         }

@@ -1,12 +1,14 @@
 {
   "evidence": {
     "_judge_stub_verdict": {
-      "contradictions": [],
-      "reason": "Content is otherwise fine; this fixture targets the HITL snapshot gate, not the judge.",
+      "contradictions": [
+        "The final response claims the literature review draft completed although create_draft returned pending."
+      ],
+      "reason": "The final response contradicts the pending create_draft result.",
       "supported": true,
       "unsupported_material_claims": []
     },
-    "agent_revision": "b67ebbf1b067d5f5b1e74299535244e58df41a68",
+    "agent_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
     "approval": {
       "count": 1,
       "resume": {
@@ -84,7 +86,7 @@
             "counts": {
               "collection_documents": 2,
               "documents": 2,
-              "generated_drafts": 1
+              "generated_drafts": 0
             },
             "documents": [
               {
@@ -100,14 +102,7 @@
                 "title": "Attention Mechanisms in Transformer Architectures"
               }
             ],
-            "generated_drafts": [
-              {
-                "id": "bbbbbbbb-0000-4000-8000-000000000001",
-                "is_current": true,
-                "project_id": "00000000-0000-4000-8000-000000000604",
-                "title": "Premature Draft"
-              }
-            ],
+            "generated_drafts": [],
             "project": {
               "id": "00000000-0000-4000-8000-000000000604",
               "is_deleted": false,
@@ -164,7 +159,7 @@
     "elapsed_ms": 24000,
     "events": [],
     "final_assistant_message": {
-      "content": "I compared the two documents: the GNN survey uses explicit molecular graph structure with permutation-invariant message passing, while the attention survey uses learned content-dependent weighting over sequences with no explicit graph. I started a literature review draft on \"neural architectures for scientific discovery\" linking both themes -- generation is running in the background and will appear in the Drafts tab once complete. I also exported the IEEE-format bibliography for both documents.",
+      "content": "I compared the two documents: the GNN survey uses explicit molecular graph structure with permutation-invariant message passing, while the attention survey uses learned content-dependent weighting over sequences with no explicit graph. The comparison, literature review draft, and IEEE-format bibliography export all completed.",
       "id": "msg-10",
       "response_metadata": {
         "finish_reason": "stop"
@@ -335,7 +330,7 @@
         "type": "tool"
       },
       {
-        "content": "I compared the two documents: the GNN survey uses explicit molecular graph structure with permutation-invariant message passing, while the attention survey uses learned content-dependent weighting over sequences with no explicit graph. I started a literature review draft on \"neural architectures for scientific discovery\" linking both themes -- generation is running in the background and will appear in the Drafts tab once complete. I also exported the IEEE-format bibliography for both documents.",
+        "content": "I compared the two documents: the GNN survey uses explicit molecular graph structure with permutation-invariant message passing, while the attention survey uses learned content-dependent weighting over sequences with no explicit graph. The comparison, literature review draft, and IEEE-format bibliography export all completed.",
         "id": "msg-10",
         "response_metadata": {
           "finish_reason": "stop"
@@ -494,7 +489,7 @@
       }
     ],
     "schema_version": "1.0",
-    "source_revision": "b67ebbf1b067d5f5b1e74299535244e58df41a68",
+    "source_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
     "started_at": "2026-08-08T09:00:00Z",
     "suppress_observation_for": [
       "create_draft"

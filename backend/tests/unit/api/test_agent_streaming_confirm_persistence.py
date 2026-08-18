@@ -23,7 +23,25 @@ def _reset_compiled_graph_cache():
     import src.api.agent.streaming as mod
 
     mod._COMPILED_GRAPH = None
-    yield
+    with (
+        patch(
+            "src.api.agent.streaming.get_active_run_for_thread",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    job_id="run-1", user_message_id=None, client_message_id=None
+                )
+            ),
+        ),
+        patch(
+            "src.api.agent.streaming.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.api.agent.streaming._finalize_run_id",
+            new=AsyncMock(return_value=True),
+        ),
+    ):
+        yield
     mod._COMPILED_GRAPH = None
 
 
@@ -115,9 +133,7 @@ async def test_confirm_persists_only_assistant_row_not_user_row():
             new=AsyncMock(return_value=None),
         ),
     ):
-        async for _ in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for _ in stream_confirm_event_generator(body, request, current_user):
             pass
 
     persist_mock.assert_awaited_once()
@@ -137,9 +153,9 @@ async def test_confirm_derives_idempotent_assistant_cmid_from_user_row():
     """A double-confirm must hit the assistant partial unique index. The
     resumed turn has no fresh cmid, so the assistant key is derived (uuid5)
     from the original user row's client_message_id."""
-    from src.api.agent.streaming import stream_confirm_event_generator
-
     import uuid as _uuid
+
+    from src.api.agent.streaming import stream_confirm_event_generator
 
     user_cmid = "22222222-2222-2222-2222-222222222222"
     expected_assistant_cmid = str(
@@ -197,9 +213,7 @@ async def test_confirm_derives_idempotent_assistant_cmid_from_user_row():
             new=AsyncMock(return_value=user_cmid),
         ),
     ):
-        async for _ in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for _ in stream_confirm_event_generator(body, request, current_user):
             pass
 
     kwargs = persist_mock.await_args.kwargs
@@ -207,7 +221,13 @@ async def test_confirm_derives_idempotent_assistant_cmid_from_user_row():
 
 
 @pytest.mark.asyncio
-async def test_confirm_done_carries_assistant_message_id_in_canonical_mode():
+@pytest.mark.parametrize(
+    ("persisted_id", "terminal_event"),
+    [("assistant-msg-1", "done"), (None, "error")],
+)
+async def test_confirm_canonical_completion_requires_persisted_assistant(
+    persisted_id, terminal_event
+):
     """In canonical mode the done event must carry assistant_message_id so
     the client can reconcile its optimistic bubble (legacy mode omits it)."""
     from src.api.agent.streaming import stream_confirm_event_generator
@@ -257,7 +277,7 @@ async def test_confirm_done_carries_assistant_message_id_in_canonical_mode():
         ),
         patch(
             "src.services.agent.agent_execution_service._persist_assistant_message_safe",
-            new=AsyncMock(return_value="assistant-msg-1"),
+            new=AsyncMock(return_value=persisted_id),
         ),
         patch(
             "src.api.agent.streaming._latest_user_client_message_id",
@@ -269,12 +289,13 @@ async def test_confirm_done_carries_assistant_message_id_in_canonical_mode():
         ),
     ):
         events = []
-        async for event in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
-    done_events = [e for e in events if "event: done" in e]
-    assert len(done_events) == 1
-    assert "assistant_message_id" in done_events[0]
-    assert "assistant-msg-1" in done_events[0]
+    terminal_events = [e for e in events if f"event: {terminal_event}" in e]
+    assert len(terminal_events) == 1
+    if persisted_id is None:
+        assert not [e for e in events if "event: done" in e]
+    else:
+        assert "assistant_message_id" in terminal_events[0]
+        assert persisted_id in terminal_events[0]

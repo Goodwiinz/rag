@@ -2,7 +2,11 @@ import { api } from '@/services/api-client';
 import { createClient } from '@/lib/supabase/client';
 import { getPublicApiBaseUrl } from '@/utils/publicEndpoints';
 import { parseErrorBody } from '@/utils/parseErrorBody';
-import { parseAgentErrorCategory } from '@/services/agentStreamEvents';
+import {
+  parseAgentErrorCategory,
+  TERMINAL_STREAM_EVENTS,
+} from '@/services/agentStreamEvents';
+import type { components } from '@/types/generated/api';
 import type {
   AgentErrorCategory,
   AgentStreamEvent,
@@ -33,7 +37,9 @@ function httpFailureCategory(status: number): AgentErrorCategory | undefined {
   return undefined;
 }
 
-function agentStreamUrl(path: 'stream' | 'stream/confirm'): string {
+function agentStreamUrl(
+  path: 'stream' | 'stream/confirm' | `stream/cancel/${string}`
+): string {
   const base = getPublicApiBaseUrl('/api/v1').replace(/\/$/, '');
   return `${base}/agent/${path}`;
 }
@@ -90,6 +96,10 @@ export interface AgentStreamCallbacks {
   /** Fires for every frame carrying an `id: <seq>` line — the resumable-SSE
    * cursor. Persist the latest value to resume after a disconnect. */
   onSeq?: (seq: number) => void;
+  /** Fires for every enveloped frame carrying a `stream_id` — the run the
+   * seq cursor belongs to. Persist alongside the cursor and pass it to
+   * resumeStream so a stale cursor can't attach to a newer run. */
+  onStreamId?: (streamId: string) => void;
   onDone?: (payload?: {
     thread_id?: string;
     assistant_message_id?: string | null;
@@ -99,8 +109,9 @@ export interface AgentStreamCallbacks {
     tool_executions?: Array<Record<string, unknown>>;
   }) => void;
   /**
-   * Fired for a server `error` frame AND for the HTTP-level failures this
-   * service synthesizes (non-2xx before the stream opens).
+   * Fired for a server `error` frame and for HTTP-level failures on new or
+   * confirmation streams. Resume transport failures return AgentResumeResult
+   * instead so callers can keep the run retryable.
    *
    * `category` is the SERVER's claim about the cause when it came off an
    * `error` frame; for a synthesized HTTP failure it is derived client-side
@@ -109,6 +120,15 @@ export interface AgentStreamCallbacks {
    */
   onError?: (error: string, category?: AgentErrorCategory) => void;
 }
+
+export type AgentResumeResult =
+  | { status: 'resumed' }
+  | { status: 'idle' }
+  | { status: 'aborted' }
+  | { status: 'failed'; error: string };
+
+const INCOMPLETE_STREAM_ERROR =
+  'Stream ended before completion. Please retry.';
 
 /** Read the backend's error body so the user sees the real cause, not just
  * an HTTP number. The backend returns the structured envelope
@@ -168,15 +188,24 @@ export const HANDLED_STREAM_EVENTS: ReadonlySet<AgentStreamEvent> = new Set([
 async function consumeSse(
   response: Response,
   callbacks: AgentStreamCallbacks
-): Promise<void> {
+): Promise<boolean> {
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   let eventType = '';
+  let terminalSeen = false;
 
   const dispatchData = (ev: string, dataLine: string): void => {
     try {
       const data = JSON.parse(dataLine.slice(6));
+      if (TERMINAL_STREAM_EVENTS.has(ev as AgentStreamEvent)) {
+        terminalSeen = true;
+      }
+      // Run-correlation id from the stream envelope (additive field): echoed
+      // back on /stream/resume so a stale cursor can't attach to a newer run.
+      if (typeof data.stream_id === 'string') {
+        callbacks.onStreamId?.(data.stream_id);
+      }
       switch (ev) {
         case 'token':
           callbacks.onToken?.(data.content);
@@ -284,33 +313,22 @@ async function consumeSse(
       }
     }
   } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') return;
+    if (err instanceof DOMException && err.name === 'AbortError') return false;
     throw err;
   } finally {
     reader.releaseLock();
   }
+  return terminalSeen;
 }
 
-export interface AgentExecuteRequest {
-  messages: Array<{
-    role: string;
-    content: string;
-    /** Idempotency key for the user turn (server-canonical persistence). */
-    client_message_id?: string;
-  }>;
-  page_context: {
-    type: string;
-    project_id?: string;
-    metadata?: Record<string, unknown>;
-  };
-  model?: string;
-  use_rag?: boolean;
-  max_context_docs?: number;
-  thread_id?: string;
-  /** Edit-and-resend only: the `client_message_id` of the user turn being
-   * edited. The server tombstones that turn and everything after it. */
-  supersedes_client_message_id?: string;
-}
+type GeneratedAgentExecuteRequest =
+  components['schemas']['AgentExecuteRequest'];
+export type AgentExecuteRequest = Pick<
+  GeneratedAgentExecuteRequest,
+  'messages'
+> &
+  Partial<Omit<GeneratedAgentExecuteRequest, 'messages'>>;
+type StreamConfirmRequest = components['schemas']['StreamConfirmRequest'];
 
 export interface AgentExecuteResponse {
   message: {
@@ -500,7 +518,10 @@ class AgentChatService {
       return;
     }
 
-    await consumeSse(response, callbacks);
+    const terminalSeen = await consumeSse(response, callbacks);
+    if (!terminalSeen && !signal?.aborted) {
+      callbacks.onError?.(INCOMPLETE_STREAM_ERROR);
+    }
   }
 
   /**
@@ -514,12 +535,18 @@ class AgentChatService {
     threadId: string,
     afterSeq: number,
     callbacks: AgentStreamCallbacks,
-    signal?: AbortSignal
-  ): Promise<{ resumed: boolean }> {
+    signal?: AbortSignal,
+    streamId?: string
+  ): Promise<AgentResumeResult> {
     const base = getPublicApiBaseUrl('/api/v1').replace(/\/$/, '');
+    // `stream` pins the cursor to the run it was read from — the backend
+    // answers 204 instead of replaying a newer run's frames against it.
+    const streamParam = streamId
+      ? `&stream=${encodeURIComponent(streamId)}`
+      : '';
     const url = `${base}/agent/stream/resume/${encodeURIComponent(
       threadId
-    )}?after=${afterSeq}`;
+    )}?after=${afterSeq}${streamParam}`;
     const headers = new Headers(await getStreamAuthHeaders());
     headers.set('Last-Event-ID', String(afterSeq));
 
@@ -528,31 +555,45 @@ class AgentChatService {
       response = await fetch(url, { method: 'GET', headers, signal });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
-        return { resumed: false };
+        return { status: 'aborted' };
       }
-      throw err;
+      return {
+        status: 'failed',
+        error: err instanceof Error ? err.message : 'Stream resume failed',
+      };
     }
 
     if (response.status === 204) {
-      return { resumed: false };
+      return { status: 'idle' };
     }
     if (!response.ok || !response.body) {
       const backendMessage = await readErrorBody(response);
-      callbacks.onError?.(
-        backendMessage
+      return {
+        status: 'failed',
+        error: backendMessage
           ? `Stream resume failed (${response.status}): ${backendMessage}`
           : `Stream resume failed: ${response.status}`,
-        httpFailureCategory(response.status)
-      );
-      return { resumed: false };
+      };
     }
 
-    await consumeSse(response, callbacks);
-    return { resumed: true };
+    try {
+      const terminalSeen = await consumeSse(response, callbacks);
+      if (!terminalSeen) {
+        if (signal?.aborted) return { status: 'aborted' };
+        return { status: 'failed', error: INCOMPLETE_STREAM_ERROR };
+      }
+    } catch (err) {
+      return {
+        status: 'failed',
+        error: err instanceof Error ? err.message : 'Stream resume failed',
+      };
+    }
+    if (signal?.aborted) return { status: 'aborted' };
+    return { status: 'resumed' };
   }
 
   async streamConfirm(
-    request: { thread_id: string; confirmed: boolean },
+    request: StreamConfirmRequest,
     callbacks: AgentStreamCallbacks,
     signal?: AbortSignal
   ): Promise<void> {
@@ -582,8 +623,28 @@ class AgentChatService {
       return;
     }
 
-    await consumeSse(response, callbacks);
+    const terminalSeen = await consumeSse(response, callbacks);
+    if (!terminalSeen && !signal?.aborted) {
+      callbacks.onError?.(INCOMPLETE_STREAM_ERROR);
+    }
   }
+
+  async cancelPendingConfirmation(threadId: string): Promise<void> {
+    const headers = await getStreamAuthHeaders();
+    const response = await fetch(
+      agentStreamUrl(`stream/cancel/${encodeURIComponent(threadId)}`),
+      { method: 'POST', headers }
+    );
+    if (!response.ok) {
+      const backendMessage = await readErrorBody(response);
+      throw new Error(
+        backendMessage
+          ? `Stream cancellation failed (${response.status}): ${backendMessage}`
+          : `Stream cancellation failed: ${response.status}`
+      );
+    }
+  }
+
   async startDurableRun(
     request: AgentExecuteRequest
   ): Promise<{ runId: string }> {

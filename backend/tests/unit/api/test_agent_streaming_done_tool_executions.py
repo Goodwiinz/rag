@@ -63,7 +63,7 @@ async def test_done_frame_carries_tool_executions():
     from src.api.agent.streaming import stream_event_generator
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-123")
+    body = make_stream_request(thread_id="11111111-1111-1111-1111-111111111701")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (

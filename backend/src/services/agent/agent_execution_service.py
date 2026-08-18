@@ -44,8 +44,10 @@ logger = logging.getLogger(__name__)
 # All writes go through ``job_store.set_job()`` (async) or the
 # ``_set_job`` sync wrapper which sprays to both L1 and Redis.
 
+from src.services.agent import job_store as _job_store
 from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent.agent_run_service import get_run
+from src.services.agent.job_store import _is_newer_or_equal
 from src.services.agent.job_store import _l1 as _jobs
 from src.services.agent.job_store import _l1_lock as _jobs_lock
 from src.services.agent.job_store import _write_to_redis_only
@@ -141,7 +143,21 @@ def _set_job(job_id: str, data: dict):
             and existing.get("organization_id")
         ):
             data["organization_id"] = existing["organization_id"]
-        _jobs[job_id] = data
+        # Monotonic guard (L11): callers of this sync path (execute.py) only
+        # ever write the FIRST record for a job, so `existing` is normally
+        # None and this is a no-op — but without it, this write is an
+        # unconditional stomp of whatever L1 currently holds, including a
+        # newer record another worker wrote to Redis and this process just
+        # folded in (job_store.get_job/get_job_fresh, under this same guard).
+        # `_seq` must be job_store's own counter, not a local copy: `from
+        # job_store import _seq` binds the value at import time and would
+        # never see later increments, so this writer and job_store.set_job
+        # would each hand out colliding sequence numbers instead of sharing
+        # one order.
+        _job_store._seq += 1
+        data["_seq"] = _job_store._seq
+        if existing is None or _is_newer_or_equal(data, existing):
+            _jobs[job_id] = data
 
     # Durable projection (fire-and-forget; Redis stays authoritative). Has its
     # own no-running-loop guard, so it is safe outside the try below.
@@ -299,15 +315,16 @@ def _seed_message_id(thread_id: str, row: Any) -> str:
     return str(_uuid.uuid5(_uuid.NAMESPACE_URL, f"{thread_id}:{row.id}"))
 
 
+_THREAD_SEED_MESSAGE_LIMIT = 40
+
+
 async def build_thread_seed_messages(db: AsyncSession, thread_id: str) -> List[Any]:
     """Rebuild a thread's conversation from the DB as LangGraph messages.
 
-    Seeds the checkpoint (Option B) when it has no history of its own — a fresh
-    thread, a lost in-memory checkpoint, or a legacy/non-agent thread. User rows
-    become HumanMessages and assistant rows become plain-content AIMessages (no
-    tool_call replay, which the prompt path does not need). Ordered by
-    created_at; ids are deterministic so a later reseed converges via the
-    id-keyed reducer instead of duplicating turns.
+    Seeds the latest 40 rows when the checkpoint has no history of its own.
+    User rows become HumanMessages and assistant rows become plain-content
+    AIMessages (no tool_call replay, which the prompt path does not need).
+    Ordered by created_at; deterministic ids make later reseeds converge.
     """
     from uuid import UUID
 
@@ -321,15 +338,21 @@ async def build_thread_seed_messages(db: AsyncSession, thread_id: str) -> List[A
     except (ValueError, TypeError, AttributeError):
         return []
 
+    recent_message_ids = (
+        select(ChatMessage.id)
+        .where(
+            ChatMessage.thread_id == tid,
+            ChatMessage.superseded_by_message_id.is_(None),
+        )
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+        .limit(_THREAD_SEED_MESSAGE_LIMIT)
+    )
     rows = (
         (
             await db.execute(
                 select(ChatMessage)
                 .where(
-                    ChatMessage.thread_id == tid,
-                    # Model-visible reseed: a superseded turn must not come
-                    # back into context through the DB rebuild.
-                    ChatMessage.superseded_by_message_id.is_(None),
+                    ChatMessage.id.in_(recent_message_ids),
                 )
                 .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
             )
@@ -550,6 +573,44 @@ async def _detect_dualstore_divergence(
         pass
 
 
+# Seed lock (codex audit CX2): SET NX with a TTL well above a seed's couple of
+# DB reads; the TTL bounds the harm of a crashed winner. Plain DELETE release —
+# best-effort correctness only, the graph itself stays the source of truth.
+_SEED_LOCK_TTL_MS = 15_000
+
+
+def _seed_lock_key(thread_id: str) -> str:
+    return f"agent:seed:lock:{thread_id}"
+
+
+async def _acquire_seed_lock(thread_id: str) -> bool:
+    """Best-effort cross-worker seed lock. False = held elsewhere or no Redis."""
+    try:
+        from src.services.agent.job_store import get_redis
+
+        redis = await get_redis()
+        if redis is None:
+            return True  # no Redis → cannot coordinate; pre-lock behavior
+        return bool(
+            await redis.set(
+                _seed_lock_key(thread_id), "1", nx=True, px=_SEED_LOCK_TTL_MS
+            )
+        )
+    except Exception:
+        return True  # lock must never block a turn
+
+
+async def _release_seed_lock(thread_id: str) -> None:
+    try:
+        from src.services.agent.job_store import get_redis
+
+        redis = await get_redis()
+        if redis is not None:
+            await redis.delete(_seed_lock_key(thread_id))
+    except Exception:
+        pass  # TTL reaps it
+
+
 async def build_graph_input_messages(
     db: AsyncSession,
     graph: Any,
@@ -594,30 +655,76 @@ async def build_graph_input_messages(
         return [newest]
 
     # count == 0: the checkpoint is genuinely empty → rebuild from the DB.
-    seed = await build_thread_seed_messages(db, thread_id)
-    if not seed:
-        # Empty checkpoint AND empty DB (brand-new / unresolved thread, or a
-        # swallowed persist): fall back to the request's newest turn.
-        return [newest]
+    # Serialize concurrent seeders (codex audit CX2): two simultaneous
+    # first-turns can both read count == 0 and both seed. The Redis lock is
+    # best-effort — the loser waits for the winner, re-reads the count, and
+    # appends only its newest turn once the checkpoint is populated. No Redis
+    # (or lock timeout) degrades to the old race, never to a lost turn.
+    got_lock = await _acquire_seed_lock(thread_id)
+    try:
+        if not got_lock:
+            for _ in range(20):  # ≤ ~2s — seeding is a couple of DB reads
+                await asyncio.sleep(0.1)
+                recheck = await _checkpoint_human_count(graph, thread_id)
+                if recheck is not None and recheck > 0:
+                    return [newest]
+                if await _acquire_seed_lock(thread_id):
+                    got_lock = True
+                    break
+            # Winner died or is slow: proceed unlocked (pre-lock behavior).
 
-    # Ensure the newest turn survives even if its persist was swallowed; normally
-    # it's already in the seed (same client_message_id), so append only if missing.
-    if not _seed_has_id(seed, newest.id):
-        seed.append(newest)
-    return seed
+        seed = await build_thread_seed_messages(db, thread_id)
+        if not seed:
+            # Empty checkpoint AND empty DB (brand-new / unresolved thread, or
+            # a swallowed persist): fall back to the request's newest turn.
+            return [newest]
+
+        # Ensure the newest turn survives even if its persist was swallowed;
+        # normally it's already in the seed (same client_message_id), so
+        # append only if missing.
+        if not _seed_has_id(seed, newest.id):
+            seed.append(newest)
+        return seed
+    finally:
+        if got_lock:
+            await _release_seed_lock(thread_id)
 
 
 def build_user_history_messages(messages: List[Any], thread_id: str) -> List[Any]:
-    """Rebuild resent request history into HumanMessages with *deterministic* ids.
+    """LAST-RESORT fallback: rebuild resent request history into HumanMessages
+    with deterministic-where-possible ids.
 
-    The /chat client resends the FULL conversation each turn. LangGraph's
-    ``add_messages`` reducer dedupes only by message ``.id`` — a HumanMessage
-    built with no id gets a fresh random id every request, so the reducer sees
-    each prior turn as new and re-appends the whole history into the checkpoint
-    (quadratic growth the compactor never prunes). Anchor each user turn to a
-    stable id — the client idempotency key when present, else a derivation over
-    (thread_id, position) — so a resent history no-ops in the reducer and only
-    the new turn appends.
+    Audit review on PR #1395 (Codex, live trace e3c56cef 2026-08-11) confirmed
+    a v1 of this fix that derived every id from (thread_id, position) is
+    UNSOUND: the ``/chat`` client resends only a windowed page of a long
+    thread (e.g. the initial 50-message page), not the full conversation from
+    turn 1 — so the index of a resent message is the index WITHIN THE WINDOW,
+    not its absolute position in the thread. A later window (turns 11-60)
+    replays the same indices (0-49) as an earlier one (turns 1-50), so a
+    purely positional id silently REPLACES an unrelated older checkpoint
+    message in place (``add_messages`` is an id-keyed upsert) — worse than the
+    2x duplication this was meant to fix. This exact failure mode was already
+    identified and rejected as "B1" in prior research (see memory
+    project_langgraph_history_pattern.md): "adopt Option B ... supersedes B1's
+    position-id scheme" — position-based ids are only sound for a client that
+    resends the FULL untrimmed history, which this one does not.
+
+    ``build_graph_input_messages`` (Option B, above) is therefore the primary,
+    checkpoint-authoritative path and runs unconditionally (see call sites) —
+    it never re-derives ids for resent history at all: a populated checkpoint
+    gets only the newest turn (keyed on its client_message_id) appended, and
+    an empty one is seeded from the DB by row identity. This function is only
+    reached when Option B declines (the newest turn carries no
+    client_message_id) or a DB/checkpoint read fails — restored to its
+    original, pre-audit behavior: prefer client_message_id when present, else
+    a (thread_id, position) fallback. That positional fallback still carries
+    the same windowing risk described above, but only in this now-rare
+    fallback; the alternative (inventing a safer id here) needs checkpoint
+    access this sync helper doesn't have. Per review guidance, a bounded
+    duplicate (the pre-audit 2x growth) is accepted here over risking silent
+    in-place corruption of unrelated history — closing this fallback for good
+    needs either a frontend change (resend client_message_id per history
+    item, not just the newest) or leaning fully on Option B.
     """
     from langchain_core.messages import HumanMessage
 
@@ -1480,7 +1587,9 @@ async def _persist_user_message(
     from sqlalchemy.dialects.postgresql import insert
 
     from src.models.chat_message import ChatMessage, MessageRole
+    from src.models.message_attachment import MessageAttachment
     from src.models.thread import Thread
+    from src.services.threads import workspace_access
 
     if request.thread_id is None:
         return False
@@ -1510,18 +1619,25 @@ async def _persist_user_message(
             index_where=text("client_message_id IS NOT NULL AND role = 'user'"),
         )
     )
-    if supersedes is not None:
-        # RETURNING is only added on the edit path: the tombstone UPDATE needs
-        # the replacement row's PK, and ON CONFLICT DO NOTHING ... RETURNING
-        # yields exactly one row when inserted and zero when deduped — the same
-        # signal ``rowcount`` carries, without disturbing the hot path.
+    attachment_ids = list(getattr(request, "attachment_ids", None) or [])
+    # RETURNING is added only for the paths that need the row's PK: the
+    # tombstone UPDATE needs the replacement's id, and attachments need a
+    # parent to hang off. ON CONFLICT DO NOTHING ... RETURNING yields exactly
+    # one row when inserted and zero when deduped — the same signal
+    # ``rowcount`` carries, without disturbing the hot path.
+    needs_row_id = supersedes is not None or bool(attachment_ids)
+    if needs_row_id:
         stmt = stmt.returning(ChatMessage.id)
 
     result = await db.execute(stmt)
     tombstoned_count = 0
-    if supersedes is not None:
+    new_row_id = None
+    if needs_row_id:
         new_row_id = result.scalar_one_or_none()
         inserted = new_row_id is not None
+    else:
+        inserted = result.rowcount == 1
+    if supersedes is not None:
         tombstoned_count = await apply_edit_resend_tombstones(
             db,
             current_user,
@@ -1531,8 +1647,15 @@ async def _persist_user_message(
             inserted_row_id=new_row_id,
             tombstoned_out=tombstoned_out,
         )
-    else:
-        inserted = result.rowcount == 1
+    # Attach only to a row this call actually inserted. On an SSE retry the
+    # insert dedups and new_row_id is None, so the attachments are not written
+    # twice against the turn that already owns them.
+    if attachment_ids and new_row_id is not None:
+        owned_ids = await workspace_access.filter_owned_document_ids(
+            db, attachment_ids, current_user.id
+        )
+        for doc_id in owned_ids:
+            db.add(MessageAttachment(message_id=new_row_id, document_id=doc_id))
     if inserted or tombstoned_count:
         thread = await db.get(Thread, UUID(request.thread_id))
         if thread is not None:
@@ -1715,14 +1838,16 @@ async def _persist_assistant_message(
     stopped: bool = False,
     client_message_id: Optional[str] = None,
     plan: Optional[list] = None,
+    plan_reasoning: Optional[str] = None,
     token_usage: Optional[dict] = None,
 ) -> Optional[str]:
     """Insert the assistant turn and bump ``thread.message_count`` by 1.
 
-    ``plan`` (planner steps) and ``token_usage``
+    ``plan`` (planner steps), ``plan_reasoning`` (the planner's top-level
+    rationale for ``plan``), and ``token_usage``
     ({input_tokens, output_tokens}) are per-turn provenance persisted as
-    JSONB so a page reload can rehydrate them; pass ``None`` when the turn
-    produced neither (they stay NULL, not empty containers).
+    JSONB/text so a page reload can rehydrate them; pass ``None`` when the
+    turn produced none of them (they stay NULL, not empty containers).
 
     Commits independently of ``_persist_user_message``. A failure here
     after a successful user-row commit leaves the user message durable
@@ -1773,6 +1898,7 @@ async def _persist_assistant_message(
         stopped=stopped,
         client_message_id=client_message_id,
         plan=plan,
+        plan_reasoning=plan_reasoning,
         token_usage=token_usage,
     )
 
@@ -1865,21 +1991,24 @@ async def _persist_assistant_message_safe(
     stopped: bool = False,
     client_message_id: Optional[str] = None,
     plan: Optional[list] = None,
+    plan_reasoning: Optional[str] = None,
     token_usage: Optional[dict] = None,
+    required: bool = False,
 ) -> Optional[str]:
     """Background-task-safe wrapper around ``_persist_assistant_message``.
 
     Opens its own ``AsyncSessionLocal()`` so it doesn't depend on the
     request session being alive — by the time FastAPI runs background
     tasks the original streaming session has already been closed.
-    Swallows + logs any exception so a background-task failure can't
-    crash the worker, and bumps
+    Swallows + logs exceptions for best-effort background writes. Callers that
+    cannot report success without the row pass ``required=True`` and receive
+    the failure after the metric is recorded. Bumps
     ``agent_assistant_persist_failures_total`` on failure so dashboards
     surface silently-lost assistant rows.
     """
     try:
         async with AsyncSessionLocal() as db:
-            return await _persist_assistant_message(
+            persisted_id = await _persist_assistant_message(
                 db,
                 thread_id=thread_id,
                 content=content,
@@ -1890,8 +2019,12 @@ async def _persist_assistant_message_safe(
                 stopped=stopped,
                 client_message_id=client_message_id,
                 plan=plan,
+                plan_reasoning=plan_reasoning,
                 token_usage=token_usage,
             )
+            if required and persisted_id is None:
+                raise RuntimeError("Assistant message persistence returned no id")
+            return persisted_id
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "Background assistant persist failed for thread %s: %s",
@@ -1909,6 +2042,9 @@ async def _persist_assistant_message_safe(
             # Metrics path is best-effort: never let a bookkeeping
             # failure mask the real error (already logged above).
             pass
+        if required:
+            raise
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -2082,6 +2218,7 @@ async def _run_agent_graph(
                 "retrieved_contexts": [],
                 "tool_executions": [],
                 "thread_id": request.thread_id or "",
+                "turn_index": 0,
                 "tool_loop_count": 0,
                 "error_count": 0,
                 "last_error": "",
@@ -2091,6 +2228,7 @@ async def _run_agent_graph(
                 "user_memories": [],
                 "project_memories": project_memories,
                 "plan": [],
+                "plan_reasoning": "",
                 "reflection_count": 0,
                 "compaction_count": 0,
                 "intent_confidence": 0.0,
@@ -2138,6 +2276,17 @@ async def _run_agent_graph(
                 # HumanMessage cannot resume an interrupt, so re-firing the
                 # old one would block this turn forever.
                 await _clear_stale_pending_confirmation(graph, config)
+
+                # Everything the graph needs is already materialized into
+                # initial_state/config above — commit now (cheap: a read-only
+                # txn end) so the up-to-360s ainvoke below doesn't pin this
+                # session's pooled connection for the run's duration (audit
+                # M9). `db` stays open (not closed) because the post-ainvoke
+                # block below still uses it; safe because AsyncSessionLocal is
+                # expire_on_commit=False (database.py), so thread_obj and
+                # other already-loaded attributes stay readable without a
+                # fresh round-trip.
+                await db.commit()
 
                 async with asyncio.timeout(360):
                     final_state = await graph.ainvoke(initial_state, config=config)
@@ -2212,13 +2361,14 @@ async def _run_agent_graph(
                     _job_in_tok, _job_out_tok = _sum_message_usage(
                         final_state.get("messages")
                     )
-                    await _persist_assistant_message_safe(
+                    persisted_assistant_id = await _persist_assistant_message_safe(
                         thread_id=thread_id,
                         content=assistant_content,
                         model_name=request.model,
                         tool_executions_out=tool_executions_out,
                         retrieved_contexts=final_state.get("retrieved_contexts"),
                         plan=final_state.get("plan") or None,
+                        plan_reasoning=final_state.get("plan_reasoning") or None,
                         token_usage=(
                             {
                                 "input_tokens": _job_in_tok,
@@ -2227,9 +2377,15 @@ async def _run_agent_graph(
                             if (_job_in_tok or _job_out_tok)
                             else None
                         ),
+                        required=True,
                     )
+                    if persisted_assistant_id is None:
+                        raise RuntimeError(
+                            "Assistant message persistence returned no id"
+                        )
             except Exception as e:
                 logger.warning("Failed to persist thread", exc_info=e)
+                raise
 
             response_model_name: str = getattr(request, "model", "") or ""
             # Token cost on the job path (the SSE path records its own). Reads
@@ -2482,6 +2638,11 @@ async def _resume_agent_graph(
                 ),
             )
 
+            # See the parallel commit in _run_agent_graph above (audit M9) —
+            # get_run() above is a bare SELECT, so without this the session
+            # holds its pooled connection through the whole confirm run.
+            await db.commit()
+
             async with asyncio.timeout(360):
                 final_state = await graph.ainvoke(
                     Command(resume={"confirmed": confirmed}),
@@ -2567,13 +2728,14 @@ async def _resume_agent_graph(
                             if resume_ckpt_id
                             else None
                         )
-                        await _persist_assistant_message_safe(
+                        persisted_assistant_id = await _persist_assistant_message_safe(
                             thread_id=thread_id,
                             content=assistant_content,
                             model_name=original_request.model,
                             tool_executions_out=tool_executions_out,
                             retrieved_contexts=final_state.get("retrieved_contexts"),
                             plan=final_state.get("plan") or None,
+                            plan_reasoning=final_state.get("plan_reasoning") or None,
                             token_usage=(
                                 {
                                     "input_tokens": in_tok,
@@ -2583,11 +2745,17 @@ async def _resume_agent_graph(
                                 else None
                             ),
                             client_message_id=assistant_cmid,
+                            required=True,
                         )
+                        if persisted_assistant_id is None:
+                            raise RuntimeError(
+                                "Assistant message persistence returned no id"
+                            )
             except Exception as e:
                 logger.warning(
                     "Failed to persist confirmation thread messages", exc_info=e
                 )
+                raise
 
             response_model_name: str = (
                 getattr(original_request, "model", "") if original_request else ""

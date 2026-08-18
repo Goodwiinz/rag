@@ -26,6 +26,7 @@ import {
   useChatStore,
 } from '@/store/chat-store';
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
+import { useArtifactPanelStore } from '@/store/artifactPanelStore';
 import { toolLabel } from '@/components/context-rail/toolLabels';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation } from '@/types/workspace';
@@ -44,6 +45,37 @@ import { v5 as uuidv5 } from 'uuid';
  * turn's sources persist with the assistant message. Snippet capped at the
  * backend Citation column limit.
  */
+/**
+ * Pull the created note's id/title out of a create_project_note tool result
+ * (a JSON string like {status, note_id, title, …}). Null when the result
+ * isn't JSON, errored, or carries no note_id — callers skip auto-focus then.
+ */
+export function parseCreatedNoteResult(
+  result: string
+): { noteId: string; projectId?: string; title?: string } | null {
+  try {
+    const parsed: unknown =
+      typeof result === 'string' ? JSON.parse(result) : result;
+    if (!parsed || typeof parsed !== 'object') return null;
+    const obj = parsed as Record<string, unknown>;
+    if (obj.error) return null;
+    if (typeof obj.note_id !== 'string' || !obj.note_id) return null;
+    return {
+      noteId: obj.note_id,
+      // The note's actual project — may differ from the thread's bound
+      // project when the user asked for an explicit target project.
+      ...(typeof obj.project_id === 'string' && obj.project_id
+        ? { projectId: obj.project_id }
+        : {}),
+      ...(typeof obj.title === 'string' && obj.title
+        ? { title: obj.title }
+        : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Tool name + args preview from an interrupt's confirmation payload — flat
  * (tool_name/tool_args) or the first entry of a `tools` list. Mirrors the
  * page-level banner's extractToolCall (P4). */
@@ -110,6 +142,8 @@ export interface PendingConfirmation {
   /** Structured plan emitted before the interrupt — carried so the
    * confirmed turn commits with its inline plan. */
   plan?: PlanStep[];
+  /** Planner's top-level rationale for `plan`, carried the same way. */
+  planReasoning?: string;
   /** RAG citations retrieved before the interrupt — the interrupt exit
    * clears streamingCitations, so they must ride the confirmation. */
   citations?: Array<Record<string, unknown>>;
@@ -225,7 +259,10 @@ export interface UseChatStreamingReturn {
     /** Edit-and-resend: the `client_message_id` of the user turn being
      * replaced. Sent as `supersedes_client_message_id` so the server
      * tombstones that turn and everything after it. */
-    supersedesClientMessageId?: string
+    supersedesClientMessageId?: string,
+    /** Documents the composer uploaded for this turn, sent as
+     * `attachment_ids` so the server links them to the persisted user row. */
+    attachmentIds?: string[]
   ) => Promise<void>;
   handleStop: () => void;
   pendingConfirmation: PendingConfirmation | null;
@@ -282,8 +319,9 @@ export function useChatStreaming(
   // ---- State ----
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [pendingConfirmation, setPendingConfirmation] =
-    useState<PendingConfirmation | null>(null);
+  const [pendingConfirmations, setPendingConfirmations] = useState<
+    Record<string, PendingConfirmation>
+  >({});
   const [isConfirming, setIsConfirming] = useState(false);
 
   // ---- Refs ----
@@ -303,6 +341,12 @@ export function useChatStreaming(
   const activeRunThreadRef = useRef<string | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const submitLockRef = useRef(false);
+  // Monotonic claim on the store's live-streaming slice. runStreamTurn and
+  // the confirm-resume path are separate stream owners that can overlap
+  // across an await (approve lands while the paused turn is still
+  // reconciling), so each stamps a token and only tears the slice down
+  // while it still holds the claim.
+  const streamOwnerRef = useRef(0);
   // CX1 belt: isConfirming (React state) is not synchronous, so two
   // Approve clicks in the same tick both see isConfirming === false before
   // either setState flushes. A ref mirrors submitLockRef's guard so a
@@ -317,12 +361,21 @@ export function useChatStreaming(
   // once per paint.
   const seqRafRef = useRef<number | null>(null);
   const pendingSeqRef = useRef<{ threadId: string; seq: number } | null>(null);
+  // Run-correlation id per thread (envelope stream_id) — persisted with the
+  // seq cursor so resume pins to the run the cursor came from.
+  const streamIdByThreadRef = useRef<Record<string, string>>({});
   // Threads a resume was already attempted for this mount — guards against
   // double-resume from effect re-runs (StrictMode, dep changes).
   const resumeTriedRef = useRef<Set<string>>(new Set());
+  // Threads whose LIVE turn died on a transport error. The backend run may
+  // still be going, so the resume effect is allowed one reattach for these
+  // even though the run has been finished as 'error' (server-authored error
+  // frames deliberately do not land here — those turns really are over).
+  const transportFailureRef = useRef<Set<string>>(new Set());
   // Threads already asked whether they hold a parked HITL confirmation —
   // one probe per thread activation (see the cold-load effect below).
   const confirmationProbedRef = useRef<Set<string>>(new Set());
+  const lastActivatedThreadRef = useRef<string | null>(null);
   const probeAbortRef = useRef<AbortController | null>(null);
   const hadPendingApprovalRef = useRef(false);
 
@@ -333,9 +386,43 @@ export function useChatStreaming(
   const storeIsRetrievingRag = useChatStore((state) => state.isRetrievingRag);
   const streamingThreadId = useChatStore((state) => state.streamingThreadId);
   const activeThreadId = useChatStore((state) => state.currentThreadId);
+  const pendingConfirmation = activeThreadId
+    ? (pendingConfirmations[activeThreadId] ?? null)
+    : null;
+  // `ownerThreadId` names the thread the confirmation belongs to. It matters
+  // on the clear path: falling back to the *viewed* thread deleted the wrong
+  // key whenever the user switched threads mid-confirm, stranding a settled
+  // approval card (and a locked composer) on the original thread forever.
+  const setPendingConfirmation = useCallback(
+    (next: PendingConfirmation | null, ownerThreadId?: string | null) => {
+      const threadId =
+        next?.workspaceThreadId || ownerThreadId || activeThreadId;
+      if (!threadId) return;
+      setPendingConfirmations((current) => {
+        if (next) return { ...current, [threadId]: next };
+        if (!(threadId in current)) return current;
+        const updated = { ...current };
+        delete updated[threadId];
+        return updated;
+      });
+    },
+    [activeThreadId]
+  );
 
   const router = useRouter();
   const queryClient = useQueryClient();
+
+  // Recovery is once per activation, not once per component lifetime. A
+  // failed resume/probe can be retried by leaving and returning to the thread.
+  useEffect(() => {
+    if (lastActivatedThreadRef.current !== activeThreadId) {
+      if (activeThreadId) {
+        resumeTriedRef.current.delete(activeThreadId);
+        confirmationProbedRef.current.delete(activeThreadId);
+      }
+      lastActivatedThreadRef.current = activeThreadId;
+    }
+  }, [activeThreadId]);
 
   // Refetch the Working-folders queries once a project-mutating tool
   // succeeds, so the rail shows agent-created sources/notes/drafts without
@@ -352,6 +439,47 @@ export function useChatStreaming(
       });
     },
     [queryClient, boundProjectId]
+  );
+
+  // Auto-focus a note the agent just created in the split-view artifact
+  // panel. Guards: only successful create_project_note (create_draft is an
+  // async task — there is no draft id at tool_end), only when the turn's
+  // thread is the one on screen (a background thread must not hijack the
+  // panel), only when a project is bound (the note fetch needs its id), and
+  // openArtifact's own pin gate ignores agent opens while the user has
+  // pinned what they're reading.
+  const maybeAutoFocusCreatedNote = useCallback(
+    (
+      tool: string,
+      result: string,
+      isError: boolean,
+      turnThreadId: string | null
+    ) => {
+      if (isError || tool !== 'create_project_note') return;
+      if (
+        !turnThreadId ||
+        useChatStore.getState().currentThreadId !== turnThreadId
+      )
+        return;
+      const created = parseCreatedNoteResult(result);
+      if (!created) return;
+      // Prefer the project id the backend actually created the note in —
+      // an explicit project arg can differ from the thread's binding, and
+      // fetching through the wrong project 404s. Bound project is only a
+      // fallback for older payloads without project_id.
+      const noteProjectId = created.projectId ?? boundProjectId;
+      if (!noteProjectId) return;
+      useArtifactPanelStore.getState().openArtifact(
+        {
+          kind: 'note',
+          projectId: noteProjectId,
+          id: created.noteId,
+          title: created.title ?? 'New note',
+        },
+        { source: 'agent' }
+      );
+    },
+    [boundProjectId]
   );
 
   // ---- Effects ----
@@ -400,6 +528,10 @@ export function useChatStreaming(
       /** Resume: a replay that yields no tokens (nothing buffered / 204)
        * must unwind quietly instead of rendering a "no response" bubble. */
       quietWhenEmpty?: boolean;
+      /** Resume: a failed reattach must leave the activity run 'running' so
+       * re-activating the thread can try again — the run itself may well
+       * still be alive on the backend. */
+      keepRunOnFailure?: boolean;
       start: (
         callbacks: AgentStreamCallbacks,
         signal: AbortSignal
@@ -411,8 +543,12 @@ export function useChatStreaming(
         newMessages,
         assistantRuntimeId,
         quietWhenEmpty,
+        keepRunOnFailure,
         start,
       } = opts;
+
+      // Claim the store's streaming slice for this turn (see streamOwnerRef).
+      const streamOwner = (streamOwnerRef.current += 1);
 
       // The thread this turn belongs to, snapshotted after thread creation.
       // Every local setMessages below must be gated on the user still viewing
@@ -489,6 +625,8 @@ export function useChatStreaming(
         // Structured plan snapshot for the committed message (the activity
         // store only keeps flattened strings for the ContextRail).
         let turnPlan: PlanStep[] = [];
+        // Planner's top-level rationale for turnPlan, carried the same way.
+        let turnPlanReasoning = '';
         const toolStartTimes = new Map<string, number>();
         // Per-turn LLM token usage, captured from the `usage` SSE event that
         // fires just before `done`. Null until (and unless) it arrives.
@@ -504,6 +642,7 @@ export function useChatStreaming(
           isStreaming: true,
           streamingContent: '',
           streamingSteps: [],
+          streamingPlan: [],
           // Only "retrieving" when RAG is on; cleared on first token / context.
           isRetrievingRag: enableRAG,
           // Fresh turn — drop the previous turn's heartbeat reading.
@@ -564,6 +703,10 @@ export function useChatStreaming(
             onStatus: (phase) => {
               useChatStore.setState({ streamingPhase: phase });
             },
+            onStreamId: (sid) => {
+              if (!currentThreadId) return;
+              streamIdByThreadRef.current[currentThreadId] = sid;
+            },
             onSeq: (seq) => {
               if (!currentThreadId) return;
               pendingSeqRef.current = { threadId: currentThreadId, seq };
@@ -575,7 +718,11 @@ export function useChatStreaming(
                   if (p) {
                     useAgentActivityStore
                       .getState()
-                      .setStreamSeq(p.threadId, p.seq);
+                      .setStreamSeq(
+                        p.threadId,
+                        p.seq,
+                        streamIdByThreadRef.current[p.threadId]
+                      );
                   }
                 });
               }
@@ -606,6 +753,12 @@ export function useChatStreaming(
                   .pushToolEnd(currentThreadId, tool, !isError);
               }
               invalidateProjectDataForTool(tool, isError);
+              maybeAutoFocusCreatedNote(
+                tool,
+                result,
+                isError,
+                currentThreadId || null
+              );
               // Update last matching running step for this tool
               const startTime = toolStartTimes.get(tool);
               const durationMs = startTime ? Date.now() - startTime : undefined;
@@ -630,10 +783,15 @@ export function useChatStreaming(
                 isRetrievingRag: false,
               });
             },
-            onPlan: (steps) => {
+            onPlan: (steps, reasoning) => {
               // Structured copy for the inline transcript plan — keeps
               // tool/depends_on so status derivation works after commit.
               turnPlan = toTurnPlan(steps);
+              turnPlanReasoning = reasoning;
+              // Live copy for the in-flight transcript row (AuiStreamingBody)
+              // — lets the plan render WHILE the turn streams, not only
+              // after commit. Plan events fire once per run, not per token.
+              useChatStore.setState({ streamingPlan: [...turnPlan] });
               if (!currentThreadId) return;
               const items = toActivityPlanItems(steps);
               if (items.length > 0) {
@@ -664,6 +822,7 @@ export function useChatStreaming(
                 // duplicate it.
                 steps: turnSteps.filter((s) => s.status !== 'running'),
                 plan: [...turnPlan],
+                planReasoning: turnPlanReasoning || undefined,
                 // Snapshot NOW — the streamHadConfirmation exit below clears
                 // streamingCitations before the confirm stream starts.
                 citations: useChatStore.getState().streamingCitations,
@@ -741,6 +900,7 @@ export function useChatStreaming(
             streamingContent: '',
             streamingCitations: [],
             streamingSteps: [],
+            streamingPlan: [],
             streamingThreadId: null,
           });
           await reconcileUser(
@@ -783,6 +943,7 @@ export function useChatStreaming(
             streamingContent: '',
             streamingCitations: [],
             streamingSteps: [],
+            streamingPlan: [],
             streamingThreadId: null,
           });
           if (stoppedByUserRef.current) {
@@ -842,6 +1003,7 @@ export function useChatStreaming(
           toolExecutions:
             finalTurnSteps.length > 0 ? finalTurnSteps : undefined,
           plan: turnPlan.length > 0 ? turnPlan : undefined,
+          planReasoning: turnPlanReasoning || undefined,
           metadata: {
             responseTimeMs,
             ...(wasStopped ? { stopped: true } : {}),
@@ -864,6 +1026,7 @@ export function useChatStreaming(
           streamingContent: '',
           streamingCitations: [],
           streamingSteps: [],
+          streamingPlan: [],
           streamingThreadId: null,
         });
         lastStreamedContentRef.current = '';
@@ -920,6 +1083,21 @@ export function useChatStreaming(
               },
             ]);
         }
+        // onDone/onError never fired for a thrown transport error, so the
+        // activity run stayed 'running' forever — the rail kept spinning and
+        // recovery depended on the resume effect re-firing by accident.
+        const failedRunThread = activeRunThreadRef.current ?? currentThreadId;
+        if (failedRunThread && !keepRunOnFailure && !stoppedByUserRef.current) {
+          transportFailureRef.current.add(failedRunThread);
+        }
+        if (failedRunThread && !keepRunOnFailure) {
+          useAgentActivityStore
+            .getState()
+            .finishRun(
+              failedRunThread,
+              stoppedByUserRef.current ? 'stopped' : 'error'
+            );
+        }
         if (stoppedByUserRef.current) {
           await reconcileAssistant(doneIds, 'abort');
         } else {
@@ -928,14 +1106,43 @@ export function useChatStreaming(
       } finally {
         submitLockRef.current = false;
         setIsLoading(false);
-        useChatStore.setState({
-          isStreaming: false,
-          streamingContent: '',
-          streamingCitations: [],
-          streamingThreadId: null,
-        });
-        lastStreamedContentRef.current = '';
-        stoppedByUserRef.current = false;
+        // A token that landed just before an exception can leave a scheduled
+        // rAF behind; it would fire after this teardown and write stale
+        // streamingContent back into the store. Scoped to the owner: the rAF
+        // slot is shared, so cancelling it while a confirm stream owns the
+        // slice would drop that stream's first flush.
+        if (
+          streamOwnerRef.current === streamOwner &&
+          streamingRafRef.current !== null
+        ) {
+          cancelAnimationFrame(streamingRafRef.current);
+          streamingRafRef.current = null;
+        }
+        if (streamOwnerRef.current === streamOwner) {
+          pendingStreamContentRef.current = null;
+        }
+        // Only tear the slice down if nothing newer claimed it. On a
+        // confirmation pause the awaits above hand the user a live approval
+        // card; approving starts the confirm stream, and an unconditional wipe
+        // here orphaned it — streaming UI gone, carried citations lost,
+        // composer unlocked into a second concurrent SSE writer.
+        if (streamOwnerRef.current === streamOwner) {
+          useChatStore.setState({
+            isStreaming: false,
+            streamingContent: '',
+            streamingCitations: [],
+            streamingSteps: [],
+            streamingPlan: [],
+            streamingThreadId: null,
+          });
+        }
+        if (streamOwnerRef.current === streamOwner) {
+          // Same ownership rule: these refs are shared with the confirm
+          // stream, and clearing stoppedByUserRef under it could swallow a
+          // Stop pressed inside the handover window.
+          lastStreamedContentRef.current = '';
+          stoppedByUserRef.current = false;
+        }
         activeRunThreadRef.current = null;
       }
     },
@@ -944,6 +1151,8 @@ export function useChatStreaming(
       setConversations,
       enableRAG,
       invalidateProjectDataForTool,
+      maybeAutoFocusCreatedNote,
+      setPendingConfirmation,
       displayedMessages.length,
     ]
   );
@@ -952,7 +1161,8 @@ export function useChatStreaming(
     async (
       contentOverride?: string,
       historyOverride?: ChatPageMessage[],
-      supersedesClientMessageId?: string
+      supersedesClientMessageId?: string,
+      attachmentIds?: string[]
     ) => {
       if (submitLockRef.current) {
         console.warn('[Chat] Send ignored: submit already in flight');
@@ -971,7 +1181,6 @@ export function useChatStreaming(
       }
       submitLockRef.current = true;
       try {
-
         // Create the idempotency/runtime identity before the optimistic bubble.
         // The backend stores this on the user row and derives the assistant row's
         // client id with the same UUIDv5 contract below.
@@ -1146,6 +1355,12 @@ export function useChatStreaming(
                   },
                   use_rag: enableRAG,
                   thread_id: existingAgentThreadId,
+                  // Documents the composer uploaded for this turn. The server
+                  // links them to the user row it persists and drops any the
+                  // caller's org does not own.
+                  ...(attachmentIds && attachmentIds.length > 0
+                    ? { attachment_ids: attachmentIds }
+                    : {}),
                   // Edit-and-resend turns only: omitted entirely otherwise (and
                   // when the edited turn was never persisted with a cmid).
                   ...(supersedesClientMessageId
@@ -1207,18 +1422,41 @@ export function useChatStreaming(
       useAgentActivityStore.getState().finishRun(runThread, 'stopped');
     }
 
-    // Stop is the user's escape hatch, and a pending confirmation is one of
-    // the states it has to clear: ChatSurface keeps `isBusy` true while
-    // `pendingConfirmation` is set, so leaving it meant Stop disabled the
-    // composer permanently instead of freeing it.
-    setPendingConfirmation(null);
+    // A parked confirmation has no live graph task for AbortController to
+    // cancel. Close its durable run explicitly; if confirmation execution has
+    // already started, aborting that live stream owns terminal cleanup.
+    if (pendingConfirmation && !confirmLockRef.current) {
+      void agentChatService
+        .cancelPendingConfirmation(pendingConfirmation.threadId)
+        .then(() =>
+          setPendingConfirmation(null, pendingConfirmation.workspaceThreadId)
+        )
+        .catch((error) => {
+          stoppedByUserRef.current = false;
+          console.error('[Chat] Failed to cancel pending confirmation:', error);
+          toast.error('Could not stop this action. Please try again.');
+        });
+    } else {
+      setPendingConfirmation(
+        null,
+        pendingConfirmation?.workspaceThreadId ?? null
+      );
+    }
+
+    // Keep a parked confirmation visible until the durable cancellation wins.
+    // A failed request remains retryable instead of reporting a false Stop.
 
     // The store-driven streaming path (used by the non-cloud chat) finalizes
     // through its own action; keep that contract intact.
     if (storeIsStreaming) {
       storeStopStreaming();
     }
-  }, [setPendingConfirmation, storeIsStreaming, storeStopStreaming]);
+  }, [
+    pendingConfirmation,
+    setPendingConfirmation,
+    storeIsStreaming,
+    storeStopStreaming,
+  ]);
 
   // ---- Resume an in-flight stream on mount / thread switch ----
   // If the activity store still records a running run for the displayed
@@ -1236,9 +1474,14 @@ export function useChatStreaming(
     if (pendingConfirmation) return;
     if (useChatStore.getState().isStreaming) return;
     const run = useAgentActivityStore.getState().runs[threadId];
-    if (!run || run.state !== 'running') return;
+    const recoverableTransportFailure =
+      run?.state === 'error' && transportFailureRef.current.has(threadId);
+    if (!run || (run.state !== 'running' && !recoverableTransportFailure)) {
+      return;
+    }
     if (resumeTriedRef.current.has(threadId)) return;
     resumeTriedRef.current.add(threadId);
+    transportFailureRef.current.delete(threadId);
     console.log('[Chat] Resuming in-flight agent stream:', threadId);
     // ponytail: messages is the snapshot at effect time — if thread history
     // is still loading, the resumed commit appends to a stale list; a
@@ -1249,16 +1492,20 @@ export function useChatStreaming(
       newMessages: messages,
       assistantRuntimeId: `resume:${threadId}:${run.startedAt}`,
       quietWhenEmpty: true,
+      keepRunOnFailure: true,
       start: async (streamCallbacks, signal) => {
         const res = await agentChatService.resumeStream(
           threadId,
           run.streamSeq ?? 0,
           streamCallbacks,
-          signal
+          signal,
+          run.streamId
         );
-        if (!res.resumed) {
+        if (res.status === 'idle') {
           // Nothing active server-side — clear the stale run record.
           useAgentActivityStore.getState().finishRun(threadId, 'done');
+        } else if (res.status === 'failed') {
+          throw new Error(res.error);
         }
       },
     });
@@ -1323,7 +1570,13 @@ export function useChatStreaming(
     ).catch(() => {
       // Best-effort: a failed probe must not break the thread view.
     });
-  }, [activeThreadId, isLoading, storeIsStreaming, pendingConfirmation]);
+  }, [
+    activeThreadId,
+    isLoading,
+    storeIsStreaming,
+    pendingConfirmation,
+    setPendingConfirmation,
+  ]);
 
   // Unmount is the only place the in-flight probe is abandoned.
   useEffect(() => {
@@ -1410,14 +1663,19 @@ export function useChatStreaming(
         // exit cleared the live streaming state, so restore it here.
         const carriedCitations = pendingConfirmation.citations ?? [];
         let confirmPlan: PlanStep[] = [...(pendingConfirmation.plan ?? [])];
+        let confirmPlanReasoning = pendingConfirmation.planReasoning ?? '';
         // CX5: the confirm-resume path is a SEPARATE live-stream owner from
         // runStreamTurn (a resumed HITL turn belongs to the confirmation's
         // workspace thread, which may differ from whatever thread is
         // currently displayed) — stamp it the same way.
+        const confirmStreamOwner = (streamOwnerRef.current += 1);
         useChatStore.setState({
           isStreaming: true,
           streamingContent: '',
           streamingSteps: [...confirmSteps],
+          // Seed from the pre-interrupt plan so it survives the HITL
+          // resume — the interrupt exit already cleared streamingPlan.
+          streamingPlan: [...confirmPlan],
           streamingCitations: carriedCitations,
           streamingElapsedMs: null,
           streamingPhase: 'accepted',
@@ -1471,6 +1729,9 @@ export function useChatStreaming(
               ? { toolExecutions: [...confirmSteps] }
               : {}),
             ...(confirmPlan.length > 0 ? { plan: [...confirmPlan] } : {}),
+            ...(confirmPlanReasoning
+              ? { planReasoning: confirmPlanReasoning }
+              : {}),
             metadata: {
               responseTimeMs: Date.now() - confirmStart,
               ...(stopped ? { stopped: true } : {}),
@@ -1515,6 +1776,11 @@ export function useChatStreaming(
               // it the cursor froze at whatever seq the pre-interrupt turn
               // reached, so a disconnect mid-resume replayed the buffer from a
               // stale position instead of continuing after the last seen frame.
+              onStreamId: (sid) => {
+                const sidThreadId = pendingConfirmation.workspaceThreadId;
+                if (!sidThreadId) return;
+                streamIdByThreadRef.current[sidThreadId] = sid;
+              },
               onSeq: (seq) => {
                 const seqThreadId = pendingConfirmation.workspaceThreadId;
                 if (!seqThreadId) return;
@@ -1527,7 +1793,11 @@ export function useChatStreaming(
                     if (p) {
                       useAgentActivityStore
                         .getState()
-                        .setStreamSeq(p.threadId, p.seq);
+                        .setStreamSeq(
+                          p.threadId,
+                          p.seq,
+                          streamIdByThreadRef.current[p.threadId]
+                        );
                     }
                   });
                 }
@@ -1557,12 +1827,25 @@ export function useChatStreaming(
                 // HITL-confirmed tools are exactly the mutating ones (ingest,
                 // create_note, create_draft) — refresh the rail here too.
                 invalidateProjectDataForTool(tool, isError);
+                // create_project_note is destructive, so its successful
+                // tool_end arrives HERE (post-approval resume stream), not on
+                // the primary stream — auto-focus must run from this path.
+                maybeAutoFocusCreatedNote(
+                  tool,
+                  result,
+                  isError,
+                  pendingConfirmation.workspaceThreadId
+                );
                 const startTime = confirmToolStartTimes.get(tool);
-                const durationMs = startTime ? Date.now() - startTime : undefined;
+                const durationMs = startTime
+                  ? Date.now() - startTime
+                  : undefined;
                 const idx = [...confirmSteps]
                   .map((s, i) => ({ s, i }))
                   .reverse()
-                  .find(({ s }) => s.tool === tool && s.status === 'running')?.i;
+                  .find(
+                    ({ s }) => s.tool === tool && s.status === 'running'
+                  )?.i;
                 if (idx !== undefined) {
                   confirmSteps[idx] = {
                     ...confirmSteps[idx],
@@ -1580,8 +1863,10 @@ export function useChatStreaming(
                   isRetrievingRag: false,
                 });
               },
-              onPlan: (steps) => {
+              onPlan: (steps, reasoning) => {
                 confirmPlan = toTurnPlan(steps);
+                confirmPlanReasoning = reasoning;
+                useChatStore.setState({ streamingPlan: [...confirmPlan] });
                 const items = toActivityPlanItems(steps);
                 if (pendingConfirmation.workspaceThreadId && items.length > 0) {
                   useAgentActivityStore
@@ -1596,13 +1881,17 @@ export function useChatStreaming(
                   confirmation,
                   steps: confirmSteps.filter((s) => s.status !== 'running'),
                   plan: [...confirmPlan],
+                  planReasoning: confirmPlanReasoning || undefined,
                   citations: [...carriedCitations, ...resumeCitations],
                   userRuntimeId: pendingConfirmation.userRuntimeId,
                   assistantRuntimeId: pendingConfirmation.assistantRuntimeId,
                 };
               },
               onUsage: (inputTokens, outputTokens) => {
-                confirmTokenUsage = { input: inputTokens, output: outputTokens };
+                confirmTokenUsage = {
+                  input: inputTokens,
+                  output: outputTokens,
+                };
               },
               onReflection: (_passed, _issues, _round, revising) => {
                 if (!revising) return;
@@ -1613,7 +1902,10 @@ export function useChatStreaming(
               onDone: (payload) => {
                 confirmDoneIds = payload ?? {};
                 if (confirmContent.trim()) {
-                  const baseMessage = buildConfirmMessage(confirmContent, false);
+                  const baseMessage = buildConfirmMessage(
+                    confirmContent,
+                    false
+                  );
                   // The done payload carries the graph state's tool executions
                   // (parsed results, real durations) for the WHOLE turn —
                   // richer than the live SSE summaries, and identical to what
@@ -1660,7 +1952,8 @@ export function useChatStreaming(
                   },
                 };
                 confirmCommitted = true;
-                if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
+                if (isConfirmDisplayed())
+                  setMessages([...confirmMessages, msg]);
               },
             },
             confirmAbort.signal
@@ -1741,7 +2034,8 @@ export function useChatStreaming(
           // silently dropped"). Retaining it lets the user press Approve again,
           // and handleStop is the escape hatch if they'd rather abandon it.
           setPendingConfirmation(
-            nestedConfirmation ?? (confirmFailed ? pendingConfirmation : null)
+            nestedConfirmation ?? (confirmFailed ? pendingConfirmation : null),
+            pendingConfirmation.workspaceThreadId
           );
           setIsConfirming(false);
           confirmLockRef.current = false;
@@ -1755,13 +2049,19 @@ export function useChatStreaming(
             streamingRafRef.current = null;
           }
           pendingStreamContentRef.current = null;
-          useChatStore.setState({
-            isStreaming: false,
-            streamingContent: '',
-            streamingSteps: [],
-            streamingCitations: [],
-            streamingThreadId: null,
-          });
+          // Same ownership rule as runStreamTurn: a nested interrupt (or any
+          // newer stream started while this one was reconciling) owns the
+          // slice now, and must not be wiped by this turn's teardown.
+          if (streamOwnerRef.current === confirmStreamOwner) {
+            useChatStore.setState({
+              isStreaming: false,
+              streamingContent: '',
+              streamingSteps: [],
+              streamingPlan: [],
+              streamingCitations: [],
+              streamingThreadId: null,
+            });
+          }
         }
       } catch (err) {
         // A throw between lock-set and the try/finally used to leave the
@@ -1773,7 +2073,14 @@ export function useChatStreaming(
         throw err;
       }
     },
-    [pendingConfirmation, messages, setMessages, invalidateProjectDataForTool]
+    [
+      pendingConfirmation,
+      messages,
+      setMessages,
+      invalidateProjectDataForTool,
+      maybeAutoFocusCreatedNote,
+      setPendingConfirmation,
+    ]
   );
 
   // P4: mirror the active pending confirmation into an in-band approval

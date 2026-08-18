@@ -65,6 +65,7 @@ def _seed_doc(
     status=ProcessingStatus.COMPLETED,
     is_deleted=False,
     content_text="text",
+    do_kb_uuid=None,
 ):
     doc_id = uuid.uuid4()
     with factory() as db:
@@ -82,6 +83,7 @@ def _seed_doc(
                 processing_status=status,
                 neo4j_index_status=neo4j,
                 do_kb_sync_status=do_kb,
+                do_kb_data_source_uuid=do_kb_uuid,
                 is_deleted=is_deleted,
             )
         )
@@ -111,23 +113,27 @@ def _settings(
     )
 
 
-def _run(factory, settings, *, repair=None, kb_sync=None, kick=None):
+def _run(factory, settings, *, repair=None, kb_sync=None, kb_cleanup=None, kick=None):
     """Run the task with all external effects patched; returns (result, mocks)."""
     repair = repair if repair is not None else MagicMock()
     kb_sync = kb_sync if kb_sync is not None else MagicMock(return_value=None)
+    kb_cleanup = kb_cleanup if kb_cleanup is not None else MagicMock(return_value=False)
     kick = kick if kick is not None else AsyncMock()
     with (
         patch.object(rt, "SessionLocal", factory),
         patch("src.core.config.get_settings", return_value=settings),
         patch.object(rt, "repair_document_graph", repair),
         patch.object(rt, "_sync_document_to_kb_blocking", kb_sync),
+        patch.object(rt, "_cleanup_deleted_do_kb_document", kb_cleanup),
         patch.object(rt, "_kick_do_kb_indexing", kick),
         # Never load spaCy in tests: the lazy service is only consumed by the
         # (mocked) repair core anyway.
         patch.object(rt._LazyExtractionService, "get", lambda self: None),
     ):
         result = rt.reconcile_satellite_indexes()
-    return result, SimpleNamespace(repair=repair, kb_sync=kb_sync, kick=kick)
+    return result, SimpleNamespace(
+        repair=repair, kb_sync=kb_sync, kb_cleanup=kb_cleanup, kick=kick
+    )
 
 
 def _ok_outcome(doc_id):
@@ -151,6 +157,7 @@ def test_gated_by_reconciler_enabled(session_factory):
     assert result == {"skipped": "reconciler-disabled"}
     mocks.repair.assert_not_called()
     mocks.kb_sync.assert_not_called()
+    mocks.kb_cleanup.assert_not_called()
 
 
 def test_report_only_lists_without_acting(session_factory):
@@ -236,9 +243,7 @@ def test_apply_redrives_do_kb_and_kicks_indexing_once_per_org(session_factory):
     kb_sync = MagicMock(return_value="ds-1")
     kick = AsyncMock()
 
-    result, _ = _run(
-        session_factory, _settings(apply=True), kb_sync=kb_sync, kick=kick
-    )
+    result, _ = _run(session_factory, _settings(apply=True), kb_sync=kb_sync, kick=kick)
 
     assert result["do_kb_resynced"] == 2
     assert kb_sync.call_count == 2
@@ -256,9 +261,7 @@ def test_apply_keeps_failed_when_kb_sync_returns_none(session_factory):
     kb_sync = MagicMock(return_value=None)
     kick = AsyncMock()
 
-    result, _ = _run(
-        session_factory, _settings(apply=True), kb_sync=kb_sync, kick=kick
-    )
+    result, _ = _run(session_factory, _settings(apply=True), kb_sync=kb_sync, kick=kick)
 
     assert result["do_kb_still_failed"] == 1
     assert _get(session_factory, doc_id).do_kb_sync_status == FAILED
@@ -278,6 +281,62 @@ def test_apply_skips_do_kb_when_feature_disabled(session_factory):
     assert result["do_kb_skipped_disabled"] == 1
     kb_sync.assert_not_called()
     assert _get(session_factory, doc_id).do_kb_sync_status == FAILED
+
+
+def test_apply_retries_deleted_document_do_kb_cleanup(session_factory):
+    doc_id = _seed_doc(
+        session_factory,
+        is_deleted=True,
+        do_kb_uuid="ds-pending-delete",
+    )
+    cleanup = MagicMock(return_value=True)
+
+    result, mocks = _run(
+        session_factory,
+        _settings(apply=True),
+        kb_cleanup=cleanup,
+    )
+
+    assert result["eligible"] == 1
+    assert result["do_kb_cleanup_succeeded"] == 1
+    cleanup.assert_called_once()
+    assert cleanup.call_args.args[0].id == doc_id
+    mocks.repair.assert_not_called()
+    mocks.kb_sync.assert_not_called()
+
+
+def test_deleted_document_cleanup_uses_fresh_async_session():
+    document = SimpleNamespace(id=uuid.uuid4(), organization_id=uuid.uuid4())
+    current = SimpleNamespace(is_deleted=True, do_kb_data_source_uuid="ds-pending")
+    session = MagicMock()
+    session.get = AsyncMock(return_value=current)
+    context = MagicMock()
+    context.__aenter__ = AsyncMock(return_value=session)
+    context.__aexit__ = AsyncMock(return_value=None)
+    unsync = AsyncMock(return_value=True)
+
+    with (
+        patch("src.core.database.AsyncSessionLocal", return_value=context),
+        patch("src.services.do_kb.unsync_document_from_kb", new=unsync),
+    ):
+        result = rt._cleanup_deleted_do_kb_document(document)
+
+    assert result is True
+    session.get.assert_awaited_once_with(Document, document.id)
+    unsync.assert_awaited_once_with(session, current)
+
+
+def test_failed_deleted_document_cleanup_remains_retryable(session_factory):
+    doc_id = _seed_doc(
+        session_factory,
+        is_deleted=True,
+        do_kb_uuid="ds-pending-delete",
+    )
+
+    result, _ = _run(session_factory, _settings(apply=True))
+
+    assert result["do_kb_cleanup_failed"] == 1
+    assert _get(session_factory, doc_id).do_kb_data_source_uuid == "ds-pending-delete"
 
 
 def test_rate_cap_bounds_docs_per_run(session_factory):

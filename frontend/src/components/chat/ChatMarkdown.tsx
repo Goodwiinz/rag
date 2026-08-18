@@ -3,6 +3,7 @@
 import React from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { rehypeFreshTail } from '@/lib/rehypeFreshTail';
 import dynamic from 'next/dynamic';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -21,9 +22,10 @@ const SyntaxHighlighter = dynamic(
   }
 );
 
-/** remark plugins every chat message renders with (GFM: tables, task lists,
- * strikethrough, autolinks). Shared so the plain and citation-segmented
- * paths can't drift apart again. */
+/** remark plugins the eager renderer uses (GFM: tables, task lists,
+ * strikethrough, autolinks). Math lives in ChatMarkdownMath so KaTeX stays
+ * out of this chunk. Shared so the plain and citation-segmented paths can't
+ * drift apart again. */
 const REMARK_PLUGINS = [remarkGfm];
 
 /** Pull the language class and raw text out of the `<code>` element that
@@ -57,7 +59,7 @@ function extractCodeChild(children: React.ReactNode): {
  * unlanguaged/indented blocks get a plain `<pre>`, inline spans get the
  * NOUS pill styling.
  */
-const baseComponents: Components = {
+export const baseComponents: Components = {
   pre({ children }) {
     const { className, value } = extractCodeChild(children);
     const match = /language-(\w+)/.exec(className);
@@ -110,31 +112,83 @@ const baseComponents: Components = {
 
 /** Variant for citation text segments: paragraphs unwrap to spans so a
  * <CitationLink> can sit inline between two markdown fragments. */
-const inlineComponents: Components = {
+export const inlineComponents: Components = {
   ...baseComponents,
   p({ children }) {
     return <span>{children}</span>;
   },
 };
 
+/**
+ * Cheap check for anything KaTeX would render: `$$…$$`, `$…$`, `\(…\)` or
+ * `\[…\]`. Only decides whether to fetch the math chunk, so a false positive
+ * costs one request and a false negative renders the source as written —
+ * neither changes what remark-math itself does with the text.
+ */
+const MATH_DELIMITERS = /\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\(|\\\[/;
+
+/** Applied only while a turn streams — see `freshTail`. */
+const FRESH_TAIL_PLUGINS: React.ComponentProps<
+  typeof ReactMarkdown
+>['rehypePlugins'] = [rehypeFreshTail];
+
+/**
+ * KaTeX plus its stylesheet is ~557kB, over 5% of the bundle, and most turns
+ * carry no math — so it loads only for the messages that need it. Until the
+ * chunk arrives the same content renders through the plain path, so the reader
+ * sees text rather than a spinner and the math resolves in place.
+ */
+const ChatMarkdownMath = React.lazy(() =>
+  import('./ChatMarkdownMath').then((m) => ({ default: m.ChatMarkdownMath }))
+);
+
 export interface ChatMarkdownProps {
   content: string;
   /** Unwrap paragraphs to spans (citation-segment interleaving). */
   inline?: boolean;
+  /**
+   * Tag the trailing characters so the newest text can be tinted while a turn
+   * streams. Off for committed messages — nothing there is "new".
+   */
+  freshTail?: boolean;
+}
+
+/** Markdown without math — also the fallback while the math chunk loads. */
+function PlainMarkdown({
+  content,
+  inline,
+  freshTail,
+}: ChatMarkdownProps): React.ReactElement {
+  return (
+    <ReactMarkdown
+      remarkPlugins={REMARK_PLUGINS}
+      rehypePlugins={freshTail ? FRESH_TAIL_PLUGINS : undefined}
+      components={inline ? inlineComponents : baseComponents}
+    >
+      {content}
+    </ReactMarkdown>
+  );
 }
 
 /** The single markdown renderer for chat message bodies. */
 export function ChatMarkdown({
   content,
   inline = false,
+  freshTail = false,
 }: ChatMarkdownProps): React.ReactElement {
+  const plain = (
+    <PlainMarkdown content={content} inline={inline} freshTail={freshTail} />
+  );
+  if (!MATH_DELIMITERS.test(content)) return plain;
+
   return (
-    <ReactMarkdown
-      remarkPlugins={REMARK_PLUGINS}
-      components={inline ? inlineComponents : baseComponents}
-    >
-      {content}
-    </ReactMarkdown>
+    <React.Suspense fallback={plain}>
+      <ChatMarkdownMath
+        content={content}
+        inline={inline}
+        freshTail={freshTail}
+      />
+    </React.Suspense>
   );
 }
 

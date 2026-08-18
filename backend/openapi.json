@@ -177,6 +177,23 @@
       },
       "AgentExecuteRequest": {
         "properties": {
+          "attachment_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Document ids to attach to this user turn. The documents are uploaded separately (POST /documents) and referenced here, so the stream body never carries file bytes. Ids the caller's organization does not own are dropped server-side, not rejected — a mixed batch still attaches the owned ones.",
+            "title": "Attachment Ids"
+          },
           "max_context_docs": {
             "default": 5,
             "maximum": 10.0,
@@ -185,17 +202,36 @@
             "type": "integer"
           },
           "messages": {
-            "description": "Conversation messages",
+            "contains": {
+              "properties": {
+                "role": {
+                  "const": "user"
+                }
+              },
+              "required": [
+                "role"
+              ],
+              "type": "object"
+            },
+            "description": "Conversation messages; at least one must have role='user'",
             "items": {
               "$ref": "#/components/schemas/AgentMessage"
             },
             "maxItems": 50,
+            "minContains": 1,
+            "minItems": 1,
             "title": "Messages",
             "type": "array"
           },
           "model": {
             "default": "",
             "description": "Azure deployment name to route the chat to. Empty string uses the server-configured deployment. See SUPPORTED_MODELS for the allow-list.",
+            "enum": [
+              "",
+              "model-router",
+              "gpt-5-mini",
+              "gpt-5.6-luna"
+            ],
             "title": "Model",
             "type": "string"
           },
@@ -218,6 +254,7 @@
           "thread_id": {
             "anyOf": [
               {
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                 "type": "string"
               },
               {
@@ -2313,6 +2350,17 @@
               }
             ],
             "title": "Plan"
+          },
+          "plan_reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Reasoning"
           },
           "role": {
             "$ref": "#/components/schemas/MessageRole-Output",
@@ -5009,13 +5057,17 @@
             "title": "Opposing",
             "type": "integer"
           },
+          "publication_retraction_check": {
+            "$ref": "#/components/schemas/PublicationRetractionCheck",
+            "default": "not_performed"
+          },
           "reproducibility_hash": {
             "description": "Hash for reproducibility tracking",
             "title": "Reproducibility Hash",
             "type": "string"
           },
           "retracted_sources": {
-            "description": "Number of retracted sources (excluded)",
+            "description": "Number of workspace-withdrawn sources excluded from classification",
             "minimum": 0.0,
             "title": "Retracted Sources",
             "type": "integer"
@@ -5938,6 +5990,19 @@
         "title": "GraphVisualizationNode",
         "type": "object"
       },
+      "HTTPErrorResponse": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "HTTPErrorResponse",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -6091,6 +6156,17 @@
           },
           "status": {
             "$ref": "#/components/schemas/JobStatus"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
           },
           "tool_executions": {
             "anyOf": [
@@ -6563,6 +6639,17 @@
               }
             ],
             "title": "Plan"
+          },
+          "plan_reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Reasoning"
           },
           "role": {
             "title": "Role",
@@ -8621,6 +8708,22 @@
         },
         "title": "ProjectUpdate",
         "type": "object"
+      },
+      "PublicationRetractionCheck": {
+        "description": "Publication-level retraction check state.",
+        "enum": [
+          "not_performed"
+        ],
+        "title": "PublicationRetractionCheck",
+        "type": "string"
+      },
+      "PublicationRetractionStatus": {
+        "description": "Publication-level retraction status for an evidence source.",
+        "enum": [
+          "unknown"
+        ],
+        "title": "PublicationRetractionStatus",
+        "type": "string"
       },
       "QualityAlertResponse": {
         "description": "Quality alert response",
@@ -11125,6 +11228,10 @@
             ],
             "title": "Justification Excerpt"
           },
+          "publication_retraction_status": {
+            "$ref": "#/components/schemas/PublicationRetractionStatus",
+            "default": "unknown"
+          },
           "source_id": {
             "format": "uuid",
             "title": "Source Id",
@@ -11460,6 +11567,7 @@
             "type": "boolean"
           },
           "thread_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
             "title": "Thread Id",
             "type": "string"
           }
@@ -15473,7 +15581,7 @@
     },
     "/api/v1/agent/stream": {
       "post": {
-        "description": "Stream agent responses via Server-Sent Events.\n\nSSE event types are the ``AgentStreamEvent`` wire vocabulary\n(``src/shared/enums.py`` — the single source of truth): token, tool_start,\ntool_end, rag_context, plan, reflection, trace, usage, heartbeat, status,\nconfirmation, done, error. ``heartbeat`` is a payload-less keepalive; the\nterminal frames are ``TERMINAL_STREAM_EVENTS`` (done, error, confirmation).",
+        "description": "Stream agent responses via Server-Sent Events.\n\nSSE event types are the ``AgentStreamEvent`` wire vocabulary\n(``src/shared/enums.py`` — the single source of truth): token, tool_start,\ntool_end, rag_context, plan, reflection, trace, usage, heartbeat, status,\nconfirmation, done, error. ``heartbeat`` is a payload-less keepalive; the\nterminal frames are done, error, or confirmation.",
         "operationId": "stream_agent_api_v1_agent_stream_post",
         "requestBody": {
           "content": {
@@ -15488,11 +15596,13 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Server-Sent Events stream"
           },
           "422": {
             "content": {
@@ -15503,6 +15613,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
           }
         },
         "security": [
@@ -15511,6 +15631,78 @@
           }
         ],
         "summary": "Stream Agent",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/stream/cancel/{thread_id}": {
+      "post": {
+        "description": "Durably abandon a caller-owned graph parked on HITL confirmation.",
+        "operationId": "cancel_stream_confirmation_api_v1_agent_stream_cancel__thread_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                }
+              }
+            },
+            "description": "Thread not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                }
+              }
+            },
+            "description": "Run is not awaiting confirmation"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPErrorResponse"
+                }
+              }
+            },
+            "description": "Cancellation temporarily unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Cancel Stream Confirmation",
         "tags": [
           "agent"
         ]
@@ -15533,11 +15725,13 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Server-Sent Events stream"
           },
           "422": {
             "content": {
@@ -15585,6 +15779,25 @@
               "minimum": 0,
               "title": "After",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Stream id the cursor belongs to (the envelope's stream_id). When set, resume refuses to attach the cursor to a different (newer) run on the same thread.",
+            "in": "query",
+            "name": "stream",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-fA-F-]{36}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Stream id the cursor belongs to (the envelope's stream_id). When set, resume refuses to attach the cursor to a different (newer) run on the same thread.",
+              "title": "Stream"
             }
           },
           {
@@ -34475,23 +34688,6 @@
         ]
       }
     },
-    "/api/v1/sentry-debug": {
-      "get": {
-        "description": "Deliberately raise an error to verify Sentry is capturing events.",
-        "operationId": "sentry_debug_api_v1_sentry_debug_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Sentry Debug"
-      }
-    },
     "/api/v1/workers/health": {
       "get": {
         "description": "Get overall health status of worker infrastructure\n\nReturns:\n- healthy: bool - Whether the worker infrastructure is healthy\n- workers_online: int - Number of workers online\n- issues: List[str] - List of any issues detected",
@@ -39839,150 +40035,9 @@
         "summary": "Health Check"
       }
     },
-    "/health/": {
-      "get": {
-        "description": "Basic health check endpoint.\nReturns overall system health status.",
-        "operationId": "health_check_health__get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Health Check",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/check/{component}": {
-      "get": {
-        "description": "Check health of a specific component.",
-        "operationId": "check_component_health_check__component__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "component",
-            "required": true,
-            "schema": {
-              "title": "Component",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Check Component",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/detailed": {
-      "get": {
-        "description": "Detailed health check endpoint.\nReturns detailed status of all components.",
-        "operationId": "detailed_health_check_health_detailed_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Detailed Health Check",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/invalidate-cache": {
-      "post": {
-        "description": "Invalidate the health check cache.\nForces new health checks on next request.",
-        "operationId": "invalidate_health_cache_health_invalidate_cache_post",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Invalidate Health Cache",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/liveness": {
-      "get": {
-        "description": "Kubernetes liveness probe.\nChecks if the application is still alive.",
-        "operationId": "liveness_probe_health_liveness_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Liveness Probe",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/metrics": {
-      "get": {
-        "description": "Health-specific metrics endpoint.\nReturns metrics about the health check system itself.",
-        "operationId": "health_metrics_health_metrics_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Health Metrics",
-        "tags": [
-          "health"
-        ]
-      }
-    },
     "/health/readiness": {
       "get": {
-        "description": "Kubernetes readiness probe.\nChecks if the application is ready to serve traffic.\nReturns 503 when the LLM config is incomplete (strict/non-throwaway\nenv only) or when a critical dependency is unhealthy. Liveness\n(/health/liveness) is unaffected — the pod stays alive but is removed\nfrom the LB.\n\nThe dependency checks are cached for a few seconds (see\n``_readiness_cache_ttl``) so kubelet polling doesn't open a fresh\nDB + Redis connection on every hit.",
+        "description": "Return 503 until LLM config, PostgreSQL, and Redis are ready.",
         "operationId": "readiness_probe_health_readiness_get",
         "responses": {
           "200": {
@@ -39995,26 +40050,6 @@
           }
         },
         "summary": "Readiness Probe",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/startup": {
-      "get": {
-        "description": "Kubernetes startup probe.\nChecks if the application has started successfully.",
-        "operationId": "startup_probe_health_startup_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Startup Probe",
         "tags": [
           "health"
         ]

@@ -50,18 +50,29 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import InfrastructureFailure, run_verifier_main
 
 BENCHMARK_ID = "agent-fast-path-cancel-v1"
-EXPECTED_SOURCE_REVISION = "fff861e9a7b74a584924b47fac6b19d2265d5e61"
+EXPECTED_SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
+REQUEST_ID = "harbor-fast-path-cancel-000000000d0b"
 
 REQUIRED_EVIDENCE_KEYS = (
     "routing",
     "accepted",
     "token_log",
     "finalize_attempts",
+    "captured_stream_id",
+    "server_token_log",
+    "server_replay_buffers",
     "persisted_partial",
     "termination_reason",
 )
 
-REQUIRED_TOKEN_LOG_KEYS = ("content", "emit_completed", "appended_to_partial")
+REQUIRED_TOKEN_LOG_KEYS = (
+    "content",
+    "sequence",
+    "emit_completed",
+    "appended_to_partial",
+)
+REQUIRED_SERVER_TOKEN_LOG_KEYS = ("content", "sequence")
+REQUIRED_REPLAY_BUFFER_KEYS = ("key", "stream_id", "ttl_seconds", "entries")
 REQUIRED_FINALIZE_KEYS = ("source", "event_type", "linked", "payload")
 REQUIRED_PARTIAL_KEYS = ("id", "content", "stopped")
 
@@ -77,38 +88,35 @@ def live_database_state() -> dict[str, Any]:
     database_url = os.environ.get("DATABASE_URL", "")
     if not database_url:
         raise RuntimeError("DATABASE_URL is missing")
-    run_id = os.environ.get("HARBOR_FAST_PATH_RUN_ID", "")
-    thread_id = os.environ.get("HARBOR_FAST_PATH_THREAD_ID", "")
+    thread_id = "00000000-0000-4000-8000-000000000d05"
     with psycopg.connect(database_url, row_factory=dict_row) as connection:
-        run = None
-        events: list[dict[str, Any]] = []
-        run_count = 0
-        if thread_id:
-            run_count = connection.execute(
-                "SELECT count(*) AS count FROM agent_runs WHERE thread_id = %s::uuid",
-                (thread_id,),
-            ).fetchone()["count"]
-        if run_id:
-            run = connection.execute(
+        runs = list(
+            connection.execute(
                 """
-                SELECT job_id, status, organization_id::text, user_id::text,
+                SELECT job_id::text, status, organization_id::text, user_id::text,
                        thread_id::text, client_message_id::text,
                        assistant_message_id::text, last_event_seq,
-                       completed_at, error_code, error
+                       completed_at::text, error_code, error
                 FROM agent_runs
-                WHERE job_id = %s
+                WHERE thread_id = %s::uuid
+                ORDER BY created_at, job_id
                 """,
-                (run_id,),
-            ).fetchone()
+                (thread_id,),
+            ).fetchall()
+        )
+        run = runs[-1] if runs else None
+        events: list[dict[str, Any]] = []
+        if run is not None:
             events = list(
                 connection.execute(
                     """
-                    SELECT id::text, run_id, seq, event_type, payload, created_at
+                    SELECT id::text, run_id::text, seq, event_type, payload,
+                           created_at::text
                     FROM agent_run_events
                     WHERE run_id = %s
                     ORDER BY seq
                     """,
-                    (run_id,),
+                    (run["job_id"],),
                 ).fetchall()
             )
         messages: list[dict[str, Any]] = []
@@ -129,7 +137,7 @@ def live_database_state() -> dict[str, Any]:
         "run": dict(run) if run is not None else None,
         "events": [dict(row) for row in events],
         "messages": [dict(row) for row in messages],
-        "run_count_for_thread": int(run_count),
+        "run_count_for_thread": len(runs),
     }
 
 
@@ -162,6 +170,60 @@ def require_keys(evidence: dict[str, Any], state: dict[str, Any]) -> None:
                 raise InfrastructureFailure(
                     f"evidence.token_log[{index}] missing {key!r}"
                 )
+        if not isinstance(entry["content"], str) or not entry["content"]:
+            raise InfrastructureFailure(
+                f"evidence.token_log[{index}].content must be non-empty text"
+            )
+        if not isinstance(entry["sequence"], int) or entry["sequence"] < 1:
+            raise InfrastructureFailure(
+                f"evidence.token_log[{index}].sequence must be a positive integer"
+            )
+
+    server_token_log = evidence["server_token_log"]
+    if not isinstance(server_token_log, list) or not server_token_log:
+        raise InfrastructureFailure(
+            "evidence.server_token_log must be a non-empty list"
+        )
+    for index, entry in enumerate(server_token_log):
+        if not isinstance(entry, dict):
+            raise InfrastructureFailure(
+                f"evidence.server_token_log[{index}] is not an object"
+            )
+        for key in REQUIRED_SERVER_TOKEN_LOG_KEYS:
+            if key not in entry:
+                raise InfrastructureFailure(
+                    f"evidence.server_token_log[{index}] missing {key!r}"
+                )
+        if not isinstance(entry["content"], str) or not entry["content"]:
+            raise InfrastructureFailure(
+                f"evidence.server_token_log[{index}].content must be non-empty text"
+            )
+        if not isinstance(entry["sequence"], int) or entry["sequence"] < 1:
+            raise InfrastructureFailure(
+                f"evidence.server_token_log[{index}].sequence must be a positive integer"
+            )
+
+    replay_buffers = evidence["server_replay_buffers"]
+    if not isinstance(replay_buffers, list):
+        raise InfrastructureFailure("evidence.server_replay_buffers must be a list")
+    for index, buffer in enumerate(replay_buffers):
+        if not isinstance(buffer, dict):
+            raise InfrastructureFailure(
+                f"evidence.server_replay_buffers[{index}] is not an object"
+            )
+        for key in REQUIRED_REPLAY_BUFFER_KEYS:
+            if key not in buffer:
+                raise InfrastructureFailure(
+                    f"evidence.server_replay_buffers[{index}] missing {key!r}"
+                )
+
+    if (
+        not isinstance(evidence["captured_stream_id"], str)
+        or not evidence["captured_stream_id"]
+    ):
+        raise InfrastructureFailure(
+            "evidence.captured_stream_id must be non-empty text"
+        )
 
     finalize_attempts = evidence["finalize_attempts"]
     if not isinstance(finalize_attempts, list) or not finalize_attempts:
@@ -244,25 +306,121 @@ def check_emit_before_append(evidence: dict[str, Any], failures: list[str]) -> N
 
 
 def check_prefix_retained(evidence: dict[str, Any], failures: list[str]) -> None:
-    """Gate 4 - persisted content equals exactly the concatenation of every
-    appended chunk, in order -- never truncated, never extended."""
-    token_log = evidence["token_log"]
-    expected = "".join(
-        str(entry.get("content") or "")
-        for entry in token_log
-        if entry.get("appended_to_partial")
-    )
-    partial = evidence["persisted_partial"]
-    actual = str(partial.get("content") or "")
-    if not actual:
-        failures.append("persisted_partial.content is empty")
-    if actual != expected:
+    """Gate 4 - persisted content is a server-replay prefix, not a client
+    observation bound; the client can disconnect after Redis receives a token."""
+    server_token_log = evidence["server_token_log"]
+    replay_buffers = evidence["server_replay_buffers"]
+    if len(replay_buffers) != 1:
         failures.append(
-            f"persisted_partial.content {actual!r} does not equal the "
-            f"concatenation of appended chunks {expected!r} -- the prefix "
-            "was not retained exactly"
+            f"current-run Redis replay buffers={len(replay_buffers)}, expected 1"
         )
-    if partial.get("stopped") is not True:
+        return
+
+    buffer = replay_buffers[0]
+    captured_stream_id = evidence["captured_stream_id"]
+    expected_key = f"agent:stream:{captured_stream_id}"
+    if (
+        buffer.get("stream_id") != captured_stream_id
+        or buffer.get("key") != expected_key
+    ):
+        failures.append(
+            "Redis replay buffer does not match the captured current stream id"
+        )
+    if not isinstance(buffer.get("ttl_seconds"), int) or buffer["ttl_seconds"] <= 0:
+        failures.append("Redis replay buffer has no positive TTL")
+
+    entries = buffer.get("entries") or []
+    if any(
+        not isinstance(entry, dict) or type(entry.get("seq")) is not int
+        for entry in entries
+    ):
+        failures.append("Redis replay buffer contains malformed entries")
+    else:
+        sequences = [entry["seq"] for entry in entries]
+        if sequences != sorted(sequences) or len(sequences) != len(set(sequences)):
+            failures.append(f"Redis buffered sequence is invalid: {sequences}")
+    frames = [
+        entry.get("parsed_frame")
+        for entry in entries
+        if isinstance(entry, dict) and isinstance(entry.get("parsed_frame"), dict)
+    ]
+    if len(frames) != len(entries):
+        failures.append("Redis replay buffer contains unparseable frames")
+    if any(frame.get("event") == "done" for frame in frames):
+        failures.append("Redis replay buffer contains a later done completion")
+
+    accepted = evidence["accepted"]
+    for entry, frame in zip(entries, frames):
+        data = frame.get("data")
+        try:
+            frame_sequence = int(str(frame.get("id")))
+        except (TypeError, ValueError):
+            failures.append("Redis replay frame has a non-integer SSE id")
+            continue
+        if (
+            not isinstance(data, dict)
+            or type(data.get("sequence")) is not int
+            or entry["seq"] != frame_sequence
+            or entry["seq"] != data["sequence"]
+        ):
+            failures.append(
+                "Redis replay wrapper seq, SSE id, and data.sequence must match"
+            )
+            continue
+        if data.get("trace_id") != REQUEST_ID or data.get("thread_id") != accepted.get(
+            "thread_id"
+        ):
+            failures.append("Redis replay buffer is not bound to the current run")
+            break
+
+    buffered_tokens = [
+        {
+            "content": str(frame["data"].get("content") or ""),
+            "sequence": frame["data"].get("sequence"),
+        }
+        for frame in frames
+        if frame.get("event") == "token" and isinstance(frame.get("data"), dict)
+    ]
+    if server_token_log != buffered_tokens:
+        failures.append(
+            "server token log does not match the current Redis replay buffer"
+        )
+
+    server_text = "".join(entry["content"] for entry in server_token_log)
+    persisted = str((evidence.get("persisted_partial") or {}).get("content") or "")
+    if not persisted:
+        failures.append("persisted_partial.content is empty")
+    token_boundaries: set[str] = set()
+    accumulated = ""
+    for entry in server_token_log:
+        accumulated += entry["content"]
+        token_boundaries.add(accumulated)
+    if (
+        persisted
+        and persisted not in token_boundaries
+        and server_text.startswith(persisted)
+    ):
+        failures.append("persisted partial ends inside an emitted server token")
+    elif persisted and not server_text.startswith(persisted):
+        failures.append(
+            "persisted partial is not a prefix of the server replay token history"
+        )
+    server_index = 0
+    for client_token in evidence["token_log"]:
+        while server_index < len(server_token_log):
+            server_token = server_token_log[server_index]
+            server_index += 1
+            if (
+                server_token["sequence"] == client_token["sequence"]
+                and server_token["content"] == client_token["content"]
+            ):
+                break
+        else:
+            failures.append(
+                "client token log is not an ordered exact subsequence of server replay history"
+            )
+            break
+    if (evidence.get("persisted_partial") or {}).get("stopped") is not True:
         failures.append("persisted_partial.stopped is not true")
 
 

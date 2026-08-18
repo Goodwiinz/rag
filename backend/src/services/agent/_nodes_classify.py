@@ -26,7 +26,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.services.agent._nodes_memory import memory_retrieval_node
@@ -39,6 +39,27 @@ from src.services.agent.observability import (
 from src.services.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
+
+MAX_CHECKPOINT_USER_TURNS = 20
+# ponytail: recent-turn window only; add durable summaries if long-thread recall
+# quality regresses beyond the existing memory/insight path.
+
+
+def _prune_checkpoint_history(messages: List[Any]) -> List[RemoveMessage]:
+    """Delete complete turns older than the recent checkpoint window."""
+    user_indexes = [
+        index
+        for index, message in enumerate(messages)
+        if isinstance(message, HumanMessage)
+    ]
+    if len(user_indexes) <= MAX_CHECKPOINT_USER_TURNS:
+        return []
+    cutoff = user_indexes[-MAX_CHECKPOINT_USER_TURNS]
+    return [
+        RemoveMessage(id=message.id)
+        for message in messages[:cutoff]
+        if getattr(message, "id", None)
+    ]
 
 
 def _extract_prior_tool(messages: List[Any]) -> Optional[Dict[str, Any]]:
@@ -200,6 +221,7 @@ async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
         # Per-turn resets — must come BEFORE merging subtask results so a
         # subtask that explicitly sets one of these keys still wins.
         "plan": [],
+        "plan_reasoning": "",
         "reflection_count": 0,
         "_reflection_result": None,
         "tool_loop_count": 0,
@@ -208,6 +230,7 @@ async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
         "last_error_info": {},
         "user_confirmed": False,
         "pending_confirmation": {},
+        "turn_index": int(state.get("turn_index") or 0) + 1,
         # compaction_count is documented "reset per turn" (state.py) but was
         # omitted, so it accumulated for the life of the thread. _force_-
         # synthesis_fired is last-write-wins and, left True from a prior turn,
@@ -216,6 +239,9 @@ async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
         "compaction_count": 0,
         "_force_synthesis_fired": False,
     }
+    removals = _prune_checkpoint_history(list(state.get("messages", [])))
+    if removals:
+        merged["messages"] = removals
     for result, default in zip(results, defaults):
         if isinstance(result, asyncio.CancelledError):
             # CancelledError is BaseException (not Exception) since 3.8, so the
@@ -252,6 +278,7 @@ __all__ = [
     "_extract_prior_tool",
     "_classify_core",
     "intent_classifier_node",
+    "_prune_checkpoint_history",
     "preprocessing_node",
     "route_by_intent",
 ]

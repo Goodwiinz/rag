@@ -47,11 +47,31 @@ _DIRECT_ARXIV_SEARCH_RE = re.compile(
 )
 
 
+# The fast path hard-codes search_arxiv's default 365-day window, so any turn
+# that states its own window must skip it and let the LLM set ``recency_days``
+# (a five-year review would otherwise silently return only the last year).
+# "recent"/"latest" are deliberately absent — the 365-day default is right for
+# those, and they are the most common phrasing the fast path exists to serve.
+_EXPLICIT_TIME_WINDOW_RE = re.compile(
+    r"\b(?:last|past|previous|within|over)\s+(?:the\s+)?"
+    r"(?:\w+[-\s]+)?(?:year|month|week|day|decade)s?\b"
+    r"|\b(?:since|before|after|between|from|until|up\s+to)\s+(?:19|20)\d{2}\b"
+    r"|\b(?:in|during)\s+(?:19|20)\d{2}\b"
+    r"|\b(?:19|20)\d{2}\s*(?:-|–|to)\s*(?:19|20)\d{2}\b"
+    r"|\ball[-\s]?time\b"
+    r"|\bdecades?\b"
+    r"|\b(?:earliest|oldest|foundational|seminal|historical|pioneering)\b",
+    re.IGNORECASE,
+)
+
+
 def _direct_arxiv_search_query(content: str) -> str | None:
     """Return a search query when the user explicitly asks to search arXiv."""
     if not content or not content.strip():
         return None
     if not _DIRECT_ARXIV_SEARCH_RE.search(content):
+        return None
+    if _EXPLICIT_TIME_WINDOW_RE.search(content):
         return None
 
     query = re.sub(
@@ -253,9 +273,8 @@ _parts = make_specialist_subgraph(
         "You ran {count} tool calls and reached "
         "the per-turn search budget. Do not request any more tools. Write a "
         "final answer drawn from the tool results already in this conversation: "
-        "list the most relevant papers (id, title, year, one-line summary) and "
-        "end with a clear next-step suggestion. Do NOT repeat or quote these "
-        "instructions in your reply."
+        "report the research findings gathered so far in the format the user "
+        "requested. Do NOT repeat or quote these instructions in your reply."
     ),
     synthesis_timeout_message=(
         "I ran my searches but the final summary step timed out "

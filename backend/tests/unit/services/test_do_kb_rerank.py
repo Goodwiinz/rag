@@ -59,6 +59,30 @@ async def test_service_disabled_passthrough_original_scores_intact():
 
 
 @pytest.mark.unit
+async def test_service_disabled_records_passthrough_metric():
+    chunks = [
+        Chunk(text="a", score=0.9, document_id="a", metadata={}),
+        Chunk(text="b", score=0.5, document_id="b", metadata={}),
+    ]
+    mock_service = MagicMock(is_enabled=False)
+    mock_service.rerank_with_outcome = AsyncMock()
+
+    with (
+        patch(
+            "src.services.search.cohere_rerank_service.cohere_rerank_service",
+            mock_service,
+        ),
+        patch("src.observability.metrics.increment_counter") as increment_counter,
+    ):
+        await cohere_rescore_chunks("q", chunks)
+
+    increment_counter.assert_called_once_with(
+        "rag_do_kb_cohere_rerank_total",
+        attributes={"outcome": "disabled"},
+    )
+
+
+@pytest.mark.unit
 async def test_success_reorders_and_replaces_scores_without_mutating_input():
     chunks = [
         Chunk(text="a", score=0.9, document_id="a", metadata={}),
@@ -234,7 +258,7 @@ async def test_timeout_passthrough():
 
 
 @pytest.mark.unit
-async def test_partial_results_covered_first_leftovers_in_original_order():
+async def test_partial_results_are_invalid_and_pass_through():
     chunks = [
         Chunk(text="a", score=0.9, document_id="a", metadata={}),
         Chunk(text="b", score=0.5, document_id="b", metadata={}),
@@ -246,18 +270,20 @@ async def test_partial_results_covered_first_leftovers_in_original_order():
         return_value=RerankOutcome(results=[_rerank_result(2, 0.99)])
     )
 
-    with patch(
-        "src.services.search.cohere_rerank_service.cohere_rerank_service",
-        mock_service,
+    with (
+        patch(
+            "src.services.search.cohere_rerank_service.cohere_rerank_service",
+            mock_service,
+        ),
+        patch("src.observability.metrics.increment_counter") as increment_counter,
     ):
         result = await cohere_rescore_chunks("q", chunks)
 
-    assert len(result) == 3
-    assert [c.document_id for c in result] == ["c", "a", "b"]
-    assert result[0].score == 0.99
-    assert result[0].metadata["score_source"] == "cohere"
-    assert result[1].metadata == chunks[0].metadata
-    assert result[2].metadata == chunks[1].metadata
+    assert result == chunks
+    increment_counter.assert_called_once_with(
+        "rag_do_kb_cohere_rerank_total",
+        attributes={"outcome": "invalid_result"},
+    )
 
 
 @pytest.mark.unit
@@ -399,6 +425,8 @@ async def test_tool_do_kb_retrieve_flag_on_sanitizes_before_rerank():
     ]
     assert result["chunks"][0]["score"] == 0.99
     assert result["chunks"][0]["score_source"] == "cohere"
+    assert result["score_semantics"] == "relevance"
+    assert "note" not in result
     assert all("synthetic." not in chunk["text"] for chunk in result["chunks"])
 
 
@@ -458,6 +486,8 @@ async def test_tool_do_kb_retrieve_flag_off_still_sanitizes_and_deduplicates():
     assert [c["title"] for c in result["chunks"]] == ["Untitled"]
     assert [c["text"] for c in result["chunks"]] == ["Contact <email>"]
     assert result["chunks"][0]["score_source"] == "rank_proxy"
+    assert result["score_semantics"] == "rank_only"
+    assert "retrieval rank" in result["note"]
 
 
 @pytest.mark.unit

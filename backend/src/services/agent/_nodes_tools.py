@@ -18,8 +18,8 @@ Why these constants live here:
 - ``TOOL_TIMEOUT_SECONDS`` / ``_SLOW_TOOL_TIMEOUT_SECONDS`` / ``_SLOW_TOOLS``
   control per-call wall-clock and which tools deserve the extended budget.
 - ``_NO_OUTER_RETRY_TOOLS`` skips the outer ``retry_transient`` for tools
-  whose internal client already retries (arxiv) — trace ``019e040b``
-  showed stacking pushed search_arxiv to ~85s.
+  whose internal client already retries (arxiv), or whose destructive side
+  effects must not be replayed after an ambiguous failure.
 - ``AGENT_LLM_TIMEOUT_SECONDS`` is consumed by every LLM node (main +
   subgraphs) so it must be importable from a single canonical location.
 """
@@ -171,7 +171,10 @@ async def _write_hitl_audit_row(
             )
             await session.commit()
     except Exception:
-        logger.debug("hitl audit row write failed", exc_info=True)
+        # ERROR, not debug: this is the durable "who approved the destructive
+        # action" record. A silent failure here means a compliance-critical
+        # audit trail has a gap with no visible signal at default log level.
+        logger.error("hitl audit row write failed", exc_info=True)
 
 
 def hitl_log_raised(config: RunnableConfig, destructive_calls: list) -> None:
@@ -299,8 +302,9 @@ _SLOW_TOOLS = frozenset(
     if ToolPolicyTag.SLOW in descriptor.policy_tags
 )
 
-# Tools that already handle their own retry/backoff internally. Outer
-# retry_transient stacks on top and amplifies wall-clock — trace 019e040b
+# Tools that must get one outer attempt: either they already retry internally
+# or they can commit destructive side effects before an ambiguous timeout.
+# Stacked retries amplify wall-clock — trace 019e040b
 # showed search_arxiv at 85.5s = (3s rate gate + 20s httpx + 30s outer
 # wait_for) × 2 attempts + 1s backoff. arxiv_service.py has its own 429
 # loop + exponential backoff; ingest_arxiv_papers downloads with retry
@@ -390,7 +394,7 @@ def _with_injected_project_id(tc: dict, page_context: dict) -> dict:
     """
     tool_args = dict(tc.get("args") or {})
     if (
-        "project_id" not in tool_args
+        not tool_args.get("project_id")
         and page_context.get("type") == "project"
         and page_context.get("project_id")
     ):
@@ -469,8 +473,8 @@ async def _execute_single_tool(
             # arxiv API hung 93s (3 × 30s timeout + backoff) which exceeded
             # the CLI 90s idle window. Failing faster surfaces the issue
             # while keeping one safety-net retry for genuine transient blips.
-            # Tools that retry internally (arxiv) skip the outer retry to
-            # avoid 2× wall-clock amplification (trace 019e040b: 85.5s).
+            # Internally-retrying and destructive tools skip the outer retry;
+            # the latter may have committed before an ambiguous failure.
             _outer_attempts = (
                 1
                 if TOOL_REGISTRY.has_policy(tool_name, ToolPolicyTag.NO_OUTER_RETRY)
@@ -779,9 +783,13 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         # Per-turn dedupe — mirrors tool_node. Keeps research subgraph in
         # sync with the main graph's dedupe semantics.
         from src.services.agent.tool_dedupe import (
+            FAILED_RETRY_THRESHOLD,
             build_deduped_execution_entry,
             build_deduped_tool_message,
+            build_failure_capped_execution_entry,
+            build_failure_capped_tool_message,
             find_cached_tool_results,
+            find_repeated_failures,
         )
 
         # Inject project_id before dedupe key computation (same as tool_node). (audit #10)
@@ -791,7 +799,18 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         cached = find_cached_tool_results(
             deduped_calls, state["messages"], tool_executions
         )
-        fresh_calls = [tc for tc in allowed_calls if tc["id"] not in cached]
+        capped = {
+            tc_id: prior
+            for tc_id, prior in find_repeated_failures(
+                deduped_calls, state["messages"], tool_executions
+            ).items()
+            if tc_id not in cached
+        }
+        fresh_calls = [
+            tc
+            for tc in allowed_calls
+            if tc["id"] not in cached and tc["id"] not in capped
+        ]
 
         tasks = [_execute_single_tool(tc, config, page_context) for tc in fresh_calls]
         fresh_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -806,6 +825,21 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
                 tool_messages.append(build_deduped_tool_message(tc["id"], prior))
                 tool_executions.append(
                     build_deduped_execution_entry(tc["id"], tc, prior)
+                )
+                continue
+            if tc["id"] in capped:
+                prior = capped[tc["id"]]
+                error_count += 1
+                last_error = "repeated_failure: identical args already failed this turn"
+                any_failure = True
+                all_success = False
+                tool_messages.append(
+                    build_failure_capped_tool_message(
+                        tc["id"], tc, prior, FAILED_RETRY_THRESHOLD
+                    )
+                )
+                tool_executions.append(
+                    build_failure_capped_execution_entry(tc["id"], tc, prior)
                 )
                 continue
             r = fresh_by_id.get(tc["id"])

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -30,6 +31,7 @@ from langchain_core.runnables import RunnableConfig
 
 from src.services.agent._nodes_rag import _coerce_text, is_conversational
 from src.services.agent._pii_redact import redact_pii
+from src.services.agent.compactor import trim_model_history
 from src.services.agent.observability import track_node_execution
 from src.services.agent.state import AgentState
 
@@ -41,6 +43,15 @@ logger = logging.getLogger(__name__)
 # (_background_tasks + callback).
 # ---------------------------------------------------------------------------
 _BACKGROUND_TASKS: set[asyncio.Task[Any]] = set()
+
+_EXPLICIT_MEMORY_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:remember|save)\s+(?:this\s+)?(?:that\s+)?",
+    re.IGNORECASE,
+)
+
+
+def _is_explicit_memory_request(text: str) -> bool:
+    return bool(_EXPLICIT_MEMORY_RE.search(text))
 
 
 def _on_persist_done(task: asyncio.Task[Any]) -> None:  # noqa: ANN001
@@ -100,12 +111,15 @@ async def _persist_memory_async(  # noqa: PLR0913
 
                 from src.services.agent.memory_store import extract_insights
 
+                insight_messages = trim_model_history(
+                    [m for m in messages if isinstance(m, (HumanMessage, AIMessage))]
+                )
                 serialised = [
                     {
                         "role": "user" if isinstance(m, HumanMessage) else "assistant",
                         "content": m.content,
                     }
-                    for m in messages
+                    for m in insight_messages
                     if getattr(m, "content", "")
                 ]
                 insights = await extract_insights(serialised, config)
@@ -147,25 +161,32 @@ async def memory_retrieval_node(state: AgentState, config: RunnableConfig) -> di
     if not user_id:
         return {"user_memories": []}
 
-    # Find the last user message for memory search.
+    # Find the last user message for memory search. Coerced (M5) — a
+    # multimodal HumanMessage's content is a list, and is_conversational()
+    # below does content.strip(), which raises AttributeError on a list.
     last_user_msg = ""
     for msg in reversed(state["messages"]):
         if isinstance(msg, HumanMessage):
-            last_user_msg = msg.content
+            last_user_msg = _coerce_text(msg.content)
             break
 
-    # Greeting / acknowledgement fast-path. Conversational turns ("hi",
-    # "thanks", "ok") never benefit from long-term recall, and the save gate
-    # in ``memory_save_node`` never persists them — so there is provably
-    # nothing to retrieve. Skip the Cohere query-embedding + Postgres
-    # semantic search (~0.5-2s on the parallel-preprocessing critical path).
-    # Shares the predicate with ``rag_node`` so both nodes agree on what
-    # counts as small talk. (Trace 019e9ef7: "hi" embedded the query and
-    # recalled 5 sub-0.5-score noise memories.)
-    if is_conversational(last_user_msg):
-        return {"user_memories": []}
-
     try:
+        # Greeting / acknowledgement fast-path. Conversational turns ("hi",
+        # "thanks", "ok") never benefit from long-term recall, and the save
+        # gate in ``memory_save_node`` never persists them — so there is
+        # provably nothing to retrieve. Skip the Cohere query-embedding +
+        # Postgres semantic search (~0.5-2s on the parallel-preprocessing
+        # critical path). Shares the predicate with ``rag_node`` so both
+        # nodes agree on what counts as small talk. (Trace 019e9ef7: "hi"
+        # embedded the query and recalled 5 sub-0.5-score noise memories.)
+        # Inside the try (M5): a predicate failure must degrade like every
+        # other memory-recall failure (WARNING + empty result) instead of
+        # escaping the node, where preprocessing_node's
+        # gather(return_exceptions=True) swallows it into the same default
+        # with no more than a log line — same outcome, but only on purpose.
+        if is_conversational(last_user_msg):
+            return {"user_memories": []}
+
         from src.services.agent.memory import get_memory_store, search_memories
 
         store = await get_memory_store()
@@ -232,7 +253,27 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
     # recall has any chance of helping a future query.
     intent = state.get("intent") or ""
     tool_executions = state.get("tool_executions") or []
-    if intent in ("", "general") and not tool_executions:
+
+    # Extract the last assistant and user messages. Coerce: multimodal
+    # content is a list of blocks, and the slice/encode below would raise
+    # on it (the save is best-effort, so the memory would just be silently
+    # lost).
+    last_ai_content = ""
+    last_user_content = ""
+    for msg in reversed(state["messages"]):
+        if isinstance(msg, AIMessage) and msg.content and not last_ai_content:
+            last_ai_content = _coerce_text(msg.content)
+        if isinstance(msg, HumanMessage) and not last_user_content:
+            last_user_content = _coerce_text(msg.content)
+        if last_ai_content and last_user_content:
+            break
+
+    explicit_memory_request = _is_explicit_memory_request(last_user_content)
+    if (
+        intent in ("", "general")
+        and not tool_executions
+        and not explicit_memory_request
+    ):
         return {}
 
     try:
@@ -241,20 +282,6 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
         store = await get_memory_store()
         if not store:
             return {}
-
-        # Extract the last assistant message for memory. Coerce: multimodal
-        # content is a list of blocks, and the slice/encode below would
-        # raise on it (the save is best-effort, so the memory would just be
-        # silently lost).
-        last_ai_content = ""
-        last_user_content = ""
-        for msg in reversed(state["messages"]):
-            if isinstance(msg, AIMessage) and msg.content and not last_ai_content:
-                last_ai_content = _coerce_text(msg.content)
-            if isinstance(msg, HumanMessage) and not last_user_content:
-                last_user_content = _coerce_text(msg.content)
-            if last_ai_content and last_user_content:
-                break
 
         if not last_user_content:
             return {}
@@ -266,7 +293,9 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
         from datetime import datetime, timezone
 
         thread_id = configurable.get("thread_id") or state.get("thread_id") or ""
-        turn_index = len([m for m in state["messages"] if isinstance(m, HumanMessage)])
+        turn_index = int(state.get("turn_index") or 0) or len(
+            [m for m in state["messages"] if isinstance(m, HumanMessage)]
+        )
         mem_key = hashlib.md5(
             f"{thread_id}:{turn_index}:{last_user_content[:100]}".encode(),
             usedforsecurity=False,

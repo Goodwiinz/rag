@@ -283,6 +283,8 @@ def check_turn1_classification(evidence: dict[str, Any], failures: list[str]) ->
 
 def check_memory_redaction(evidence: dict[str, Any], failures: list[str]) -> None:
     memory = evidence.get("memory") or {}
+    if not str(memory.get("key") or ""):
+        failures.append("turn-1 memory key was never captured")
     value = memory.get("value_after_turn1")
     if not isinstance(value, dict):
         failures.append("turn-1 memory row was never captured (drain failed)")
@@ -315,6 +317,15 @@ def check_turn2_recall(evidence: dict[str, Any], failures: list[str]) -> None:
             "turn 2 memory_retrieval_node surfaced no user_memories — the "
             "saved fact was not recalled"
         )
+    else:
+        saved = evidence.get("memory") or {}
+        if not any(
+            isinstance(item, dict)
+            and item.get("key") == saved.get("key")
+            and item.get("value") == saved.get("value_after_turn1")
+            for item in memories
+        ):
+            failures.append("turn 2 did not recall the exact turn-1 memory row")
     final_message = turn2.get("final_assistant_message") or {}
     if not str(final_message.get("content") or "").strip():
         failures.append("turn 2 produced no user-visible assistant message")
@@ -348,6 +359,10 @@ def check_preapproval_snapshot(evidence: dict[str, Any], failures: list[str]) ->
             "pre-approval snapshot shows the memory already gone — "
             "forget_memory (or something else) deleted it before approval"
         )
+    elif snapshot.get("memory_value") != (evidence.get("memory") or {}).get(
+        "value_after_turn1"
+    ):
+        failures.append("pre-approval snapshot does not match the turn-1 memory row")
 
 
 def check_forget_execution(evidence: dict[str, Any], failures: list[str]) -> None:

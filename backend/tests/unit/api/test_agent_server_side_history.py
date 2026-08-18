@@ -17,13 +17,13 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
+from src.models.chat_message import MessageRole
 from src.services.agent.agent_execution_service import (
     _newest_user_message,
     _seed_message_id,
     build_graph_input_messages,
     build_thread_seed_messages,
 )
-from src.models.chat_message import MessageRole
 
 THREAD = "11111111-1111-1111-1111-111111111111"
 
@@ -55,8 +55,10 @@ class _FakeDB:
 
     def __init__(self, rows):
         self._rows = rows
+        self.statement = None
 
-    async def execute(self, _stmt):
+    async def execute(self, statement):
+        self.statement = statement
         return _FakeResult(self._rows)
 
 
@@ -113,6 +115,14 @@ async def test_seed_is_idempotent():
     a = await build_thread_seed_messages(_FakeDB(rows), THREAD)
     b = await build_thread_seed_messages(_FakeDB(rows), THREAD)
     assert [m.id for m in a] == [m.id for m in b]
+
+
+async def test_seed_query_is_bounded_to_the_latest_40_rows():
+    db = _FakeDB([])
+    await build_thread_seed_messages(db, THREAD)
+
+    sql = str(db.statement.compile(compile_kwargs={"literal_binds": True}))
+    assert "LIMIT 40" in sql
 
 
 async def test_seed_bad_thread_id_returns_empty():
@@ -289,3 +299,126 @@ async def test_real_checkpoint_empty_seeds_without_duplication():
     final = (await graph.aget_state(config)).values["messages"]
     # id-keyed upsert: exactly the three seeded turns, none doubled.
     assert [m.content for m in final] == ["q1", "a1", "q2"]
+
+
+async def test_windowed_reopen_appends_newest_never_replaces_old_turns():
+    """Audit review, PR #1395 (Codex): the /chat client resends only a
+    WINDOWED page (e.g. the initial 50 messages) when reopening a long
+    thread, not the full conversation from turn 1. A positional id scheme
+    (thread_id, index-within-request) breaks here: turns 11-60's window
+    replays indices 0-49, the SAME indices turns 1-50 used earlier, so a
+    naive positional rebuild would silently REPLACE old checkpoint content
+    in place (add_messages is an id-keyed upsert). build_graph_input_messages
+    (Option B) never has this problem because it ignores the resent window's
+    positions entirely once the checkpoint is populated: it appends only the
+    newest turn, keyed on its own client_message_id.
+
+    Simulates a 60-turn thread already in a real checkpoint, then a resend
+    of only the last 50 user turns (a window, NOT the full history) plus one
+    new turn — pins that only the new turn is added and every earlier turn's
+    content survives unchanged.
+    """
+    graph = _real_graph()
+    config = {"configurable": {"thread_id": THREAD}}
+
+    # Seed 60 turns directly into a real checkpoint.
+    for i in range(1, 61):
+        await graph.ainvoke(
+            {
+                "messages": [
+                    HumanMessage(content=f"q{i}", id=f"u{i}"),
+                    AIMessage(content=f"a{i}", id=f"a{i}"),
+                ]
+            },
+            config,
+        )
+    before = (await graph.aget_state(config)).values["messages"]
+    assert len(before) == 120  # 60 human + 60 assistant, sanity check
+
+    # Client reopens the thread and only has the last 50 messages loaded
+    # (turns 11-60) plus the brand-new turn 61 — NOT turns 1-10.
+    windowed_request = _req("q61", cmid="u61")  # newest turn only matters here
+    out = await build_graph_input_messages(_FakeDB([]), graph, THREAD, windowed_request)
+
+    # Checkpoint is populated -> only the newest turn is ever returned,
+    # regardless of what window the client resent.
+    assert [m.content for m in out] == ["q61"]
+
+    await graph.ainvoke({"messages": out}, config)
+    final = (await graph.aget_state(config)).values["messages"]
+    assert len(final) == 121  # exactly one turn appended
+    # Every earlier turn's content is untouched — none were replaced in place.
+    assert [m.content for m in final[:120]] == [m.content for m in before]
+    assert final[-1].content == "q61"
+
+
+# --- concurrent seeding (codex audit CX2/CX4) --------------------------------
+
+
+class _MutableCountGraph:
+    """count starts empty; flips to populated when the test says so."""
+
+    def __init__(self):
+        self.values = {"messages": []}
+
+    async def aget_state(self, _config):
+        return SimpleNamespace(values=self.values)
+
+
+async def test_seed_lock_loser_waits_and_appends_only_newest(monkeypatch):
+    """Second concurrent first-turn must NOT double-seed: it waits on the seed
+    lock, re-reads a now-populated checkpoint, and appends only its turn."""
+    import asyncio
+
+    from src.services.agent import agent_execution_service as svc
+
+    graph = _MutableCountGraph()
+    rows = [_row(MessageRole.USER, "new", rid=_uuid.uuid4(), cmid="u1")]
+
+    lock_holder = {"held": True}
+
+    async def fake_acquire(_thread_id):
+        return not lock_holder["held"]
+
+    monkeypatch.setattr(svc, "_acquire_seed_lock", fake_acquire)
+    monkeypatch.setattr(svc, "_release_seed_lock", _async_noop)
+
+    async def winner_finishes():
+        await asyncio.sleep(0.15)
+        graph.values = {"messages": [HumanMessage(content="q1", id="s1")]}
+        lock_holder["held"] = False
+
+    task = asyncio.create_task(winner_finishes())
+    out = await build_graph_input_messages(
+        _FakeDB(rows), graph, THREAD, _req("new", cmid="u1")
+    )
+    await task
+
+    # The loser saw the populated checkpoint and appended ONLY its newest turn.
+    assert [m.content for m in out] == ["new"]
+
+
+async def _async_noop(_thread_id):
+    return None
+
+
+async def test_seed_lock_unavailable_still_seeds(monkeypatch):
+    """Lock never freeing (winner crashed) degrades to the pre-lock seed —
+    a turn is never lost to the lock."""
+    from src.services.agent import agent_execution_service as svc
+
+    monkeypatch.setattr(svc, "_acquire_seed_lock", _return_false)
+    monkeypatch.setattr(svc, "_release_seed_lock", _async_noop)
+    # Collapse the loser's wait loop so the test stays fast.
+    monkeypatch.setattr(svc.asyncio, "sleep", _async_noop)
+
+    graph = _FakeGraph({"messages": []})
+    rows = [_row(MessageRole.USER, "new", rid=_uuid.uuid4(), cmid="u1")]
+    out = await build_graph_input_messages(
+        _FakeDB(rows), graph, THREAD, _req("new", cmid="u1")
+    )
+    assert [m.content for m in out] == ["new"]
+
+
+async def _return_false(_thread_id):
+    return False

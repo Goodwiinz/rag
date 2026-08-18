@@ -26,6 +26,8 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from langgraph.errors import GraphInterrupt
+from langgraph.types import Interrupt
 from sqlalchemy import event, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -62,9 +64,14 @@ _BOUNDARIES = ["user_message", "run", "event", "outbox", "commit"]
 class _FakeGraph:
     """Minimal graph: one user-visible token, then a clean finish."""
 
+    def __init__(self, error: BaseException | None = None) -> None:
+        self._error = error
+
     async def astream_events(
         self, *_args: Any, **_kwargs: Any
     ) -> AsyncIterator[dict[str, Any]]:
+        if self._error is not None:
+            raise self._error
         yield {
             "event": "on_chat_model_stream",
             "name": "llm",
@@ -129,6 +136,8 @@ async def _drive_stream(
     session_factory: async_sessionmaker[AsyncSession],
     *,
     extra_patches: tuple[Any, ...] = (),
+    graph: Any | None = None,
+    resolve_thread_error: BaseException | None = None,
 ) -> list[str]:
     from src.api.agent import streaming as streaming_mod
 
@@ -140,13 +149,19 @@ async def _drive_stream(
     )
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     current_user = SimpleNamespace(id=USER_ID, organization_id=ORG_ID)
+    graph = graph or _FakeGraph()
+    resolve_thread = (
+        AsyncMock(side_effect=resolve_thread_error)
+        if resolve_thread_error is not None
+        else AsyncMock(return_value=(_thread_row(), str(CONVERSATION_ID)))
+    )
 
     with (
         patch.object(streaming_mod, "AsyncSessionLocal", session_factory),
         patch.object(
             streaming_mod,
             "_resolve_thread",
-            new=AsyncMock(return_value=(_thread_row(), str(CONVERSATION_ID))),
+            new=resolve_thread,
         ),
         patch.object(
             streaming_mod, "_resolve_and_bind_project", new=AsyncMock(return_value=None)
@@ -164,7 +179,7 @@ async def _drive_stream(
         ),
         patch(
             "src.services.agent.graph.compile_agent_graph",
-            new=lambda **_kwargs: _FakeGraph(),
+            new=lambda **_kwargs: graph,
         ),
         patch(
             "src.services.agent.agent_execution_service._persist_assistant_message_safe",
@@ -256,6 +271,70 @@ async def test_stream_accepted_implies_committed(
         assert await _count(verify, AgentOutbox) == 0
         thread = await verify.get(Thread, THREAD_ID)
         assert thread is not None and thread.message_count == 0
+
+
+@pytest.mark.asyncio
+async def test_thread_resolution_failure_is_not_accepted(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    frames = await _drive_stream(
+        session_factory,
+        resolve_thread_error=ValueError("malformed thread id"),
+    )
+
+    assert not _accepted_frames(frames)
+    assert frames_of_type(frames, "error")
+    async with session_factory() as verify:
+        assert await _count(verify, ChatMessage) == 0
+        assert await _count(verify, AgentRun) == 0
+
+
+@pytest.mark.asyncio
+async def test_stream_failure_closes_the_durable_run(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    frames = await _drive_stream(
+        session_factory, graph=_FakeGraph(RuntimeError("boom"))
+    )
+
+    assert frames_of_type(frames, "error")
+    async with session_factory() as verify:
+        run = (await verify.execute(select(AgentRun))).scalar_one()
+        assert run.status == JobStatus.FAILED.value
+        failed = (
+            await verify.execute(
+                select(AgentRunEvent).where(
+                    AgentRunEvent.run_id == run.job_id,
+                    AgentRunEvent.event_type == "run.failed",
+                )
+            )
+        ).scalar_one()
+        assert set(failed.payload) == {"code", "message"}
+
+
+@pytest.mark.asyncio
+async def test_unsaved_interrupt_closes_the_durable_run(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    interrupt = GraphInterrupt(
+        (Interrupt(value={"message": "confirm"}, id="interrupt-1"),)
+    )
+    frames = await _drive_stream(session_factory, graph=_FakeGraph(interrupt))
+
+    assert frames_of_type(frames, "error")
+    async with session_factory() as verify:
+        run = (await verify.execute(select(AgentRun))).scalar_one()
+        assert run.status == JobStatus.FAILED.value
+        failed = (
+            await verify.execute(
+                select(AgentRunEvent).where(
+                    AgentRunEvent.run_id == run.job_id,
+                    AgentRunEvent.event_type == "run.failed",
+                )
+            )
+        ).scalar_one()
+        assert failed.payload["code"] == "interrupt_not_checkpointed"
+        assert set(failed.payload) == {"code", "message"}
 
 
 @pytest.mark.asyncio

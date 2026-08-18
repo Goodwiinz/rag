@@ -6,7 +6,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent } from '@testing-library/react';
+import { act, fireEvent } from '@testing-library/react';
 import { renderWithChatRuntime } from './renderWithChatRuntime';
 
 // Mock framer-motion to avoid animation issues in tests
@@ -27,17 +27,19 @@ vi.mock('framer-motion', () => ({
 
 vi.mock('@assistant-ui/react', async () => {
   const React = await import('react');
+  const MockComposerRoot = React.forwardRef<HTMLFormElement, any>(
+    ({ children, asChild: _asChild, ...props }, ref) => (
+      <form ref={ref} {...props}>
+        {children}
+      </form>
+    )
+  );
+  MockComposerRoot.displayName = 'MockComposerRoot';
   return {
     AssistantRuntimeProvider: ({ children }: any) => <>{children}</>,
     useExternalStoreRuntime: () => ({}),
     ComposerPrimitive: {
-      Root: React.forwardRef<HTMLFormElement, any>(
-        ({ children, asChild: _asChild, ...props }, ref) => (
-          <form ref={ref} {...props}>
-            {children}
-          </form>
-        )
-      ),
+      Root: MockComposerRoot,
       Input: ({ children, asChild: _asChild, ...props }: any) =>
         React.cloneElement(React.Children.only(children), props),
     },
@@ -161,5 +163,249 @@ describe('ChatInput file attach', () => {
     expect(container.querySelector('ul[aria-label="Attached files"]')).toBeNull();
 
     vi.unstubAllGlobals();
+  });
+
+  describe('attachment ids handed to the send', () => {
+    function attachFiles(container: HTMLElement, names: string[]): void {
+      const input = container.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      Object.defineProperty(input, 'files', {
+        value: names.map(
+          (n) => new File(['x'], n, { type: 'application/pdf' })
+        ) as unknown as FileList,
+        configurable: true,
+      });
+      fireEvent.change(input);
+    }
+
+    it('sends the document ids of the uploaded chips', async () => {
+      const onSubmit = vi.fn();
+      const onAttach = vi.fn(async () => [
+        { ok: true, documentId: 'doc-1' },
+        { ok: true, documentId: 'doc-2' },
+      ]);
+      const { container } = renderWithChatRuntime(
+        <ChatInput
+          {...baseProps}
+          value="hi"
+          onSubmit={onSubmit}
+          onAttach={onAttach}
+        />
+      );
+      await act(async () => {
+        attachFiles(container, ['a.pdf', 'b.pdf']);
+      });
+
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+
+      expect(onSubmit).toHaveBeenCalledWith(['doc-1', 'doc-2']);
+    });
+
+    it('un-attaches a document when its chip is removed', async () => {
+      // The chips are the visible contract: a file the user took back off the
+      // composer must not ride along with the turn anyway.
+      const onSubmit = vi.fn();
+      const onAttach = vi.fn(async () => [
+        { ok: true, documentId: 'doc-1' },
+        { ok: true, documentId: 'doc-2' },
+      ]);
+      const { container, getByLabelText } = renderWithChatRuntime(
+        <ChatInput
+          {...baseProps}
+          value="hi"
+          onSubmit={onSubmit}
+          onAttach={onAttach}
+        />
+      );
+      await act(async () => {
+        attachFiles(container, ['a.pdf', 'b.pdf']);
+      });
+
+      fireEvent.click(getByLabelText('Remove a.pdf'));
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+
+      expect(onSubmit).toHaveBeenCalledWith(['doc-2']);
+    });
+
+    it('sends no id for a file that failed to upload', async () => {
+      const onSubmit = vi.fn();
+      const onAttach = vi.fn(async () => [
+        { ok: true, documentId: 'doc-1' },
+        { ok: false },
+      ]);
+      const { container } = renderWithChatRuntime(
+        <ChatInput
+          {...baseProps}
+          value="hi"
+          onSubmit={onSubmit}
+          onAttach={onAttach}
+        />
+      );
+      await act(async () => {
+        attachFiles(container, ['a.pdf', 'b.pdf']);
+      });
+
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+
+      expect(onSubmit).toHaveBeenCalledWith(['doc-1']);
+    });
+
+    it('sends an empty list when a host reports no outcomes', () => {
+      // Hosts that return nothing leave the chips optimistic; they are a
+      // visual record only and must not fabricate ids.
+      const onSubmit = vi.fn();
+      const { container } = renderWithChatRuntime(
+        <ChatInput {...baseProps} value="hi" onSubmit={onSubmit} />
+      );
+      attachFiles(container, ['a.pdf']);
+
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+
+      expect(onSubmit).toHaveBeenCalledWith([]);
+    });
+  });
+
+  describe('upload state on the chips', () => {
+    function attachOne(container: HTMLElement, name = 'paper.pdf'): void {
+      const input = container.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      Object.defineProperty(input, 'files', {
+        value: [
+          new File(['x'], name, { type: 'application/pdf' }),
+        ] as unknown as FileList,
+        configurable: true,
+      });
+      fireEvent.change(input);
+    }
+
+    it('shows an uploading chip until the host reports the outcome', async () => {
+      let settle: (r: { ok: boolean }[]) => void = () => {};
+      const onAttach = vi.fn(
+        () =>
+          new Promise<{ ok: boolean }[]>((resolve) => {
+            settle = resolve;
+          })
+      );
+      const { container } = renderWithChatRuntime(
+        <ChatInput {...baseProps} onAttach={onAttach} />
+      );
+      attachOne(container);
+
+      expect(
+        container.querySelector('[aria-label="Uploading paper.pdf"]')
+      ).not.toBeNull();
+
+      await act(async () => {
+        settle([{ ok: true }]);
+      });
+
+      expect(
+        container.querySelector('[aria-label="Uploading paper.pdf"]')
+      ).toBeNull();
+      expect(
+        container.querySelector('[aria-label="Upload failed for paper.pdf"]')
+      ).toBeNull();
+    });
+
+    it('marks the chip failed when the host reports a failed upload', async () => {
+      const onAttach = vi.fn(async () => [{ ok: false }]);
+      const { container } = renderWithChatRuntime(
+        <ChatInput {...baseProps} onAttach={onAttach} />
+      );
+
+      await act(async () => {
+        attachOne(container);
+      });
+
+      expect(
+        container.querySelector('[aria-label="Upload failed for paper.pdf"]')
+      ).not.toBeNull();
+    });
+
+    it('marks the chip failed when the host rejects', async () => {
+      const onAttach = vi.fn(() => Promise.reject(new Error('network down')));
+      const { container } = renderWithChatRuntime(
+        <ChatInput {...baseProps} onAttach={onAttach} />
+      );
+
+      await act(async () => {
+        attachOne(container);
+      });
+
+      expect(
+        container.querySelector('[aria-label="Upload failed for paper.pdf"]')
+      ).not.toBeNull();
+      expect(
+        container.querySelector('[aria-label="Uploading paper.pdf"]')
+      ).toBeNull();
+    });
+
+    it('settles each pick of the same file independently', async () => {
+      // The file input is reset after every selection, so the identical file
+      // can be attached twice; the two chips must not share an identity.
+      let settleSecond: (r: { ok: boolean }[]) => void = () => {};
+      const onAttach = vi
+        .fn()
+        .mockResolvedValueOnce([{ ok: false }])
+        .mockImplementationOnce(
+          () =>
+            new Promise<{ ok: boolean }[]>((resolve) => {
+              settleSecond = resolve;
+            })
+        );
+
+      const { container } = renderWithChatRuntime(
+        <ChatInput {...baseProps} onAttach={onAttach} />
+      );
+
+      await act(async () => {
+        attachOne(container);
+      });
+      await act(async () => {
+        attachOne(container);
+      });
+
+      // First pick failed; second is still in flight — one of each, not two
+      // chips sharing whichever outcome landed last.
+      expect(
+        container.querySelectorAll('[aria-label="Upload failed for paper.pdf"]')
+      ).toHaveLength(1);
+      expect(
+        container.querySelectorAll('[aria-label="Uploading paper.pdf"]')
+      ).toHaveLength(1);
+
+      await act(async () => {
+        settleSecond([{ ok: true }]);
+      });
+
+      // The successful second pick must not have cleared the first failure.
+      expect(
+        container.querySelectorAll('[aria-label="Upload failed for paper.pdf"]')
+      ).toHaveLength(1);
+      expect(
+        container.querySelectorAll('[aria-label="Uploading paper.pdf"]')
+      ).toHaveLength(0);
+    });
+
+    it('leaves the chip settled when the host reports nothing back', async () => {
+      const onAttach = vi.fn();
+      const { container } = renderWithChatRuntime(
+        <ChatInput {...baseProps} onAttach={onAttach} />
+      );
+
+      await act(async () => {
+        attachOne(container);
+      });
+
+      // No promise to await, so the chip must not sit in the uploading state.
+      expect(
+        container.querySelector('[aria-label="Uploading paper.pdf"]')
+      ).toBeNull();
+      expect(
+        container.querySelector('ul[aria-label="Attached files"]')
+      ).not.toBeNull();
+    });
   });
 });

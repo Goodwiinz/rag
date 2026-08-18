@@ -1,0 +1,45 @@
+schema_version = "1.2"
+source = "git+https://github.com/Goodwiinz/rag.git@49337fa3d1db66440686a8193bc8dd76e8a450af"
+artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
+
+[task]
+name = "goodwiinz/agent-project-skill-runtime-v1"
+description = "Freeze one project-skill version across activation drift and HITL resume, then create one grounded note."
+authors = [{ name = "Goodwiinz" }]
+keywords = ["langgraph", "project-skills", "snapshot", "hitl", "versioning"]
+
+[metadata]
+benchmark_id = "agent-project-skill-runtime-v1"
+source_revision = "49337fa3d1db66440686a8193bc8dd76e8a450af"
+agent_revision = "49337fa3d1db66440686a8193bc8dd76e8a450af"
+harbor_version = "0.6.6"
+base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
+
+[verifier]
+timeout_sec = 120.0
+
+[verifier.env]
+
+[agent]
+timeout_sec = 480.0
+
+[environment]
+build_timeout_sec = 1800.0
+os = "linux"
+cpus = 4
+memory_mb = 8192
+storage_mb = 20480
+gpus = 0
+allow_internet = true
+mcp_servers = []
+workdir = "/app"
+
+[environment.env]
+AZURE_OPENAI_CHAT_ENDPOINT = "${AZURE_OPENAI_CHAT_ENDPOINT}"
+AZURE_OPENAI_CHAT_API_KEY = "${AZURE_OPENAI_CHAT_API_KEY}"
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME = "${AZURE_OPENAI_CHAT_DEPLOYMENT_NAME}"
+AZURE_OPENAI_CHAT_API_VERSION = "${AZURE_OPENAI_CHAT_API_VERSION}"
+AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT = "${AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT}"
+AZURE_OPENAI_SYNTHESIS_DEPLOYMENT = "${AZURE_OPENAI_SYNTHESIS_DEPLOYMENT:-}"
+
+[solution.env]

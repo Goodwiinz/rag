@@ -6,7 +6,7 @@ infrastructure failure (no reward emitted by ``test.sh``). Layer B (semantic)
 is N/A for this task — no judge is configured or consumed; the final message
 is checked by literal digest containment, not by an LLM judge.
 
-Pass condition (design doc, code-execution capability): a sentinel-intent
+Pass condition (design doc, code-execution capability): a real classified
 turn reaches ``execute_code`` — DESTRUCTIVE, so it pauses for exactly one
 HITL approval before any sandbox request reaches the E2B double — then the
 double genuinely subprocess-executes the submitted Python, and the resulting
@@ -31,10 +31,10 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import run_verifier_main
 
 BENCHMARK_ID = "agent-code-execution-v1"
-EXPECTED_SOURCE_REVISION = "7c6abb336c4eaf2ed6d53bd9f78b32b82a7a3b23"
+EXPECTED_SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 TARGET_STRING = "nous-benchmark-1101"
 EXPECTED_INSTRUCTION = (
-    f"Run Python to compute the SHA-256 hex digest of the exact string "
+    f"Use Python to find the SHA-256 hex digest of the exact string "
     f'"{TARGET_STRING}" and report the digest.'
 )
 
@@ -48,13 +48,17 @@ ORG_ID = TRUTH["organization_id"]
 USER_ID = TRUTH["user_id"]
 WORKSPACE_ID = TRUTH["workspace_id"]
 THREAD_ID = TRUTH["thread_id"]
-SENTINEL_INTENT = TRUTH["sentinel_intent"]
+SENTINEL_INTENT = "benchmark_all_tools"
 MAX_EXECUTIONS_PER_RUN = int(TRUTH["max_executions_per_run"])
 EXPECTED_DIGEST = hashlib.sha256(TARGET_STRING.encode()).hexdigest()
 assert EXPECTED_DIGEST == TRUTH["expected_sha256"], "truth.json digest is stale"
 
 DESTRUCTIVE_TOOL = "execute_code"
 SUCCESS_STATUSES = {"completed", "success"}
+KNOWN_AGENT_INTENTS = {"research", "writing", "knowledge_graph", "general"}
+EXECUTE_CODE_INTENTS = {"research"}
+RETIRED_SENTINEL_INTENT = SENTINEL_INTENT
+EXPECTED_KEYWORD_INTENT = "research"
 
 
 # --------------------------------------------------------------------------
@@ -143,17 +147,62 @@ def check_network_boundary(evidence: dict[str, Any], failures: list[str]) -> Non
             failures.append(f"network boundary not proven: {key}")
 
 
-def check_sentinel_routing(evidence: dict[str, Any], failures: list[str]) -> None:
-    if (evidence.get("env_flags") or {}).get("routing_workaround") != "sentinel_intent":
-        failures.append("env_flags.routing_workaround != 'sentinel_intent'")
-    if evidence.get("sentinel_intent") != SENTINEL_INTENT:
-        failures.append("sentinel_intent does not match the approved sentinel")
-    if evidence.get("observed_intent") != SENTINEL_INTENT:
+def check_real_routing(evidence: dict[str, Any], failures: list[str]) -> None:
+    env_flags = evidence.get("env_flags") or {}
+    if "routing_workaround" in env_flags:
+        failures.append("env_flags carries retired routing_workaround")
+
+    intent = evidence.get("observed_intent")
+    keyword_intent = (evidence.get("classification") or {}).get("keyword_intent")
+    if keyword_intent != EXPECTED_KEYWORD_INTENT:
         failures.append(
-            f"observed_intent={evidence.get('observed_intent')!r}, expected the "
-            f"seeded sentinel {SENTINEL_INTENT!r} — route_by_intent/_get_tools_for_intent "
-            "did not see the workaround's state"
+            f"keyword classifier returned {keyword_intent!r}; expected "
+            f"{EXPECTED_KEYWORD_INTENT!r}"
         )
+    if intent == RETIRED_SENTINEL_INTENT:
+        failures.append(
+            f"observed_intent={intent!r} is the retired sentinel; routing was not genuine"
+        )
+    elif intent not in KNOWN_AGENT_INTENTS:
+        failures.append(f"observed_intent={intent!r} is not a real AgentIntent")
+    elif intent not in EXECUTE_CODE_INTENTS:
+        failures.append(
+            f"observed_intent={intent!r} does not legitimately bind execute_code "
+            "(only research does)"
+        )
+
+
+def check_turn_sent(evidence: dict[str, Any], failures: list[str]) -> None:
+    if evidence.get("instruction") != EXPECTED_INSTRUCTION:
+        failures.append("instruction does not match the approved task")
+
+    pre_turn_ids = {
+        str(item)
+        for item in evidence.get("pre_turn_message_ids") or []
+        if str(item).strip()
+    }
+    messages = evidence.get("messages") or []
+    fresh_messages = [
+        message
+        for message in messages
+        if isinstance(message, dict)
+        and message.get("type") == "human"
+        and message.get("content") == EXPECTED_INSTRUCTION
+        and str(message.get("id") or "").strip()
+        and str(message.get("id") or "") not in pre_turn_ids
+    ]
+    if not fresh_messages:
+        failures.append(
+            "no newly appended human message matches the instruction; "
+            "the graph turn may never have been sent"
+        )
+
+    completed = any(
+        isinstance(item, dict) and item.get("milestone") == "turn:completed"
+        for item in evidence.get("milestones") or []
+    )
+    if not completed:
+        failures.append("milestone 'turn:completed' is missing")
 
 
 def check_e2b_patch(evidence: dict[str, Any], failures: list[str]) -> None:
@@ -319,7 +368,8 @@ def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[
     failures: list[str] = []
     check_identity(evidence, failures)
     check_network_boundary(evidence, failures)
-    check_sentinel_routing(evidence, failures)
+    check_real_routing(evidence, failures)
+    check_turn_sent(evidence, failures)
     check_e2b_patch(evidence, failures)
     check_hitl_ordering(evidence, failures)
     check_no_unsanctioned_destructive_tools(evidence, failures)

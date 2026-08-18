@@ -35,6 +35,12 @@ class _Result:
     def scalar_one_or_none(self) -> Any:
         return self._value
 
+    def scalars(self) -> "_Result":
+        return self
+
+    def all(self) -> list[Any]:
+        return [self._value] if self._value is not None else []
+
 
 class _DB:
     """Captures the statement so we can assert what was filtered on."""
@@ -49,12 +55,13 @@ class _DB:
 
 
 async def test_existing_copy_is_found_by_org_and_checksum() -> None:
-    from src.services.agent.tools_impl import _existing_document_id
+    from src.models.document import Document
+    from src.services.arxiv.persistence import existing_document_id
 
     existing = uuid4()
-    db = _DB(found=existing)
+    db = _DB(found=Document(id=existing))
 
-    got = await _existing_document_id(db, uuid4(), "abc123")
+    got = await existing_document_id(db, uuid4(), "abc123")
 
     assert got == existing
     sql = str(db.executed[0]).lower()
@@ -66,20 +73,60 @@ async def test_existing_copy_is_found_by_org_and_checksum() -> None:
     )
 
 
-async def test_no_existing_copy_returns_none() -> None:
-    from src.services.agent.tools_impl import _existing_document_id
+async def test_existing_arxiv_copy_is_scoped_to_tenant_and_live_rows() -> None:
+    from sqlalchemy.dialects import postgresql
 
-    assert await _existing_document_id(_DB(found=None), uuid4(), "abc123") is None
+    from src.models.document import Document
+    from src.services.arxiv.persistence import existing_arxiv_document_id
+
+    db = _DB(found=Document(id=uuid4()))
+
+    await existing_arxiv_document_id(db, uuid4(), "2401.00001v1")
+
+    sql = str(
+        db.executed[0].compile(
+            dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+        )
+    ).lower()
+    assert "organization_id" in sql
+    assert "arxiv_id" in sql
+    assert "is_deleted" in sql
+
+
+def test_exact_arxiv_constraint_is_non_destructive_and_tenant_scoped() -> None:
+    from pathlib import Path
+
+    migration = (
+        Path(__file__).resolve().parents[4]
+        / "alembic"
+        / "versions"
+        / "i9j0k1l2m3n4_add_documents_arxiv_id.py"
+    )
+    text = migration.read_text()
+    assert "uq_documents_org_arxiv_id_live" in text
+    assert '["organization_id", "arxiv_id"]' in text
+    assert "unique=True" in text
+    assert "BEFORE INSERT ON documents" in text
+    assert "NEW.document_metadata->>'arxiv_id'" in text
+    assert "LENGTH(candidate) <= 64" in text
+    assert "candidate ~ '^[0-9]" in text
+    assert "UPDATE documents" not in text
+
+
+async def test_no_existing_copy_returns_none() -> None:
+    from src.services.arxiv.persistence import existing_document_id
+
+    assert await existing_document_id(_DB(found=None), uuid4(), "abc123") is None
 
 
 async def test_missing_checksum_skips_the_lookup_entirely() -> None:
     """No checksum means nothing to collide with; don't spend a query."""
-    from src.services.agent.tools_impl import _existing_document_id
+    from src.services.arxiv.persistence import existing_document_id
 
     db = _DB(found=uuid4())
 
-    assert await _existing_document_id(db, uuid4(), None) is None
-    assert await _existing_document_id(db, uuid4(), "") is None
+    assert await existing_document_id(db, uuid4(), None) is None
+    assert await existing_document_id(db, uuid4(), "") is None
     assert db.executed == []
 
 

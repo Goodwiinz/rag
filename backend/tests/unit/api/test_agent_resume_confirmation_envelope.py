@@ -146,6 +146,7 @@ async def test_resume_confirmation_response_uses_sse_headers() -> None:
             request,  # type: ignore[arg-type]
             thread_id=thread_id,
             after=0,
+            stream=None,
             last_event_id=None,
             current_user=current_user,
             db=_FakeDB(),  # type: ignore[arg-type]

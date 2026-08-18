@@ -7,20 +7,26 @@ The in-memory ``OrderedDict`` is kept as an L1 read cache (write-through)
 so the hot path (polling) avoids a Redis round-trip.
 
 Every status write is additionally projected into the durable ``agent_runs``
-Postgres table via ``schedule_run_projection`` (fire-and-forget, log-and-
-continue) so a run's lifecycle survives Redis failover — Redis stays
-authoritative; the poll endpoint only reads Postgres on a Redis miss.
+Postgres table. Non-terminal writes remain fire-and-forget; thread-scoped
+terminal writes land before L1/Redis publication on the happy path, so
+completion does not hold the database's single-writer slot longer than
+necessary. A failed strict write does not cost the terminal status itself: it
+falls back to the same best-effort re-projection non-terminal writes use, so
+a Postgres blip at completion narrows durability instead of losing the
+result (see ``set_job``).
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json as _json
 import logging
 import time
 from collections import OrderedDict
 from threading import Lock
 from typing import TYPE_CHECKING, Any, Optional
+from uuid import uuid4
 
 from src.core.config import get_settings
 from src.shared.enums import JobStatus
@@ -53,6 +59,15 @@ _L1_CLEANUP_INTERVAL = 60.0
 # same ``time.time()`` tick, so two updates in one tick cannot overwrite out of
 # order (created_at alone can't disambiguate them).
 _seq: int = 0
+
+
+class ConfirmationCoordinationUnavailable(RuntimeError):
+    """Raised when a shared deployment cannot claim a confirmation safely."""
+
+
+def process_local_confirmation_coordination_allowed() -> bool:
+    """Whether this process may use an in-memory confirmation claim."""
+    return get_settings().is_throwaway_environment
 
 
 def _is_newer_or_equal(data: dict, existing: dict) -> bool:
@@ -116,12 +131,23 @@ async def _get_redis() -> Optional[Any]:  # noqa: ANN401
     if not settings.REDIS_URL:
         logger.warning("REDIS_URL not configured — job store using in-memory only")
         return None
+    client: Optional[Any] = None
     try:
-        _redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-        await _redis.ping()
+        client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        await client.ping()
     except Exception:
         logger.exception("Failed to connect to Redis for job store")
+        # `from_url` allocates a connection pool synchronously; a failed ping
+        # leaves it open with nothing left to close it if we just drop the
+        # reference — one leaked pool per retry cycle for the life of a Redis
+        # outage. Best-effort close: this path already logged and is about to
+        # degrade to in-memory-only, so a second failure here is not fatal.
+        if client is not None:
+            with contextlib.suppress(Exception):
+                await client.aclose()
         _redis = None
+        return _redis
+    _redis = client
     return _redis
 
 
@@ -145,6 +171,37 @@ async def close_redis() -> None:
 # Strong references to in-flight projection tasks so the event loop cannot
 # garbage-collect them mid-write (same pattern as jobs._background_tasks).
 _projection_tasks: set = set()
+
+
+def _projection_payload(data: dict, fallback: Optional[dict] = None) -> dict:
+    """Snapshot the fields projected into ``agent_runs``."""
+    request = data.get("request")
+    result = data.get("result")
+    fallback = fallback or {}
+    fallback_request = fallback.get("request")
+    fallback_result = fallback.get("result")
+    return {
+        "status": data.get("status"),
+        "user_id": data.get("user_id"),
+        "organization_id": data.get("organization_id"),
+        "error": data.get("error"),
+        "thread_id": (
+            data.get("thread_id")
+            or (request.get("thread_id") if isinstance(request, dict) else None)
+            or (result.get("thread_id") if isinstance(result, dict) else None)
+            or fallback.get("thread_id")
+            or (
+                fallback_request.get("thread_id")
+                if isinstance(fallback_request, dict)
+                else None
+            )
+            or (
+                fallback_result.get("thread_id")
+                if isinstance(fallback_result, dict)
+                else None
+            )
+        ),
+    }
 
 
 def _projection_enabled() -> bool:
@@ -195,19 +252,7 @@ def schedule_run_projection(job_id: str, data: dict) -> None:
     status = data.get("status")
     if not status:
         return
-    request = data.get("request")
-    result = data.get("result")
-    payload = {
-        "status": status,
-        "user_id": data.get("user_id"),
-        "organization_id": data.get("organization_id"),
-        "error": data.get("error"),
-        "thread_id": (
-            data.get("thread_id")
-            or (request.get("thread_id") if isinstance(request, dict) else None)
-            or (result.get("thread_id") if isinstance(result, dict) else None)
-        ),
-    }
+    payload = _projection_payload(data)
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -277,10 +322,9 @@ async def set_job(job_id: str, data: dict) -> None:
     global _seq
     data["created_at"] = time.time()
 
-    # L1: in-memory cache (monotonic guard — never overwrite newer data)
+    # Carry ownership forward and capture the prior request/result before the
+    # replacement write. Terminal updates often contain only status + actor.
     with _l1_lock:
-        _seq += 1
-        data["_seq"] = _seq
         existing = _l1.get(job_id)
         # set_job REPLACES the record. Carry the owner forward when a status
         # update omits it — the GET ownership check fails closed on a missing
@@ -298,12 +342,65 @@ async def set_job(job_id: str, data: dict) -> None:
             and existing.get("organization_id")
         ):
             data["organization_id"] = existing["organization_id"]
+
+    projection_payload = _projection_payload(data, existing)
+    try:
+        status = JobStatus(data.get("status"))
+    except (TypeError, ValueError):
+        status = None
+    strict_terminal_projection = bool(
+        status is not None
+        and status.is_terminal
+        and projection_payload.get("thread_id")
+    )
+    projection_failed = False
+    if strict_terminal_projection:
+        # Release the durable single-writer slot before L1/Redis can expose a
+        # terminal result to the client — but that ordering must not cost the
+        # terminal status itself. Every caller of set_job for a terminal write
+        # sits directly in an except-handler body with no try/except of its
+        # own (agent_execution_service._run_agent_graph's COMPLETED/FAILED
+        # branches); letting record_job_status's exception escape here kills
+        # the background task with L1/Redis stuck on "running" until the
+        # sweeper's stale window, which then overwrites the real error with a
+        # generic "swept as stale" message. Fall through instead: the
+        # single-writer slot is released late rather than the result being
+        # lost, and the best-effort seam below (shared with non-terminal
+        # writes) retries the durable row — the sweeper also repairs the
+        # projection from the live store on its next pass regardless.
+        from src.services.agent.agent_run_service import record_job_status
+
+        try:
+            await record_job_status(job_id, projection_payload, raise_on_error=True)
+        except Exception:
+            logger.exception(
+                "Terminal agent_runs projection failed for job %s; exposing "
+                "L1/Redis anyway and rescheduling a best-effort re-projection",
+                job_id,
+            )
+            projection_failed = True
+
+    # L1: in-memory cache (monotonic guard — never overwrite newer data).
+    # Re-read `existing` here rather than reusing the pre-projection snapshot
+    # above: the strict projection just awaited a Postgres round-trip, and a
+    # newer write (e.g. get_job_fresh folding in a fresher Redis read, or a
+    # concurrent set_job) may have landed in L1 during that window. Comparing
+    # against the stale snapshot would let this write stomp it; the lock is
+    # the only place the comparison is valid. (The pre-await snapshot above
+    # is still correct for the owner/org carry-forward — that races nothing.)
+    with _l1_lock:
+        _seq += 1
+        data["_seq"] = _seq
+        existing = _l1.get(job_id)
         if existing is None or _is_newer_or_equal(data, existing):
             _l1[job_id] = data
         _l1_maybe_cleanup()
 
-    # Durable projection (fire-and-forget; Redis stays authoritative).
-    schedule_run_projection(job_id, data)
+    # Non-terminal and threadless writes retain the rollout's best-effort
+    # projection behavior. Thread-scoped terminal writes landed above, unless
+    # the strict projection failed — that case falls back here too.
+    if not strict_terminal_projection or projection_failed:
+        schedule_run_projection(job_id, data)
 
     # L2: Redis
     await set_job_redis_only(job_id, data)
@@ -372,16 +469,21 @@ async def compare_and_set_status(
     only one wins this compare-and-set, so only one schedules a resume — without
     it a destructive HITL tool (ingest/create_note/create_draft) could execute
     twice. Uses a Redis WATCH/MULTI optimistic transaction (JSON parsed in
-    Python to avoid cjson's empty-dict ambiguity), falling back to an in-memory
-    transition when Redis is unavailable or errors mid-op.
+    Python to avoid cjson's empty-dict ambiguity). Disposable local/CI processes
+    may fall back to memory; shared deployments fail closed without Redis.
     """
     redis_client = await _get_redis()
     if redis_client is None:
+        if not process_local_confirmation_coordination_allowed():
+            raise ConfirmationCoordinationUnavailable(
+                "Distributed confirmation coordination is unavailable"
+            )
         return await _cas_in_memory(job_id, expected, new_status)
 
     key = f"{_JOB_KEY_PREFIX}{job_id}"
     from redis.exceptions import RedisError, WatchError
 
+    claim_id = uuid4().hex
     try:
         async with redis_client.pipeline(transaction=True) as pipe:
             while True:
@@ -396,6 +498,7 @@ async def compare_and_set_status(
                         await pipe.reset()
                         return "conflict"
                     job["status"] = new_status
+                    job["_confirmation_claim_id"] = claim_id
                     ttl = await pipe.ttl(key)
                     pipe.multi()
                     pipe.setex(
@@ -412,17 +515,32 @@ async def compare_and_set_status(
                     await pipe.reset()
                     continue
     except (RedisError, OSError, asyncio.TimeoutError):
-        # Operational Redis/connection error (not a logical conflict). Degrade to
-        # the in-memory path rather than fail-closed: dropping the transition
-        # would silently stall a HITL confirm on a transient Redis blip.
-        # Unexpected (non-operational) errors propagate so real defects surface.
+        # Operational Redis/connection error (not a logical conflict). Only a
+        # disposable single-process environment can safely fall back to memory;
+        # shared deployments fail closed so two pods cannot both resume.
         logger.warning(
             "compare_and_set_status Redis path failed for job %s; "
-            "falling back to in-memory",
+            "checking whether an in-memory fallback is safe",
             job_id,
             exc_info=True,
         )
-        return await _cas_in_memory(job_id, expected, new_status)
+        if not process_local_confirmation_coordination_allowed():
+            try:
+                committed_raw = await redis_client.get(key)
+                committed = _json.loads(committed_raw) if committed_raw else None
+            except (RedisError, OSError, asyncio.TimeoutError, ValueError):
+                committed = None
+            if not (
+                committed
+                and committed.get("status") == new_status
+                and committed.get("_confirmation_claim_id") == claim_id
+            ):
+                raise ConfirmationCoordinationUnavailable(
+                    "Distributed confirmation coordination is unavailable"
+                )
+            job = committed
+        else:
+            return await _cas_in_memory(job_id, expected, new_status)
 
     # Mirror the winning transition into L1 so this worker's polls are consistent.
     with _l1_lock:
@@ -436,36 +554,46 @@ async def compare_and_set_status(
 
 
 async def get_job(job_id: str) -> Optional[dict]:
-    """Retrieve a job, checking L1 cache first, then Redis."""
-    # L1: in-memory cache (fast path)
+    """Retrieve a job: Redis-first (cross-worker truth), L1 as fallback.
+
+    Redis is authoritative across workers — an L1-first read let worker A
+    serve a stale local entry after worker B advanced the job in Redis
+    (codex audit on #1405: the resume and worker-failure paths acted on such
+    reads). The monotonic ``_seq`` guard still protects the one case where
+    the LOCAL copy is fresher (this worker's write-through beat its own
+    fire-and-forget Redis write): the newer of the two wins. L1 serves the
+    answer only when Redis is unavailable or has no key.
+    """
+    # L1 lookup (expiry-checked); used for the freshness compare and as the
+    # Redis-down fallback — never returned early over a live Redis read.
+    cached: Optional[dict] = None
     with _l1_lock:
         _l1_maybe_cleanup()
-        cached = _l1.get(job_id)
-        if cached is not None:
-            # Check expiry
-            if time.time() - cached.get("created_at", 0) > _JOB_TTL_SECONDS:
+        entry = _l1.get(job_id)
+        if entry is not None:
+            if time.time() - entry.get("created_at", 0) > _JOB_TTL_SECONDS:
                 del _l1[job_id]
             else:
-                return cached
+                cached = entry
 
-    # L2: Redis
     redis_client = await _get_redis()
     if redis_client is not None:
         try:
             raw = await redis_client.get(f"{_JOB_KEY_PREFIX}{job_id}")
             if raw is not None:
                 data = _json.loads(raw)
-                # Seed L1 for next read — monotonic guard so a slightly stale
-                # Redis read cannot clobber a fresher L1 entry written meanwhile.
                 with _l1_lock:
                     existing = _l1.get(job_id)
                     if existing is None or _is_newer_or_equal(data, existing):
                         _l1[job_id] = data
-                return data
+                        return data
+                    # Local write-through is newer than the Redis read
+                    # (its async projection hasn't landed yet).
+                    return existing
         except Exception:
             logger.exception("Failed to read job %s from Redis", job_id)
 
-    return None
+    return cached
 
 
 async def get_job_fresh(job_id: str) -> Optional[dict]:

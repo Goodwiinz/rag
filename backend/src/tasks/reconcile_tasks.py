@@ -10,8 +10,9 @@ recovery used to be manual-CLI-only (``scripts/repair_kg.py``,
 human noticed.
 
 Every 30 minutes (beat entry in ``celery_app.py``) it scans COMPLETED,
-non-deleted documents whose either satellite status is ``'failed'``,
-iterating org-by-org with a bounded keyset cursor and a hard per-run rate cap.
+non-deleted documents whose either satellite status is ``'failed'``, plus
+deleted documents whose DO KB data-source deletion still needs retry. It
+iterates org-by-org with a bounded keyset cursor and a hard per-run rate cap.
 
 Two-stage safety (values-controllable, no image rebuild):
 
@@ -30,18 +31,18 @@ Every action is logged with document id + organization id.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime, timezone
 
 from celery import current_app
 from celery.exceptions import SoftTimeLimitExceeded
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 
 from src.core.database import SessionLocal
 from src.models.document import Document, ProcessingStatus
 from src.services.knowledge_graph.repair import repair_document_graph
 from src.shared.enums import SatelliteSyncStatus
+from src.tasks._async_utils import run_async
 from src.tasks.celery_app import celery_app  # noqa: F401 - binds tasks to the app
 from src.tasks.processing_tasks import _sync_document_to_kb_blocking
 
@@ -51,24 +52,33 @@ _FAILED = SatelliteSyncStatus.FAILED.value
 _COMPLETED = SatelliteSyncStatus.COMPLETED.value
 
 
-def _failed_satellite_filters():
+def _reconcilable_filters():
     """Filter list selecting reconcilable documents.
 
     Single source of truth shared by the count, the org listing, and the
     per-org batches — a drifted count would misreport the backlog (house
     rule: count queries must apply the same filters as the result query).
 
-    Only COMPLETED documents are reconciled: a PROCESSING document's pipeline
-    is still running (its own fan-out will write the final satellite status),
-    and a FAILED document never finished ingesting — reprocessing, not
-    satellite re-drive, is its fix.
+    Only COMPLETED active documents are re-driven: a PROCESSING document's
+    pipeline is still running, and a FAILED document needs reprocessing.
+    Deleted documents are selected separately only while a DO KB deletion
+    handle remains.
     """
     return [
-        Document.is_deleted == False,  # noqa: E712
-        Document.processing_status == ProcessingStatus.COMPLETED,
         or_(
-            Document.neo4j_index_status == _FAILED,
-            Document.do_kb_sync_status == _FAILED,
+            and_(
+                Document.is_deleted == False,  # noqa: E712
+                Document.processing_status == ProcessingStatus.COMPLETED,
+                or_(
+                    Document.neo4j_index_status == _FAILED,
+                    Document.do_kb_sync_status == _FAILED,
+                ),
+            ),
+            and_(
+                Document.is_deleted == True,  # noqa: E712
+                Document.do_kb_data_source_uuid.is_not(None),
+                Document.do_kb_data_source_uuid != "",
+            ),
         ),
     ]
 
@@ -171,6 +181,35 @@ def _redrive_do_kb(document) -> bool:
     return False
 
 
+def _cleanup_deleted_do_kb_document(document) -> bool:
+    """Retry one soft-deleted document's DO KB data-source removal."""
+
+    async def _run() -> bool:
+        from src.core.database import AsyncSessionLocal
+        from src.services.do_kb import unsync_document_from_kb
+
+        async with AsyncSessionLocal() as session:
+            current = await session.get(Document, document.id)
+            if (
+                current is None
+                or not current.is_deleted
+                or not current.do_kb_data_source_uuid
+            ):
+                return True
+            return await unsync_document_from_kb(session, current)
+
+    try:
+        return run_async(_run())
+    except Exception as exc:  # noqa: BLE001 - cleanup must remain retryable
+        logger.warning(
+            "reconciler: DO KB delete retry failed for document %s (org %s): %s",
+            document.id,
+            document.organization_id,
+            exc,
+        )
+        return False
+
+
 @current_app.task(name="src.tasks.reconcile_tasks.reconcile_satellite_indexes")
 def reconcile_satellite_indexes() -> dict:
     """Beat task: reconcile documents whose satellite indexes drifted."""
@@ -194,6 +233,8 @@ def reconcile_satellite_indexes() -> dict:
         "kg_still_failed": 0,
         "do_kb_resynced": 0,
         "do_kb_still_failed": 0,
+        "do_kb_cleanup_succeeded": 0,
+        "do_kb_cleanup_failed": 0,
         "do_kb_skipped_disabled": 0,
     }
     report: list[dict] = []
@@ -202,7 +243,7 @@ def reconcile_satellite_indexes() -> dict:
 
     db = SessionLocal()
     try:
-        filters = _failed_satellite_filters()
+        filters = _reconcilable_filters()
         summary["eligible"] = db.query(Document.id).filter(*filters).count()
         if summary["eligible"] == 0:
             logger.info("reconcile_satellite_indexes: nothing to reconcile")
@@ -227,7 +268,7 @@ def reconcile_satellite_indexes() -> dict:
                 while budget > 0:
                     query = (
                         db.query(Document)
-                        .filter(*_failed_satellite_filters())
+                        .filter(*_reconcilable_filters())
                         .filter(Document.organization_id == org_id)
                     )
                     if cursor is not None:
@@ -243,12 +284,19 @@ def reconcile_satellite_indexes() -> dict:
                         cursor = doc.id
                         budget -= 1
                         summary["scanned"] += 1
-                        needs_kg = doc.neo4j_index_status == _FAILED
-                        needs_kb = doc.do_kb_sync_status == _FAILED
+                        cleanup_pending = bool(
+                            doc.is_deleted and doc.do_kb_data_source_uuid
+                        )
+                        needs_kg = (
+                            not doc.is_deleted and doc.neo4j_index_status == _FAILED
+                        )
+                        needs_kb = (
+                            not doc.is_deleted and doc.do_kb_sync_status == _FAILED
+                        )
 
                         if not apply_mode:
                             logger.info(
-                                "reconciler (report-only): would re-drive "
+                                "reconciler (report-only): would reconcile "
                                 "document %s (org %s): neo4j=%s do_kb=%s",
                                 doc.id,
                                 doc.organization_id,
@@ -261,9 +309,18 @@ def reconcile_satellite_indexes() -> dict:
                                     "organization_id": str(doc.organization_id),
                                     "neo4j_index_status": doc.neo4j_index_status,
                                     "do_kb_sync_status": doc.do_kb_sync_status,
+                                    "do_kb_cleanup_pending": cleanup_pending,
                                 }
                             )
                             continue
+
+                        if cleanup_pending:
+                            if not do_kb_enabled:
+                                summary["do_kb_skipped_disabled"] += 1
+                            elif _cleanup_deleted_do_kb_document(doc):
+                                summary["do_kb_cleanup_succeeded"] += 1
+                            else:
+                                summary["do_kb_cleanup_failed"] += 1
 
                         if needs_kg:
                             if _redrive_neo4j(doc, extraction):
@@ -303,7 +360,7 @@ def reconcile_satellite_indexes() -> dict:
             summary["report"] = report
 
         if orgs_to_kick:
-            asyncio.run(_kick_do_kb_indexing(orgs_to_kick))
+            run_async(_kick_do_kb_indexing(orgs_to_kick))
 
         logger.info("reconcile_satellite_indexes: %s", summary)
         return summary

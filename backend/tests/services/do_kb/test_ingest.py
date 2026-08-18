@@ -34,14 +34,19 @@ class _FakeDoc:
         self.do_kb_data_source_uuid: str | None = None
         self.do_kb_indexed_at: datetime | None = None
         self.do_kb_index_status: str | None = None
+        self.is_deleted = False
 
 
 class _FakeSession:
     def __init__(self) -> None:
         self.commits = 0
+        self.refresh_calls: list[tuple[Any, tuple]] = []
 
     async def commit(self) -> None:
         self.commits += 1
+
+    async def refresh(self, obj: Any, attribute_names: tuple = ()) -> None:
+        self.refresh_calls.append((obj, attribute_names))
 
 
 @pytest.fixture
@@ -81,6 +86,51 @@ async def test_returns_existing_uuid_when_already_synced(stub_settings):
     result = await sync_document_to_kb(_FakeSession(), doc, client=client)
 
     assert result == "ds-existing"
+    client.add_spaces_data_source.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_skips_when_cached_document_already_deleted(stub_settings):
+    """Cheap defense-in-depth check: a caller that forgot the is_deleted filter
+    still can't push a deleted doc's content into DO KB."""
+    from src.services.do_kb.ingest import sync_document_to_kb
+
+    session = _FakeSession()
+    doc = _FakeDoc()
+    doc.is_deleted = True
+
+    client = MagicMock()
+    result = await sync_document_to_kb(session, doc, client=client)
+
+    assert result is None
+    client.add_spaces_data_source.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_skips_when_refresh_reveals_delete_since_batch_load(stub_settings):
+    """Codex P1: the Document instance may have been loaded by a batch query
+    some time before this call runs; a delete committed in between must be
+    caught by refreshing from the DB, not by trusting the cached instance."""
+    from src.services.do_kb.ingest import sync_document_to_kb
+
+    class _RefreshingSession(_FakeSession):
+        async def refresh(self, obj: Any, attribute_names: tuple = ()) -> None:
+            await super().refresh(obj, attribute_names)
+            # Simulate: another transaction soft-deleted the doc after it was
+            # loaded into this batch but before this refresh.
+            obj.is_deleted = True
+
+    session = _RefreshingSession()
+    doc = _FakeDoc()
+    doc.is_deleted = False  # stale cached value
+
+    client = MagicMock()
+    result = await sync_document_to_kb(session, doc, client=client)
+
+    assert result is None
+    assert session.refresh_calls == [(doc, ["is_deleted"])]
     client.add_spaces_data_source.assert_not_called()
 
 
@@ -398,9 +448,8 @@ async def test_unsync_noop_when_no_data_source(stub_settings):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_unsync_clears_columns_even_when_delete_fails(stub_settings):
-    """A stale UUID must not linger: clear DB columns even if DO's DELETE errors
-    (the DS may already be gone on DO's side)."""
+async def test_unsync_clears_columns_when_data_source_is_already_absent(stub_settings):
+    """A confirmed 404 is a successful idempotent delete."""
     from src.services.do_kb.ingest import unsync_document_from_kb
 
     session = _FakeSession()
@@ -408,7 +457,9 @@ async def test_unsync_clears_columns_even_when_delete_fails(stub_settings):
     doc.do_kb_data_source_uuid = "ds-old"
 
     client = MagicMock()
-    client.delete_data_source = AsyncMock(side_effect=DOKnowledgeBaseError("gone"))
+    client.delete_data_source = AsyncMock(
+        side_effect=DOKnowledgeBaseError("gone", status_code=404)
+    )
 
     with patch(
         "src.services.do_kb.ingest.ensure_kb_for_org",
@@ -419,6 +470,42 @@ async def test_unsync_clears_columns_even_when_delete_fails(stub_settings):
     assert result is True
     assert doc.do_kb_data_source_uuid is None
     assert session.commits == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [
+        DOKnowledgeBaseError("upstream down", status_code=503),
+        RuntimeError("connection reset"),
+    ],
+)
+async def test_unsync_retains_columns_when_delete_fails(stub_settings, error):
+    """Unconfirmed deletes retain the retry handle and index metadata."""
+    from src.services.do_kb.ingest import unsync_document_from_kb
+
+    session = _FakeSession()
+    doc = _FakeDoc()
+    indexed_at = datetime.now(timezone.utc)
+    doc.do_kb_data_source_uuid = "ds-old"
+    doc.do_kb_indexed_at = indexed_at
+    doc.do_kb_index_status = "indexed"
+
+    client = MagicMock()
+    client.delete_data_source = AsyncMock(side_effect=error)
+
+    with patch(
+        "src.services.do_kb.ingest.ensure_kb_for_org",
+        AsyncMock(return_value="kb-1"),
+    ):
+        result = await unsync_document_from_kb(session, doc, client=client)
+
+    assert result is False
+    assert doc.do_kb_data_source_uuid == "ds-old"
+    assert doc.do_kb_indexed_at == indexed_at
+    assert doc.do_kb_index_status == "indexed"
+    assert session.commits == 0
 
 
 @pytest.mark.unit

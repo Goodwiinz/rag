@@ -10,12 +10,18 @@ from src.services.agent import stream_buffer
 
 
 class _FakePipeline:
-    """WATCH/MULTI stub: snapshots watched keys, raises WatchError on drift."""
+    """WATCH/MULTI stub: snapshots watched keys, raises WatchError on drift.
+
+    Also queues rpush/ltrim/expire (append()'s pipeline, L14) alongside the
+    pre-existing delete/set (finish_stream()'s WATCH/MULTI) — one ordered
+    queue applied in ``execute()`` so append order is preserved regardless of
+    which caller queued what.
+    """
 
     def __init__(self, redis):
         self.redis = redis
         self.watched: dict = {}
-        self.queued_deletes: list = []
+        self.queued_ops: list = []
 
     async def __aenter__(self):
         return self
@@ -34,7 +40,19 @@ class _FakePipeline:
             self.redis.on_multi()
 
     def delete(self, key):
-        self.queued_deletes.append(key)
+        self.queued_ops.append(("delete", key))
+
+    def set(self, key, value, ex=None):
+        self.queued_ops.append(("set", key, value))
+
+    def rpush(self, key, value):
+        self.queued_ops.append(("rpush", key, value))
+
+    def ltrim(self, key, start, stop):
+        self.queued_ops.append(("ltrim", key, start, stop))
+
+    def expire(self, key, ttl):
+        self.queued_ops.append(("expire", key, ttl))
 
     async def execute(self):
         from redis.exceptions import WatchError
@@ -42,12 +60,23 @@ class _FakePipeline:
         for key, snapshot in self.watched.items():
             if self.redis.store.get(key) != snapshot:
                 raise WatchError("watched key changed")
-        for key in self.queued_deletes:
-            self.redis.store.pop(key, None)
+        for op in self.queued_ops:
+            kind, key = op[0], op[1]
+            if kind == "delete":
+                self.redis.store.pop(key, None)
+            elif kind == "set":
+                self.redis.store[key] = op[2]
+            elif kind == "rpush":
+                self.redis.store.setdefault(key, []).append(op[2])
+            elif kind == "ltrim":
+                start = op[2]
+                if key in self.redis.store:
+                    self.redis.store[key] = self.redis.store[key][start:]
+            # "expire": TTL isn't modeled by this fake.
 
     async def reset(self):
         self.watched.clear()
-        self.queued_deletes.clear()
+        self.queued_ops.clear()
 
 
 class _FakeRedis:
@@ -118,6 +147,19 @@ async def test_active_pointer_lifecycle(fake_redis):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_start_stream_records_run_and_thread_mappings(fake_redis):
+    sid = await stream_buffer.start_stream("thread-1", run_id="run-1")
+
+    assert await stream_buffer.stream_id_for_run("run-1") == sid
+    assert await stream_buffer.thread_id_for_stream(sid) == "thread-1"
+
+    await stream_buffer.finish_stream("thread-1", sid)
+    assert await stream_buffer.stream_id_for_run("run-1") == sid
+    assert await stream_buffer.thread_id_for_stream(sid) == "thread-1"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_finish_stream_with_stale_sid_keeps_newer_pointer(fake_redis):
     old_sid = await stream_buffer.start_stream("thread-1")
     new_sid = await stream_buffer.start_stream("thread-1")
@@ -146,9 +188,7 @@ async def test_finish_stream_race_mid_transaction_keeps_new_pointer(fake_redis):
 async def test_append_caps_buffer_at_5000(fake_redis):
     sid = await stream_buffer.start_stream("thread-1")
     key = f"agent:stream:{sid}"
-    fake_redis.store[key] = [
-        json.dumps({"seq": i, "frame": "x"}) for i in range(5000)
-    ]
+    fake_redis.store[key] = [json.dumps({"seq": i, "frame": "x"}) for i in range(5000)]
     await stream_buffer.append(sid, 5000, "last")
     frames = await stream_buffer.read_after(sid, -1)
     assert len(frames) == 5000

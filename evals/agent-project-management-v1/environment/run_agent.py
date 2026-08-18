@@ -34,8 +34,8 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-project-management-v1"
-SOURCE_REVISION = "261273129dbea6f646c9662566ff5a7eea61545a"
-AGENT_REVISION = "261273129dbea6f646c9662566ff5a7eea61545a"
+SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
+AGENT_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 APPROVAL_TEXT = "Yes, go ahead."
 EXPECTED_INSTRUCTION = (
     'Create a research project named "Tool Coverage Study", then add the '

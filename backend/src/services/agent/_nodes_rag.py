@@ -36,11 +36,15 @@ from langchain_core.runnables import RunnableConfig
 
 from src.services.agent.observability import track_node_execution
 from src.services.agent.state import AgentState
+from src.services.do_kb.postprocess import drop_low_relevance_chunks
 
 logger = logging.getLogger(__name__)
 
 # Counter name is registered in src.observability.metrics.initialize_default_metrics.
 _DO_KB_READ_METRIC = "rag_do_kb_read_total"
+
+# Keep the old private import path available to focused callers/tests.
+_drop_low_relevance_chunks = drop_low_relevance_chunks
 
 
 def _record_do_kb_read(outcome: str) -> None:
@@ -141,8 +145,8 @@ def _resolve_active_project_id(
 
 async def _user_owns_project(
     session, project_id: Optional[str], user_id: Optional[str]
-) -> bool:
-    """True if the user ``user_id`` owns the project (collection) ``project_id``.
+) -> Optional[bool]:
+    """Ownership of project (collection) ``project_id`` by ``user_id``.
 
     The DO KB is org-scoped, and ``resolve_and_filter_chunks`` happily filters
     chunks by ANY project id it's handed. ``project_id`` here originates from
@@ -152,7 +156,17 @@ async def _user_owns_project(
     tools use (``_verify_project_ownership``); kept inline to avoid a
     services→api import. Takes the scalar ``user_id`` from the ids-only
     configurable (audit B8). A non-UUID id is treated as not-owned (drop the
-    scope).
+    scope) — malformed input is a deterministic negative, not a transient
+    failure, so it does not need the three-way return below.
+
+    Returns ``True``/``False`` for an actual answer (checked, owned or not),
+    and ``None`` when the check could not run at all (DB error/timeout) —
+    callers MUST NOT treat ``None`` the same as ``False``. Collapsing them
+    was audit M2: a transient DB blip during this check made the caller drop
+    the project scope and fall through to an ORG-WIDE read, i.e. exactly the
+    fail-*open* behavior the "fail closed" comment below was meant to
+    prevent. ``None`` means "couldn't verify" — the caller must abort the
+    scoped operation rather than silently widen it.
     """
     if not project_id or not user_id:
         return False
@@ -180,9 +194,47 @@ async def _user_owns_project(
         )
         result = await session.execute(stmt)
         return result.scalar_one_or_none() is not None
-    except Exception:  # noqa: BLE001 — fail closed: unverifiable => not owned
-        logger.warning("project ownership check failed; dropping scope", exc_info=True)
-        return False
+    except Exception:  # noqa: BLE001 — unverifiable, NOT a verified negative
+        logger.warning("project ownership check failed; unverifiable", exc_info=True)
+        return None
+
+
+async def _verify_extracted_project_id(
+    extracted_pid: Optional[str], user_id: Optional[str]
+) -> Optional[str]:
+    """Ownership-gate a project id parsed from raw message text (audit M3).
+
+    ``_extract_project_id_from_text``'s bare-UUID fallback matches ANY UUID
+    in the message — a document id, a run id, another org member's project
+    link — not just a genuine ``/projects/<uuid>`` paste. Promoting it
+    unverified sets ``current_project_id`` and forces ``page_context.type =
+    "project"``, which downstream consumers (``_with_injected_project_id``,
+    the page-context prompt line telling the LLM "do NOT ask") treat as
+    trusted context. Unlike the DO KB read's own scope check (M2), which can
+    fall back to hybrid search on an unverifiable result, promoting into
+    state has no softer fallback — so both an explicit "not owned" (False)
+    and "couldn't check" (None) block promotion here.
+    """
+    if not extracted_pid or not user_id:
+        return None
+    from src.services.agent.tool_session import tool_session
+
+    try:
+        async with tool_session() as session:
+            owned = await _user_owns_project(session, extracted_pid, user_id)
+    except Exception:  # noqa: BLE001 — unverifiable, same as a failed check
+        # `_user_owns_project` converts its OWN failures into None, but it
+        # never runs if the session cannot be acquired (pool exhausted, DB
+        # down). Without this, a blip raises out of `rag_node` — which has no
+        # handler — and `_RETRY_POLICY` burns three attempts before failing
+        # the turn, for a check whose only job is to withhold a promotion.
+        # Unverifiable collapses to "do not promote", exactly like None.
+        logger.warning(
+            "extracted project id could not be verified; not promoting",
+            exc_info=True,
+        )
+        return None
+    return extracted_pid if owned is True else None
 
 
 def is_conversational(content: str) -> bool:
@@ -365,6 +417,42 @@ async def _try_primary_do_kb_read_impl(
             if not kb_uuid:
                 return None
 
+            # Resolved BEFORE the retrieve: this check needs only the session
+            # and the ids, and both of its non-owning outcomes (abort, or drop
+            # to org-wide) are decided independently of what comes back — so
+            # running it first keeps the abort path from paying for a remote
+            # retrieve it discards.
+            #
+            # Only scope by project_id if the caller actually owns it; otherwise
+            # drop the scope (org-wide read, the same as no project context)
+            # rather than filter by — and thereby disclose membership of — a
+            # project that isn't theirs. A verified negative (False) still
+            # drops to org-wide, same as before (documented membership-
+            # inference defense). An unverifiable check (None — DB blip)
+            # must NOT be treated as "not owned": that would fall through
+            # to the org-wide branch, WIDENING scope during exactly the
+            # outage that should have narrowed it (audit M2). Abort the
+            # primary read instead so the caller falls back to
+            # ``_legacy_hybrid_search_fallback``, which re-verifies
+            # ownership itself and fails closed to no results, never org-wide.
+            scoped_project_id = project_id
+            if project_id:
+                owns = await _user_owns_project(session, project_id, user_id)
+                if owns is None:
+                    logger.warning(
+                        "do_kb_read: ownership check for project %s unverifiable "
+                        "— aborting primary read",
+                        project_id,
+                    )
+                    _record_do_kb_read("do_kb_ownership_unverifiable")
+                    return None
+                if owns is False:
+                    logger.info(
+                        "do_kb_read: project %s not owned by caller — dropping scope",
+                        project_id,
+                    )
+                    scoped_project_id = None
+
             # Shared retrieve core (audit B2): timeout wrap + 404/other logging
             # live in ``retrieve_kb_chunks``; this node keeps its own telemetry
             # + fallback-to-None semantics by mapping the outcome.
@@ -391,20 +479,6 @@ async def _try_primary_do_kb_read_impl(
                 return None
 
             from src.services.do_kb.resolve import resolve_and_filter_chunks
-
-            # Only scope by project_id if the caller actually owns it; otherwise
-            # drop the scope (org-wide read, the same as no project context)
-            # rather than filter by — and thereby disclose membership of — a
-            # project that isn't theirs.
-            scoped_project_id = project_id
-            if project_id and not await _user_owns_project(
-                session, project_id, user_id
-            ):
-                logger.info(
-                    "do_kb_read: project %s not owned by caller — dropping scope",
-                    project_id,
-                )
-                scoped_project_id = None
 
             title_by_key, chunks_to_emit = await resolve_and_filter_chunks(
                 chunks=result.chunks,
@@ -454,8 +528,14 @@ async def _try_primary_do_kb_read_impl(
 
             chunks_to_emit = await cohere_rescore_chunks(query, chunks_to_emit)
 
-        _record_do_kb_read("success")
-        return [_shape_do_kb_context(c, title_by_key) for c in chunks_to_emit]
+        # Filter BEFORE recording the outcome (audit review, PR #1395): recording
+        # "success" first meant an all-filtered read (every chunk below the
+        # cohere floor) still got double-counted as a "fallback_used" by the
+        # caller — masking the new failure mode from the metric.
+        shaped = [_shape_do_kb_context(c, title_by_key) for c in chunks_to_emit]
+        kept = drop_low_relevance_chunks(shaped)
+        _record_do_kb_read("success" if kept else "do_kb_low_relevance")
+        return kept
     except Exception:  # noqa: BLE001
         # exc_info keeps the traceback for operators; the raw exception string
         # stays out of the indexed message (can carry the user query / chunks).
@@ -469,21 +549,71 @@ async def _legacy_hybrid_search_fallback(
     query: str,
     user_id: str,
     organization_id: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> List[dict]:
     """Fallback to hybrid search when DO KB is unavailable or returns nothing.
 
-    Takes scalar ids from the ids-only configurable (audit B8).
+    Takes scalar ids from the ids-only configurable (audit B8). When a project
+    is active, resolve its owned document ids first and reuse SearchFilter's
+    existing document-id constraint. A missing, unowned, or empty project fails
+    closed to no results instead of widening the read to the whole organization.
     """
     try:
-        from src.models.search_schemas import SearchQuery, SearchSortOrder, SearchType
+        from src.models.search_schemas import (
+            SearchFilter,
+            SearchQuery,
+            SearchSortOrder,
+            SearchType,
+        )
         from src.services.search.hybrid_search_service import hybrid_search_service
+
+        filters = None
+        if project_id:
+            try:
+                project_uuid = UUID(str(project_id))
+                user_uuid = UUID(str(user_id))
+            except (ValueError, TypeError, AttributeError):
+                return []
+
+            from sqlalchemy import select
+
+            from src.models.collection import Collection, CollectionDocument
+            from src.models.workspace import Workspace
+            from src.services.agent.tool_session import tool_session
+
+            async with tool_session() as session:
+                document_ids = list(
+                    (
+                        await session.execute(
+                            select(CollectionDocument.document_id)
+                            .join(
+                                Collection,
+                                Collection.id == CollectionDocument.collection_id,
+                            )
+                            .join(Workspace, Workspace.id == Collection.workspace_id)
+                            .where(
+                                Collection.id == project_uuid,
+                                Collection.is_deleted == False,  # noqa: E712
+                                CollectionDocument.is_deleted == False,  # noqa: E712
+                                Workspace.owner_id == user_uuid,
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            if not document_ids:
+                return []
+            filters = SearchFilter(
+                document_ids=[str(document_id) for document_id in document_ids]
+            )
 
         search_request = SearchQuery(
             query=query,
             limit=5,
             search_type=SearchType.HYBRID,
             sort_order=SearchSortOrder.RELEVANCE,
-            filters=None,
+            filters=filters,
         )
         org_id = str(organization_id) if organization_id else None
         uid = str(user_id)
@@ -632,6 +762,12 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
         # Still surface a UUID extracted from the text or carried in state
         # so downstream nodes can act on the project context.
         extracted_pid = _extract_project_id_from_text(last_user_msg or "")
+        if extracted_pid and not existing_project_id:
+            # Only the text-extraction path needs gating (audit M3) —
+            # ``existing_project_id`` already flows through a verified path
+            # and takes precedence in ``_resolve_active_project_id`` anyway,
+            # so skip the DB round trip when it won't change the outcome.
+            extracted_pid = await _verify_extracted_project_id(extracted_pid, user_id)
         resolved_pid: Optional[str] = _resolve_active_project_id(
             existing_project_id, extracted_pid
         )
@@ -653,6 +789,10 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     # /projects/<uuid> URL) so downstream nodes carry the context across
     # turns without depending on the client always re-sending page_context.
     extracted_pid = _extract_project_id_from_text(last_user_msg or "")
+    if extracted_pid and not existing_project_id:
+        # Gate the text-extraction path only (audit M3) — see the identical
+        # comment in the conversational branch above.
+        extracted_pid = await _verify_extracted_project_id(extracted_pid, user_id)
 
     resolved_project_id: Optional[str] = _resolve_active_project_id(
         existing_project_id, extracted_pid
@@ -714,12 +854,20 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     primary_contexts: Optional[List[dict]] = await _try_primary_do_kb_read(
         search_query, user_id, organization_id, project_id=resolved_project_id
     )
-    if primary_contexts:
+    # `is not None` (not truthiness — audit review, PR #1395): a successful
+    # read that the relevance floor filtered down to nothing is a healthy
+    # "retrieved, nothing relevant" outcome and must NOT fall through to the
+    # unfiltered legacy hybrid search — only an actually unavailable/errored/
+    # empty primary read (which always returns None) may fall back.
+    if primary_contexts is not None:
         return {"retrieved_contexts": primary_contexts, **state_update}
 
     _record_do_kb_read("fallback_used")
     contexts = await _legacy_hybrid_search_fallback(
-        search_query, user_id, organization_id
+        search_query,
+        user_id,
+        organization_id,
+        project_id=resolved_project_id,
     )
     return {"retrieved_contexts": contexts, **state_update}
 

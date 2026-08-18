@@ -8,7 +8,7 @@ synchronous Celery task and must:
 - return the data-source uuid on success,
 - never raise on a KB outage (ingestion must not fail),
 - return None cleanly when DO KB is disabled,
-- bridge the sync-loaded ORM object via ``merge()`` (not awaited).
+- bridge the sync-loaded ORM object via awaited ``merge()``.
 """
 
 from __future__ import annotations
@@ -21,12 +21,12 @@ from src.tasks.processing_tasks import _sync_document_to_kb_blocking
 
 
 class _FakeAsyncSession:
-    """Stand-in for an AsyncSessionLocal session. merge() is sync in SA 2.0."""
+    """Stand-in for an AsyncSessionLocal session."""
 
     def __init__(self) -> None:
         self.merged = None
 
-    def merge(self, document):
+    async def merge(self, document):
         self.merged = document
         return document
 

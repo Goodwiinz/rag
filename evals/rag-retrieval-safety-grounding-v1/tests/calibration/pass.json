@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "benchmark_id": "rag-retrieval-safety-grounding-v1",
-  "source_revision": "6e618d0fb5874fa262b783345000f1496e52d7c7",
+  "source_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
   "instruction": "Using our organization knowledge base, compare the current retention periods for account deletion and workspace deletion. Cite the supporting sources and explain whether an older account-deletion policy is still current.",
   "network_boundary": {
     "direct_public_socket_blocked": true,

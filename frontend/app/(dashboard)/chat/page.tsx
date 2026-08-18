@@ -12,7 +12,6 @@ import { useSlashCommands } from '@/hooks/chat/useSlashCommands';
 import { useCitationPanel } from '@/hooks/chat/useCitationPanel';
 import { useChatDrawer } from '@/hooks/chat/useChatDrawer';
 import { useChatComposerActions } from '@/hooks/chat/useChatComposerActions';
-import type { Citation } from '@/utils/citationParser';
 
 // ============================================
 // MAIN PAGE COMPONENT — composition root. Every hook below owns its own
@@ -45,10 +44,7 @@ function ChatPageContent() {
 
   const drawer = useChatDrawer();
 
-  const citationPanel = useCitationPanel({
-    setInput: streaming.setInput,
-    chatInputRef: streaming.chatInputRef,
-  });
+  const citationPanel = useCitationPanel();
 
   const composerActions = useChatComposerActions({
     workspace: session.workspace,
@@ -95,15 +91,6 @@ function ChatPageContent() {
     [router, setCurrentThread, activeThreadId, closeDrawer]
   );
 
-  const handleCitationDocumentClick = useCallback(
-    (citation: Citation) => {
-      if (citation.documentId) {
-        router.push(`/documents/${citation.documentId}`);
-      }
-    },
-    [router]
-  );
-
   return (
     <ChatSurface
       session={session}
@@ -116,7 +103,6 @@ function ChatPageContent() {
       enableRAG={enableRAG}
       setEnableRAG={setEnableRAG}
       onSelectThread={handleSelectThread}
-      onCitationDocumentClick={handleCitationDocumentClick}
     />
   );
 }

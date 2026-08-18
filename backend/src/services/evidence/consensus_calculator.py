@@ -17,9 +17,6 @@ logger = logging.getLogger(__name__)
 class ConsensusCalculator:
     """Service for calculating consensus metrics from stance classifications"""
 
-    def __init__(self):
-        self.model_version = "gpt-4o-mini-2024-07-18"
-
     def _normalize_claim(self, claim: str) -> str:
         """Normalize claim text for consistent hashing"""
         # Convert to lowercase, strip whitespace, normalize spaces
@@ -70,13 +67,17 @@ class ConsensusCalculator:
             return ConsensusLevel.LOW_AGREEMENT
 
     def _generate_reproducibility_hash(
-        self, claim_hash: str, source_ids: List[str], model_version: str
+        self, claim_hash: str, source_revisions: List[str], classifier_version: str
     ) -> str:
         """Generate hash for reproducibility tracking"""
-        # Sort source IDs for consistent ordering
-        sorted_sources = sorted(source_ids)
+        # Sort source revisions for consistent ordering
+        sorted_sources = sorted(source_revisions)
         source_hash = hashlib.sha256(
             "|".join(sorted_sources).encode("utf-8")
+        ).hexdigest()[:16]
+
+        classifier_hash = hashlib.sha256(
+            classifier_version.encode("utf-8")
         ).hexdigest()[:16]
 
         components = [
@@ -84,9 +85,7 @@ class ConsensusCalculator:
             claim_hash[:16],
             f"{len(sorted_sources)}src",
             source_hash,
-            model_version.split("-")[
-                0
-            ],  # e.g. "gpt-4o-mini" from "gpt-4o-mini-2024-07-18"
+            classifier_hash,
         ]
 
         return "_".join(components)
@@ -96,6 +95,9 @@ class ConsensusCalculator:
         claim: str,
         classifications: List[Dict],
         retracted_source_ids: Optional[List[str]] = None,
+        source_revisions: Optional[List[str]] = None,
+        *,
+        classifier_version: str,
     ) -> EvidenceMeter:
         """
         Calculate consensus metrics from stance classifications
@@ -104,6 +106,9 @@ class ConsensusCalculator:
             claim: Original claim text
             classifications: List of classification dicts from stance_classifier
             retracted_source_ids: Optional list of retracted source IDs to exclude
+            source_revisions: Optional ordered source content revisions. When omitted,
+                valid classification source IDs are used for legacy callers.
+            classifier_version: Fingerprint of the complete stance classifier pipeline.
 
         Returns:
             EvidenceMeter with computed consensus metrics
@@ -128,7 +133,7 @@ class ConsensusCalculator:
         }
 
         confidence_scores = []
-        source_ids = []
+        source_ids: List[str] = []
 
         for classification in valid_classifications:
             stance = classification.get("stance")
@@ -138,7 +143,7 @@ class ConsensusCalculator:
             if stance in stance_counts:
                 stance_counts[stance] += 1
                 confidence_scores.append(confidence)
-                source_ids.append(source_id)
+                source_ids.append(str(source_id))
             else:
                 logger.warning(f"Unknown stance value: {stance}")
 
@@ -158,9 +163,14 @@ class ConsensusCalculator:
             total_sources, supporting, opposing, neutral, not_addressed
         )
 
-        # Generate reproducibility hash
+        # Use source revisions when provided so content changes and withdrawn sources
+        # produce a distinct reproducibility identity. Legacy callers that do not have
+        # revisions retain the previous source-ID identity.
+        reproducibility_revisions: List[str] = (
+            source_revisions if source_revisions is not None else source_ids
+        )
         reproducibility_hash = self._generate_reproducibility_hash(
-            claim_hash, source_ids, self.model_version
+            claim_hash, reproducibility_revisions, classifier_version
         )
 
         return EvidenceMeter(
@@ -199,7 +209,7 @@ class ConsensusCalculator:
             "low": 0,  # <0.7
         }
 
-        stance_confidence = {
+        stance_confidence: Dict[str, List[float]] = {
             "supporting": [],
             "opposing": [],
             "neutral": [],

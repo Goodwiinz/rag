@@ -3,9 +3,25 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from uuid import UUID
+
+logger = logging.getLogger(__name__)
+
+
+def _cleanup_failed_upload(delete: Callable[[], object], destination: str) -> None:
+    """Best-effort cleanup without masking the original upload exception."""
+    try:
+        if delete() is False:
+            raise RuntimeError("storage backend reported deletion failure")
+    except Exception:  # noqa: BLE001 - preserve the original upload failure
+        logger.warning(
+            "arxiv failed-upload cleanup left a possible orphan: %s",
+            destination,
+            exc_info=True,
+        )
 
 
 def store_arxiv_pdf(
@@ -67,7 +83,13 @@ def store_arxiv_pdf(
     if backend == "local":
         stored_path = Path(settings.UPLOAD_DIR) / key
         stored_path.parent.mkdir(parents=True, exist_ok=True)
-        stored_path.write_bytes(file_data)
+        try:
+            stored_path.write_bytes(file_data)
+        except Exception:
+            _cleanup_failed_upload(
+                lambda: stored_path.unlink(missing_ok=True), str(stored_path)
+            )
+            raise
         return {
             **common_fields,
             "file_path": str(stored_path),
@@ -78,7 +100,12 @@ def store_arxiv_pdf(
     if backend == "s3":
         from src.core.s3_client import S3StorageHelper
 
-        stored_key = S3StorageHelper().upload_file(key, file_data, mime_type)
+        helper = S3StorageHelper()
+        try:
+            stored_key = helper.upload_file(key, file_data, mime_type)
+        except Exception:
+            _cleanup_failed_upload(lambda: helper.delete_file(key), key)
+            raise
         return {
             **common_fields,
             "file_path": f"s3://{settings.S3_BUCKET_NAME}/{stored_key}",
@@ -91,9 +118,14 @@ def store_arxiv_pdf(
 
         bucket = "documents"
         bucket_key = key.removeprefix(f"{bucket}/")
-        storage_path = StorageHelper().upload_file(
-            bucket, bucket_key, file_data, mime_type
-        )
+        helper = StorageHelper()
+        try:
+            storage_path = helper.upload_file(bucket, bucket_key, file_data, mime_type)
+        except Exception:
+            _cleanup_failed_upload(
+                lambda: helper.delete_file(bucket, bucket_key), f"{bucket}/{bucket_key}"
+            )
+            raise
         return {
             **common_fields,
             "file_path": f"supabase://{storage_path}",
@@ -113,11 +145,13 @@ def delete_arxiv_storage(storage_fields: dict[str, Any]) -> None:
     if backend == "s3" and storage_path:
         from src.core.s3_client import S3StorageHelper
 
-        S3StorageHelper().delete_file(str(storage_path))
+        if not S3StorageHelper().delete_file(str(storage_path)):
+            raise RuntimeError(f"failed to delete S3 object {storage_path}")
     elif backend == "supabase" and storage_path:
         from src.core.supabase_client import StorageHelper, parse_storage_key
 
         bucket, key = parse_storage_key(str(storage_path))
-        StorageHelper().delete_file(bucket, key)
+        if not StorageHelper().delete_file(bucket, key):
+            raise RuntimeError(f"failed to delete Supabase object {storage_path}")
     elif backend == "local" and file_path:
         Path(str(file_path)).unlink(missing_ok=True)

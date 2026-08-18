@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 import unicodedata
 from dataclasses import dataclass
+from typing import Any, Union
 
 from src.services.agent._pii_redact import redact_nested_pii, redact_pii
 from src.services.do_kb.models import Chunk
 
+logger = logging.getLogger(__name__)
+
 _WHITESPACE_RE = re.compile(r"\s+")
+_COHERE_RELEVANCE_FLOOR = 0.1
+_ChunkLike = Union[Chunk, dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -22,6 +28,32 @@ class ChunkPostprocessResult:
     output_count: int
     duplicate_count: int
     redacted_count: int
+
+
+def drop_low_relevance_chunks(chunks: list[_ChunkLike]) -> list[_ChunkLike]:
+    """Drop only calibrated Cohere scores below the shared relevance floor."""
+    kept = [
+        chunk
+        for chunk in chunks
+        if (
+            (
+                chunk.get("score_source")
+                if isinstance(chunk, dict)
+                else (chunk.metadata or {}).get("score_source")
+            )
+            != "cohere"
+            or ((chunk.get("score") if isinstance(chunk, dict) else chunk.score) or 0.0)
+            >= _COHERE_RELEVANCE_FLOOR
+        )
+    ]
+    dropped = len(chunks) - len(kept)
+    if dropped:
+        logger.info(
+            "do_kb: dropped %d low-relevance chunk(s) below cohere floor %.2f",
+            dropped,
+            _COHERE_RELEVANCE_FLOOR,
+        )
+    return kept
 
 
 def _normalize_for_deduplication(text: str) -> str:
@@ -74,4 +106,8 @@ def sanitize_and_deduplicate_chunks(chunks: list[Chunk]) -> ChunkPostprocessResu
     )
 
 
-__all__ = ["ChunkPostprocessResult", "sanitize_and_deduplicate_chunks"]
+__all__ = [
+    "ChunkPostprocessResult",
+    "drop_low_relevance_chunks",
+    "sanitize_and_deduplicate_chunks",
+]

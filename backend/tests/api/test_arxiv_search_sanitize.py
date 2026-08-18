@@ -14,7 +14,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services.agent.tools_impl import _sanitize_arxiv_query, _tool_search_arxiv
+from src.services.agent.tools_impl import (
+    _field_arxiv_query,
+    _sanitize_arxiv_query,
+    _tool_search_arxiv,
+)
 
 # ---------------------------------------------------------------------------
 # _sanitize_arxiv_query
@@ -156,3 +160,168 @@ async def test_tool_search_arxiv_empty_results_include_honest_warning() -> None:
     assert "do not claim" in result["warning"]
     cached_payload = cache_set.call_args.args[1]
     assert cached_payload["warning"] == result["warning"]
+
+
+# ---------------------------------------------------------------------------
+# recency_days — the window must be reachable from the public tool schema
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_tool_search_arxiv_recency_days_zero_disables_date_filter() -> None:
+    """recency_days=0 must drop the submittedDate window entirely."""
+    service = _make_service_mock()
+
+    with (
+        patch("src.services.arxiv.arxiv_service.ArXivIngestionService") as mock_cls,
+        patch(
+            "src.services.agent.tools_impl._arxiv_cache_get",
+            return_value=None,
+        ),
+        patch("src.services.agent.tools_impl._arxiv_cache_set"),
+    ):
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=service)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        await _tool_search_arxiv({"query": "RAG", "recency_days": 0})
+
+    sent_query = service.search_papers.call_args.kwargs["query"]
+    assert "submittedDate:" not in sent_query
+
+
+# Schema exposure + wrapper pass-through are covered by #1404 in
+# tests/unit/services/test_agent_tools.py; only the impl-side behaviour it
+# does not reach is asserted here.
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("recency_days", [-5, 1_000_000])
+async def test_tool_search_arxiv_clamps_out_of_range_recency(recency_days: int) -> None:
+    """Out-of-range windows must not raise — a negative disables the filter and
+    an oversized one is capped instead of blowing up on timedelta overflow.
+
+    Clamping lives in the impl, so the research subgraph's direct-search fast
+    path (which builds this args dict itself) is covered too.
+    """
+    service = _make_service_mock()
+
+    with (
+        patch("src.services.arxiv.arxiv_service.ArXivIngestionService") as mock_cls,
+        patch(
+            "src.services.agent.tools_impl._arxiv_cache_get",
+            return_value=None,
+        ),
+        patch("src.services.agent.tools_impl._arxiv_cache_set"),
+    ):
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=service)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        result = await _tool_search_arxiv(
+            {"query": "RAG", "recency_days": recency_days}
+        )
+
+    assert "papers" in result
+    sent_query = service.search_papers.call_args.kwargs["query"]
+    # Negative clamps to 0 (no filter); oversized clamps to the cap (filter present).
+    assert ("submittedDate:" in sent_query) is (recency_days > 0)
+
+
+# ---------------------------------------------------------------------------
+# _field_arxiv_query — plain keywords get all:-scoped AND terms
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_field_query_ands_plain_keywords() -> None:
+    result = _field_arxiv_query("retrieval-augmented generation")
+    assert result == "all:retrieval-augmented AND all:generation"
+
+
+@pytest.mark.unit
+def test_field_query_single_token() -> None:
+    assert _field_arxiv_query("transformers") == "all:transformers"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "query",
+    [
+        'ti:"attention is all you need"',
+        "cat:cs.CL",
+        "retrieval AND generation",
+        "diffusion OR flow",
+        "(retrieval) ANDNOT vision",
+    ],
+)
+def test_field_query_preserves_arxiv_syntax(query: str) -> None:
+    """Queries already written in arXiv syntax must pass through untouched."""
+    assert _field_arxiv_query(query) == query
+
+
+@pytest.mark.unit
+def test_field_query_empty_passthrough() -> None:
+    assert _field_arxiv_query("") == ""
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_tool_search_arxiv_chronological_sends_fielded_query() -> None:
+    """Chronological search must send all:-scoped AND terms, not bare keywords.
+
+    Bare multi-word queries are OR'd by the arXiv API; under submittedDate
+    sort that returns the newest submissions regardless of topic.
+    """
+    service = _make_service_mock()
+
+    with (
+        patch("src.services.arxiv.arxiv_service.ArXivIngestionService") as mock_cls,
+        patch(
+            "src.services.agent.tools_impl._arxiv_cache_get",
+            return_value=None,
+        ),
+        patch("src.services.agent.tools_impl._arxiv_cache_set"),
+    ):
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=service)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        await _tool_search_arxiv(
+            {
+                "query": "retrieval-augmented generation",
+                "chronological": True,
+                "recency_days": 60,
+            }
+        )
+
+    _call = service.search_papers.call_args
+    assert _call.kwargs.get("sort_by") == "submittedDate"
+    sent_query = _call.kwargs["query"]
+    assert "all:retrieval-augmented AND all:generation" in sent_query
+    assert "submittedDate:" in sent_query
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_tool_search_arxiv_pure_filler_query_stays_unfielded() -> None:
+    """Sanitizer fallback (all tokens are stopwords) must NOT be fielded —
+    'all:recent AND all:the' would rewrite a deliberately-preserved query
+    into an over-restrictive one (codex audit on #1406, finding 3)."""
+    service = _make_service_mock()
+
+    with (
+        patch("src.services.arxiv.arxiv_service.ArXivIngestionService") as mock_cls,
+        patch(
+            "src.services.agent.tools_impl._arxiv_cache_get",
+            return_value=None,
+        ),
+        patch("src.services.agent.tools_impl._arxiv_cache_set"),
+    ):
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=service)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        await _tool_search_arxiv({"query": "recent papers on the"})
+
+    sent_query = service.search_papers.call_args.kwargs["query"]
+    assert "all:" not in sent_query
+    assert "recent papers on the" in sent_query

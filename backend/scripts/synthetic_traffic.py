@@ -269,15 +269,21 @@ async def _get_or_create_synth_user(db: Any) -> Any:
         result = await db.execute(select(User).where(User.email == SYNTH_EMAIL))
         user = result.scalar_one_or_none()
         if user is None:
-            # Insert lost a race or failed — fall back to any active user so the
-            # job still produces traffic rather than dying.
-            fb = await db.execute(select(User).where(User.is_active.is_(True)).limit(1))
-            user = fb.scalar_one_or_none()
+            # Lost the insert race: the only acceptable retry is the SYNTHETIC
+            # user itself. Never fall back to a real user — the entire run
+            # (memory writes included) would execute in their namespace
+            # (audit R2-M2). Dying loudly is fine: the CronJob retries in 20m.
+            await asyncio.sleep(1.0)
+            result = await db.execute(select(User).where(User.email == SYNTH_EMAIL))
+            user = result.scalar_one_or_none()
             if user is None:
-                raise RuntimeError("synthetic_traffic: no usable user found")
+                raise RuntimeError(
+                    "synthetic_traffic: synthetic user missing after insert; "
+                    "refusing to run as a real user"
+                )
             log.warning(
                 "synthetic_traffic.bootstrap",
-                action="fallback_existing_user",
+                action="reread_after_race",
                 user_id=str(user.id),
             )
             return user

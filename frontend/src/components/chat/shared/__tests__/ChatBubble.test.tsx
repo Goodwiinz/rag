@@ -41,6 +41,27 @@ describe('ChatBubble', () => {
     ).toBeInTheDocument();
   });
 
+  it('announces the thinking state through the pill, not the matrix', () => {
+    const { container } = render(
+      <ChatBubble
+        message={{ role: 'assistant', content: '', timestamp: Date.now() }}
+        index={0}
+        isStreaming
+        thinkingLabel="Retrieving"
+      />
+    );
+
+    // The pill is the live region; the nine-cell figure is decorative, so a
+    // screen reader hears the phase once rather than reading the grid.
+    const pill = screen.getByRole('status');
+    expect(pill).toHaveTextContent('Retrieving');
+    expect(pill.getAttribute('aria-live')).toBe('polite');
+    expect(container.querySelectorAll('.nous-matrix-cell')).toHaveLength(9);
+    expect(
+      container.querySelector('[aria-hidden="true"] .nous-matrix-cell')
+    ).not.toBeNull();
+  });
+
   it('invokes citation click handler from citation chips', () => {
     const onCitationClick = vi.fn();
     const citations = [

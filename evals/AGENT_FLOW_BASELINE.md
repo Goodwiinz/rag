@@ -232,14 +232,14 @@ Harbor task lands and its calibration fixtures pass.
 | 7 | Knowledge-graph flow | task landed | `search_knowledge_graph`, `explore_entity_neighborhood`, `find_entity_paths`, `get_graph_stats` (Harbor task `agent-knowledge-graph-flow-v1`; awaiting first recorded run — `extract_entities` deferred, see coverage note) |
 | 8 | HITL interrupt lifecycle | task landed | `interrupt_node`, confirm/reject/timeout, resume semantics (Harbor task `agent-hitl-lifecycle-v1`; awaiting first recorded run) |
 | 9 | Memory round-trip | task landed | `memory_retrieval` → `memory_save_node`, `forget_memory`, redaction at the memory boundary (Harbor task `agent-memory-roundtrip-v1`; awaiting first recorded run) |
-| 10 | Error recovery | later | `error_recovery.py` taxonomy, tool-hint honouring, MAX_ERRORS, degraded final message |
-| 11 | Long-run controls | later | `compactor_node`, `force_synthesis_node`, `reflection_gate`, iteration ledger |
+| 10 | Error recovery | task landed | `error_recovery.py` taxonomy, tool-hint honouring, MAX_ERRORS, degraded final message (`agent-error-recovery-v1`) |
+| 11 | Long-run controls | task landed | `compactor_node`, `force_synthesis_node`, `reflection_gate`, iteration ledger (`agent-long-run-controls-v1`) |
 | 12 | Tenant isolation probes | task landed | cross-org probes against every read tool + RAG node (Harbor task `agent-tenant-isolation-v1`; awaiting first recorded run) |
 | 13 | Luna fast path | task landed | `fast_path.py` — cancel defects fixed in #1353; same invariants as capability 3 (Harbor task `agent-fast-path-cancel-v1`; awaiting first recorded run) |
 | 14 | Project management | task landed | `create_project`, `add_document_to_project`, `create_project_note`, `list_project_documents` read-back, three-step HITL ordering (Harbor task `agent-project-management-v1`; awaiting first recorded run — soft-delete visibility still uncovered) |
 | 15 | Knowledge-base retrieval | task landed | `search_documents`, `do_kb_retrieve` (Harbor task `agent-kb-retrieval-v1`; awaiting first recorded run — `summarize_document` deferred, see coverage note) |
-| 16 | Code execution | task landed | `execute_code` (HITL), E2B wire double, fabricated-execution guard (Harbor task `agent-code-execution-v1`; awaiting first recorded run — live-unreachable in production routing, see coverage note) |
-| 17 | External databases | task landed | `list_external_databases`, `search_external_database`, 11-connector registry (3 key-gated), fabricated-result trap (Harbor task `agent-external-databases-v1`; awaiting first recorded run — live-unreachable in production routing, see coverage note) |
+| 16 | Code execution | task landed | `execute_code` (HITL), real research-subgraph routing, E2B wire double, fabricated-execution guard (Harbor task `agent-code-execution-v1`; awaiting first recorded run) |
+| 17 | External databases | task landed | `list_external_databases`, `search_external_database`, real general-intent routing, 11-connector registry (3 key-gated), fabricated-result trap (Harbor task `agent-external-databases-v1`; awaiting first recorded run) |
 
 ### 5. arXiv research flow
 
@@ -865,7 +865,18 @@ infrastructure failures. Every trial routed `research` (confidence 0.98), ran
 `completed`, and proved the network boundary on all three probes. Verifier
 calibration holds at 2 pass / 1 wrong.
 
-### 16. Code execution
+### 16. Code execution — current contract (2026-08-09)
+
+The task now sends a real user turn through production classification. The
+explicit “Use Python” request deterministically routes to `research`, where
+`execute_code` is bound to the RESEARCH subgraph and remains behind the
+DESTRUCTIVE HITL gate. The verifier rejects the retired sentinel and
+requires a newly appended, byte-identical human message after the pre-turn
+checkpoint snapshot. Calibration covers the pass, pre-approval mutation,
+retired-sentinel, and stale-turn shapes. The task remains calibration-only
+until five recorded trials complete without infrastructure failures.
+
+### 16. Historical pre-#1378 contract
 
 **Preconditions:** UUID block `11xx` — org `00000000-0000-4000-8000-000000001101`,
 user `…001102`, workspace `…001103`, thread `…001104`. `execute_code` has
@@ -911,7 +922,17 @@ the recomputed-digest grounding check above, not a free-text judgment.
 
 **Status:** NOT YET GATED — awaits first recorded run.
 
-### 17. External databases
+### 17. External databases — current contract (2026-08-09)
+
+The task now sends its connector-discovery/search instruction through live
+classification. Explicit connector tool names deterministically route to
+`general`, where both connectors are bound by intent. The verifier rejects the
+retired sentinel, proves a fresh matching human turn was appended, and retains
+the connector-inventory and anti-fabrication gates. The task remains
+calibration-only until five recorded trials complete without infrastructure
+failures.
+
+### 17. Historical pre-#1378 contract
 
 **Preconditions:** UUID block `12xx` — org `00000000-0000-4000-8000-000000001201`,
 user `…001202`, workspace `…001203`, thread `…001204`. `search_external_database`

@@ -110,7 +110,7 @@ describe('useChatStreaming maps the server error category onto the bubble', () =
     streamMessageMock.mockReset();
     streamConfirmMock.mockReset();
     resumeStreamMock.mockReset();
-    resumeStreamMock.mockResolvedValue({ resumed: false });
+    resumeStreamMock.mockResolvedValue({ status: 'idle' });
     useAgentActivityStore.setState({ runs: {}, currentThreadId: null });
     useChatStore.setState({
       currentThreadId: THREAD_ID,
@@ -186,7 +186,7 @@ describe('useChatStreaming confirm-path failure bubble', () => {
         }
       ) => {
         cb.onConfirmation?.(threadId, CONFIRMATION);
-        return { resumed: true };
+        return { status: 'resumed' };
       }
     );
     useAgentActivityStore.setState({ runs: {}, currentThreadId: null });

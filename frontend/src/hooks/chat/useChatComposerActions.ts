@@ -15,15 +15,29 @@ export interface UseChatComposerActionsParams {
   handleSubmit: (
     contentOverride?: string,
     historyOverride?: ChatPageMessage[],
-    supersedesClientMessageId?: string
+    supersedesClientMessageId?: string,
+    attachmentIds?: string[]
   ) => Promise<void>;
   isLoading: boolean;
   storeIsStreaming: boolean;
   displayedMessages: ChatPageMessage[];
 }
 
+/** Whether one attached file made it to storage, and the document it became. */
+export interface AttachOutcome {
+  ok: boolean;
+  /** Present only when `ok`. The composer keeps it on the chip so the id can
+   * ride along with the turn the user attached it to. */
+  documentId?: string;
+}
+
 export interface UseChatComposerActionsReturn {
-  handleAttach: (files: FileList) => Promise<void>;
+  /** Per-file upload outcomes, in the order the files were given. */
+  handleAttach: (files: FileList) => Promise<AttachOutcome[]>;
+  /** Re-send the user turn preceding an assistant message, truncating the
+   * transcript to just before it. When that turn carries a persisted
+   * `clientMessageId` it rides along as `supersedes_client_message_id`, so the
+   * server tombstones the replaced turn instead of persisting a second pair. */
   handleRegenerate: (assistantMessageIndex: number) => void;
   /** Edit a prior user message in place and re-send. Truncates the transcript
    * to just before the edited message (dropping its old answer + any
@@ -40,7 +54,7 @@ export interface UseChatComposerActionsReturn {
   /** Bare submit — clears nothing, just forwards to the streaming path.
    * Callers that need to clear ephemeral output first (useSlashCommands)
    * wrap this rather than calling handleSubmit directly. */
-  submit: () => void;
+  submit: (attachmentIds?: string[]) => void;
 }
 
 // ============================================
@@ -70,7 +84,9 @@ export function useChatComposerActions({
       if (!workspace) {
         console.warn('[Chat] Cannot attach: no workspace');
         toast.error('No workspace available — attachment was not uploaded.');
-        return;
+        // Every file failed, so the composer's chips must settle on error
+        // rather than sit in the uploading state forever.
+        return Array.from(files).map(() => ({ ok: false as const }));
       }
       const uploads = Array.from(files).map((file) =>
         enhancedDocumentService
@@ -78,20 +94,18 @@ export function useChatComposerActions({
             title: file.name,
             processing_priority: 'normal',
           })
-          .then((result) => {
-            console.log(
-              '[Chat] Uploaded',
-              file.name,
-              '→',
-              result.response.document_id
-            );
-            return { file, ok: true as const };
-          })
+          .then((result) => ({
+            file,
+            ok: true as const,
+            documentId: result.response.document_id,
+          }))
           .catch((err) => {
             console.error('[Chat] Upload failed for', file.name, err);
             return { file, ok: false as const };
           })
       );
+      // Promise.all preserves order, so the caller can zip these onto the
+      // chips it created from the same FileList.
       const results = await Promise.all(uploads);
       const failed = results.filter((r) => !r.ok);
       if (failed.length > 0) {
@@ -101,6 +115,10 @@ export function useChatComposerActions({
             : `Upload failed for ${failed.length} of ${results.length} files.`
         );
       }
+      return results.map((r) => ({
+        ok: r.ok,
+        ...(r.ok && r.documentId ? { documentId: r.documentId } : {}),
+      }));
     },
     [workspace]
   );
@@ -128,7 +146,16 @@ export function useChatComposerActions({
       // its closure, and `setInput` above only schedules a state update — the
       // deferred `handleSubmit` would otherwise see the stale pre-setInput value.
       const contentToSend = priorUser.content;
-      setTimeout(() => handleSubmit(contentToSend, regenerationHistory), 0);
+      // Durable regenerate: name the turn being replaced so the server
+      // tombstones it, exactly as edit-and-resend does. Without it the
+      // regenerated turn persists as an extra pair and the canonical page
+      // renders both answers after reconcile/reload. Omitted for legacy rows
+      // with no persisted client_message_id (FE-only truncation, as before).
+      const supersedes = priorUser.clientMessageId;
+      setTimeout(
+        () => handleSubmit(contentToSend, regenerationHistory, supersedes),
+        0
+      );
     },
     [displayedMessages, handleSubmit, isLoading, storeIsStreaming, setInput]
   );
@@ -171,9 +198,12 @@ export function useChatComposerActions({
     if (lastAssistantIdx !== undefined) handleRegenerate(lastAssistantIdx);
   }, [displayedMessages, handleRegenerate]);
 
-  const submit = useCallback(() => {
-    handleSubmit();
-  }, [handleSubmit]);
+  const submit = useCallback(
+    (attachmentIds?: string[]) => {
+      handleSubmit(undefined, undefined, undefined, attachmentIds);
+    },
+    [handleSubmit]
+  );
 
   return {
     handleAttach,

@@ -158,6 +158,31 @@ async def sync_document_to_kb(
     if document.do_kb_data_source_uuid:
         return document.do_kb_data_source_uuid
 
+    # Defense in depth (R2-H11): callers (backfill/reconciler) should already
+    # filter out soft-deleted docs, but a cheap re-check here means a stale
+    # in-memory Document or a future caller that forgets the filter still
+    # can't push a deleted doc's content into DO KB. Refresh from the DB first
+    # (codex P1) — the Document instance may have been loaded by a batch query
+    # some time ago, and a delete committed since then would leave the cached
+    # `is_deleted` stale. A race after this refresh (delete lands mid-upload)
+    # still shrinks to milliseconds instead of minutes, and self-heals: the
+    # delete path only unsyncs a doc that already has a data-source uuid, so
+    # if the race sets the uuid just after delete, the reconciler's deleted-doc
+    # sweep (do_kb_data_source_uuid IS NOT NULL) retries the cleanup.
+    try:
+        await session.refresh(document, attribute_names=["is_deleted"])
+    except Exception as exc:  # noqa: BLE001 - refresh failure isn't fatal
+        logger.warning(
+            "do_kb is_deleted refresh failed — using cached value",
+            extra={"document_id": str(document.id), "error": str(exc)},
+        )
+    if document.is_deleted:
+        logger.info(
+            "do_kb skip — document soft-deleted",
+            extra={"document_id": str(document.id)},
+        )
+        return None
+
     api = client or get_do_kb_client()
 
     try:
@@ -331,6 +356,23 @@ async def unsync_document_from_kb(
 
     try:
         await api.delete_data_source(kb_uuid=kb_uuid, ds_uuid=ds_uuid)
+    except DOKnowledgeBaseError as exc:
+        if exc.status_code == 404:
+            logger.info(
+                "do_kb data source already absent",
+                extra={"document_id": str(document.id), "ds_uuid": ds_uuid},
+            )
+        else:
+            logger.warning(
+                "do_kb delete_data_source failed",
+                extra={
+                    "document_id": str(document.id),
+                    "ds_uuid": ds_uuid,
+                    "error": str(exc),
+                },
+            )
+            _record_metric("unsync_failed")
+            return False
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "do_kb delete_data_source failed",
@@ -340,8 +382,8 @@ async def unsync_document_from_kb(
                 "error": str(exc),
             },
         )
-        # Still clear DB columns — the DS may already be gone on DO's side
-        # (e.g. deleted via console), and a stale UUID must not linger.
+        _record_metric("unsync_failed")
+        return False
 
     document.do_kb_data_source_uuid = None
     document.do_kb_indexed_at = None

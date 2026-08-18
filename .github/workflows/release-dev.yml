@@ -1,0 +1,92 @@
+name: Release Dev
+
+# Reintroduced after #1379 removed the never-bootstrapped exact-SHA release.
+# This is the deliberately simplified version: it restores the historically
+# working promotion pattern (the old "chore(gitops): update dev images to
+# <tag> [skip ci]" commits on develop) instead of the deploy/dev branch +
+# GitHub App design, which never finished bootstrapping.
+#
+# Chain: green Test Pipeline on develop -> build the image at that exact SHA
+# via docker-build.yml -> commit the values-dev.yaml digest/tag bump straight
+# to develop with [skip ci] using GITHUB_TOKEN. Argo CD's nous-dev app tracks
+# develop, so the bump commit is the deployment.
+#
+# Guards kept from the old design:
+# - only a completed, successful Test Pipeline run for develop triggers it
+# - the image is built at the tested workflow_run.head_sha, never a re-read tip
+# - the bump is skipped if develop moved past the tested SHA (the newer push's
+#   own pipeline run will promote instead)
+# - single concurrency group with cancellation
+
+on:
+  workflow_run:
+    workflows: ["Test Pipeline"]
+    types: [completed]
+    branches: [develop]
+
+concurrency:
+  group: release-dev
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build tested image
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'develop' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      source_sha: ${{ github.event.workflow_run.head_sha }}
+    secrets: inherit
+
+  promote:
+    name: Promote to dev values
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: develop
+
+      - name: Install yq
+        run: |
+          YQ_VERSION="v4.44.6"
+          curl -sL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+
+      - name: Bump dev image identity
+        env:
+          SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+          DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          TIP="$(git rev-parse HEAD)"
+          if [ "$TIP" != "$SOURCE_SHA" ]; then
+            echo "develop moved to $TIP after $SOURCE_SHA was tested; skipping (newer run promotes instead)"
+            exit 0
+          fi
+
+          VALUES_FILE="infrastructure/helm/knowledge-graph-analytics/values-dev.yaml"
+          yq -i '.backend.image.digest = strenv(DIGEST)' "$VALUES_FILE"
+          yq -i '.backend.image.tag = strenv(SOURCE_SHA)' "$VALUES_FILE"
+          yq -i '.backend.image.sourceSha = strenv(SOURCE_SHA)' "$VALUES_FILE"
+          yq '.backend.image' "$VALUES_FILE"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$VALUES_FILE"
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "chore(gitops): update dev images to ${SOURCE_SHA:0:7} [skip ci]"
+          git push origin HEAD:develop

@@ -20,17 +20,13 @@ from __future__ import annotations
 
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-# Paths hit by kubelet HTTP probes (and Prometheus scraping) that must bypass
+# Paths hit by kubelet HTTP probes that must bypass
 # Host-header validation. Keep in sync with the probe paths configured in the
 # Helm chart (infrastructure/helm/.../values-*.yaml backend.healthCheck.*).
 PROBE_EXEMPT_PATHS: frozenset[str] = frozenset(
     {
         "/health",  # liveness + startup probe (process-alive)
         "/health/readiness",  # readiness probe (dependency-aware)
-        "/healthz",
-        "/readyz",
-        "/livez",
-        "/metrics",  # Prometheus scrape
     }
 )
 

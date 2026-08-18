@@ -4,7 +4,7 @@ ProjectNote model for research project notes (Research Assistant - User Story 4)
 
 from sqlalchemy import Boolean, Column, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 
 from .base import GUID, BaseModel
 
@@ -53,6 +53,17 @@ class ProjectNote(BaseModel):
     # Relationships
     project = relationship("Collection", backref="notes")
     user = relationship("User", backref="project_notes")
+
+    @validates("linked_document_ids")
+    def _stringify_linked_document_ids(self, key, value):
+        """Coerce UUIDs to str before they reach the JSONB column.
+
+        Callers (REST create/update routes, the ``create_project_note`` agent
+        tool) hand over pydantic-parsed ``List[UUID]``; ``json.dumps`` cannot
+        serialize ``UUID`` and the write fails at flush time with
+        ``Object of type UUID is not JSON serializable``.
+        """
+        return [str(doc_id) for doc_id in (value or [])]
 
     def __repr__(self):
         return f"<ProjectNote(title={self.title}, project_id={self.project_id}, user_id={self.user_id})>"

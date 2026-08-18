@@ -235,12 +235,27 @@ def initialize_default_metrics():
                 name="rag_do_kb_read_total",
                 description=(
                     "DO KB primary-read outcomes on the RAG path, labeled by "
-                    "`outcome` (success, do_kb_empty, do_kb_error_404, "
-                    "do_kb_error_other, do_kb_timeout, project_scope_empty, "
+                    "`outcome` (success, do_kb_empty, do_kb_low_relevance, "
+                    "do_kb_error_404, do_kb_error_other, do_kb_timeout, "
+                    "do_kb_ownership_unverifiable, project_scope_empty, "
                     "fallback_used). A rising do_kb_error_404 means a KB was "
-                    "deleted on DO's side and retrieval has silently degraded."
+                    "deleted on DO's side and retrieval has silently "
+                    "degraded. do_kb_low_relevance means chunks came back "
+                    "but every one was below the relevance floor — distinct "
+                    "from do_kb_empty (KB returned nothing at all). "
+                    "do_kb_ownership_unverifiable means the project-ownership "
+                    "check errored (DB blip) — the primary read aborts "
+                    "rather than risk widening scope to org-wide."
                 ),
                 unit="reads",
+            ),
+            MetricConfig(
+                name="rag_do_kb_cohere_rerank_total",
+                description=(
+                    "DO KB Cohere rerank outcomes labeled by `outcome` "
+                    "(disabled, timeout_or_error, invalid_result, success)."
+                ),
+                unit="reranks",
             ),
             MetricConfig(
                 name="do_kb_ingest_total",

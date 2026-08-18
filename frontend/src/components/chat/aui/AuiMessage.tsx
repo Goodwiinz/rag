@@ -35,8 +35,10 @@ import { ToolFallback } from '@/components/assistant-ui/tool-fallback';
 import { CitationRenderer } from '@/components/chat/CitationRenderer';
 import { ChatInlinePlan } from '@/components/chat/shared/ChatInlinePlan';
 import { CitationChips } from '@/components/chat/shared/CitationChips';
+import { formatStreamingElapsed } from '@/components/chat/shared/formatStreamingElapsed';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { MessageFeedback } from '@/components/chat/shared/MessageFeedback';
+import { ThinkingMatrix } from '@/components/chat/shared/ThinkingMatrix';
 import { AuiToolParts } from '@/components/chat/aui/AuiToolParts';
 import {
   ToolStrip,
@@ -210,7 +212,13 @@ function MessageActions({
         aria-label={assistant ? 'Copy assistant message' : 'Copy user message'}
         title="Copy message"
       >
-        <Copy className="h-3.5 w-3.5" />
+        {/* The action confirms itself rather than relying on a toast. */}
+        <MessagePrimitive.If copied={false}>
+          <Copy className="h-3.5 w-3.5" />
+        </MessagePrimitive.If>
+        <MessagePrimitive.If copied>
+          <Check className="h-3.5 w-3.5 text-(--nous-terra)" />
+        </MessagePrimitive.If>
       </ActionBarPrimitive.Copy>
       {!assistant && onEdit ? (
         <button
@@ -400,20 +408,10 @@ export function AuiUserMessage({
   );
 }
 
-/** Elapsed run time for the pill: "47s", "2m 05s". Sub-second readings are
- * noise while the first token is still plausibly imminent. */
-export function formatStreamingElapsed(
-  elapsedMs: number | null
-): string | null {
-  if (elapsedMs === null || !Number.isFinite(elapsedMs) || elapsedMs < 1000) {
-    return null;
-  }
-  const totalSeconds = Math.floor(elapsedMs / 1000);
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
-}
+// Re-exported so existing `from '../AuiMessage'` test imports keep working —
+// the implementation now lives in shared/formatStreamingElapsed.ts (moving it
+// INTO ChatInlinePlan, which this file imports, would create an import cycle).
+export { formatStreamingElapsed };
 
 /** Pre-first-token status pill (mirrors the legacy ChatBubble ThinkingPill). */
 function StreamingThinkingPill({
@@ -435,13 +433,7 @@ function StreamingThinkingPill({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
     >
-      <span
-        className="h-2 w-2 rounded-full bg-(--nous-sol) dark:bg-(--nous-helios)"
-        style={{
-          boxShadow: '0 0 0 3px rgba(var(--nous-sol-rgb), 0.18)',
-          animation: 'nous-pulse 1.4s ease-in-out infinite',
-        }}
-      />
+      <ThinkingMatrix />
       <span>{label}</span>
       {elapsed && (
         // aria-live off: the pill's own polite region announces the phase
@@ -451,6 +443,24 @@ function StreamingThinkingPill({
         </span>
       )}
     </motion.div>
+  );
+}
+
+/**
+ * Live in-flight execution plan. A separate component (rather than reading
+ * `streamingPlan` inside AuiStreamingBody directly) so its own store
+ * subscription doesn't widen AuiStreamingBody's re-render surface.
+ */
+function StreamingPlanSection(): ReactElement | null {
+  const streamingPlan = useChatStore((s) => s.streamingPlan);
+  const streamingSteps = useChatStore((s) => s.streamingSteps);
+  if (streamingPlan.length === 0) return null;
+  return (
+    <ChatInlinePlan
+      plan={streamingPlan}
+      toolExecutions={streamingSteps}
+      streaming
+    />
   );
 }
 
@@ -485,6 +495,7 @@ function AuiStreamingBody(): ReactElement {
   return (
     <>
       <InlineAgentSummary threadId={threadId} />
+      <StreamingPlanSection />
       {streamingCitations.length > 0 && (
         <div
           role="status"
@@ -513,6 +524,7 @@ function AuiStreamingBody(): ReactElement {
         <div className="nous-chat-body">
           <CitationRenderer
             content={completeStreamingMarkdown(content)}
+            freshTail
             citations={[]}
             onCitationClick={() => {}}
           />
@@ -676,7 +688,9 @@ export function AuiAssistantMessage({
         {message?.plan && message.plan.length > 0 && (
           <ChatInlinePlan
             plan={message.plan}
+            reasoning={message.planReasoning}
             toolExecutions={message.toolExecutions}
+            elapsedMs={message.metadata?.responseTimeMs}
           />
         )}
         {/* Tool strip — tools/sources/time/tokens/stopped */}
@@ -696,16 +710,28 @@ export function AuiAssistantMessage({
             onCitationClick={onCitationClick}
           />
         )}
-        <MessageActions
-          assistant
-          onRetry={onRetry}
-          retryDisabled={retryDisabled}
-        />
-        {/* Per-response feedback — only for persisted (server-canonical)
-         * assistant turns; optimistic/local-only rows have no id to PATCH. */}
-        {message?.id ? (
-          <MessageFeedback messageId={message.id} feedback={message.feedback} />
-        ) : null}
+        {/* Copy / regenerate / rate read as one row, but rating sits beside
+         * the action bar rather than inside it: ActionBarPrimitive.Root
+         * *unmounts* when the message is not hovered, which would discard a
+         * half-typed feedback note and hide a rating the reader already gave.
+         *
+         * Rating renders first so the bar mounting on hover extends the row
+         * to the right instead of shifting the thumbs under the pointer.
+         * Persisted (server-canonical) turns only — optimistic rows have no
+         * id to PATCH. */}
+        <div className="nous-msg-actionrow">
+          {message?.id ? (
+            <MessageFeedback
+              messageId={message.id}
+              feedback={message.feedback}
+            />
+          ) : null}
+          <MessageActions
+            assistant
+            onRetry={onRetry}
+            retryDisabled={retryDisabled}
+          />
+        </div>
       </div>
     </MessagePrimitive.Root>
   );
@@ -752,7 +778,7 @@ export class MessageByIndexBoundary extends React.Component<
   render(): ReactNode {
     const { error } = this.state;
     if (error) {
-      // Version-coupled: this matches @assistant-ui/react@0.14.26's transient
+      // Version-coupled: this matches @assistant-ui/react@0.14.29's transient
       // out-of-bounds message. If a version bump rewords it, the classifier
       // stops matching and the boundary rethrows (crash returns) — but the
       // "shrinks under a mounted message" test in AuiMessage.test.tsx drives

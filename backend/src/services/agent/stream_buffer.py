@@ -33,34 +33,75 @@ def _active_key(thread_id: str) -> str:
     return f"agent:stream:active:{thread_id}"
 
 
-async def start_stream(thread_id: str) -> str:
-    """Mint a stream id and mark it as the thread's active run."""
+def _run_key(run_id: str) -> str:
+    return f"agent:stream:run:{run_id}"
+
+
+def _stream_thread_key(stream_id: str) -> str:
+    return f"agent:stream:thread:{stream_id}"
+
+
+async def start_stream(thread_id: str, *, run_id: str | None = None) -> str:
+    """Mint a stream id and record its thread/run correlations."""
     stream_id = str(uuid.uuid4())
     redis = await get_redis()
     if redis is not None:
-        await redis.set(_active_key(thread_id), stream_id, ex=_TTL_SECONDS)
+        async with redis.pipeline(transaction=True) as pipe:
+            pipe.set(_active_key(thread_id), stream_id, ex=_TTL_SECONDS)
+            pipe.set(_stream_thread_key(stream_id), thread_id, ex=_TTL_SECONDS)
+            if run_id is not None:
+                pipe.set(_run_key(run_id), stream_id, ex=_TTL_SECONDS)
+            await pipe.execute()
     return stream_id
 
 
 async def append(stream_id: str, seq: int, frame: str) -> None:
-    """Append one frame to the stream's replay buffer."""
+    """Append one frame to the stream's replay buffer.
+
+    rpush/ltrim/expire pipelined into one round trip (L14): three separate
+    awaits let a connection drop between them leave a partially-applied
+    key — e.g. rpush lands (creating the key with no TTL) but expire never
+    runs, so the key survives forever instead of the intended hour.
+    """
     redis = await get_redis()
     if redis is None:
         return
     key = _buffer_key(stream_id)
-    await redis.rpush(key, json.dumps({"seq": seq, "frame": frame}))
-    # ponytail: cap at 5000 frames; resume past that loses oldest frames —
-    # bump or index by seq if real turns exceed it.
-    await redis.ltrim(key, -5000, -1)
-    await redis.expire(key, _TTL_SECONDS)
+    async with redis.pipeline(transaction=True) as pipe:
+        pipe.rpush(key, json.dumps({"seq": seq, "frame": frame}))
+        # ponytail: cap at 5000 frames; resume past that loses oldest frames —
+        # bump or index by seq if real turns exceed it.
+        pipe.ltrim(key, -5000, -1)
+        pipe.expire(key, _TTL_SECONDS)
+        await pipe.execute()
 
 
-async def read_after(stream_id: str, after_seq: int) -> list[BufferedFrame]:
-    """Return buffered frames with seq > after_seq (empty if unknown sid)."""
+async def read_after(
+    stream_id: str, after_seq: int, *, start_index: int | None = None
+) -> list[BufferedFrame]:
+    """Return buffered frames with seq > after_seq (empty if unknown sid).
+
+    ``start_index`` is an optional hint (L15): a caller that polls the same
+    stream repeatedly (``replay_buffered_stream``) can pass how many frames
+    it has already consumed, so this can slice straight to the new tail
+    instead of re-fetching and re-parsing the whole (up to 5000-frame) buffer
+    on every ~1s poll. The hint is only trusted after a cheap probe of the
+    item immediately before it: on an unchanged list that item is exactly
+    the last frame the caller consumed (seq == after_seq), so an append-only
+    list means everything after it is new. If ``append``'s ltrim has trimmed
+    the buffer since, every index shifted and the probe won't match — fall
+    back to the full scan below rather than risk silently skipping frames.
+    """
     redis = await get_redis()
     if redis is None:
         return []
-    raw = await redis.lrange(_buffer_key(stream_id), 0, -1)
+    key = _buffer_key(stream_id)
+    if start_index:
+        probe_raw = await redis.lrange(key, start_index - 1, -1)
+        if probe_raw and BufferedFrame(**json.loads(probe_raw[0])).seq == after_seq:
+            frames = [BufferedFrame(**json.loads(item)) for item in probe_raw[1:]]
+            return [f for f in frames if f.seq > after_seq]
+    raw = await redis.lrange(key, 0, -1)
     frames = [BufferedFrame(**json.loads(item)) for item in raw]
     return [f for f in frames if f.seq > after_seq]
 
@@ -71,6 +112,22 @@ async def active_stream_id(thread_id: str) -> str | None:
     if redis is None:
         return None
     return await redis.get(_active_key(thread_id))
+
+
+async def stream_id_for_run(run_id: str) -> str | None:
+    """Return the immutable stream attached to a durable run."""
+    redis = await get_redis()
+    if redis is None:
+        return None
+    return await redis.get(_run_key(run_id))
+
+
+async def thread_id_for_stream(stream_id: str) -> str | None:
+    """Return the thread that owns a stream id."""
+    redis = await get_redis()
+    if redis is None:
+        return None
+    return await redis.get(_stream_thread_key(stream_id))
 
 
 async def finish_stream(thread_id: str, stream_id: str) -> None:

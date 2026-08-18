@@ -2,11 +2,11 @@
   "evidence": {
     "schema_version": "1.0",
     "benchmark_id": "agent-code-execution-v1",
-    "source_revision": "7c6abb336c4eaf2ed6d53bd9f78b32b82a7a3b23",
-    "agent_revision": "7c6abb336c4eaf2ed6d53bd9f78b32b82a7a3b23",
+    "source_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
+    "agent_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
     "started_at": "2026-08-08T00:00:00Z",
     "completed_at": "2026-08-08T00:00:20Z",
-    "instruction": "Run Python to compute the SHA-256 hex digest of the exact string \"nous-benchmark-1101\" and report the digest.",
+    "instruction": "Use Python to find the SHA-256 hex digest of the exact string \"nous-benchmark-1101\" and report the digest.",
     "target_string": "nous-benchmark-1101",
     "expected_digest": "9cffe075cdbb999913d0b7c4b0c9aa47ad7757c6b3dee8c31b2ce84866b1b5f2",
     "synthetic_actor": {
@@ -15,9 +15,18 @@
       "workspace_id": "00000000-0000-4000-8000-000000001103",
       "thread_id": "00000000-0000-4000-8000-000000001104"
     },
-    "env_flags": { "routing_workaround": "sentinel_intent" },
-    "sentinel_intent": "benchmark_all_tools",
-    "observed_intent": "benchmark_all_tools",
+    "observed_intent": "research",
+    "classification": {
+      "keyword_intent": "research",
+      "keyword_confidence": 0.5,
+      "keyword_source": "keyword",
+      "probe_intent": "research",
+      "probe_source": "keyword",
+      "observed_intent": "research"
+    },
+    "pre_turn_message_ids": [],
+    "pre_turn_message_count": 0,
+    "current_turn_human_message_ids": ["msg-1"],
     "e2b_patch": {
       "E2B_API_URL": "http://mock-services:8080",
       "E2B_SANDBOX_URL": "http://mock-services:8080",
@@ -118,7 +127,7 @@
       }
     ],
     "messages": [
-      { "type": "human", "content": "Run Python to compute the SHA-256 hex digest of the exact string \"nous-benchmark-1101\" and report the digest." },
+      { "id": "msg-1", "type": "human", "content": "Use Python to find the SHA-256 hex digest of the exact string \"nous-benchmark-1101\" and report the digest." },
       {
         "type": "ai",
         "content": "",
@@ -148,15 +157,16 @@
     "events": [],
     "milestones": [
       { "milestone": "instruction", "sequence": 1, "observed_at": "2026-08-08T00:00:00Z" },
-      { "milestone": "sentinel_state_seeded", "sequence": 2, "observed_at": "2026-08-08T00:00:01Z" },
+      { "milestone": "pre_turn_snapshot", "sequence": 2, "observed_at": "2026-08-08T00:00:01Z" },
       { "milestone": "interrupt:execute_code", "sequence": 3, "observed_at": "2026-08-08T00:00:05Z" },
       { "milestone": "preapproval_mock_events_read", "sequence": 4, "observed_at": "2026-08-08T00:00:06Z" },
       { "milestone": "approval:execute_code", "sequence": 5, "observed_at": "2026-08-08T00:00:10Z" },
       { "milestone": "sandbox_cleanup", "sequence": 6, "observed_at": "2026-08-08T00:00:19Z" },
-      { "milestone": "final_assistant_message", "sequence": 7, "observed_at": "2026-08-08T00:00:20Z" }
+      { "milestone": "turn:completed", "sequence": 7, "observed_at": "2026-08-08T00:00:20Z" },
+      { "milestone": "final_assistant_message", "sequence": 8, "observed_at": "2026-08-08T00:00:20Z" }
     ],
     "suppress_observation_for": [],
-    "notes": "Production graph with an isolated database, an E2B sandbox-lifecycle + jupyter-execute protocol double, the sentinel-intent routing workaround, and one post-interrupt approval.",
+    "notes": "Production graph with an isolated database, an E2B sandbox-lifecycle + jupyter-execute protocol double, real research intent routing, and one post-interrupt approval.",
     "final_assistant_message": {
       "type": "ai",
       "content": "The SHA-256 digest of \"nous-benchmark-1101\" is 9cffe075cdbb999913d0b7c4b0c9aa47ad7757c6b3dee8c31b2ce84866b1b5f2.",

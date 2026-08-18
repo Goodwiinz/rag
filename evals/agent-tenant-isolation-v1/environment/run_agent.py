@@ -23,6 +23,7 @@ import os
 import sys
 import time
 import traceback
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -33,7 +34,7 @@ from evals.harbor_common.network import validate_network_boundary
 from evals.harbor_common.serialization import json_safe, utc_now
 
 BENCHMARK_ID = "agent-tenant-isolation-v1"
-SOURCE_REVISION = os.environ.get("HARBOR_SOURCE_REVISION", "")
+SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 AGENT_REVISION = SOURCE_REVISION
 
 # Org A -- the victim tenant.
@@ -54,6 +55,11 @@ ENTITY_1_NAME = "Org A Principal Investigator"
 ENTITY_2_NAME = "Org A Research Lab"
 MEMORY_FRAGMENT = "org-a-eyes-only-budget-figure"
 MEMORY_KEY = "tenant-isolation-benchmark-memory"
+SKILL_NAME = "tenant-isolation-check"
+SKILL_INSTRUCTIONS = "Return only tenant-scoped project information."
+SKILL_ID = UUID("00000000-0000-4000-8000-0000000008a3")
+SKILL_VERSION_ID = UUID("00000000-0000-4000-8000-0000000008a4")
+SKILL_SCAN_ID = UUID("00000000-0000-4000-8000-0000000008a5")
 
 AGENT_LOG_DIR = Path("/logs/agent")
 EVIDENCE_PATH = AGENT_LOG_DIR / "evidence.json"
@@ -132,7 +138,9 @@ async def seed_org_a_fixture() -> dict[str, str]:
                 mime_type="application/pdf",
                 document_type=DocumentType.PDF,
                 processing_status=ProcessingStatus.COMPLETED,
-                content_text="Org A confidential budget figures follow.",
+                content_text=(
+                    "This report tells readers about Org A confidential budget figures."
+                ),
                 organization_id=ORG_A_ID,
                 uploaded_by_user_id=USER_A_ID,
             )
@@ -146,6 +154,11 @@ async def seed_org_a_fixture() -> dict[str, str]:
             )
         )
         await session.flush()
+        from src.services.search.fulltext_search_service import fulltext_search_service
+
+        await fulltext_search_service.async_update_document_search_vectors(
+            [document_id], session
+        )
         session.add(
             CollectionDocument(collection_id=project_id, document_id=document_id)
         )
@@ -171,7 +184,7 @@ async def seed_org_a_fixture() -> dict[str, str]:
         },
     )
 
-    skill_id = await seed_org_a_skill(project_id)
+    skill = await seed_org_a_skill(project_id)
 
     return {
         "document_id": str(document_id),
@@ -179,7 +192,7 @@ async def seed_org_a_fixture() -> dict[str, str]:
         "entity_id": entity_ids["entity_1"],
         "entity_id_2": entity_ids["entity_2"],
         "memory_fragment": MEMORY_FRAGMENT,
-        "skill_id": skill_id,
+        **skill,
     }
 
 
@@ -285,16 +298,54 @@ async def seed_org_a_graph() -> dict[str, str]:
     return ids
 
 
-async def seed_org_a_skill(project_id: UUID) -> str:
-    """Best-effort project-skill-catalog seed for the ``suggestions`` probe.
+async def seed_org_a_skill(project_id: UUID) -> dict[str, str]:
+    """Seed one approved skill and freeze it in a production runtime snapshot."""
+    from src.core.database import AsyncSessionLocal
+    from src.models import ProjectSkill, ProjectSkillVersion, ProjectSkillVersionScan
+    from src.services.agent.runtime_snapshot import create_runtime_snapshot
 
-    The production skill-loading path resolves through a runtime-snapshot
-    service that this harness does not stand up end-to-end; recording a
-    deterministic id here is sufficient for the probe to issue a real
-    ``project_id``-scoped call and observe whether org B's identical call
-    returns anything for it.
-    """
-    return f"skill:{project_id}:tenant-isolation-benchmark"
+    async with AsyncSessionLocal() as session:
+        skill = ProjectSkill(
+            id=SKILL_ID,
+            project_id=project_id,
+            normalized_name=SKILL_NAME,
+            active_version_id=None,
+            is_archived=False,
+            created_by_id=USER_A_ID,
+        )
+        session.add(skill)
+        await session.flush()
+        session.add(
+            ProjectSkillVersion(
+                id=SKILL_VERSION_ID,
+                skill_id=SKILL_ID,
+                version=1,
+                instructions=SKILL_INSTRUCTIONS,
+                parsed_name=SKILL_NAME,
+                description="Verify tenant-scoped project reads.",
+                content_hash=sha256(SKILL_INSTRUCTIONS.encode()).hexdigest(),
+                author_id=USER_A_ID,
+            )
+        )
+        await session.flush()
+        session.add(
+            ProjectSkillVersionScan(
+                id=SKILL_SCAN_ID,
+                version_id=SKILL_VERSION_ID,
+                scan_state="passed",
+                findings=[],
+                scanner_version="benchmark-v1",
+                scanned_by_id=USER_A_ID,
+            )
+        )
+        skill.active_version_id = SKILL_VERSION_ID
+        await session.commit()
+        runtime = await create_runtime_snapshot(
+            session, user_id=USER_A_ID, project_id=project_id
+        )
+    if not runtime.id or len(runtime.project_skill_catalog) != 1:
+        raise InfrastructureFailure("org-A project skill snapshot was not created")
+    return {"skill_id": str(SKILL_ID), "runtime_snapshot_id": runtime.id}
 
 
 # ---------------------------------------------------------------------------
@@ -460,7 +511,7 @@ async def probe_explore_entity_neighborhood(seed: dict[str, str]) -> dict[str, A
     def rows(payload: dict[str, Any]) -> list[str]:
         if payload.get("error"):
             return []
-        neighbors = payload.get("neighbors") or payload.get("entities") or []
+        neighbors = payload.get("connected_entities") or []
         return [seed["entity_id"]] if neighbors else []
 
     return await _run_probe(
@@ -538,20 +589,26 @@ async def probe_memory_retrieval(seed: dict[str, str]) -> dict[str, Any]:
 
     a_memories = await search(USER_A_ID)
     a_rows = [
-        m.get("query") for m in a_memories if MEMORY_FRAGMENT in str(m.get("query", ""))
+        m["value"]["query"]
+        for m in a_memories
+        if MEMORY_FRAGMENT in str((m.get("value") or {}).get("query", ""))
     ]
 
     error = None
     try:
         b_memories = await search(USER_B_ID)
         b_rows = [
-            m.get("query")
+            m["value"]["query"]
             for m in b_memories
-            if MEMORY_FRAGMENT in str(m.get("query", ""))
+            if MEMORY_FRAGMENT in str((m.get("value") or {}).get("query", ""))
         ]
-    except Exception as exc:  # noqa: BLE001 - captured as probe evidence, not raised
-        b_rows = []
-        error = f"{type(exc).__name__}: {exc}"
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 - org-B exceptions are infrastructure failures
+        raise InfrastructureFailure(
+            "memory.memory_retrieval_node: org-B's own call raised: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
 
     if not a_rows:
         raise InfrastructureFailure(
@@ -574,10 +631,10 @@ async def probe_load_project_skill(seed: dict[str, str]) -> dict[str, Any]:
 
     async def call(user_id: UUID, db: Any) -> dict[str, Any]:
         return await _tool_load_project_skill(
-            {},
+            {"skill_name": SKILL_NAME},
             user_id=str(user_id),
             project_id=seed["project_id"],
-            runtime_snapshot_id="",
+            runtime_snapshot_id=seed["runtime_snapshot_id"],
             db=db,
         )
 
@@ -600,9 +657,13 @@ async def probe_load_project_skill(seed: dict[str, str]) -> dict[str, Any]:
             b_rows: list[str] = []
         else:
             b_rows = [seed["skill_id"]]
-    except Exception as exc:  # noqa: BLE001 - captured as probe evidence, not raised
-        b_rows = []
-        error = f"{type(exc).__name__}: {exc}"
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 - org-B exceptions are infrastructure failures
+        raise InfrastructureFailure(
+            "suggestions.load_project_skill: org-B's own call raised: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
 
     if not a_rows:
         raise InfrastructureFailure(
@@ -614,7 +675,11 @@ async def probe_load_project_skill(seed: dict[str, str]) -> dict[str, Any]:
     return {
         "probe_id": "suggestions.load_project_skill",
         "category": "suggestions",
-        "query": {"project_id": seed["project_id"]},
+        "query": {
+            "project_id": seed["project_id"],
+            "runtime_snapshot_id": seed["runtime_snapshot_id"],
+            "skill_name": SKILL_NAME,
+        },
         "org_a_rows": json_safe(a_rows),
         "org_b_rows": json_safe(b_rows),
         "org_b_error": error,
@@ -631,13 +696,13 @@ async def probe_rag_node(seed: dict[str, str]) -> dict[str, Any]:
             "messages": [HumanMessage(content=f"Tell me about {DOCUMENT_TITLE}")],
             "use_rag": True,
             "retrieved_contexts": [],
-            "current_project_id": "",
+            "current_project_id": seed["project_id"],
         }
         config = {
             "configurable": {
                 "user_id": str(user_id),
                 "organization_id": str(org_id),
-                "current_project_id": "",
+                "current_project_id": seed["project_id"],
             }
         }
         return await rag_node(state, config)
@@ -672,14 +737,20 @@ async def probe_rag_node(seed: dict[str, str]) -> dict[str, Any]:
             for c in b_contexts
             if isinstance(c, dict) and c.get("document_id") == seed["document_id"]
         ]
-    except Exception as exc:  # noqa: BLE001 - captured as probe evidence, not raised
-        b_rows = []
-        error = f"{type(exc).__name__}: {exc}"
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 - org-B exceptions are infrastructure failures
+        raise InfrastructureFailure(
+            f"rag.rag_node: org-B's own call raised: {type(exc).__name__}: {exc}"
+        ) from exc
 
     return {
         "probe_id": "rag.rag_node",
         "category": "rag",
-        "query": {"instruction": f"Tell me about {DOCUMENT_TITLE}"},
+        "query": {
+            "instruction": f"Tell me about {DOCUMENT_TITLE}",
+            "project_id": seed["project_id"],
+        },
         "org_a_rows": json_safe(a_rows),
         "org_b_rows": json_safe(b_rows),
         "org_b_error": error,
@@ -719,9 +790,12 @@ async def _run_probe(
         b_rows = rows_fn(b_payload)
         if isinstance(b_payload, dict) and b_payload.get("error"):
             error = str(b_payload["error"])
-    except Exception as exc:  # noqa: BLE001 - captured as probe evidence, not raised
-        b_rows = []
-        error = f"{type(exc).__name__}: {exc}"
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 - org-B exceptions are infrastructure failures
+        raise InfrastructureFailure(
+            f"{probe_id}: org-B's own call raised: {type(exc).__name__}: {exc}"
+        ) from exc
 
     return {
         "probe_id": probe_id,

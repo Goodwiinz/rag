@@ -211,12 +211,19 @@ async def search_arxiv(
     query: str,
     max_results: int = 5,
     categories: Optional[List[str]] = None,
+    recency_days: int = 365,
+    chronological: bool = False,
     config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Search arXiv for academic papers.
 
-    Use when the user asks to find, search, or look up research papers,
-    academic publications, or scientific articles.
+    Use when the user asks to find, search, or look up research papers.
+    Pass clean topic KEYWORDS in query — not filler like 'recent' or 'latest';
+    recency is controlled by recency_days. By default only papers from the
+    last 365 days are returned. Pass recency_days=0 to disable the date
+    filter for historical or all-time searches (e.g. papers from 2022-2024),
+    or a larger N to widen the window. Set chronological=true to sort
+    newest-first instead of by relevance.
     """
     config = config or {}
     from src.services.agent.tools_impl import _tool_search_arxiv
@@ -224,6 +231,8 @@ async def search_arxiv(
     args: Dict[str, Any] = {
         "query": query,
         "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_CAP),
+        "recency_days": _clamp_int(recency_days, lo=0, hi=36500),
+        "chronological": bool(chronological),
     }
     if categories:
         args["categories"] = categories
@@ -274,7 +283,13 @@ async def search_documents(
     max_results: int = 10,
     config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
-    """Search the user's indexed documents by title or content."""
+    """Look up documents by title/filename substring match.
+
+    Does NOT search document content — for content-level questions
+    ("what do my documents say about X", comparisons, quotes) use
+    do_kb_retrieve instead. A multi-word query here must appear verbatim
+    in a single title/filename to match.
+    """
     config = config or {}
     from src.services.agent.tools_impl import _tool_search_documents
 
@@ -910,9 +925,20 @@ TOOL_REGISTRY = ToolRegistry(
         ToolDescriptor(
             name="do_kb_retrieve",
             tool=do_kb_retrieve,
-            intents=frozenset(),
-            subgraphs=frozenset({AgentSubgraph.RESEARCH}),
-            subgraph_positions=((AgentSubgraph.RESEARCH, 3),),
+            # GENERAL: the classifier demotes weak-evidence turns to general on
+            # the premise that general is a superset of the specialist lanes
+            # (classifier.py). Without this binding, a content-level question
+            # landing in general had only title search — live miss 2026-08-12:
+            # "Compare the METR and MIT studies" → search_documents → 0 hits →
+            # "no documents found" with both docs indexed.
+            intents=frozenset({AgentIntent.GENERAL}),
+            # DATA: search_documents is bound to research + data, and its
+            # zero-hit path tells the model to escalate here. Bound to research
+            # only, that advice was unfollowable from the data subgraph —
+            # make_filtered_tool_node answers "not available in this context"
+            # (guarded by test_recovery_suggestions_are_callable).
+            subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 3), (AgentSubgraph.DATA, 8)),
             policy_tags=frozenset(),
             exposed_in_all_tools=False,
         ),
@@ -928,7 +954,9 @@ TOOL_REGISTRY = ToolRegistry(
                 (AgentSubgraph.RESEARCH, 4),
                 (AgentSubgraph.WRITING, 9),
             ),
-            policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
+            policy_tags=frozenset(
+                {ToolPolicyTag.DESTRUCTIVE, ToolPolicyTag.NO_OUTER_RETRY}
+            ),
         ),
         ToolDescriptor(
             name="list_projects",
@@ -962,7 +990,9 @@ TOOL_REGISTRY = ToolRegistry(
                 (AgentSubgraph.RESEARCH, 6),
                 (AgentSubgraph.WRITING, 10),
             ),
-            policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
+            policy_tags=frozenset(
+                {ToolPolicyTag.DESTRUCTIVE, ToolPolicyTag.NO_OUTER_RETRY}
+            ),
         ),
         ToolDescriptor(
             name="create_project_note",
@@ -976,7 +1006,9 @@ TOOL_REGISTRY = ToolRegistry(
                 (AgentSubgraph.WRITING, 1),
                 (AgentSubgraph.RESEARCH, 8),
             ),
-            policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
+            policy_tags=frozenset(
+                {ToolPolicyTag.DESTRUCTIVE, ToolPolicyTag.NO_OUTER_RETRY}
+            ),
         ),
         ToolDescriptor(
             name="list_project_documents",
@@ -1012,7 +1044,11 @@ TOOL_REGISTRY = ToolRegistry(
         ToolDescriptor(
             name="compare_documents",
             tool=compare_documents,
-            intents=frozenset({AgentIntent.WRITING}),
+            # GENERAL: comparison phrasings rarely carry classifier signal
+            # (only two literal override phrases match), so they routinely land
+            # in general — where this tool must be callable (see do_kb_retrieve
+            # note above).
+            intents=frozenset({AgentIntent.WRITING, AgentIntent.GENERAL}),
             subgraphs=frozenset({AgentSubgraph.WRITING}),
             subgraph_positions=((AgentSubgraph.WRITING, 4),),
             policy_tags=frozenset({ToolPolicyTag.SLOW}),
@@ -1063,7 +1099,13 @@ TOOL_REGISTRY = ToolRegistry(
             intents=frozenset({AgentIntent.WRITING}),
             subgraphs=frozenset({AgentSubgraph.WRITING}),
             subgraph_positions=((AgentSubgraph.WRITING, 0),),
-            policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE, ToolPolicyTag.SLOW}),
+            policy_tags=frozenset(
+                {
+                    ToolPolicyTag.DESTRUCTIVE,
+                    ToolPolicyTag.SLOW,
+                    ToolPolicyTag.NO_OUTER_RETRY,
+                }
+            ),
         ),
         ToolDescriptor(
             name="export_bibliography",
@@ -1093,7 +1135,9 @@ TOOL_REGISTRY = ToolRegistry(
             intents=frozenset({AgentIntent.RESEARCH}),
             subgraphs=frozenset({AgentSubgraph.RESEARCH}),
             subgraph_positions=((AgentSubgraph.RESEARCH, 9),),
-            policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
+            policy_tags=frozenset(
+                {ToolPolicyTag.DESTRUCTIVE, ToolPolicyTag.NO_OUTER_RETRY}
+            ),
         ),
         ToolDescriptor(
             name="search_external_database",
@@ -1102,18 +1146,27 @@ TOOL_REGISTRY = ToolRegistry(
             # bound only to the unknown-intent ALL_TOOLS path the live graph
             # never takes. A connector lookup carries no research/writing/KG
             # signal, so GENERAL is its natural home. CONTEXT_FREE is unchanged.
+            # Writing too: the literature-review project skill instructs a
+            # multi-database search, and the classifier routes "conduct a
+            # literature review" to writing — without the binding the
+            # instruction is dead (make_filtered_tool_node answers the call
+            # with "not available in this context"). Read-only, untagged.
             tool=search_external_database,
             intents=frozenset({AgentIntent.GENERAL}),
-            subgraphs=frozenset(),
+            subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 11),),
             policy_tags=frozenset({ToolPolicyTag.CONTEXT_FREE}),
         ),
         ToolDescriptor(
             name="list_external_databases",
             # Same fix, same reasoning as search_external_database above:
             # GENERAL makes it reachable; read-only, so no destructive tag needed.
+            # Writing too, for the same literature-review flow: the model has
+            # to be able to discover which connectors exist before searching.
             tool=list_external_databases,
             intents=frozenset({AgentIntent.GENERAL}),
-            subgraphs=frozenset(),
+            subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 12),),
             policy_tags=frozenset({ToolPolicyTag.CONTEXT_FREE}),
         ),
         ToolDescriptor(
@@ -1139,7 +1192,11 @@ TOOL_REGISTRY = ToolRegistry(
             intents=frozenset({AgentIntent.GENERAL}),
             subgraphs=frozenset(),
             policy_tags=frozenset(
-                {ToolPolicyTag.DESTRUCTIVE, ToolPolicyTag.CONTEXT_FREE}
+                {
+                    ToolPolicyTag.DESTRUCTIVE,
+                    ToolPolicyTag.CONTEXT_FREE,
+                    ToolPolicyTag.NO_OUTER_RETRY,
+                }
             ),
         ),
     ]

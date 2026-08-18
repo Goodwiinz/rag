@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
-// ChatInput/CitationPanel resolve through the barrel (not their own module
-// paths) — the existing ChatPage.*.test.tsx suite mocks '@/components/chat'
-// at exactly this specifier.
-import { ChatInput, CitationPanel } from '@/components/chat';
+// ChatInput resolves through the barrel (not its own module path) — the
+// existing ChatPage.*.test.tsx suite mocks '@/components/chat' at exactly
+// this specifier.
+import { ChatInput } from '@/components/chat';
 import { ChatDialogs } from '@/components/chat/ChatDialogs';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
@@ -23,7 +23,6 @@ import type { UseChatDrawerReturn } from '@/hooks/chat/useChatDrawer';
 import type { UseCitationPanelReturn } from '@/hooks/chat/useCitationPanel';
 import type { UseChatComposerActionsReturn } from '@/hooks/chat/useChatComposerActions';
 import type { UseSlashCommandsReturn } from '@/hooks/chat/useSlashCommands';
-import type { Citation } from '@/utils/citationParser';
 
 interface ChatSurfaceProps {
   session: UseChatSessionReturn;
@@ -37,8 +36,6 @@ interface ChatSurfaceProps {
   setEnableRAG: (enabled: boolean) => void;
   /** Route-level: uses next/navigation's router, so it's built in page.tsx. */
   onSelectThread: (id: string) => void;
-  /** Route-level: navigates to the source document. */
-  onCitationDocumentClick: (citation: Citation) => void;
 }
 
 /**
@@ -59,7 +56,6 @@ export function ChatSurface({
   enableRAG,
   setEnableRAG,
   onSelectThread,
-  onCitationDocumentClick,
 }: ChatSurfaceProps): ReactElement {
   const {
     conversations,
@@ -114,15 +110,7 @@ export function ChatSurface({
     handleDrawerKeyDown,
   } = drawer;
 
-  const {
-    isCitationPanelOpen,
-    setIsCitationPanelOpen,
-    citationPanelCitations,
-    activeCitationId,
-    citationTraceId,
-    handleCitationClick,
-    handleCiteSource,
-  } = citationPanel;
+  const { handleCitationClick } = citationPanel;
 
   const { handleAttach, handleRegenerate, handleEditUserMessage } =
     composerActions;
@@ -199,14 +187,28 @@ export function ChatSurface({
   const runtimeHydrationPhase =
     displayedMessages.length > 0 ? 'hydrated' : 'empty';
 
-  // Listen for populate-chat-input events from Follow-up Suggestions
+  // Listen for populate-chat-input events. Follow-up Suggestions send a bare
+  // string (replace); the artifact panel's "Cite" sends {text, mode:'append'}
+  // so citing never clobbers a draft the user is typing.
   useEffect(() => {
-    const handlePopulateChatInput = (event: CustomEvent<string>): void => {
-      if (event.detail) {
-        setInput(event.detail);
-        // Focus the textarea after populating
-        chatInputRef.current?.focus();
+    const handlePopulateChatInput = (
+      event: CustomEvent<string | { text: string; mode?: 'append' | 'replace' }>
+    ): void => {
+      const detail = event.detail;
+      if (!detail) return;
+      if (typeof detail === 'string') {
+        setInput(detail);
+      } else if (detail.text) {
+        if (detail.mode === 'append') {
+          setInput((cur) => (cur ? `${cur} ${detail.text}` : `${detail.text} `));
+        } else {
+          setInput(detail.text);
+        }
+      } else {
+        return;
       }
+      // Focus the textarea after populating
+      chatInputRef.current?.focus();
     };
 
     window.addEventListener(
@@ -356,9 +358,9 @@ export function ChatSurface({
           <ChatInput
             value={input}
             onChange={setInput}
-            onSubmit={() => {
+            onSubmit={(attachmentIds) => {
               if (isSessionInteractive) {
-                submitMessage();
+                submitMessage(attachmentIds);
               } else {
                 console.warn('[Chat] Send ignored: session not interactive', {
                   isAuthenticated,
@@ -379,17 +381,6 @@ export function ChatSurface({
             }}
           />
         </ChatRuntimeProvider>
-
-        {/* Citation Panel Sidebar */}
-        <CitationPanel
-          citations={citationPanelCitations}
-          isOpen={isCitationPanelOpen}
-          onClose={() => setIsCitationPanelOpen(false)}
-          onCitationClick={onCitationDocumentClick}
-          onCite={handleCiteSource}
-          diagnosticsTraceId={citationTraceId}
-          activeCitationId={activeCitationId}
-        />
       </div>
 
       <ChatDialogs

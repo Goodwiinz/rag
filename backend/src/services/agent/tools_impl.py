@@ -12,12 +12,75 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from uuid import UUID, uuid4
+from uuid import UUID
 
 # Matches the trailing ``vN`` revision suffix arXiv appends to paper IDs
 # (e.g. ``2605.10877v1``). Used to compare requested vs. ingested IDs
 # without false negatives across version bumps.
 _ARXIV_VERSION_RE = re.compile(r"v\d+$")
+
+
+def _arxiv_paper_version(paper_id: str) -> int:
+    """Trailing ``vN`` as an int; unversioned IDs sort lowest (0)."""
+    match = re.search(r"v(\d+)$", paper_id)
+    return int(match.group(1)) if match else 0
+
+
+def _index_arxiv_papers(
+    papers: List[Dict[str, Any]],
+) -> tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    """Index fetched arXiv papers by exact (versioned) ID and by highest-
+    revision unversioned ID, so requesting both "X v1" and "X v2" doesn't
+    collapse to one entry, and a bare request resolves to the newest
+    revision regardless of the Atom feed's entry order.
+    """
+    fetched_by_id: Dict[str, Dict[str, Any]] = {}
+    fetched_unversioned: Dict[str, Dict[str, Any]] = {}
+    for paper in papers:
+        exact = str(paper["id"])
+        fetched_by_id[exact] = paper
+        bare = _ARXIV_VERSION_RE.sub("", exact)
+        current = fetched_unversioned.get(bare)
+        if current is None or _arxiv_paper_version(exact) > _arxiv_paper_version(
+            str(current["id"])
+        ):
+            fetched_unversioned[bare] = paper
+    return fetched_by_id, fetched_unversioned
+
+
+def _find_missing_arxiv_ids(paper_ids: List[str], ingested_ids: List[str]) -> List[str]:
+    """Requested IDs not satisfied by what actually got ingested.
+
+    A versioned request ("...v2") is only satisfied by an exact ingested
+    match — stripped comparison would let a dropped v2 hide behind a
+    successfully ingested v1 of the same paper. A bare (unversioned)
+    request matches any ingested revision.
+    """
+    ingested_exact = {str(aid) for aid in ingested_ids}
+    ingested_stripped = {_ARXIV_VERSION_RE.sub("", aid) for aid in ingested_exact}
+    missing = []
+    for pid in paper_ids:
+        if _ARXIV_VERSION_RE.search(pid):
+            if pid not in ingested_exact:
+                missing.append(pid)
+        elif pid not in ingested_stripped:
+            missing.append(pid)
+    return missing
+
+
+def _resolve_arxiv_paper(
+    pid: str,
+    fetched_by_id: Dict[str, Dict[str, Any]],
+    fetched_unversioned: Dict[str, Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Match a requested ID against fetched metadata: exact ID first, then
+    the unversioned fallback if the caller didn't request a specific version.
+    """
+    paper = fetched_by_id.get(pid)
+    if paper is None and _ARXIV_VERSION_RE.search(pid) is None:
+        paper = fetched_unversioned.get(pid)
+    return paper
+
 
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,12 +90,8 @@ from src.models.collection import CollectionDocument
 from src.models.document import Document
 from src.models.user import User
 
-from .tool_helpers import (
-    _escape_like,
-    _resolve_document_id,
-    _sanitize_metadata,
-    _verify_project_ownership,
-)
+from .error_recovery import tool_error_payload
+from .tool_helpers import _escape_like, _resolve_document_id, _verify_project_ownership
 
 logger = logging.getLogger(__name__)
 
@@ -798,6 +857,10 @@ _ARXIV_CACHE_FRESH_TTL = 600.0  # 10 min: served as a fresh cache hit
 _ARXIV_CACHE_STALE_TTL = 1800  # 30 min: kept in Redis for the 429 stale fallback
 _ARXIV_SEARCH_CACHE_MAX = 64
 _ARXIV_CACHE_REDIS_PREFIX = "arxiv:search:"  # own namespace; NOT tenant-scoped search:
+# ~100 years. arXiv's first submission was 1991, so anything beyond this is a
+# nonsense window; the cap exists because ``timedelta(days=...)`` past ~2700
+# years raises OverflowError when subtracted from now().
+_MAX_ARXIV_RECENCY_DAYS = 36525
 
 
 def _arxiv_cache_key(
@@ -888,6 +951,18 @@ def _sanitize_arxiv_query(q: str) -> str:
     ]
     cleaned = " ".join(kept).strip()
     return cleaned or q
+
+
+def _field_arxiv_query(q: str) -> str:
+    """Scope plain keyword queries to ``all:`` with AND between tokens.
+
+    Canonical implementation lives in ``arxiv_service.field_arxiv_query`` so
+    the research-engine connector shares the same rewrite; this thin wrapper
+    keeps the module-local name the tool path and tests use.
+    """
+    from src.services.arxiv.arxiv_service import field_arxiv_query
+
+    return field_arxiv_query(q)
 
 
 # --- L2: shared Redis cache (cross-pod dedup + normalized key + 429 stale) ---
@@ -1021,6 +1096,16 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     # reaches arXiv's all-field index — they dilute relevance scores without
     # adding signal. The raw ``original_query`` is still used as the cache key.
     query = _sanitize_arxiv_query(query)
+    # Field-scope plain keywords (all:tok AND all:tok) — unfielded terms are
+    # OR'd by arXiv and drown chronological sort in off-topic papers. Skip
+    # when the sanitizer fell back to a pure-filler query (every token a
+    # stopword): ANDing all: over stopwords ('all:recent AND all:the') would
+    # rewrite a query we deliberately chose to preserve verbatim into an
+    # over-restrictive one (codex audit on #1406, finding 3).
+    if any(
+        re.sub(r"[^a-z]", "", t.lower()) not in _ARXIV_STOPWORDS for t in query.split()
+    ):
+        query = _field_arxiv_query(query)
     # Hard cap at 5 papers + 250-char abstracts. Trace showed 10×500-char
     # results = 8087 chars feeding into the synthesis LLM call and triggering
     # 1536 reasoning tokens (~46s). Smaller payload = faster synthesis.
@@ -1036,9 +1121,14 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
         recency_days = int(recency_days_raw)
     except (TypeError, ValueError):
         recency_days = 365
-    # Clamp to ≥0; negative values silently disable the filter under the
-    # > 0 check, but the contract is "0 disables, positive caps lookback".
-    recency_days = max(0, recency_days)
+    # Clamp to [0, _MAX_ARXIV_RECENCY_DAYS]. Negative values silently disable
+    # the filter under the > 0 check, but the contract is "0 disables, positive
+    # caps lookback". The upper bound matters because recency_days is now
+    # LLM-supplied: an oversized window (1000000) makes the timedelta below
+    # raise OverflowError and fails the whole tool call. Clamped here rather
+    # than in the tool wrapper so every caller is covered — the research
+    # subgraph's direct-search fast path builds this args dict itself.
+    recency_days = max(0, min(recency_days, _MAX_ARXIV_RECENCY_DAYS))
     if recency_days > 0:
         cutoff = datetime.now(timezone.utc) - timedelta(days=recency_days)
         cutoff_str = cutoff.strftime("%Y%m%d%H%M")
@@ -1127,34 +1217,9 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
                 **stale_payload,
                 "cached": True,
                 "stale": True,
-                "warning": f"ArXiv unavailable ({e}); returned cached results.",
+                "warning": "ArXiv is unavailable; returned cached results.",
             }
-        return {"error": f"ArXiv search failed: {str(e)}", "query": query}
-
-
-async def _existing_document_id(
-    db: AsyncSession, organization_id: Any, checksum: Optional[str]
-) -> Optional[Any]:
-    """Live document id for this org's copy of ``checksum``, if any.
-
-    Mirrors the partial unique index ``uq_documents_org_checksum_live``
-    (organization_id, checksum_sha256) WHERE NOT is_deleted — so the lookup
-    matches exactly what the database would reject.
-    """
-    if not checksum:
-        return None
-    from sqlalchemy import select as _select
-
-    stmt = (
-        _select(Document.id)
-        .where(
-            Document.organization_id == organization_id,
-            Document.checksum_sha256 == checksum,
-            Document.is_deleted.is_(False),
-        )
-        .limit(1)
-    )
-    return (await db.execute(stmt)).scalar_one_or_none()
+        return {**tool_error_payload("search_arxiv", e), "query": query}
 
 
 async def _tool_ingest_arxiv(
@@ -1164,7 +1229,14 @@ async def _tool_ingest_arxiv(
     current_user: Optional[User] = None,
 ) -> Dict[str, Any]:
     """Ingest arXiv papers into the RAG system by searching for them first, then ingesting."""
-    from src.models.document import ProcessingStatus
+    # Every sibling tool fails closed here; this one didn't, so an unresolved
+    # current_user (bad/missing user_id in configurable — see tools.py
+    # _tool_context) drove the full download+extract+ingest pipeline
+    # unauthenticated instead of hitting the documented "Authentication
+    # required" seam the wrapper relies on this impl to provide.
+    if not db or not current_user:
+        return {"error": "Authentication required"}
+
     from src.services.arxiv.arxiv_service import ArXivIngestionService
 
     paper_ids = args.get("paper_ids", [])
@@ -1195,25 +1267,25 @@ async def _tool_ingest_arxiv(
 
     try:
         async with ArXivIngestionService() as service:
-            # Fetch paper metadata in parallel; cap concurrency to be polite
-            # to the arXiv API (no batched id_list endpoint available).
-            metadata_semaphore = asyncio.Semaphore(5)
+            # Batch metadata lookup via the API's id_list parameter: all
+            # requested papers in ONE request — one shared rate-gate slot
+            # instead of one per paper (a 10-paper ingest used to burn ~30s
+            # of the gate queue on metadata alone).
+            fetched_by_id: Dict[str, Dict[str, Any]] = {}
+            fetched_unversioned: Dict[str, Dict[str, Any]] = {}
+            try:
+                fetched_by_id, fetched_unversioned = _index_arxiv_papers(
+                    await service.get_papers_by_ids(paper_ids)
+                )
+            except Exception as exc:
+                logger.warning("arXiv batch metadata fetch failed: %s", exc)
+                for pid in paper_ids:
+                    failed_papers[pid] = "metadata fetch failed"
 
-            async def _fetch_one(pid: str) -> Dict[str, Any]:
-                async with metadata_semaphore:
-                    try:
-                        results = await service.search_papers(
-                            query=f"id:{pid}",
-                            max_results=1,
-                        )
-                    except Exception as exc:
-                        logger.warning(
-                            "arXiv metadata fetch failed for %s: %s", pid, exc
-                        )
-                        failed_papers[pid] = f"metadata fetch failed: {exc}"
-                        results = None
-                if results:
-                    return results[0]
+            def _paper_or_stub(pid: str) -> Dict[str, Any]:
+                paper = _resolve_arxiv_paper(pid, fetched_by_id, fetched_unversioned)
+                if paper:
+                    return paper
                 # Fallback: minimal paper dict so ingest can still proceed.
                 # Record the miss so the caller knows which IDs lacked
                 # real arXiv metadata (likely invalid or very new).
@@ -1233,9 +1305,7 @@ async def _tool_ingest_arxiv(
                     "links": {"pdf": f"https://arxiv.org/pdf/{pid}"},
                 }
 
-            papers_to_ingest = list(
-                await asyncio.gather(*[_fetch_one(pid) for pid in paper_ids])
-            )
+            papers_to_ingest = [_paper_or_stub(pid) for pid in paper_ids]
 
             ingested = await service.ingest_papers(
                 papers=papers_to_ingest,
@@ -1245,185 +1315,58 @@ async def _tool_ingest_arxiv(
 
             # Detect which requested paper_ids the service dropped during
             # download/extract so we can surface per-paper failure reasons
-            # instead of a generic zero-count message.
-            # arXiv returns versioned IDs (``2605.10877v1``) while callers
-            # typically pass unversioned IDs — strip ``vN`` before comparing
-            # so successfully ingested papers aren't flagged as failures.
-            def _strip_version(aid: str) -> str:
-                return _ARXIV_VERSION_RE.sub("", aid)
-
-            ingested_arxiv_ids: set[str] = set()
+            # instead of a generic zero-count message. A versioned request
+            # must be matched exactly (see _find_missing_arxiv_ids) so a
+            # dropped v2 isn't hidden behind a successfully ingested v1.
+            ingested_arxiv_ids: List[str] = []
             for doc in ingested or []:
                 meta = getattr(doc, "document_metadata", None) or {}
                 aid = meta.get("arxiv_id") if isinstance(meta, dict) else None
                 if aid:
-                    ingested_arxiv_ids.add(_strip_version(str(aid)))
-            for pid in paper_ids:
-                if (
-                    _strip_version(pid) not in ingested_arxiv_ids
-                    and pid not in failed_papers
-                ):
+                    ingested_arxiv_ids.append(str(aid))
+            missing_after_ingest = _find_missing_arxiv_ids(
+                paper_ids, ingested_arxiv_ids
+            )
+            for pid in missing_after_ingest:
+                if pid not in failed_papers:
                     failed_papers[pid] = "PDF download or content extraction failed"
+            # IDs the ingest step actually produced a Document for. A paper can
+            # land here via the stub-paper fallback even after the *batch*
+            # metadata lookup for the whole request failed (_paper_or_stub) —
+            # used below to undo that pessimistic marking once we know better.
+            landed_arxiv_ids = set(paper_ids) - set(missing_after_ingest)
 
             document_ids = []
             reused_document_ids: set = set()
             kb_sync_failed = False
             if ingested and current_user:
-                # KEPT fresh sessions (audit B8 judgment): ingest is
-                # deliberately phase-isolated — this atomic ``begin()`` batch
-                # commits the documents independently of the KB dual-write
-                # (kb_db) and the project link (link_db) below, so a failure
-                # in a later phase can never roll back papers that already
-                # landed. The tool-call session from execute_tool may carry
-                # an open transaction, which ``begin()`` would reject.
-                from src.core.database import AsyncSessionLocal
-
-                promoted_storage: List[Dict[str, Any]] = []
                 try:
-                    persisted_documents: List[Document] = []
-                    async with AsyncSessionLocal() as fresh_db:
-                        async with fresh_db.begin():
-                            for doc in ingested:
-                                from src.services.arxiv.storage import store_arxiv_pdf
+                    from src.services.arxiv.persistence import persist_arxiv_documents
 
-                                document_id = uuid4()
-                                storage_fields = await asyncio.to_thread(
-                                    store_arxiv_pdf,
-                                    doc,
-                                    current_user.organization_id,
-                                    document_id,
-                                )
-                                promoted_storage.append(storage_fields)
-
-                                # Content-hash dedup is a PARTIAL unique index
-                                # (organization_id, checksum_sha256) over live
-                                # rows. Re-ingesting a paper the org already
-                                # has previously raised UniqueViolationError
-                                # out of the atomic begin() block, so ONE
-                                # duplicate destroyed the whole batch — nine
-                                # new papers lost to the tenth being familiar.
-                                # Reuse the existing row instead: the paper is
-                                # in the library, which is what the user asked
-                                # for, and the project link below still runs.
-                                existing_id = await _existing_document_id(
-                                    fresh_db,
-                                    current_user.organization_id,
-                                    storage_fields.get("checksum_sha256"),
-                                )
-                                if existing_id is not None:
-                                    logger.info(
-                                        "arxiv ingest: paper already in library "
-                                        "(document %s), reusing",
-                                        existing_id,
-                                    )
-                                    document_ids.append(str(existing_id))
-                                    reused_document_ids.add(str(existing_id))
-                                    continue
-
-                                document = Document(
-                                    id=document_id,
-                                    title=getattr(doc, "title", "Untitled"),
-                                    **storage_fields,
-                                    content_text=getattr(doc, "content_text", None),
-                                    content_summary=getattr(
-                                        doc, "content_summary", None
-                                    ),
-                                    document_metadata=_sanitize_metadata(
-                                        getattr(doc, "document_metadata", {})
-                                    ),
-                                    processing_status=ProcessingStatus.COMPLETED,
-                                    uploaded_by_user_id=current_user.id,
-                                    organization_id=current_user.organization_id,
-                                    is_public=False,
-                                )
-                                fresh_db.add(document)
-                                await fresh_db.flush()
-                                document_ids.append(str(document.id))
-                                persisted_documents.append(document)
-
-                            # Build search_vector so these COMPLETED docs are
-                            # findable — without it the NULL tsvector never
-                            # matches plainto_tsquery and the papers are
-                            # invisible to doc search / RAG.
-                            try:
-                                from src.services.search.fulltext_search_service import (
-                                    fulltext_search_service,
-                                )
-
-                                await fulltext_search_service.async_update_document_search_vectors(
-                                    document_ids, fresh_db
-                                )
-                            except Exception as vec_err:  # noqa: BLE001
-                                logger.warning(
-                                    "arxiv ingest: search_vector update failed: %s",
-                                    vec_err,
-                                )
-                            # begin() auto-commits on exit
-                    # The rows now own these objects. Later failure-isolated KB
-                    # or project work must never remove committed document data.
-                    promoted_storage.clear()
-                    logger.info(
-                        "Ingested %d documents to DB: %s",
-                        len(document_ids),
-                        document_ids,
+                    persisted = await persist_arxiv_documents(
+                        ingested,
+                        user_id=current_user.id,
+                        organization_id=current_user.organization_id,
                     )
-
-                    # Phase 2 dual-write: mirror into DO KB. Failure-isolated.
-                    from src.core.config import settings as _kb_settings
-
-                    if (
-                        getattr(_kb_settings, "DO_KB_ENABLED", False)
-                        and persisted_documents
-                    ):
-                        try:
-                            from src.services.do_kb import sync_documents_to_kb
-
-                            async with AsyncSessionLocal() as kb_db:
-                                # AsyncSession.merge() IS a coroutine in SQLAlchemy
-                                # 2.0 (inspect.iscoroutinefunction == True). Without
-                                # await, `merged` held unawaited coroutine objects
-                                # (RuntimeWarning) instead of Documents, the KB sync
-                                # then AttributeError'd and was swallowed below — so
-                                # the dual-write silently never ran. Await + commit so
-                                # the do_kb_data_source_uuid writes actually persist.
-                                merged = [
-                                    await kb_db.merge(d) for d in persisted_documents
-                                ]
-                                await sync_documents_to_kb(kb_db, merged)
-                                await kb_db.commit()
-                        except Exception as kb_err:  # noqa: BLE001
-                            kb_sync_failed = True
-                            logger.warning(
-                                "do_kb dual-write skipped for arxiv ingest: %s", kb_err
-                            )
+                    document_ids = persisted.document_ids
+                    reused_document_ids = persisted.reused_document_ids
+                    kb_sync_failed = persisted.kb_sync_failed
+                    failed_papers.update(persisted.failed_papers)
+                    # Reconcile against the artifact, not the earlier guess: a
+                    # paper marked failed above (metadata fetch failure, or
+                    # presumed dropped during ingest) that nonetheless landed
+                    # and persisted cleanly must not still be reported failed.
+                    # Papers persistence itself just failed are already back
+                    # in failed_papers via the update() immediately above.
+                    for pid in landed_arxiv_ids:
+                        if pid in failed_papers and pid not in persisted.failed_papers:
+                            del failed_papers[pid]
                 except Exception as db_err:
-                    from src.services.arxiv.storage import delete_arxiv_storage
-
-                    for storage_fields in reversed(promoted_storage):
-                        try:
-                            await asyncio.to_thread(
-                                delete_arxiv_storage, storage_fields
-                            )
-                        except Exception:  # noqa: BLE001
-                            logger.warning(
-                                "arxiv ingest rollback left an orphaned object: %s",
-                                storage_fields.get("storage_path")
-                                or storage_fields.get("file_path"),
-                                exc_info=True,
-                            )
                     logger.error(
                         "Failed to persist ingested documents to DB", exc_info=db_err
                     )
                     document_ids = []
-                    return {
-                        "error": f"Papers downloaded but DB persist failed: {str(db_err)}"
-                    }
-            elif ingested:
-                # Fallback: no current_user, return paper_ids only
-                for doc in ingested:
-                    doc_id = getattr(doc, "id", None)
-                    if doc_id:
-                        document_ids.append(str(doc_id))
+                    return tool_error_payload("ingest_arxiv_papers", db_err)
 
             # Auto-attach to active project if one is in context.
             linked_project_id: Optional[str] = None
@@ -1476,15 +1419,16 @@ async def _tool_ingest_arxiv(
                 message = (
                     f"Ingested 0 of {requested_count} paper(s). The arXiv IDs "
                     "may be invalid, very new (not yet on arxiv.org), or the "
-                    "download/extract step failed. Try again with different "
-                    "IDs or wait a few hours for very recent papers."
+                    "download, extraction, or durable-storage step failed. Try "
+                    "again with different IDs or wait a few hours for very "
+                    "recent papers."
                 )
             elif ingested_count < requested_count:
                 status = INGEST_STATUS_PARTIAL
                 message = (
                     f"Ingested {ingested_count} of {requested_count} paper(s). "
                     f"{requested_count - ingested_count} failed — likely "
-                    "invalid IDs or download errors."
+                    "invalid IDs, download errors, or storage errors."
                 )
             else:
                 status = INGEST_STATUS_COMPLETE
@@ -1557,7 +1501,10 @@ async def _tool_ingest_arxiv(
             return result
     except Exception as e:
         logger.error("ArXiv ingest tool failed", exc_info=e)
-        return {"error": f"Ingestion failed: {str(e)}", "paper_ids": paper_ids}
+        return {
+            **tool_error_payload("ingest_arxiv_papers", e),
+            "paper_ids": paper_ids,
+        }
 
 
 async def _tool_search_documents(
@@ -1591,15 +1538,18 @@ async def _tool_search_documents(
         docs = result.scalars().all()
 
         from src.services.agent._pii_redact import redact_pii
+        from src.shared.enums import ApiDocumentStatus
 
-        return {
+        payload: Dict[str, Any] = {
             "documents": [
                 {
                     "id": str(d.id),
                     "title": redact_pii(d.title) if d.title else d.title,
                     "type": d.document_type.value if d.document_type else None,
                     "status": (
-                        d.processing_status.value if d.processing_status else None
+                        ApiDocumentStatus.from_db(d.processing_status).value
+                        if d.processing_status
+                        else None
                     ),
                     "created_at": d.created_at.isoformat() if d.created_at else None,
                 }
@@ -1608,9 +1558,21 @@ async def _tool_search_documents(
             "total": len(docs),
             "query": query,
         }
+        if not docs:
+            # Zero-hit escalation hint: this tool matches title/filename
+            # substrings only, so a miss says nothing about content. Without
+            # this the model reported "no documents found" while do_kb_retrieve
+            # sat unused one call away (live miss 2026-08-12).
+            payload["suggestion"] = (
+                "No title/filename matched. This tool does not search "
+                "document content — retry with do_kb_retrieve for a "
+                "content-level (semantic) search before telling the "
+                "user nothing was found."
+            )
+        return payload
     except Exception as e:
         logger.error("search_documents tool failed", exc_info=e)
-        return {"error": f"Document search failed: {str(e)}"}
+        return tool_error_payload("search_documents", e)
 
 
 async def _tool_do_kb_retrieve(
@@ -1673,15 +1635,20 @@ async def _tool_do_kb_retrieve(
             "chunks": [],
             "total": 0,
             "source": "do_kb",
-            "error": f"Retrieval failed: {exc}",
+            **tool_error_payload("do_kb_retrieve", exc),
         }
 
     if outcome.status is not DOKBRetrieveStatus.SUCCESS:
+        failure = (
+            asyncio.TimeoutError()
+            if outcome.status is DOKBRetrieveStatus.TIMEOUT
+            else outcome.error or RuntimeError("DO KB retrieval failed")
+        )
         return {
             "chunks": [],
             "total": 0,
             "source": "do_kb",
-            "error": f"Retrieval failed: {outcome.error}",
+            **tool_error_payload("do_kb_retrieve", failure),
         }
     result = outcome.result
 
@@ -1748,6 +1715,27 @@ async def _tool_do_kb_retrieve(
 
         chunks_to_emit = await cohere_rescore_chunks(query, chunks_to_emit)
 
+    from src.services.do_kb.postprocess import drop_low_relevance_chunks
+
+    chunks_to_emit = drop_low_relevance_chunks(chunks_to_emit)
+    if not chunks_to_emit:
+        return {
+            "chunks": [],
+            "total": 0,
+            "source": "do_kb",
+            "reason": "no_relevant_chunks",
+            "evidence_mode": False,
+        }
+
+    score_sources = frozenset(
+        (chunk.metadata or {}).get("score_source") for chunk in chunks_to_emit
+    )
+    score_semantics = {
+        frozenset({"cohere"}): "relevance",
+        frozenset({"rank_proxy"}): "rank_only",
+        frozenset({"upstream"}): "upstream",
+    }.get(score_sources, "mixed")
+
     from src.services.agent._pii_redact import redact_pii
 
     chunks_payload = []
@@ -1777,13 +1765,20 @@ async def _tool_do_kb_retrieve(
         chunks_payload = await summarize_evidence(query, chunks_payload)
         evidence_mode = True
 
-    return {
+    payload = {
         "chunks": chunks_payload,
         "total": len(chunks_payload) if project_id else result.total,
         "source": "do_kb",
         "query": query,
         "evidence_mode": evidence_mode,
+        "score_semantics": score_semantics,
     }
+    if score_semantics == "rank_only":
+        payload["note"] = (
+            "Scores reflect retrieval rank, not relevance; judge topical "
+            "relevance from the chunk text yourself."
+        )
+    return payload
 
 
 async def _tool_add_document_to_project(
@@ -1842,7 +1837,7 @@ async def _tool_add_document_to_project(
         }
     except Exception as e:
         logger.error("add_document_to_project tool failed", exc_info=e)
-        return {"error": f"Failed to add document to project: {str(e)}"}
+        return tool_error_payload("add_document_to_project", e)
 
 
 async def _tool_create_project(
@@ -1909,7 +1904,7 @@ async def _tool_create_project(
         }
     except Exception as e:
         logger.error("create_project tool failed", exc_info=e)
-        return {"error": f"Failed to create project: {str(e)}"}
+        return tool_error_payload("create_project", e)
 
 
 async def _tool_create_project_note(
@@ -1955,13 +1950,17 @@ async def _tool_create_project_note(
         return {
             "status": "success",
             "note_id": str(note.id),
+            # The note may land in a different project than the thread's
+            # binding (explicit project_id arg) — the frontend's artifact
+            # auto-focus must fetch through THIS id, not the bound one.
+            "project_id": str(project.id),
             "title": note.title,
             "project_name": project.name,
             "message": f"Created note '{title}' in project '{project.name}'.",
         }
     except Exception as e:
         logger.error("create_project_note tool failed", exc_info=e)
-        return {"error": f"Failed to create note: {str(e)}"}
+        return tool_error_payload("create_project_note", e)
 
 
 async def _tool_list_project_documents(
@@ -1996,6 +1995,8 @@ async def _tool_list_project_documents(
 
         base_where = (
             CollectionDocument.collection_id == project.id,
+            CollectionDocument.is_deleted == False,
+            Document.organization_id == current_user.organization_id,
             Document.is_deleted == False,
         )
 
@@ -2018,6 +2019,8 @@ async def _tool_list_project_documents(
         result = await db.execute(stmt)
         docs = result.scalars().all()
 
+        from src.shared.enums import ApiDocumentStatus
+
         return {
             "project_name": project.name,
             "documents": [
@@ -2025,8 +2028,13 @@ async def _tool_list_project_documents(
                     "id": str(d.id),
                     "title": d.title,
                     "type": d.document_type.value if d.document_type else None,
+                    # Mirror search_documents' mapping (not the raw db value)
+                    # so the same document doesn't report two different
+                    # statuses depending on which tool the model called.
                     "status": (
-                        d.processing_status.value if d.processing_status else None
+                        ApiDocumentStatus.from_db(d.processing_status).value
+                        if d.processing_status
+                        else None
                     ),
                 }
                 for d in docs
@@ -2039,7 +2047,7 @@ async def _tool_list_project_documents(
         }
     except Exception as e:
         logger.error("list_project_documents tool failed", exc_info=e)
-        return {"error": f"Failed to list project documents: {str(e)}"}
+        return tool_error_payload("list_project_documents", e)
 
 
 async def _tool_list_projects(
@@ -2160,7 +2168,7 @@ async def _tool_list_projects(
         return payload
     except Exception as e:
         logger.error("list_projects tool failed", exc_info=e)
-        return {"error": f"Failed to list projects: {str(e)}"}
+        return tool_error_payload("list_projects", e)
 
 
 async def _tool_summarize_document(
@@ -2263,7 +2271,7 @@ async def _tool_summarize_document(
         }
     except Exception as e:
         logger.error("summarize_document tool failed", exc_info=e)
-        return {"error": f"Summarization failed: {str(e)}"}
+        return tool_error_payload("summarize_document", e)
 
 
 #: Per-document character budget sent to the comparison model.
@@ -2359,7 +2367,7 @@ async def _tool_compare_documents(
         for did in document_ids:
             doc = resolved.get(did)
             if not doc:
-                return {"error": f"Document not found: {did}"}
+                return {"error": "Document not found or access denied"}
 
             text = doc.content_text or ""
             if not text:
@@ -2409,7 +2417,7 @@ async def _tool_compare_documents(
         }
     except Exception as e:
         logger.error("compare_documents tool failed", exc_info=e)
-        return {"error": f"Comparison failed: {str(e)}"}
+        return tool_error_payload("compare_documents", e)
 
 
 async def _tool_extract_entities(
@@ -2476,7 +2484,7 @@ async def _tool_extract_entities(
         }
     except Exception as e:
         logger.error("extract_entities tool failed", exc_info=e)
-        return {"error": f"Entity extraction failed: {str(e)}"}
+        return tool_error_payload("extract_entities", e)
 
 
 async def _tool_search_knowledge_graph(
@@ -2539,7 +2547,7 @@ async def _tool_search_knowledge_graph(
         }
     except Exception as e:
         logger.error("search_knowledge_graph tool failed", exc_info=e)
-        return {"error": f"Knowledge graph search failed: {str(e)}"}
+        return tool_error_payload("search_knowledge_graph", e)
 
 
 async def _tool_explore_entity_neighborhood(
@@ -2581,7 +2589,11 @@ async def _tool_explore_entity_neighborhood(
         relationships = neighborhood.get("relationships", [])
 
         return {
+            "scope": "entity_neighborhood",
             "center_entity_id": entity_id,
+            "requested_max_depth": max_depth,
+            "result_limit": limit,
+            "connected_entities_scope": "entity_neighborhood",
             "connected_entities": [
                 {
                     "id": e.id,
@@ -2591,6 +2603,7 @@ async def _tool_explore_entity_neighborhood(
                 }
                 for e in entities
             ],
+            "relationships_scope": "entity_neighborhood",
             "relationships": [
                 {
                     "source": r.source_entity_id,
@@ -2606,10 +2619,13 @@ async def _tool_explore_entity_neighborhood(
             ],
             "total_entities": len(entities),
             "total_relationships": len(relationships),
+            "returned_counts_scope": "entity_neighborhood",
+            "returned_entity_count": len(entities),
+            "returned_relationship_count": len(relationships),
         }
     except Exception as e:
         logger.error("explore_entity_neighborhood tool failed", exc_info=e)
-        return {"error": f"Neighborhood exploration failed: {str(e)}"}
+        return tool_error_payload("explore_entity_neighborhood", e)
 
 
 async def _tool_find_entity_paths(
@@ -2682,7 +2698,7 @@ async def _tool_find_entity_paths(
         }
     except Exception as e:
         logger.error("find_entity_paths tool failed", exc_info=e)
-        return {"error": f"Path finding failed: {str(e)}"}
+        return tool_error_payload("find_entity_paths", e)
 
 
 async def _tool_get_graph_stats(
@@ -2711,16 +2727,18 @@ async def _tool_get_graph_stats(
         )
 
         return {
+            "scope": "organization_graph",
             "total_entities": analytics.total_entities,
             "total_relationships": analytics.total_relationships,
+            "entity_type_distribution_scope": "organization_graph",
             "entity_type_distribution": analytics.entity_type_counts,
+            "relationship_type_distribution_scope": "organization_graph",
             "relationship_type_distribution": analytics.relationship_type_counts,
             "average_degree": round(analytics.average_degree, 2),
-            "connected_components": analytics.connected_components,
         }
     except Exception as e:
         logger.error("get_graph_stats tool failed", exc_info=e)
-        return {"error": f"Graph stats retrieval failed: {str(e)}"}
+        return tool_error_payload("get_graph_stats", e)
 
 
 async def _tool_create_draft(
@@ -2772,7 +2790,7 @@ async def _tool_create_draft(
         }
     except Exception as e:
         logger.error("create_draft tool failed", exc_info=e)
-        return {"error": f"Draft creation failed: {str(e)}"}
+        return tool_error_payload("create_draft", e)
 
 
 @dataclass
@@ -2906,7 +2924,7 @@ async def _tool_export_bibliography(
         }
     except Exception as e:
         logger.error("export_bibliography tool failed", exc_info=e)
-        return {"error": f"Bibliography export failed: {str(e)}"}
+        return tool_error_payload("export_bibliography", e)
 
 
 # ---------------------------------------------------------------------------
@@ -3033,6 +3051,7 @@ async def _tool_search_external_database(args: Dict[str, Any]) -> Dict[str, Any]
 
         results = []
         connectors_searched = []
+        failures = 0
         for connector, result in zip(targets, all_results):
             connectors_searched.append(connector.info.name)
             if isinstance(result, BaseException):
@@ -3041,6 +3060,7 @@ async def _tool_search_external_database(args: Dict[str, Any]) -> Dict[str, Any]
                     connector.info.name,
                     str(result),
                 )
+                failures += 1
                 continue
             for r in result:
                 results.append(
@@ -3056,6 +3076,19 @@ async def _tool_search_external_database(args: Dict[str, Any]) -> Dict[str, Any]
                     }
                 )
 
+        if failures == len(targets):
+            # Every attempted connector raised. `total_results: 0` here is
+            # indistinguishable from "searched and found nothing" to
+            # _nodes_tools' `"error" in result` classifier — that made a
+            # total outage look like a completed search, so tool_dedupe
+            # cached the empty payload as good (short-circuiting a same-turn
+            # retry) and find_repeated_failures never saw the failure to trip
+            # the circuit breaker. A partial failure is still a real result.
+            return {
+                "error": f"All {len(targets)} connector(s) failed",
+                "connectors_searched": connectors_searched,
+            }
+
         return {
             "query": query,
             "total_results": len(results),
@@ -3064,7 +3097,7 @@ async def _tool_search_external_database(args: Dict[str, Any]) -> Dict[str, Any]
         }
     except Exception as exc:
         logger.exception("external_db_search_failed")
-        return {"error": f"Search failed: {str(exc)}"}
+        return tool_error_payload("search_external_database", exc)
 
 
 async def _tool_list_external_databases(args: Dict[str, Any]) -> Dict[str, Any]:

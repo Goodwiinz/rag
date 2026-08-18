@@ -20,6 +20,9 @@ class AgentState(TypedDict):
     retrieved_contexts: list
     tool_executions: list
     thread_id: str
+    # preprocessing_node increments once per fresh turn. Plain last-value state
+    # prevents compiled specialist subgraphs from adding the value again.
+    turn_index: int
     tool_loop_count: int
     error_count: int
     last_error: str
@@ -31,6 +34,7 @@ class AgentState(TypedDict):
     # recalled across all its threads (list[str])
     # --- v2 additions ---
     plan: list  # [{step, tool, args_hint}] advisory plan
+    plan_reasoning: str  # Planner's top-level rationale for `plan`, capped 2000 chars
     reflection_count: int  # Max 2 per turn, reset per user message
     compaction_count: int  # Increments each compaction, reset per turn
     intent_confidence: float  # LLM classifier confidence 0-1

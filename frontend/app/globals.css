@@ -131,6 +131,66 @@
 
   /* ─── NOUS Chat Polish ─── */
 
+  /* Read-only markdown surfaces (artifact panel notes/drafts): restore the
+     document structure Preflight strips — headings, list markers,
+     blockquotes — so `# Heading` doesn't render as body text. */
+  .nous-prose h1,
+  .nous-prose h2,
+  .nous-prose h3,
+  .nous-prose h4 {
+    font-family: var(--nous-font-heading);
+    font-weight: 600;
+    color: var(--nous-fg-1);
+    line-height: 1.3;
+    margin: 1.25em 0 0.5em;
+  }
+  .nous-prose h1 {
+    font-size: 1.35em;
+  }
+  .nous-prose h2 {
+    font-size: 1.2em;
+  }
+  .nous-prose h3 {
+    font-size: 1.1em;
+  }
+  .nous-prose h4 {
+    font-size: 1em;
+  }
+  .nous-prose > :first-child {
+    margin-top: 0;
+  }
+  .nous-prose p {
+    margin: 0.75em 0;
+  }
+  .nous-prose ul {
+    list-style: disc;
+    padding-left: 1.4em;
+    margin: 0.75em 0;
+  }
+  .nous-prose ol {
+    list-style: decimal;
+    padding-left: 1.4em;
+    margin: 0.75em 0;
+  }
+  .nous-prose li + li {
+    margin-top: 0.25em;
+  }
+  .nous-prose blockquote {
+    border-left: 2px solid var(--nous-border-1);
+    padding-left: 0.9em;
+    margin: 0.75em 0;
+    color: var(--nous-fg-2);
+  }
+  .nous-prose hr {
+    border-color: var(--nous-border-1);
+    margin: 1.25em 0;
+  }
+  .nous-prose th,
+  .nous-prose td {
+    border: 1px solid var(--nous-border-1);
+    padding: 0.35em 0.6em;
+  }
+
   .nous-chat-body {
     font-family: var(--nous-font-body);
     font-size: 15px;
@@ -423,27 +483,56 @@
     opacity: 1;
     transform: translateY(0);
   }
+  /* Ghost buttons: the row sits under every assistant turn, so an outlined
+     box per action stacked up as chrome. Weight arrives on hover instead. */
   .nous-msg-action {
     width: 28px;
     height: 28px;
     display: grid;
     place-items: center;
     background: transparent;
-    border: 1px solid var(--nous-border-1);
-    border-radius: 6px;
+    border: none;
+    border-radius: 9999px;
     color: var(--nous-fg-3);
-    transition: all 150ms;
+    transition:
+      background-color 150ms,
+      color 150ms,
+      scale 150ms;
     cursor: pointer;
   }
   .nous-msg-action:hover {
-    border-color: var(--nous-sol);
-    color: var(--nous-sol-safe);
-    background: var(--nous-bg-2);
+    color: var(--nous-fg-1);
+    background: rgba(var(--nous-erebus-rgb), 0.06);
+  }
+  .nous-msg-action:active {
+    scale: 0.96;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .nous-msg-action {
+      transition: none;
+    }
+    .nous-msg-action:active {
+      scale: 1;
+    }
   }
   .dark .nous-msg-action:hover {
-    background: var(--nous-obsidian);
-    border-color: var(--nous-helios);
-    color: var(--nous-helios);
+    color: var(--nous-ivory);
+    background: rgba(245, 240, 232, 0.09);
+  }
+
+  /* Rating sits beside the action bar, not inside it — ActionBarPrimitive.Root
+     unmounts when the message is not hovered, which would discard a half-typed
+     feedback note. The row keeps them on one line. */
+  .nous-msg-actionrow {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    /* Carries the spacing the action bar used to own, so the gap under the
+       message stays put whether or not the bar is currently mounted. */
+    margin-top: 10px;
+  }
+  .nous-msg-actionrow .nous-msg-actions {
+    margin-top: 0;
   }
   .nous-msg-action:focus-visible {
     outline: none;
@@ -1667,16 +1756,21 @@ input:-webkit-autofill ~ button svg {
     background-position: -200% 0;
   }
 }
-.tool-shimmer {
-  color: transparent;
-  background-image: linear-gradient(
-    100deg,
-    transparent 42%,
-    hsl(var(--foreground)) 50%,
-    transparent 58%
-  );
-  background-size: 250% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: tool-shimmer 2.5s linear infinite;
+/* The effect works by making the text transparent and painting a moving
+   gradient through it, so it must not apply at all under reduced motion —
+   killing only the animation would leave a near-invisible static label. */
+@media (prefers-reduced-motion: no-preference) {
+  .tool-shimmer {
+    color: transparent;
+    background-image: linear-gradient(
+      100deg,
+      transparent 42%,
+      hsl(var(--foreground)) 50%,
+      transparent 58%
+    );
+    background-size: 250% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: tool-shimmer 2.5s linear infinite;
+  }
 }

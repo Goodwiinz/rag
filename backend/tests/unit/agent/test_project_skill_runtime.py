@@ -25,6 +25,10 @@ def test_skill_catalog_prompt_is_compact_deterministic_and_instructs_loader_use(
 
     assert "literature-review (v2)" in prompt
     assert "load_project_skill(skill_name)" in prompt
+    assert (
+        "When the user explicitly names a listed skill, call "
+        "load_project_skill(skill_name) before any other project tool." in prompt
+    )
     assert "Use the project review rubric." in prompt
     assert "a" * 64 not in prompt
 

@@ -30,12 +30,10 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "756367d"
-    # Empty until the exact-SHA release workflow is shadow-proven and the
-    # deployment branch is seeded. Once populated, the digest is the actual
-    # pull identity and tag/sourceSha are trace metadata only.
-    digest: ""
-    sourceSha: ""
+    tag: "4c6a2c49fd50690b2c6370a3c34effe1b12f9919"
+    # The digest is the actual pull identity; tag/sourceSha are trace metadata.
+    digest: "sha256:09529a36c0ddf5243cfa04055cbbe830202ad17d56d45cf797f37c6e4d986c55"
+    sourceSha: "4c6a2c49fd50690b2c6370a3c34effe1b12f9919"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -205,6 +203,14 @@ backend:
     # mode is chosen by which thread_id the client sends. The frontend half
     # is NEXT_PUBLIC_SERVER_CANONICAL_CHAT on the Vercel dev project (#993).
     - name: AGENT_CANONICAL_PERSISTENCE
+      value: "true"
+    # Option B (checkpoint-authoritative history, #1395 research): the
+    # checkpoint is the model-context source of truth; only the newest user
+    # turn is appended per request. With this OFF every turn runs the legacy
+    # B1 fallback, which re-derives ids for the resent history and duplicates
+    # every user message in the checkpoint (observed 2x per turn, 4x on a
+    # HITL turn — trace thread e88fdbf7, 2026-08-12). Rollback: set "false".
+    - name: AGENT_SERVER_SIDE_HISTORY
       value: "true"
     - name: SENTRY_TRACES_SAMPLE_RATE
       value: "1.0"

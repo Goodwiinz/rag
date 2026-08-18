@@ -76,6 +76,75 @@ async def test_set_job_schedules_projection_with_snapshot():
 
 
 @pytest.mark.asyncio
+async def test_thread_terminal_projection_lands_before_job_publication():
+    order = []
+
+    async def record(*_args, **_kwargs):
+        order.append("projection")
+
+    async def write_redis(*_args, **_kwargs):
+        order.append("redis")
+
+    recorded = AsyncMock(side_effect=record)
+    redis_write = AsyncMock(side_effect=write_redis)
+    js._l1["job-terminal"] = {
+        "status": JobStatus.RUNNING,
+        "user_id": "u-1",
+        "request": {"thread_id": "t-1"},
+        "created_at": time.time(),
+    }
+
+    with (
+        patch.object(js, "set_job_redis_only", redis_write),
+        patch("src.services.agent.agent_run_service.record_job_status", new=recorded),
+    ):
+        await js.set_job("job-terminal", {"status": JobStatus.COMPLETED})
+
+    recorded.assert_awaited_once_with(
+        "job-terminal",
+        {
+            "status": JobStatus.COMPLETED,
+            "user_id": "u-1",
+            "organization_id": None,
+            "error": None,
+            "thread_id": "t-1",
+        },
+        raise_on_error=True,
+    )
+    redis_write.assert_awaited_once()
+    assert order == ["projection", "redis"]
+
+
+@pytest.mark.asyncio
+async def test_thread_terminal_projection_failure_still_publishes_and_retries():
+    """H2: a failed strict projection must not cost the terminal status —
+    set_job falls through to L1/Redis instead of raising, and reschedules a
+    best-effort re-projection (the same seam non-terminal writes use) rather
+    than losing the durable row outright."""
+    recorded = AsyncMock(side_effect=RuntimeError("db unavailable"))
+    redis_write = AsyncMock()
+    js._l1["job-terminal"] = {
+        "status": JobStatus.RUNNING,
+        "user_id": "u-1",
+        "request": {"thread_id": "t-1"},
+        "created_at": time.time(),
+    }
+
+    with (
+        patch.object(js, "set_job_redis_only", redis_write),
+        patch("src.services.agent.agent_run_service.record_job_status", new=recorded),
+    ):
+        await js.set_job("job-terminal", {"status": JobStatus.COMPLETED})
+        await _drain_projection_tasks()
+
+    assert js._l1["job-terminal"]["status"] is JobStatus.COMPLETED
+    redis_write.assert_awaited_once()
+    # First call is the strict (failed) attempt; falling through to the
+    # best-effort seam below fires a second, retried one.
+    assert recorded.await_count == 2
+
+
+@pytest.mark.asyncio
 async def test_cas_in_memory_projects_the_claimed_transition():
     """confirm's awaiting→running claim reaches the projection (via set_job)."""
     recorded = AsyncMock()

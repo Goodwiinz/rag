@@ -23,6 +23,12 @@ records positive and negative network probes.
 | `agent-arxiv-research-flow-v1` | Search arXiv against a protocol double, prove the shared Redis result cache, and ingest two papers behind one HITL approval | Deterministic trajectory, HITL snapshots, PostgreSQL/Redis/storage state |
 | `agent-code-execution-v1` | Execute Python against an E2B wire double behind one HITL approval | Deterministic trajectory, HITL snapshots, recomputed-digest grounding (no judge) |
 | `agent-external-databases-v1` | List and search the 11-connector external-database registry against a protocol double | Deterministic trajectory, connector-registry state, fixture-containment check (no judge) |
+| `agent-error-recovery-v1` | Follow recoverable tool guidance, then stop repeated failures honestly | Deterministic error/counter gates plus an isolated semantic judge |
+| `agent-long-run-controls-v1` | Compact a sequential retrieval chain and synthesize truthfully at the loop limit | Deterministic chain, compaction, ledger, and final-answer gates |
+| `agent-project-skill-runtime-v1` | Freeze an approved project-skill version across activation drift and HITL resume | Deterministic version/hash, snapshot, HITL, and PostgreSQL state |
+| `agent-fast-path-cancel-v1` | Keep fast-path cancellation terminal and prefix-safe | Deterministic stream and durability checks |
+| `agent-hitl-lifecycle-v1` | Preserve confirm, reject, timeout, and replay semantics | Deterministic interrupt, mutation, and idempotency checks |
+| `agent-tenant-isolation-v1` | Reject cross-tenant probes across agent read paths | Deterministic tenant-state and leakage checks |
 
 `agent-writing-flow-v1`, `agent-kb-retrieval-v1`, and
 `agent-knowledge-graph-flow-v1` are judge-gated: Layer B
@@ -49,12 +55,9 @@ deployments fail the Azure Responses API version gate.
 `agent-external-databases-v1` are all semantic = N/A (no judge anywhere in
 these three tasks — design doc §Layer B) and all NOT YET GATED, awaiting
 their first recorded run. `agent-code-execution-v1` and
-`agent-external-databases-v1` drive their tools via the sentinel-intent
-`aupdate_state` workaround: `execute_code`, `search_external_database`, and
-`list_external_databases` are production dead tools under live intent
-classification on the pinned benchmark image (fix landing on `develop` via
-PR #1365, not yet in the pinned image) — see `AGENT_FLOW_BASELINE.md`
-capabilities 16/17 for the routing-reachability detail.
+`agent-external-databases-v1` send real turns through production intent
+classification; see `AGENT_FLOW_BASELINE.md` capabilities 16/17 for their
+routing and grounding contracts.
 
 Tasks added after 2026-08-07 import their adapter and verifier helpers from the
 shared `harbor_common/` package; the original three tasks keep their inline

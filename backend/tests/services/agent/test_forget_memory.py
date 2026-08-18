@@ -1,4 +1,5 @@
 """forget_memory deletes the closest semantic match from the user's store."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -36,9 +37,7 @@ async def test_delete_memory_skips_low_score_match():
     store.asearch = AsyncMock(return_value=[weak])
     store.adelete = AsyncMock(return_value=None)
 
-    out = await delete_memory_by_query(
-        store, user_id="user-1", query="papers", limit=3
-    )
+    out = await delete_memory_by_query(store, user_id="user-1", query="papers", limit=3)
 
     assert out["deleted"] == 0
     assert out["matches"][0]["score"] == 0.4
@@ -47,25 +46,108 @@ async def test_delete_memory_skips_low_score_match():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_delete_memory_unindexed_uses_substring_fallback():
+async def test_delete_memory_unindexed_uses_specific_substring_fallback():
     """Audit B3 — with no semantic index every item scores None (coerced 0.0),
     so the 0.6 threshold rejects everything and a confirmed forget would
-    silently delete nothing. The exact-substring fallback must still delete the
-    memory that genuinely mentions the query."""
+    silently delete nothing. The exact-substring fallback must still delete a
+    memory that genuinely mentions a sufficiently specific query."""
     store = MagicMock()
     hit = MagicMock(key="k-hit", score=None)
-    hit.value = {"query": "remember my email is alice@example.com"}
+    hit.value = {"query": "remember my arXiv research recovery contact details"}
     miss = MagicMock(key="k-miss", score=None)
     miss.value = {"query": "buy milk tomorrow"}
     store.asearch = AsyncMock(return_value=[hit, miss])
     store.adelete = AsyncMock(return_value=None)
 
     out = await delete_memory_by_query(
-        store, user_id="u1", query="ALICE@example.com", limit=5
+        store, user_id="u1", query="ARXIV RESEARCH RECOVERY CONTACT", limit=5
     )
 
     assert out["deleted"] == 1
     store.adelete.assert_awaited_once_with(("user", "u1"), "k-hit")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "query",
+    [
+        "my arXiv research recovery contact email jordan.avery@example.com",
+        "the recovery contact email for my arXiv research",
+    ],
+)
+async def test_delete_memory_unindexed_matches_redacted_paraphrase(query):
+    store = MagicMock()
+    hit = MagicMock(key="k-hit", score=None)
+    hit.value = {
+        "query": (
+            "Please remember this for my arXiv research going forward: "
+            "my recovery contact email is <email>."
+        )
+    }
+    miss = MagicMock(key="k-miss", score=None)
+    miss.value = {"query": "Please remember my grocery delivery window."}
+    store.asearch = AsyncMock(return_value=[hit, miss])
+    store.adelete = AsyncMock(return_value=None)
+
+    out = await delete_memory_by_query(store, user_id="u1", query=query, limit=5)
+
+    assert out["deleted"] == 1
+    store.adelete.assert_awaited_once_with(("user", "u1"), "k-hit")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "query", ["jordan.avery@example.com", "forget this"], ids=["pii-only", "generic"]
+)
+async def test_delete_memory_unindexed_unsafe_query_deletes_nothing(query):
+    store = MagicMock()
+    first = MagicMock(key="k-first", score=None)
+    first.value = {"query": "My arXiv recovery contact email is <email>."}
+    second = MagicMock(key="k-second", score=None)
+    second.value = {"query": "My billing contact email is <email>."}
+    store.asearch = AsyncMock(return_value=[first, second])
+    store.adelete = AsyncMock(return_value=None)
+
+    out = await delete_memory_by_query(store, user_id="u1", query=query, limit=5)
+
+    assert out["deleted"] == 0
+    store.adelete.assert_not_awaited()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("query", "stored_query"),
+    [
+        ("ALICE@example.com", "remember my email is alice@example.com"),
+        ("forget this", "please forget this stored item"),
+        ("all memories delete", "delete all memories"),
+        ("delete every single thing", "please delete every single thing"),
+        ("thing single every delete", "delete every single thing"),
+    ],
+    ids=[
+        "pii-only-exact",
+        "generic-exact",
+        "generic-reordered",
+        "generic-quantifiers-exact",
+        "generic-quantifiers-reordered",
+    ],
+)
+async def test_delete_memory_unindexed_generic_request_deletes_nothing(
+    query, stored_query
+):
+    store = MagicMock()
+    recent = MagicMock(key="k-recent", score=None)
+    recent.value = {"query": stored_query}
+    store.asearch = AsyncMock(return_value=[recent])
+    store.adelete = AsyncMock(return_value=None)
+
+    out = await delete_memory_by_query(store, user_id="u1", query=query, limit=5)
+
+    assert out["deleted"] == 0
+    store.adelete.assert_not_awaited()
 
 
 @pytest.mark.unit
@@ -98,6 +180,6 @@ def test_forget_memory_is_destructive_tool():
 def test_forget_memory_tool_registered():
     from src.services.agent.tools import ALL_TOOLS
 
-    assert any(t.name == "forget_memory" for t in ALL_TOOLS), (
-        "forget_memory must be registered in ALL_TOOLS so subgraphs can bind it"
-    )
+    assert any(
+        t.name == "forget_memory" for t in ALL_TOOLS
+    ), "forget_memory must be registered in ALL_TOOLS so subgraphs can bind it"

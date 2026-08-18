@@ -45,7 +45,7 @@ async def test_stream_event_generator_emits_trace_event_before_workflow_events()
     from src.api.agent.streaming import stream_event_generator
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = make_stream_request(thread_id="thread-123")
+    body = make_stream_request(thread_id="11111111-1111-1111-1111-111111111501")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
@@ -65,6 +65,10 @@ async def test_stream_event_generator_emits_trace_event_before_workflow_events()
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(None, None)),
+        ),
     ):
         events = []
         async for event in stream_event_generator(body, request, current_user):
@@ -77,7 +81,13 @@ async def test_stream_event_generator_emits_trace_event_before_workflow_events()
     assert sse_event_name(workflow[0]) == "trace"
     assert sse_event_name(workflow[1]) == "token"
     trace_payload = workflow[0].split("data: ", 1)[1].strip()
-    assert '"thread_id": "thread-123"' in trace_payload
+    # `_resolve_thread` is mocked to miss, which is the degraded path: nothing
+    # about the client's thread id was verified, so it is discarded and the
+    # turn runs under a fresh ephemeral id. The trace must therefore NOT echo
+    # the id back — doing so would advertise a checkpoint the caller does not
+    # own. (This assertion previously required the opposite, encoding the
+    # pre-fix behaviour.)
+    assert '"thread_id": "11111111-1111-1111-1111-111111111501"' not in trace_payload
     assert '"cli_session_id": ""' in trace_payload
     assert '"langsmith_run_id": ""' in trace_payload
     assert '"langsmith_url": ""' in trace_payload
@@ -108,6 +118,22 @@ async def test_stream_confirm_event_generator_emits_trace_event_before_workflow_
         patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
+        ),
+        patch(
+            "src.api.agent.streaming.get_active_run_for_thread",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    job_id="run-1", user_message_id=None, client_message_id=None
+                )
+            ),
+        ),
+        patch(
+            "src.api.agent.streaming.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.api.agent.streaming._finalize_run_id",
+            new=AsyncMock(return_value=True),
         ),
     ):
         events = []

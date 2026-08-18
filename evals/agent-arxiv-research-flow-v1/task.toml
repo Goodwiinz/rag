@@ -1,5 +1,5 @@
 schema_version = "1.2"
-source = "git+https://github.com/Goodwiinz/rag.git@2c5e7a828377d9b648d2ba709bb3d9c4e9f275d7"
+source = "git+https://github.com/Goodwiinz/rag.git@49337fa3d1db66440686a8193bc8dd76e8a450af"
 artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
 
 [task]
@@ -10,8 +10,8 @@ keywords = ["langgraph", "arxiv", "research", "redis", "hitl", "tools"]
 
 [metadata]
 benchmark_id = "agent-arxiv-research-flow-v1"
-source_revision = "2c5e7a828377d9b648d2ba709bb3d9c4e9f275d7"
-agent_revision = "2c5e7a828377d9b648d2ba709bb3d9c4e9f275d7"
+source_revision = "49337fa3d1db66440686a8193bc8dd76e8a450af"
+agent_revision = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 harbor_version = "0.6.6"
 base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
 

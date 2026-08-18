@@ -566,6 +566,19 @@ syntheticTraffic:
   enabled: false
   schedule: "*/20 * * * *"
   args: ["--rotate"]
+  # Synthetic runs exercise the agent with the dedicated Luna deployment,
+  # without changing the model used by the serving backend.
+  env:
+    - name: AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+      value: "gpt-5.6-luna"
+    - name: AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT
+      value: "gpt-5.6-luna"
+    - name: AZURE_OPENAI_SYNTHESIS_DEPLOYMENT
+      value: "gpt-5.6-luna"
+    - name: AGENT_MAIN_REASONING_EFFORT
+      value: "none"
+    - name: AGENT_LIGHTWEIGHT_REASONING_EFFORT
+      value: "none"
 
 # ──────────────────────────────────────────────
 # KEDA queue-depth autoscaling for the celery-worker (audit P1.6 / finding X5)

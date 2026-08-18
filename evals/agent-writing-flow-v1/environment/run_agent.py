@@ -41,8 +41,8 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-writing-flow-v1"
-SOURCE_REVISION = "b67ebbf1b067d5f5b1e74299535244e58df41a68"
-AGENT_REVISION = "b67ebbf1b067d5f5b1e74299535244e58df41a68"
+SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
+AGENT_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 APPROVAL_TEXT = "Yes, go ahead."
 EXPECTED_INSTRUCTION = (
     "In the currently open project, compare the two documents titled "

@@ -16,11 +16,15 @@ This runbook provides step-by-step procedures for common operational tasks and i
 ### Health Check Commands
 
 ```bash
-# Overall system health
-curl http://localhost:8000/health
+# Liveness
+curl -fsS http://localhost:8000/health
 
-# Detailed health status
-curl http://localhost:8000/health/detailed | jq .
+# Database and Redis readiness
+curl -fsS http://localhost:8000/health/readiness
+
+# Authenticated worker and knowledge-graph diagnostics
+curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/workers/health
+curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/knowledge-graph/health
 
 # Service status
 docker-compose ps

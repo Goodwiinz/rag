@@ -142,7 +142,6 @@ const makeProps = (
   enableRAG: true,
   setEnableRAG: vi.fn(),
   onSelectThread: vi.fn(),
-  onCitationDocumentClick: vi.fn(),
 });
 
 describe('ChatSurface export gating is scoped to the displayed thread', () => {

@@ -1,0 +1,573 @@
+{
+  "evidence": {
+    "schema_version": "1.0",
+    "benchmark_id": "agent-external-databases-v1",
+    "source_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
+    "agent_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
+    "started_at": "2026-08-08T00:00:00Z",
+    "completed_at": "2026-08-08T00:00:15Z",
+    "instruction": "First call list_external_databases to see which external database connectors are available. Then call search_external_database with connector=\"pubmed\" for the topic \"telomere shortening senescent cells\", and call search_external_database with connector=\"fred\" for the economic series \"unemployment rate\". Report what you found from each source.",
+    "synthetic_actor": {
+      "organization_id": "00000000-0000-4000-8000-000000001201",
+      "user_id": "00000000-0000-4000-8000-000000001202",
+      "workspace_id": "00000000-0000-4000-8000-000000001203",
+      "thread_id": "00000000-0000-4000-8000-000000001204"
+    },
+    "observed_intent": "general",
+    "classification": {
+      "keyword_intent": "general",
+      "keyword_confidence": 0.0,
+      "keyword_source": "keyword",
+      "probe_intent": "general",
+      "probe_source": "keyword",
+      "observed_intent": "general"
+    },
+    "pre_turn_message_ids": ["msg-1"],
+    "pre_turn_message_count": 1,
+    "current_turn_human_message_ids": ["msg-1"],
+    "connector_patch": {
+      "pubmed_esearch_patched_to": "http://mock-services:8080/entrez/eutils/esearch.fcgi",
+      "pubmed_efetch_patched_to": "http://mock-services:8080/entrez/eutils/efetch.fcgi",
+      "fred_base_url_patched_to": "http://mock-services:8080/fred"
+    },
+    "network_boundary": {
+      "direct_public_socket_blocked": true,
+      "approved_model_host_reachable_via_proxy": true,
+      "approved_model_probe_status": 200,
+      "unrelated_https_blocked_by_proxy": true,
+      "unrelated_probe_status": 403,
+      "private_mock_services_reachable": true
+    },
+    "interrupts": [],
+    "mock_events": [
+      {
+        "sequence": 1,
+        "type": "pubmed_esearch",
+        "db": "pubmed",
+        "term": "telomere shortening senescent cells",
+        "retmax": "5",
+        "api_key": null
+      },
+      {
+        "sequence": 2,
+        "type": "pubmed_efetch",
+        "db": "pubmed",
+        "id": "39012345,39012346",
+        "api_key": null
+      },
+      {
+        "sequence": 3,
+        "type": "fred_series_search",
+        "search_text": "unemployment rate",
+        "api_key": "benchmark-fred-token",
+        "file_type": "json",
+        "limit": "5"
+      }
+    ],
+    "list_external_databases_executions": [
+      {
+        "tool_name": "list_external_databases",
+        "status": "completed",
+        "result": {
+          "total": 11,
+          "available": 9,
+          "connectors": [
+            {
+              "name": "pubmed",
+              "display_name": "PubMed",
+              "description": "NCBI biomedical literature database with 35M+ citations",
+              "domains": [
+                "biomedical",
+                "literature"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "uniprot",
+              "display_name": "UniProt",
+              "description": "Protein sequence and functional annotation database",
+              "domains": [
+                "biomedical",
+                "genomics"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "chembl",
+              "display_name": "ChEMBL",
+              "description": "Bioactive drug-like small molecule database",
+              "domains": [
+                "chemistry",
+                "biomedical"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "pubchem",
+              "display_name": "PubChem",
+              "description": "Chemical molecule and bioassay database",
+              "domains": [
+                "chemistry"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "sec_edgar",
+              "display_name": "SEC EDGAR",
+              "description": "SEC filings database",
+              "domains": [
+                "finance"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "fred",
+              "display_name": "FRED",
+              "description": "Federal Reserve Economic Data - 800K+ economic time series",
+              "domains": [
+                "economic",
+                "finance"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": true,
+              "available": true
+            },
+            {
+              "name": "alpha_vantage",
+              "display_name": "Alpha Vantage",
+              "description": "Stock market and financial data API",
+              "domains": [
+                "finance"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": true,
+              "available": false
+            },
+            {
+              "name": "zinc",
+              "display_name": "ZINC",
+              "description": "Purchasable compound database",
+              "domains": [
+                "chemistry"
+              ],
+              "capabilities": [
+                "search"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "cosmic",
+              "display_name": "COSMIC",
+              "description": "Catalogue of somatic mutations in cancer",
+              "domains": [
+                "biomedical",
+                "genomics"
+              ],
+              "capabilities": [
+                "search"
+              ],
+              "requires_api_key": true,
+              "available": false
+            },
+            {
+              "name": "clinical_trials",
+              "display_name": "ClinicalTrials.gov",
+              "description": "Registry of clinical trials",
+              "domains": [
+                "clinical"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "bioservices",
+              "display_name": "BioServices (70+ databases)",
+              "description": "Bridge to 70+ additional bioinformatics databases",
+              "domains": [
+                "biomedical",
+                "genomics"
+              ],
+              "capabilities": [
+                "search"
+              ],
+              "requires_api_key": false,
+              "available": true
+            }
+          ]
+        }
+      }
+    ],
+    "search_external_database_executions": [
+      {
+        "tool_name": "search_external_database",
+        "status": "completed",
+        "result": {
+          "query": "telomere shortening senescent cells",
+          "total_results": 2,
+          "results": [
+            {
+              "id": "39012345",
+              "title": "Telomere shortening drives replicative senescence in human fibroblasts",
+              "source": "pubmed",
+              "url": "https://pubmed.ncbi.nlm.nih.gov/39012345/",
+              "content": "Abstract: We show that progressive telomere attrition triggers a persistent DNA damage response that establishes replicative senescence in cultured human fibroblasts.",
+              "authors": [
+                "Alvarez M",
+                "Chen Y"
+              ],
+              "published_date": "2025",
+              "document_type": "article"
+            },
+            {
+              "id": "39012346",
+              "title": "Senolytic clearance of telomere-shortened cells restores tissue regeneration",
+              "source": "pubmed",
+              "url": "https://pubmed.ncbi.nlm.nih.gov/39012346/",
+              "content": "Abstract: Pharmacological clearance of cells with critically short telomeres improved regenerative capacity in aged mouse skeletal muscle.",
+              "authors": [
+                "Okafor T"
+              ],
+              "published_date": "2024",
+              "document_type": "article"
+            }
+          ],
+          "connectors_searched": [
+            "pubmed"
+          ]
+        }
+      },
+      {
+        "tool_name": "search_external_database",
+        "status": "completed",
+        "result": {
+          "query": "unemployment rate",
+          "total_results": 2,
+          "results": [
+            {
+              "id": "UNRATE",
+              "title": "Unemployment Rate",
+              "source": "fred",
+              "url": "https://fred.stlouisfed.org/series/UNRATE",
+              "content": "Title: Unemployment Rate\nFrequency: Monthly\nUnits: Percent",
+              "authors": [],
+              "published_date": "2026-07-01",
+              "document_type": "economic_series"
+            },
+            {
+              "id": "UNRATENSA",
+              "title": "Unemployment Rate, Not Seasonally Adjusted",
+              "source": "fred",
+              "url": "https://fred.stlouisfed.org/series/UNRATENSA",
+              "content": "Title: Unemployment Rate, Not Seasonally Adjusted\nFrequency: Monthly\nUnits: Percent",
+              "authors": [],
+              "published_date": "2026-07-01",
+              "document_type": "economic_series"
+            }
+          ],
+          "connectors_searched": [
+            "fred"
+          ]
+        }
+      }
+    ],
+    "tool_executions": [
+      {
+        "tool_name": "list_external_databases",
+        "status": "completed",
+        "result": {
+          "total": 11,
+          "available": 9,
+          "connectors": [
+            {
+              "name": "pubmed",
+              "display_name": "PubMed",
+              "description": "NCBI biomedical literature database with 35M+ citations",
+              "domains": [
+                "biomedical",
+                "literature"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "uniprot",
+              "display_name": "UniProt",
+              "description": "Protein sequence and functional annotation database",
+              "domains": [
+                "biomedical",
+                "genomics"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "chembl",
+              "display_name": "ChEMBL",
+              "description": "Bioactive drug-like small molecule database",
+              "domains": [
+                "chemistry",
+                "biomedical"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "pubchem",
+              "display_name": "PubChem",
+              "description": "Chemical molecule and bioassay database",
+              "domains": [
+                "chemistry"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "sec_edgar",
+              "display_name": "SEC EDGAR",
+              "description": "SEC filings database",
+              "domains": [
+                "finance"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "fred",
+              "display_name": "FRED",
+              "description": "Federal Reserve Economic Data - 800K+ economic time series",
+              "domains": [
+                "economic",
+                "finance"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": true,
+              "available": true
+            },
+            {
+              "name": "alpha_vantage",
+              "display_name": "Alpha Vantage",
+              "description": "Stock market and financial data API",
+              "domains": [
+                "finance"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": true,
+              "available": false
+            },
+            {
+              "name": "zinc",
+              "display_name": "ZINC",
+              "description": "Purchasable compound database",
+              "domains": [
+                "chemistry"
+              ],
+              "capabilities": [
+                "search"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "cosmic",
+              "display_name": "COSMIC",
+              "description": "Catalogue of somatic mutations in cancer",
+              "domains": [
+                "biomedical",
+                "genomics"
+              ],
+              "capabilities": [
+                "search"
+              ],
+              "requires_api_key": true,
+              "available": false
+            },
+            {
+              "name": "clinical_trials",
+              "display_name": "ClinicalTrials.gov",
+              "description": "Registry of clinical trials",
+              "domains": [
+                "clinical"
+              ],
+              "capabilities": [
+                "search",
+                "fetch"
+              ],
+              "requires_api_key": false,
+              "available": true
+            },
+            {
+              "name": "bioservices",
+              "display_name": "BioServices (70+ databases)",
+              "description": "Bridge to 70+ additional bioinformatics databases",
+              "domains": [
+                "biomedical",
+                "genomics"
+              ],
+              "capabilities": [
+                "search"
+              ],
+              "requires_api_key": false,
+              "available": true
+            }
+          ]
+        }
+      },
+      {
+        "tool_name": "search_external_database",
+        "status": "completed",
+        "result": {
+          "query": "telomere shortening senescent cells",
+          "total_results": 2,
+          "results": [
+            {
+              "id": "39012345",
+              "title": "Telomere shortening drives replicative senescence in human fibroblasts"
+            },
+            {
+              "id": "39012346",
+              "title": "Senolytic clearance of telomere-shortened cells restores tissue regeneration"
+            }
+          ],
+          "connectors_searched": [
+            "pubmed"
+          ]
+        }
+      },
+      {
+        "tool_name": "search_external_database",
+        "status": "completed",
+        "result": {
+          "query": "unemployment rate",
+          "total_results": 2,
+          "results": [
+            {
+              "id": "UNRATE",
+              "title": "Unemployment Rate"
+            },
+            {
+              "id": "UNRATENSA",
+              "title": "Unemployment Rate, Not Seasonally Adjusted"
+            }
+          ],
+          "connectors_searched": [
+            "fred"
+          ]
+        }
+      }
+    ],
+    "messages": [
+      {
+        "id": "msg-1",
+        "type": "human",
+        "content": "First call list_external_databases to see which external database connectors are available. Then call search_external_database with connector=\"pubmed\" for the topic \"telomere shortening senescent cells\", and call search_external_database with connector=\"fred\" for the economic series \"unemployment rate\". Report what you found from each source."
+      },
+      {
+        "type": "ai",
+        "content": "The PubMed search on telomere shortening senescent cells returned \"Telomere shortening drives replicative senescence in human fibroblasts\" and \"Senolytic clearance of telomere-shortened cells restores tissue regeneration\". The FRED search for unemployment rate returned the \"Unemployment Rate\" series (UNRATE).",
+        "tool_calls": []
+      }
+    ],
+    "events": [],
+    "milestones": [
+      {
+        "milestone": "instruction",
+        "sequence": 1,
+        "observed_at": "2026-08-08T00:00:00Z"
+      },
+      {
+        "milestone": "pre_turn_snapshot",
+        "sequence": 2,
+        "observed_at": "2026-08-08T00:00:01Z"
+      },
+      {
+        "milestone": "turn:completed",
+        "sequence": 3,
+        "observed_at": "2026-08-08T00:00:15Z"
+      },
+      {
+        "milestone": "final_assistant_message",
+        "sequence": 4,
+        "observed_at": "2026-08-08T00:00:15Z"
+      }
+    ],
+    "suppress_observation_for": [],
+    "notes": "Production graph with an isolated database, a PubMed + FRED connector protocol double, and real general-intent routing. Neither tool is destructive, so no HITL approval is exercised.",
+    "final_assistant_message": {
+      "type": "ai",
+      "content": "The PubMed search on telomere shortening senescent cells returned \"Telomere shortening drives replicative senescence in human fibroblasts\" and \"Senolytic clearance of telomere-shortened cells restores tissue regeneration\". The FRED search for unemployment rate returned the \"Unemployment Rate\" series (UNRATE).",
+      "tool_calls": []
+    },
+    "termination_reason": "completed",
+    "model_usage": {
+      "input_tokens": 900,
+      "output_tokens": 80,
+      "cache_tokens": 0
+    },
+    "elapsed_ms": 15000
+  },
+  "state": {
+    "mock_events": []
+  }
+}

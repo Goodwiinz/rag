@@ -19,6 +19,40 @@ from .cache import EvidenceCacheService
 
 logger = logging.getLogger(__name__)
 
+_CLASSIFIER_IMPLEMENTATION = "stance-classifier-v2"
+
+
+def _fingerprint_classifier(
+    primary_model: str, fallback_model: str, fallback_threshold: float
+) -> str:
+    """Return a deterministic namespace for one classifier pipeline config."""
+    configuration = json.dumps(
+        {
+            "implementation": _CLASSIFIER_IMPLEMENTATION,
+            "primary_model": primary_model,
+            "fallback_model": fallback_model,
+            "fallback_threshold": fallback_threshold,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    # Keep the readable implementation prefix while using the full 29 hex
+    # characters that fit the existing 50-character model-version namespace.
+    digest = hashlib.sha256(configuration.encode("utf-8")).hexdigest()[:29]
+    return f"{_CLASSIFIER_IMPLEMENTATION}-{digest}"
+
+
+def _normalize_grounding_text(value: str) -> str:
+    return " ".join(value.split()).casefold()
+
+
+def _has_grounded_justification(source_excerpt: str, justification: object) -> bool:
+    if not isinstance(justification, str) or not justification.strip():
+        return False
+    return _normalize_grounding_text(justification) in _normalize_grounding_text(
+        source_excerpt
+    )
+
 
 class StanceClassificationResult(BaseModel):
     """Result of stance classification"""
@@ -26,6 +60,7 @@ class StanceClassificationResult(BaseModel):
     stance: str
     confidence: float = Field(ge=0.0, le=1.0)
     justification_excerpt: str
+    model_version: str
 
 
 class BatchClassificationLimitError(ValueError):
@@ -41,10 +76,43 @@ class StanceClassifier:
 
     def __init__(self, cache_service: Optional[EvidenceCacheService] = None):
         self.cache_service = cache_service
-        self.model_version = "gpt-4o-mini-2024-07-18"
+        self.primary_model = "gpt-4o-mini-2024-07-18"
         self.fallback_model = "gpt-4o-2024-08-06"
+        self.fallback_confidence_threshold = 0.85
         self.max_batch_sources = 100
         self.batch_timeout_seconds = 60.0
+
+    @property
+    def classifier_version(self) -> str:
+        """Fingerprint the complete classifier pipeline configuration."""
+        return _fingerprint_classifier(
+            self.primary_model,
+            self.fallback_model,
+            self.fallback_confidence_threshold,
+        )
+
+    @property
+    def model_version(self) -> str:
+        """Compatibility alias for configuring the primary inference model.
+
+        The persisted/cache namespace is exposed separately as
+        :attr:`classifier_version`; this alias keeps older service callers able to
+        change the primary model without creating a second source of truth.
+        """
+        return self.primary_model
+
+    @model_version.setter
+    def model_version(self, value: str) -> None:
+        self.primary_model = value
+
+    @property
+    def fallback_threshold(self) -> float:
+        """Compatibility alias for the single configured fallback threshold."""
+        return self.fallback_confidence_threshold
+
+    @fallback_threshold.setter
+    def fallback_threshold(self, value: float) -> None:
+        self.fallback_confidence_threshold = value
 
     def _build_classification_prompt(self, claim: str, source_excerpt: str) -> str:
         """Build the prompt for stance classification"""
@@ -137,6 +205,7 @@ Respond with ONLY a valid JSON object in this exact format:
                 stance=result_data["stance"],
                 confidence=confidence,
                 justification_excerpt=justification,
+                model_version=model,
             )
 
         except json.JSONDecodeError as e:
@@ -156,11 +225,11 @@ Respond with ONLY a valid JSON object in this exact format:
 
         # Try primary model first
         result = await self._classify_with_openai(
-            claim, source_excerpt, self.model_version
+            claim, source_excerpt, self.primary_model
         )
 
         # If confidence is low, retry with better model
-        if result and result.confidence < 0.85:
+        if result and result.confidence < self.fallback_confidence_threshold:
             logger.info(
                 f"Low confidence ({result.confidence:.2f}), trying fallback model"
             )
@@ -181,10 +250,33 @@ Respond with ONLY a valid JSON object in this exact format:
         self, claim_hash: str, source_id: str, excerpt_hash: str
     ) -> str:
         """Generate cache key for stance classification"""
-        return f"stance:{claim_hash}:{source_id}:{excerpt_hash}:{self.model_version}"
+        return (
+            f"stance:{claim_hash}:{source_id}:{excerpt_hash}:{self.classifier_version}"
+        )
+
+    def _has_honest_cached_provenance(self, cached_result: Dict) -> bool:
+        """Reject cache entries that predate exact model and pipeline provenance."""
+        return cached_result.get(
+            "classifier_version"
+        ) == self.classifier_version and cached_result.get("model_version") in {
+            self.primary_model,
+            self.fallback_model,
+        }
+
+    def validate_batch_size(self, source_count: int) -> None:
+        """Validate a batch size before any source loading or classification work."""
+        if source_count > self.max_batch_sources:
+            raise BatchClassificationLimitError(
+                f"Maximum {self.max_batch_sources} sources allowed per batch classification request"
+            )
 
     async def classify_stance(
-        self, claim: str, claim_hash: str, source_id: UUID, source_excerpt: str
+        self,
+        claim: str,
+        claim_hash: str,
+        source_id: UUID,
+        source_excerpt: str,
+        source_content_hash: str = "",
     ) -> Optional[Dict]:
         """
         Classify a single source's stance on a claim
@@ -194,6 +286,7 @@ Respond with ONLY a valid JSON object in this exact format:
             claim_hash: SHA256 hash of normalized claim
             source_id: UUID of the source
             source_excerpt: Relevant text excerpt from source
+            source_content_hash: Content hash for the current source revision
 
         Returns:
             Classification result dict or None if failed
@@ -209,8 +302,20 @@ Respond with ONLY a valid JSON object in this exact format:
                 cache_key
             )
             if cached_result:
-                logger.debug(f"Using cached classification for source {source_id}")
-                return cached_result
+                if self._has_honest_cached_provenance(
+                    cached_result
+                ) and _has_grounded_justification(
+                    source_excerpt, cached_result.get("justification_excerpt")
+                ):
+                    cached_result = dict(cached_result)
+                    cached_result["source_content_hash"] = source_content_hash
+                    logger.debug(f"Using cached classification for source {source_id}")
+                    return cached_result
+
+                logger.warning(
+                    "Rejecting ungrounded cached stance classification for source %s",
+                    source_id,
+                )
 
         # Classify with LLM
         try:
@@ -220,13 +325,24 @@ Respond with ONLY a valid JSON object in this exact format:
                 logger.error(f"Failed to classify stance for source {source_id}")
                 return None
 
+            if not _has_grounded_justification(
+                source_excerpt, result.justification_excerpt
+            ):
+                logger.warning(
+                    "Rejecting ungrounded stance classification for source %s",
+                    source_id,
+                )
+                return None
+
             # Convert to dict for storage/caching
             result_dict = {
                 "source_id": str(source_id),
                 "stance": result.stance,
                 "confidence": result.confidence,
                 "justification_excerpt": result.justification_excerpt,
-                "model_version": self.model_version,
+                "model_version": result.model_version,
+                "classifier_version": self.classifier_version,
+                "source_content_hash": source_content_hash,
             }
 
             # Cache result
@@ -259,10 +375,7 @@ Respond with ONLY a valid JSON object in this exact format:
             List of classification results (None for failed classifications)
         """
 
-        if len(sources) > self.max_batch_sources:
-            raise BatchClassificationLimitError(
-                f"Maximum {self.max_batch_sources} sources allowed per batch classification request"
-            )
+        self.validate_batch_size(len(sources))
 
         tasks = []
         for source in sources:
@@ -271,6 +384,7 @@ Respond with ONLY a valid JSON object in this exact format:
                 claim_hash=claim_hash,
                 source_id=source["source_id"],
                 source_excerpt=source["excerpt"],
+                source_content_hash=source["content_hash"],
             )
             tasks.append(task)
 

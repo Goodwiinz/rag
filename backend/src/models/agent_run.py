@@ -167,7 +167,7 @@ class AgentRun(Base):
             sqlite_where=text("idempotency_key IS NOT NULL"),
         ),
         # One non-terminal run per thread — the concurrency invariant the run
-        # API converts into HTTP 409 with the active run's id.
+        # API converts into a conflict instead of starting a second writer.
         Index(
             "uq_agent_runs_active_thread",
             "thread_id",

@@ -66,6 +66,11 @@ def _make_snapshot(checkpoint_id: str):
 def stream_confirm_harness(monkeypatch):
     import src.api.agent.streaming as streaming_mod
 
+    # The in-process confirm-claim fallback (R2-H4) is module-global and
+    # TTL'd like its Redis counterpart — correct in prod, but it leaks
+    # claims across tests sharing the same thread/checkpoint key. Isolate.
+    monkeypatch.setattr(streaming_mod, "_local_confirm_claims", {})
+
     snapshot = _make_snapshot("ckpt-fixed-1")
     graph = _FakeGraph(snapshot)
     redis = _FakeRedisLock()
@@ -93,6 +98,26 @@ def stream_confirm_harness(monkeypatch):
     )
     monkeypatch.setattr(streaming_mod, "AsyncSessionLocal", lambda: fake_db)
     monkeypatch.setattr(
+        streaming_mod,
+        "get_active_run_for_thread",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                job_id="run-1", user_message_id=None, client_message_id=None
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        streaming_mod,
+        "claim_awaiting_run_for_confirmation",
+        AsyncMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        streaming_mod,
+        "release_confirmation_claim",
+        AsyncMock(return_value=True),
+    )
+    monkeypatch.setattr(streaming_mod, "_finalize_run_id", AsyncMock(return_value=True))
+    monkeypatch.setattr(
         "src.services.agent.agent_execution_service._persist_assistant_message_safe",
         AsyncMock(return_value="assistant-msg-1"),
     )
@@ -111,9 +136,7 @@ def stream_confirm_harness(monkeypatch):
         body = SimpleNamespace(thread_id="thread-cx1", confirmed=True, model="gpt-5")
         request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
         current_user = Mock(id="user-1", organization_id="org-1")
-        return streaming_mod.stream_confirm_event_generator(
-            body, request, current_user
-        )
+        return streaming_mod.stream_confirm_event_generator(body, request, current_user)
 
     return SimpleNamespace(
         graph=graph,
@@ -159,3 +182,29 @@ async def test_claim_released_on_pre_resume_failure(stream_confirm_harness):
     # Retry must be able to claim again
     frames = [f async for f in harness.make_confirm_generator()]
     assert not any("already in progress" in f.lower() for f in frames)
+
+
+@pytest.mark.asyncio
+async def test_shared_environment_does_not_resume_without_redis(
+    stream_confirm_harness, monkeypatch
+):
+    harness = stream_confirm_harness
+    resume_calls = []
+
+    async def fake_astream_events(*args, **kwargs):
+        resume_calls.append(1)
+        yield {"event": "on_chat_model_stream", "data": {}}
+
+    harness.graph.astream_events = fake_astream_events
+    monkeypatch.setattr(
+        "src.services.agent.job_store.get_redis", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(
+        "src.api.agent.streaming.process_local_confirmation_coordination_allowed",
+        lambda: False,
+    )
+
+    frames = [frame async for frame in harness.make_confirm_generator()]
+
+    assert resume_calls == []
+    assert any("temporarily unavailable" in frame.lower() for frame in frames)

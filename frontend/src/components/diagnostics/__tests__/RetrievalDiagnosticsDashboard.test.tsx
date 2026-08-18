@@ -70,11 +70,18 @@ describe('RetrievalDiagnosticsDashboard', () => {
   it('loads recent traces and shows empty diagnostics message', async () => {
     render(<RetrievalDiagnosticsDashboard />);
 
-    await waitFor(() => {
-      expect(mockGetRecentTraces).toHaveBeenCalledWith(50);
-    });
-
-    expect(screen.getByText('No traces captured yet')).toBeInTheDocument();
+    // findByText, not `waitFor(mock was called)` + getByText. The mount effect
+    // calls getRecentTraces *synchronously* before awaiting it, so a waitFor
+    // gated on the call passes on its very first check — never polling, and
+    // never waiting for the fetch to settle. The empty state is unmounted
+    // while `loading` is true (skeletons render instead), so the follow-up
+    // getByText was racing the settle: it only passed because RTL's
+    // asyncWrapper happens to drain a macrotask on the way out, and that drain
+    // is not ordered against React's scheduler. Gate on the settled DOM.
+    expect(
+      await screen.findByText('No traces captured yet')
+    ).toBeInTheDocument();
+    expect(mockGetRecentTraces).toHaveBeenCalledWith(50);
   });
 
   it('refreshes traces when refresh button is clicked', async () => {
@@ -102,11 +109,14 @@ describe('RetrievalDiagnosticsDashboard', () => {
 
     await waitFor(() => {
       expect(qualityTab).toHaveAttribute('aria-selected', 'true');
-      expect(mockGetAggregateStats).toHaveBeenCalledWith(24);
     });
 
-    expect(screen.getByText('Total queries')).toBeInTheDocument();
+    // Same shape as the flake above: the stat cells only mount once the
+    // aggregate-stats fetch settles (skeletons render until then), so wait on
+    // the DOM rather than on the call having been issued.
+    expect(await screen.findByText('Total queries')).toBeInTheDocument();
     expect(screen.getByText('Context truncation')).toBeInTheDocument();
+    expect(mockGetAggregateStats).toHaveBeenCalledWith(24);
   });
 
   it('loads bottleneck analysis data in bottleneck tab', async () => {

@@ -1,17 +1,17 @@
 schema_version = "1.2"
-source = "git+https://github.com/Goodwiinz/rag.git@c19b1aeafa50507e9aa827eac966b1c6dece446c"
+source = "git+https://github.com/Goodwiinz/rag.git@49337fa3d1db66440686a8193bc8dd76e8a450af"
 artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
 
 [task]
 name = "goodwiinz/agent-external-databases-v1"
-description = "Discover and search external database connectors (PubMed + FRED) via a protocol double, unreachable through live classification without the sentinel-intent workaround."
+description = "Discover and search external database connectors (PubMed + FRED) via a protocol double through live general-intent routing."
 authors = [{ name = "Goodwiinz" }]
-keywords = ["langgraph", "connectors", "pubmed", "fred", "tools", "sentinel-intent"]
+keywords = ["langgraph", "connectors", "pubmed", "fred", "tools", "intent-routing"]
 
 [metadata]
 benchmark_id = "agent-external-databases-v1"
-source_revision = "c19b1aeafa50507e9aa827eac966b1c6dece446c"
-agent_revision = "c19b1aeafa50507e9aa827eac966b1c6dece446c"
+source_revision = "49337fa3d1db66440686a8193bc8dd76e8a450af"
+agent_revision = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 harbor_version = "0.6.6"
 base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
 

@@ -50,7 +50,13 @@ def _parse_done(events):
 
 
 @pytest.mark.asyncio
-async def test_main_done_carries_ids_in_canonical_mode():
+@pytest.mark.parametrize(
+    ("persisted_id", "terminal_event"),
+    [("assistant-msg-1", "done"), (None, "error")],
+)
+async def test_main_canonical_completion_requires_persisted_assistant(
+    persisted_id, terminal_event
+):
     from src.api.agent.streaming import stream_event_generator
 
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
@@ -62,7 +68,7 @@ async def test_main_done_carries_ids_in_canonical_mode():
                 "client_message_id": "11111111-1111-1111-1111-111111111111",
             }
         ],
-        thread_id="thread-req-1",
+        thread_id="11111111-1111-1111-1111-111111111112",
     )
     current_user = Mock(id="user-1", organization_id="org-1")
 
@@ -106,7 +112,7 @@ async def test_main_done_carries_ids_in_canonical_mode():
         ),
         patch(
             "src.services.agent.agent_execution_service._persist_assistant_message_safe",
-            new=AsyncMock(return_value="assistant-msg-1"),
+            new=AsyncMock(return_value=persisted_id),
         ),
         patch(
             "src.api.agent.streaming._canonical_persistence_enabled",
@@ -117,7 +123,13 @@ async def test_main_done_carries_ids_in_canonical_mode():
         async for event in stream_event_generator(body, request, current_user):
             events.append(event)
 
-    done = _parse_done(events)
+    terminal_frames = frames_of_type(events, terminal_event)
+    assert len(terminal_frames) == 1
+    if persisted_id is None:
+        assert not frames_of_type(events, "done")
+        return
+
+    done = sse_data(terminal_frames[0])
     assert done["status"] == "complete"
     assert done["thread_id"] == "thread-resolved-1"
     assert done["assistant_message_id"] == "assistant-msg-1"

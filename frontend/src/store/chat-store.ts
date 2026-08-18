@@ -113,6 +113,7 @@ export const useChatStore = create<ChatStore>()(
           set((state) => {
             state.error = 'Failed to initialize workspace';
           });
+          throw error;
         }
       },
     })),

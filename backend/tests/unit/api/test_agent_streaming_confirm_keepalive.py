@@ -2,10 +2,35 @@
 like the main /stream path — otherwise a proxy idle-timeout cuts the connection
 with no done/error and the client hangs."""
 
+import asyncio
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _allow_durable_confirm():
+    with (
+        patch(
+            "src.api.agent.streaming.get_active_run_for_thread",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    job_id="run-1", user_message_id=None, client_message_id=None
+                )
+            ),
+        ),
+        patch(
+            "src.api.agent.streaming.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.api.agent.streaming._finalize_run_id",
+            new=AsyncMock(return_value=True),
+        ),
+    ):
+        yield
 
 
 class _SilentThenDoneGraph:
@@ -46,6 +71,171 @@ class _SilentThenDoneGraph:
             },
             tasks=(),
         )
+
+
+class _TokenThenHangIterator:
+    def __init__(self):
+        self.calls = 0
+        self.cancelled = asyncio.Event()
+        self._never = asyncio.Event()
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        self.calls += 1
+        if self.calls == 1:
+            return {"event": "token"}
+        try:
+            await self._never.wait()
+        finally:
+            self.cancelled.set()
+        raise StopAsyncIteration
+
+
+async def _token_then_hang(cleaned: asyncio.Event):
+    yield {"event": "token"}
+    try:
+        await asyncio.Event().wait()
+    finally:
+        cleaned.set()
+
+
+async def _token_then_blocked_cleanup(
+    pull_started: asyncio.Event,
+    cleanup_started: asyncio.Event,
+    allow_cleanup: asyncio.Event,
+    cleanup_complete: asyncio.Event,
+):
+    yield {"event": "token"}
+    try:
+        pull_started.set()
+        await asyncio.Event().wait()
+    finally:
+        cleanup_started.set()
+        await allow_cleanup.wait()
+        cleanup_complete.set()
+
+
+@pytest.mark.asyncio
+async def test_graph_keepalive_polls_disconnect_while_next_event_is_pending(
+    monkeypatch,
+):
+    import src.api.agent.streaming as st
+
+    cleaned = asyncio.Event()
+    graph = _token_then_hang(cleaned)
+    request = SimpleNamespace(
+        # Disconnect immediately after the check that starts the hanging pull.
+        is_disconnected=AsyncMock(side_effect=[False, False, True])
+    )
+    monkeypatch.setattr(st, "_SSE_KEEPALIVE_SECONDS", 0.2)
+    monkeypatch.setattr(st, "_SSE_DISCONNECT_POLL_SECONDS", 0.01, raising=False)
+
+    events = st._graph_events_with_keepalive(graph, request)
+    assert await anext(events) == {"type": "event", "event": {"event": "token"}}
+
+    started = time.monotonic()
+    assert await asyncio.wait_for(anext(events), timeout=0.1) == {"type": "disconnect"}
+    assert time.monotonic() - started < 0.1
+    await events.aclose()
+    assert cleaned.is_set()
+    await graph.aclose()
+
+
+@pytest.mark.asyncio
+async def test_graph_disconnect_cleanup_preserves_concurrent_asgi_cancellation(
+    monkeypatch,
+):
+    import src.api.agent.streaming as st
+
+    cleanup_started = asyncio.Event()
+    allow_cleanup = asyncio.Event()
+    cleanup_complete = asyncio.Event()
+    pull_started = asyncio.Event()
+    graph = _token_then_blocked_cleanup(
+        pull_started, cleanup_started, allow_cleanup, cleanup_complete
+    )
+    request = SimpleNamespace(
+        is_disconnected=AsyncMock(side_effect=[False, False, True])
+    )
+    monkeypatch.setattr(st, "_SSE_KEEPALIVE_SECONDS", 0.2)
+    monkeypatch.setattr(st, "_SSE_DISCONNECT_POLL_SECONDS", 0.1, raising=False)
+
+    events = st._graph_events_with_keepalive(graph, request)
+    yielded = [await anext(events)]
+    assert await anext(events) == {"type": "disconnect"}
+
+    close_task = asyncio.create_task(events.aclose())
+    await asyncio.wait_for(cleanup_started.wait(), timeout=0.1)
+    close_task.cancel("original ASGI cancellation")
+    await asyncio.sleep(0)
+    close_task.cancel("repeated ASGI cancellation")
+    await asyncio.sleep(0)
+    assert not close_task.done()
+
+    allow_cleanup.set()
+    with pytest.raises(asyncio.CancelledError) as caught:
+        await close_task
+
+    assert cleanup_complete.is_set()
+    assert caught.value.args
+    assert yielded == [{"type": "event", "event": {"event": "token"}}]
+
+
+@pytest.mark.asyncio
+async def test_graph_finally_cleanup_preserves_initial_asgi_cancellation(monkeypatch):
+    import src.api.agent.streaming as st
+
+    pull_started = asyncio.Event()
+    cleanup_started = asyncio.Event()
+    allow_cleanup = asyncio.Event()
+    cleanup_complete = asyncio.Event()
+    graph = _token_then_blocked_cleanup(
+        pull_started, cleanup_started, allow_cleanup, cleanup_complete
+    )
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    monkeypatch.setattr(st, "_SSE_KEEPALIVE_SECONDS", 0.2)
+    monkeypatch.setattr(st, "_SSE_DISCONNECT_POLL_SECONDS", 0.01, raising=False)
+
+    events = st._graph_events_with_keepalive(graph, request)
+    assert await anext(events) == {"type": "event", "event": {"event": "token"}}
+
+    next_item = asyncio.create_task(anext(events))
+    await asyncio.wait_for(pull_started.wait(), timeout=0.1)
+    next_item.cancel("original ASGI cancellation")
+    await asyncio.wait_for(cleanup_started.wait(), timeout=0.1)
+    next_item.cancel("repeated ASGI cancellation")
+    await asyncio.sleep(0)
+    assert not next_item.done()
+
+    allow_cleanup.set()
+    with pytest.raises(asyncio.CancelledError) as caught:
+        await next_item
+
+    assert cleanup_complete.is_set()
+    assert caught.value.args == ("original ASGI cancellation",)
+
+
+@pytest.mark.asyncio
+async def test_graph_keepalive_does_not_emit_heartbeat_at_disconnect_poll_cadence(
+    monkeypatch,
+):
+    import src.api.agent.streaming as st
+
+    graph = _TokenThenHangIterator()
+    graph.calls = 1
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    monkeypatch.setattr(st, "_SSE_KEEPALIVE_SECONDS", 0.05)
+    monkeypatch.setattr(st, "_SSE_DISCONNECT_POLL_SECONDS", 0.005, raising=False)
+
+    events = st._graph_events_with_keepalive(graph, request)
+    next_item = asyncio.create_task(anext(events))
+    await asyncio.sleep(0.02)
+    assert not next_item.done()
+    assert (await asyncio.wait_for(next_item, timeout=0.1))["type"] == "keepalive"
+    await events.aclose()
+    assert graph.cancelled.is_set()
 
 
 @pytest.mark.asyncio

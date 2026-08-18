@@ -28,6 +28,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.runnables import RunnableConfig
 
 from src.core.config import get_settings
+from src.services.agent._nodes_rag import _coerce_text
 from src.services.agent._nodes_tools import AGENT_LLM_TIMEOUT_SECONDS
 from src.services.agent._prompts import (
     _LLM_NODE_STATIC_PROMPT,
@@ -261,20 +262,33 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     retrieved = state.get("retrieved_contexts", [])
     intent = state.get("intent", "general")
 
-    last_user_msg = next(
-        (
-            m.content
-            for m in reversed(state["messages"])
-            if isinstance(m, HumanMessage) and isinstance(m.content, str)
-        ),
-        "",
+    # The actual last HumanMessage, regardless of content shape — NOT
+    # filtered on isinstance(content, str). That filter used to walk past an
+    # image-only turn's list content to the PREVIOUS turn's text, so a
+    # multimodal turn following a greeting ("hi") inherited "hi" as its
+    # last_user_msg (M4). _coerce_text flattens list content the same way
+    # rag_node does for its own last_user_msg (_nodes_rag.py); an image with
+    # no text block coerces to "", which is correctly never a greeting.
+    last_human_msg = next(
+        (m for m in reversed(state["messages"]) if isinstance(m, HumanMessage)),
+        None,
+    )
+    last_user_msg = (
+        _coerce_text(last_human_msg.content) if last_human_msg is not None else ""
     )
 
     # Greeting fast-path — a bare greeting needs no model. Return a templated
     # on-brand reply with ZERO LLM round-trip (~50ms vs ~1s). Fires only for
-    # general intent with no retrieved context, and only for true greetings
-    # (NOT acks like "yes"/"thanks", which may answer a prior question).
-    if intent == "general" and not retrieved:
+    # general intent with no retrieved context, only for true greetings (NOT
+    # acks like "yes"/"thanks", which may answer a prior question), and never
+    # for non-string content: an image/list-content turn is never a bare
+    # greeting, so it must always reach the model instead of being answered
+    # from stale coerced/previous-turn text (M4).
+    if (
+        intent == "general"
+        and not retrieved
+        and (last_human_msg is None or isinstance(last_human_msg.content, str))
+    ):
         greeting = _greeting_reply(last_user_msg, page_context, state["messages"])
         if greeting is not None:
             return {"messages": [AIMessage(content=greeting)]}

@@ -21,8 +21,8 @@ import httpx
 from sqlalchemy import func, select, text
 
 BENCHMARK_ID = "agent-stream-cancel-durability-v1"
-SOURCE_REVISION = "6e618d0fb5874fa262b783345000f1496e52d7c7"
-AGENT_REVISION = "756367d7b015c7e2b2d2b6d69092feb9e3dd0c40"
+SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
+AGENT_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 EXPECTED_INSTRUCTION = (
     "Research three approaches to evaluating a production RAG system. Compare "
     "retrieval quality, answer faithfulness, latency, and cost, then recommend "
@@ -266,6 +266,17 @@ async def redis_snapshot() -> dict[str, Any]:
         await client.aclose()
 
 
+def token_log_from_frames(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize server replay token frames for diagnostic evidence."""
+    return [
+        {"content": str(data.get("content") or "")}
+        for frame in frames
+        if frame.get("event") == "token"
+        and isinstance(data := frame.get("data"), dict)
+        and data.get("content")
+    ]
+
+
 def validate_network_boundary() -> dict[str, Any]:
     direct_blocked = False
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -335,8 +346,18 @@ async def start_application() -> tuple[asyncio.subprocess.Process, Any]:
         "8081",
         "--log-level",
         "info",
+        # Two workers to mirror the deployed multi-worker topology: the
+        # confirm/cancel/resume request may land on a different worker than
+        # the stream it targets, so cross-worker job/stream state (Redis) is
+        # actually exercised instead of silently bypassed.
+        "--workers",
+        "2",
         stdout=log_handle,
         stderr=asyncio.subprocess.STDOUT,
+        # Own process group: with --workers 2 uvicorn forks children, and
+        # killing only the parent after the escalation timeout would orphan
+        # them holding the shared port-8081 listener (codex audit on #1405).
+        start_new_session=True,
     )
     return process, log_handle
 
@@ -353,12 +374,30 @@ async def wait_for_application(process: asyncio.subprocess.Process) -> dict[str,
             try:
                 response = await client.get(f"{APP_URL}/api/v1/agent/health")
                 if response.status_code == 200:
-                    return {
-                        "ready": True,
-                        "status_code": response.status_code,
-                        "body": response.json(),
-                    }
-                last_error = f"HTTP {response.status_code}"
+                    # One 200 only proves ONE worker accepted; a still-starting
+                    # or crash-looping sibling behind the shared listener would
+                    # be masked (codex audit on #1405). Require a short streak
+                    # of consecutive 200s (spread over ~1s) so both workers
+                    # have had to serve, and startup crash-loops reset it.
+                    streak = 1
+                    while streak < 4:
+                        await asyncio.sleep(0.25)
+                        try:
+                            confirm = await client.get(f"{APP_URL}/api/v1/agent/health")
+                        except (httpx.HTTPError, ValueError):
+                            break
+                        if confirm.status_code != 200:
+                            break
+                        streak += 1
+                    if streak >= 4:
+                        return {
+                            "ready": True,
+                            "status_code": 200,
+                            "body": response.json(),
+                        }
+                    last_error = f"readiness streak broke at {streak}"
+                else:
+                    last_error = f"HTTP {response.status_code}"
             except (httpx.HTTPError, ValueError) as exc:
                 last_error = f"{type(exc).__name__}: {exc}"
             await asyncio.sleep(0.25)
@@ -375,8 +414,24 @@ async def stop_application(
             try:
                 await asyncio.wait_for(process.wait(), timeout=10)
             except asyncio.TimeoutError:
-                process.kill()
+                # SIGKILL the whole group — the parent alone leaves uvicorn
+                # workers orphaned on the shared listener (codex audit).
+                import os as _os
+                import signal as _signal
+
+                try:
+                    _os.killpg(process.pid, _signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
                 await process.wait()
+        # Reap any stray group members even after a clean parent exit.
+        import os as _os
+        import signal as _signal
+
+        try:
+            _os.killpg(process.pid, _signal.SIGKILL)
+        except ProcessLookupError:
+            pass
         exit_code = process.returncode
     if log_handle is not None:
         log_handle.flush()
@@ -411,6 +466,20 @@ def parse_sse_text(raw: str) -> dict[str, Any]:
     }
 
 
+def abort_response_transport(response: httpx.Response) -> None:
+    """Force the live HTTP socket closed before recording a disconnect."""
+    network_stream = response.extensions.get("network_stream")
+    raw_socket = (
+        network_stream.get_extra_info("socket") if network_stream is not None else None
+    )
+    if raw_socket is None:
+        raise InfrastructureFailure("stream response did not expose its live socket")
+    try:
+        raw_socket.shutdown(socket.SHUT_RDWR)
+    except OSError as exc:
+        raise InfrastructureFailure("failed to abort stream response socket") from exc
+
+
 async def stream_until_first_token(token: str) -> dict[str, Any]:
     request_body = {
         "messages": [
@@ -429,6 +498,7 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "text/event-stream",
+        "Connection": "close",
         "Content-Type": "application/json",
         "X-Request-ID": REQUEST_ID,
     }
@@ -494,7 +564,9 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
                             first_token = observed
                             disconnect_initiated_at = utc_now()
                             disconnect_monotonic = time.monotonic()
+                            abort_response_transport(response)
                             await response.aclose()
+                            await client.aclose()
                             disconnect_completed_at = utc_now()
                             break
             except TimeoutError as exc:
@@ -898,6 +970,12 @@ async def run_benchmark() -> dict[str, Any]:
         # turn before independently reading the final replay state.
         await asyncio.sleep(0.2)
         observed_redis = await redis_snapshot()
+        redis_frames = [
+            entry["parsed_frame"]
+            for buffer in observed_redis["buffers"]
+            for entry in buffer["entries"]
+            if isinstance(entry.get("parsed_frame"), dict)
+        ]
         resumed = await resume_stream(token)
 
         trace_ids = sorted(
@@ -954,6 +1032,7 @@ async def run_benchmark() -> dict[str, Any]:
                 "frames": frames,
                 "first_token": streamed["first_token"],
             },
+            "server_token_log": token_log_from_frames(redis_frames),
             "accepted": accepted,
             "disconnect": {
                 "initiated_at": disconnect.get("initiated_at"),
@@ -999,7 +1078,7 @@ async def run_benchmark() -> dict[str, Any]:
                 ),
             },
             "fidelity_limits": [
-                "single local FastAPI process; no ingress, browser Fetch, HPA, or multi-pod race",
+                "local FastAPI app with two uvicorn workers; no ingress, browser Fetch, HPA, or multi-pod race",
                 "fresh ORM metadata schema because the pinned historical Alembic bootstrap is independently broken",
                 "raw model-start callbacks are not public SSE or durable-ledger events",
             ],

@@ -66,6 +66,9 @@ class Document(BaseModel):
     checksum_sha256 = Column(
         String(64), nullable=True, index=True
     )  # SHA-256 content hash
+    # Canonical exact-revision key for arXiv documents. Legacy rows are
+    # nullable until the audited duplicate cleanup selects their survivor.
+    arxiv_id = Column(String(64), nullable=True)
 
     # Content
     content_text = Column(Text, nullable=True)  # Extracted text content

@@ -446,6 +446,54 @@ class TestIngestArxiv:
         shared_db.add.assert_not_called()
         shared_db.commit.assert_not_called()
 
+    async def test_ingest_persists_metadata_title_for_immediate_search(self):
+        """The arXiv metadata title must win over a transient placeholder."""
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
+
+        user = _mock_user()
+        ingested_doc = Mock()
+        ingested_doc.title = "arXiv:2601.00003v1"
+        ingested_doc.filename = "2601.00003v1.pdf"
+        ingested_doc.file_size_bytes = 0
+        ingested_doc.mime_type = "text/plain"
+        ingested_doc.content_text = "abstract"
+        ingested_doc.content_summary = None
+        ingested_doc.document_metadata = {
+            "title": "  Real\nPaper\tTitle  ",
+            "arxiv_id": "2601.00003v1",
+        }
+
+        mock_service = AsyncMock()
+        mock_service.get_papers_by_ids = AsyncMock(
+            return_value=[{"id": "2601.00003v1", "title": "Real Paper Title"}]
+        )
+        mock_service.ingest_papers = AsyncMock(return_value=[ingested_doc])
+        mock_service_ctx = AsyncMock()
+        mock_service_ctx.__aenter__ = AsyncMock(return_value=mock_service)
+        mock_service_ctx.__aexit__ = AsyncMock(return_value=False)
+        fresh_db = MockAsyncSession()
+
+        with (
+            patch.dict(
+                sys.modules,
+                {
+                    "src.services.arxiv.arxiv_service": _mock_arxiv_service_module(
+                        mock_service_ctx
+                    )
+                },
+            ),
+            patch("src.core.database.AsyncSessionLocal", return_value=fresh_db),
+        ):
+            result = await _tool_ingest_arxiv(
+                args={"paper_ids": ["2601.00003v1"]},
+                user_id=str(user.id),
+                db=AsyncMock(),
+                current_user=user,
+            )
+
+        assert result["status"] == "ingestion_complete"
+        assert fresh_db._added_items[0].title == "Real Paper Title"
+
     async def test_ingest_no_papers_returns_error(self):
         """Should reject empty paper_ids list."""
         from src.api.agent.execute import _tool_ingest_arxiv
@@ -496,25 +544,25 @@ class TestIngestArxiv:
 
         assert "error" in result
 
-    async def test_ingest_without_user_skips_db_persist(self):
-        """Without current_user, should return paper_ids only (no DB writes)."""
+    async def test_ingest_without_user_fails_closed(self):
+        """Without current_user, must fail closed like every sibling tool —
+        no ArXivIngestionService instantiation, no document_ids fabricated
+        from ingested-but-never-persisted objects (audit H1). Previously this
+        fell through to a fallback that returned ``getattr(doc, "id", None)``
+        for documents the DB never saw.
+        """
         from src.api.agent.execute import _tool_ingest_arxiv
 
-        mock_paper = Mock()
-        mock_paper.id = "arxiv-id-1"
-        mock_paper.title = "Fallback Paper"
-
-        mock_service = AsyncMock()
-        mock_service.search_papers = AsyncMock(return_value=[{"id": "id1"}])
-        mock_service.ingest_papers = AsyncMock(return_value=[mock_paper])
-
-        mock_service_ctx = AsyncMock()
-        mock_service_ctx.__aenter__ = AsyncMock(return_value=mock_service)
-        mock_service_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_service_ctor = Mock(
+            side_effect=AssertionError(
+                "ArXivIngestionService must not be instantiated without an "
+                "authenticated current_user"
+            )
+        )
 
         with patch(
             "src.services.arxiv.arxiv_service.ArXivIngestionService",
-            return_value=mock_service_ctx,
+            mock_service_ctor,
         ):
             result = await _tool_ingest_arxiv(
                 args={"paper_ids": ["2301.00001v1"]},
@@ -523,8 +571,8 @@ class TestIngestArxiv:
                 current_user=None,
             )
 
-        assert result["status"] == "ingestion_complete"
-        assert "arxiv-id-1" in result["document_ids"]
+        assert result == {"error": "Authentication required"}
+        mock_service_ctor.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -857,3 +905,45 @@ class TestExtractProjectIdFromText:
             _extract_project_id_from_text(text)
             == "22222222-2222-2222-2222-222222222222"
         )
+
+
+# ---------------------------------------------------------------------------
+# search_arxiv wrapper schema (recency_days / chronological)
+# ---------------------------------------------------------------------------
+
+
+class TestSearchArxivRecencyParams:
+    async def test_search_arxiv_schema_exposes_recency_params(self):
+        import inspect
+
+        from src.services.agent.tools import search_arxiv
+
+        args = getattr(search_arxiv, "args", None)
+        if args is not None:
+            assert {"recency_days", "chronological"} <= set(args)
+        else:
+            params = inspect.signature(
+                getattr(search_arxiv, "func", search_arxiv)
+            ).parameters
+            assert {"recency_days", "chronological"} <= set(params)
+
+    async def test_search_arxiv_passes_recency_through(self, monkeypatch):
+        from src.services.agent.tools import search_arxiv
+
+        captured: dict = {}
+
+        async def fake_tool_search_arxiv(args):
+            captured.update(args)
+            return {"results": []}
+
+        monkeypatch.setattr(
+            "src.services.agent.tools_impl._tool_search_arxiv",
+            fake_tool_search_arxiv,
+        )
+
+        await search_arxiv.ainvoke(
+            {"query": "q", "recency_days": 0, "chronological": True}
+        )
+
+        assert captured["recency_days"] == 0
+        assert captured["chronological"] is True

@@ -21,8 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import get_settings
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
-from src.models.document import Document, DocumentType, ProcessingStatus
 from src.services.arxiv.arxiv_service import ArXivIngestionService
+from src.services.arxiv.persistence import persist_arxiv_documents
 from src.services.documents.file_service import FileService
 from src.shared.schemas import UserResponse
 
@@ -366,91 +366,43 @@ async def _process_arxiv_ingestion(
 ):
     """Background task to process arXiv paper ingestion"""
     try:
-        # Get database session
-        from src.core.database import get_db_session
+        async with ArXivIngestionService() as arxiv_service:
+            # First, get paper metadata
+            papers = []
+            for paper_id in paper_ids:
+                # Search for specific paper ID
+                search_results = await arxiv_service.search_papers(
+                    query=f"id:{paper_id}", max_results=1
+                )
+                if search_results:
+                    papers.extend(search_results)
 
-        async with get_db_session() as db:
-            async with ArXivIngestionService() as arxiv_service:
-                # First, get paper metadata
-                papers = []
-                for paper_id in paper_ids:
-                    # Search for specific paper ID
-                    search_results = await arxiv_service.search_papers(
-                        query=f"id:{paper_id}", max_results=1
+            if papers:
+                # Ingest papers
+                documents = await arxiv_service.ingest_papers(
+                    papers=papers,
+                    download_pdfs=download_pdfs,
+                    extract_content=extract_content,
+                    batch_size=batch_size,
+                )
+
+                persisted = await persist_arxiv_documents(
+                    documents,
+                    user_id=user_id,
+                    organization_id=organization_id,
+                )
+                if persisted.document_ids:
+                    logger.info(
+                        f"arXiv ingestion persisted/reused "
+                        f"{len(persisted.document_ids)}/{len(documents)} "
+                        f"documents for org {organization_id}"
                     )
-                    if search_results:
-                        papers.extend(search_results)
-
-                if papers:
-                    # Ingest papers
-                    documents = await arxiv_service.ingest_papers(
-                        papers=papers,
-                        download_pdfs=download_pdfs,
-                        extract_content=extract_content,
-                        batch_size=batch_size,
+                if persisted.failed_papers:
+                    logger.warning(
+                        "arXiv ingestion skipped papers after durable-storage "
+                        "failures: %s",
+                        sorted(persisted.failed_papers),
                     )
-
-                    # Save documents to database. ingest_papers returns
-                    # SimpleDocument objects (attributes, NOT dicts) — the prior
-                    # doc.get(...) calls raised AttributeError, which the outer
-                    # except swallowed, so ingest silently persisted nothing.
-                    # organization_id MUST come from the authenticated user (never
-                    # a doc field / "" default) or the NOT NULL FK insert fails and
-                    # papers are un-scoped.
-                    persisted = 0
-                    persisted_ids = []
-                    for doc in documents:
-                        try:
-                            metadata = getattr(doc, "document_metadata", {}) or {}
-                            document = Document(
-                                title=getattr(doc, "title", "") or "",
-                                filename=getattr(doc, "filename", "") or "",
-                                file_path=metadata.get("pdf_path", "") or "",
-                                file_size_bytes=getattr(doc, "file_size_bytes", 0) or 0,
-                                mime_type=getattr(doc, "mime_type", "application/pdf")
-                                or "application/pdf",
-                                document_type=getattr(
-                                    doc, "document_type", DocumentType.PDF
-                                ),
-                                content_text=getattr(doc, "content_text", None),
-                                document_metadata=metadata,
-                                processing_status=ProcessingStatus.COMPLETED,
-                                uploaded_by_user_id=user_id,
-                                organization_id=organization_id,
-                                is_public=False,
-                            )
-                            db.add(document)
-                            await db.flush()  # populate document.id
-                            persisted_ids.append(str(document.id))
-                            persisted += 1
-                        except Exception as doc_err:
-                            # One malformed paper must not abort the whole batch.
-                            logger.error(
-                                f"Skipping arXiv paper during persist: {doc_err}"
-                            )
-
-                    if persisted:
-                        # Build search_vector BEFORE commit — these docs land
-                        # COMPLETED, so without this they'd be permanently
-                        # invisible to fulltext/RAG (NULL tsvector never matches).
-                        try:
-                            from src.services.search.fulltext_search_service import (
-                                fulltext_search_service,
-                            )
-
-                            await fulltext_search_service.async_update_document_search_vectors(
-                                persisted_ids, db
-                            )
-                        except Exception as vec_err:
-                            logger.error(
-                                f"arXiv ingest: search_vector update failed: {vec_err}"
-                            )
-
-                        await db.commit()
-                        logger.info(
-                            f"arXiv ingestion persisted {persisted}/{len(documents)} "
-                            f"documents for org {organization_id}"
-                        )
 
     except Exception as e:
         logger.error(f"Background arXiv ingestion failed: {e}")

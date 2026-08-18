@@ -21,6 +21,7 @@ import {
 } from '@/types/workspace';
 import type { ActivityStep } from '@/components/chat/shared/cloudMessageView';
 import type { AgentStreamPhase } from '@/services/agentStreamEvents';
+import type { PlanStep } from '@/types/agent-chat';
 
 export interface ChatState {
   // Current selections
@@ -98,6 +99,10 @@ export interface ChatState {
   isRetrievingRag: boolean;
   /** Tool executions accumulated during the current streaming turn. */
   streamingSteps: ActivityStep[];
+  /** Structured execution plan for the current streaming turn — lets the
+   * transcript render the plan WHILE the turn streams instead of only after
+   * commit. Mirrors the committed message's `plan` field shape exactly. */
+  streamingPlan: PlanStep[];
   /** Elapsed time of the current turn as last reported by a `heartbeat`
    * frame (ms). null until the first heartbeat — a silent planner/LLM phase
    * is otherwise indistinguishable from a stalled run. */

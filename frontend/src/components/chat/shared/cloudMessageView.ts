@@ -116,6 +116,8 @@ export interface ChatPageMessage {
   toolExecutions?: ActivityStep[];
   /** Structured execution plan emitted by the agent planner for this turn. */
   plan?: PlanStep[];
+  /** Planner's top-level rationale for `plan`. */
+  planReasoning?: string;
   /** Transient marker on the in-flight assistant turn path: the
    * message is a live placeholder whose text/steps/citations are read from the
    * streaming store, not from these fields. Cleared when the turn commits. */
@@ -174,6 +176,9 @@ export function mapDbMessageToChatPageMessage(
     attachments: dbMsg.attachments,
     toolExecutions: mapDbToolExecutions(dbMsg.tool_executions),
     ...(dbMsg.plan && dbMsg.plan.length > 0 ? { plan: dbMsg.plan } : {}),
+    ...(dbMsg.plan_reasoning
+      ? { planReasoning: dbMsg.plan_reasoning }
+      : {}),
     ...(hasFeedback
       ? {
           feedback: {
@@ -274,6 +279,9 @@ function mergeLocalProvenance(
       ...message,
       ...((message.plan ?? local.plan)
         ? { plan: message.plan ?? local.plan }
+        : {}),
+      ...((message.planReasoning ?? local.planReasoning)
+        ? { planReasoning: message.planReasoning ?? local.planReasoning }
         : {}),
       ...(mergedToolExecutions?.length
         ? { toolExecutions: mergedToolExecutions }

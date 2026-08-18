@@ -36,6 +36,7 @@ async function pollUntilDone(
     }
 
     metadata.set("backendStatus", job.status);
+    if (job.thread_id) metadata.set("threadId", job.thread_id);
 
     if (job.status === "completed") {
       return { status: "completed", result: job.result ?? undefined };

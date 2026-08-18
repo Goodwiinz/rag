@@ -178,9 +178,29 @@ export interface paths {
          *     (``src/shared/enums.py`` — the single source of truth): token, tool_start,
          *     tool_end, rag_context, plan, reflection, trace, usage, heartbeat, status,
          *     confirmation, done, error. ``heartbeat`` is a payload-less keepalive; the
-         *     terminal frames are ``TERMINAL_STREAM_EVENTS`` (done, error, confirmation).
+         *     terminal frames are done, error, or confirmation.
          */
         post: operations["stream_agent_api_v1_agent_stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/stream/cancel/{thread_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Stream Confirmation
+         * @description Durably abandon a caller-owned graph parked on HITL confirmation.
+         */
+        post: operations["cancel_stream_confirmation_api_v1_agent_stream_cancel__thread_id__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6921,26 +6941,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/sentry-debug": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Sentry Debug
-         * @description Deliberately raise an error to verify Sentry is capturing events.
-         */
-        get: operations["sentry_debug_api_v1_sentry_debug_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/workers/health": {
         parameters: {
             query?: never;
@@ -8476,131 +8476,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/health/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health Check
-         * @description Basic health check endpoint.
-         *     Returns overall system health status.
-         */
-        get: operations["health_check_health__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/check/{component}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check Component
-         * @description Check health of a specific component.
-         */
-        get: operations["check_component_health_check__component__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/detailed": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Detailed Health Check
-         * @description Detailed health check endpoint.
-         *     Returns detailed status of all components.
-         */
-        get: operations["detailed_health_check_health_detailed_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/invalidate-cache": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Invalidate Health Cache
-         * @description Invalidate the health check cache.
-         *     Forces new health checks on next request.
-         */
-        post: operations["invalidate_health_cache_health_invalidate_cache_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/liveness": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Liveness Probe
-         * @description Kubernetes liveness probe.
-         *     Checks if the application is still alive.
-         */
-        get: operations["liveness_probe_health_liveness_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/metrics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health Metrics
-         * @description Health-specific metrics endpoint.
-         *     Returns metrics about the health check system itself.
-         */
-        get: operations["health_metrics_health_metrics_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/health/readiness": {
         parameters: {
             query?: never;
@@ -8610,39 +8485,9 @@ export interface paths {
         };
         /**
          * Readiness Probe
-         * @description Kubernetes readiness probe.
-         *     Checks if the application is ready to serve traffic.
-         *     Returns 503 when the LLM config is incomplete (strict/non-throwaway
-         *     env only) or when a critical dependency is unhealthy. Liveness
-         *     (/health/liveness) is unaffected — the pod stays alive but is removed
-         *     from the LB.
-         *
-         *     The dependency checks are cached for a few seconds (see
-         *     ``_readiness_cache_ttl``) so kubelet polling doesn't open a fresh
-         *     DB + Redis connection on every hit.
+         * @description Return 503 until LLM config, PostgreSQL, and Redis are ready.
          */
         get: operations["readiness_probe_health_readiness_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/startup": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Startup Probe
-         * @description Kubernetes startup probe.
-         *     Checks if the application has started successfully.
-         */
-        get: operations["startup_probe_health_startup_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8739,21 +8584,27 @@ export interface components {
         /** AgentExecuteRequest */
         AgentExecuteRequest: {
             /**
+             * Attachment Ids
+             * @description Document ids to attach to this user turn. The documents are uploaded separately (POST /documents) and referenced here, so the stream body never carries file bytes. Ids the caller's organization does not own are dropped server-side, not rejected — a mixed batch still attaches the owned ones.
+             */
+            attachment_ids?: string[] | null;
+            /**
              * Max Context Docs
              * @default 5
              */
             max_context_docs: number;
             /**
              * Messages
-             * @description Conversation messages
+             * @description Conversation messages; at least one must have role='user'
              */
             messages: components["schemas"]["AgentMessage"][];
             /**
              * Model
              * @description Azure deployment name to route the chat to. Empty string uses the server-configured deployment. See SUPPORTED_MODELS for the allow-list.
              * @default
+             * @enum {string}
              */
-            model: string;
+            model: "" | "model-router" | "gpt-5-mini" | "gpt-5.6-luna";
             page_context?: components["schemas"]["PageContextRequest"];
             /**
              * Supersedes Client Message Id
@@ -9731,6 +9582,8 @@ export interface components {
             plan?: {
                 [key: string]: unknown;
             }[] | null;
+            /** Plan Reasoning */
+            plan_reasoning?: string | null;
             /** @default user */
             role: components["schemas"]["MessageRole-Output"];
             /** Stopped */
@@ -10876,6 +10729,8 @@ export interface components {
              * @description Number of sources opposing the claim
              */
             opposing: number;
+            /** @default not_performed */
+            publication_retraction_check: components["schemas"]["PublicationRetractionCheck"];
             /**
              * Reproducibility Hash
              * @description Hash for reproducibility tracking
@@ -10883,7 +10738,7 @@ export interface components {
             reproducibility_hash: string;
             /**
              * Retracted Sources
-             * @description Number of retracted sources (excluded)
+             * @description Number of workspace-withdrawn sources excluded from classification
              */
             retracted_sources: number;
             /**
@@ -11433,6 +11288,11 @@ export interface components {
              */
             y?: number | null;
         };
+        /** HTTPErrorResponse */
+        HTTPErrorResponse: {
+            /** Detail */
+            detail: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -11509,6 +11369,8 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             status: components["schemas"]["JobStatus"];
+            /** Thread Id */
+            thread_id?: string | null;
             /** Tool Executions */
             tool_executions?: {
                 [key: string]: unknown;
@@ -11753,6 +11615,8 @@ export interface components {
             plan?: {
                 [key: string]: unknown;
             }[] | null;
+            /** Plan Reasoning */
+            plan_reasoning?: string | null;
             /** Role */
             role: string;
             /** Token Usage */
@@ -12578,6 +12442,18 @@ export interface components {
             /** Tags */
             tags?: string[] | null;
         };
+        /**
+         * PublicationRetractionCheck
+         * @description Publication-level retraction check state.
+         * @enum {string}
+         */
+        PublicationRetractionCheck: "not_performed";
+        /**
+         * PublicationRetractionStatus
+         * @description Publication-level retraction status for an evidence source.
+         * @enum {string}
+         */
+        PublicationRetractionStatus: "unknown";
         /**
          * QualityAlertResponse
          * @description Quality alert response
@@ -13767,6 +13643,8 @@ export interface components {
             is_retracted: boolean;
             /** Justification Excerpt */
             justification_excerpt?: string | null;
+            /** @default unknown */
+            publication_retraction_status: components["schemas"]["PublicationRetractionStatus"];
             /**
              * Source Id
              * Format: uuid
@@ -15713,13 +15591,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Server-Sent Events stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "text/event-stream": string;
                 };
             };
             /** @description Validation Error */
@@ -15729,6 +15607,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPErrorResponse"];
+                };
+            };
+        };
+    };
+    cancel_stream_confirmation_api_v1_agent_stream_cancel__thread_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Thread not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPErrorResponse"];
+                };
+            };
+            /** @description Run is not awaiting confirmation */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Cancellation temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPErrorResponse"];
                 };
             };
         };
@@ -15746,13 +15689,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Server-Sent Events stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "text/event-stream": string;
                 };
             };
             /** @description Validation Error */
@@ -15770,6 +15713,8 @@ export interface operations {
         parameters: {
             query?: {
                 after?: number;
+                /** @description Stream id the cursor belongs to (the envelope's stream_id). When set, resume refuses to attach the cursor to a different (newer) run on the same thread. */
+                stream?: string | null;
             };
             header?: {
                 "Last-Event-ID"?: string | null;
@@ -26750,26 +26695,6 @@ export interface operations {
             };
         };
     };
-    sentry_debug_api_v1_sentry_debug_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
     get_workers_health_api_v1_workers_health_get: {
         parameters: {
             query?: never;
@@ -29738,158 +29663,7 @@ export interface operations {
             };
         };
     };
-    health_check_health__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    check_component_health_check__component__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                component: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    detailed_health_check_health_detailed_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    invalidate_health_cache_health_invalidate_cache_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    liveness_probe_health_liveness_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    health_metrics_health_metrics_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
     readiness_probe_health_readiness_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    startup_probe_health_startup_get: {
         parameters: {
             query?: never;
             header?: never;

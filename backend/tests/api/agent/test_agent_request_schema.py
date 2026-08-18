@@ -87,3 +87,20 @@ def test_a_non_edit_request_is_untouched_by_the_validator():
     )
     assert request.supersedes_client_message_id is None
     assert request.messages[0].client_message_id == cmid
+
+
+@pytest.mark.parametrize(
+    "messages",
+    [[], [{"role": "assistant", "content": "orphan response"}]],
+)
+def test_request_requires_a_user_turn(messages):
+    with pytest.raises(ValidationError):
+        AgentExecuteRequest(messages=messages)
+
+
+def test_request_rejects_a_malformed_thread_id():
+    with pytest.raises(ValidationError):
+        AgentExecuteRequest(
+            messages=[{"role": "user", "content": "hi"}],
+            thread_id="not-a-thread-uuid",
+        )

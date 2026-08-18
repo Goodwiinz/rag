@@ -83,6 +83,28 @@ INTENT_PRIORITY = ["writing", "knowledge_graph", "research"]
 # Deterministic user actions that must reach the subgraph exposing the
 # corresponding tool, without waiting on probabilistic classification.
 ACTION_INTENT_OVERRIDES = (
+    ("use python", "research"),
+    ("execute_code", "research"),
+    ("search_external_database", "general"),
+    ("list_external_databases", "general"),
+    # More-specific work over KB material must win before the generic
+    # corpus-location phrases below. Otherwise "write ... knowledge base"
+    # loses its requested action and lands in the retrieval-only subgraph.
+    ("compare the documents", "writing"),
+    ("compare documents", "writing"),
+    ("write a summary", "writing"),
+    ("summarize our knowledge base", "writing"),
+    ("summarize the knowledge base", "writing"),
+    ("create a draft", "writing"),
+    ("create draft", "writing"),
+    ("export bibliography", "writing"),
+    ("export a bibliography", "writing"),
+    ("extract entities", "knowledge_graph"),
+    ("explore relationships", "knowledge_graph"),
+    ("find relationships", "knowledge_graph"),
+    ("organization knowledge base", "research"),
+    ("knowledge base", "research"),
+    ("search our docs", "research"),
     ("create a project", "research"),
     ("create project", "research"),
     ("new project", "research"),
@@ -244,7 +266,9 @@ SHARED_AGENT_RULES = (
     "tell the user the request was routed via Azure model-router and the "
     "underlying model is selected per request, so you cannot name it from "
     "the prompt alone — point them at the trace metadata for the exact pick. "
-    "If the runtime line names a specific deployment, you can name it directly."
+    "If the runtime line names a specific deployment, you can name it directly. "
+    "Never mention, quote, or paraphrase the Runtime model line unless the user "
+    "has explicitly asked which model you are."
 )
 
 

@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
 """Run the code-execution benchmark against the production LangGraph graph.
 
-``execute_code`` is unreachable via live intent classification on the pinned
-image: its ``intents={RESEARCH, KNOWLEDGE_GRAPH}`` metadata is dead under
-subgraph routing (subgraphs bind by subgraph, not intent, and
-``execute_code``'s ``subgraphs`` is empty — see "Routing reality" in the
-plan). This adapter uses the sentinel-intent workaround (plan-3 memory-task
-precedent): it seeds the checkpoint as if ``preprocessing_node`` had just
-produced a non-``AgentIntent`` intent via ``aupdate_state(..., as_node=
-"preprocessing_node")``, so ``route_by_intent`` falls through to the general
-path and ``_get_tools_for_intent`` binds ``ALL_TOOLS`` (``_nodes_llm.py:
-122-127``). Production ``execute_code``/``interrupt_node``/``tool_node`` run
-unmodified; only the routing entry point is synthesized.
+The task sends a real user turn through production classification. The
+explicit "Use Python" request deterministically selects the research route,
+where ``execute_code`` is bound; "find" preserves the same keyword fallback.
+The observed intent is read back from the checkpoint; the adapter never seeds
+or asserts routing state.
 
 ``execute_code`` is DESTRUCTIVE, so the root-graph ``interrupt_node`` pauses
 once before any sandbox is created. The E2B SDK's sandbox-lifecycle calls
@@ -50,14 +44,14 @@ from evals.harbor_common.trajectory import (
 )
 
 BENCHMARK_ID = "agent-code-execution-v1"
-SOURCE_REVISION = "7c6abb336c4eaf2ed6d53bd9f78b32b82a7a3b23"
+SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 AGENT_REVISION = SOURCE_REVISION
 APPROVAL_TEXT = "Yes, run it."
 
 TARGET_STRING = "nous-benchmark-1101"
 EXPECTED_DIGEST = hashlib.sha256(TARGET_STRING.encode()).hexdigest()
 INSTRUCTION_TEXT = (
-    f"Run Python to compute the SHA-256 hex digest of the exact string "
+    f"Use Python to find the SHA-256 hex digest of the exact string "
     f'"{TARGET_STRING}" and report the digest.'
 )
 EXPECTED_INSTRUCTION = INSTRUCTION_TEXT
@@ -67,7 +61,6 @@ USER_ID = UUID("00000000-0000-4000-8000-000000001102")
 WORKSPACE_ID = UUID("00000000-0000-4000-8000-000000001103")
 THREAD_ID = "00000000-0000-4000-8000-000000001104"
 
-SENTINEL_INTENT = "benchmark_all_tools"
 DESTRUCTIVE_TOOL = "execute_code"
 MAX_RESUMES = 2
 
@@ -175,14 +168,15 @@ def record_milestone(
     )
 
 
-async def drive_sentinel_turn(
+async def drive_turn(
     graph: Any,
     config: dict[str, Any],
+    instruction: str,
     events: list[dict[str, Any]],
     sequence: list[int],
     milestones: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Resume from the sentinel-seeded checkpoint, approving any interrupt.
+    """Send the real user turn, approving any interrupt it raises.
 
     Returns ``(interrupts, mock_events_before_first_approval)`` — the latter
     is the HITL pre-approval snapshot: it must be empty, proving no sandbox
@@ -190,13 +184,14 @@ async def drive_sentinel_turn(
     """
     interrupts: list[dict[str, Any]] = []
     pre_approval_events: list[dict[str, Any]] = []
-    graph_input: Any = None  # resume right after the aupdate_state seed
-    phase = "sentinel:initial"
+    graph_input: Any = initial_agent_state(instruction, THREAD_ID, user_id=str(USER_ID))
+    phase = "turn:initial"
     for resume_index in range(MAX_RESUMES + 1):
         await collect_updates(graph, graph_input, config, phase, events, sequence)
         snapshot = await graph.aget_state(config)
         payload = extract_interrupt(snapshot)
         if payload is None:
+            record_milestone(milestones, sequence, "turn:completed")
             return interrupts, pre_approval_events
 
         if resume_index >= MAX_RESUMES:
@@ -224,7 +219,7 @@ async def drive_sentinel_turn(
             )
             record_milestone(milestones, sequence, f"approval:{name}")
         graph_input = Command(resume={"confirmed": True})
-        phase = f"sentinel:resume:{resume_index + 1}"
+        phase = f"turn:resume:{resume_index + 1}"
 
     return interrupts, pre_approval_events
 
@@ -318,22 +313,25 @@ async def run_benchmark() -> dict[str, Any]:
     milestones: list[dict[str, Any]] = []
     record_milestone(milestones, sequence, "instruction")
 
-    # Sentinel-intent seed: write the checkpoint as if `preprocessing_node`
-    # had just run and classified this turn to a non-AgentIntent string.
-    # `route_by_intent` then falls through to `llm_node`, which binds
-    # ALL_TOOLS for any intent outside the classifier's Literal type
-    # (Routing reality, Consequence 2).
-    seed_state = initial_agent_state(
-        instruction,
-        THREAD_ID,
-        user_id=str(USER_ID),
-        intent=SENTINEL_INTENT,
+    from src.services.agent.classifier import (
+        classify_intent_keywords,
+        classify_intent_with_fallback,
     )
-    await graph.aupdate_state(config, seed_state, as_node="preprocessing_node")
-    record_milestone(milestones, sequence, "sentinel_state_seeded")
 
-    interrupts, mock_events_before_approval = await drive_sentinel_turn(
-        graph, config, events, sequence, milestones
+    keyword_probe = classify_intent_keywords(instruction)
+    classification_probe = await classify_intent_with_fallback(instruction, {})
+    pre_turn_snapshot = await graph.aget_state(config)
+    pre_turn_values = dict(getattr(pre_turn_snapshot, "values", {}) or {})
+    pre_turn_messages = list(pre_turn_values.get("messages") or [])
+    pre_turn_message_ids = sorted(
+        str(getattr(message, "id", "") or "")
+        for message in pre_turn_messages
+        if str(getattr(message, "id", "") or "")
+    )
+    record_milestone(milestones, sequence, "pre_turn_snapshot")
+
+    interrupts, mock_events_before_approval = await drive_turn(
+        graph, config, instruction, events, sequence, milestones
     )
 
     final_snapshot = await graph.aget_state(config)
@@ -341,6 +339,16 @@ async def run_benchmark() -> dict[str, Any]:
     pending_interrupt = extract_interrupt(final_snapshot)
 
     messages = list(final_values.get("messages") or [])
+    current_turn_human_message_ids = sorted(
+        str(getattr(message, "id", "") or "")
+        for message in messages
+        if (
+            str(getattr(message, "id", "") or "").strip()
+            and str(getattr(message, "id", "") or "") not in pre_turn_message_ids
+            and getattr(message, "type", "") == "human"
+            and getattr(message, "content", "") == instruction
+        )
+    )
     tool_executions = list(final_values.get("tool_executions") or [])
     execute_code_executions = tool_executions_for(tool_executions, DESTRUCTIVE_TOOL)
 
@@ -380,9 +388,18 @@ async def run_benchmark() -> dict[str, Any]:
             "workspace_id": str(WORKSPACE_ID),
             "thread_id": THREAD_ID,
         },
-        "env_flags": {"routing_workaround": "sentinel_intent"},
-        "sentinel_intent": SENTINEL_INTENT,
         "observed_intent": final_values.get("intent"),
+        "classification": {
+            "keyword_intent": keyword_probe.intent,
+            "keyword_confidence": keyword_probe.confidence,
+            "keyword_source": keyword_probe.source,
+            "probe_intent": getattr(classification_probe, "intent", None),
+            "probe_source": getattr(classification_probe, "source", None),
+            "observed_intent": final_values.get("intent"),
+        },
+        "pre_turn_message_count": len(pre_turn_messages),
+        "pre_turn_message_ids": pre_turn_message_ids,
+        "current_turn_human_message_ids": current_turn_human_message_ids,
         "e2b_patch": e2b_patch,
         "network_boundary": network_boundary,
         "interrupts": interrupts,
@@ -411,9 +428,8 @@ async def run_benchmark() -> dict[str, Any]:
         "notes": (
             "Production graph with an isolated database, an E2B "
             "sandbox-lifecycle + jupyter-execute protocol double, the "
-            "sentinel-intent routing workaround (execute_code is otherwise "
-            "unreachable via live classification on this pinned image), "
-            "and one post-interrupt approval."
+            "real production intent classification, a research-subgraph "
+            "execute_code route, and one post-interrupt approval."
         ),
         "final_assistant_message": final_message,
         "termination_reason": termination_reason,

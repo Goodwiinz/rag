@@ -188,14 +188,15 @@ jobs:
   # (alembic_version.version_num is VARCHAR(32); a longer id crash-loops deploy).
   #
   # BLOCKING: the static guard above runs first with only Alembic installed and
-  # never touches a DB (env.py is not executed). Below it, three ADVISORY
-  # execution-depth probes (Task 5.1) MEASURE what a static read cannot — that
-  # the chain actually applies. They are continue-on-error because the schema
-  # carries known create-migration debt (analytics_* tables shipped with no
-  # create migration; a to_regclass guard papered over it, PR #720), so a
-  # from-empty `upgrade head` and `alembic check` may legitimately fail TODAY.
-  # First-run CI results become the record that Task 5.2 uses to promote any of
-  # these to blocking. Their outcomes are written to the job summary.
+  # never touches a DB (env.py is not executed). The targeted evidence delta
+  # probe below is also BLOCKING: it establishes only the exact parent-state
+  # precondition for evidence_prov_20260816, runs the real upgrade and
+  # downgrade, and verifies both column contracts. It creates its own
+  # generated scratch database so it cannot interfere with the advisory legacy
+  # replay that follows. The legacy from-empty upgrade, `alembic check`, and
+  # downgrade/upgrade smoke remain visible ADVISORY measurements because the
+  # historical chain carries known bootstrap/create-migration debt. A failure
+  # in an advisory measurement is always recorded as FAIL, never PASS.
   #
   # Why these steps need the FULL backend requirements (not just alembic): the
   # static guard reads only ScriptDirectory, but `alembic upgrade head` EXECUTES
@@ -233,7 +234,7 @@ jobs:
       - name: Check single head + revision-id length
         working-directory: backend
         run: python ../scripts/ci/check_alembic.py
-      # --- Advisory execution-depth probes (Task 5.1: MEASURE, do not block) ---
+      # --- Targeted blocking probe plus advisory legacy-chain measurements ---
       - name: Cache pip dependencies
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
@@ -258,8 +259,26 @@ jobs:
             echo "- Install backend requirements (for probes): :x: FAIL (rc=$rc) — probes below are unreliable" >> "$GITHUB_STEP_SUMMARY"
           fi
           exit $rc
-      # NOTE: these three run in sequence against one shared DB; a probe-1 failure
-      # cascades into 2/3.
+      - name: Blocking — evidence migration delta
+        working-directory: .
+        env:
+          # The Python probe creates ci_evidence_delta_<pid>_<token> itself,
+          # drops it in a finally block, and never runs the historical chain.
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set +e
+          echo "Running exact migration delta i9j0k1l2m3n4 -> evidence_prov_20260816 -> i9j0k1l2m3n4"
+          echo "The probe owns and cleans a generated ci_evidence_delta_<pid>_<token> database."
+          python scripts/ci/probe_evidence_migration.py \
+            --admin-database-url "$DATABASE_URL"
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "- Evidence migration delta (i9j0k1l2m3n4 ↔ evidence_prov_20260816): :white_check_mark: PASS" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Evidence migration delta (i9j0k1l2m3n4 ↔ evidence_prov_20260816): :x: FAIL (rc=$rc) — BLOCKING" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$rc"
       - name: Advisory — upgrade head from empty DB
         continue-on-error: true
         working-directory: backend
@@ -273,7 +292,7 @@ jobs:
           if [ "$rc" -eq 0 ]; then
             echo "- Alembic upgrade head (from empty): :white_check_mark: PASS" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "- Alembic upgrade head (from empty): :x: FAIL (rc=$rc) — advisory, see Task 5.2" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Alembic upgrade head (from empty): :x: FAIL (rc=$rc) — advisory measurement only; legacy chain is not a blocking contract" >> "$GITHUB_STEP_SUMMARY"
           fi
           exit $rc
       - name: Advisory — alembic check (models vs migrations drift)
@@ -683,7 +702,7 @@ jobs:
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     needs: [unit-tests, frontend-tests]
     services:
       postgres:
@@ -772,7 +791,7 @@ jobs:
   resilience-tests:
     name: Resilience Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     needs: unit-tests
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -1150,6 +1169,10 @@ jobs:
           # cache in sync; this command is a no-op when the matching browser is
           # cached and re-downloads only on drift. --with-deps also installs OS
           # libs (libnss/libatk/libgbm) absent on a fresh runner.
+          # Hosted runners also preload unrelated packages.microsoft.com apt
+          # sources. Quarantine those ephemeral-runner sources so their outages
+          # cannot make Playwright's Ubuntu dependency update fail.
+          sudo python3 scripts/ci/quarantine_apt_sources.py
           pnpm --dir tests/e2e exec playwright install --with-deps chromium
       - name: Run E2E Tests
         env:

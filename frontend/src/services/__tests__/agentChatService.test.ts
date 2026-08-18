@@ -193,6 +193,19 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     expect(tokens).toEqual(['hello']);
     expect(done).toHaveBeenCalledTimes(1);
   });
+
+  it('reports EOF before a terminal frame as an error', async () => {
+    global.fetch = fetchWith([
+      'event: token\ndata: {"content":"partial"}\n\n',
+    ]);
+    const onError = vi.fn();
+
+    await agentChatService.streamMessage(request, { onError });
+
+    expect(onError).toHaveBeenCalledWith(
+      'Stream ended before completion. Please retry.'
+    );
+  });
 });
 
 describe('agentChatService.resumeStream', () => {
@@ -201,7 +214,7 @@ describe('agentChatService.resumeStream', () => {
     global.fetch = realFetch;
   });
 
-  it('treats 204 as a clean no-op: no callbacks, {resumed:false}', async () => {
+  it('returns idle for 204 without firing callbacks', async () => {
     global.fetch = vi.fn(async () => ({
       ok: true,
       status: 204,
@@ -215,9 +228,29 @@ describe('agentChatService.resumeStream', () => {
       onDone,
       onError,
     });
-    expect(res).toEqual({ resumed: false });
+    expect(res).toEqual({ status: 'idle' });
     expect(onToken).not.toHaveBeenCalled();
     expect(onDone).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('returns a failed result for HTTP errors without firing stream callbacks', async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 503,
+      body: null,
+      text: async () => '{"detail":"checkpoint unavailable"}',
+    })) as unknown as typeof fetch;
+    const onError = vi.fn();
+
+    const res = await agentChatService.resumeStream('thread-1', 0, {
+      onError,
+    });
+
+    expect(res).toEqual({
+      status: 'failed',
+      error: 'Stream resume failed (503): checkpoint unavailable',
+    });
     expect(onError).not.toHaveBeenCalled();
   });
 
@@ -235,7 +268,7 @@ describe('agentChatService.resumeStream', () => {
       onSeq: (s) => seqs.push(s),
       onDone,
     });
-    expect(res).toEqual({ resumed: true });
+    expect(res).toEqual({ status: 'resumed' });
     expect(tokens).toEqual(['he', 'llo']);
     expect(seqs).toEqual([3, 4, 5]);
     expect(onDone).toHaveBeenCalledTimes(1);
@@ -243,6 +276,19 @@ describe('agentChatService.resumeStream', () => {
     const [url, options] = vi.mocked(global.fetch).mock.calls[0];
     expect(url).toContain('/agent/stream/resume/thread-1?after=2');
     expect(new Headers(options?.headers).get('Last-Event-ID')).toBe('2');
+  });
+
+  it('fails resume when replay ends without a terminal frame', async () => {
+    global.fetch = fetchWith([
+      'id: 3\nevent: token\ndata: {"content":"partial"}\n\n',
+    ]);
+
+    const res = await agentChatService.resumeStream('thread-1', 2, {});
+
+    expect(res).toEqual({
+      status: 'failed',
+      error: 'Stream ended before completion. Please retry.',
+    });
   });
 
   it('reports seqs on the live streamMessage path too', async () => {
@@ -255,6 +301,27 @@ describe('agentChatService.resumeStream', () => {
       onSeq: (s) => seqs.push(s),
     });
     expect(seqs).toEqual([1, 2]);
+  });
+});
+
+describe('agentChatService.cancelPendingConfirmation', () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it('posts the parked thread to the cancellation endpoint', async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 204,
+    })) as unknown as typeof fetch;
+
+    await agentChatService.cancelPendingConfirmation('thread/with space');
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/agent/stream/cancel/thread%2Fwith%20space'),
+      expect.objectContaining({ method: 'POST' })
+    );
   });
 });
 

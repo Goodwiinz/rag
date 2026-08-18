@@ -185,3 +185,42 @@ def test_duplicate_tool_message_ids_keep_only_one():
     tms = [m for m in out if hasattr(m, "tool_call_id")]
     assert len(tms) == 1
     assert tms[0].content == '{"second": true}'
+
+
+def test_long_history_keeps_the_latest_complete_turns():
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    from src.services.agent.graph import _sanitize_messages
+
+    raw = []
+    for index in range(80):
+        raw.extend(
+            [
+                HumanMessage(content=(f"question-{index} " * 300), id=f"u-{index}"),
+                AIMessage(content=(f"answer-{index} " * 300), id=f"a-{index}"),
+            ]
+        )
+
+    out = _sanitize_messages(raw)
+
+    assert len(out) < len(raw)
+    assert isinstance(out[0], HumanMessage)
+    assert out[-1].id == "a-79"
+
+
+def test_oversized_tool_turn_keeps_a_nonempty_user_prompt():
+    from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
+    from src.services.agent.graph import _sanitize_messages
+
+    raw = [
+        HumanMessage(content="summarize this result", id="user"),
+        AIMessage(content="", tool_calls=_ids(["large"]), id="assistant"),
+        ToolMessage(content="x" * 200_000, tool_call_id="large", id="tool"),
+    ]
+
+    out = _sanitize_messages(raw)
+
+    assert out
+    assert isinstance(out[0], HumanMessage)
+    assert out[0].content == "summarize this result"

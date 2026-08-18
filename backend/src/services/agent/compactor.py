@@ -9,7 +9,14 @@ import logging
 import re
 from typing import Any, Callable, Optional
 
-from langchain_core.messages import AIMessage, BaseMessage, RemoveMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    RemoveMessage,
+    ToolMessage,
+    trim_messages,
+)
 from langchain_core.runnables import RunnableConfig
 
 from src.services.agent.llm_factory import build_lightweight_llm
@@ -43,6 +50,51 @@ _COMPACT_MAX_TOKENS = 320
 # should_compact re-fires every turn once the token threshold is crossed,
 # burning LLM calls on already-compacted context.
 _MAX_COMPACTION_ROUNDS = 3
+
+# Keep every model-bound path below a predictable context ceiling even after
+# tool compaction stops. The latest complete turns win; durable checkpoints
+# are pruned separately so this is a request-time safety net, not storage GC.
+MODEL_HISTORY_TOKEN_BUDGET = 24_000
+_FALLBACK_HUMAN_CHARS = 32_000
+
+
+def trim_model_history(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """Return the newest complete user-led turns that fit the model budget."""
+    trimmed = trim_messages(
+        messages,
+        max_tokens=MODEL_HISTORY_TOKEN_BUDGET,
+        token_counter="approximate",
+        strategy="last",
+        allow_partial=False,
+    )
+    if len(trimmed) == len(messages) or not any(
+        isinstance(message, HumanMessage) for message in messages
+    ):
+        return trimmed
+    human_start = trim_messages(
+        messages,
+        max_tokens=MODEL_HISTORY_TOKEN_BUDGET,
+        token_counter="approximate",
+        strategy="last",
+        start_on="human",
+        allow_partial=False,
+    )
+    if human_start:
+        return human_start
+
+    # One tool-heavy turn can exceed the whole budget. Never invoke the model
+    # with only its system prompt, and never return an orphan ToolMessage.
+    latest_human = next(
+        message for message in reversed(messages) if isinstance(message, HumanMessage)
+    )
+    if (
+        isinstance(latest_human.content, str)
+        and len(latest_human.content) > _FALLBACK_HUMAN_CHARS
+    ):
+        latest_human = latest_human.model_copy(
+            update={"content": latest_human.content[-_FALLBACK_HUMAN_CHARS:]}
+        )
+    return [latest_human]
 
 
 # ---------------------------------------------------------------------------

@@ -45,7 +45,7 @@ export interface UseSlashCommandsParams {
   ) => Promise<void>;
   /** Bare composer submit (useChatComposerActions) — used for a plain send
    * once slash/memory interception has cleared it. */
-  submit: () => void;
+  submit: (attachmentIds?: string[]) => void;
   /** Regenerate-most-recent-assistant-turn (useChatComposerActions) — the
    * /retry command dispatches to it rather than re-implementing regenerate. */
   retryLast: () => void;
@@ -59,7 +59,7 @@ export interface UseSlashCommandsReturn {
   commandOutputs: CommandOutput[];
   handleSlashCommand: (id: SlashCommandId) => void;
   handleCommandItemAction: (action: CommandAction) => void;
-  submitMessage: () => void;
+  submitMessage: (attachmentIds?: string[]) => void;
   startNewChat: () => void;
 }
 
@@ -478,20 +478,23 @@ export function useSlashCommands({
   // that carry an argument (`/remember <fact>`) never open the autocomplete
   // menu — they look like a normal message — so they're intercepted here on
   // send instead of being dispatched to the agent.
-  const submitMessage = useCallback(() => {
-    const raw = input.trim();
-    const memMatch = raw.match(/^\/(remember|memories)\b\s*([\s\S]*)$/i);
-    if (memMatch) {
-      setInput('');
-      runMemoryCommand(
-        memMatch[1].toLowerCase() as 'remember' | 'memories',
-        memMatch[2]
-      );
-      return;
-    }
-    setCommandOutputs([]);
-    submit();
-  }, [input, setInput, submit, runMemoryCommand]);
+  const submitMessage = useCallback(
+    (attachmentIds?: string[]) => {
+      const raw = input.trim();
+      const memMatch = raw.match(/^\/(remember|memories)\b\s*([\s\S]*)$/i);
+      if (memMatch) {
+        setInput('');
+        runMemoryCommand(
+          memMatch[1].toLowerCase() as 'remember' | 'memories',
+          memMatch[2]
+        );
+        return;
+      }
+      setCommandOutputs([]);
+      submit(attachmentIds);
+    },
+    [input, setInput, submit, runMemoryCommand]
+  );
 
   return {
     commandOutputs,

@@ -11,6 +11,7 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import redis  # Added this line
@@ -38,7 +39,7 @@ from src.api.arxiv import (
 from src.api.auth import auth_router, cli_auth_router
 from src.api.auth.api_keys import router as api_keys_router
 from src.api.connectors import connectors_router
-from src.api.diagnostics import diagnostics_router, sentry_debug_router
+from src.api.diagnostics import diagnostics_router
 from src.api.documents import (
     documents_router,
     figures_router,
@@ -102,6 +103,7 @@ from src.exceptions.error_handlers import (
     rag_exception_handler,
 )
 from src.health.endpoints import router as health_router
+from src.middleware.disconnect_signal import AgentDisconnectSignalMiddleware
 from src.middleware.multi_tenancy import MultiTenancyMiddleware
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.middleware.security_headers import SecurityHeadersMiddleware
@@ -546,11 +548,13 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-# Security response headers (audit #10). Registered LAST so it is the OUTERMOST
-# middleware: its headers are applied to every response, including those
-# short-circuited by inner middleware (CORS preflight, rate-limit 429,
-# trusted-host 400). Headers only — no request-handling side effects.
+# Security response headers (audit #10). Outermost response-mutating middleware:
+# its headers apply to every response, including those short-circuited by inner
+# middleware (CORS preflight, rate-limit 429, trusted-host 400).
 app.add_middleware(SecurityHeadersMiddleware)
+# Transparent outer receive wrapper: every downstream middleware shares its
+# disconnect signal, while SecurityHeadersMiddleware still mutates responses.
+app.add_middleware(AgentDisconnectSignalMiddleware)
 
 
 # Include routers
@@ -578,7 +582,6 @@ app.include_router(evaluation_router, prefix="/api/v1")
 app.include_router(
     diagnostics_router, prefix="/api/v1"
 )  # Retrieval diagnostics endpoints
-app.include_router(sentry_debug_router, prefix="/api/v1")  # Sentry verify endpoint
 app.include_router(websocket_router)  # Legacy WebSocket routes
 app.include_router(websocket_v2_router)  # Enhanced WebSocket v2 routes
 app.include_router(realtime_status_router)  # Real-time document status API
@@ -650,8 +653,8 @@ app.include_router(
     thread_search_router, prefix="/api/v2"
 )  # Thread and message full-text search
 
-# Include health endpoints
-app.include_router(health_router)  # Comprehensive health check endpoints
+# Include dependency-aware readiness endpoint
+app.include_router(health_router)
 
 
 # Health check endpoint
@@ -662,14 +665,8 @@ async def health_check():
         "status": "healthy",
         "version": settings.VERSION,
         "environment": settings.ENVIRONMENT,
-        "timestamp": time.time(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-
-
-@app.get("/api/v1/sentry-debug")
-async def sentry_debug():
-    """Deliberately raise an error to verify Sentry is capturing events."""
-    raise RuntimeError("Sentry test from nous-backend")
 
 
 # Root endpoint

@@ -49,3 +49,15 @@ def test_unknown_model_raises_validation_error_naming_supported_set():
 def test_gpt_5_mini_is_accepted():
     request = _build(model="gpt-5-mini")
     assert request.model == "gpt-5-mini"
+
+
+def test_request_rejects_missing_user_message():
+    with pytest.raises(ValidationError) as excinfo:
+        _build(messages=[])
+    assert excinfo.value.errors()[0]["loc"] == ("messages",)
+
+
+def test_request_rejects_non_uuid_thread_id():
+    with pytest.raises(ValidationError) as excinfo:
+        _build(thread_id="not-a-uuid")
+    assert excinfo.value.errors()[0]["loc"] == ("thread_id",)

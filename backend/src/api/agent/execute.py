@@ -11,7 +11,6 @@ concerns lives in the service layer (audit B1/B5):
 - streaming.py (sibling)              — SSE event generators for /stream and /stream/confirm
 """
 
-import asyncio
 import logging
 import time
 import uuid as _uuid
@@ -53,15 +52,23 @@ from src.services.agent.agent_execution_service import (  # noqa: F401
     MAX_JOBS,
     _actor_fields,
     _cleanup_jobs,
+    _clear_stale_pending_confirmation,
     _get_job,
     _get_latest_user_content,
     _jobs,
     _jobs_lock,
     _page_context_to_dict,
+    _resolve_thread,
     _resume_agent_graph,
     _run_agent_graph,
     _set_job,
 )
+from src.services.agent.agent_run_service import (
+    claim_awaiting_run_for_confirmation,
+    get_active_run_for_thread,
+    release_confirmation_claim,
+)
+from src.services.agent.agent_submission_service import abandon_awaiting_submission
 
 # Wire models moved to the service layer (audit B5) so the graph runner can
 # build them without importing src.api. Re-exported here so every existing
@@ -73,6 +80,7 @@ from src.services.agent.schemas import (  # noqa: F401
     AgentMessage,
     PageContextRequest,
     RetrievedContextResponse,
+    StrictUUIDString,
     ToolExecutionResponse,
 )
 from src.services.agent.tool_helpers import (  # noqa: F401
@@ -109,11 +117,12 @@ from src.services.agent.tools_impl import (  # noqa: F401
     _tool_summarize_document,
     execute_tool,
 )
-from src.shared.enums import TERMINAL_STREAM_EVENTS, AgentStreamEvent, JobStatus
+from src.shared.enums import AgentStreamEvent, JobStatus
 
 from .streaming import (  # noqa: F401
     _SSE_HEADERS,
     format_stream_envelope_frame,
+    replay_buffered_stream,
     stream_confirm_event_generator,
     stream_event_generator,
 )
@@ -169,6 +178,11 @@ class JobStatusResponse(BaseModel):
     tool_executions: Optional[List[dict]] = None
     error: Optional[str] = None
     confirmation: Optional[dict] = None
+    thread_id: Optional[str] = None
+
+
+class HTTPErrorResponse(BaseModel):
+    detail: str
 
 
 # ---------------------------------------------------------------------------
@@ -232,8 +246,16 @@ class ConfirmationRequest(BaseModel):
 
 
 class StreamConfirmRequest(BaseModel):
-    thread_id: str
+    thread_id: StrictUUIDString
     confirmed: bool
+
+
+_SSE_RESPONSE = {
+    200: {
+        "description": "Server-Sent Events stream",
+        "content": {"text/event-stream": {"schema": {"type": "string"}}},
+    }
+}
 
 
 # ---------------------------------------------------------------------------
@@ -289,6 +311,9 @@ async def _celery_dispatch(
     - ``"dedup"``     — a run for this idempotency key already exists; the
       existing job_id is returned and NOTHING new is enqueued (retry of the
       same turn resolves to the original run).
+    - ``"conflict"``  — another non-terminal run owns the thread.
+    - ``"unavailable"`` — the writer slot could not be checked for a
+      thread-scoped request, so execution fails closed.
     - ``"failed"``    — the enqueue itself failed AFTER the durable writes;
       the job is marked failed in both stores so the poller stops cleanly.
       We deliberately do NOT fall back to in-process execution here: the
@@ -344,14 +369,16 @@ async def _celery_dispatch(
                     job_id,
                 )
                 return "fallback", job_id
+    except agent_run_service.ActiveRunConflict:
+        return "conflict", job_id
     except Exception:
         logger.warning(
             "celery dispatch: agent_runs row write failed for job %s; "
-            "falling back to in-process dispatch",
+            "cannot establish the thread writer slot",
             job_id,
             exc_info=True,
         )
-        return "fallback", job_id
+        return ("unavailable" if request.thread_id else "fallback"), job_id
 
     # 2. Job record for pollers (L1 + Redis + projection).
     _set_job(job_id, job_payload)
@@ -430,6 +457,13 @@ async def execute_agent(
         },
     )
 
+    if request.thread_id:
+        try:
+            thread, _conversation_id = await _resolve_thread(db, current_user, request)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid thread ID") from exc
+        request.thread_id = str(thread.id) if thread is not None else None
+
     job_id = str(_uuid.uuid4())
     job_payload = {
         "status": JobStatus.RUNNING,
@@ -442,10 +476,59 @@ async def execute_agent(
         outcome, dispatched_job_id = await _celery_dispatch(
             job_id, job_payload, request, current_user
         )
+        if outcome == "conflict":
+            raise HTTPException(
+                status_code=409,
+                detail="A response is already in progress for this thread.",
+            )
+        if outcome == "unavailable":
+            raise HTTPException(
+                status_code=503,
+                detail="Unable to reserve this thread. Please retry.",
+            )
         if outcome != "fallback":
             return JobStartResponse(job_id=dispatched_job_id)
         # "fallback": nothing was enqueued and no job record written — safe
         # to run in-process below, exactly as if the flag were "background".
+
+    if request.thread_id:
+        from src.services.agent import agent_run_service
+
+        idem_key = _client_idempotency_key(request, current_user)
+        try:
+            run = await agent_run_service.upsert_run(
+                db,
+                job_id=job_id,
+                status=JobStatus.QUEUED,
+                organization_id=getattr(current_user, "organization_id", None),
+                user_id=current_user.id,
+                thread_id=request.thread_id,
+                idempotency_key=idem_key,
+            )
+        except agent_run_service.ActiveRunConflict as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="A response is already in progress for this thread.",
+            ) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Unable to reserve this thread. Please retry.",
+            ) from exc
+        if run is None and idem_key is not None:
+            existing = await agent_run_service.get_run_by_idempotency_key(
+                db,
+                idem_key,
+                organization_id=getattr(current_user, "organization_id", None),
+                user_id=current_user.id,
+            )
+            if existing is not None:
+                return JobStartResponse(job_id=existing.job_id)
+        if run is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Unable to reserve this thread. Please retry.",
+            )
 
     _set_job(job_id, job_payload)
 
@@ -507,16 +590,27 @@ async def get_job_status(
         )
         if run is None:
             raise HTTPException(status_code=404, detail="Job not found")
+        run_thread_id = getattr(run, "thread_id", None)
         return JobStatusResponse(
-            status=_normalized_job_status(run.status), error=run.error
+            status=_normalized_job_status(run.status),
+            error=run.error,
+            thread_id=str(run_thread_id) if run_thread_id else None,
         )
     # Fail closed: a job record without an owner must not be readable. Every
     # write path stamps user_id; its absence means a corrupted/legacy record,
     # not a public one.
     if job.get("user_id") != str(current_user.id):
         raise HTTPException(status_code=404, detail="Job not found")
+    request = job.get("request")
+    thread_id = job.get("thread_id") or (
+        request.get("thread_id") if isinstance(request, dict) else None
+    )
     return JobStatusResponse(
-        **{**job, "status": _normalized_job_status(job.get("status"))}
+        **{
+            **job,
+            "status": _normalized_job_status(job.get("status")),
+            "thread_id": thread_id,
+        }
     )
 
 
@@ -535,33 +629,71 @@ async def confirm_agent_action(
     so the resume itself runs here as a BackgroundTask BY DESIGN even when
     the original turn executed on a Celery worker (see agent_run_tasks).
     """
-    from src.services.agent.job_store import compare_and_set_status
+    from src.services.agent.job_store import (
+        ConfirmationCoordinationUnavailable,
+        compare_and_set_status,
+    )
     from src.services.agent.job_store import get_job_fresh as _get_job_fresh
 
     # Read the job Redis-first for the friendly 404 + ownership/status check.
     # In Celery dispatch mode the awaiting_confirmation write came from the
     # worker process, so this pod's L1 may still hold the stale "running"
     # dispatch record — trusting it would 409 every legitimate confirm.
-    # (The authoritative claim is still the CAS below, not this read.)
+    # (The authoritative claim is the guarded PostgreSQL transition below.)
     job = await _get_job_fresh(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     _validate_confirmable_job(job, current_user)
 
-    # Authoritatively claim the resume with an atomic awaiting_confirmation →
-    # running transition. With multiple workers a second /confirm (retry,
-    # double-click, LB re-dispatch) reads the same awaiting_confirmation state;
-    # only the CAS winner schedules a resume, so a destructive HITL tool can't
-    # be executed twice. The transition self-resets when a multi-step resume
-    # re-parks the job as awaiting_confirmation, so the next confirm still works.
-    result = await compare_and_set_status(
-        job_id, JobStatus.AWAITING_CONFIRMATION, JobStatus.RUNNING
-    )
+    # PostgreSQL is the shared Stop/Confirm authority. Claim it before Redis so
+    # cancellation and every resume path race on the same guarded transition.
+    try:
+        durable_claimed = await claim_awaiting_run_for_confirmation(
+            db,
+            job_id,
+            organization_id=current_user.organization_id,
+            user_id=current_user.id,
+        )
+    except Exception as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="Confirmation is temporarily unavailable; please retry",
+        ) from exc
+    if not durable_claimed:
+        raise HTTPException(status_code=409, detail="Job is not awaiting confirmation")
+
+    async def release_durable_claim() -> None:
+        try:
+            await release_confirmation_claim(
+                db,
+                job_id,
+                organization_id=current_user.organization_id,
+                user_id=current_user.id,
+            )
+        except Exception:
+            await db.rollback()
+            logger.exception("Failed to release confirmation claim for %s", job_id)
+
+    # Mirror the durable claim into Redis. This remains the cross-worker job
+    # payload coordinator, while PostgreSQL above decides Stop versus Confirm.
+    try:
+        result = await compare_and_set_status(
+            job_id, JobStatus.AWAITING_CONFIRMATION, JobStatus.RUNNING
+        )
+    except ConfirmationCoordinationUnavailable as exc:
+        await release_durable_claim()
+        raise HTTPException(
+            status_code=503,
+            detail="Confirmation is temporarily unavailable; please retry",
+        ) from exc
     if result == "missing":
+        await release_durable_claim()
         raise HTTPException(status_code=404, detail="Job not found")
     if result == "conflict":
-        # Another worker already claimed this confirmation (or it is no longer
-        # pending). Don't double-resume; surface 409 like the validate path.
+        # PostgreSQL was claimed first, so a Redis conflict is a stale mirror,
+        # not another durable winner. Put the run back so a retry can recover.
+        await release_durable_claim()
         raise HTTPException(status_code=409, detail="Job is not awaiting confirmation")
 
     # Winner: keep the local L1 view consistent, then resume.
@@ -579,7 +711,14 @@ async def confirm_agent_action(
     return {"status": JobStatus.RUNNING, "job_id": job_id}
 
 
-@router.post("/stream")
+@router.post(
+    "/stream",
+    response_class=StreamingResponse,
+    responses={
+        **_SSE_RESPONSE,
+        429: {"model": HTTPErrorResponse, "description": "Rate limit exceeded"},
+    },
+)
 async def stream_agent(
     request_body: AgentExecuteRequest,
     request: Request,
@@ -592,7 +731,7 @@ async def stream_agent(
     (``src/shared/enums.py`` — the single source of truth): token, tool_start,
     tool_end, rag_context, plan, reflection, trace, usage, heartbeat, status,
     confirmation, done, error. ``heartbeat`` is a payload-less keepalive; the
-    terminal frames are ``TERMINAL_STREAM_EVENTS`` (done, error, confirmation).
+    terminal frames are done, error, or confirmation.
     """
     # Stamp the accepted-latency SLI clock on handler entry. Rate limiting,
     # body parsing, and StreamingResponse setup all cost the client wall time
@@ -624,7 +763,11 @@ async def stream_agent(
     )
 
 
-@router.post("/stream/confirm")
+@router.post(
+    "/stream/confirm",
+    response_class=StreamingResponse,
+    responses=_SSE_RESPONSE,
+)
 async def stream_confirm_agent(
     request_body: StreamConfirmRequest,
     request: Request,
@@ -642,6 +785,128 @@ async def stream_confirm_agent(
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
     )
+
+
+@router.post(
+    "/stream/cancel/{thread_id}",
+    status_code=204,
+    responses={
+        404: {"model": HTTPErrorResponse, "description": "Thread not found"},
+        409: {
+            "model": HTTPErrorResponse,
+            "description": "Run is not awaiting confirmation",
+        },
+        503: {
+            "model": HTTPErrorResponse,
+            "description": "Cancellation temporarily unavailable",
+        },
+    },
+)
+async def cancel_stream_confirmation(
+    thread_id: _uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Durably abandon a caller-owned graph parked on HITL confirmation."""
+    ownership_stmt = (
+        select(Thread)
+        .join(Conversation, Thread.conversation_id == Conversation.id)
+        .join(Workspace, Conversation.workspace_id == Workspace.id)
+        .where(
+            Thread.id == thread_id,
+            Workspace.owner_id == current_user.id,
+            Thread.is_deleted == False,
+        )
+    )
+    if (await db.execute(ownership_stmt)).scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    active = await get_active_run_for_thread(
+        db,
+        thread_id,
+        organization_id=current_user.organization_id,
+        user_id=current_user.id,
+    )
+    if active is None:
+        return Response(status_code=204)
+    if active.status != JobStatus.AWAITING_CONFIRMATION.value:
+        raise HTTPException(status_code=409, detail="Run is not awaiting confirmation")
+
+    try:
+        abandoned = await abandon_awaiting_submission(
+            db,
+            thread_id=thread_id,
+            organization_id=current_user.organization_id,
+            user_id=current_user.id,
+            reason="user_stopped_confirmation",
+        )
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        logger.exception("Failed to cancel pending agent confirmation")
+        raise HTTPException(
+            status_code=503,
+            detail="Cancellation is temporarily unavailable; please retry",
+        ) from exc
+    if abandoned is None:
+        # Confirmation may have won the guarded awaiting->running transition
+        # after our first read. Never report a successful Stop while it runs.
+        raced = await get_active_run_for_thread(
+            db,
+            thread_id,
+            organization_id=current_user.organization_id,
+            user_id=current_user.id,
+        )
+        if raced is not None:
+            raise HTTPException(status_code=409, detail="Run is already executing")
+        return Response(status_code=204)
+
+    # Keep the Redis/L1 confirmation gate aligned with the durable winner. If
+    # Redis is unavailable the PostgreSQL claim still makes every resume fail
+    # closed, so this mirror remains best-effort.
+    try:
+        from src.services.agent.job_store import compare_and_set_status
+
+        await compare_and_set_status(
+            abandoned,
+            JobStatus.AWAITING_CONFIRMATION,
+            JobStatus.CANCELLED,
+        )
+    except Exception:
+        logger.warning(
+            "Cancelled HITL run but could not mirror job-store state for %s",
+            abandoned,
+            exc_info=True,
+        )
+
+    # The durable terminal write above is authoritative. Checkpoint cleanup is
+    # best-effort; a fresh turn repeats it before invoking the graph.
+    try:
+        from src.services.agent.checkpointer import get_checkpointer
+        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent.memory import get_memory_store
+
+        graph = compile_agent_graph(
+            checkpointer=await get_checkpointer(),
+            store=await get_memory_store(),
+        )
+        await _clear_stale_pending_confirmation(
+            graph,
+            {
+                "configurable": {
+                    "thread_id": str(thread_id),
+                    "user_id": str(current_user.id),
+                    "organization_id": str(current_user.organization_id or ""),
+                }
+            },
+        )
+    except Exception:
+        logger.warning(
+            "Cancelled HITL run but could not clear checkpoint for thread %s",
+            str(thread_id),
+            exc_info=True,
+        )
+    return Response(status_code=204)
 
 
 @router.get("/graph/mermaid")
@@ -779,6 +1044,15 @@ async def resume_stream(
     request: Request,
     thread_id: str = Path(pattern=r"^[0-9a-fA-F-]{36}$"),
     after: int = Query(0, ge=0),
+    stream: Optional[str] = Query(
+        default=None,
+        pattern=r"^[0-9a-fA-F-]{36}$",
+        description=(
+            "Stream id the cursor belongs to (the envelope's stream_id). "
+            "When set, resume refuses to attach the cursor to a different "
+            "(newer) run on the same thread."
+        ),
+    ),
     last_event_id: Optional[str] = Header(default=None, alias="Last-Event-ID"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -819,6 +1093,21 @@ async def resume_stream(
         raise HTTPException(status_code=404, detail="Thread not found")
 
     sid = await _stream_buffer.active_stream_id(thread_id)
+    # Run correlation (codex audit CX1): the client's seq cursor is only
+    # meaningful against the stream it was read from. If the caller names its
+    # stream and a DIFFERENT run now owns the thread's active pointer, replaying
+    # the new run's frames against the old cursor would skip or duplicate
+    # frames — 204 tells the client its old run is over.
+    if stream is not None and sid is not None and stream.lower() != sid.lower():
+        return Response(status_code=204)
+    if sid is None and stream is not None:
+        # The active pointer is deliberately cleared after the terminal frame,
+        # but the per-stream buffer remains for an hour. Verify the immutable
+        # stream->thread mapping before replaying that just-finished stream.
+        owner_thread_id = await _stream_buffer.thread_id_for_stream(stream)
+        if owner_thread_id is None or owner_thread_id.lower() != thread_id.lower():
+            return Response(status_code=204)
+        sid = stream
     if sid is None:
         # No live stream — but the graph may still be parked on a HITL
         # interrupt. The confirmation frame was emitted on a stream that has
@@ -836,38 +1125,15 @@ async def resume_stream(
             )
         return Response(status_code=204)
 
-    async def replay():
-        last_seq = after
-        # Hard bound: ~10 min of polling so a stuck active pointer can't
-        # hold the connection forever.
-        for _ in range(600):
-            frames = await _stream_buffer.read_after(sid, last_seq)
-            for buffered in frames:
-                yield buffered.frame
-                last_seq = buffered.seq
-                # Anchor to the actual event line: LLM token text in the
-                # data line can contain the literal string "event: done".
-                event_line = next(
-                    (
-                        line
-                        for line in buffered.frame.split("\n")
-                        if line.startswith("event: ")
-                    ),
-                    "",
-                )
-                # Terminal frames come from TERMINAL_STREAM_EVENTS (the enum,
-                # single source of truth) — no hand-listed literal set here.
-                if event_line.removeprefix("event: ") in TERMINAL_STREAM_EVENTS:
-                    return
-            if await request.is_disconnected():
-                return
-            if not frames and await _stream_buffer.active_stream_id(thread_id) != sid:
-                return  # run finished and buffer drained
-            # ponytail: poll-follow; pub/sub if latency matters
-            await asyncio.sleep(1.0)
-
     return StreamingResponse(
-        replay(), media_type="text/event-stream", headers=_SSE_HEADERS
+        replay_buffered_stream(
+            request,
+            thread_id=thread_id,
+            stream_id=sid,
+            after=after,
+        ),
+        media_type="text/event-stream",
+        headers=_SSE_HEADERS,
     )
 
 
@@ -910,6 +1176,7 @@ class MessageResponse(BaseModel):
     tool_executions: Optional[List[Dict[str, Any]]] = None
     # Per-turn agent provenance (assistant rows only; None for legacy rows).
     plan: Optional[List[Dict[str, Any]]] = None
+    plan_reasoning: Optional[str] = None
     token_usage: Optional[Dict[str, int]] = None
 
 
@@ -1038,14 +1305,21 @@ async def get_thread_messages(
         # then reversed to chronological order for the client. Backed by the
         # existing ix_chat_messages_thread_created (thread_id, created_at) index.
         eff_limit = limit or 50
-        page_stmt = select(ChatMessage).where(
+        # Built once and reused for both statements below — a count query
+        # built from its own copy of these filters silently drifts from the
+        # page query the moment one of them changes (M12: the count used to
+        # omit ``created_at < before``, so a ``before=`` page reported the
+        # full-thread total instead of the filtered one).
+        filters = [
             ChatMessage.thread_id == thread_id,
             ChatMessage.superseded_by_message_id.is_(None),
-        )
+        ]
         if before is not None:
-            page_stmt = page_stmt.where(ChatMessage.created_at < before)
+            filters.append(ChatMessage.created_at < before)
         page_stmt = (
-            page_stmt.options(selectinload(ChatMessage.citations))
+            select(ChatMessage)
+            .where(*filters)
+            .options(selectinload(ChatMessage.citations))
             .order_by(ChatMessage.created_at.desc())
             .limit(eff_limit + 1)  # +1 sentinel to detect older messages
         )
@@ -1053,14 +1327,7 @@ async def get_thread_messages(
         has_more = len(rows) > eff_limit
         messages = list(reversed(rows[:eff_limit]))
         total = (
-            await db.execute(
-                select(func.count(ChatMessage.id)).where(
-                    # Same filters as the page query — a drifted count
-                    # over-reports ``total`` and yields phantom has_more pages.
-                    ChatMessage.thread_id == thread_id,
-                    ChatMessage.superseded_by_message_id.is_(None),
-                )
-            )
+            await db.execute(select(func.count(ChatMessage.id)).where(*filters))
         ).scalar() or 0
 
     message_responses = []
@@ -1084,6 +1351,7 @@ async def get_thread_messages(
                 # redacting here is what covers historical rows on reload.
                 tool_executions=redact_tool_executions(msg.tool_executions),
                 plan=msg.plan,
+                plan_reasoning=msg.plan_reasoning,
                 token_usage=msg.token_usage,
             )
         )

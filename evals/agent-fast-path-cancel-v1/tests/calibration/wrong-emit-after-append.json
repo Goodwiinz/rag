@@ -7,7 +7,7 @@
       "thread_id": "00000000-0000-4000-8000-000000000d05",
       "user_message_id": "00000000-0000-4000-8000-000000000d07"
     },
-    "agent_revision": "fff861e9a7b74a584924b47fac6b19d2265d5e61",
+    "agent_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
     "application": {
       "ready": true,
       "shutdown_exit_code": 0,
@@ -70,7 +70,7 @@
       "reason": "ungrounded_generation"
     },
     "schema_version": "1.0",
-    "source_revision": "fff861e9a7b74a584924b47fac6b19d2265d5e61",
+    "source_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
     "sse": {
       "first_token": {
         "data": {
@@ -124,12 +124,21 @@
       "workspace_id": "00000000-0000-4000-8000-000000000d03"
     },
     "termination_reason": "cancelled",
-    "token_log": [
+    "server_token_log": [{"content": "X", "sequence": 3}],
+    "captured_stream_id": "11111111-1111-4111-8111-111111111111",
+    "server_replay_buffers": [
       {
-        "appended_to_partial": true,
-        "content": "X",
-        "emit_completed": false
+        "key": "agent:stream:11111111-1111-4111-8111-111111111111",
+        "stream_id": "11111111-1111-4111-8111-111111111111",
+        "ttl_seconds": 3599,
+        "entries": [
+          {"seq": 2, "parsed_frame": {"id": "2", "event": "status", "data": {"phase": "routing", "sequence": 2, "trace_id": "harbor-fast-path-cancel-000000000d0b", "thread_id": "00000000-0000-4000-8000-000000000d05", "route": "luna"}}},
+          {"seq": 3, "parsed_frame": {"id": "3", "event": "token", "data": {"content": "X", "sequence": 3, "trace_id": "harbor-fast-path-cancel-000000000d0b", "thread_id": "00000000-0000-4000-8000-000000000d05", "route": "luna"}}}
+        ]
       }
+    ],
+    "token_log": [
+      {"appended_to_partial": true, "content": "X", "sequence": 3, "emit_completed": false}
     ]
   },
   "state": {

@@ -7,7 +7,7 @@ is N/A for this task — no judge is configured or consumed; the final message
 is checked by deterministic containment against the doubled fixtures, not by
 an LLM judge.
 
-Pass condition (design doc, external-databases capability): a sentinel-intent
+Pass condition (design doc, external-databases capability): a real classified
 turn reaches ``list_external_databases`` (discovering the real 11-connector
 registry, with only key-gated connectors reporting unavailable) and
 ``search_external_database`` against PubMed and FRED explicitly — neither
@@ -31,11 +31,11 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import run_verifier_main
 
 BENCHMARK_ID = "agent-external-databases-v1"
-EXPECTED_SOURCE_REVISION = "c19b1aeafa50507e9aa827eac966b1c6dece446c"
+EXPECTED_SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 EXPECTED_INSTRUCTION = (
     "First call list_external_databases to see which external database "
     "connectors are available. Then call search_external_database with "
-    'connector="pubmed" for research on "telomere shortening senescent '
+    'connector="pubmed" for the topic "telomere shortening senescent '
     'cells", and call search_external_database with connector="fred" for '
     'the economic series "unemployment rate". Report what you found from '
     "each source."
@@ -51,7 +51,7 @@ ORG_ID = TRUTH["organization_id"]
 USER_ID = TRUTH["user_id"]
 WORKSPACE_ID = TRUTH["workspace_id"]
 THREAD_ID = TRUTH["thread_id"]
-SENTINEL_INTENT = TRUTH["sentinel_intent"]
+SENTINEL_INTENT = "benchmark_all_tools"
 TOTAL_CONNECTORS = int(TRUTH["total_connectors"])
 AVAILABLE_KEY_GATED = set(TRUTH["available_key_gated_connectors"])
 UNAVAILABLE_KEY_GATED = set(TRUTH["unavailable_key_gated_connectors"])
@@ -62,6 +62,10 @@ FRED_SERIES_IDS = set(TRUTH["fred_series_ids"])
 LIST_TOOL = "list_external_databases"
 SEARCH_TOOL = "search_external_database"
 SUCCESS_STATUSES = {"completed", "success"}
+KNOWN_AGENT_INTENTS = {"research", "writing", "knowledge_graph", "general"}
+CONNECTOR_INTENTS = {"general"}
+RETIRED_SENTINEL_INTENT = SENTINEL_INTENT
+EXPECTED_KEYWORD_INTENT = "general"
 
 
 # --------------------------------------------------------------------------
@@ -153,17 +157,61 @@ def check_network_boundary(evidence: dict[str, Any], failures: list[str]) -> Non
             failures.append(f"network boundary not proven: {key}")
 
 
-def check_sentinel_routing(evidence: dict[str, Any], failures: list[str]) -> None:
-    if (evidence.get("env_flags") or {}).get("routing_workaround") != "sentinel_intent":
-        failures.append("env_flags.routing_workaround != 'sentinel_intent'")
-    if evidence.get("sentinel_intent") != SENTINEL_INTENT:
-        failures.append("sentinel_intent does not match the approved sentinel")
-    if evidence.get("observed_intent") != SENTINEL_INTENT:
+def check_real_routing(evidence: dict[str, Any], failures: list[str]) -> None:
+    env_flags = evidence.get("env_flags") or {}
+    if "routing_workaround" in env_flags:
+        failures.append("env_flags carries retired routing_workaround")
+
+    intent = evidence.get("observed_intent")
+    keyword_intent = (evidence.get("classification") or {}).get("keyword_intent")
+    if keyword_intent != EXPECTED_KEYWORD_INTENT:
         failures.append(
-            f"observed_intent={evidence.get('observed_intent')!r}, expected the "
-            f"seeded sentinel {SENTINEL_INTENT!r} — route_by_intent/_get_tools_for_intent "
-            "did not see the workaround's state"
+            f"keyword classifier returned {keyword_intent!r}; expected "
+            f"{EXPECTED_KEYWORD_INTENT!r}"
         )
+    if intent == RETIRED_SENTINEL_INTENT:
+        failures.append(
+            f"observed_intent={intent!r} is the retired sentinel; routing was not genuine"
+        )
+    elif intent not in KNOWN_AGENT_INTENTS:
+        failures.append(f"observed_intent={intent!r} is not a real AgentIntent")
+    elif intent not in CONNECTOR_INTENTS:
+        failures.append(
+            f"observed_intent={intent!r} does not legitimately bind the connector tools "
+            "(only general does)"
+        )
+
+
+def check_turn_sent(evidence: dict[str, Any], failures: list[str]) -> None:
+    if evidence.get("instruction") != EXPECTED_INSTRUCTION:
+        failures.append("instruction does not match the approved task")
+
+    pre_turn_ids = {
+        str(item)
+        for item in evidence.get("pre_turn_message_ids") or []
+        if str(item).strip()
+    }
+    messages = evidence.get("messages") or []
+    fresh_messages = [
+        message
+        for message in messages
+        if isinstance(message, dict)
+        and message.get("type") == "human"
+        and message.get("content") == EXPECTED_INSTRUCTION
+        and str(message.get("id") or "").strip()
+        and str(message.get("id") or "") not in pre_turn_ids
+    ]
+    if not fresh_messages:
+        failures.append(
+            "no newly appended human message matches the instruction; "
+            "the graph turn may never have been sent"
+        )
+
+    if not any(
+        isinstance(item, dict) and item.get("milestone") == "turn:completed"
+        for item in evidence.get("milestones") or []
+    ):
+        failures.append("milestone 'turn:completed' is missing")
 
 
 def check_connector_patch(evidence: dict[str, Any], failures: list[str]) -> None:
@@ -330,20 +378,21 @@ def check_final_message(
         failures.append("final assistant message still contains pending tool calls")
 
     # Deterministic containment check (semantic N/A): the final message must
-    # ground itself in at least one title genuinely returned by each double
-    # rather than a fabricated citation.
+    # ground itself in at least one title or identifier genuinely returned by
+    # each double rather than a fabricated citation.
     for label, result in (("pubmed", pubmed_result), ("fred", fred_result)):
         if not result:
             continue
-        titles = [
-            str(row.get("title") or "")
+        anchors = [
+            str(row.get(key) or "")
             for row in result.get("results") or []
             if isinstance(row, dict)
+            for key in ("title", "id")
         ]
-        if titles and not any(title and title in content for title in titles):
+        if anchors and not any(anchor and anchor in content for anchor in anchors):
             failures.append(
-                f"final assistant message cites no title actually returned by the "
-                f"{label} double (fabricated-citation trap): titles={titles}"
+                f"final assistant message cites no title or id actually returned by "
+                f"the {label} double (fabricated-citation trap): anchors={anchors}"
             )
 
 
@@ -351,7 +400,8 @@ def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[
     failures: list[str] = []
     check_identity(evidence, failures)
     check_network_boundary(evidence, failures)
-    check_sentinel_routing(evidence, failures)
+    check_real_routing(evidence, failures)
+    check_turn_sent(evidence, failures)
     check_connector_patch(evidence, failures)
     check_no_hitl(evidence, failures)
     check_list_external_databases(evidence, failures)

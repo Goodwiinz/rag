@@ -268,6 +268,11 @@ class TestProductionToolRegistryParity:
                 "search_arxiv",
                 "ingest_arxiv_papers",
                 "search_documents",
+                # content-level retrieval: general is the classifier's
+                # weak-evidence fallback and must be a superset of the
+                # specialist lanes (live miss 2026-08-12).
+                "do_kb_retrieve",
+                "compare_documents",
                 "create_project",
                 "list_projects",
                 "add_document_to_project",
@@ -310,6 +315,10 @@ class TestProductionToolRegistryParity:
                 "list_project_documents",
                 "create_project",
                 "add_document_to_project",
+                # the literature-review project skill instructs multi-database
+                # search, and lit-review requests classify as writing.
+                "search_external_database",
+                "list_external_databases",
             },
             "data": {
                 # list_project_documents' _missing_project_error names this.
@@ -320,6 +329,9 @@ class TestProductionToolRegistryParity:
                 "find_entity_paths",
                 "get_graph_stats",
                 "search_documents",
+                # search_documents' zero-hit suggestion names this tool; bound
+                # to research only, that advice was dead in the data lane.
+                "do_kb_retrieve",
                 "list_project_documents",
             },
         }
@@ -363,6 +375,9 @@ class TestProductionToolRegistryParity:
             "list_project_documents",
             "create_project",
             "add_document_to_project",
+            # Appended at positions 11 and 12 so the existing order is untouched.
+            "search_external_database",
+            "list_external_databases",
         ]
         assert [
             item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("data")
@@ -375,6 +390,8 @@ class TestProductionToolRegistryParity:
             "search_documents",
             "list_project_documents",
             "list_projects",
+            # Appended at position 8 so the existing order is untouched.
+            "do_kb_retrieve",
         ]
 
     def test_research_only_tool_is_registered_but_hidden_from_legacy_all_tools(
@@ -468,6 +485,10 @@ class TestProductionToolRegistryParity:
                 item.name for item in TOOL_REGISTRY.descriptors_for_intent("general")
             }
             assert name in {tool.name for tool in _get_tools_for_intent("general")}
+            # …and via writing, where lit-review requests are classified.
+            assert name in {
+                item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("writing")
+            }
 
     def test_policy_tags_keep_legacy_execution_policy(self) -> None:
         from src.services.agent.tool_registry import ToolPolicyTag
@@ -500,4 +521,13 @@ class TestProductionToolRegistryParity:
             descriptor.name
             for descriptor in TOOL_REGISTRY.descriptors
             if ToolPolicyTag.NO_OUTER_RETRY in descriptor.policy_tags
-        } == {"search_arxiv", "ingest_arxiv_papers"}
+        } == {
+            "search_arxiv",
+            "ingest_arxiv_papers",
+            "create_project",
+            "add_document_to_project",
+            "create_project_note",
+            "create_draft",
+            "execute_code",
+            "forget_memory",
+        }

@@ -12,7 +12,21 @@ def _reset_compiled_graph_cache():
     import src.api.agent.streaming as mod
 
     mod._COMPILED_GRAPH = None
-    yield
+    with (
+        patch(
+            "src.api.agent.streaming.get_active_run_for_thread",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    job_id="run-1", user_message_id=None, client_message_id=None
+                )
+            ),
+        ),
+        patch(
+            "src.api.agent.streaming.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+    ):
+        yield
     mod._COMPILED_GRAPH = None
 
 
@@ -43,6 +57,104 @@ class _FakeGraphNotFound:
 
     async def aget_state(self, config):
         return SimpleNamespace(values={}, tasks=())
+
+
+@pytest.mark.asyncio
+async def test_confirm_does_not_resume_after_durable_stop_wins():
+    from src.api.agent.streaming import stream_confirm_event_generator
+
+    class _GuardedGraph:
+        started = False
+
+        async def aget_state(self, config):
+            return SimpleNamespace(
+                values={
+                    "user_id": "user-1",
+                    "page_context": {},
+                    "messages": [],
+                    "tool_executions": [],
+                },
+                tasks=(),
+                config={"configurable": {"checkpoint_id": "checkpoint-stopped"}},
+            )
+
+        async def astream_events(self, *args, **kwargs):
+            self.started = True
+            if False:
+                yield {}
+
+    graph = _GuardedGraph()
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    body = SimpleNamespace(thread_id="thread-stopped", confirmed=True, model="")
+    current_user = Mock(id="user-1", organization_id="org-1")
+    claim = AsyncMock(return_value=False)
+    redis_client = object()
+    release_redis = AsyncMock()
+
+    with (
+        patch(
+            "src.services.agent.observability.configure_langsmith",
+            return_value=None,
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            return_value=graph,
+        ),
+        patch(
+            "src.api.agent.streaming.claim_awaiting_run_for_confirmation",
+            new=claim,
+        ),
+        patch(
+            "src.services.agent.job_store.get_redis",
+            new=AsyncMock(return_value=redis_client),
+        ),
+        patch(
+            "src.api.agent.streaming._acquire_local_confirm_claim",
+            return_value=True,
+        ),
+        patch(
+            "src.api.agent.streaming._release_local_confirm_claim",
+            side_effect=RuntimeError("local cleanup failed"),
+        ),
+        patch(
+            "src.core.caching._acquire_lock",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.core.caching._release_lock",
+            new=release_redis,
+        ),
+        patch(
+            "src.api.agent.streaming.process_local_confirmation_coordination_allowed",
+            return_value=True,
+        ),
+        patch(
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=AsyncMock(),
+        ),
+    ):
+        events = [
+            event
+            async for event in stream_confirm_event_generator(
+                body, request, current_user
+            )
+        ]
+
+    claim.assert_awaited_once()
+    release_redis.assert_awaited_once_with(
+        redis_client,
+        "hitl-confirm-claim:thread-stopped:checkpoint-stopped",
+    )
+    assert any("Run is not awaiting confirmation" in event for event in events)
+    assert graph.started is False
 
 
 @pytest.mark.asyncio
@@ -114,11 +226,17 @@ async def test_confirm_retries_on_first_aget_state_miss():
             "src.api.agent.streaming._latest_user_client_message_id",
             new=AsyncMock(return_value=None),
         ),
+        patch(
+            "src.api.agent.streaming._finalize_run_id",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=AsyncMock(),
+        ),
     ):
         events = []
-        async for event in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
     # Should have called get_checkpointer twice (initial + retry)
@@ -162,9 +280,7 @@ async def test_confirm_returns_thread_not_found_after_both_attempts_fail():
         ),
     ):
         events = []
-        async for event in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
     # Should contain "Thread not found" error
@@ -237,9 +353,7 @@ async def test_confirm_rejects_legacy_checkpoint_without_owned_thread():
         ),
     ):
         events = []
-        async for event in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
     error_events = [e for e in events if "Thread not found" in e]

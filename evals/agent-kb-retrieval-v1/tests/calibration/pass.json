@@ -2,7 +2,7 @@
   "evidence": {
     "schema_version": "1.0",
     "benchmark_id": "agent-kb-retrieval-v1",
-    "source_revision": "b67ebbf1b067d5f5b1e74299535244e58df41a68",
+    "source_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
     "instruction": "Search my documents for a file titled \"API Rate Limit Policy\" to confirm we have it on file, then use the organization knowledge base to retrieve the current guidance on API rate limits and summarize it, citing the source.",
     "termination_reason": "completed",
     "pending_interrupt": null,

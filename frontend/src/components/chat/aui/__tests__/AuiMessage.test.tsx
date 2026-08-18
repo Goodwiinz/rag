@@ -124,7 +124,11 @@ describe('AuiMessage', () => {
     expect(
       document.querySelector('[data-slot="tool-fallback-root"]')
     ).toBeTruthy();
-    expect(screen.getByText(/search_arxiv/)).toBeInTheDocument();
+    // The swap label renders the tool name on both layers, so scope the
+    // assertion to the resting one.
+    expect(
+      document.querySelector('[data-slot="tool-fallback-trigger-label"]')
+    ).toHaveTextContent('search_arxiv');
   });
 
   it('adds an autohiding action bar inside MessagePrimitive.Root for hover-driven controls', async () => {
@@ -178,6 +182,27 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
       </ChatRuntimeProvider>
     );
   }
+
+  it('keeps the rating outside the autohiding bar but on the same row', () => {
+    renderByIndex([
+      { id: 'a1', role: 'assistant', content: 'A', timestamp: 2 },
+    ]);
+
+    // ActionBarPrimitive.Root unmounts when the message is not hovered, so a
+    // rating rendered inside it would vanish — taking any half-typed feedback
+    // note with it. It must be a sibling, sharing the row.
+    const row = document.querySelector('.nous-msg-actionrow');
+    expect(row).toBeTruthy();
+    expect(row?.querySelector('.nous-msg-feedback')).toBeTruthy();
+    expect(
+      row?.querySelector('[aria-label="Good response"]')
+    ).toBeTruthy();
+
+    // Not hovered: the bar is absent, the rating is not.
+    expect(
+      document.querySelector('[data-slot="aui-message-actions"]')
+    ).toBeNull();
+  });
 
   it('renders assistant markdown (bold), not raw asterisks', () => {
     renderByIndex([

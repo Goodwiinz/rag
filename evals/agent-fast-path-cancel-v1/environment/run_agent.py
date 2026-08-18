@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import socket
 import sys
 import time
 import traceback
@@ -34,7 +35,7 @@ from evals.harbor_common.network import validate_network_boundary
 from evals.harbor_common.serialization import json_safe, utc_now
 
 BENCHMARK_ID = "agent-fast-path-cancel-v1"
-SOURCE_REVISION = os.environ.get("HARBOR_SOURCE_REVISION", "")
+SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 AGENT_REVISION = SOURCE_REVISION
 
 ORG_ID = UUID("00000000-0000-4000-8000-000000000d01")
@@ -130,6 +131,37 @@ async def initial_counts() -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------
+# Redis isolation
+# --------------------------------------------------------------------------
+async def reset_redis() -> None:
+    import redis.asyncio as aioredis
+
+    client = aioredis.from_url(os.environ["REDIS_URL"], decode_responses=True)
+    try:
+        if not await client.ping():
+            raise InfrastructureFailure("Redis ping returned false")
+        await client.flushdb()
+        active_key = f"agent:stream:active:{THREAD_ID}"
+        if await client.get(active_key) is not None:
+            raise InfrastructureFailure(
+                "isolated Redis reset left the benchmark active stream pointer"
+            )
+        replay_keys = sorted(await client.keys("agent:stream:*"))
+        if replay_keys:
+            raise InfrastructureFailure(
+                f"isolated Redis reset left replay stream state: {replay_keys}"
+            )
+    except InfrastructureFailure:
+        raise
+    except Exception as exc:
+        raise InfrastructureFailure(
+            f"isolated Redis reset failed: {type(exc).__name__}"
+        ) from exc
+    finally:
+        await client.aclose()
+
+
+# --------------------------------------------------------------------------
 # application lifecycle
 # --------------------------------------------------------------------------
 async def start_application() -> tuple[asyncio.subprocess.Process, Any]:
@@ -146,8 +178,18 @@ async def start_application() -> tuple[asyncio.subprocess.Process, Any]:
         "8081",
         "--log-level",
         "info",
+        # Two workers to mirror the deployed multi-worker topology: the
+        # confirm/cancel/resume request may land on a different worker than
+        # the stream it targets, so cross-worker job/stream state (Redis) is
+        # actually exercised instead of silently bypassed.
+        "--workers",
+        "2",
         stdout=log_handle,
         stderr=asyncio.subprocess.STDOUT,
+        # Own process group: with --workers 2 uvicorn forks children, and
+        # killing only the parent after the escalation timeout would orphan
+        # them holding the shared port-8081 listener (codex audit on #1405).
+        start_new_session=True,
     )
     return process, log_handle
 
@@ -164,8 +206,26 @@ async def wait_for_application(process: asyncio.subprocess.Process) -> dict[str,
             try:
                 response = await client.get(f"{APP_URL}/api/v1/agent/health")
                 if response.status_code == 200:
-                    return {"ready": True, "status_code": response.status_code}
-                last_error = f"HTTP {response.status_code}"
+                    # One 200 only proves ONE worker accepted; a still-starting
+                    # or crash-looping sibling behind the shared listener would
+                    # be masked (codex audit on #1405). Require a short streak
+                    # of consecutive 200s (spread over ~1s) so both workers
+                    # have had to serve, and startup crash-loops reset it.
+                    streak = 1
+                    while streak < 4:
+                        await asyncio.sleep(0.25)
+                        try:
+                            confirm = await client.get(f"{APP_URL}/api/v1/agent/health")
+                        except (httpx.HTTPError, ValueError):
+                            break
+                        if confirm.status_code != 200:
+                            break
+                        streak += 1
+                    if streak >= 4:
+                        return {"ready": True, "status_code": 200}
+                    last_error = f"readiness streak broke at {streak}"
+                else:
+                    last_error = f"HTTP {response.status_code}"
             except (httpx.HTTPError, ValueError) as exc:
                 last_error = f"{type(exc).__name__}: {exc}"
             await asyncio.sleep(0.25)
@@ -182,8 +242,24 @@ async def stop_application(
             try:
                 await asyncio.wait_for(process.wait(), timeout=10)
             except asyncio.TimeoutError:
-                process.kill()
+                # SIGKILL the whole group — the parent alone leaves uvicorn
+                # workers orphaned on the shared listener (codex audit).
+                import os as _os
+                import signal as _signal
+
+                try:
+                    _os.killpg(process.pid, _signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
                 await process.wait()
+        # Reap any stray group members even after a clean parent exit.
+        import os as _os
+        import signal as _signal
+
+        try:
+            _os.killpg(process.pid, _signal.SIGKILL)
+        except ProcessLookupError:
+            pass
         exit_code = process.returncode
     if log_handle is not None:
         log_handle.flush()
@@ -244,6 +320,20 @@ def parse_sse_text(raw: str) -> dict[str, Any]:
     return {"id": event_id, "event": event_type, "data": data}
 
 
+def abort_response_transport(response: httpx.Response) -> None:
+    """Force the live HTTP socket closed before recording a disconnect."""
+    network_stream = response.extensions.get("network_stream")
+    raw_socket = (
+        network_stream.get_extra_info("socket") if network_stream is not None else None
+    )
+    if raw_socket is None:
+        raise InfrastructureFailure("stream response did not expose its live socket")
+    try:
+        raw_socket.shutdown(socket.SHUT_RDWR)
+    except OSError as exc:
+        raise InfrastructureFailure("failed to abort stream response socket") from exc
+
+
 async def stream_until_first_token(token: str) -> dict[str, Any]:
     request_body = {
         "messages": [
@@ -261,12 +351,14 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "text/event-stream",
+        "Connection": "close",
         "Content-Type": "application/json",
         "X-Request-ID": REQUEST_ID,
     }
     frames: list[dict[str, Any]] = []
     response_meta: dict[str, Any] = {}
     first_token: dict[str, Any] | None = None
+    captured_stream_id: str | None = None
     disconnect_initiated_at: str | None = None
     disconnect_completed_at: str | None = None
     disconnect_monotonic: float | None = None
@@ -314,9 +406,12 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
                         )
                         if parsed.get("event") == "token" and content:
                             first_token = observed
+                            captured_stream_id = await capture_active_stream_id()
                             disconnect_initiated_at = utc_now()
                             disconnect_monotonic = time.monotonic()
+                            abort_response_transport(response)
                             await response.aclose()
+                            await client.aclose()
                             disconnect_completed_at = utc_now()
                             break
             except TimeoutError as exc:
@@ -324,7 +419,7 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
                     f"no non-empty assistant token within {TOKEN_TIMEOUT_SECONDS:.0f}s"
                 ) from exc
 
-    if first_token is None or disconnect_monotonic is None:
+    if first_token is None or disconnect_monotonic is None or not captured_stream_id:
         raise InfrastructureFailure(
             f"stream ended without a non-empty assistant token; "
             f"events={[frame.get('event') for frame in frames]}"
@@ -334,6 +429,7 @@ async def stream_until_first_token(token: str) -> dict[str, Any]:
         "response": response_meta,
         "frames": frames,
         "first_token": first_token,
+        "captured_stream_id": captured_stream_id,
         "disconnect": {
             "initiated_at": disconnect_initiated_at,
             "completed_at": disconnect_completed_at,
@@ -355,27 +451,78 @@ def accepted_run_id(frames: list[dict[str, Any]]) -> str | None:
     return None
 
 
-def token_log_from_frames(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Every SSE ``token`` frame the client actually received before the
-    disconnect. A frame reaching the client is proof its emit completed and
-    the production code's own buffer-before-append ordering already ran, so
-    every live-run entry is ``emit_completed=True, appended_to_partial=True``
-    -- see ``harness.md`` for why a live black-box run cannot observe the
-    ``emit_completed=False`` failure mode the calibration fixtures cover."""
+def token_log_from_frames(
+    frames: list[dict[str, Any]], *, client_observation: bool = False
+) -> list[dict[str, Any]]:
+    """Normalize token frames from either the client or Redis replay log."""
     entries = []
     for frame in frames:
         data = frame.get("data")
         if frame.get("event") == "token" and isinstance(data, dict):
             content = str(data.get("content") or "")
             if content:
-                entries.append(
-                    {
-                        "content": content,
-                        "emit_completed": True,
-                        "appended_to_partial": True,
-                    }
-                )
+                entry = {"content": content, "sequence": data.get("sequence")}
+                if client_observation:
+                    entry.update({"emit_completed": True, "appended_to_partial": True})
+                entries.append(entry)
     return entries
+
+
+async def capture_active_stream_id() -> str:
+    import redis.asyncio as aioredis
+
+    client = aioredis.from_url(os.environ["REDIS_URL"], decode_responses=True)
+    try:
+        stream_id = await client.get(f"agent:stream:active:{THREAD_ID}")
+        if not stream_id:
+            raise InfrastructureFailure(
+                "current Redis active stream pointer is missing"
+            )
+        return str(stream_id)
+    except InfrastructureFailure:
+        raise
+    except Exception as exc:
+        raise InfrastructureFailure(
+            f"isolated Redis active-stream read failed: {type(exc).__name__}"
+        ) from exc
+    finally:
+        await client.aclose()
+
+
+async def redis_snapshot(stream_id: str) -> dict[str, Any]:
+    """Read exactly the replay buffer captured before this client disconnected."""
+    import redis.asyncio as aioredis
+
+    client = aioredis.from_url(os.environ["REDIS_URL"], decode_responses=True)
+    try:
+        if not await client.ping():
+            raise InfrastructureFailure("Redis ping returned false")
+        key = f"agent:stream:{stream_id}"
+        raw_entries = await client.lrange(key, 0, -1)
+        if not raw_entries:
+            raise InfrastructureFailure("captured Redis replay buffer is missing")
+        entries: list[dict[str, Any]] = []
+        for raw in raw_entries:
+            try:
+                item = json.loads(raw)
+                item["parsed_frame"] = parse_sse_text(str(item.get("frame") or ""))
+                entries.append(json_safe(item))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                entries.append({"malformed": True, "raw": str(raw)[:1000]})
+        return {
+            "key": key,
+            "stream_id": stream_id,
+            "ttl_seconds": await client.ttl(key),
+            "entries": entries,
+        }
+    except InfrastructureFailure:
+        raise
+    except Exception as exc:
+        raise InfrastructureFailure(
+            f"isolated Redis evidence read failed: {type(exc).__name__}"
+        ) from exc
+    finally:
+        await client.aclose()
 
 
 async def database_state(run_id: str | None) -> dict[str, Any]:
@@ -519,6 +666,7 @@ async def run_benchmark() -> dict[str, Any]:
         os.environ.get("AZURE_OPENAI_CHAT_ENDPOINT", "")
     )
     await bootstrap_schema()
+    await reset_redis()
     await seed_thread()
     initial = await initial_counts()
     if initial != {"agent_runs": 0, "run_events": 0, "chat_messages": 0}:
@@ -546,6 +694,13 @@ async def run_benchmark() -> dict[str, Any]:
         frames = streamed["frames"]
         run_id = accepted_run_id(frames)
         observed_db = await wait_for_terminal(run_id)
+        await asyncio.sleep(0.2)
+        observed_redis = await redis_snapshot(streamed["captured_stream_id"])
+        redis_frames = [
+            entry["parsed_frame"]
+            for entry in observed_redis["entries"]
+            if isinstance(entry.get("parsed_frame"), dict)
+        ]
 
         run = observed_db.get("run") or {}
         partial_id = run.get("assistant_message_id")
@@ -592,7 +747,10 @@ async def run_benchmark() -> dict[str, Any]:
                 "frames": frames,
                 "first_token": streamed["first_token"],
             },
-            "token_log": token_log_from_frames(frames),
+            "token_log": token_log_from_frames(frames, client_observation=True),
+            "server_token_log": token_log_from_frames(redis_frames),
+            "captured_stream_id": streamed["captured_stream_id"],
+            "server_replay_buffers": [observed_redis],
             "disconnect": {
                 "initiated_at": streamed["disconnect"]["initiated_at"],
                 "completed_at": streamed["disconnect"]["completed_at"],

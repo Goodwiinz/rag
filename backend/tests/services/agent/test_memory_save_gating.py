@@ -34,8 +34,9 @@ def _state(
     intent: str = "general",
     tool_executions: list | None = None,
     messages: list | None = None,
+    turn_index: int | None = None,
 ) -> dict:
-    return {
+    state = {
         "messages": messages
         or [
             HumanMessage(content="hi"),
@@ -44,6 +45,9 @@ def _state(
         "intent": intent,
         "tool_executions": tool_executions or [],
     }
+    if turn_index is not None:
+        state["turn_index"] = turn_index
+    return state
 
 
 @pytest.mark.unit
@@ -52,10 +56,13 @@ async def test_save_skipped_for_greeting_general_intent():
     """Greeting with no tools → no save."""
     save_mock = AsyncMock(return_value=True)
     store = MagicMock()
-    with patch(
-        "src.services.agent.memory.get_memory_store",
-        new=AsyncMock(return_value=store),
-    ), patch("src.services.agent.memory.save_memory", new=save_mock):
+    with (
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=store),
+        ),
+        patch("src.services.agent.memory.save_memory", new=save_mock),
+    ):
         out = await memory_save_node(_state(), _config())
 
     save_mock.assert_not_called()
@@ -64,14 +71,64 @@ async def test_save_skipped_for_greeting_general_intent():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_explicit_remember_request_bypasses_general_no_tool_gate():
+    save_mock = AsyncMock(return_value=True)
+    store = MagicMock()
+    state = _state(
+        messages=[
+            HumanMessage(content="Please remember that my preferred format is PDF."),
+            AIMessage(content="I'll remember that."),
+        ]
+    )
+
+    with (
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=store),
+        ),
+        patch("src.services.agent.memory.save_memory", new=save_mock),
+    ):
+        await memory_save_node(state, _config())
+
+    save_mock.assert_called_once()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_incidental_remember_word_does_not_bypass_general_gate():
+    save_mock = AsyncMock(return_value=True)
+    store = MagicMock()
+    state = _state(
+        messages=[
+            HumanMessage(content="I remember seeing that paper."),
+            AIMessage(content="That sounds familiar."),
+        ]
+    )
+    with (
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=store),
+        ),
+        patch("src.services.agent.memory.save_memory", new=save_mock),
+    ):
+        await memory_save_node(state, _config())
+
+    save_mock.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_save_fires_when_tool_executions_present():
     """General intent + tool ran → save fires (information worth keeping)."""
     save_mock = AsyncMock(return_value=True)
     store = MagicMock()
-    with patch(
-        "src.services.agent.memory.get_memory_store",
-        new=AsyncMock(return_value=store),
-    ), patch("src.services.agent.memory.save_memory", new=save_mock):
+    with (
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=store),
+        ),
+        patch("src.services.agent.memory.save_memory", new=save_mock),
+    ):
         await memory_save_node(
             _state(
                 tool_executions=[{"tool_name": "search_arxiv", "status": "completed"}],
@@ -92,10 +149,13 @@ async def test_save_fires_for_research_intent_without_tool():
     """Specialised intent alone → save fires (intent commitment is signal)."""
     save_mock = AsyncMock(return_value=True)
     store = MagicMock()
-    with patch(
-        "src.services.agent.memory.get_memory_store",
-        new=AsyncMock(return_value=store),
-    ), patch("src.services.agent.memory.save_memory", new=save_mock):
+    with (
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=store),
+        ),
+        patch("src.services.agent.memory.save_memory", new=save_mock),
+    ):
         await memory_save_node(
             _state(
                 intent="research",
@@ -116,13 +176,17 @@ async def test_saved_value_includes_provenance_fields():
     """Saved value must carry thread_id, turn_index, created_at."""
     save_mock = AsyncMock(return_value=True)
     store = MagicMock()
-    with patch(
-        "src.services.agent.memory.get_memory_store",
-        new=AsyncMock(return_value=store),
-    ), patch("src.services.agent.memory.save_memory", new=save_mock):
+    with (
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=store),
+        ),
+        patch("src.services.agent.memory.save_memory", new=save_mock),
+    ):
         await memory_save_node(
             _state(
                 intent="research",
+                turn_index=47,
                 messages=[
                     HumanMessage(content="find papers on RLHF"),
                     AIMessage(content="..."),
@@ -139,7 +203,7 @@ async def test_saved_value_includes_provenance_fields():
     # save_memory signature: (store, user_id, key, value)
     value = call_kwargs_or_args.args[3]
     assert value["thread_id"] == "thread-abc"
-    assert value["turn_index"] == 2  # two HumanMessage entries
+    assert value["turn_index"] == 47  # monotonic even after checkpoint pruning
     assert "created_at" in value and "T" in value["created_at"]
     assert value["intent"] == "research"
     assert "ingest_arxiv_papers" in value["tools_used"]
@@ -151,10 +215,13 @@ async def test_saved_value_strips_pii_from_query():
     """save_memory writes a redacted query string, not the raw input."""
     save_mock = AsyncMock(return_value=True)
     store = MagicMock()
-    with patch(
-        "src.services.agent.memory.get_memory_store",
-        new=AsyncMock(return_value=store),
-    ), patch("src.services.agent.memory.save_memory", new=save_mock):
+    with (
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=store),
+        ),
+        patch("src.services.agent.memory.save_memory", new=save_mock),
+    ):
         await memory_save_node(
             _state(
                 intent="research",

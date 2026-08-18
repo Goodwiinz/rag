@@ -1,17 +1,17 @@
 schema_version = "1.2"
-source = "git+https://github.com/Goodwiinz/rag.git@7c6abb336c4eaf2ed6d53bd9f78b32b82a7a3b23"
+source = "git+https://github.com/Goodwiinz/rag.git@49337fa3d1db66440686a8193bc8dd76e8a450af"
 artifacts = ["/logs/agent/evidence.json", "/logs/agent/trajectory.json"]
 
 [task]
 name = "goodwiinz/agent-code-execution-v1"
-description = "Run Python in an E2B-protocol sandbox double behind one HITL approval and report the genuinely computed digest."
+description = "Use Python to find a SHA-256 digest in an E2B-protocol sandbox double behind one HITL approval and report the genuinely computed result."
 authors = [{ name = "Goodwiinz" }]
-keywords = ["langgraph", "e2b", "code-execution", "hitl", "tools", "sentinel-intent"]
+keywords = ["langgraph", "e2b", "code-execution", "hitl", "tools", "intent-routing"]
 
 [metadata]
 benchmark_id = "agent-code-execution-v1"
-source_revision = "7c6abb336c4eaf2ed6d53bd9f78b32b82a7a3b23"
-agent_revision = "7c6abb336c4eaf2ed6d53bd9f78b32b82a7a3b23"
+source_revision = "49337fa3d1db66440686a8193bc8dd76e8a450af"
+agent_revision = "49337fa3d1db66440686a8193bc8dd76e8a450af"
 harbor_version = "0.6.6"
 base_image_digest = "sha256:75b224f86a60c02e9343ca085fb4f195251a2554119b78e0972c3e09966c0e34"
 
