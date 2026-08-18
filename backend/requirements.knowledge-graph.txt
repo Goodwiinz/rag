@@ -18,7 +18,7 @@ aioredis==2.0.1
 
 # Authentication and security
 python-jose[cryptography]==3.5.0
-cryptography>=48.0.1
+cryptography>=50.0.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.31
 
@@ -33,7 +33,7 @@ aiofiles==23.2.1
 # Natural Language Processing for entity extraction
 spacy==3.8.14
 en-core-web-sm==3.7.1
-nltk==3.9.4
+nltk==3.10.0
 
 # Text processing and regex
 regex==2023.10.3
