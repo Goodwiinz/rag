@@ -1572,6 +1572,11 @@ export function useChatStreaming(
         }
         setIsConfirming(true);
         const confirmStart = Date.now();
+        // Same stamp as the main stream: a resumed turn is its own turn, with
+        // its own wait before the answer resumes. The backend already writes
+        // ttft_ms for this path, so without this the split would appear only
+        // after a reload.
+        let confirmFirstTokenAt: number | null = null;
         // Track tool steps for the resumed turn exactly like handleSubmit —
         // seed with the pre-interrupt steps so the live bubble and the
         // committed message both show the whole turn's tools, not just the
@@ -1654,6 +1659,9 @@ export function useChatStreaming(
               : {}),
             metadata: {
               responseTimeMs: Date.now() - confirmStart,
+              ...(confirmFirstTokenAt !== null
+                ? { ttftMs: confirmFirstTokenAt - confirmStart }
+                : {}),
               ...(stopped ? { stopped: true } : {}),
               ...(confirmTokenUsage ? { tokenUsage: confirmTokenUsage } : {}),
               ...(confirmSteps.length > 0
@@ -1671,6 +1679,9 @@ export function useChatStreaming(
             { thread_id: pendingConfirmation.threadId, confirmed },
             {
               onToken: (content) => {
+                if (confirmFirstTokenAt === null) {
+                  confirmFirstTokenAt = Date.now();
+                }
                 confirmContent += content;
                 pendingStreamContentRef.current = confirmContent;
                 if (streamingRafRef.current === null) {
