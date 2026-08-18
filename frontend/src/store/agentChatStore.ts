@@ -255,7 +255,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
                       const runningIdx = [...execs]
                         .reverse()
                         .findIndex(
-                          (te) => te.toolName === tool && te.status === 'running'
+                          (te) =>
+                            te.toolName === tool && te.status === 'running'
                         );
                       const teIdx =
                         runningIdx !== -1
@@ -267,7 +268,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
                         const actualIdx = execs.length - 1 - teIdx;
                         // The service forwards the frame's is_error flag; a failed
                         // tool must not render as a completed one.
-                        execs[actualIdx].status = isError ? 'failed' : 'completed';
+                        execs[actualIdx].status = isError
+                          ? 'failed'
+                          : 'completed';
                         if (isError) execs[actualIdx].error = result;
                         try {
                           execs[actualIdx].result = JSON.parse(result);
@@ -753,7 +756,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
                       const actualIdx = execs.length - 1 - teIdx;
                       // The service forwards the frame's is_error flag; a failed
                       // tool must not render as a completed one.
-                      execs[actualIdx].status = isError ? 'failed' : 'completed';
+                      execs[actualIdx].status = isError
+                        ? 'failed'
+                        : 'completed';
                       if (isError) execs[actualIdx].error = result;
                       try {
                         execs[actualIdx].result = JSON.parse(result);
@@ -1147,6 +1152,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
         state.messages = [];
         state.activeThreadId = null;
         state.isStreaming = false;
+        state.messagesError = null;
         state.pendingConfirmations = {};
         state.currentPlan = null;
         (state as unknown as AgentChatStore)._abortController = null;
@@ -1169,6 +1175,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
         state.messages = [];
         state.inputValue = '';
         state.isLoadingMessages = false;
+        // A blank new conversation must not inherit the previous thread's load
+        // failure — it would render the error state with nothing to retry.
+        state.messagesError = null;
         state.isStreaming = false;
         state.isConfirming = false;
       }),

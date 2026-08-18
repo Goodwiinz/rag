@@ -484,9 +484,16 @@ export function useChatStreaming(
         // makes the next resume replay from an older seq than we actually saw.
         const pending = pendingSeqRef.current;
         if (pending) {
+          // Carry the stream id too, exactly as the rAF callbacks do: without
+          // it a resume after the original stream finished has nothing to
+          // point at, gets a 204, and closes the run without the answer.
           useAgentActivityStore
             .getState()
-            .setStreamSeq(pending.threadId, pending.seq);
+            .setStreamSeq(
+              pending.threadId,
+              pending.seq,
+              streamIdByThreadRef.current[pending.threadId]
+            );
         }
       }
       pendingSeqRef.current = null;

@@ -61,9 +61,18 @@ describe('useChatStreaming seq cursor', () => {
     );
     vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {});
 
-    let callbacks!: { onSeq: (seq: number) => void };
+    let callbacks!: {
+      onSeq: (seq: number) => void;
+      onStreamId?: (streamId: string) => void;
+    };
     streamMessageMock.mockImplementation(
-      (_req: unknown, cb: { onSeq: (seq: number) => void }) => {
+      (
+        _req: unknown,
+        cb: {
+          onSeq: (seq: number) => void;
+          onStreamId?: (streamId: string) => void;
+        }
+      ) => {
         callbacks = cb;
         return new Promise<void>(() => {});
       }
@@ -97,7 +106,10 @@ describe('useChatStreaming seq cursor', () => {
       void result.current.handleSubmit('hello');
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    act(() => callbacks.onSeq(42));
+    act(() => {
+      callbacks.onStreamId?.('stream-7');
+      callbacks.onSeq(42);
+    });
 
     expect(
       useAgentActivityStore.getState().runs['thread-A']?.streamSeq
@@ -107,6 +119,11 @@ describe('useChatStreaming seq cursor', () => {
 
     expect(useAgentActivityStore.getState().runs['thread-A']?.streamSeq).toBe(
       42
+    );
+    // The stream id has to ride along, or the resume it enables has nothing to
+    // reattach to.
+    expect(useAgentActivityStore.getState().runs['thread-A']?.streamId).toBe(
+      'stream-7'
     );
   });
 });

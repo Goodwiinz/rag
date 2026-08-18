@@ -44,6 +44,19 @@ describe('agentChatStore load failures', () => {
     expect(useAgentChatStore.getState().isLoadingThreads).toBe(false);
   });
 
+  it('drops the error when the user starts a new conversation', async () => {
+    useAgentChatStore.setState({ activeThreadId: 'thread-A' });
+    serviceMocks.getThreadMessages.mockRejectedValueOnce(new Error('boom'));
+    await useAgentChatStore.getState().loadThreadMessages('thread-A');
+    expect(useAgentChatStore.getState().messagesError).toBe('boom');
+
+    useAgentChatStore.getState().newThread();
+
+    // Otherwise the blank conversation renders "could not load", with no
+    // active thread to retry against.
+    expect(useAgentChatStore.getState().messagesError).toBeNull();
+  });
+
   it('records why a thread could not load, and clears it on success', async () => {
     // The store discards results for a thread the user has navigated away
     // from, so this has to look like the thread is still active.
