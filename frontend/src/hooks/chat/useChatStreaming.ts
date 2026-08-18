@@ -611,6 +611,7 @@ export function useChatStreaming(
           isStreaming: true,
           streamingContent: '',
           streamingSteps: [],
+          streamingPlan: [],
           // Only "retrieving" when RAG is on; cleared on first token / context.
           isRetrievingRag: enableRAG,
           // Fresh turn — drop the previous turn's heartbeat reading.
@@ -755,6 +756,10 @@ export function useChatStreaming(
               // Structured copy for the inline transcript plan — keeps
               // tool/depends_on so status derivation works after commit.
               turnPlan = toTurnPlan(steps);
+              // Live copy for the in-flight transcript row (AuiStreamingBody)
+              // — lets the plan render WHILE the turn streams, not only
+              // after commit. Plan events fire once per run, not per token.
+              useChatStore.setState({ streamingPlan: [...turnPlan] });
               if (!currentThreadId) return;
               const items = toActivityPlanItems(steps);
               if (items.length > 0) {
@@ -862,6 +867,7 @@ export function useChatStreaming(
             streamingContent: '',
             streamingCitations: [],
             streamingSteps: [],
+            streamingPlan: [],
             streamingThreadId: null,
           });
           await reconcileUser(
@@ -904,6 +910,7 @@ export function useChatStreaming(
             streamingContent: '',
             streamingCitations: [],
             streamingSteps: [],
+            streamingPlan: [],
             streamingThreadId: null,
           });
           if (stoppedByUserRef.current) {
@@ -985,6 +992,7 @@ export function useChatStreaming(
           streamingContent: '',
           streamingCitations: [],
           streamingSteps: [],
+          streamingPlan: [],
           streamingThreadId: null,
         });
         lastStreamedContentRef.current = '';
@@ -1567,6 +1575,9 @@ export function useChatStreaming(
           isStreaming: true,
           streamingContent: '',
           streamingSteps: [...confirmSteps],
+          // Seed from the pre-interrupt plan so it survives the HITL
+          // resume — the interrupt exit already cleared streamingPlan.
+          streamingPlan: [...confirmPlan],
           streamingCitations: carriedCitations,
           streamingElapsedMs: null,
           streamingPhase: 'accepted',
@@ -1753,6 +1764,7 @@ export function useChatStreaming(
               },
               onPlan: (steps) => {
                 confirmPlan = toTurnPlan(steps);
+                useChatStore.setState({ streamingPlan: [...confirmPlan] });
                 const items = toActivityPlanItems(steps);
                 if (pendingConfirmation.workspaceThreadId && items.length > 0) {
                   useAgentActivityStore
@@ -1937,6 +1949,7 @@ export function useChatStreaming(
             isStreaming: false,
             streamingContent: '',
             streamingSteps: [],
+            streamingPlan: [],
             streamingCitations: [],
             streamingThreadId: null,
           });

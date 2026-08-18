@@ -6,6 +6,7 @@ import Plan, { type Task } from '@/components/ui/agent-plan';
 import { mapPlanToTasks } from '@/components/agent-chat/planMapping';
 import type { PlanStep, ToolExecution } from '@/types/agent-chat';
 import type { ActivityStep } from '@/components/chat/shared/cloudMessageView';
+import { formatStreamingElapsed } from '@/components/chat/shared/formatStreamingElapsed';
 
 /**
  * Adapt the chat page's ActivityStep records onto the agent-chat
@@ -28,32 +29,45 @@ function toToolExecutions(steps: ActivityStep[]): ToolExecution[] {
 }
 
 /**
- * Collapsible, read-only execution plan for a committed /chat message.
- * Mirrors agent-chat's InlinePlan: collapsed by default in the transcript
- * (the ContextRail shows the live plan while streaming), expandable for
- * provenance after the fact.
+ * Collapsible execution plan for a /chat message. Renders the SAME component
+ * for the live in-flight turn and the committed one — `streaming` picks the
+ * only two things that differ: the disclosure's default open state (a live
+ * turn mounts open so steps stream in visibly) and whether the header shows
+ * a "took …" duration (only meaningful once the turn has actually finished).
  */
-export function ChatInlinePlan({
+export const ChatInlinePlan = React.memo(function ChatInlinePlan({
   plan,
   toolExecutions,
+  streaming = false,
+  elapsedMs,
 }: {
   plan: PlanStep[];
   toolExecutions?: ActivityStep[];
+  /** True for the live in-flight instance — mounts expanded instead of the
+   * committed default (collapsed), so streamed-in steps are visible. */
+  streaming?: boolean;
+  /** Committed turn's total elapsed time (message.metadata.responseTimeMs).
+   * Ignored while streaming — the turn hasn't finished yet. */
+  elapsedMs?: number;
 }): React.JSX.Element {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(streaming);
 
   const tasks = useMemo<Task[]>(
     () => mapPlanToTasks(plan, toToolExecutions(toolExecutions ?? [])),
     [plan, toolExecutions]
   );
   const doneCount = tasks.filter((t) => t.status === 'completed').length;
+  const elapsed = streaming
+    ? null
+    : formatStreamingElapsed(elapsedMs ?? null);
 
   return (
     <div className="border border-[var(--nous-border-1)] rounded-[var(--nous-radius-md)] bg-[var(--nous-bg-2)] my-2 overflow-hidden">
       <button
         type="button"
         onClick={() => setIsExpanded((v) => !v)}
-        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} execution plan`}
+        aria-label="Toggle execution plan"
+        aria-expanded={isExpanded}
         className="flex items-center gap-2 w-full px-3 py-2 text-left transition-colors hover:bg-[var(--nous-bg-3)]"
       >
         <ListChecks className="h-3.5 w-3.5 shrink-0 text-[var(--nous-sol)]" />
@@ -61,6 +75,11 @@ export function ChatInlinePlan({
           Execution plan
         </span>
         <span className="ml-auto flex items-center gap-2 shrink-0">
+          {elapsed && (
+            <span className="tabular-nums text-[10px] text-[var(--nous-fg-3)] font-nous-ui">
+              took {elapsed}
+            </span>
+          )}
           <span className="tabular-nums text-[10px] text-[var(--nous-fg-3)] font-nous-ui">
             {doneCount}/{tasks.length}
           </span>
@@ -78,6 +97,6 @@ export function ChatInlinePlan({
       )}
     </div>
   );
-}
+});
 
 export default ChatInlinePlan;
