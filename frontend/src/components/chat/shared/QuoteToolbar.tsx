@@ -8,9 +8,14 @@ import {
   type QuoteSelection,
 } from './useQuoteSelection';
 
-/** Format a passage as a markdown quote so it reads as a citation, not prose. */
+/** Format a passage as a markdown quote so it reads as a citation, not prose.
+ *
+ * The leading newline is load-bearing. Append mode joins onto an existing
+ * draft, and a `>` that lands mid-line is a literal angle bracket, not a
+ * blockquote — so the payload opens its own line. ChatSurface honours a
+ * payload that starts with a newline instead of inserting its usual space. */
 function asQuoteBlock(text: string): string {
-  return `${text
+  return `\n${text
     .split('\n')
     .map((line) => `> ${line}`)
     .join('\n')}\n\n`;
@@ -25,11 +30,17 @@ function Toolbar({
 }): React.ReactElement {
   const ref = useRef<HTMLButtonElement>(null);
 
-  // Selection-triggered UI is easy to make mouse-only. Focusing the action
-  // means a keyboard selection can act on it, and Enter/Space work for free.
+  // Focus only a keyboard-driven selection, and only once it stops growing.
+  // Taking focus on the first shift+arrow pointed every later arrow key at
+  // the button instead of the passage, so a keyboard user could never select
+  // more than the first increment. A mouse user is never focused at all —
+  // they are about to click.
+  const settled = selection.viaKeyboard ? selection.text : null;
   useEffect(() => {
-    ref.current?.focus({ preventScroll: true });
-  }, []);
+    if (settled === null) return;
+    const t = setTimeout(() => ref.current?.focus({ preventScroll: true }), 500);
+    return () => clearTimeout(t);
+  }, [settled]);
 
   return (
     <div
@@ -41,18 +52,14 @@ function Toolbar({
       <button
         ref={ref}
         type="button"
-        // onMouseDown, not onClick: clicking clears the selection before a
-        // click event would land, and the passage would already be gone.
-        onMouseDown={(e) => {
-          e.preventDefault();
-          onQuote();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onQuote();
-          }
-        }}
+        // Pressing the mouse collapses the selection, which unmounts this
+        // toolbar before a click could land — so mousedown suppresses that,
+        // and the click it does NOT cancel carries the action. Routing the
+        // action through click (rather than mousedown) also keeps the
+        // button's semantic activation working: Enter, Space, screen-reader
+        // and voice-control activation all synthesise click and nothing else.
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onQuote}
         className="inline-flex items-center gap-1.5 rounded-full border border-(--nous-border-1) bg-(--nous-bg-2) px-3 py-1.5 font-nous-ui text-[12px] text-(--nous-fg-1) shadow-[0_4px_14px_rgba(var(--nous-erebus-rgb),0.12)] transition-colors hover:bg-(--nous-bg-3) focus:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
       >
         <Quote className="h-3.5 w-3.5 text-(--nous-fg-3)" aria-hidden />

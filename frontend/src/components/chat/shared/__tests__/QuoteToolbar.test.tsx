@@ -84,15 +84,77 @@ describe('QuoteToolbar', () => {
 
     render(<QuoteToolbar />);
     selectInside(host, 'Grounding reduces fabrication.');
-    // mouseDown, not click: clicking would clear the selection first.
-    fireEvent.mouseDown(screen.getByRole('button', { name: /quote/i }));
+    // click, not mouseDown: mousedown only suppresses the selection collapse
+    // so this toolbar survives; the action rides the click, which is also
+    // what Enter, Space and assistive-technology activation synthesise.
+    fireEvent.click(screen.getByRole('button', { name: /quote/i }));
 
     expect(listener).toHaveBeenCalledTimes(1);
     const detail = (listener.mock.calls[0][0] as CustomEvent).detail;
     expect(detail.mode).toBe('append');
     expect(detail.text).toContain('> Grounding reduces fabrication.');
+    // Opens its own line: appended after a draft, a `>` mid-line is a literal
+    // angle bracket and markdown renders no blockquote at all.
+    expect(detail.text.startsWith('\n')).toBe(true);
 
     window.removeEventListener('populate-chat-input', listener);
+  });
+
+  it('keeps the indentation of quoted code', () => {
+    // Trimming the selection would strip the leading spaces off the first
+    // line and silently change the structure of the quoted snippet.
+    const host = makeHost('code');
+
+    const listener = vi.fn();
+    window.addEventListener('populate-chat-input', listener);
+
+    render(<QuoteToolbar />);
+    selectInside(host, '\n    return owned_ids\n');
+    fireEvent.click(screen.getByRole('button', { name: /quote/i }));
+
+    const detail = (listener.mock.calls[0][0] as CustomEvent).detail;
+    expect(detail.text).toContain('>     return owned_ids');
+
+    window.removeEventListener('populate-chat-input', listener);
+  });
+
+  it('does not take focus while a keyboard selection is still growing', () => {
+    // selectionchange fires on the first shift+arrow. Focusing the button
+    // there pointed every later arrow key at the button instead of the
+    // passage, so the selection could never grow past one increment.
+    const host = makeHost('A claim worth quoting.');
+
+    render(<QuoteToolbar />);
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true })
+      );
+    });
+    selectInside(host, 'A claim');
+
+    expect(screen.getByRole('button', { name: /quote/i })).not.toBe(
+      document.activeElement
+    );
+  });
+
+  it('never takes focus from a mouse selection', () => {
+    const host = makeHost('A claim worth quoting.');
+
+    render(<QuoteToolbar />);
+    act(() => {
+      document.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    });
+    selectInside(host, 'A claim worth quoting.');
+
+    vi.useFakeTimers();
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    vi.useRealTimers();
+
+    expect(screen.getByRole('button', { name: /quote/i })).not.toBe(
+      document.activeElement
+    );
   });
 
   it('dismisses on Escape and when the selection clears', () => {
@@ -120,7 +182,7 @@ describe('QuoteToolbar', () => {
 
     render(<QuoteToolbar />);
     selectInside(host, 'x'.repeat(MAX_QUOTE_CHARS + 250));
-    fireEvent.mouseDown(screen.getByRole('button', { name: /quote/i }));
+    fireEvent.click(screen.getByRole('button', { name: /quote/i }));
 
     const detail = (listener.mock.calls[0][0] as CustomEvent).detail;
     // "> " prefix plus the trailing blank line, but not the extra 250 chars.
