@@ -223,10 +223,16 @@ class TestIndividualNodes:
         assert result["retrieved_contexts"] == []
 
     async def test_rag_node_promotes_chat_context_to_project_when_uuid_in_text(self):
-        """When the user's message names a project UUID, rag_node must force
-        page_context.type='project' so llm_node tells the LLM about the active
-        project. Previously type='chat' was preserved, so the LLM ignored the
-        project_id and replied "I'm not using any project yet"."""
+        """When the user's message names a project UUID the caller owns,
+        rag_node must force page_context.type='project' so llm_node tells the
+        LLM about the active project. Previously type='chat' was preserved, so
+        the LLM ignored the project_id and replied "I'm not using any project
+        yet".
+
+        A text-extracted id is ownership-gated (audit M3) before promotion —
+        mock the check as owned so this test still exercises promotion itself,
+        not the gate (see test_rag_scope_and_sanitizer.py for the gate).
+        """
         from src.services.agent.graph import rag_node
 
         config = {
@@ -243,7 +249,11 @@ class TestIndividualNodes:
         )
         state["page_context"] = {"type": "chat"}
 
-        result = await rag_node(state, config)
+        with patch(
+            "src.services.agent._nodes_rag._user_owns_project",
+            new=AsyncMock(return_value=True),
+        ):
+            result = await rag_node(state, config)
 
         assert result["current_project_id"] == "88e10696-bcc1-4921-b1f3-773b571365bd"
         assert result["page_context"]["type"] == "project"
