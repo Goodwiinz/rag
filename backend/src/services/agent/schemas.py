@@ -108,6 +108,18 @@ class AgentExecuteRequest(BaseModel):
         ),
     )
 
+    attachment_ids: Optional[List[UUID]] = Field(
+        default=None,
+        max_length=10,
+        description=(
+            "Document ids to attach to this user turn. The documents are "
+            "uploaded separately (POST /documents) and referenced here, so the "
+            "stream body never carries file bytes. Ids the caller's "
+            "organization does not own are dropped server-side, not rejected — "
+            "a mixed batch still attaches the owned ones."
+        ),
+    )
+
     @model_validator(mode="after")
     def _edit_carries_a_fresh_cmid(self) -> "AgentExecuteRequest":
         """Reject an edit whose replacement reuses the superseded turn's key.
