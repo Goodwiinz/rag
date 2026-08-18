@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from src.core.dependencies import get_current_user
 from src.services.arxiv.arxiv_kg_integration import ArXivKnowledgeGraphIntegration
 from src.services.arxiv.arxiv_service import ArXivIngestionService
+from src.services.arxiv.persistence import persist_arxiv_documents
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -214,23 +215,40 @@ async def bulk_ingest_with_kg(
                 "kg_entries_created": 0,
             }
 
-        # Ingest papers
-        ingested_count = await arxiv_service.ingest_papers(
-            papers=papers, extract_entities=request.create_kg_entries
+        # get_current_user returns a User ORM object (despite the dict
+        # annotation), but handle both shapes so the tenant org/user are never
+        # silently dropped.
+        _org_raw = (
+            current_user.get("organization_id")
+            if isinstance(current_user, dict)
+            else getattr(current_user, "organization_id", None)
         )
+        if not _org_raw:
+            raise HTTPException(
+                status_code=403, detail="User has no organization; cannot ingest"
+            )
+        paper_org_id = str(_org_raw)
+        _user_raw = (
+            current_user.get("id")
+            if isinstance(current_user, dict)
+            else getattr(current_user, "id", None)
+        )
+        user_id = str(_user_raw) if _user_raw else None
+
+        # Ingest papers. Entity extraction happens separately via the KG
+        # integration call below — ingest_papers has no extract_entities param.
+        # ingest_papers only builds transient in-memory documents (mirrors
+        # core.py's background ingest task) — persist_arxiv_documents is what
+        # actually durably writes them, same as the other live caller.
+        documents = await arxiv_service.ingest_papers(papers=papers)
+        persisted = await persist_arxiv_documents(
+            documents, user_id=user_id, organization_id=paper_org_id
+        )
+        ingested_count = len(persisted.document_ids)
 
         # Create knowledge graph entries if requested
         kg_entries_count = 0
         if request.create_kg_entries:
-            # get_current_user returns a User ORM object (despite the dict
-            # annotation), but handle both shapes so the tenant org is never
-            # silently dropped.
-            _org_raw = (
-                current_user.get("organization_id")
-                if isinstance(current_user, dict)
-                else getattr(current_user, "organization_id", None)
-            )
-            paper_org_id = str(_org_raw) if _org_raw else None
             for paper in papers:
                 try:
                     await kg_integration.process_paper_kg_integration(
@@ -251,6 +269,8 @@ async def bulk_ingest_with_kg(
             "categories_filter": request.categories,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to bulk ingest: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

@@ -12,20 +12,33 @@ allowBuilds:
   unrs-resolver: true
 
 overrides:
-  next: 16.2.9
+  next: 16.2.11
   react: 18.3.1
   react-dom: 18.3.1
   # Security pins use this workspace-level map as the sole pnpm authority.
   '@isaacs/brace-expansion': '^5.0.1'
   '@modelcontextprotocol/sdk': '^1.26.0'
-  dompurify: 3.4.11
+  '@opentelemetry/core': 2.10.0
+  '@trigger.dev/core': 4.5.6
+  # Scoped per major: minimatch@10 needs brace-expansion@^5, so a blanket v1 pin
+  # downgrades it and its CJS `expand` named export disappears.
+  brace-expansion@1: 1.1.18
+  brace-expansion@2: 2.1.4
+  cookie: 0.7.2
+  dompurify: 3.4.13
+  engine.io: 6.6.7
   form-data: 4.0.6
-  hono: 4.12.25
-  js-yaml: 4.2.0
+  hono: 4.12.34
+  js-yaml: 4.3.1
   jsonpath: '^1.2.0'
-  postcss: 8.5.10
-  protobufjs: 7.6.3
-  systeminformation: 5.31.6
+  nanoid: 3.3.18
+  postcss: 8.5.23
+  protobufjs: 7.6.5
+  sharp: 0.35.0
+  socket.io-parser: 4.2.7
+  systeminformation: 5.31.7
+  tmp: 0.2.7
+  uuid: 11.1.1
   ws: 8.21.0
   # Security (dev test-toolchain): the vitest 3 bump pulls vite, but pnpm kept
   # vite 5.4.21 (range already satisfied) which still carries the high-sev

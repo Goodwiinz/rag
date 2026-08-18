@@ -47,6 +47,13 @@ class ChangeRecord:
     change_date: datetime
     fields_changed: List[str]
     metadata: Dict[str, Any]
+    # Pre-image of org_state[paper_id]["paper_metadata"] before detect_changes
+    # overwrote it, for "updated" changes only. apply_changes' failure path
+    # (_revert_change_state) needs this to restore the full metadata snapshot
+    # (not just "hash"), otherwise a retried scan compares the current paper
+    # against the *new* (already-written) metadata and finds no diff — the
+    # failed change is silently dropped instead of re-emitted.
+    old_paper_metadata: Optional[Dict[str, Any]] = None
 
 
 class ArXivChangeTracker:
@@ -221,6 +228,11 @@ class ArXivChangeTracker:
                             :5
                         ],  # Store first 5 authors
                         "primary_category": paper.get("primary_category"),
+                        # sha256 only (not the full abstract) to keep the state
+                        # file small; enough to detect abstract-only edits.
+                        "abstract_hash": hashlib.sha256(
+                            (paper.get("abstract") or "").encode()
+                        ).hexdigest(),
                     },
                 }
 
@@ -257,6 +269,11 @@ class ArXivChangeTracker:
                         "primary_category", ""
                     ):
                         fields_changed.append("category")
+                    new_abstract_hash = hashlib.sha256(
+                        (paper.get("abstract") or "").encode()
+                    ).hexdigest()
+                    if new_abstract_hash != stored_metadata.get("abstract_hash", ""):
+                        fields_changed.append("abstract")
 
                     change = ChangeRecord(
                         paper_id=paper["id"],
@@ -269,6 +286,7 @@ class ArXivChangeTracker:
                             "title": paper.get("title", ""),
                             "changes_detected": len(fields_changed),
                         },
+                        old_paper_metadata=dict(stored_metadata),
                     )
                     changes.append(change)
 
@@ -278,6 +296,7 @@ class ArXivChangeTracker:
                         "title": paper.get("title", ""),
                         "authors": paper.get("authors", [])[:5],
                         "primary_category": paper.get("primary_category"),
+                        "abstract_hash": new_abstract_hash,
                     }
 
         # Track missing papers — increment miss_count instead of instant deletion.
@@ -377,7 +396,9 @@ class ArXivChangeTracker:
                                 db, paper, change.fields_changed, organization_id
                             )
                             if update_kg:
-                                await self._update_knowledge_graph(paper)
+                                await self._update_knowledge_graph(
+                                    paper, organization_id
+                                )
                             summary["updated"] += 1
                             logger.info(
                                 f"Updated paper: {change.paper_id}, changed fields: {change.fields_changed}"
@@ -422,6 +443,13 @@ class ArXivChangeTracker:
             org_state.pop(change.paper_id, None)
         elif change.change_type == "updated" and change.old_hash:
             data["hash"] = change.old_hash
+            # Also restore the pre-image paper_metadata (title/authors/
+            # category/abstract_hash) detect_changes already overwrote —
+            # otherwise a retry compares the paper against its own new
+            # metadata, finds no diff, and the change is lost instead of
+            # re-emitted (Codex review, PR #1452).
+            if change.old_paper_metadata is not None:
+                data["paper_metadata"] = change.old_paper_metadata
         elif change.change_type == "deleted":
             # Keep miss_count at threshold so the next scan re-emits deletion.
             data.pop("deleted", None)
@@ -459,6 +487,35 @@ class ArXivChangeTracker:
             "arxiv_url": paper.get("arxiv_url"),
             "pdf_url": paper.get("pdf_url"),
         }
+
+    # Marker matching the "\n# Content Preview\n\n" section arxiv_service's
+    # _ingest_single_paper appends after extracting PDF text.
+    _CONTENT_PREVIEW_MARKER = "\n# Content Preview\n\n"
+
+    @classmethod
+    def _compose_content_text(
+        cls, paper: Dict[str, Any], existing_text: Optional[str]
+    ) -> str:
+        """Rebuild content_text for an abstract revision without discarding
+        the richer text normal ingestion builds (Abstract/Authors/Categories
+        sections, plus any PDF-extracted "# Content Preview" — see
+        ArXivIngestionService._ingest_single_paper). A bare
+        ``doc.content_text = paper["abstract"]`` overwrite would silently
+        delete that PDF preview on every abstract-only revision (Codex
+        review, PR #1452).
+        """
+        parts = [f"# Abstract\n\n{paper.get('abstract', '') or ''}"]
+        if paper.get("authors"):
+            parts.append(f"\n# Authors\n\n{', '.join(paper['authors'])}")
+        if paper.get("categories"):
+            parts.append(f"\n# Categories\n\n{', '.join(paper['categories'])}")
+
+        if existing_text:
+            idx = existing_text.find(cls._CONTENT_PREVIEW_MARKER)
+            if idx != -1:
+                parts.append(existing_text[idx:])
+
+        return "\n".join(parts)
 
     @staticmethod
     def _paper_lookup_stmt(paper_id: str, organization_id: Any):
@@ -508,7 +565,9 @@ class ArXivChangeTracker:
             try:
                 logger.info(f"Adding paper {paper['id']} to knowledge graph...")
                 async with ArXivKnowledgeGraphIntegration() as kg:
-                    result = await kg.process_paper_kg_integration(paper)
+                    result = await kg.process_paper_kg_integration(
+                        paper, organization_id=str(organization_id)
+                    )
                     if result:
                         logger.info(
                             f"Successfully added {paper['id']} to KG with {len(result.get('entities', []))} entities"
@@ -541,7 +600,7 @@ class ArXivChangeTracker:
             if force_update or "title" in changed_fields:
                 doc.title = paper.get("title", doc.title) or doc.title
             if force_update or "abstract" in changed_fields:
-                doc.content_text = paper.get("abstract", doc.content_text)
+                doc.content_text = self._compose_content_text(paper, doc.content_text)
             doc.arxiv_id = paper["id"]
 
             # Copy-update-reassign so SQLAlchemy detects the JSON mutation.
@@ -569,12 +628,16 @@ class ArXivChangeTracker:
                 )
             await db.commit()
 
-    async def _update_knowledge_graph(self, paper: Dict[str, Any]):
-        """Update knowledge graph with changed paper"""
+    async def _update_knowledge_graph(
+        self, paper: Dict[str, Any], organization_id: Any
+    ):
+        """Update knowledge graph with changed paper (tenant-scoped)."""
         try:
             async with ArXivKnowledgeGraphIntegration() as kg:
                 # Extract new entities and relationships
-                await kg.process_paper_kg_integration(paper)
+                await kg.process_paper_kg_integration(
+                    paper, organization_id=str(organization_id)
+                )
         except Exception as e:
             logger.warning(f"Failed to update KG for paper {paper['id']}: {e}")
 
