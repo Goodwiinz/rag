@@ -132,6 +132,54 @@ describe('mapPlanToTasks', () => {
     });
   });
 
+  it('does not complete every same-tool step from one execution', () => {
+    const steps = [
+      makeStep({ step: 1, description: 'Search A', tool: 'search_documents' }),
+      makeStep({ step: 2, description: 'Search B', tool: 'search_documents' }),
+    ];
+    const execs = [
+      makeExec({ toolName: 'search_documents', status: 'completed' }),
+    ];
+
+    const tasks = mapPlanToTasks(steps, execs);
+
+    expect(tasks[0].status).toBe('completed');
+    expect(tasks[1].status).toBe('pending');
+  });
+
+  it('advances the second same-tool step once its own execution starts', () => {
+    const steps = [
+      makeStep({ step: 1, description: 'Search A', tool: 'search_documents' }),
+      makeStep({ step: 2, description: 'Search B', tool: 'search_documents' }),
+    ];
+    const execs = [
+      makeExec({ toolName: 'search_documents', status: 'completed' }),
+      makeExec({ toolName: 'search_documents', status: 'running' }),
+    ];
+
+    const tasks = mapPlanToTasks(steps, execs);
+
+    expect(tasks[0].status).toBe('completed');
+    expect(tasks[1].status).toBe('in-progress');
+  });
+
+  it('keeps a retry with the step it retries', () => {
+    // Step 1's tool failed and was retried successfully; step 2 never ran.
+    const steps = [
+      makeStep({ step: 1, description: 'Search A', tool: 'search_documents' }),
+      makeStep({ step: 2, description: 'Search B', tool: 'search_documents' }),
+    ];
+    const execs = [
+      makeExec({ toolName: 'search_documents', status: 'failed' }),
+      makeExec({ toolName: 'search_documents', status: 'completed' }),
+    ];
+
+    const tasks = mapPlanToTasks(steps, execs);
+
+    expect(tasks[0].status).toBe('completed');
+    expect(tasks[1].status).toBe('pending');
+  });
+
   it('omits tools array entry when step has no tool', () => {
     const tasks = mapPlanToTasks([makeStep({ tool: '' })], []);
     expect(tasks[0].tools).toEqual([]);

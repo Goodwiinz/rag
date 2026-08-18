@@ -251,7 +251,11 @@ describe('ChatPage commands, stop/retry/regenerate, and HITL gating', () => {
     fireEvent.click(screen.getByTestId('command-retry'));
 
     await waitFor(() =>
-      expect(mockHandleSubmit).toHaveBeenCalledWith('What is RAG?', [])
+      expect(mockHandleSubmit).toHaveBeenCalledWith(
+        'What is RAG?',
+        [],
+        undefined
+      )
     );
   });
 
@@ -261,7 +265,11 @@ describe('ChatPage commands, stop/retry/regenerate, and HITL gating', () => {
     fireEvent.click(screen.getByTestId('regenerate-assistant'));
 
     await waitFor(() =>
-      expect(mockHandleSubmit).toHaveBeenCalledWith('What is RAG?', [])
+      expect(mockHandleSubmit).toHaveBeenCalledWith(
+        'What is RAG?',
+        [],
+        undefined
+      )
     );
   });
 
