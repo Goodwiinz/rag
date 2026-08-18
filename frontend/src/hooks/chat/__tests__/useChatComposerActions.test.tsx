@@ -72,7 +72,7 @@ describe('useChatComposerActions', () => {
     });
 
     expect(setInput).toHaveBeenCalledWith('first turn');
-    expect(handleSubmit).toHaveBeenCalledWith('first turn', []);
+    expect(handleSubmit).toHaveBeenCalledWith('first turn', [], undefined);
   });
 
   it('retryLast regenerates the most recent assistant turn', async () => {
@@ -85,7 +85,37 @@ describe('useChatComposerActions', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(handleSubmit).toHaveBeenCalledWith('first turn', []);
+    expect(handleSubmit).toHaveBeenCalledWith('first turn', [], undefined);
+  });
+
+  it('handleRegenerate tombstones the replaced turn when it has a client id', async () => {
+    const cmid = 'cmid-regen';
+    const { result, handleSubmit } = setup({
+      displayedMessages: [
+        makeChatPageMessage({
+          id: 'u1',
+          role: 'user',
+          content: 'first turn',
+          timestamp: 1,
+          clientMessageId: cmid,
+        }),
+        makeChatPageMessage({
+          id: 'a1',
+          role: 'assistant',
+          content: 'first reply',
+          timestamp: 2,
+        }),
+      ],
+    });
+
+    act(() => {
+      result.current.handleRegenerate(1);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(handleSubmit).toHaveBeenCalledWith('first turn', [], cmid);
   });
 
   describe('handleEditUserMessage', () => {
