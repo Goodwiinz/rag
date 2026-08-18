@@ -146,7 +146,9 @@ describe('useChatStreaming stream ownership', () => {
       submitPromise = result.current.handleSubmit('ingest these');
       await Promise.resolve();
     });
-    await waitFor(() => expect(result.current.pendingConfirmation).not.toBeNull());
+    await waitFor(() =>
+      expect(result.current.pendingConfirmation).not.toBeNull()
+    );
 
     await act(async () => {
       await result.current.handleConfirmation(true);
@@ -203,6 +205,34 @@ describe('useChatStreaming stream ownership', () => {
       useChatStore.setState({ currentThreadId: 'thread-A' });
     });
     expect(result.current.pendingConfirmation).toBeNull();
+  });
+
+  it('reattaches once after a live turn dies on a transport error', async () => {
+    // The backend run outlives a client-side transport failure, so the answer
+    // is still coming; finishing the run as 'error' must not also cancel the
+    // one reattach attempt that recovers it.
+    streamMessageMock.mockRejectedValue(new Error('socket hang up'));
+    const resume = vi.mocked(
+      (await import('@/services/agentChatService')).agentChatService
+        .resumeStream
+    );
+    resume.mockResolvedValue({ status: 'idle' });
+
+    const params = makeParams();
+    const { result } = renderHook(
+      () =>
+        useChatStreaming(
+          params as unknown as Parameters<typeof useChatStreaming>[0]
+        ),
+      { wrapper }
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit('hello');
+    });
+
+    await waitFor(() => expect(resume).toHaveBeenCalled());
+    expect(resume.mock.calls[0][0]).toBe('thread-A');
   });
 
   it('finishes the activity run when the transport throws (H8)', async () => {

@@ -362,6 +362,11 @@ export function useChatStreaming(
   // Threads a resume was already attempted for this mount — guards against
   // double-resume from effect re-runs (StrictMode, dep changes).
   const resumeTriedRef = useRef<Set<string>>(new Set());
+  // Threads whose LIVE turn died on a transport error. The backend run may
+  // still be going, so the resume effect is allowed one reattach for these
+  // even though the run has been finished as 'error' (server-authored error
+  // frames deliberately do not land here — those turns really are over).
+  const transportFailureRef = useRef<Set<string>>(new Set());
   // Threads already asked whether they hold a parked HITL confirmation —
   // one probe per thread activation (see the cold-load effect below).
   const confirmationProbedRef = useRef<Set<string>>(new Set());
@@ -1072,6 +1077,9 @@ export function useChatStreaming(
         // activity run stayed 'running' forever — the rail kept spinning and
         // recovery depended on the resume effect re-firing by accident.
         const failedRunThread = activeRunThreadRef.current ?? currentThreadId;
+        if (failedRunThread && !keepRunOnFailure && !stoppedByUserRef.current) {
+          transportFailureRef.current.add(failedRunThread);
+        }
         if (failedRunThread && !keepRunOnFailure) {
           useAgentActivityStore
             .getState()
@@ -1111,8 +1119,13 @@ export function useChatStreaming(
             streamingThreadId: null,
           });
         }
-        lastStreamedContentRef.current = '';
-        stoppedByUserRef.current = false;
+        if (streamOwnerRef.current === streamOwner) {
+          // Same ownership rule: these refs are shared with the confirm
+          // stream, and clearing stoppedByUserRef under it could swallow a
+          // Stop pressed inside the handover window.
+          lastStreamedContentRef.current = '';
+          stoppedByUserRef.current = false;
+        }
         activeRunThreadRef.current = null;
       }
     },
@@ -1437,9 +1450,14 @@ export function useChatStreaming(
     if (pendingConfirmation) return;
     if (useChatStore.getState().isStreaming) return;
     const run = useAgentActivityStore.getState().runs[threadId];
-    if (!run || run.state !== 'running') return;
+    const recoverableTransportFailure =
+      run?.state === 'error' && transportFailureRef.current.has(threadId);
+    if (!run || (run.state !== 'running' && !recoverableTransportFailure)) {
+      return;
+    }
     if (resumeTriedRef.current.has(threadId)) return;
     resumeTriedRef.current.add(threadId);
+    transportFailureRef.current.delete(threadId);
     console.log('[Chat] Resuming in-flight agent stream:', threadId);
     // ponytail: messages is the snapshot at effect time — if thread history
     // is still loading, the resumed commit appends to a stale list; a
