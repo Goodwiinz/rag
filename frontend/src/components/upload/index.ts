@@ -10,7 +10,6 @@ export type { UseDocumentUploadOptions, UseDocumentUploadReturn } from '@/hooks/
 export { default as uploadService } from '@/services/uploadService';
 export type {
   UploadResponse,
-  BatchUploadResponse,
   UploadQueueItem,
   UploadStats,
 } from '@/services/uploadService';
