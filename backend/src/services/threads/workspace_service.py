@@ -230,6 +230,11 @@ async def add_member(
     ``ValueError`` if the target user is already an active member — both
     ports of the router's exact checks.
     """
+    if data.role.value == WorkspaceRole.OWNER.value:
+        # OWNER is reserved for the creating owner's row: remove_member and
+        # update_member_role both refuse OWNER rows, so a minted second owner
+        # would hold admin rights forever with no API path to demote/remove.
+        raise ValueError("Cannot assign owner role to a member")
     workspace = await workspace_access.get_workspace(db, workspace_id, current_user_id)
     if not workspace:
         return None
@@ -286,6 +291,9 @@ async def update_member_role(
 ) -> Optional[WorkspaceMember]:
     """Update a member's role. ``None`` if workspace/member not found.
     Raises ``PermissionError``/``ValueError`` matching the router's checks."""
+    if data.role.value == WorkspaceRole.OWNER.value:
+        # Same guard as add_member: an OWNER row is irremovable via the API.
+        raise ValueError("Cannot assign owner role to a member")
     workspace = await workspace_access.get_workspace(db, workspace_id, current_user_id)
     if not workspace:
         return None
