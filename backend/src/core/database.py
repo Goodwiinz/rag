@@ -135,16 +135,20 @@ if _is_sqlite:
     )
 else:
     # PostgreSQL configuration for production/development.
-    # The sync engine is used only by a small number of sync-ORM call sites and
-    # background tasks; hot-path requests use async_engine (asyncpg) below.
-    # Keep the slot count tiny so we don't saturate Supabase's session-mode pooler
-    # when many workers/replicas start simultaneously.
+    # The sync engine is NOT background-only: request-path consumers include the
+    # RBAC permission dependency (middleware/rbac.py), the evidence,
+    # knowledge-graph, user-behavior and compliance routers, plus Celery tasks.
+    # A 1+1 pool exhausts under two concurrent guarded requests ("QueuePool
+    # limit of size 1 overflow 1"), stalling threadpool threads for
+    # pool_timeout=30s and restarting the backend. Defaults sized for local
+    # dev (no pooler cap); deployed values override per-component to fit the
+    # Supabase session-mode pooler budget (values-dev.yaml).
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,
         pool_recycle=1800,
-        pool_size=_env_int("DB_SYNC_POOL_SIZE", 1),
-        max_overflow=_env_int("DB_SYNC_MAX_OVERFLOW", 1),
+        pool_size=_env_int("DB_SYNC_POOL_SIZE", 3),
+        max_overflow=_env_int("DB_SYNC_MAX_OVERFLOW", 2),
         pool_timeout=30,
         echo=os.getenv("ENVIRONMENT") == "development",
     )
