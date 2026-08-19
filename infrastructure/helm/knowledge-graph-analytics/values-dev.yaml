@@ -179,15 +179,19 @@ backend:
     # there to the project-specific Vercel slug (e.g.
     # ^https://nous-platform-[a-z0-9-]+\.vercel\.app$). Empty disables.
     # Database pool sizing: tuned for Supabase session-mode pooler limits
-    # (Nano=15 connections). Reduce if switching to transaction-mode pooler.
+    # (pool_size lifted to 25). Reduce if switching to transaction-mode pooler.
+    # Sync pool serves request paths too (RBAC dep, evidence/KG/user-behavior/
+    # compliance routers); 1+1 exhausted under concurrent guarded requests and
+    # restarted the backend, so it gets 2+2. Backend worst case: async 5 +
+    # sync 4 = 9 (see celeryWorker budget math below).
     - name: DB_ASYNC_POOL_SIZE
       value: "3"
     - name: DB_ASYNC_MAX_OVERFLOW
       value: "2"
     - name: DB_SYNC_POOL_SIZE
-      value: "1"
+      value: "2"
     - name: DB_SYNC_MAX_OVERFLOW
-      value: "1"
+      value: "2"
     # Sentry: SENTRY_DSN comes from the `app-secrets` external secret via envFrom.
     # No-op if the key is absent.
     - name: SENTRY_ENVIRONMENT
@@ -330,8 +334,8 @@ celeryWorker:
     enabled: true
     minReplicas: 1
     # Capped at 3 (was 5) to bound the Supabase session-mode pooler budget.
-    # Worst-case client math (pooler cap 25): backend 7 + beat 3 + 3*3 workers
-    # 9 + synthetic 3 = 22, leaving headroom 3. Raise only after the pooler
+    # Worst-case client math (pooler cap 25): backend 9 + beat 3 + 3*3 workers
+    # 9 + synthetic 3 = 24, leaving headroom 1. Raise only after the pooler
     # pool_size is lifted (or workers move to the transaction pooler).
     maxReplicas: 3
     targetCPUUtilizationPercentage: 75
