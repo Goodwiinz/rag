@@ -1,12 +1,22 @@
 'use client';
 
-import React, { useMemo, Fragment, useState, useCallback } from 'react';
+import React, {
+  useMemo,
+  Fragment,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+} from 'react';
 import ReactMarkdown from 'react-markdown';
 import dynamic from 'next/dynamic';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 const SyntaxHighlighter = dynamic(
-  () => import('react-syntax-highlighter/dist/esm/prism').then((mod) => mod.default),
+  () =>
+    import('react-syntax-highlighter/dist/esm/prism').then(
+      (mod) => mod.default
+    ),
   {
     loading: () => (
       <pre className="p-4 rounded bg-(--nous-bg-1) text-xs font-mono overflow-x-auto">
@@ -43,11 +53,19 @@ function toCitation(ac: AgentCitation): Citation {
 
 function CodeBlockCopyButton({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
+  const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copyResetRef.current) clearTimeout(copyResetRef.current);
+    },
+    []
+  );
 
   const handleCopy = useCallback(() => {
     void navigator.clipboard.writeText(code);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyResetRef.current) clearTimeout(copyResetRef.current);
+    copyResetRef.current = setTimeout(() => setCopied(false), 2000);
   }, [code]);
 
   return (
@@ -198,7 +216,33 @@ export function AgentMarkdownRenderer({
 }: AgentMarkdownRendererProps) {
   const parsedCitations = useMemo(() => citations.map(toCitation), [citations]);
 
-  const hasInlineCitations = useMemo(() => hasCitations(content), [content]);
+  // Bare bracketed numbers only count as citations when this message actually
+  // has a source to resolve them against (round-3 M11).
+  const citationCount = citations.length;
+  const hasInlineCitations = useMemo(
+    () => hasCitations(content, { citationCount }),
+    [content, citationCount]
+  );
+
+  // Re-parsing the whole answer (and rebuilding the components object) on
+  // every token made long streamed answers quadratic.
+  const segments = useMemo(
+    () =>
+      hasInlineCitations
+        ? parseMessageWithCitations(content, { citationCount })
+        : [],
+    [content, citationCount, hasInlineCitations]
+  );
+  const citationModeComponents = useMemo(
+    () => ({
+      ...markdownComponents,
+      // In inline-citation mode, avoid wrapping each segment in <p>
+      p: ({ children }: { children?: React.ReactNode }) => (
+        <span>{children}</span>
+      ),
+    }),
+    []
+  );
 
   // No inline citations — render plain markdown
   if (!hasInlineCitations) {
@@ -210,9 +254,6 @@ export function AgentMarkdownRenderer({
       </div>
     );
   }
-
-  // Has inline citations — parse and render segments
-  const segments = parseMessageWithCitations(content);
 
   return (
     <div className="agent-markdown">
@@ -239,17 +280,7 @@ export function AgentMarkdownRenderer({
         }
         return (
           <Fragment key={`text-${index}`}>
-            <ReactMarkdown
-              components={
-                {
-                  ...markdownComponents,
-                  // In inline-citation mode, avoid wrapping each segment in <p>
-                  p: ({ children }: { children?: React.ReactNode }) => (
-                    <span>{children}</span>
-                  ),
-                } as never
-              }
-            >
+            <ReactMarkdown components={citationModeComponents as never}>
               {segment.content}
             </ReactMarkdown>
           </Fragment>

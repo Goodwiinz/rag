@@ -70,7 +70,12 @@ export function ConfirmationCard({
       aria-describedby="fab-hitl-desc"
       className="rounded-(--nous-radius-md) border border-(--nous-border-1) bg-(--nous-bg-2) text-sm my-2 overflow-hidden outline-hidden"
       onKeyDown={(e) => {
-        if (e.key === 'Escape' && !isLoading) onCancel();
+        if (e.key === 'Escape' && !isLoading) {
+          // Without this the same keypress also reaches the panel's own
+          // Escape handler and closes the whole chat.
+          e.stopPropagation();
+          onCancel();
+        }
       }}
       tabIndex={-1}
     >
