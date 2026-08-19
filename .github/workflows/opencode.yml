@@ -8,11 +8,21 @@ on:
 
 jobs:
   opencode:
+    # Trigger phrase AND trusted commenter. issue_comment runs in base-repo
+    # context with secrets even when the comment comes from a fork-PR author,
+    # so gating on the phrase alone let any GitHub user exfiltrate
+    # OPENCODE_API_KEY / mint OIDC tokens by commenting `/oc` (R5-H8).
     if: |
-      contains(github.event.comment.body, ' /oc') ||
-      startsWith(github.event.comment.body, '/oc') ||
-      contains(github.event.comment.body, ' /opencode') ||
-      startsWith(github.event.comment.body, '/opencode')
+      (
+        contains(github.event.comment.body, ' /oc') ||
+        startsWith(github.event.comment.body, '/oc') ||
+        contains(github.event.comment.body, ' /opencode') ||
+        startsWith(github.event.comment.body, '/opencode')
+      ) && (
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
+      )
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -26,7 +36,9 @@ jobs:
           persist-credentials: false
 
       - name: Run opencode
-        uses: anomalyco/opencode/github@latest
+        # SHA-pinned (v1.18.18): @latest is a mutable tag the vendor controls;
+        # with secrets in env, a tag hijack is remote code execution here.
+        uses: anomalyco/opencode/github@31406ccc51b4bd2a4e1e086b2bcaa5f7f804f26d # v1.18.18
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
