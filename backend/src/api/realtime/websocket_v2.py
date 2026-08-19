@@ -392,7 +392,7 @@ async def websocket_connect_v2_secure(
 
 
 @router.get("/status", response_model=Dict[str, Any])
-async def get_websocket_status():
+async def get_websocket_status(current_user: User = Depends(get_current_user)):
     """
     Get WebSocket service status and statistics
 
@@ -639,7 +639,7 @@ async def test_websocket_connection(
 
 
 @router.get("/channels")
-async def get_available_channels():
+async def get_available_channels(current_user: User = Depends(get_current_user)):
     """
     Get list of available WebSocket channels and their descriptions
     """
@@ -658,7 +658,7 @@ async def get_available_channels():
 
 
 @router.get("/health")
-async def websocket_health_check():
+async def websocket_health_check(current_user: User = Depends(get_current_user)):
     """
     WebSocket service health check endpoint
 

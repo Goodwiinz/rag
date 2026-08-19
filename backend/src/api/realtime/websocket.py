@@ -6,7 +6,10 @@ import json
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
+
+from src.core.dependencies import get_current_user
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +168,7 @@ async def websocket_endpoint(
 
 
 @router.get("/ws/status")
-async def websocket_status():
+async def websocket_status(current_user: User = Depends(get_current_user)):
     """Get WebSocket connection statistics"""
     total_connections = sum(len(conns) for conns in manager.active_connections.values())
     return {

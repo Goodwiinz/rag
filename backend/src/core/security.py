@@ -13,6 +13,7 @@ The backend accepts two JWT shapes:
 
 import logging
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
@@ -31,6 +32,8 @@ logger = logging.getLogger(__name__)
 
 # Cache for Supabase JWKS keys
 _supabase_jwks_cache: Optional[Dict] = None
+_supabase_jwks_cache_fetched_at: Optional[float] = None
+_SUPABASE_JWKS_TTL_SECONDS = 3600
 
 # JWT Bearer scheme
 security = HTTPBearer()
@@ -138,19 +141,35 @@ def get_client_ip(request: Request) -> str:
 
 
 def _get_supabase_jwks() -> Optional[Dict]:
-    """Fetch and cache JWKS from Supabase for ES256 verification."""
-    global _supabase_jwks_cache
-    if _supabase_jwks_cache is not None:
+    """Fetch and cache JWKS from Supabase for ES256 verification.
+
+    Cached for _SUPABASE_JWKS_TTL_SECONDS so a Supabase key rotation is
+    picked up without a restart. If the refetch after expiry fails, the
+    stale cache is returned (with a warning) rather than None'd out —
+    working keys must never be dropped just because one refresh attempt
+    failed.
+    """
+    global _supabase_jwks_cache, _supabase_jwks_cache_fetched_at
+    now = time.time()
+    if (
+        _supabase_jwks_cache is not None
+        and _supabase_jwks_cache_fetched_at is not None
+        and now - _supabase_jwks_cache_fetched_at < _SUPABASE_JWKS_TTL_SECONDS
+    ):
         return _supabase_jwks_cache
     try:
         url = f"{settings.SUPABASE_URL}/auth/v1/.well-known/jwks.json"
         resp = httpx.get(url, timeout=5.0)
         resp.raise_for_status()
         _supabase_jwks_cache = resp.json()
+        _supabase_jwks_cache_fetched_at = now
         logger.info("Fetched Supabase JWKS successfully")
         return _supabase_jwks_cache
     except Exception as e:
         logger.warning(f"Failed to fetch Supabase JWKS: {e}")
+        if _supabase_jwks_cache is not None:
+            logger.warning("Using stale cached Supabase JWKS after refetch failure")
+            return _supabase_jwks_cache
         return None
 
 

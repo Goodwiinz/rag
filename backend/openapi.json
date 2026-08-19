@@ -39887,6 +39887,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Get Available Channels",
         "tags": [
           "websocket-v2"
@@ -39953,6 +39958,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Websocket Health Check",
         "tags": [
           "websocket-v2"
@@ -39977,6 +39987,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Get Websocket Status",
         "tags": [
           "websocket-v2"
@@ -40080,6 +40095,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Websocket Status",
         "tags": [
           "websocket"
