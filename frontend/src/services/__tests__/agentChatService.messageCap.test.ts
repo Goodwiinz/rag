@@ -27,7 +27,10 @@ vi.mock('@/lib/supabase/client', () => ({
 
 import { agentChatService } from '../agentChatService';
 
-function makeReader(chunks: string[]) {
+function makeReader(chunks: string[]): {
+  read(): Promise<{ done: boolean; value: Uint8Array | undefined }>;
+  releaseLock(): void;
+} {
   const encoder = new TextEncoder();
   const queue = chunks.map((c) => encoder.encode(c));
   let i = 0;
