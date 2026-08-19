@@ -9,12 +9,14 @@ Mocked DB, no real Postgres (same harness as test_workspace_member_readd).
 """
 
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
 
+from src.models.user import User
 from src.schemas.chat import WorkspaceMemberCreate, WorkspaceMemberUpdate, WorkspaceRole
 
 GET_WORKSPACE = "src.services.threads.workspace_access.get_workspace"
@@ -43,7 +45,7 @@ async def test_add_member_rejects_owner_role() -> None:
                     user_id=uuid4(), role=WorkspaceRole.OWNER
                 ),
                 db=db,
-                current_user=SimpleNamespace(id=uuid4()),
+                current_user=cast(User, SimpleNamespace(id=uuid4())),
             )
 
     assert exc_info.value.status_code == 400
@@ -66,7 +68,7 @@ async def test_update_member_role_rejects_owner_role() -> None:
                 user_id=uuid4(),
                 request=WorkspaceMemberUpdate(role=WorkspaceRole.OWNER),
                 db=db,
-                current_user=SimpleNamespace(id=uuid4()),
+                current_user=cast(User, SimpleNamespace(id=uuid4())),
             )
 
     assert exc_info.value.status_code == 400
