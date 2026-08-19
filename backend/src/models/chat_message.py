@@ -100,6 +100,10 @@ class ChatMessage(BaseModel):
     # Metrics
     token_count = Column(Integer, default=0, nullable=False)
     latency_ms = Column(Integer, nullable=True)  # Response latency for observability
+    # Time to first token, same clock origin as latency_ms so
+    # latency_ms - ttft_ms is the time spent writing the answer. NULL when
+    # the turn streamed no token, and on rows predating the column.
+    ttft_ms = Column(Integer, nullable=True)
     stopped = Column(
         Boolean, nullable=False, default=False, server_default="false"
     )  # User stopped this response mid-stream (content is partial)

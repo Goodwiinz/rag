@@ -417,6 +417,10 @@ export type AgentExecuteRequest = Pick<
   Partial<Omit<GeneratedAgentExecuteRequest, 'messages'>>;
 type StreamConfirmRequest = components['schemas']['StreamConfirmRequest'];
 
+// Mirror of AgentExecuteRequest.messages max_length (backend
+// src/services/agent/schemas.py). Requests above it 422 at the edge.
+const MAX_REQUEST_MESSAGES = 50;
+
 export interface AgentExecuteResponse {
   message: {
     role: string;
@@ -579,11 +583,20 @@ class AgentChatService {
     callbacks: AgentStreamCallbacks,
     signal?: AbortSignal
   ): Promise<void> {
+    // AgentExecuteRequest rejects >50 messages (422, non-retriable in the
+    // UI), and callers send the full displayed history plus the new turn.
+    // Keep the newest tail: the server treats its checkpoint as the context
+    // source of truth and only requires the latest user turn.
+    const cappedRequest = {
+      ...request,
+      messages: request.messages.slice(-MAX_REQUEST_MESSAGES),
+    };
+
     let response: Response;
     try {
       response = await fetchStreamWithAuthRetry(agentStreamUrl('stream'), {
         method: 'POST',
-        body: JSON.stringify(request),
+        body: JSON.stringify(cappedRequest),
         signal,
       });
     } catch (err) {

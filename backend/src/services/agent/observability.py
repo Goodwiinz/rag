@@ -443,6 +443,12 @@ class AgentStreamSLOTracker:
         self.route = "pending"
         self._accepted_recorded = False
         self._first_token_recorded = False
+        # Monotonic reading of the turn's first token frame, retained (not just
+        # observed into a histogram) because it is persisted per-message as
+        # chat_messages.ttft_ms. Absolute, not a delta: callers subtract their
+        # own stream-start reading so the split agrees with latency_ms, which
+        # is measured from a later origin than this tracker's started_at.
+        self.first_token_at: Optional[float] = None
         self._terminal_recorded = False
         self._route_recorded = False
 
@@ -464,9 +470,16 @@ class AgentStreamSLOTracker:
         self._record_route()
 
     def record(self, event_type: object, data: Dict[str, Any]) -> None:
+        event = getattr(event_type, "value", str(event_type))
+        # Stamped before the metrics guard: unlike the histogram below, this
+        # reading is persisted with the message, so it has to survive a
+        # deployment that has no prometheus_client installed. Read the clock
+        # once and let the histogram reuse it — sampling twice would make the
+        # observed SLI and the persisted ttft_ms disagree by a few micros.
+        if event == "token" and self.first_token_at is None:
+            self.first_token_at = self._clock()
         if not _METRICS_AVAILABLE:
             return
-        event = getattr(event_type, "value", str(event_type))
         if (
             event == "status"
             and data.get("phase") == "accepted"
@@ -481,8 +494,11 @@ class AgentStreamSLOTracker:
             and not self._first_token_recorded
             and AGENT_STREAM_FIRST_TOKEN_DURATION is not None
         ):
+            stamped = self.first_token_at
             AGENT_STREAM_FIRST_TOKEN_DURATION.labels(route=self.route).observe(
                 self._elapsed()
+                if stamped is None
+                else max(0.0, stamped - self._started_at)
             )
             self._first_token_recorded = True
             return
