@@ -649,13 +649,23 @@ async def cancel_upload(
 
             # Also revoke the Celery task if one was dispatched, mirroring
             # processing.py's cancel path — otherwise the worker keeps
-            # running the job after the DB row says cancelled.
+            # running the job after the DB row says cancelled. Best-effort:
+            # the cancel is already committed, so a broker hiccup here must
+            # not turn the response into a 500 (and roll nothing back).
             if processing_job.celery_task_id:
-                from src.tasks.processing_tasks import current_app
+                try:
+                    from src.tasks.processing_tasks import current_app
 
-                current_app.control.revoke(
-                    processing_job.celery_task_id, terminate=True
-                )
+                    current_app.control.revoke(
+                        processing_job.celery_task_id, terminate=True
+                    )
+                except Exception as revoke_exc:
+                    logger.warning(
+                        "Failed to revoke Celery task %s for cancelled job %s: %s",
+                        processing_job.celery_task_id,
+                        processing_job.id,
+                        revoke_exc,
+                    )
 
             return {
                 "message": "Upload cancelled successfully",
