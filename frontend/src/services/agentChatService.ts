@@ -33,6 +33,10 @@ export type {
  */
 function httpFailureCategory(status: number): AgentErrorCategory | undefined {
   if (status === 429) return 'rate_limited';
+  // 401/403 are an auth state problem, not a malformed request — callers retry
+  // 401 once with a refreshed session, and a surviving one degrades to the
+  // generic treatment rather than blaming the user's input.
+  if (status === 401 || status === 403) return undefined;
   if (status >= 400 && status < 500) return 'invalid_request';
   return undefined;
 }
@@ -44,12 +48,20 @@ function agentStreamUrl(
   return `${base}/agent/${path}`;
 }
 
-async function getStreamAuthHeaders(): Promise<Record<string, string>> {
+async function getStreamAuthHeaders(
+  options: { forceRefresh?: boolean } = {}
+): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   try {
     const supabase = createClient();
+    // A stream reads the session once at open time. On a 401 the caller asks
+    // for a forced refresh and retries once, instead of reporting an expired
+    // token as the user's request being invalid.
+    if (options.forceRefresh) {
+      await supabase.auth.refreshSession();
+    }
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -96,6 +108,10 @@ export interface AgentStreamCallbacks {
   /** Fires for every frame carrying an `id: <seq>` line — the resumable-SSE
    * cursor. Persist the latest value to resume after a disconnect. */
   onSeq?: (seq: number) => void;
+  /** Resume only: the first replayed frame's seq was higher than the cursor
+   * asked for, so the buffer had already trimmed the frames in between and the
+   * replay is missing a prefix of the answer. */
+  onReplayGap?: (firstSeq: number, expectedSeq: number) => void;
   /** Fires for every enveloped frame carrying a `stream_id` — the run the
    * seq cursor belongs to. Persist alongside the cursor and pass it to
    * resumeStream so a stale cursor can't attach to a newer run. */
@@ -127,8 +143,7 @@ export type AgentResumeResult =
   | { status: 'aborted' }
   | { status: 'failed'; error: string };
 
-const INCOMPLETE_STREAM_ERROR =
-  'Stream ended before completion. Please retry.';
+const INCOMPLETE_STREAM_ERROR = 'Stream ended before completion. Please retry.';
 
 /** Read the backend's error body so the user sees the real cause, not just
  * an HTTP number. The backend returns the structured envelope
@@ -185,9 +200,49 @@ export const HANDLED_STREAM_EVENTS: ReadonlySet<AgentStreamEvent> = new Set([
  * `data:` lines (chunk-boundary and CRLF safe), and dispatches to callbacks.
  * AbortError is swallowed — an aborted stream resolves quietly.
  */
+/**
+ * Open a stream request, retrying exactly once on 401 with a force-refreshed
+ * session. A token that expired between page load and send is the one status a
+ * retry can actually fix; everything else is returned as-is.
+ */
+async function fetchStreamWithAuthRetry(
+  url: string,
+  init: Omit<RequestInit, 'headers'>,
+  extraHeaders: Record<string, string> = {}
+): Promise<Response> {
+  const open = async (forceRefresh: boolean): Promise<Response> => {
+    const headers = new Headers(await getStreamAuthHeaders({ forceRefresh }));
+    for (const [key, value] of Object.entries(extraHeaders)) {
+      headers.set(key, value);
+    }
+    return fetch(url, { ...init, headers });
+  };
+  const response = await open(false);
+  if (response.status !== 401) return response;
+  return open(true);
+}
+
+/**
+ * A stream that goes completely silent for this long is treated as dead. The
+ * backend heartbeats a live stream every few seconds, but the resume path
+ * emits nothing during silent gaps, so a proxy can kill an idle reattach with
+ * no frame ever arriving — `reader.read()` would then hang for the lifetime of
+ * the tab.
+ */
+export const STREAM_SILENCE_TIMEOUT_MS = 90_000;
+
+/** Raised when no bytes arrive for STREAM_SILENCE_TIMEOUT_MS. */
+export class StreamStalledError extends Error {
+  constructor() {
+    super('Stream stalled: no data received. Please retry.');
+    this.name = 'StreamStalledError';
+  }
+}
+
 async function consumeSse(
   response: Response,
-  callbacks: AgentStreamCallbacks
+  callbacks: AgentStreamCallbacks,
+  options: { silenceTimeoutMs?: number } = {}
 ): Promise<boolean> {
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
@@ -277,9 +332,35 @@ async function consumeSse(
     }
   };
 
+  const silenceTimeoutMs =
+    options.silenceTimeoutMs ?? STREAM_SILENCE_TIMEOUT_MS;
+  let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+  const readWithWatchdog = async (): Promise<
+    ReadableStreamReadResult<Uint8Array>
+  > => {
+    if (silenceTimeoutMs <= 0) return reader.read();
+    return new Promise((resolve, reject) => {
+      silenceTimer = setTimeout(() => {
+        // Free the socket; the pending read rejects and we surface a stall.
+        void reader.cancel().catch(() => {});
+        reject(new StreamStalledError());
+      }, silenceTimeoutMs);
+      reader.read().then(resolve, reject);
+    }).then(
+      (result) => {
+        if (silenceTimer) clearTimeout(silenceTimer);
+        return result as ReadableStreamReadResult<Uint8Array>;
+      },
+      (err) => {
+        if (silenceTimer) clearTimeout(silenceTimer);
+        throw err;
+      }
+    );
+  };
+
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } = await readWithWatchdog();
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
@@ -301,6 +382,11 @@ async function consumeSse(
           dispatchData(eventType, line);
         }
       }
+
+      // The terminal frame is the end of the stream as far as the protocol is
+      // concerned. Waiting for transport EOF too meant a half-open socket ran
+      // into the silence watchdog and reported a completed turn as stalled.
+      if (terminalSeen) break;
     }
     // Defensive flush: if the server's final chunk ended without a
     // trailing \n (the backend always \n\n-terminates, so this is
@@ -316,6 +402,7 @@ async function consumeSse(
     if (err instanceof DOMException && err.name === 'AbortError') return false;
     throw err;
   } finally {
+    if (silenceTimer) clearTimeout(silenceTimer);
     reader.releaseLock();
   }
   return terminalSeen;
@@ -496,8 +583,6 @@ class AgentChatService {
     callbacks: AgentStreamCallbacks,
     signal?: AbortSignal
   ): Promise<void> {
-    const headers = await getStreamAuthHeaders();
-
     // AgentExecuteRequest rejects >50 messages (422, non-retriable in the
     // UI), and callers send the full displayed history plus the new turn.
     // Keep the newest tail: the server treats its checkpoint as the context
@@ -509,9 +594,8 @@ class AgentChatService {
 
     let response: Response;
     try {
-      response = await fetch(agentStreamUrl('stream'), {
+      response = await fetchStreamWithAuthRetry(agentStreamUrl('stream'), {
         method: 'POST',
-        headers,
         body: JSON.stringify(cappedRequest),
         signal,
       });
@@ -560,12 +644,13 @@ class AgentChatService {
     const url = `${base}/agent/stream/resume/${encodeURIComponent(
       threadId
     )}?after=${afterSeq}${streamParam}`;
-    const headers = new Headers(await getStreamAuthHeaders());
-    headers.set('Last-Event-ID', String(afterSeq));
-
     let response: Response;
     try {
-      response = await fetch(url, { method: 'GET', headers, signal });
+      response = await fetchStreamWithAuthRetry(
+        url,
+        { method: 'GET', signal },
+        { 'Last-Event-ID': String(afterSeq) }
+      );
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return { status: 'aborted' };
@@ -589,8 +674,26 @@ class AgentChatService {
       };
     }
 
+    // The backend replays from the earliest frame it still holds when the
+    // cursor has fallen out of its ring buffer, so a resumed turn could rebuild
+    // its content from a partial replay and commit a silently truncated answer.
+    // Watch the first replayed seq and tell the caller when that happened.
+    let sawFirstSeq = false;
+    const gapAwareCallbacks: AgentStreamCallbacks = {
+      ...callbacks,
+      onSeq: (seq: number) => {
+        if (!sawFirstSeq) {
+          sawFirstSeq = true;
+          if (seq > afterSeq + 1) {
+            callbacks.onReplayGap?.(seq, afterSeq + 1);
+          }
+        }
+        callbacks.onSeq?.(seq);
+      },
+    };
+
     try {
-      const terminalSeen = await consumeSse(response, callbacks);
+      const terminalSeen = await consumeSse(response, gapAwareCallbacks);
       if (!terminalSeen) {
         if (signal?.aborted) return { status: 'aborted' };
         return { status: 'failed', error: INCOMPLETE_STREAM_ERROR };
@@ -610,16 +713,16 @@ class AgentChatService {
     callbacks: AgentStreamCallbacks,
     signal?: AbortSignal
   ): Promise<void> {
-    const headers = await getStreamAuthHeaders();
-
     let response: Response;
     try {
-      response = await fetch(agentStreamUrl('stream/confirm'), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(request),
-        signal,
-      });
+      response = await fetchStreamWithAuthRetry(
+        agentStreamUrl('stream/confirm'),
+        {
+          method: 'POST',
+          body: JSON.stringify(request),
+          signal,
+        }
+      );
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       throw err;
