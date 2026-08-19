@@ -22,6 +22,8 @@ import type { UseChatThreadActionsReturn } from '@/hooks/chat/useChatThreadActio
 import type { UseChatDrawerReturn } from '@/hooks/chat/useChatDrawer';
 import type { UseCitationPanelReturn } from '@/hooks/chat/useCitationPanel';
 import type { UseChatComposerActionsReturn } from '@/hooks/chat/useChatComposerActions';
+import { appendToDraft } from '@/components/chat/shared/appendToDraft';
+import { QuoteToolbar } from '@/components/chat/shared/QuoteToolbar';
 import type { UseSlashCommandsReturn } from '@/hooks/chat/useSlashCommands';
 
 interface ChatSurfaceProps {
@@ -200,7 +202,7 @@ export function ChatSurface({
         setInput(detail);
       } else if (detail.text) {
         if (detail.mode === 'append') {
-          setInput((cur) => (cur ? `${cur} ${detail.text}` : `${detail.text} `));
+          setInput((cur) => appendToDraft(cur, detail.text));
         } else {
           setInput(detail.text);
         }
@@ -354,6 +356,10 @@ export function ChatSurface({
             onLoadOlder={loadOlderMessages}
             messagePagination={messagePagination}
           />
+
+          {/* Raises a Quote action on a selection inside a committed
+              answer; mounted once rather than per message. */}
+          <QuoteToolbar />
 
           <ChatInput
             value={input}
