@@ -1,0 +1,54 @@
+{
+  "evidence": {
+    "approval": {"sent": true},
+    "benchmark_id": "agent-memory-roundtrip-v1",
+    "classification": {
+      "turn1_intent": "research",
+      "turn3_intent": "general"
+    },
+    "env_flags": {
+      "cohere_configured": false,
+      "environment": "benchmark"
+    },
+    "events": [],
+    "final_assistant_message": {"content": "Done.", "tool_calls": []},
+    "forget_memory_executions": [
+      {"result": {"deleted": 1}, "status": "completed", "tool_name": "forget_memory"}
+    ],
+    "instruction": "Please remember this for my arXiv research going forward: my recovery contact email is jordan.avery@example.com.",
+    "interrupt": {"observed": true, "tools": ["forget_memory"]},
+    "memory": {
+      "value_after_turn1": {
+        "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
+        "thread_id": "00000000-0000-4000-8000-000000000904"
+      }
+    },
+    "network_boundary": {
+      "approved_model_host_reachable_via_proxy": true,
+      "direct_public_socket_blocked": true,
+      "unrelated_https_blocked_by_proxy": true
+    },
+    "messages": [{"content": "Forget my saved contact email.", "type": "human"}],
+    "milestones": [{"milestone": "turn3_completed"}],
+    "near_boundary_probe": {"result": {"deleted": 0, "status": "completed"}},
+    "no_bleed": {
+      "second_user_direct_key_hit": false,
+      "second_user_search_hits": []
+    },
+    "pending_interrupt_after_resume": null,
+    "postapproval_memory_present": false,
+    "preapproval_snapshot": {"memory_present": true},
+    "schema_version": "1.0",
+    "semantic": "N/A",
+    "source_revision": "03091c6534971d83a35bf941af3077a2e35a987b",
+    "store_backend": "AsyncPostgresStore",
+    "termination_reason": "completed",
+    "tool_executions": [{"status": "completed", "tool_name": "forget_memory"}],
+    "turn2": {
+      "final_assistant_message": {"content": "Your saved contact email is redacted."},
+      "user_memories": [{}]
+    },
+    "turn3_instruction": "Forget my saved contact email."
+  },
+  "state": {}
+}

@@ -500,9 +500,35 @@ off (`env_flags.cohere_configured = False`), never `ENVIRONMENT=testing`
 substring-match fallback (`memory.py:208-260`, threshold at `memory.py:205`)
 rather than the 0.6 score threshold. `forget_memory` is the sole destructive
 tool in scope: it carries `ToolPolicyTag.DESTRUCTIVE` (`tools.py:1105-1112`)
-and fires one HITL `interrupt()`.
+and fires one HITL `interrupt()`. As of develop `03091c65` (commit
+`fe76f434` re-landed), `forget_memory` binds live on
+`intents=frozenset({AgentIntent.GENERAL})` — the sentinel-intent
+`aupdate_state` workaround this section used to describe has been removed;
+turn 3 is now a plain user turn through real classification. Its five-word,
+zero-keyword wording plus the adapter's turn-2-no-tool guard takes the
+classifier's deterministic short-query path to `general`, so the prior reply's
+`arXiv` text cannot pull it into `research` (`run_agent.py`'s
+`TURN3_INSTRUCTION`).
 
 **Objective gates:**
+- Turn 3 was an actual user turn, not evidence stripped or forged to fake
+  past the routing gate below: `turn3_instruction` matches the approved
+  wording byte-for-byte, a `human` message carrying that exact content is
+  present in `messages`, and the `turn3_completed` milestone is present
+  (`tests/verify.py`, `check_turn3_sent`). This closes a false-pass path
+  found in review — `state["intent"]` persists across LangGraph turns, so a
+  run (or fixture) that drops turn 3 entirely can still show a legitimate-
+  looking `general` intent left over from an earlier turn and satisfy every
+  other gate.
+- Turn 3 reaches `forget_memory` through genuine production routing: no
+  `env_flags.routing_workaround` is present; the OBSERVED checkpoint `intent`
+  is a real `AgentIntent` member that legitimately binds `forget_memory` (only
+  `general` does, per the live `TOOL_REGISTRY`) and never the retired sentinel
+  value `"memory_management"`; and the raw `turn3` `preprocessing_node` stream
+  update reports the same intent. The last condition rejects an
+  `aupdate_state(..., as_node="preprocessing_node")` general-intent injection
+  that could otherwise satisfy the checkpoint-only gate
+  (`tests/verify.py`, `check_real_routing`). The probe remains visibility-only.
 - Turn 1 — the stated fact lands in the store: `memory_save_node`'s
   fire-and-forget background task (`_nodes_memory.py:286-310`) is drained
   (polled, not slept) before the turn-2 assertion; the stored value's
@@ -535,19 +561,25 @@ semantic gate ("recalled fact used correctly, not hallucinated") — the
 design doc wins, and this task's `verify.py` asserts `semantic == "N/A"`
 rather than judging the recall.
 
-**Coverage note:** `forget_memory` is a production **dead tool** by the live
-routing tables — its `ToolDescriptor` carries `intents=frozenset()` and
-`subgraphs=frozenset()` (`tools.py:1105-1112`), so
-`TOOL_REGISTRY.descriptors_for_intent` excludes it from all four classified
-intents and no live classification path ever binds it to the model. This
-task reaches it only via a documented workaround: the adapter calls
-`graph.aupdate_state(..., as_node="preprocessing_node")` with a sentinel
-`intent` outside `AgentIntent` to force the tool into scope, then drives
-`interrupt_node`/`tool_node` unmodified downstream. This is worth recording
-as a real finding, independent of this benchmark: `forget_memory` is
-currently unreachable via any user-issued turn in production.
+**Coverage note:** `forget_memory` was a production **dead tool** by the live
+routing tables through develop commit `51fd5adc` — its `ToolDescriptor`
+carried `intents=frozenset()` and `subgraphs=frozenset()`, so
+`TOOL_REGISTRY.descriptors_for_intent` excluded it from all four classified
+intents and no live classification path ever bound it to the model. This
+task previously reached it only via a documented workaround: the adapter
+called `graph.aupdate_state(..., as_node="preprocessing_node")` with a
+sentinel `intent` outside `AgentIntent` to force the tool into scope. That
+gap was closed on `develop` (commit `fe76f434`, re-landed at `03091c65`):
+`forget_memory` now carries `intents=frozenset({AgentIntent.GENERAL})`, so a
+real `general`-routed turn binds it. The workaround has been removed from
+this task — turn 3 is a plain `HumanMessage` reaching `forget_memory` through
+the same classification and binding path production chat uses, with
+`interrupt_node`/`tool_node` unmodified downstream as before.
 
-**Status:** NOT YET GATED — awaits first recorded run.
+**Status:** NOT YET GATED — awaits first recorded run. (Sentinel-intent
+routing workaround removed; task now exercises real production routing. No
+Docker/Azure available in this environment, so verification here is
+calibration-only — the full graph run still awaits a recorded execution.)
 
 ### 10. Error recovery
 

@@ -1,6 +1,6 @@
 {
   "evidence": {
-    "agent_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
+    "agent_revision": "03091c6534971d83a35bf941af3077a2e35a987b",
     "approval": {
       "resume": {
         "confirmed": true
@@ -10,10 +10,12 @@
     },
     "benchmark_id": "agent-memory-roundtrip-v1",
     "classification": {
-      "turn1_intent": "general",
-      "turn1_probe_intent": "general",
-      "turn1_probe_source": "llm",
-      "turn3_forced_intent": "memory_management"
+      "turn1_intent": "research",
+      "turn1_probe_intent": "research",
+      "turn1_probe_source": "keyword",
+      "turn3_intent": "general",
+      "turn3_probe_intent": "general",
+      "turn3_probe_source": "shortcut"
     },
     "completed_at": "2026-08-08T12:01:10Z",
     "database": {
@@ -36,6 +38,17 @@
         "sequence": 1,
         "update": {
           "memory_save": {}
+        }
+      },
+      {
+        "observed_at": "2026-08-08T12:00:45Z",
+        "phase": "turn3",
+        "sequence": 5,
+        "update": {
+          "preprocessing_node": {
+            "intent": "general",
+            "intent_confidence": 0.5
+          }
         }
       }
     ],
@@ -88,7 +101,7 @@
       "redacted_sentinel": "<email>",
       "value_after_turn1": {
         "created_at": "2026-08-08T12:00:05Z",
-        "intent": "general",
+        "intent": "research",
         "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
         "thread_id": "00000000-0000-4000-8000-000000000904",
         "tools_used": [],
@@ -133,7 +146,7 @@
         }
       },
       {
-        "content": "Please forget what I told you about my arXiv research contact email.",
+        "content": "Forget my saved contact email.",
         "id": "msg-5",
         "type": "human"
       },
@@ -201,7 +214,7 @@
         "sequence": 4
       },
       {
-        "milestone": "turn3_state_injected",
+        "milestone": "turn3_completed",
         "observed_at": "2026-08-08T12:00:30Z",
         "sequence": 5
       },
@@ -258,8 +271,8 @@
         "matches": [
           {
             "key": "a1b2c3d4e5f6",
-            "score": null,
-            "query": "my api key rotation date is <date>"
+            "query": "my api key rotation date is <date>",
+            "score": null
           }
         ],
         "status": "completed"
@@ -280,14 +293,14 @@
       ],
       "second_user_search_hits": []
     },
-    "notes": "Production graph, one thread, three turns. Turn 3 reaches forget_memory via graph.aupdate_state(as_node='preprocessing_node').",
+    "notes": "Production graph, one thread, three turns, all three driven as real HumanMessage turns through live classification. Turn 3 reaches forget_memory because it now legitimately binds on AgentIntent.GENERAL (develop 03091c65) - no checkpoint seeding or sentinel intent.",
     "pending_interrupt_after_resume": null,
     "postapproval_memory_present": false,
     "preapproval_snapshot": {
       "memory_present": true,
       "memory_value": {
         "created_at": "2026-08-08T12:00:05Z",
-        "intent": "general",
+        "intent": "research",
         "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
         "thread_id": "00000000-0000-4000-8000-000000000904",
         "tools_used": [],
@@ -298,7 +311,7 @@
     },
     "schema_version": "1.0",
     "semantic": "N/A (deterministic; design doc reconciliation, see task.md)",
-    "source_revision": "49337fa3d1db66440686a8193bc8dd76e8a450af",
+    "source_revision": "03091c6534971d83a35bf941af3077a2e35a987b",
     "started_at": "2026-08-08T12:00:00Z",
     "store_backend": "AsyncPostgresStore",
     "suppress_observation_for": [
@@ -341,7 +354,7 @@
           "score": 0.0,
           "value": {
             "created_at": "2026-08-08T12:00:05Z",
-            "intent": "general",
+            "intent": "research",
             "query": "Please remember this for my arXiv research going forward: my recovery contact email is <email>.",
             "thread_id": "00000000-0000-4000-8000-000000000904",
             "tools_used": [],
@@ -351,7 +364,7 @@
       ]
     },
     "turn2_instruction": "What contact email do you have on file for my arXiv research?",
-    "turn3_instruction": "Please forget what I told you about my arXiv research contact email."
+    "turn3_instruction": "Forget my saved contact email."
   },
   "state": {
     "user_id": "00000000-0000-4000-8000-000000000902",

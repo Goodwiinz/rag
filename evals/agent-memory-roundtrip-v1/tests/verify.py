@@ -6,20 +6,29 @@ infrastructure failure (no reward emitted by ``test.sh``).
 
 Layer A only — Layer B (semantic) is N/A for this task per the design doc
 (deterministic capability, no judge; see ``evals/specs/agent-memory-roundtrip-v1/
-task.md``). Pass iff: turn 1's fact lands in the store with the raw email
-redacted; turn 2's recall surfaces it (``user_memories`` populated); turn 3's
-``forget_memory`` executes behind exactly one approved HITL interrupt, with a
-pre-approval snapshot proving the memory was still present before approval,
-and the key is gone afterward; the near-boundary no-match forget returns an
-empty *success* (not an error); and no memory ever reaches the second user's
-namespace.
+task.md``). Pass iff: turn 3 reached ``forget_memory`` through genuine
+production routing (no sentinel-intent workaround); turn 1's fact lands in
+the store with the raw email redacted; turn 2's recall surfaces it
+(``user_memories`` populated); turn 3's ``forget_memory`` executes behind
+exactly one approved HITL interrupt, with a pre-approval snapshot proving the
+memory was still present before approval, and the key is gone afterward; the
+near-boundary no-match forget returns an empty *success* (not an error); and
+no memory ever reaches the second user's namespace.
 
-Evidence note: the adapter reaches ``forget_memory`` via
-``graph.aupdate_state(..., as_node="preprocessing_node")`` with a sentinel
-``intent`` outside ``AgentIntent`` — verified empirically that
-``TOOL_REGISTRY.descriptors_for_intent`` excludes ``forget_memory`` from all
-four classified intents, so this is the only way live production code binds
-it to the model. ``interrupt_node``/``tool_node`` downstream are unmodified.
+Evidence note: ``forget_memory`` used to carry ``intents=frozenset()`` and
+``subgraphs=frozenset()``, so ``TOOL_REGISTRY.descriptors_for_intent``
+excluded it from all four classified intents and the adapter had to reach it
+via ``graph.aupdate_state(..., as_node="preprocessing_node")`` with a
+sentinel ``intent`` outside ``AgentIntent``. That gap closed on ``develop``
+(commit ``fe76f434``, re-landed at ``03091c65``): ``forget_memory`` now
+carries ``intents=frozenset({AgentIntent.GENERAL})``, so turn 3 is a plain
+user turn reaching it through real classification.
+``check_real_routing`` below is the load-bearing gate this removal adds: it
+asserts no ``env_flags.routing_workaround`` field is present and that the
+observed turn-3 intent is a real, legitimately-binding ``AgentIntent`` —
+never the retired sentinel value — so a regression back to the workaround
+fails calibration rather than passing silently.
+``interrupt_node``/``tool_node`` downstream are unmodified.
 """
 
 from __future__ import annotations
@@ -36,11 +45,31 @@ except ImportError:  # pragma: no cover - local calibration path
     from evals.harbor_common.envelope import run_verifier_main
 
 BENCHMARK_ID = "agent-memory-roundtrip-v1"
-EXPECTED_SOURCE_REVISION = "49337fa3d1db66440686a8193bc8dd76e8a450af"
+EXPECTED_SOURCE_REVISION = "03091c6534971d83a35bf941af3077a2e35a987b"
 EXPECTED_INSTRUCTION = (
     "Please remember this for my arXiv research going forward: my recovery "
     "contact email is jordan.avery@example.com."
 )
+# Byte-identical to run_agent.py's TURN3_INSTRUCTION. Pinned for the same
+# reason EXPECTED_INSTRUCTION pins turn 1 (check_identity): state["intent"]
+# persists across turns in the LangGraph checkpoint, so evidence from a run
+# where turn 3 was never actually sent — or was stripped after the fact —
+# can still carry a leftover "general" intent from an earlier turn and pass
+# every other gate, including check_real_routing. Pinning the instruction
+# text plus proving a matching human message exists (check_turn3_sent below)
+# closes that false-pass path.
+EXPECTED_TURN3_INSTRUCTION = "Forget my saved contact email."
+
+# The four real classifier outputs (backend/src/services/agent/classifier.py
+# IntentType). Only GENERAL legitimately binds forget_memory today
+# (tools.py's TOOL_REGISTRY: intents=frozenset({AgentIntent.GENERAL})).
+KNOWN_AGENT_INTENTS = frozenset({"research", "writing", "knowledge_graph", "general"})
+FORGET_MEMORY_LEGITIMATE_INTENTS = frozenset({"general"})
+
+# The value this task used to inject via graph.aupdate_state before
+# forget_memory was reachable through live classification. It must never
+# reappear in evidence — its presence means the removed workaround is back.
+RETIRED_SENTINEL_INTENT = "memory_management"
 
 THREAD_ID = "00000000-0000-4000-8000-000000000904"
 CONTACT_EMAIL = "jordan.avery@example.com"
@@ -132,6 +161,123 @@ def check_store_choice(evidence: dict[str, Any], failures: list[str]) -> None:
         failures.append(
             f"store_backend={evidence.get('store_backend')!r}, expected "
             "'AsyncPostgresStore'"
+        )
+
+
+def check_real_routing(evidence: dict[str, Any], failures: list[str]) -> None:
+    """Turn 3 must reach ``forget_memory`` through genuine production
+    routing, not the retired sentinel-intent ``aupdate_state`` workaround.
+
+    A verifier that still accepted the sentinel shape would pass a run that
+    never exercised production classification — the exact false-pass class
+    this task exists to catch, so this gate fails loudly on either signal of
+    the old workaround: an ``env_flags.routing_workaround`` marker, a retired
+    sentinel intent, or a missing turn-3 ``preprocessing_node`` stream update.
+    """
+    env_flags = evidence.get("env_flags") or {}
+    if "routing_workaround" in env_flags:
+        failures.append(
+            f"env_flags carries 'routing_workaround'="
+            f"{env_flags.get('routing_workaround')!r} — this task no longer "
+            "routes turn 3 via the sentinel-intent workaround; routing must "
+            "be genuine"
+        )
+
+    classification = evidence.get("classification") or {}
+    intent = classification.get("turn3_intent")
+    preprocessing_update = None
+    for event in evidence.get("events") or []:
+        if not isinstance(event, dict) or event.get("phase") != "turn3":
+            continue
+        update = event.get("update")
+        if not isinstance(update, dict):
+            continue
+        candidate = update.get("preprocessing_node")
+        if isinstance(candidate, dict):
+            preprocessing_update = candidate
+            break
+
+    if preprocessing_update is None:
+        failures.append(
+            "no turn-3 preprocessing_node stream update — the observed intent "
+            "could have been checkpoint-injected instead of classified"
+        )
+    elif preprocessing_update.get("intent") != intent:
+        failures.append(
+            "turn-3 preprocessing_node intent does not match the observed "
+            f"checkpoint intent: {preprocessing_update.get('intent')!r} != {intent!r}"
+        )
+
+    if intent == RETIRED_SENTINEL_INTENT:
+        failures.append(
+            f"turn-3 intent={intent!r} matches the retired sentinel value "
+            f"{RETIRED_SENTINEL_INTENT!r} — routing was not genuine"
+        )
+    elif intent not in KNOWN_AGENT_INTENTS:
+        failures.append(
+            f"turn-3 intent={intent!r} is not a real AgentIntent "
+            f"({sorted(KNOWN_AGENT_INTENTS)}) — classification did not run "
+            "or was not recorded"
+        )
+    elif intent not in FORGET_MEMORY_LEGITIMATE_INTENTS:
+        failures.append(
+            f"turn-3 intent={intent!r} does not legitimately bind "
+            f"forget_memory (only {sorted(FORGET_MEMORY_LEGITIMATE_INTENTS)} "
+            "does, per the live TOOL_REGISTRY) — the tool executed off an "
+            "intent that should never have bound it"
+        )
+
+    # The probe is visibility only. The raw graph-stream update above, not an
+    # adapter-authored probe, proves preprocessing produced the observed intent.
+
+
+def check_turn3_sent(evidence: dict[str, Any], failures: list[str]) -> None:
+    """Prove turn 3 was an actual user turn, not evidence stripped or forged
+    to fake past ``check_real_routing``.
+
+    ``state["intent"]`` persists across turns in the LangGraph checkpoint, so
+    a fixture (or a real run) that drops the turn-3 ``HumanMessage``, the
+    ``turn3_completed`` milestone, and ``turn3_instruction`` entirely can
+    still carry a leftover ``"general"`` intent from an earlier turn and
+    satisfy every other gate. Mirrors ``check_identity``'s byte-for-byte pin
+    of the turn-1 instruction, applied to turn 3.
+    """
+    if evidence.get("turn3_instruction") != EXPECTED_TURN3_INSTRUCTION:
+        failures.append(
+            f"turn3_instruction={evidence.get('turn3_instruction')!r}, "
+            f"expected {EXPECTED_TURN3_INSTRUCTION!r} — turn 3 does not "
+            "match the approved task"
+        )
+
+    messages = evidence.get("messages") or []
+    turn3_message_present = any(
+        isinstance(message, dict)
+        and message.get("type") == "human"
+        and message.get("content") == EXPECTED_TURN3_INSTRUCTION
+        for message in messages
+    )
+    if not turn3_message_present:
+        failures.append(
+            "no human message matching the turn-3 instruction was found in "
+            "the recorded messages — turn 3 was not actually sent"
+        )
+
+    milestones = evidence.get("milestones") or []
+    if not any(
+        isinstance(milestone, dict) and milestone.get("milestone") == "turn3_completed"
+        for milestone in milestones
+    ):
+        failures.append("milestone 'turn3_completed' is missing — turn 3 did not run")
+
+
+def check_turn1_classification(evidence: dict[str, Any], failures: list[str]) -> None:
+    classification = evidence.get("classification") or {}
+    intent = classification.get("turn1_intent")
+    if intent in (None, "", "general"):
+        failures.append(
+            f"turn-1 intent={intent!r}; memory_save_node's gate skips "
+            "general/empty-intent turns with no tool_executions, so the fact "
+            "was never persisted"
         )
 
 
@@ -328,8 +474,11 @@ def check_semantic_na(evidence: dict[str, Any], failures: list[str]) -> None:
 def objective_failures(evidence: dict[str, Any], state: dict[str, Any]) -> list[str]:
     failures: list[str] = []
     check_identity(evidence, failures)
+    check_turn3_sent(evidence, failures)
+    check_real_routing(evidence, failures)
     check_network_boundary(evidence, failures)
     check_store_choice(evidence, failures)
+    check_turn1_classification(evidence, failures)
     check_memory_redaction(evidence, failures)
     check_turn2_recall(evidence, failures)
     check_interrupt(evidence, failures)
@@ -348,7 +497,22 @@ objective_failures.live_reader = live_database_state  # type: ignore[attr-define
 
 
 def snapshot_extra(evidence: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
-    return {"database_state": state, "semantic": "N/A"}
+    classification = evidence.get("classification") or {}
+    observed_intent = classification.get("turn3_intent")
+    probe_intent = classification.get("turn3_probe_intent")
+    return {
+        "database_state": state,
+        "semantic": "N/A",
+        # Non-gating visibility only — see check_real_routing's note on why
+        # the probe (no previous_turn) and the observed graph-state intent
+        # (previous_turn = turn 2's arXiv-mentioning reply) can legitimately
+        # differ without the run being bad.
+        "turn3_classification_divergence": (
+            probe_intent is not None and probe_intent != observed_intent
+        ),
+        "turn3_observed_intent": observed_intent,
+        "turn3_probe_intent": probe_intent,
+    }
 
 
 def main() -> int:

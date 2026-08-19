@@ -35,7 +35,7 @@ def test_rejects_wrong_recalled_key() -> None:
 def test_rejects_wrong_recalled_value() -> None:
     failures = failures_with(
         lambda evidence: evidence["turn2"]["user_memories"][0]["value"].__setitem__(
-            "intent", "research"
+            "intent", "mutated-not-the-recorded-intent"
         )
     )
     assert "turn 2 did not recall the exact turn-1 memory row" in failures
@@ -44,7 +44,7 @@ def test_rejects_wrong_recalled_value() -> None:
 def test_rejects_wrong_preapproval_value() -> None:
     failures = failures_with(
         lambda evidence: evidence["preapproval_snapshot"]["memory_value"].__setitem__(
-            "intent", "research"
+            "intent", "mutated-not-the-recorded-intent"
         )
     )
     assert "pre-approval snapshot does not match the turn-1 memory row" in failures
