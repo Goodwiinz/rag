@@ -1241,6 +1241,11 @@ export function useChatStreaming(
         return;
       }
       submitLockRef.current = true;
+      // A cold-load confirmation probe still in flight is now stale: whatever
+      // interrupt it might replay predates this turn, and the server abandons
+      // it when the new send arrives. Left running, its late confirmation
+      // frame armed a phantom approval card and locked the composer.
+      probeAbortRef.current?.abort();
       try {
         // Create the idempotency/runtime identity before the optimistic bubble.
         // The backend stores this on the user row and derives the assistant row's
@@ -1656,12 +1661,20 @@ export function useChatStreaming(
     const probeAbort = new AbortController();
     probeAbortRef.current?.abort();
     probeAbortRef.current = probeAbort;
+    // The probe is confirmation-only. If the replay opens with anything else,
+    // this thread has a LIVE run server-side — keeping the probe attached
+    // would consume that run's frames into the void, so bail immediately.
+    const abandonProbe = (): void => probeAbort.abort();
     void Promise.resolve(
       agentChatService.resumeStream(
         threadId,
         0,
         {
           onConfirmation: (agentThreadId, confirmation) => {
+            // A submit fired while the probe was in flight aborts it; a
+            // confirmation frame that raced the abort must not arm a gate for
+            // an interrupt the new turn just abandoned server-side.
+            if (probeAbort.signal.aborted) return;
             setPendingConfirmation({
               threadId: agentThreadId,
               // Must be the DISPLAYED thread id, or confirmationBelongsToThread
@@ -1671,6 +1684,10 @@ export function useChatStreaming(
             });
             probeAbort.abort();
           },
+          onToken: abandonProbe,
+          onToolStart: abandonProbe,
+          onStatus: abandonProbe,
+          onPlan: abandonProbe,
         },
         probeAbort.signal
       )

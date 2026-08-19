@@ -15,6 +15,7 @@ import { removeItemFromRecord } from '../recordIndex';
 import { MAX_CACHED_THREADS, INITIAL_MESSAGE_PAGE_SIZE } from '../initialState';
 import {
   abortNewestPageRequest,
+  deletedThreadIds,
   newestPageRequests,
   type NewestPageRequest,
 } from '../requestCoordinator';
@@ -107,6 +108,9 @@ export const createMessageSlice: ChatSliceCreator<MessageSlice> = (
   },
 
   refreshMessages: async (threadId, expected) => {
+    // A stream can outlive its thread's deletion; its terminal reconcile must
+    // not resurrect the deleted thread's cache and reverse-index entries.
+    if (deletedThreadIds.has(threadId)) return false;
     const previous = newestPageRequests.get(threadId);
     previous?.controller.abort();
     const request: NewestPageRequest = {
@@ -274,6 +278,7 @@ export const createMessageSlice: ChatSliceCreator<MessageSlice> = (
   },
 
   loadOlderMessages: async (threadId) => {
+    if (deletedThreadIds.has(threadId)) return;
     const pagination = get().messagePagination[threadId];
     if (!pagination || !pagination.hasMore || pagination.loadingOlder) {
       return;

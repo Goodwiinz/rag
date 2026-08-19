@@ -11,7 +11,10 @@ import {
 import { workspaceService } from '@/services/workspaceService';
 import type { ChatSliceCreator } from '../types';
 import { removeItemFromRecord } from '../recordIndex';
-import { abortNewestPageRequest } from '../requestCoordinator';
+import {
+  abortNewestPageRequest,
+  markThreadDeleted,
+} from '../requestCoordinator';
 import { handleStaleDataRecovery } from './workspaceSlice';
 
 export interface ConversationSlice {
@@ -177,10 +180,7 @@ export const createConversationSlice: ChatSliceCreator<ConversationSlice> = (
 
   updateConversation: async (id, data) => {
     try {
-      const conversation = await workspaceService.updateConversation(
-        id,
-        data
-      );
+      const conversation = await workspaceService.updateConversation(id, data);
       set((state) => {
         const workspaceId = conversation.workspace_id;
         const convs = state.conversations[workspaceId] || [];
@@ -213,6 +213,7 @@ export const createConversationSlice: ChatSliceCreator<ConversationSlice> = (
           (threadId) => snapshot.threadToConversation[threadId] === id
         ),
       ]);
+      threadIds.forEach(markThreadDeleted);
       threadIds.forEach(abortNewestPageRequest);
       set((state) => {
         // Use O(1) reverse index lookup (GOO-86)

@@ -28,11 +28,26 @@ export function abortNewestPageRequest(threadId: string): void {
   newestPageRequests.delete(threadId);
 }
 
+/**
+ * Threads deleted this session. A stream that outlives its thread's deletion
+ * still runs terminal reconciliation (refreshMessages) when it commits;
+ * without this record that orphan request re-created the deleted thread's
+ * message cache, pagination, freshness and reverse-index entries.
+ */
+export const deletedThreadIds = new Set<string>();
+
+export function markThreadDeleted(threadId: string): void {
+  deletedThreadIds.add(threadId);
+}
+
 export function abortAllNewestPageRequests(): void {
   for (const request of newestPageRequests.values()) {
     request.controller.abort();
   }
   newestPageRequests.clear();
+  // Full store reset (logout, tests): the session-scoped deletion record goes
+  // with it — a fresh session may legitimately reuse ids in fixtures.
+  deletedThreadIds.clear();
 }
 
 // Module-level abort controller for the deprecated `streamMessage` v2 path
