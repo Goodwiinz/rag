@@ -19,6 +19,9 @@ file it as a proposal instead.
   and the mutation-verification rule for race/idempotency tests.
 - **[api-contracts.md](api-contracts.md)** — the OpenAPI → generated
   TypeScript pipeline and the adopt-on-touch migration rule.
+- **[gotchas.md](gotchas.md)** — operational invariants preserved from the
+  retired root `CLAUDE.md` (#1491). Exempt from the enforced-rule bar above:
+  these are hard-won environment/API/tenancy facts, not CI-backed rules.
 
 Future internal workspace packages must be declared with the pnpm
 `workspace:` protocol (`"pkg": "workspace:*"`) so installs can never fall
