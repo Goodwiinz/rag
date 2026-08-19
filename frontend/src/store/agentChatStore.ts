@@ -98,6 +98,8 @@ const initialState: AgentChatState = {
   hasUnread: false,
   pageContext: DEFAULT_PAGE_CONTEXT,
   isLoadingThreads: false,
+  threadsError: null,
+  messagesError: null,
   isLoadingMessages: false,
   pendingConfirmations: {},
   isConfirming: false,
@@ -146,8 +148,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
 
     // Messages
     sendMessage: async () => {
-      const { inputValue, isStreaming, pageContext, activeThreadId, uiMode } =
-        get();
+      const { inputValue, isStreaming, pageContext, activeThreadId } = get();
       const trimmed = inputValue.trim();
       if (!trimmed || isStreaming) return;
 
@@ -280,7 +281,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
                       const runningIdx = [...execs]
                         .reverse()
                         .findIndex(
-                          (te) => te.toolName === tool && te.status === 'running'
+                          (te) =>
+                            te.toolName === tool && te.status === 'running'
                         );
                       const teIdx =
                         runningIdx !== -1
@@ -292,7 +294,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
                         const actualIdx = execs.length - 1 - teIdx;
                         // The service forwards the frame's is_error flag; a failed
                         // tool must not render as a completed one.
-                        execs[actualIdx].status = isError ? 'failed' : 'completed';
+                        execs[actualIdx].status = isError
+                          ? 'failed'
+                          : 'completed';
                         if (isError) execs[actualIdx].error = result;
                         try {
                           execs[actualIdx].result = JSON.parse(result);
@@ -429,7 +433,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   if (didMutateProjectData) {
                     invalidateProjectQueries(pageContext.projectId);
                   }
-                  if (uiMode === 'closed') {
+                  // Read the panel state NOW, not at send time: closing the
+                  // panel mid-answer used to leave the unread badge unset.
+                  if (get().uiMode === 'closed') {
                     set((state) => {
                       state.hasUnread = true;
                     });
@@ -604,7 +610,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
               state.isStreaming = false;
               (state as unknown as AgentChatStore)._abortController = null;
             });
-            if (uiMode === 'closed') {
+            if (get().uiMode === 'closed') {
               set((state) => {
                 state.hasUnread = true;
               });
@@ -835,7 +841,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
                       const actualIdx = execs.length - 1 - teIdx;
                       // The service forwards the frame's is_error flag; a failed
                       // tool must not render as a completed one.
-                      execs[actualIdx].status = isError ? 'failed' : 'completed';
+                      execs[actualIdx].status = isError
+                        ? 'failed'
+                        : 'completed';
                       if (isError) execs[actualIdx].error = result;
                       try {
                         execs[actualIdx].result = JSON.parse(result);
@@ -1297,6 +1305,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
         state.messages = [];
         state.activeThreadId = null;
         state.isStreaming = false;
+        state.messagesError = null;
         state.isConfirming = false;
         state.pendingConfirmations = {};
         state.currentPlan = null;
@@ -1321,6 +1330,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
         state.messages = [];
         state.inputValue = '';
         state.isLoadingMessages = false;
+        // A blank new conversation must not inherit the previous thread's load
+        // failure — it would render the error state with nothing to retry.
+        state.messagesError = null;
         state.isStreaming = false;
         state.isConfirming = false;
       });
@@ -1352,6 +1364,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
 
       set((state) => {
         state.isLoadingThreads = true;
+        state.threadsError = null;
       });
 
       try {
@@ -1372,12 +1385,17 @@ export const useAgentChatStore = create<AgentChatStore>()(
         set((state) => {
           state.threads = threads;
           state.isLoadingThreads = false;
+          state.threadsError = null;
         });
       } catch (error) {
         if (loadThreadsToken !== requestToken) return; // superseded
         console.error('Failed to load threads:', error);
         set((state) => {
           state.isLoadingThreads = false;
+          state.threadsError =
+            error instanceof Error
+              ? error.message
+              : 'Could not load conversations.';
         });
       }
     },
@@ -1386,6 +1404,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
       const loadEpoch = ++threadLoadEpoch;
       set((state) => {
         state.isLoadingMessages = true;
+        state.messagesError = null;
       });
 
       try {
@@ -1429,6 +1448,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
           state.messages = messages;
           state.activeThreadId = threadId;
           state.isLoadingMessages = false;
+          state.messagesError = null;
         });
       } catch (error) {
         console.error('Failed to load thread messages:', error);
@@ -1440,6 +1460,10 @@ export const useAgentChatStore = create<AgentChatStore>()(
         }
         set((state) => {
           state.isLoadingMessages = false;
+          state.messagesError =
+            error instanceof Error
+              ? error.message
+              : 'Could not load this conversation.';
         });
       }
     },

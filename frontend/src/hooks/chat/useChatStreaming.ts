@@ -365,7 +365,13 @@ export function useChatStreaming(
   // onSeq fires per frame, but the activity store only needs the latest value
   // once per paint.
   const seqRafRef = useRef<number | null>(null);
-  const pendingSeqRef = useRef<{ threadId: string; seq: number } | null>(null);
+  // Carries the stream id alongside the cursor so the unmount flush can write
+  // both without reaching into another ref from inside effect cleanup.
+  const pendingSeqRef = useRef<{
+    threadId: string;
+    seq: number;
+    streamId?: string;
+  } | null>(null);
   // Run-correlation id per thread (envelope stream_id) — persisted with the
   // seq cursor so resume pins to the run the cursor came from.
   const streamIdByThreadRef = useRef<Record<string, string>>({});
@@ -504,7 +510,19 @@ export function useChatStreaming(
       }
       if (seqRafRef.current !== null) {
         cancelAnimationFrame(seqRafRef.current);
+        // The cursor update was throttled through that rAF: dropping it here
+        // makes the next resume replay from an older seq than we actually saw.
+        const pending = pendingSeqRef.current;
+        if (pending) {
+          // Carry the stream id too, exactly as the rAF callbacks do: without
+          // it a resume after the original stream finished has nothing to
+          // point at, gets a 204, and closes the run without the answer.
+          useAgentActivityStore
+            .getState()
+            .setStreamSeq(pending.threadId, pending.seq, pending.streamId);
+        }
       }
+      pendingSeqRef.current = null;
       // Abort this instance's in-flight SSE fetch. The backend run survives a
       // client disconnect (buffered stream) and the mount-time resume effect
       // reattaches. Leaving the fetch orphaned instead kept the stream owned
@@ -644,7 +662,9 @@ export function useChatStreaming(
         let turnPlan: PlanStep[] = [];
         // Planner's top-level rationale for turnPlan, carried the same way.
         let turnPlanReasoning = '';
-        const toolStartTimes = new Map<string, number>();
+        // One entry per invocation: two parallel calls to the same tool used
+        // to share a slot, so the second end read the first's start time.
+        const toolStartTimes = new Map<string, number[]>();
         // Per-turn LLM token usage, captured from the `usage` SSE event that
         // fires just before `done`. Null until (and unless) it arrives.
         let turnTokenUsage: { input: number; output: number } | null = null;
@@ -727,7 +747,11 @@ export function useChatStreaming(
             },
             onSeq: (seq) => {
               if (!currentThreadId) return;
-              pendingSeqRef.current = { threadId: currentThreadId, seq };
+              pendingSeqRef.current = {
+                threadId: currentThreadId,
+                seq,
+                streamId: streamIdByThreadRef.current[currentThreadId],
+              };
               if (seqRafRef.current === null) {
                 seqRafRef.current = requestAnimationFrame(() => {
                   seqRafRef.current = null;
@@ -753,7 +777,10 @@ export function useChatStreaming(
                   .pushToolStart(currentThreadId, tool);
               }
               // Per-turn tracking for inline activity strip
-              toolStartTimes.set(tool, Date.now());
+              toolStartTimes.set(tool, [
+                ...(toolStartTimes.get(tool) ?? []),
+                Date.now(),
+              ]);
               turnSteps.push({
                 tool,
                 label: toolLabel(tool),
@@ -778,7 +805,8 @@ export function useChatStreaming(
                 currentThreadId || null
               );
               // Update last matching running step for this tool
-              const startTime = toolStartTimes.get(tool);
+              // Newest-first, matching the newest running step settled below.
+              const startTime = toolStartTimes.get(tool)?.pop();
               const durationMs = startTime ? Date.now() - startTime : undefined;
               const idx = [...turnSteps]
                 .map((s, i) => ({ s, i }))
@@ -1742,7 +1770,7 @@ export function useChatStreaming(
         const confirmSteps: ActivityStep[] = [
           ...(pendingConfirmation.steps ?? []),
         ];
-        const confirmToolStartTimes = new Map<string, number>();
+        const confirmToolStartTimes = new Map<string, number[]>();
         // Pre-interrupt provenance carried on the confirmation — the interrupt
         // exit cleared the live streaming state, so restore it here.
         const carriedCitations = pendingConfirmation.citations ?? [];
@@ -1874,7 +1902,11 @@ export function useChatStreaming(
               onSeq: (seq) => {
                 const seqThreadId = pendingConfirmation.workspaceThreadId;
                 if (!seqThreadId) return;
-                pendingSeqRef.current = { threadId: seqThreadId, seq };
+                pendingSeqRef.current = {
+                  threadId: seqThreadId,
+                  seq,
+                  streamId: streamIdByThreadRef.current[seqThreadId],
+                };
                 if (seqRafRef.current === null) {
                   seqRafRef.current = requestAnimationFrame(() => {
                     seqRafRef.current = null;
@@ -1896,7 +1928,10 @@ export function useChatStreaming(
                 useAgentActivityStore
                   .getState()
                   .pushToolStart(pendingConfirmation.workspaceThreadId, tool);
-                confirmToolStartTimes.set(tool, Date.now());
+                confirmToolStartTimes.set(tool, [
+                  ...(confirmToolStartTimes.get(tool) ?? []),
+                  Date.now(),
+                ]);
                 confirmSteps.push({
                   tool,
                   label: toolLabel(tool),
@@ -1926,7 +1961,7 @@ export function useChatStreaming(
                   isError,
                   pendingConfirmation.workspaceThreadId
                 );
-                const startTime = confirmToolStartTimes.get(tool);
+                const startTime = confirmToolStartTimes.get(tool)?.pop();
                 const durationMs = startTime
                   ? Date.now() - startTime
                   : undefined;
@@ -2090,6 +2125,13 @@ export function useChatStreaming(
             role: 'assistant',
             content: `Confirmation failed: ${errorMessage}`,
             timestamp: Date.now(),
+            // Without the error block this bubble rendered as plain assistant
+            // prose: no failure styling and no retry affordance, unlike every
+            // other failed turn.
+            error: {
+              message: 'This action failed to complete. Please try again.',
+              category: 'exception',
+            },
           };
           if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
           confirmThrew = true;

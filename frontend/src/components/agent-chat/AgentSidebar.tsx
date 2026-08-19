@@ -21,6 +21,7 @@ export function AgentSidebar({ onCollapse }: AgentSidebarProps) {
   const threads = useAgentChatStore((s) => s.threads);
   const activeThreadId = useAgentChatStore((s) => s.activeThreadId);
   const isLoadingThreads = useAgentChatStore((s) => s.isLoadingThreads);
+  const threadsError = useAgentChatStore((s) => s.threadsError);
   const close = useAgentChatStore((s) => s.close);
   const openPanel = useAgentChatStore((s) => s.openPanel);
   const setInputValue = useAgentChatStore((s) => s.setInputValue);
@@ -61,6 +62,8 @@ export function AgentSidebar({ onCollapse }: AgentSidebarProps) {
           activeThreadId={activeThreadId}
           onSelectThread={handleSelectThread}
           isLoading={isLoadingThreads}
+          error={threadsError}
+          onRetry={() => void loadThreads()}
         />
       </div>
 
