@@ -152,6 +152,65 @@ describe('useChatStreaming pending-confirmation probe (cold thread load)', () =>
     expect(result.current.pendingConfirmation).not.toBeNull();
   });
 
+  it('a stop that raced a failed cancel does not taint a later approval (M2)', async () => {
+    parkedInterrupt();
+    // The cancel hangs (it will eventually lose the race) — the user approves
+    // while it is still pending, so the stale stop is live during the confirm
+    // stream. With the shared boolean this tagged the approved turn 'stopped'.
+    let failCancel: (() => void) | undefined;
+    cancelPendingConfirmationMock.mockImplementation(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          failCancel = () => reject(new Error('conflict'));
+        })
+    );
+    const streamConfirmMock = vi.mocked(
+      (await import('@/services/agentChatService')).agentChatService
+        .streamConfirm
+    );
+    streamConfirmMock.mockImplementation(
+      async (
+        _req: unknown,
+        cb: { onToken?: (t: string) => void; onDone?: (p?: unknown) => void }
+      ) => {
+        cb.onToken?.('confirmed answer');
+        cb.onDone?.({});
+      }
+    );
+    const refreshSpy = vi.fn().mockResolvedValue(true);
+    useChatStore.setState({ refreshMessages: refreshSpy });
+
+    const { result } = await renderStreaming();
+    await waitFor(() =>
+      expect(result.current.pendingConfirmation).not.toBeNull()
+    );
+
+    act(() => result.current.handleStop());
+    await waitFor(() =>
+      expect(cancelPendingConfirmationMock).toHaveBeenCalled()
+    );
+    // User changes their mind and approves while the cancel is still pending.
+    expect(result.current.pendingConfirmation).not.toBeNull();
+    await act(async () => {
+      await result.current.handleConfirmation(true);
+    });
+    await act(async () => {
+      failCancel?.();
+      await Promise.resolve();
+    });
+
+    // The stale stop targeted the pre-approval stream; the approved turn must
+    // commit as approved, not as stopped.
+    expect(refreshSpy).toHaveBeenCalledWith(
+      'thread-A',
+      expect.objectContaining({
+        diagnostic: expect.objectContaining({
+          terminalReason: 'confirmation-approved',
+        }),
+      })
+    );
+  });
+
   it('keeps each parked confirmation while probing another thread', async () => {
     parkedInterrupt();
     const { result } = await renderStreaming();
