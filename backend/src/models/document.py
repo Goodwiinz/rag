@@ -349,8 +349,19 @@ class Document(BaseModel):
         if not include_content:
             data.pop("content_text", None)
 
-        # Remove sensitive fields
-        data.pop("file_path", None)
+        # Remove sensitive/internal fields (R4-L4). storage_path/storage_backend
+        # expose the raw object-storage key + backend layout, checksum_sha256
+        # is an internal dedup key, and do_kb_data_source_uuid is an internal
+        # DO Knowledge Base identifier — none of these are part of the public
+        # document API contract.
+        for internal_field in (
+            "file_path",
+            "storage_path",
+            "storage_backend",
+            "checksum_sha256",
+            "do_kb_data_source_uuid",
+        ):
+            data.pop(internal_field, None)
 
         return data
 

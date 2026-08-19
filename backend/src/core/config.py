@@ -154,6 +154,16 @@ class Settings(BaseSettings):
     CORS_EXPOSE_HEADERS: str = "X-Request-ID,X-Correlation-ID,X-Process-Time"
     CORS_MAX_AGE: int = 86400  # 24 hours preflight cache
 
+    # R4-M13: gate the process-wide X-Forwarded-For patch (security.py
+    # _install_proxy_aware_client_patch) that makes request.client.host /
+    # get_client_ip() trust the (rightmost) XFF entry. Default True to
+    # preserve current deployed-dev behavior — we sit behind our own ingress,
+    # which appends the real client IP as the last hop. Set False for any
+    # deployment NOT behind a trusted reverse proxy, where trusting a
+    # client-suppliable header would let a client spoof its own IP for
+    # rate-limiting / audit-log / abuse-detection purposes.
+    TRUSTED_PROXY_ENABLED: bool = True
+
     # Host header allow-list for TrustedHostMiddleware (production only; see
     # main.py). Comma-separated so an environment can add its own hostname
     # without editing app code: a server-side Next.js rewrite proxies with the

@@ -93,7 +93,14 @@ def _install_proxy_aware_client_patch() -> None:
     HTTPConnection._proxy_aware_client_installed = True
 
 
-_install_proxy_aware_client_patch()
+# R4-M13: this patch makes request.client.host (and get_client_ip below)
+# trust X-Forwarded-For process-wide, which is only safe behind a proxy that
+# itself sets/overwrites that header (our ingress does). Gate it behind
+# TRUSTED_PROXY_ENABLED (default True — deployed dev sits behind ingress)
+# so a deployment not behind a trusted proxy doesn't let a client spoof its
+# own IP for rate-limiting / audit-log / abuse-detection purposes.
+if settings.TRUSTED_PROXY_ENABLED:
+    _install_proxy_aware_client_patch()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

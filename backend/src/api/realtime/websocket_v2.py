@@ -87,6 +87,34 @@ async def _resolve_ws_organization_id(
     return None
 
 
+async def _resolve_ws_role(
+    user_id: str,
+    session_factory=AsyncSessionLocal,
+) -> str:
+    """Resolve a WS connection's REAL role from the DB (source of truth).
+
+    The JWT's ``role`` claim (Supabase ``app_metadata.role``) can go stale:
+    a CLI token is long-lived (``CLI_TOKEN_EXPIRE_DAYS``, default 30) and
+    isn't re-minted when an admin is demoted, so trusting the claim for
+    admin-channel gating would let a demoted admin keep admin-channel access
+    for up to 30 days. Mirrors ``_resolve_ws_organization_id``: DB lookup,
+    fail closed (least-privileged role) on any miss/error.
+    """
+    stmt = select(User.role).where(
+        User.id == user_id,
+        User.is_active == True,  # noqa: E712
+        User.is_deleted == False,  # noqa: E712
+    )
+    try:
+        async with session_factory() as db:
+            role = (await db.execute(stmt)).scalars().first()
+            if role is not None:
+                return role.value
+    except Exception as e:  # DB failure must NOT silently grant admin access
+        logger.error("WebSocket role resolution failed for user %s: %s", user_id, e)
+    return UserRole.USER.value
+
+
 router = APIRouter(prefix="/api/v2/ws", tags=["websocket-v2"])
 
 
@@ -243,6 +271,12 @@ async def websocket_connect_v2_secure(
         await websocket.close(code=4003, reason="No organization for user")
         return
 
+    # Resolve the connection's REAL role from the DB (R4-M8). The JWT role
+    # claim (app_metadata.role, or a long-lived CLI token's copy of it) can be
+    # stale for up to CLI_TOKEN_EXPIRE_DAYS after a demotion — admin-channel
+    # gating must not trust it.
+    db_role = await _resolve_ws_role(user_id)
+
     # Parse client information
     client_info_dict = {}
     if client_info:
@@ -270,10 +304,11 @@ async def websocket_connect_v2_secure(
             "update_frequency": update_frequency.value,
             "connected_at": datetime.now(dt_timezone.utc).isoformat(),
             "auth_method": user_payload.get("_auth_method", "unknown"),
-            # Stored so the connection manager can authorize mid-session
-            # channel subscriptions (admin-only channels) the same way the
-            # connect-time gate below does.
-            "role": user_payload.get("role", "USER"),
+            # DB-sourced (not JWT-claimed) role, stored so the connection
+            # manager can authorize mid-session channel subscriptions
+            # (admin-only channels) the same way the connect-time gate below
+            # does — see R4-M8.
+            "role": db_role,
         }
     )
 
@@ -298,7 +333,7 @@ async def websocket_connect_v2_secure(
         # channels (system_status, admin_alerts) are rejected for non-admins;
         # unknown channels are dropped. Only the granted set is subscribed and
         # echoed back, so a client cannot receive events it isn't entitled to.
-        user_role = user_payload.get("role", "USER")
+        user_role = db_role
         granted_channels = [
             ch for ch in channel_list if _can_subscribe_to_channel(ch, user_role)
         ]
