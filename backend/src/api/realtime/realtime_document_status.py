@@ -353,17 +353,17 @@ async def get_realtime_document_status(
         # Estimate completion time
         estimated_completion = None
         if overall_progress > 0 and overall_progress < 100:
-            # Simple estimation based on current progress
-            elapsed_time = (
-                (datetime.utcnow() - document.processing_started_at).total_seconds()
-                if document.processing_started_at
-                else 0
-            )
+            # processing_started_at is timezone-aware (DateTime(timezone=True));
+            # naive utcnow() minus an aware datetime raises TypeError, 500ing
+            # this endpoint for any document mid-processing.
+            now = datetime.now(dt_timezone.utc)
+            started_at = document.processing_started_at
+            if started_at is not None and started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=dt_timezone.utc)
+            elapsed_time = (now - started_at).total_seconds() if started_at else 0
             if elapsed_time > 0:
                 estimated_total_time = elapsed_time * (100 / overall_progress)
-                estimated_completion = datetime.utcnow() + timedelta(
-                    seconds=estimated_total_time
-                )
+                estimated_completion = now + timedelta(seconds=estimated_total_time)
                 estimated_completion = estimated_completion.isoformat()
 
         # Build response
