@@ -647,6 +647,16 @@ async def cancel_upload(
             processing_job.error_message = "Upload cancelled by user"
             await db.commit()
 
+            # Also revoke the Celery task if one was dispatched, mirroring
+            # processing.py's cancel path — otherwise the worker keeps
+            # running the job after the DB row says cancelled.
+            if processing_job.celery_task_id:
+                from src.tasks.processing_tasks import current_app
+
+                current_app.control.revoke(
+                    processing_job.celery_task_id, terminate=True
+                )
+
             return {
                 "message": "Upload cancelled successfully",
                 "upload_id": upload_id,

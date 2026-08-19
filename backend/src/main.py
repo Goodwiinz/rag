@@ -768,7 +768,13 @@ async def general_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception: %s", exc, exc_info=True)
 
     message = "Internal server error"
-    if settings.ENVIRONMENT not in ("production",):
+    # DEBUG (not raw ENVIRONMENT) gates the leak: config.py's
+    # _enforce_debug_off_in_prod force-clears DEBUG in production AND
+    # staging, so this can never fire outside a genuine local/dev DEBUG
+    # run. The old `ENVIRONMENT not in ("production",)` check leaked full
+    # exception details in staging/dev deployments, where ENVIRONMENT is
+    # "staging"/"development" but the service is still reachable.
+    if settings.DEBUG:
         message = f"{type(exc).__name__}: {exc}"
 
     return JSONResponse(

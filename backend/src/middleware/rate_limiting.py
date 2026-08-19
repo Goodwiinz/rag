@@ -90,7 +90,18 @@ class RedisRateLimiter:
         """
         now = time.time()
         window_start = now - window
-        pipeline = self.redis.pipeline()
+
+        # Initialized before the try so a Redis failure on the very first
+        # call (zremrangebyscore) still has `info` to return in the
+        # `except redis.RedisError` fallback below, instead of raising
+        # UnboundLocalError.
+        info = {
+            "current_requests": 0,
+            "limit": limit,
+            "window": window,
+            "reset_time": now + window,
+            "retry_after": None,
+        }
 
         try:
             # Remove old requests outside the window
@@ -99,13 +110,7 @@ class RedisRateLimiter:
             # Count current requests in window
             current_requests = self.redis.zcard(key)
 
-            info = {
-                "current_requests": current_requests,
-                "limit": limit,
-                "window": window,
-                "reset_time": now + window,
-                "retry_after": None,
-            }
+            info["current_requests"] = current_requests
 
             if current_requests >= limit:
                 # Get oldest request timestamp to calculate retry_after

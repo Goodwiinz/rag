@@ -141,6 +141,17 @@ class WebSocketAuthenticator:
 
                 raise WebSocketAuthError("Invalid authentication token.", code=4003)
 
+            # Reject a CLI token that has been revoked (per-user "revoked
+            # before" cutoff), mirroring dependencies.get_current_user.
+            # Fail-open if Redis is down — see cli_token_revocation.
+            if getattr(token_data, "is_cli", False):
+                from .cli_token_revocation import is_cli_token_revoked
+
+                if await is_cli_token_revoked(
+                    token_data.user_id, getattr(token_data, "issued_at", None)
+                ):
+                    raise WebSocketAuthError("Token has been revoked.", code=4003)
+
             if hasattr(token_data, "model_dump"):
                 payload = token_data.model_dump(exclude_none=True)
             else:
