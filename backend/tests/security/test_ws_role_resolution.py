@@ -9,6 +9,7 @@ for up to 30 days after losing the role in the DB. Both call sites now
 resolve the role from the DB (mirroring ``_resolve_ws_organization_id``).
 """
 
+from collections.abc import Callable
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -20,18 +21,18 @@ from src.services.websocket.websocket_manager import _resolve_current_db_role
 
 
 class _Result:
-    def __init__(self, obj):
+    def __init__(self, obj: object) -> None:
         self._obj = obj
 
-    def scalars(self):
+    def scalars(self) -> "_Result":
         return self
 
-    def first(self):
+    def first(self) -> object:
         return self._obj
 
 
-def _session_factory(db):
-    def make():
+def _session_factory(db: object) -> Callable[[], MagicMock]:
+    def make() -> MagicMock:
         cm = MagicMock()
         cm.__aenter__ = AsyncMock(return_value=db)
         cm.__aexit__ = AsyncMock(return_value=False)

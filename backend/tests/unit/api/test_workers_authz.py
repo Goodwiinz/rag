@@ -20,7 +20,7 @@ from fastapi.routing import APIRoute
 pytestmark = pytest.mark.unit
 
 
-def _routes():
+def _routes() -> dict[str, APIRoute]:
     from src.api.infrastructure.workers import router
 
     return {r.path: r for r in router.routes if isinstance(r, APIRoute)}
