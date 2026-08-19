@@ -266,10 +266,6 @@
         "errors": 0,
         "warnings": 3
       },
-      "app/components/realtime/DocumentProgressVisualizer.tsx": {
-        "errors": 0,
-        "warnings": 21
-      },
       "app/documents/components/DocumentList.tsx": {
         "errors": 0,
         "warnings": 3
@@ -714,10 +710,6 @@
         "errors": 0,
         "warnings": 1
       },
-      "src/components/documents/BatchUploadManager.tsx": {
-        "errors": 1,
-        "warnings": 2
-      },
       "src/components/documents/CropExtractOverlay.tsx": {
         "errors": 1,
         "warnings": 1
@@ -758,10 +750,6 @@
         "errors": 0,
         "warnings": 1
       },
-      "src/components/documents/DocumentUploader.tsx": {
-        "errors": 0,
-        "warnings": 6
-      },
       "src/components/documents/DocumentUploadZone.tsx": {
         "errors": 0,
         "warnings": 19
@@ -785,10 +773,6 @@
       "src/components/documents/ProcessingStatus.tsx": {
         "errors": 1,
         "warnings": 6
-      },
-      "src/components/documents/UploadProgress.tsx": {
-        "errors": 0,
-        "warnings": 4
       },
       "src/components/entities/__tests__/DocumentEntityExtractor.test.tsx": {
         "errors": 0,
@@ -1089,34 +1073,6 @@
       "src/components/preview/MultimodalViewer.tsx": {
         "errors": 5,
         "warnings": 14
-      },
-      "src/components/processing/__tests__/ErrorBoundary.test.tsx": {
-        "errors": 0,
-        "warnings": 1
-      },
-      "src/components/processing/DocumentProgressVisualizer.tsx": {
-        "errors": 2,
-        "warnings": 11
-      },
-      "src/components/processing/ErrorBoundary.tsx": {
-        "errors": 1,
-        "warnings": 9
-      },
-      "src/components/processing/ProcessingDashboard.stories.tsx": {
-        "errors": 0,
-        "warnings": 2
-      },
-      "src/components/processing/ProcessingDashboard.tsx": {
-        "errors": 4,
-        "warnings": 5
-      },
-      "src/components/realtime/ErrorDisplay.tsx": {
-        "errors": 0,
-        "warnings": 3
-      },
-      "src/components/realtime/RealtimeProcessingDashboard.stories.tsx": {
-        "errors": 0,
-        "warnings": 8
       },
       "src/components/research-engine/BlueprintEditor.tsx": {
         "errors": 1,
@@ -1574,10 +1530,6 @@
         "errors": 0,
         "warnings": 28
       },
-      "src/hooks/useProcessingStatus.ts": {
-        "errors": 2,
-        "warnings": 1
-      },
       "src/hooks/useProjectChat.ts": {
         "errors": 0,
         "warnings": 10
@@ -1585,10 +1537,6 @@
       "src/hooks/useSidebarToggle.ts": {
         "errors": 2,
         "warnings": 7
-      },
-      "src/hooks/useWebSocket.ts": {
-        "errors": 3,
-        "warnings": 14
       },
       "src/integration/__tests__/monitoring-store.test.ts": {
         "errors": 0,
@@ -1661,10 +1609,6 @@
       "src/services/__tests__/enhancedDocumentService.test.ts": {
         "errors": 0,
         "warnings": 1
-      },
-      "src/services/__tests__/realtimeWebSocketService.test.ts": {
-        "errors": 0,
-        "warnings": 6
       },
       "src/services/__tests__/streamingService.test.ts": {
         "errors": 0,
@@ -1746,10 +1690,6 @@
         "errors": 0,
         "warnings": 3
       },
-      "src/services/realtimeWebSocketService.ts": {
-        "errors": 0,
-        "warnings": 7
-      },
       "src/services/researchEngineService.ts": {
         "errors": 0,
         "warnings": 13
@@ -1765,10 +1705,6 @@
       "src/services/uploadService.ts": {
         "errors": 0,
         "warnings": 1
-      },
-      "src/services/websocket.ts": {
-        "errors": 0,
-        "warnings": 4
       },
       "src/services/workspaceService.ts": {
         "errors": 0,
