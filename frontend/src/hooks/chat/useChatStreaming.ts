@@ -332,10 +332,13 @@ export function useChatStreaming(
   // ---- Refs ----
   const lastStreamedContentRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
-  // Set the instant the user hits Stop, read by the stream-completion path so a
-  // user abort finalizes the partial answer (tagged `stopped`) instead of
-  // surfacing an error or an empty bubble. Reset once the turn is wrapped up.
-  const stoppedByUserRef = useRef(false);
+  // Which stream-owner claim (see streamOwnerRef) the user's Stop targets.
+  // Stamped by handleStop with the claim that is live at that instant; every
+  // reader compares against its own turn's claim, so a stop can only ever
+  // affect the turn it was aimed at. This is what makes Stop locally
+  // authoritative: a failed durable cancel no longer un-stops the turn, and a
+  // stale stop can never leak into the next turn (its claim won't match).
+  const stopTargetRef = useRef<number | null>(null);
   // Citations snapshot taken by handleStop the instant the user aborts —
   // storeStopStreaming() clears streamingCitations synchronously, but the
   // completion path still needs them to commit + persist the stopped answer's
@@ -578,6 +581,8 @@ export function useChatStreaming(
 
       // Claim the store's streaming slice for this turn (see streamOwnerRef).
       const streamOwner = (streamOwnerRef.current += 1);
+      const isStoppedByUser = (): boolean =>
+        stopTargetRef.current === streamOwner;
 
       // The thread this turn belongs to, snapshotted after thread creation.
       // Every local setMessages below must be gated on the user still viewing
@@ -705,9 +710,9 @@ export function useChatStreaming(
           setMessages([...newMessages, placeholder]);
         }
 
-        // Fresh turn — clear any stop flag from a previous run and record the
-        // thread so Stop can finalize this run's activity indicator.
-        stoppedByUserRef.current = false;
+        // Fresh turn — record the thread so Stop can finalize this run's
+        // activity indicator. (No stop-flag reset needed: a previous turn's
+        // stop target can't match this turn's claim.)
         activeRunThreadRef.current = currentThreadId || null;
 
         const streamAbort = new AbortController();
@@ -964,7 +969,7 @@ export function useChatStreaming(
         if (!finalContent.trim()) {
           // A user-stop before the first token: just unwind quietly — no error
           // bubble for an answer the user chose not to wait for.
-          if (!stoppedByUserRef.current && !quietWhenEmpty) {
+          if (!isStoppedByUser() && !quietWhenEmpty) {
             const emptyResponseMessage: ChatPageMessage = {
               runtimeId: crypto.randomUUID(),
               source: 'local-only',
@@ -992,13 +997,13 @@ export function useChatStreaming(
             streamingPlan: [],
             streamingThreadId: null,
           });
-          if (stoppedByUserRef.current) {
+          if (isStoppedByUser()) {
             await reconcileAssistant(doneIds, 'stopped-before-token');
           } else {
             await reconcileUser('empty-response');
           }
           setIsLoading(false);
-          stoppedByUserRef.current = false;
+          if (isStoppedByUser()) stopTargetRef.current = null;
           activeRunThreadRef.current = null;
           return;
         }
@@ -1009,7 +1014,7 @@ export function useChatStreaming(
         // mounting. Otherwise the final message and the streaming bubble render
         // together during the (awaited) DB save window below.
         const responseTimeMs = Date.now() - responseStart;
-        const wasStopped = stoppedByUserRef.current;
+        const wasStopped = isStoppedByUser();
         // The done payload carries the graph state's tool executions for the
         // WHOLE turn (parsed results, real durations) — richer than the live
         // SSE summaries and identical to what a reload shows. Prefer them so
@@ -1067,7 +1072,7 @@ export function useChatStreaming(
             ...(turnTokenUsage ? { tokenUsage: turnTokenUsage } : {}),
           },
         };
-        stoppedByUserRef.current = false;
+        if (isStoppedByUser()) stopTargetRef.current = null;
         activeRunThreadRef.current = null;
 
         useChatStore.setState({
@@ -1124,7 +1129,7 @@ export function useChatStreaming(
       } catch (err) {
         // A user stop should never read as a failure. (streamMessage already
         // swallows AbortError, but guard here too in case the abort surfaces.)
-        if (!stoppedByUserRef.current) {
+        if (!isStoppedByUser()) {
           console.error('Failed to send message:', err);
 
           if (isTurnDisplayed())
@@ -1148,7 +1153,7 @@ export function useChatStreaming(
         // activity run stayed 'running' forever — the rail kept spinning and
         // recovery depended on the resume effect re-firing by accident.
         const failedRunThread = activeRunThreadRef.current ?? currentThreadId;
-        if (failedRunThread && !keepRunOnFailure && !stoppedByUserRef.current) {
+        if (failedRunThread && !keepRunOnFailure && !isStoppedByUser()) {
           transportFailureRef.current.add(failedRunThread);
         }
         if (failedRunThread && !keepRunOnFailure) {
@@ -1156,10 +1161,10 @@ export function useChatStreaming(
             .getState()
             .finishRun(
               failedRunThread,
-              stoppedByUserRef.current ? 'stopped' : 'error'
+              isStoppedByUser() ? 'stopped' : 'error'
             );
         }
-        if (stoppedByUserRef.current) {
+        if (isStoppedByUser()) {
           await reconcileAssistant(doneIds, 'abort');
         } else {
           await reconcileUser('exception');
@@ -1199,10 +1204,11 @@ export function useChatStreaming(
         }
         if (streamOwnerRef.current === streamOwner) {
           // Same ownership rule: these refs are shared with the confirm
-          // stream, and clearing stoppedByUserRef under it could swallow a
-          // Stop pressed inside the handover window.
+          // stream; a newer owner's state must not be torn down here.
           lastStreamedContentRef.current = '';
-          stoppedByUserRef.current = false;
+        }
+        if (stopTargetRef.current === streamOwner) {
+          stopTargetRef.current = null;
         }
         activeRunThreadRef.current = null;
       }
@@ -1465,8 +1471,9 @@ export function useChatStreaming(
   const handleStop = useCallback(() => {
     // Mark the stop first so the stream-completion path (which runs right after
     // the abort makes streamMessage resolve) keeps the partial answer and tags
-    // it `stopped`, rather than wiping it here and racing the commit.
-    stoppedByUserRef.current = true;
+    // it `stopped`, rather than wiping it here and racing the commit. The stop
+    // targets whichever stream owns the slice right now.
+    stopTargetRef.current = streamOwnerRef.current;
     // Snapshot the turn's citations BEFORE storeStopStreaming() wipes
     // streamingCitations — the completion path reads the store after the
     // wipe and would otherwise commit + persist a stopped RAG answer with
@@ -1493,7 +1500,10 @@ export function useChatStreaming(
           setPendingConfirmation(null, pendingConfirmation.workspaceThreadId)
         )
         .catch((error) => {
-          stoppedByUserRef.current = false;
+          // Stop is locally authoritative: the user's intent stands even when
+          // the durable cancel loses a race (409 once the graph resumed). The
+          // per-turn stop target can't leak into later turns, so there is
+          // nothing to un-set here — round-3 M2, resolved by design.
           console.error('[Chat] Failed to cancel pending confirmation:', error);
           toast.error('Could not stop this action. Please try again.');
         });
@@ -1781,6 +1791,8 @@ export function useChatStreaming(
         // workspace thread, which may differ from whatever thread is
         // currently displayed) — stamp it the same way.
         const confirmStreamOwner = (streamOwnerRef.current += 1);
+        const isConfirmStopped = (): boolean =>
+          stopTargetRef.current === confirmStreamOwner;
         useChatStore.setState({
           isStreaming: true,
           streamingContent: '',
@@ -2090,7 +2102,7 @@ export function useChatStreaming(
           // same partial server-side, so reload reconciles.
           if (
             !confirmCommitted &&
-            stoppedByUserRef.current &&
+            isConfirmStopped() &&
             confirmContent.trim()
           ) {
             confirmCommitted = true;
@@ -2107,7 +2119,7 @@ export function useChatStreaming(
           } else {
             await reconcileConfirmationAssistant(
               confirmDoneIds,
-              stoppedByUserRef.current
+              isConfirmStopped()
                 ? 'confirmation-stopped'
                 : confirmed
                   ? 'confirmation-approved'
@@ -2153,7 +2165,7 @@ export function useChatStreaming(
               .getState()
               .finishRun(
                 pendingConfirmation.workspaceThreadId,
-                stoppedByUserRef.current ? 'stopped' : 'done'
+                isConfirmStopped() ? 'stopped' : 'done'
               );
           }
           // A nested interrupt re-arms the banner with the new confirmation
@@ -2171,7 +2183,9 @@ export function useChatStreaming(
           );
           setIsConfirming(false);
           confirmLockRef.current = false;
-          stoppedByUserRef.current = false;
+          if (stopTargetRef.current === confirmStreamOwner) {
+            stopTargetRef.current = null;
+          }
           // The confirm stream shares streamingRafRef/pendingStreamContentRef
           // with handleSubmit's onToken throttle. A token that lands just
           // before completion schedules a rAF that would otherwise fire AFTER
