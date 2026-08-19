@@ -28,7 +28,7 @@ from src.core.dependencies import get_current_user
 from src.core.security import TokenData
 from src.core.user_provisioning import ensure_user_and_org
 from src.core.websocket_auth import WebSocketAuthenticator, WebSocketAuthError
-from src.models.user import User
+from src.models.user import User, UserRole
 from src.services.infrastructure.status_update_service import (
     Channel,
     UpdateFrequency,
@@ -475,7 +475,9 @@ async def get_user_connections(
     """
     try:
         # Verify authorization (user can only see their own connections unless admin)
-        if str(current_user.id) != user_id and not current_user.is_superuser:
+        if str(current_user.id) != user_id and not current_user.has_permission(
+            UserRole.ADMIN
+        ):
             raise HTTPException(
                 status_code=403, detail="Not authorized to view these connections"
             )
@@ -599,10 +601,9 @@ async def test_websocket_connection(
             raise HTTPException(status_code=404, detail="Connection not found")
 
         conn_info = connection_manager.active_connections[connection_id]
-        if (
-            str(conn_info.user_id) != str(current_user.id)
-            and not current_user.is_superuser
-        ):
+        if str(conn_info.user_id) != str(
+            current_user.id
+        ) and not current_user.has_permission(UserRole.ADMIN):
             raise HTTPException(
                 status_code=403, detail="Not authorized to access this connection"
             )
