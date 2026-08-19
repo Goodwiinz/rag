@@ -59,7 +59,6 @@ from src.api.quality import (
 from src.api.realtime import (
     realtime_quality_metrics_router,
     realtime_status_router,
-    websocket_router,
     websocket_v2_router,
 )
 from src.api.research import (
@@ -582,7 +581,6 @@ app.include_router(evaluation_router, prefix="/api/v1")
 app.include_router(
     diagnostics_router, prefix="/api/v1"
 )  # Retrieval diagnostics endpoints
-app.include_router(websocket_router)  # Legacy WebSocket routes
 app.include_router(websocket_v2_router)  # Enhanced WebSocket v2 routes
 app.include_router(realtime_status_router)  # Real-time document status API
 app.include_router(

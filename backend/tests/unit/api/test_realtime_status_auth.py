@@ -1,11 +1,14 @@
-"""R4-M5 regression: /ws/status and its websocket_v2 siblings must require auth.
+"""R4-M5 regression: websocket_v2 status/health endpoints must require auth.
 
-``/ws/status`` (websocket.py) and ``get_websocket_status`` / ``get_available_channels``
-/ ``websocket_health_check`` (websocket_v2.py) exposed connection counts, channel
-metadata, and health internals to anyone, unauthenticated - the sibling endpoints
-in the same router (``/connections/{user_id}``, ``/broadcast``, ``/test-connection``)
-all gate on ``Depends(get_current_user)``, these four didn't. Verified statically
+``get_websocket_status`` / ``get_available_channels`` / ``websocket_health_check``
+(websocket_v2.py) exposed connection counts, channel metadata, and health
+internals to anyone, unauthenticated - the sibling endpoints in the same
+router (``/connections/{user_id}``, ``/broadcast``, ``/test-connection``) all
+gate on ``Depends(get_current_user)``, these four didn't. Verified statically
 via the FastAPI dependency graph so no live server/DB is needed.
+
+The legacy v1 ``/ws/status`` case (websocket.py) was removed along with the
+v1 WebSocket route in the WS-removal-to-polling migration.
 """
 
 import inspect
@@ -27,12 +30,6 @@ def _has_current_user_dependency(fn: Callable[..., Any]) -> bool:
         if dependency is get_current_user:
             return True
     return False
-
-
-def test_ws_status_requires_auth() -> None:
-    from src.api.realtime.websocket import websocket_status
-
-    assert _has_current_user_dependency(websocket_status)
 
 
 def test_websocket_v2_status_requires_auth() -> None:
