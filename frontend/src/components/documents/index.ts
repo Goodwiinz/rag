@@ -2,7 +2,6 @@
 export { DocumentCard } from './DocumentCard';
 // Note: DocumentLibrary requires type fixes - commented out for strict mode
 // export { DocumentLibrary } from './DocumentLibrary';
-export { DocumentUploader } from './DocumentUploader';
 export { ProcessingStatus } from './ProcessingStatus';
 export { ErrorDisplay } from './ErrorDisplay';
 export { DocumentPreview } from './DocumentPreview';

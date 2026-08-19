@@ -12,10 +12,6 @@ __all__ = [
     "FileService",
     "FileValidationError",
     "FileStorageErrorBase",
-    # Document management
-    "DocumentUploadRequest",
-    "DocumentUpdateRequest",
-    "DocumentListRequest",
     # Document quality
     "DocumentQualityService",
     "QualityIssue",
@@ -33,19 +29,6 @@ _EXPORTS: Dict[str, Tuple[str, str]] = {
         "FileValidationError",
     ),
     "FileStorageErrorBase": ("src.services.documents.file_service", "FileStorageError"),
-    # Document management
-    "DocumentUploadRequest": (
-        "src.services.documents.document_management",
-        "DocumentUploadRequest",
-    ),
-    "DocumentUpdateRequest": (
-        "src.services.documents.document_management",
-        "DocumentUpdateRequest",
-    ),
-    "DocumentListRequest": (
-        "src.services.documents.document_management",
-        "DocumentListRequest",
-    ),
     # Document quality
     "DocumentQualityService": (
         "src.services.documents.document_quality_service",
