@@ -7,6 +7,10 @@ import { ConfirmationCard } from './ConfirmationCard';
 import { useAgentChatStore } from '@/store/agentChatStore';
 import type { AgentMessage } from '@/types/agent-chat';
 
+/** Slack-style slop: within this many pixels of the bottom still counts as
+ * "following the answer". */
+const BOTTOM_THRESHOLD_PX = 64;
+
 interface AgentMessageListProps {
   messages: AgentMessage[];
   isStreaming: boolean;
@@ -27,15 +31,30 @@ export const AgentMessageList = React.memo(function AgentMessageList({
   const isLoadingMessages = useAgentChatStore((s) => s.isLoadingMessages);
   const latestContent = messages[messages.length - 1]?.content;
 
+  // Auto-scroll only while the user is parked at the bottom. Scrolling on
+  // every token yanked the view back down whenever they scrolled up to read
+  // earlier text mid-answer.
+  const pinnedToBottomRef = useRef(true);
+  const handleScroll = React.useCallback((): void => {
+    const el = containerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    pinnedToBottomRef.current = distanceFromBottom <= BOTTOM_THRESHOLD_PX;
+  }, []);
+
   useEffect(() => {
     const el = containerRef.current;
-    if (el) {
-      el.scrollTo({
-        top: el.scrollHeight,
-        behavior: isStreaming ? 'auto' : 'smooth',
-      });
-    }
+    if (!el || !pinnedToBottomRef.current) return;
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: isStreaming ? 'auto' : 'smooth',
+    });
   }, [messages.length, latestContent, isStreaming, pendingConfirmation]);
+
+  // A new turn re-pins: sending a message is an explicit request to follow it.
+  useEffect(() => {
+    pinnedToBottomRef.current = true;
+  }, [messages.length]);
 
   if (isLoadingMessages) {
     return (
@@ -72,7 +91,11 @@ export const AgentMessageList = React.memo(function AgentMessageList({
     isStreaming && lastMessage?.role === 'assistant' && !lastMessage?.content;
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto">
+    <div
+      ref={containerRef}
+      onScroll={handleScroll}
+      className="flex-1 overflow-y-auto"
+    >
       {messages.map((msg) => (
         <AgentMessageItem
           key={msg.id}

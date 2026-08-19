@@ -38,6 +38,8 @@ export interface ChatBubbleMessage {
   metadata?: {
     toolsUsed?: string[];
     responseTimeMs?: number;
+    /** Time to first token, same origin as `responseTimeMs`. */
+    ttftMs?: number;
     sourcesCount?: number;
     stopped?: boolean;
     tokenUsage?: { input: number; output: number };
@@ -204,6 +206,7 @@ export const ChatBubble = React.memo(function ChatBubble({
             toolExecutions={activitySteps}
             streaming={isStreaming}
             elapsedMs={message.metadata?.responseTimeMs}
+            ttftMs={message.metadata?.ttftMs}
           />
         )}
 
@@ -213,6 +216,7 @@ export const ChatBubble = React.memo(function ChatBubble({
             toolsUsed={stripToolsUsed}
             sourcesCount={stripSourcesCount}
             responseTimeMs={stripResponseMs}
+            ttftMs={hasPlan ? undefined : message.metadata?.ttftMs}
             stopped={message.metadata?.stopped}
             tokenUsage={message.metadata?.tokenUsage}
           />
@@ -269,7 +273,9 @@ export const ChatBubble = React.memo(function ChatBubble({
             ) : isTyping && !message.content ? (
               <ThinkingPill label={thinkingLabel} />
             ) : (
-              <div className="nous-chat-body">
+              // Committed assistant prose is quotable (see QuoteToolbar);
+              // the streaming branch above is not — the text is still moving.
+              <div className="nous-chat-body" data-quotable>
                 <CitationRenderer
                   content={message.content}
                   citations={message.citations as Citation[]}

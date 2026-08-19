@@ -3,6 +3,7 @@
 import React from 'react';
 import { Clock, Coins, Search, Square } from 'lucide-react';
 
+import { formatTurnSplit } from './formatStreamingElapsed';
 import type { ChatPageMessage } from './cloudMessageView';
 
 /** Compact token count: 1234 → "1.2k", 2_500_000 → "2.5M", <1000 verbatim. */
@@ -16,6 +17,9 @@ export interface ToolStripProps {
   toolsUsed?: string[];
   sourcesCount?: number;
   responseTimeMs?: number;
+  /** Time to first token, same origin as `responseTimeMs`. Splits the clock
+   * into the wait before the answer started and the time spent writing it. */
+  ttftMs?: number;
   stopped?: boolean;
   tokenUsage?: { input: number; output: number };
 }
@@ -41,6 +45,7 @@ export function getToolStripProps(
         : undefined),
     sourcesCount: message.metadata?.sourcesCount ?? visibleCitationsCount,
     responseTimeMs: hasPlan ? undefined : message.metadata?.responseTimeMs,
+    ttftMs: hasPlan ? undefined : message.metadata?.ttftMs,
     stopped: message.metadata?.stopped,
     tokenUsage: message.metadata?.tokenUsage,
   };
@@ -55,9 +60,14 @@ export function ToolStrip({
   toolsUsed,
   sourcesCount,
   responseTimeMs,
+  ttftMs,
   stopped,
   tokenUsage,
 }: ToolStripProps): React.JSX.Element | null {
+  // One decimal, matching the total rendered below.
+  const split = formatTurnSplit(responseTimeMs, ttftMs, (ms) =>
+    `${(ms / 1000).toFixed(1)}s`
+  );
   const hasTokens =
     !!tokenUsage && (tokenUsage.input > 0 || tokenUsage.output > 0);
   const hasAny =
@@ -98,9 +108,15 @@ export function ToolStrip({
         </>
       )}
       {responseTimeMs && responseTimeMs > 0 && (
-        <span className="nous-tool-strip-time inline-flex items-center gap-1">
+        <span
+          className="nous-tool-strip-time inline-flex items-center gap-1"
+          title={split.title}
+        >
           <Clock className="w-2.5 h-2.5" strokeWidth={2} />
           {(responseTimeMs / 1000).toFixed(1)}s
+          {split.suffix && (
+            <span className="text-(--nous-fg-3)">· {split.suffix}</span>
+          )}
         </span>
       )}
       {hasTokens && tokenUsage && (

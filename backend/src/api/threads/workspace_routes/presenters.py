@@ -210,6 +210,7 @@ def _message_to_response(message: ChatMessage) -> ChatMessageResponse:
         content=message.content,
         token_count=message.token_count or 0,
         latency_ms=message.latency_ms,
+        ttft_ms=message.ttft_ms,
         model_name=message.model_name,
         model_version=message.model_version,
         tool_name=message.tool_name,
