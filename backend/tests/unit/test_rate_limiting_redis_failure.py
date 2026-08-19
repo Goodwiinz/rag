@@ -10,7 +10,7 @@ assigned -> UnboundLocalError instead of the intended fail-open behavior.
 from unittest.mock import MagicMock
 
 import pytest
-import redis
+import redis  # type: ignore[import-untyped]  # CI lint env has no redis stubs
 
 from src.middleware.rate_limiting import RedisRateLimiter
 
