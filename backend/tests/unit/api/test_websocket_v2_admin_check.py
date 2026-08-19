@@ -19,9 +19,7 @@ pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
 
 
 def _user(role: UserRole) -> User:
-    user = User(role=role)
-    user.id = uuid4()
-    return user
+    return User(id=uuid4(), role=role)
 
 
 async def test_admin_can_inspect_another_users_connections() -> None:
