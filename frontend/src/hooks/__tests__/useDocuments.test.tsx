@@ -51,12 +51,34 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+interface BackendDocumentsResponse {
+  documents: Array<{
+    id: string;
+    uploaded_by_user_id: string;
+    organization_id: string;
+    title: string;
+    filename: string;
+    document_type: string;
+    file_size_bytes: number;
+    processing_status: string;
+    created_at: string;
+  }>;
+  pagination: {
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+    has_next: boolean;
+    has_prev: boolean;
+  };
+}
+
 /** Create a realistic backend document response. */
 function createBackendResponse(
   count: number = 2,
   page: number = 1,
   pageSize: number = 20
-) {
+): BackendDocumentsResponse {
   const documents = Array.from({ length: count }, (_, i) => ({
     id: `doc-${i + 1}`,
     uploaded_by_user_id: 'user-1',
@@ -554,6 +576,152 @@ describe('useDocuments', () => {
       });
 
       expect(result.current.documents[0].title).toBe('fallback-name.pdf');
+    });
+  });
+
+  // =========================================================================
+  // Polling (replaces the FE WebSocket realtime stack — R4-H1/H2/H3)
+  // =========================================================================
+
+  describe('polling for non-terminal documents', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('polls the list every 5s while a document is queued/processing', async () => {
+      // Stays 'processing' across every poll in this test.
+      mockGet.mockResolvedValue({
+        documents: [
+          {
+            id: 'doc-1',
+            filename: 'doc-1.pdf',
+            processing_status: 'processing',
+          },
+        ],
+        pagination: {
+          page: 1,
+          page_size: 20,
+          total: 1,
+          has_next: false,
+          has_prev: false,
+        },
+      });
+
+      const { result } = renderHook(() => useDocuments({ autoFetch: false }));
+
+      await act(async () => {
+        await result.current.fetchDocuments();
+      });
+
+      expect(result.current.documents[0]?.processing_status).toBe(
+        'processing'
+      );
+      expect(result.current.isPolling).toBe(true);
+      expect(mockGet).toHaveBeenCalledTimes(1);
+
+      // Advance past one poll interval — a refetch should fire.
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockGet).toHaveBeenCalledTimes(2);
+
+      // Another interval — polling keeps going while still non-terminal.
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockGet).toHaveBeenCalledTimes(3);
+    });
+
+    it('stops polling once every document reaches a terminal status', async () => {
+      mockGet.mockResolvedValueOnce({
+        documents: [
+          {
+            id: 'doc-1',
+            filename: 'doc-1.pdf',
+            processing_status: 'processing',
+          },
+        ],
+        pagination: {
+          page: 1,
+          page_size: 20,
+          total: 1,
+          has_next: false,
+          has_prev: false,
+        },
+      });
+
+      const { result } = renderHook(() => useDocuments({ autoFetch: false }));
+
+      await act(async () => {
+        await result.current.fetchDocuments();
+      });
+
+      expect(result.current.isPolling).toBe(true);
+
+      // The next poll comes back indexed — polling should stop.
+      mockGet.mockResolvedValueOnce({
+        documents: [
+          {
+            id: 'doc-1',
+            filename: 'doc-1.pdf',
+            processing_status: 'indexed',
+          },
+        ],
+        pagination: {
+          page: 1,
+          page_size: 20,
+          total: 1,
+          has_next: false,
+          has_prev: false,
+        },
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.documents[0]?.processing_status).toBe('indexed');
+      expect(result.current.isPolling).toBe(false);
+      expect(mockGet).toHaveBeenCalledTimes(2);
+
+      // No further polling — advancing time causes no additional calls.
+      await act(async () => {
+        vi.advanceTimersByTime(15000);
+        await Promise.resolve();
+      });
+
+      expect(mockGet).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not poll when all documents are already terminal', async () => {
+      mockGet.mockResolvedValueOnce(createBackendResponse(2)); // all 'indexed'
+
+      const { result } = renderHook(() => useDocuments({ autoFetch: false }));
+
+      await act(async () => {
+        await result.current.fetchDocuments();
+      });
+
+      expect(result.current.isPolling).toBe(false);
+
+      await act(async () => {
+        vi.advanceTimersByTime(20000);
+        await Promise.resolve();
+      });
+
+      expect(mockGet).toHaveBeenCalledTimes(1);
     });
   });
 });

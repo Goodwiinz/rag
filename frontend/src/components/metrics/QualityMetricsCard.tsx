@@ -1,15 +1,11 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { useWebSocket } from '@/hooks/useWebSocket';
 import { cn } from '@/lib/utils';
 import {
-  ArrowTrendingDownIcon,
-  ArrowTrendingUpIcon,
   ChartBarIcon,
   ClockIcon,
   DocumentTextIcon,
-  MinusIcon,
 } from '@heroicons/react/24/outline';
 import React, { useEffect, useState } from 'react';
 
@@ -31,20 +27,10 @@ interface MetricsData {
   timestamp: number;
 }
 
-interface WebSocketMetricsUpdate {
-  type: 'quality_metrics_update';
-  payload: {
-    query_id: string;
-    metrics: MetricsData;
-  };
-}
-
 export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
   className,
   query = 'abdel factual',
-  sessionId,
 }) => {
-  const { isConnected, manager } = useWebSocket();
   const [isLive, setIsLive] = useState(true);
   const [metrics, setMetrics] = useState<MetricsData>({
     answerRelevancy: 0,
@@ -58,26 +44,11 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
     timestamp: 0, // Initialize to 0 to prevent hydration mismatch
   });
 
-  // WebSocket subscription for real metrics
+  // Sample metrics generator. This card has no live metrics backend (the
+  // WebSocket subscription that used to sit here never worked - R4-H1/H2/H3);
+  // it always rendered simulated values.
   useEffect(() => {
-    if (!manager || !isLive) return;
-
-    const handleMetricsUpdate = (data: WebSocketMetricsUpdate) => {
-      if (data.payload.query_id === sessionId) {
-        setMetrics(data.payload.metrics);
-      }
-    };
-
-    manager.on('quality_metrics_update', handleMetricsUpdate);
-
-    return () => {
-      manager.off('quality_metrics_update', handleMetricsUpdate);
-    };
-  }, [manager, sessionId, isLive]);
-
-  // Simulate real metrics when WebSocket not available
-  useEffect(() => {
-    if (isLive && !isConnected) {
+    if (isLive) {
       const interval = setInterval(() => {
         // Generate realistic metrics based on query complexity
         const queryComplexity = query.length > 10 ? 1 : 0.8;
@@ -106,7 +77,7 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
 
       return () => clearInterval(interval);
     }
-  }, [isLive, isConnected, query]);
+  }, [isLive, query]);
 
   // Quality bands map to neutral foreground + semantic status, never the
   // single Sol accent (reserved for the headline figure). Status is conveyed
@@ -114,7 +85,7 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
   const getQualityTone = (
     value: number,
     type: 'higher' | 'lower' = 'higher'
-  ) => {
+  ): { label: string; dot: string } => {
     const good = type === 'higher' ? value >= 80 : value <= 5;
     const fair = type === 'higher' ? value >= 70 : value <= 15;
     if (good) return { label: 'Good', dot: 'bg-(--nous-terra)' };
@@ -122,13 +93,7 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
     return { label: 'Low', dot: 'bg-(--nous-mars)' };
   };
 
-  const getTrendIcon = (current: number, previous: number) => {
-    if (current > previous * 1.05) return ArrowTrendingUpIcon;
-    if (current < previous * 0.95) return ArrowTrendingDownIcon;
-    return MinusIcon;
-  };
-
-  const formatLatency = (ms: number) => {
+  const formatLatency = (ms: number): string => {
     if (ms < 1000) return `${Math.round(ms)}ms`;
     return `${(ms / 1000).toFixed(2)}s`;
   };
@@ -185,12 +150,10 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
                   aria-hidden="true"
                   className={cn(
                     'inline-flex h-1.5 w-1.5 rounded-full',
-                    isConnected
-                      ? 'bg-(--nous-terra)'
-                      : 'bg-muted-foreground'
+                    isLive ? 'bg-(--nous-terra)' : 'bg-muted-foreground'
                   )}
                 />
-                {isConnected ? 'Live connection' : 'Sample values'}
+                Sample values
               </p>
             </div>
           </div>
@@ -307,15 +270,6 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
                 ? new Date(metrics.timestamp).toLocaleTimeString()
                 : '—'}
             </span>
-            {isConnected && (
-              <span className="flex items-center gap-1.5">
-                <span
-                  aria-hidden="true"
-                  className="h-1.5 w-1.5 rounded-full bg-(--nous-terra)"
-                />
-                <span>Connected</span>
-              </span>
-            )}
           </div>
         </div>
       </CardContent>
