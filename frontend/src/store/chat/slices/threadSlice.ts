@@ -17,7 +17,10 @@ import type { Thread } from '@/types/workspace';
 import { workspaceService } from '@/services/workspaceService';
 import type { ChatSliceCreator } from '../types';
 import { removeItemFromRecord, updateItemInRecord } from '../recordIndex';
-import { abortNewestPageRequest } from '../requestCoordinator';
+import {
+  abortNewestPageRequest,
+  markThreadDeleted,
+} from '../requestCoordinator';
 import { handleStaleDataRecovery } from './workspaceSlice';
 
 export interface ThreadSlice {
@@ -173,6 +176,7 @@ export const createThreadSlice: ChatSliceCreator<ThreadSlice> = (set, get) => ({
   deleteThread: async (id) => {
     try {
       await workspaceService.deleteThread(id);
+      markThreadDeleted(id);
       abortNewestPageRequest(id);
       set((state) => {
         // Use O(1) reverse index lookup (GOO-86)

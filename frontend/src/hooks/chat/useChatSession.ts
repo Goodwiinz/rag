@@ -241,7 +241,6 @@ export function useChatSession(): UseChatSessionReturn {
     routerRef.current = router;
   });
 
-
   // Reset refs when user changes (logout/login)
   useEffect(() => {
     if (!isAuthenticated) {
@@ -815,6 +814,21 @@ export function useChatSession(): UseChatSessionReturn {
   // commits and the page refreshes to 'fresh', selectDisplayedMessages filters
   // the optimistic copy in favor of the canonical rows.
   const parkedMessagesRef = useRef(new Map<string, ChatPageMessage[]>());
+  // Parks are only ever consumed by returning to the thread; a thread deleted
+  // mid-turn never returns, so entries could accumulate for the session.
+  // FIFO-cap the map — a park older than the last few switches is stale
+  // anyway (the canonical rows have long since persisted).
+  const MAX_PARKED_THREADS = 8;
+  const parkOverlay = (threadId: string, overlay: ChatPageMessage[]): void => {
+    const parked = parkedMessagesRef.current;
+    parked.delete(threadId);
+    parked.set(threadId, overlay);
+    while (parked.size > MAX_PARKED_THREADS) {
+      const oldest = parked.keys().next().value;
+      if (oldest === undefined) break;
+      parked.delete(oldest);
+    }
+  };
   useEffect(() => {
     const outgoingThreadId = localMessagesThreadIdRef.current;
 
@@ -826,7 +840,7 @@ export function useChatSession(): UseChatSessionReturn {
         messagesRef.current.length > 0 &&
         useChatStore.getState().streamingThreadId === outgoingThreadId
       ) {
-        parkedMessagesRef.current.set(outgoingThreadId, messagesRef.current);
+        parkOverlay(outgoingThreadId, messagesRef.current);
       }
       localMessagesThreadIdRef.current = null;
       // The reset is paired with the ref mutations above (parking the outgoing
@@ -855,8 +869,18 @@ export function useChatSession(): UseChatSessionReturn {
     const isNewThreadHandoff =
       outgoingThreadId === null &&
       messagesRef.current.some((message) => message.source === 'optimistic');
+    // Late handoff (round-3 M1): submit in a new chat, user clicks another
+    // thread while createThread is in flight, then the created thread
+    // activates. By that second run `outgoingThreadId` is the detour thread,
+    // so the plain handoff check misses — but the live stream owns this
+    // thread and the overlay runStreamTurn just rebuilt is its in-flight
+    // turn. Wiping it here made the whole stream invisible with the composer
+    // locked until commit.
+    const isLateHandoff =
+      useChatStore.getState().streamingThreadId === activeThreadId &&
+      messagesRef.current.some((message) => message.source === 'optimistic');
     localMessagesThreadIdRef.current = activeThreadId;
-    if (isNewThreadHandoff) {
+    if (isNewThreadHandoff || isLateHandoff) {
       return;
     }
     const parked = parkedMessagesRef.current.get(activeThreadId);
