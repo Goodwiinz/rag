@@ -81,7 +81,9 @@ def test_can_subscribe_gate():
     assert _can_subscribe_to_channel("document_processing", "USER") is True
     assert _can_subscribe_to_channel("admin_alerts", "USER") is False
     assert _can_subscribe_to_channel("admin_alerts", "ADMIN") is True
-    assert _can_subscribe_to_channel("system_status", "admin") is True  # case-insensitive
+    assert (
+        _can_subscribe_to_channel("system_status", "admin") is True
+    )  # case-insensitive
     assert _can_subscribe_to_channel("not_a_real_channel", "ADMIN") is False
 
 
@@ -153,11 +155,19 @@ def _mgr_with_conn(role):
 
 @pytest.mark.asyncio
 async def test_mid_session_subscribe_denies_admin_channel_for_non_admin():
+    from unittest.mock import AsyncMock, patch
+
     mgr, conn, _json = _mgr_with_conn("USER")
-    await mgr.handle_client_message(
-        conn.connection_id,
-        _json.dumps({"type": "subscribe", "data": {"channel": "admin_alerts"}}),
-    )
+    # R4-M8: admin-channel subscribes now re-resolve the role from the DB
+    # rather than trusting the connect-time client_info snapshot.
+    with patch(
+        "src.services.websocket.websocket_manager._resolve_current_db_role",
+        new=AsyncMock(return_value="user"),
+    ):
+        await mgr.handle_client_message(
+            conn.connection_id,
+            _json.dumps({"type": "subscribe", "data": {"channel": "admin_alerts"}}),
+        )
     mgr.subscribe_to_channel.assert_not_awaited()  # denied
     mgr.send_message_to_connection.assert_awaited()  # explicit denial frame
     sent = mgr.send_message_to_connection.await_args.args[1]
@@ -167,12 +177,38 @@ async def test_mid_session_subscribe_denies_admin_channel_for_non_admin():
 
 @pytest.mark.asyncio
 async def test_mid_session_subscribe_allows_admin_channel_for_admin():
+    from unittest.mock import AsyncMock, patch
+
     mgr, conn, _json = _mgr_with_conn("ADMIN")
-    await mgr.handle_client_message(
-        conn.connection_id,
-        _json.dumps({"type": "subscribe", "data": {"channel": "admin_alerts"}}),
-    )
+    with patch(
+        "src.services.websocket.websocket_manager._resolve_current_db_role",
+        new=AsyncMock(return_value="admin"),
+    ):
+        await mgr.handle_client_message(
+            conn.connection_id,
+            _json.dumps({"type": "subscribe", "data": {"channel": "admin_alerts"}}),
+        )
     mgr.subscribe_to_channel.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mid_session_subscribe_denies_admin_channel_when_db_demoted():
+    """R4-M8 core regression: JWT/client_info still says admin, but the DB
+    (re-resolved at subscribe time) says the user was demoted — deny."""
+    from unittest.mock import AsyncMock, patch
+
+    mgr, conn, _json = _mgr_with_conn("ADMIN")
+    with patch(
+        "src.services.websocket.websocket_manager._resolve_current_db_role",
+        new=AsyncMock(return_value="user"),
+    ):
+        await mgr.handle_client_message(
+            conn.connection_id,
+            _json.dumps({"type": "subscribe", "data": {"channel": "admin_alerts"}}),
+        )
+    mgr.subscribe_to_channel.assert_not_awaited()  # denied despite stale client_info
+    sent = mgr.send_message_to_connection.await_args.args[1]
+    assert sent.data["reason"] == "insufficient_role"
 
 
 @pytest.mark.asyncio

@@ -24,6 +24,7 @@ from src.core.config import settings
 from src.core.database import get_async_session
 from src.models.document import ProcessingStatus
 from src.models.processing import JobStatus
+from src.models.user import User, UserRole
 from src.models.websocket_status import (
     ConnectionEvent,
     ConnectionStatus,
@@ -156,6 +157,35 @@ class ConnectionInfo:
 # enforces the same gate — otherwise a non-admin could connect with no channels
 # and then subscribe to an admin channel at runtime.
 _ADMIN_ONLY_CHANNELS = {"system_status", "admin_alerts"}
+
+
+async def _resolve_current_db_role(user_id: str) -> str:
+    """Re-resolve *user_id*'s role from the DB at admin-channel subscribe time.
+
+    R4-M8: a connection's stored ``client_info["role"]`` is a DB-sourced
+    snapshot taken at connect time, but a connection (and a long-lived CLI
+    token backing it) can outlive a demotion by up to CLI_TOKEN_EXPIRE_DAYS
+    (30d default). Re-checking the DB on every admin-channel subscribe closes
+    that window instead of trusting the connect-time snapshot for the life of
+    the socket. Fails closed (least-privileged role) on any miss/error.
+    """
+    stmt = select(User.role).where(
+        User.id == user_id,
+        User.is_active == True,  # noqa: E712
+        User.is_deleted == False,  # noqa: E712
+    )
+    try:
+        async with get_async_session() as db:
+            role = (await db.execute(stmt)).scalars().first()
+            if role is not None:
+                return role.value
+    except Exception as e:
+        logger.error(
+            "WebSocket mid-session role resolution failed for user %s: %s",
+            user_id,
+            e,
+        )
+    return UserRole.USER.value
 
 
 class EnhancedConnectionManager(BaseService):
@@ -772,13 +802,25 @@ class EnhancedConnectionManager(BaseService):
             elif message_type == MessageType.SUBSCRIBE.value:
                 channel = message_data.get("channel")
                 if channel:
-                    # Authorize admin-only channels against the connection's
-                    # stored role before subscribing — mirrors the connect-time
-                    # gate so a non-admin cannot escalate mid-session.
+                    # Authorize admin-only channels before subscribing —
+                    # mirrors the connect-time gate so a non-admin cannot
+                    # escalate mid-session. For admin channels specifically,
+                    # re-resolve the role from the DB rather than trusting the
+                    # connect-time snapshot: a connection can outlive a
+                    # demotion for the life of a long-lived CLI token (R4-M8).
                     conn = self.active_connections.get(connection_id)
-                    role = str(
-                        (conn.client_info or {}).get("role", "USER") if conn else "USER"
-                    ).lower()
+                    if channel in _ADMIN_ONLY_CHANNELS:
+                        role = (
+                            await _resolve_current_db_role(conn.user_id)
+                            if conn
+                            else UserRole.USER.value
+                        ).lower()
+                    else:
+                        role = str(
+                            (conn.client_info or {}).get("role", "USER")
+                            if conn
+                            else "USER"
+                        ).lower()
                     if channel in _ADMIN_ONLY_CHANNELS and role != "admin":
                         logger.warning(
                             "Denied mid-session subscribe to admin channel %s "

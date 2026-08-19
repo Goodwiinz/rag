@@ -191,7 +191,11 @@ class APISecurityMiddleware(BaseHTTPMiddleware):
         # Check for forwarded headers
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
-            # Get the original IP (first in the list)
+            # Rightmost entry is correct here (R4-M13): behind our own
+            # ingress, each hop APPENDS to X-Forwarded-For, so the last
+            # entry is the one our trusted proxy set/observed for this
+            # connection — not attacker-controlled. The leftmost entry is
+            # whatever the client itself sent and is trivially spoofable.
             return forwarded_for.split(",")[-1].strip()
 
         real_ip = request.headers.get("X-Real-IP")

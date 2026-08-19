@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from src.core.dependencies import get_current_user, require_admin
+from src.core.dependencies import require_admin
 from src.models.user import User
 
 router = APIRouter(prefix="/workers", tags=["workers"])
@@ -45,7 +45,7 @@ class QueueStatsResponse(BaseModel):
 
 
 @router.get("/status", response_model=WorkerStatsResponse)
-async def get_worker_status(current_user: User = Depends(get_current_user)):
+async def get_worker_status(current_user: User = Depends(require_admin)):
     """
     Get Celery worker status and statistics
 
@@ -316,7 +316,7 @@ async def shutdown_worker(
 
 
 @router.get("/health")
-async def get_workers_health(current_user: User = Depends(get_current_user)):
+async def get_workers_health(current_user: User = Depends(require_admin)):
     """
     Get overall health status of worker infrastructure
 

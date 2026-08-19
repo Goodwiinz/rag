@@ -254,8 +254,22 @@ async def can_access_document(
             detail="Access denied to this document",
         )
 
-    # Check if document is public or user has sufficient permissions
-    if not document.is_public and not current_user.has_permission(UserRole.USER):
+    # Check if document is public or user has sufficient permissions.
+    #
+    # R4-L18: this used to read
+    #   `not document.is_public and not current_user.has_permission(UserRole.USER)`
+    # which can never fire — UserRole.USER is rank 0 in the role hierarchy
+    # (models/user.py has_permission), so has_permission(UserRole.USER) is
+    # True for every authenticated user and the branch is dead. The org
+    # membership check above already restricts access to same-org users; a
+    # private (non-public) document's evident additional intent is to
+    # further restrict to its uploader or an admin, not every coworker in
+    # the org.
+    if (
+        not document.is_public
+        and current_user.id != document.uploaded_by_user_id
+        and not current_user.has_permission(UserRole.ADMIN)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to private document",
@@ -269,10 +283,21 @@ async def get_current_user_optional(
     token_data: Optional[dict] = Depends(get_current_user_token),
     db: AsyncSession = Depends(get_db),
 ) -> Optional[User]:
-    """Get current user if authenticated, otherwise return None (with eagerly loaded organization)"""
-    if not token_data:
-        return None
+    """Get current user if authenticated, otherwise return None (with eagerly loaded organization).
 
+    R4-L12: this dependency has no callers today (grepped repo-wide), so
+    nothing currently relies on the "anonymous access" path it advertises.
+    ``token_data`` is typed ``Optional`` but can never actually be ``None``:
+    ``get_current_user_token``'s own dependency chain uses the module-level
+    ``security = HTTPBearer()`` (``auto_error=True``, the default) in
+    ``core/security.py``, which raises 401/403 before FastAPI even calls
+    ``get_current_user_token`` if the Authorization header is missing/invalid
+    — and ``get_current_user_token`` itself only ever returns a ``TokenData``
+    or raises, never ``None``. If a future caller wants genuine optional
+    auth, wire a separate ``HTTPBearer(auto_error=False)`` dependency chain
+    (so a missing header reaches this function as ``None``) rather than
+    resurrecting this branch as-is.
+    """
     try:
         stmt = (
             select(User)
