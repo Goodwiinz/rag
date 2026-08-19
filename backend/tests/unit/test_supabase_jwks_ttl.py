@@ -7,6 +7,7 @@ expiry must fall back to the stale (but still valid) cache rather than
 dropping working keys.
 """
 
+from typing import Any, Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,7 +16,7 @@ import src.core.security as security_module
 
 
 @pytest.fixture(autouse=True)
-def _reset_jwks_cache():
+def _reset_jwks_cache() -> Iterator[None]:
     security_module._supabase_jwks_cache = None
     security_module._supabase_jwks_cache_fetched_at = None
     yield
@@ -23,7 +24,7 @@ def _reset_jwks_cache():
     security_module._supabase_jwks_cache_fetched_at = None
 
 
-def _mock_response(payload):
+def _mock_response(payload: Any) -> MagicMock:
     resp = MagicMock()
     resp.json.return_value = payload
     resp.raise_for_status.return_value = None
@@ -31,7 +32,7 @@ def _mock_response(payload):
 
 
 @pytest.mark.unit
-def test_first_call_fetches_and_caches():
+def test_first_call_fetches_and_caches() -> None:
     with (
         patch("src.core.security.httpx.get") as mock_get,
         patch("src.core.security.time.time", return_value=1000.0),
@@ -44,7 +45,7 @@ def test_first_call_fetches_and_caches():
 
 
 @pytest.mark.unit
-def test_within_ttl_does_not_refetch():
+def test_within_ttl_does_not_refetch() -> None:
     with (
         patch("src.core.security.httpx.get") as mock_get,
         patch("src.core.security.time.time", return_value=1000.0),
@@ -63,7 +64,7 @@ def test_within_ttl_does_not_refetch():
 
 
 @pytest.mark.unit
-def test_after_ttl_refetches():
+def test_after_ttl_refetches() -> None:
     with (
         patch("src.core.security.httpx.get") as mock_get,
         patch("src.core.security.time.time", return_value=1000.0),
@@ -83,7 +84,7 @@ def test_after_ttl_refetches():
 
 
 @pytest.mark.unit
-def test_refetch_failure_after_ttl_returns_stale_cache():
+def test_refetch_failure_after_ttl_returns_stale_cache() -> None:
     with (
         patch("src.core.security.httpx.get") as mock_get,
         patch("src.core.security.time.time", return_value=1000.0),
