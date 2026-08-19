@@ -20,10 +20,6 @@ This directory is the frontend's API client layer. Every call to the FastAPI bac
 | `ragService.ts`                 | RAG context retrieval for in-browser (WebLLM) models — token-budget management and citation formatting, adapts to model size (small/medium/large/cloud).                                            |
 | `citationService.ts`            | Citation save/list/delete for research documents.                                                                                                                                                   |
 | `threadSearchService.ts`        | Full-text search scoped to a thread's message history.                                                                                                                                              |
-| `websocket.ts`                  | `WebSocketManager` — connects with `Sec-WebSocket-Protocol: ['auth', token]` (not URL query param); handles reconnect up to 5 attempts. Used for document-processing and query-status push updates. |
-| `websocketService.ts`           | Thin wrapper that initialises `WebSocketManager` from the auth store.                                                                                                                               |
-| `realtime-websocket-service.ts` | Realtime collaboration events over WebSocket.                                                                                                                                                       |
-| `realtimeWebSocketService.ts`   | Alternate realtime service used by workspace components.                                                                                                                                            |
 | `monitoringWebsocketService.ts` | Admin monitoring feed over WebSocket.                                                                                                                                                               |
 | `analyticsService.ts`           | Usage and document analytics (`/api/v1/analytics/`).                                                                                                                                                |
 | `documentAnalyticsApi.ts`       | Document-level analytics calls distinct from general analytics.                                                                                                                                     |
@@ -80,7 +76,9 @@ Retries use exponential backoff (default 3 attempts, starting at 1 s). 4xx error
 
 ## WebSocket auth
 
-Browser WebSocket does not allow custom headers. Authentication is passed via the `Sec-WebSocket-Protocol` subprotocol field:
+The FE WebSocket realtime stack (`websocket.ts`'s `WebSocketManager`, `realtimeWebSocketService.ts`, and the hooks/components built on them) never worked end-to-end — handshake and payload-shape mismatches, and the server emitted no events on those channels — and has been removed. Document/upload processing status is now polled (`GET /processing/documents/{id}/status`, `uploadService.ts` / `useDocuments.ts`).
+
+The backend's v2 WebSocket infra (`websocket_v2` routes, `services/websocket/*`) and `monitoringWebsocketService.ts` remain, unaffected by this. Browser WebSocket does not allow custom headers, so authentication is passed via the `Sec-WebSocket-Protocol` subprotocol field:
 
 ```ts
 new WebSocket(url, ['auth', token]);

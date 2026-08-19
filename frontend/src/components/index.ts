@@ -6,9 +6,6 @@ export * from './documents';
 // Upload components
 export * from './upload';
 
-// Processing components
-export * from './processing';
-
 // Preview components
 export * from './preview';
 
