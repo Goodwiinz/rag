@@ -1,0 +1,76 @@
+# Agent audit round 5 — started 2026-08-18
+Source: opencode session, 4 explore agents (KG services+API, threads/workspaces API, research/evidence/eval API, scripts+infra/CI)
+Detailed findings: ~/.audit-ledgers/rag/agent-audit-round5-details.md
+
+| ID | Finding (one line) | Sev | Status | Owner | PR | Updated |
+|----|--------------------|-----|--------|-------|----|---------|
+| R5-H1 | get_kg_integration dependency never enters __aenter__ → kg_service None forever: /entity /path /stats always 503, /subgraph 404, /bulk-ingest reports N KG entries while writing ZERO + pays LLM cost; endpoints also call nonexistent sync methods (arxiv_knowledge_graph.py:56-64,295,336,383,92,251) | high | open | — | — | 08-18 |
+| R5-H2 | arxiv_local_batch calls create_entity(entity_type=...)/create_relationship(source_name=...) with nonexistent signatures → TypeError swallowed → SSE says completed, KG never written; file also has zero org-scoping (arxiv_local_batch.py:106-135) | high | open | — | — | 08-18 |
+| R5-H3 | workspace detail never eager-loads WorkspaceMember.user → MissingGreenlet 500 on GET /workspaces/{id} (v2 presenter + v1 conversations) for EVERY workspace — empirically verified (workspace_access.py:93, presenters.py:108-109, conversations.py:145-146) | high | open | — | — | 08-18 |
+| R5-H4 | ADMIN can mint irremovable OWNER member: member-create/update accept role=owner, written verbatim; remove/demote refuse OWNER rows → second owner never removable via API, holds admin rights (chat.py:90,102, workspace_service.py:264-269,307-310,344) | high | open | — | — | 08-18 |
+| R5-H5 | metric.metadata doesn't exist (column is metric_metadata) → metrics endpoint 500s; writers pass metadata= kwarg → silently dropped, NULL forever; detailed reports render error string (evaluation.py:469-473, evaluation.py model:193, rag_evaluation_service.py:214-296,1085) | high | open | — | — | 08-18 |
+| R5-H6 | duplicate EvaluationDataset per job (service creates empty + API inserts real); task reads unordered .first() → empty dataset wins → jobs FAIL nondeterministically (evaluation.py:181-197, rag_evaluation_service.py:137-148, evaluation_tasks.py:108-112) | high | open | — | — | 08-18 |
+| R5-H7 | next(get_db()) on ASYNC generator → TypeError swallowed per-item → batch evaluation always returns zero metrics → FAILED; triad jobs with no contexts proceed with empty strings → fabricated LLM-judge scores (rag_evaluation_service.py:641,650, evaluation_tasks.py:152-161) | high | open | — | — | 08-18 |
+| R5-H8 | opencode.yml: unpinned anomalyco/opencode/github@latest triggered by ANY issue/PR comment containing /oc (no actor check, fork-comment pwn-request) with OPENCODE_API_KEY secret + id-token: write (opencode.yml:11-18,29-31) | high | open | — | — | 08-18 |
+| R5-M1 | circuit_breaker record_success never resets failure count in CLOSED state → 5 historical blips over days = spurious 30s KG blackouts forever (circuit_breaker.py:140-171) | med | open | — | — | 08-18 |
+| R5-M2 | MATCH path=(start)-[*1..$max_depth]-(end): param as var-length bound = Cypher syntax error → /graph-analytics/paths type=all always 500 (graph_analytics_service.py:767) | med | open | — | — | 08-18 |
+| R5-M3 | paper-title entity never created but relationships reference it → search_entities limit=1 fails → ALL author_of/belongs_to/cites edges silently dropped on every tracker/bulk ingest (arxiv_kg_integration.py:153-192,560-619,776-791) | med | open | — | — | 08-18 |
+| R5-M4 | sync Neo4j calls directly on event loop in _add_entity/_add_relationship/_update_with_extractions + arxiv_extraction routes — per-entity blocking stalls all requests (arxiv_kg_integration.py:751-813, arxiv_extraction.py:594-692) | med | open | — | — | 08-18 |
+| R5-M5 | relationship endpoints resolved via fulltext prefix search not exact name → "Attention" wires to "Attention Mechanism" — silent wrong-entity graph corruption on every arXiv relationship (arxiv_kg_integration.py:776-791, arxiv_extraction.py:674-684) | med | open | — | — | 08-18 |
+| R5-M6 | apoc path traversal unscoped between org-checked endpoints → foreign tenant node ids/paths returned + persisted (graph_analytics_service.py:467-476,722-731,797-805) | med | open | — | — | 08-18 |
+| R5-M7 | delete_relationship scoped by source_document_id only, no organization_id → org user's DELETE on listed relationship 404s forever; read vs delete scope mismatch (knowledge_graph_service.py:1562-1600, api :539-556) | med | open | — | — | 08-18 |
+| R5-M8 | /knowledge-graph/analytics passes source_document_ids never organization_id → org entities without source_document_id (all arXiv) invisible → analytics undercounts/zeros (api/search/knowledge_graph.py:1070-1089) | med | open | — | — | 08-18 |
+| R5-M9 | unbounded collect() of full result sets before max_results slice → multi-MB single records, OOM on 10k-node orgs; pagerank runs twice per request (graph_analytics_service.py:287-294,513-599,986-1015) | med | open | — | — | 08-18 |
+| R5-M10 | GET /threads/{id}/context returns corrupted shape (nests dict, message_count always 2); 404 branch unreachable — unauthorized thread ids get 200 (threads.py:702-722, chat_service.py:1066-1079) | med | open | — | — | 08-18 |
+| R5-M11 | v1 feedback PATCH: service commits write before route checks thread match → 404 response but feedback applied (threads.py:870-899) | med | open | — | — | 08-18 |
+| R5-M12 | export _load_thread ignores soft deletes → deleted messages (PII user believes destroyed) reappear in every export; deleted threads exportable (export_service.py:441-489) | med | open | — | — | 08-18 |
+| R5-M13 | GET /api/v2/search/health unauthenticated — GIN index DDL + FTS liveness disclosure (thread_search.py:465-508, main.py:652) | med | open | — | — | 08-18 |
+| R5-M14 | /evaluation/real-time swallows own 503 → 500 (evaluation.py:304-331) | med | open | — | — | 08-18 |
+| R5-M15 | soft-deleted evaluation jobs still listed/aggregated forever (evaluation.py:381,342,771 + service) | med | open | — | — | 08-18 |
+| R5-M16 | comparison averages mix higher-better and higher-worse metrics → meaningless baseline_score/improvement persisted, direction can invert (rag_evaluation_service.py:716-731) | med | open | — | — | 08-18 |
+| R5-M17 | ResearchRun stuck RUNNING on process death — no timeout/sweeper → bricked run (runs.py:424-426) | med | open | — | — | 08-18 |
+| R5-M18 | concurrent SSE streams double-execute a run: PENDING check + RUNNING commit not atomic; no unique (run_id, step_index) → duplicate steps, double spend (runs.py:357-363,424, research_step.py:37) | med | open | — | — | 08-18 |
+| R5-M19 | run resume drops all accumulated context — persisted step outputs never rehydrated → synthesize steps blind to search results (engine.py:33-39, runs.py:377-387) | med | open | — | — | 08-18 |
+| R5-M20 | GeneratedDraft has NO unique constraints despite comment claiming one → version/is_current races, arbitrary current draft (generated_draft.py:68-69) | med | open | — | — | 08-18 |
+| R5-M21 | GET /analytics/metrics/ unscoped — cross-tenant metric listing (model HAS organization_id, unused) (analytics/metrics.py:77 vs fixed sibling :366-374) | med | open | — | — | 08-18 |
+| R5-M22 | realtime analytics pub/sub global — any user publishes to any channel, cross-org broadcast, /test/subscribe sprays 100 junk metrics, no rate limit (analytics/realtime.py:149-235,291-326) | med | open | — | — | 08-18 |
+| R5-M23 | trigger_extraction declares 202 but runs inline LLM loop up to 100 docs sequentially → tens-of-minutes request, retry = duplicate spend (extraction_matrix.py:368-528) | med | open | — | — | 08-18 |
+| R5-M24 | LLM-judge failures fabricate 0.5/0.3 scores silently → outage renders COMPLETED with fake health (rag_evaluation_service.py:355-455,488) | med | open | — | — | 08-18 |
+| R5-M25 | run_rag_triad_evaluation reads metadata keys never written → answers/contexts resolve empty once R5-H7 fixed (evaluation_tasks.py:164-169 vs writers :633-637) | med | open | — | — | 08-18 |
+| R5-M26 | compose DATABASE_URL interpolation broken: ${DATABASE_URL:-postgresql://postgres:postgres@}host.docker.internal... appends literal suffix to any override → garbage URL (docker-compose.development.yml:14,229,304,333) | med | open | — | — | 08-18 |
+| R5-M27 | production deploy job unreachable: needs staging which is env-gated without always() → prod dispatch goes green, deploys nothing, no rollback; staging smoke swallows failure (deploy.yml:130-137,59-65,122) | med | open | — | — | 08-18 |
+| R5-M28 | synthetic traffic attaches to arbitrary REAL org (select limit 1, no order) — real tenant quota consumed, real users can surface synth docs in search (synthetic_traffic.py:220-264) | med | open | — | — | 08-18 |
+| R5-M29 | synthetic ingest re-arms dedup: 6 rotating papers, cleanup only soft-deletes collections → after ~14h all papers dedup-blocked forever → TOOL-FAILED noise permanently masks real regressions (synthetic_traffic.py:92-99,717-793) | med | open | — | — | 08-18 |
+| R5-M30 | retention never cleans synthetic Documents/objects/chunks/memories — unbounded dev Spaces+DB growth under 20-min cron (synthetic_traffic.py:20-23, config.py:675-687) | med | open | — | — | 08-18 |
+| R5-M31 | staging deploy chain missing: no bump path, values-staging pins short tag never pushed (full SHA only) → ImagePullBackOff if synced; argocd dir missing staging.yaml/production.yaml (release-dev.yml:76-92, docker-build.yml:67, values-staging.yaml:26-27, root.yaml:13-17) | med | open | — | — | 08-18 |
+| R5-M32 | PDB minAvailable 1 on single-replica workloads = zero voluntary disruptions — drains/upgrades hang (values-dev.yaml:447-449, pdb.yaml:29) | med | open | — | — | 08-18 |
+| R5-M33 | dev compose publishes Flower(unauth)/Redis/Neo4j/Adminer/MinIO on 0.0.0.0 — LAN can purge Celery jobs, control Flower (docker-compose.development.yml:330-340,176,207,404-421) | med | open | — | — | 08-18 |
+| R5-M34 | values-production hazards if deployed: tag latest + IfNotPresent stale cache; Neo4j 256m/128m in 1Gi = documented OOMKill config (values-production.yaml:34-35,253-262) | med | open | — | — | 08-18 |
+| R5-L1 | KG pagination nondeterministic: batch writes share datetime() instant → dup/missing rows across pages; neighborhood RETURN has no ORDER BY (knowledge_graph_service.py:966-973,1118,1726) | low | open | — | — | 08-18 |
+| R5-L2 | start entity consumes a LIMIT slot → returns limit-1 neighbors (knowledge_graph_service.py:1623-1643) | low | open | — | — | 08-18 |
+| R5-L3 | API advertises limit 2000, service silently clamps 200 (knowledge_graph_service.py:1090 vs api :453) | low | open | — | — | 08-18 |
+| R5-L4 | session._database private driver attr — brittle, database_size silently None (knowledge_graph_service.py:2443) | low | open | — | — | 08-18 |
+| R5-L5 | located_in patterns match bare "in"/"at" substrings → LOCATED_IN edge at 0.7 confidence between arbitrary entities; direction never reversed (entity_extraction_service.py:356-376) | low | open | — | — | 08-18 |
+| R5-L6 | dead code: graph_algorithms never invoked, knowledge_graph_service_improved zero callers, rag_evaluation imports module object unused (informational) | low | open | — | — | 08-18 |
+| R5-L7 | conversation list counts include soft-deleted threads — sidebar badge never drops (conversation_service.py:140-151) | low | open | — | — | 08-18 |
+| R5-L8 | ilike wildcard injection in conversation search ×2 new instances (conversation_service.py:110-115, chat_service.py:1142-1153) | low | open | — | — | 08-18 |
+| R5-L9 | add_member nonexistent user_id → IntegrityError 500 not 400 (workspace_service.py:264-271) | low | open | — | — | 08-18 |
+| R5-L10 | deprecated v1 SSE: check-then-add race + per-process guard + wedged id → permanent 409 until restart; leaks str(exc) (stream.py:107-131,196,199) | low | open | — | — | 08-18 |
+| R5-L11 | no workspace/project quota anywhere in threads service — unbounded minting (workspace_service.py:57-104) | low | open | — | — | 08-18 |
+| R5-L12 | v1 workspace detail exposes soft-deleted members once R5-H3 fixed (conversations.py:148,161) | low | open | — | — | 08-18 |
+| R5-L13 | EvaluationType(request.evaluation_type) ValueError → 500 not 400; report_type free string fails task post-200 (evaluation.py:170) | low | open | — | — | 08-18 |
+| R5-L14 | BatchEvaluationRequest.queries unbounded, search_limit no bounds (evaluation.py:64-66) | low | open | — | — | 08-18 |
+| R5-L15 | get_metrics_summary loads ALL full metric rows into Python per request (evaluation.py:771-779) | low | open | — | — | 08-18 |
+| R5-L16 | create_task result unreferenced → GC-eligible mid-run; _extraction_status in-memory dict → cross-pod 404s; unbounded (extraction_matrix.py:193-200, service :37; drafts.py:423 symptom) | low | open | — | — | 08-18 |
+| R5-L17 | citation with neither document_id nor message_id matches no access_filter branch → invisible to creator, orphan accumulation (citations.py:301-313) | low | open | — | — | 08-18 |
+| R5-L18 | get_evaluation_metrics ignores organization_id param, swallows exceptions → [] (rag_evaluation_service.py:903-927) | low | open | — | — | 08-18 |
+| R5-L19 | ResearchEvidence model has zero writers — evidence tables permanently empty; export reads forever-empty table (model + export_service.py:54-77) | low | open | — | — | 08-18 |
+| R5-L20 | cronjob activeDeadlineSeconds 600 < worst-case 1440s → HITL runs killed, backoffLimit 1 re-runs whole sweep (double spend) (synthetic-traffic-cronjob.yaml:33-36) | low | open | — | — | 08-18 |
+| R5-L21 | synthetic_traffic no ENVIRONMENT guard — runnable in prod pod via kubectl exec (synthetic_traffic.py:526) | low | open | — | — | 08-18 |
+| R5-L22 | gitops-image-update image_tag input unvalidated → typo committed to values-production → crashloop (gitops-image-update.yml:16,55) | low | open | — | — | 08-18 |
+| R5-L23 | buildkit driver moby/buildkit:latest unpinned (docker-build.yml:96-97) | low | open | — | — | 08-18 |
+| R5-L24 | MINIO_ROOT_PASSWORD no default → container exits; backend dev boot pip-installs unpinned langgraph at runtime (compose :359, 88-91) | low | open | — | — | 08-18 |
+| R5-L25 | synthetic bootstrap non-healing: crash between user+workspace commits → permanently broken runs (synthetic_traffic.py:267-303) | low | open | — | — | 08-18 |
+
+## Log
+- 2026-08-18: round 5 created. 59 findings (8 high, 26 med, 25 low). Whole subsystems found dead or never-worked: arXiv KG API (R5-H1/H2), evaluation metrics/batch pipeline (R5-H5/H6/H7), workspace detail route (R5-H3). Verified-clean: KG tenant scope on live writers (R2-H1 fixed callers), MERGE None-coalescing + race constraint, Cypher param binding (no injection), traversal clamps, batch transactions; threads ownership funnel (workspace_access), supersede integrity (no chains/cycles, atomic UPDATE...RETURNING), count parity, cursor pagination; research API tenant scoping consistent; compose secrets all placeholders, LangSmith routing forced by env, release-dev race handling sound, Dockerfiles non-root + no baked secrets, no pull_request_target anywhere. NOTE: AGENTS.md stale on two points — qdrant subchart no longer exists in chart; staging bump path absent from repo.
