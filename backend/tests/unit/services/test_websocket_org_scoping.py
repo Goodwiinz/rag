@@ -14,10 +14,10 @@ from datetime import datetime, timezone
 import pytest
 
 from src.services.websocket.websocket_manager import (
+    _ADMIN_ONLY_CHANNELS,
     ConnectionInfo,
     MessageType,
     WebSocketMessage,
-    _ADMIN_ONLY_CHANNELS,
 )
 
 pytestmark = pytest.mark.unit
