@@ -1,27 +1,33 @@
 import { api } from '@/services/api-client';
-import { UploadProgress } from '@/types';
 
+// Mirrors the backend's FileUploadResponse (POST /files/upload). The old
+// shape here (job_id + file_info) matched no backend route — every consumer
+// dereferenced undefined and polling hit /processing/jobs/undefined.
 export interface UploadResponse {
-  job_id: string;
+  document_id: string;
+  upload_id: string;
+  /** Deprecated, use document_id */
+  id: string;
+  title: string;
+  filename: string;
+  document_type: string;
+  file_size_bytes: number;
+  file_size_mb: number;
+  mime_type: string;
+  processing_status: string;
+  upload_timestamp: string;
+  created_at: string;
   message: string;
-  estimated_processing_time_seconds: number;
-  file_info: {
-    id: string;
-    filename: string;
-    file_type: string;
-    file_size: number;
-    upload_timestamp: string;
-  };
+  upload_progress: number;
 }
 
-export interface BatchUploadResponse {
-  jobs: Array<{
-    job_id: string;
-    file_info: UploadResponse['file_info'];
-  }>;
-  total_files: number;
-  message: string;
-  estimated_total_processing_time_seconds: number;
+// Mirrors ProcessingStatusResponse (GET /processing/documents/{id}/status).
+interface ProcessingStatusResponse {
+  document_id: string;
+  processing_status: 'pending' | 'processing' | 'completed' | 'failed' | string;
+  is_embedded: boolean;
+  is_indexed: boolean;
+  processing_error: string | null;
 }
 
 export interface UploadQueueItem {
@@ -321,6 +327,9 @@ class UploadService {
         '/files/upload',
         item.file,
         {
+          // `title` is a required Form field on the backend route — omitting
+          // it 422s every upload before the file is even read.
+          metadata: { title: item.file.name },
           onProgress: (progress) => {
             item.progress = progress;
             this.notifyProgress();
@@ -330,8 +339,7 @@ class UploadService {
 
       // Store upload response
       item.uploadResponse = response;
-      item.jobId = response.job_id;
-      item.documentId = response.file_info.id;
+      item.documentId = response.document_id;
       item.status = 'processing';
       item.processingStartTime = Date.now();
       item.progress = 0; // Reset for processing progress
@@ -369,11 +377,14 @@ class UploadService {
           return;
         }
 
-        const status = await api.get<UploadProgress>(`/processing/jobs/${item.jobId}`);
+        // The upload response carries no job id — poll the document's
+        // processing status instead (the old /processing/jobs/${jobId} call
+        // always hit /processing/jobs/undefined and 404'd for 20 minutes).
+        const status = await api.get<ProcessingStatusResponse>(
+          `/processing/documents/${item.documentId}/status`
+        );
 
-        item.progress = status.progress;
-
-        if (status.status === 'completed') {
+        if (status.processing_status === 'completed') {
           item.status = 'completed';
           item.completedAt = Date.now();
           item.progress = 100;
@@ -381,9 +392,9 @@ class UploadService {
           return;
         }
 
-        if (status.status === 'failed') {
+        if (status.processing_status === 'failed') {
           item.status = 'error';
-          item.error = status.error_message || 'Processing failed';
+          item.error = status.processing_error || 'Processing failed';
           this.notifyProgress();
           return;
         }

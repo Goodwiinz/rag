@@ -95,8 +95,21 @@ export const validateFileType = (
   allowedTypes: string[]
 ): FileValidationError | null => {
   const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-  const isAllowedType = allowedTypes.includes(file.type) ||
-                       allowedTypes.some(type => type.includes(fileExtension));
+  const bareExtension = fileExtension.slice(1);
+  // Entries may be MIME types ('application/pdf'), dotted extensions
+  // ('.pdf'), or bare extensions ('pdf' — UPLOAD_LIMITS.SUPPORTED_FORMATS,
+  // the default). The old check only matched MIME or dotted-extension
+  // substrings, so the bare-extension defaults rejected every file.
+  const isAllowedType =
+    allowedTypes.includes(file.type) ||
+    allowedTypes.some(type => {
+      const normalized = type.toLowerCase();
+      return (
+        normalized === fileExtension ||
+        normalized === bareExtension ||
+        normalized.includes(fileExtension)
+      );
+    });
 
   if (!isAllowedType) {
     return {
