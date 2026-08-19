@@ -39,7 +39,7 @@ const backendResponse: UploadResponse = {
   upload_progress: 100,
 };
 
-const flush = async (ms: number) => {
+const flush = async (ms: number): Promise<void> => {
   await vi.advanceTimersByTimeAsync(ms);
 };
 
