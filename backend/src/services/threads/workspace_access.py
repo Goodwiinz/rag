@@ -49,7 +49,7 @@ from src.models.document import Document
 from src.models.message_attachment import MessageAttachment
 from src.models.thread import Thread
 from src.models.user import User
-from src.models.workspace import Workspace
+from src.models.workspace import Workspace, WorkspaceMember
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,10 @@ async def get_workspace(
     resource, where eager-loading the unbounded conversations collection on
     every permission check grows linearly with workspace age.
     """
-    options = [selectinload(Workspace.members)]
+    # members.user must ride along: both workspace-detail presenters read
+    # member.user.email/full_name, and a lazy load on an AsyncSession raises
+    # MissingGreenlet instead of querying.
+    options = [selectinload(Workspace.members).selectinload(WorkspaceMember.user)]
     if load_conversations:
         options.append(selectinload(Workspace.conversations))
     if load_collections:

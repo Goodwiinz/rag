@@ -146,6 +146,7 @@ async def get_workspace(
             user_name=f"{m.user.first_name} {m.user.last_name}" if m.user else None,
         )
         for m in workspace.members
+        if not m.is_deleted
     ]
 
     return WorkspaceDetailResponse(
@@ -158,7 +159,7 @@ async def get_workspace(
         organization_id=workspace.organization_id,
         created_at=workspace.created_at,
         updated_at=workspace.updated_at,
-        member_count=len(workspace.members),
+        member_count=len(members),
         conversation_count=(
             len(workspace.conversations) if workspace.conversations else 0
         ),

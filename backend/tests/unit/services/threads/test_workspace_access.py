@@ -275,3 +275,35 @@ async def test_get_accessible_document_or_none_scopes_by_organization(
             db_session, doc_b.id, user_b.id, org_b.id
         )
     ) is not None
+
+
+async def test_get_workspace_eager_loads_member_users(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
+    """Workspace-detail presenters read ``member.user.email``/``full_name``.
+
+    ``get_workspace`` must eager-load ``members.user``: a lazy load on the
+    AsyncSession raises MissingGreenlet, which 500'd GET /workspaces/{id}
+    for every workspace (each has at least its owner member).
+    """
+    from sqlalchemy import inspect as sa_inspect
+
+    owner = await user_factory()
+    ws = await _make_workspace(db_session, owner)
+    member = WorkspaceMember(
+        workspace_id=ws.id, user_id=owner.id, role=WorkspaceRole.OWNER
+    )
+    db_session.add(member)
+    await db_session.commit()
+    db_session.expire(ws, ["members"])
+
+    loaded = await workspace_access.get_workspace(
+        db_session, ws.id, owner.id, load_conversations=False, load_collections=False
+    )
+    assert loaded is not None
+    assert loaded.members
+    for m in loaded.members:
+        # Before the fix `user` sat in the unloaded set; touching it below
+        # raised MissingGreenlet instead of resolving the relationship.
+        assert "user" not in sa_inspect(m).unloaded
+        assert m.user is not None and m.user.email == owner.email
