@@ -45,7 +45,12 @@ from src.models.organization import Organization
 from src.models.processing import JobStatus, ProcessingJob
 from src.models.user import User, UserRole
 from src.services.documents.file_service import FileService, get_file_service
-from src.shared.enums import ApiDocumentStatus, DocumentSortField, SortOrder
+from src.shared.enums import (
+    ApiDocumentStatus,
+    DocumentDateRange,
+    DocumentSortField,
+    SortOrder,
+)
 
 router = APIRouter(prefix="/documents", tags=["documents"], redirect_slashes=False)
 logger = logging.getLogger(__name__)
@@ -1001,8 +1006,8 @@ async def search_documents(
         None, description="Filter by document types"
     ),
     tags: Optional[List[str]] = Query(None, description="Filter by tags"),
-    date_range: Optional[str] = Query(
-        None, description="Date range filter (e.g., 'last_week', 'last_month')"
+    date_range: Optional[DocumentDateRange] = Query(
+        None, description="Date range filter"
     ),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
@@ -1161,18 +1166,23 @@ async def bulk_delete_documents(
         # Set-based instead of per-id: the old loop issued 3 queries per
         # document (up to 300 round trips per request) inside one open
         # transaction.
+        # Dedupe: a caller sending the same id twice must not double-count it
+        # in `successful` (or `successful_count` would over-report vs. the
+        # number of documents actually deleted).
+        requested_ids = list(dict.fromkeys(request.document_ids))
+
         doc_stmt = select(Document).where(
-            Document.id.in_(request.document_ids),
+            Document.id.in_(requested_ids),
             Document.organization_id == organization.id,
             Document.is_deleted == False,
         )
         doc_result = await db.execute(doc_stmt)
         deleted_docs = list(doc_result.scalars().all())
         found_ids = {str(d.id) for d in deleted_docs}
-        successful = [i for i in request.document_ids if i in found_ids]
+        successful = [i for i in requested_ids if i in found_ids]
         failed = [
             {"document_id": i, "error": "Document not found"}
-            for i in request.document_ids
+            for i in requested_ids
             if i not in found_ids
         ]
 
@@ -1261,7 +1271,7 @@ async def bulk_delete_documents(
     return BulkDocumentResponse(
         successful=successful,
         failed=failed,
-        total_processed=len(request.document_ids),
+        total_processed=len(requested_ids),
         success_count=len(successful),
         failure_count=len(failed),
     )

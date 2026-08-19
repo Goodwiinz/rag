@@ -9295,7 +9295,7 @@ export interface components {
             /**
              * Include Jobs
              * @description Include processing job information
-             * @default true
+             * @default false
              */
             include_jobs: boolean;
             /**
@@ -10324,6 +10324,17 @@ export interface components {
              */
             decision_trace_id: string;
         };
+        /**
+         * DocumentDateRange
+         * @description Allowed quick date-range filters for document search.
+         *
+         *     SECURITY: An unconstrained free-text ``date_range`` query param is
+         *     silently ignored by every branch that doesn't match, which looks like a
+         *     working filter to the caller but returns unfiltered results. Restricting
+         *     it to an enum makes an unknown value a 422 instead of a silent no-op.
+         * @enum {string}
+         */
+        DocumentDateRange: "last_week" | "last_month" | "last_year";
         /** DocumentDetailResponse */
         DocumentDetailResponse: {
             /** Content Preview */
@@ -19832,8 +19843,8 @@ export interface operations {
                 document_types?: components["schemas"]["DocumentType"][] | null;
                 /** @description Filter by tags */
                 tags?: string[] | null;
-                /** @description Date range filter (e.g., 'last_week', 'last_month') */
-                date_range?: string | null;
+                /** @description Date range filter */
+                date_range?: components["schemas"]["DocumentDateRange"] | null;
                 page?: number;
                 size?: number;
             };

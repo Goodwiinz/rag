@@ -1069,6 +1069,7 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 100,
             "title": "Document Ids",
             "type": "array"
           },
@@ -1673,6 +1674,7 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 100,
             "title": "Document Ids",
             "type": "array"
           },
@@ -1683,7 +1685,7 @@
             "type": "boolean"
           },
           "include_jobs": {
-            "default": true,
+            "default": false,
             "description": "Include processing job information",
             "title": "Include Jobs",
             "type": "boolean"
@@ -4039,6 +4041,16 @@
         ],
         "title": "DeterministicTrace",
         "type": "object"
+      },
+      "DocumentDateRange": {
+        "description": "Allowed quick date-range filters for document search.\n\nSECURITY: An unconstrained free-text ``date_range`` query param is\nsilently ignored by every branch that doesn't match, which looks like a\nworking filter to the caller but returns unfiltered results. Restricting\nit to an enum makes an unknown value a 422 instead of a silent no-op.",
+        "enum": [
+          "last_week",
+          "last_month",
+          "last_year"
+        ],
+        "title": "DocumentDateRange",
+        "type": "string"
       },
       "DocumentDetailResponse": {
         "properties": {
@@ -22796,20 +22808,20 @@
             }
           },
           {
-            "description": "Date range filter (e.g., 'last_week', 'last_month')",
+            "description": "Date range filter",
             "in": "query",
             "name": "date_range",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "$ref": "#/components/schemas/DocumentDateRange"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "Date range filter (e.g., 'last_week', 'last_month')",
+              "description": "Date range filter",
               "title": "Date Range"
             }
           },
@@ -25119,6 +25131,7 @@
             "name": "file_id",
             "required": true,
             "schema": {
+              "format": "uuid",
               "title": "File Id",
               "type": "string"
             }
@@ -25163,6 +25176,7 @@
             "name": "file_id",
             "required": true,
             "schema": {
+              "format": "uuid",
               "title": "File Id",
               "type": "string"
             }
@@ -25207,6 +25221,7 @@
             "name": "file_id",
             "required": true,
             "schema": {
+              "format": "uuid",
               "title": "File Id",
               "type": "string"
             }
@@ -25305,6 +25320,7 @@
             "name": "file_id",
             "required": true,
             "schema": {
+              "format": "uuid",
               "title": "File Id",
               "type": "string"
             }
@@ -25351,6 +25367,7 @@
             "name": "file_id",
             "required": true,
             "schema": {
+              "format": "uuid",
               "title": "File Id",
               "type": "string"
             }
@@ -25397,6 +25414,7 @@
             "name": "file_id",
             "required": true,
             "schema": {
+              "format": "uuid",
               "title": "File Id",
               "type": "string"
             }
@@ -25443,6 +25461,7 @@
             "name": "file_id",
             "required": true,
             "schema": {
+              "format": "uuid",
               "title": "File Id",
               "type": "string"
             }
@@ -27130,6 +27149,7 @@
             "name": "document_id",
             "required": true,
             "schema": {
+              "format": "uuid",
               "title": "Document Id",
               "type": "string"
             }
@@ -27176,6 +27196,7 @@
             "name": "document_id",
             "required": true,
             "schema": {
+              "format": "uuid",
               "title": "Document Id",
               "type": "string"
             }
@@ -27257,6 +27278,8 @@
             "required": false,
             "schema": {
               "default": 50,
+              "maximum": 200,
+              "minimum": 1,
               "title": "Limit",
               "type": "integer"
             }
@@ -27267,6 +27290,7 @@
             "required": false,
             "schema": {
               "default": 0,
+              "minimum": 0,
               "title": "Offset",
               "type": "integer"
             }
@@ -27360,6 +27384,7 @@
             "name": "job_id",
             "required": true,
             "schema": {
+              "format": "uuid",
               "title": "Job Id",
               "type": "string"
             }
@@ -27408,6 +27433,7 @@
             "name": "job_id",
             "required": true,
             "schema": {
+              "format": "uuid",
               "title": "Job Id",
               "type": "string"
             }
