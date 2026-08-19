@@ -8,6 +8,7 @@ revocation store, no real Redis/DB.
 """
 
 from datetime import datetime, timezone
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -19,12 +20,12 @@ pytestmark = pytest.mark.unit
 
 
 class DummyWebSocket:
-    def __init__(self, *, headers=None):
+    def __init__(self, *, headers: dict | None = None) -> None:
         self.headers = headers or {}
 
 
-def make_cli_token_data(**overrides):
-    data = {
+def make_cli_token_data(**overrides: Any) -> TokenData:
+    data: dict[str, Any] = {
         "user_id": "user-123",
         "email": "user@example.com",
         "organization_id": "org-456",
@@ -38,7 +39,7 @@ def make_cli_token_data(**overrides):
 
 
 @pytest.mark.asyncio
-async def test_authenticate_rejects_revoked_cli_token():
+async def test_authenticate_rejects_revoked_cli_token() -> None:
     websocket = DummyWebSocket(headers={"authorization": "Bearer cli-token"})
     token_data = make_cli_token_data()
 
@@ -52,11 +53,11 @@ async def test_authenticate_rejects_revoked_cli_token():
         ),
     ):
         with pytest.raises(WebSocketAuthError):
-            await WebSocketAuthenticator.authenticate(websocket)
+            await WebSocketAuthenticator.authenticate(cast(Any, websocket))
 
 
 @pytest.mark.asyncio
-async def test_authenticate_allows_non_revoked_cli_token():
+async def test_authenticate_allows_non_revoked_cli_token() -> None:
     websocket = DummyWebSocket(headers={"authorization": "Bearer cli-token"})
     token_data = make_cli_token_data()
 
@@ -69,13 +70,13 @@ async def test_authenticate_allows_non_revoked_cli_token():
             new=AsyncMock(return_value=False),
         ),
     ):
-        payload = await WebSocketAuthenticator.authenticate(websocket)
+        payload = await WebSocketAuthenticator.authenticate(cast(Any, websocket))
 
     assert payload["sub"] == "user-123"
 
 
 @pytest.mark.asyncio
-async def test_authenticate_skips_revocation_check_for_non_cli_token():
+async def test_authenticate_skips_revocation_check_for_non_cli_token() -> None:
     websocket = DummyWebSocket(headers={"authorization": "Bearer regular-token"})
     token_data = make_cli_token_data(is_cli=False)
 
@@ -88,7 +89,7 @@ async def test_authenticate_skips_revocation_check_for_non_cli_token():
             new=AsyncMock(return_value=True),
         ) as mock_revoked,
     ):
-        payload = await WebSocketAuthenticator.authenticate(websocket)
+        payload = await WebSocketAuthenticator.authenticate(cast(Any, websocket))
 
     mock_revoked.assert_not_called()
     assert payload["sub"] == "user-123"

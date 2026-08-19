@@ -22,7 +22,9 @@ def _request(path: str = "/api/v1/whatever") -> types.SimpleNamespace:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_staging_environment_does_not_leak_exception_details(monkeypatch) -> None:
+async def test_staging_environment_does_not_leak_exception_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from src.main import settings
 
     monkeypatch.setattr(settings, "ENVIRONMENT", "staging")
@@ -39,7 +41,7 @@ async def test_staging_environment_does_not_leak_exception_details(monkeypatch) 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_development_environment_does_not_leak_when_debug_off(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from src.main import settings
 
@@ -54,7 +56,9 @@ async def test_development_environment_does_not_leak_when_debug_off(
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_debug_true_includes_exception_details(monkeypatch) -> None:
+async def test_debug_true_includes_exception_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from src.main import settings
 
     monkeypatch.setattr(settings, "ENVIRONMENT", "development")
@@ -69,7 +73,7 @@ async def test_debug_true_includes_exception_details(monkeypatch) -> None:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_production_never_leaks(monkeypatch) -> None:
+async def test_production_never_leaks(monkeypatch: pytest.MonkeyPatch) -> None:
     from src.main import settings
 
     monkeypatch.setattr(settings, "ENVIRONMENT", "production")

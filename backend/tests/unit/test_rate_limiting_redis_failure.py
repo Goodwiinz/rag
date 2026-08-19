@@ -17,7 +17,7 @@ from src.middleware.rate_limiting import RedisRateLimiter
 pytestmark = pytest.mark.unit
 
 
-def test_is_allowed_fails_open_when_redis_errors_on_first_call():
+def test_is_allowed_fails_open_when_redis_errors_on_first_call() -> None:
     mock_redis = MagicMock()
     mock_redis.zremrangebyscore.side_effect = redis.RedisError("connection refused")
 
@@ -32,7 +32,7 @@ def test_is_allowed_fails_open_when_redis_errors_on_first_call():
     assert info["retry_after"] is None
 
 
-def test_is_allowed_normal_path_still_works():
+def test_is_allowed_normal_path_still_works() -> None:
     mock_redis = MagicMock()
     mock_redis.zremrangebyscore.return_value = 0
     mock_redis.zcard.return_value = 3

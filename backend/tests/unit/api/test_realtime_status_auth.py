@@ -9,6 +9,7 @@ via the FastAPI dependency graph so no live server/DB is needed.
 """
 
 import inspect
+from typing import Any, Callable
 
 import pytest
 
@@ -17,7 +18,7 @@ from src.core.dependencies import get_current_user
 pytestmark = pytest.mark.unit
 
 
-def _has_current_user_dependency(fn) -> bool:
+def _has_current_user_dependency(fn: Callable[..., Any]) -> bool:
     for param in inspect.signature(fn).parameters.values():
         default = param.default
         if default is inspect._empty:
