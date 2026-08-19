@@ -7,11 +7,11 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 | R4-H1 | frontend WS sends subprotocols ['auth', token]; backend /ws expects access_token.<jwt> → 1008 close, reconnect loop, realtime never works (websocket.ts:42 vs websocket.py:66-79) | high | open | — | — | 08-18 |
 | R4-H2 | emit(type, payload) passes payload but all consumers deref data.payload.* → TypeError swallowed, updates never reach state (websocket.ts:57, useWebSocket.ts:175, useDocumentProcessingStatus.ts:86) | high | open | — | — | 08-18 |
 | R4-H3 | /ws endpoint never sends document_processing_update — entire frontend realtime pipeline consumes an event no server produces (websocket.py:104-158) | high | open | — | — | 08-18 |
-| R4-H4 | upload omits required title Form field → 422 on EVERY upload; response shape mismatch job_id/file_info → poll /jobs/undefined 404 20min timeout (uploadService.ts:320-341 vs files.py:135,98-112) | high | open | — | — | 08-18 |
-| R4-H5 | default allowedTypes are extensions but validateFileType matches MIME → 100% of files rejected UNSUPPORTED_TYPE at queue time (useDocumentUpload.ts:56, fileValidation.ts:97-99) | high | open | — | — | 08-18 |
+| R4-H4 | upload omits required title Form field → 422 on EVERY upload; response shape mismatch job_id/file_info → poll /jobs/undefined 404 20min timeout (uploadService.ts:320-341 vs files.py:135,98-112) | high | fixed | clawd | #1489 | 08-19 |
+| R4-H5 | default allowedTypes are extensions but validateFileType matches MIME → 100% of files rejected UNSUPPORTED_TYPE at queue time (useDocumentUpload.ts:56, fileValidation.ts:97-99) | high | fixed | clawd | #1489 | 08-19 |
 | R4-H6 | scheduleReconnect timer only sets status, never reconnects — abnormal close permanently kills singleton (realtimeWebSocketService.ts:405-418) | high | open | — | — | 08-18 |
 | R4-H7 | pong never clears heartbeat timeout → every healthy connection force-closed ~30-60s, reconnect churn forever (useWebSocketConnection.ts:141-147,179-184; latent — provider unmounted) | high | open | — | — | 08-18 |
-| R4-M1 | naive datetime.utcnow() minus aware processing_started_at → TypeError 500 on live-status endpoint mid-processing (realtime_document_status.py:357-358) | med | open | — | — | 08-18 |
+| R4-M1 | naive datetime.utcnow() minus aware processing_started_at → TypeError 500 on live-status endpoint mid-processing (realtime_document_status.py:357-358) | med | fixed | clawd | #1490 | 08-19 |
 | R4-M2 | files.py + processing.py path params unvalidated UUID → asyncpg DataError 500 on garbage (files.py:333+, processing.py:68,97) | med | open | — | — | 08-18 |
 | R4-M3 | job listing limit/offset unbounded/unsigned — ?limit=1e6 dumps org job table incl params+result; negative → 500 (processing.py:150-158) | med | open | — | — | 08-18 |
 | R4-M4 | batch processing request unbounded List[str] — 10k sequential with_for_update calls in one request (processing.py:58-59,217-261) | med | open | — | — | 08-18 |
@@ -19,7 +19,7 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 | R4-M6 | cancel_upload job branch marks CANCELLED but never revokes Celery task — doc lands COMPLETED after "cancel" (files.py:619-654 vs processing.py:374-377) | med | open | — | — | 08-18 |
 | R4-M7 | WS auth skips CLI-token revocation check (is_cli_token_revoked only in HTTP path) — revoked 30d token keeps WS access (websocket_auth.py:125, dependencies.py:25-35) | med | open | — | — | 08-18 |
 | R4-M8 | WS admin-channel gate trusts JWT role claim, not DB — demoted admin keeps admin channels up to 30d via CLI token (websocket_v2.py:276+, websocket_manager.py:778-782 vs multi_tenancy.py:139-142) | med | open | — | — | 08-18 |
-| R4-M9 | current_user.is_superuser attribute doesn't exist → AttributeError 500 on admin inspecting other user's connection (websocket_v2.py:478,604) | med | open | — | — | 08-18 |
+| R4-M9 | current_user.is_superuser attribute doesn't exist → AttributeError 500 on admin inspecting other user's connection (websocket_v2.py:478,604) | med | fixed | clawd | #1490 | 08-19 |
 | R4-M10 | rate_limiting Redis error path: info unbound on first-call failure → UnboundLocalError 500; unused pipeline; sync redis in async dispatch (rate_limiting.py:93-127) | med | open | — | — | 08-18 |
 | R4-M11 | JWKS cached forever, no TTL — Supabase key rotation = all ES256 auth 401 until pod restart (security.py:33,140-154) | med | open | — | — | 08-18 |
 | R4-M12 | ENVIRONMENT=dev/staging ships exception details in 500 bodies (env check excludes only "production") (main.py:765-783, websocket_v2.py:375) | med | open | — | — | 08-18 |
@@ -68,5 +68,6 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 | R4-L29 | reconnect timer uncancellable post-logout; token refresh never propagates to socket (websocket.ts:179-198, useWebSocket.ts:140-151) | low | open | — | — | 08-18 |
 
 ## Log
+- 2026-08-19: H4+H5 fixed (#1489 upload contract: title form field, document-status polling, bare-extension validation). M1+M9 fixed (#1490 realtime 500s). WS realtime cluster H1/H2/H3/H6/H7 open pending event-design decision (server emits no document_processing_update; polling now covers upload).
 - 2026-08-18: round 4 created. 36 findings (7 high, 19 med, 29 low → 55 rows). H1-H5 cluster = upload+realtime pipeline fundamentally broken end-to-end (auth handshake, event contract, missing title field, MIME validation) — likely why features "silently don't work" in dev. Verified-clean: documents API tenant scope + count parity + sort enums + delete ordering + presign authz, CORS allowlist, JWT alg/aud/expiry pinning, WS v2 connect flow (org from DB, caps, tenant gate, dedup), error handlers prod sanitization, multi_tenancy DB-source-of-truth, plan_reasoning persistence (all 4 paths, migration catalog-only, linear chain), #1469 stream-ownership race (monotonic counter, unreachable interleave), #1470 finishRun idempotency, finalize linkage single-txn, #1466/#1471 retry gating.
 - 2026-08-18 (earlier): round-3 ledger updated — 15 findings merged via #1467/#1469/#1470 (H2,H3,H4,H5,H6,H8, M3,M6,M7,M8,M12,M13, L1,L6,L13).
