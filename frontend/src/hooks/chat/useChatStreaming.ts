@@ -637,6 +637,12 @@ export function useChatStreaming(
         let streamHadError = false;
         let streamHadConfirmation = false;
         const responseStart = Date.now();
+        // Stamped on the first token so the committed bubble can split the
+        // clock into working vs writing straight away. The backend persists
+        // its own reading (chat_messages.ttft_ms) for the post-reload row —
+        // this mirrors responseTimeMs, which is likewise client-measured
+        // in-session and server-measured after a reload.
+        let firstTokenAt: number | null = null;
 
         // Per-turn step tracking — reset each send
         const turnSteps: ActivityStep[] = [];
@@ -699,6 +705,7 @@ export function useChatStreaming(
         await start(
           {
             onToken: (content) => {
+              if (firstTokenAt === null) firstTokenAt = Date.now();
               assistantContent += content;
               lastStreamedContentRef.current = assistantContent;
               pendingStreamContentRef.current = assistantContent;
@@ -1034,6 +1041,9 @@ export function useChatStreaming(
           planReasoning: turnPlanReasoning || undefined,
           metadata: {
             responseTimeMs,
+            ...(firstTokenAt !== null
+              ? { ttftMs: firstTokenAt - responseStart }
+              : {}),
             ...(wasStopped ? { stopped: true } : {}),
             ...(finalTurnSteps.length > 0
               ? {
@@ -1679,6 +1689,11 @@ export function useChatStreaming(
         }
         setIsConfirming(true);
         const confirmStart = Date.now();
+        // Same stamp as the main stream: a resumed turn is its own turn, with
+        // its own wait before the answer resumes. The backend already writes
+        // ttft_ms for this path, so without this the split would appear only
+        // after a reload.
+        let confirmFirstTokenAt: number | null = null;
         // Track tool steps for the resumed turn exactly like handleSubmit —
         // seed with the pre-interrupt steps so the live bubble and the
         // committed message both show the whole turn's tools, not just the
@@ -1762,6 +1777,9 @@ export function useChatStreaming(
               : {}),
             metadata: {
               responseTimeMs: Date.now() - confirmStart,
+              ...(confirmFirstTokenAt !== null
+                ? { ttftMs: confirmFirstTokenAt - confirmStart }
+                : {}),
               ...(stopped ? { stopped: true } : {}),
               ...(confirmTokenUsage ? { tokenUsage: confirmTokenUsage } : {}),
               ...(confirmSteps.length > 0
@@ -1779,6 +1797,9 @@ export function useChatStreaming(
             { thread_id: pendingConfirmation.threadId, confirmed },
             {
               onToken: (content) => {
+                if (confirmFirstTokenAt === null) {
+                  confirmFirstTokenAt = Date.now();
+                }
                 confirmContent += content;
                 pendingStreamContentRef.current = confirmContent;
                 if (streamingRafRef.current === null) {

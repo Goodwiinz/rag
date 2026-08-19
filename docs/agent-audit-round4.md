@@ -1,0 +1,72 @@
+# Agent audit round 4 — started 2026-08-18
+Source: opencode session, 4 explore agents (documents/files API, auth/middleware/websocket core, frontend upload+ws consumption, fresh merges 96cf1ee6..HEAD)
+Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
+
+| ID | Finding (one line) | Sev | Status | Owner | PR | Updated |
+|----|--------------------|-----|--------|-------|----|---------|
+| R4-H1 | frontend WS sends subprotocols ['auth', token]; backend /ws expects access_token.<jwt> → 1008 close, reconnect loop, realtime never works (websocket.ts:42 vs websocket.py:66-79) | high | open | — | — | 08-18 |
+| R4-H2 | emit(type, payload) passes payload but all consumers deref data.payload.* → TypeError swallowed, updates never reach state (websocket.ts:57, useWebSocket.ts:175, useDocumentProcessingStatus.ts:86) | high | open | — | — | 08-18 |
+| R4-H3 | /ws endpoint never sends document_processing_update — entire frontend realtime pipeline consumes an event no server produces (websocket.py:104-158) | high | open | — | — | 08-18 |
+| R4-H4 | upload omits required title Form field → 422 on EVERY upload; response shape mismatch job_id/file_info → poll /jobs/undefined 404 20min timeout (uploadService.ts:320-341 vs files.py:135,98-112) | high | open | — | — | 08-18 |
+| R4-H5 | default allowedTypes are extensions but validateFileType matches MIME → 100% of files rejected UNSUPPORTED_TYPE at queue time (useDocumentUpload.ts:56, fileValidation.ts:97-99) | high | open | — | — | 08-18 |
+| R4-H6 | scheduleReconnect timer only sets status, never reconnects — abnormal close permanently kills singleton (realtimeWebSocketService.ts:405-418) | high | open | — | — | 08-18 |
+| R4-H7 | pong never clears heartbeat timeout → every healthy connection force-closed ~30-60s, reconnect churn forever (useWebSocketConnection.ts:141-147,179-184; latent — provider unmounted) | high | open | — | — | 08-18 |
+| R4-M1 | naive datetime.utcnow() minus aware processing_started_at → TypeError 500 on live-status endpoint mid-processing (realtime_document_status.py:357-358) | med | open | — | — | 08-18 |
+| R4-M2 | files.py + processing.py path params unvalidated UUID → asyncpg DataError 500 on garbage (files.py:333+, processing.py:68,97) | med | open | — | — | 08-18 |
+| R4-M3 | job listing limit/offset unbounded/unsigned — ?limit=1e6 dumps org job table incl params+result; negative → 500 (processing.py:150-158) | med | open | — | — | 08-18 |
+| R4-M4 | batch processing request unbounded List[str] — 10k sequential with_for_update calls in one request (processing.py:58-59,217-261) | med | open | — | — | 08-18 |
+| R4-M5 | /ws/status, /api/v2/ws/status|channels|health unauthenticated — anon recon of connections, jobs, error rate (websocket.py:167-175, websocket_v2.py:394,640,659) | med | open | — | — | 08-18 |
+| R4-M6 | cancel_upload job branch marks CANCELLED but never revokes Celery task — doc lands COMPLETED after "cancel" (files.py:619-654 vs processing.py:374-377) | med | open | — | — | 08-18 |
+| R4-M7 | WS auth skips CLI-token revocation check (is_cli_token_revoked only in HTTP path) — revoked 30d token keeps WS access (websocket_auth.py:125, dependencies.py:25-35) | med | open | — | — | 08-18 |
+| R4-M8 | WS admin-channel gate trusts JWT role claim, not DB — demoted admin keeps admin channels up to 30d via CLI token (websocket_v2.py:276+, websocket_manager.py:778-782 vs multi_tenancy.py:139-142) | med | open | — | — | 08-18 |
+| R4-M9 | current_user.is_superuser attribute doesn't exist → AttributeError 500 on admin inspecting other user's connection (websocket_v2.py:478,604) | med | open | — | — | 08-18 |
+| R4-M10 | rate_limiting Redis error path: info unbound on first-call failure → UnboundLocalError 500; unused pipeline; sync redis in async dispatch (rate_limiting.py:93-127) | med | open | — | — | 08-18 |
+| R4-M11 | JWKS cached forever, no TTL — Supabase key rotation = all ES256 auth 401 until pod restart (security.py:33,140-154) | med | open | — | — | 08-18 |
+| R4-M12 | ENVIRONMENT=dev/staging ships exception details in 500 bodies (env check excludes only "production") (main.py:765-783, websocket_v2.py:375) | med | open | — | — | 08-18 |
+| R4-M13 | unconditional XFF trust rewrites request.client process-wide — IP-keyed controls forgeable if any direct reachability (security.py:59-93; api_security.py:195 takes [-1] vs comment "first") | med | open | — | — | 08-18 |
+| R4-M14 | /workers/status|health only require USER — hostname/pool/queue disclosure + inspect() fan-out storm per call (workers.py:47-48,318-319) | med | open | — | — | 08-18 |
+| R4-M15 | shared-socket ownership war: any consumer unmount disconnects singleton for all; subscribe() return ignored → duplicate handlers per reconnect (useRealtimeProcessing.ts:326-345, realtimeWebSocketService.ts:204-221) | med | open | — | — | 08-18 |
+| R4-M16 | status-poll budget 2min < service's own >2min estimate for video → premature "Failed", later dedup blocks re-upload (enhancedDocumentService.ts:154,530-539; 5min constant unused) | med | open | — | — | 08-18 |
+| R4-M17 | preview-cleanup effect revokes object URLs of files still in list — thumbnails break after second interaction (DocumentUploader.tsx:52-60, DocumentUploadWizard.tsx:311-319) | med | open | — | — | 08-18 |
+| R4-M18 | failed queue items never cleaned (completedAt never set on error paths) — unbounded session queue/stats (uploadService.ts:426-435,346,384) | med | open | — | — | 08-18 |
+| R4-M19 | AbortController created but never wired (api.upload no signal; XHR path no abort) — cancel/navigate never stops upload (uploadService.ts:316-317, DocumentUploadZone.tsx:419, BatchUploadManager.tsx:160) | med | open | — | — | 08-18 |
+| R4-M20 | optimistic rollback setTimeout overwrites refetched correct list 5s later; id=file.name collision mutates both (useOptimisticUpload.ts:83-94,24,43) | med | open | — | — | 08-18 |
+| R4-M21 | documentService.uploadFile/batch-upload target nonexistent routes → 404; useOptimisticUpload built on them (documentService.ts:21,78) | med | open | — | — | 08-18 |
+| R4-M22 | batch delete N concurrent refetches race final commit — deleted docs reappear (useDocuments.ts:477-497; DocumentLibrary.tsx:189 N+1) | med | open | — | — | 08-18 |
+| R4-M23 | documents rows never transition processing→indexed (no realtime, no polling) — spinner until manual refresh (DocumentCard.tsx:315-326) | med | open | — | — | 08-18 |
+| R4-M24 | size/type parity drift: FE 50MB vs BE 10MB FREE; FE allowlist narrower than BE 31 ext — late 400s or wrong client rejects (types/constants.ts:3, file_service.py:227-259) | med | open | — | — | 08-18 |
+| R4-M25 | disconnect()/reconnect clears ALL listeners on shared singleton — update channels silently die after token-refresh reconnect (websocket.ts:105-112,219-228) | med | open | — | — | 08-18 |
+| R4-M26 | Stop during SSE confirm re-arms dead card: abort-restore path re-inserts confirmation backend already finalized CANCELLED → Approve always errors (agentChatStore.ts:984-993 vs streaming.py:3098-3129) | med | open | — | — | 08-18 |
+| R4-L1 | HTTPException(400) swallowed by own except → 500 (processing.py:317-325) | low | open | — | — | 08-18 |
+| R4-L2 | bulk-delete duplicate ids counted twice in success report (documents.py:1172) | low | open | — | — | 08-18 |
+| R4-L3 | unknown date_range silently ignored — no filter, no 400 (documents.py:1044-1055) | low | open | — | — | 08-18 |
+| R4-L4 | to_dict leaks storage_path, storage_backend, checksum, do_kb uuid (files.py:354,285) | low | open | — | — | 08-18 |
+| R4-L5 | integrity route: sync ML in request, no rate limit; select-then-insert race → MultipleResultsFound 500 (integrity.py:31-89) | low | open | — | — | 08-18 |
+| R4-L6 | bulk status unbounded + N+1 (include_jobs default True) (realtime_document_status.py:431-505) | low | open | — | — | 08-18 |
+| R4-L7 | sync db.query inside async handlers throughout processing.py — event-loop stalls (processing.py:107+) | low | open | — | — | 08-18 |
+| R4-L8 | v1 WS manager: no per-user cap, no reaper — unbounded sockets, authenticated memory exhaustion (websocket.py:17-43) | low | open | — | — | 08-18 |
+| R4-L9 | document_management.py dead standalone service: zero auth (client-supplied org), wrong attrs, quota drift, header injection — landmine if mounted (entire file) | low | open | — | — | 08-18 |
+| R4-L10 | orgless user → unscoped processing lookup, fail-open (processing.py:79) | low | open | — | — | 08-18 |
+| R4-L11 | auth/api-key rate limiters + CLI revocation all fail open on Redis outage (core/rate_limit.py:184, api_key_auth.py:182, config.py:306) | low | open | — | — | 08-18 |
+| R4-L12 | get_current_user_optional can never return None (HTTPBearer auto_error) — dead latent trap (dependencies.py:268-290) | low | open | — | — | 08-18 |
+| R4-L13 | analytics_auth sync db.query on AsyncSession — AttributeError if ever called (zero callers, latent) (analytics_auth.py:118-126) | low | open | — | — | 08-18 |
+| R4-L14 | services/websocket/auth.py nonexistent User attrs — module unusable if ever wired (dead) (auth.py:226,467,561) | low | open | — | — | 08-18 |
+| R4-L15 | realtime_service.py standalone app: token in URL + arg mismatch — dead, violates token-in-URL convention (realtime_service.py:508-517) | low | open | — | — | 08-18 |
+| R4-L16 | defaultdict(set) registries + rate-limit dicts never delete keys — lifetime memory creep (websocket_manager.py:176, rate_limiting.py:33) | low | open | — | — | 08-18 |
+| R4-L17 | v1 /ws never echoes subprotocol — browser handshake fails outright; only non-browser clients work (websocket.py:102) | low | open | — | — | 08-18 |
+| R4-L18 | is_public gate dead code — has_permission(USER) true for all roles (dependencies.py:258) | low | open | — | — | 08-18 |
+| R4-L19 | SSE throw after confirmation frame → durable fallback re-runs parked turn (agentChatStore.ts:469-482,497-508) | low | open | — | — | 08-18 |
+| R4-L20 | Stop/supersede relabels interrupted tools as 'failed' — cosmetic (agentChatStore.ts:78-89,1249,716) | low | open | — | — | 08-18 |
+| R4-L21 | one-shot transport reattach deletes retry flag before attempt — failed reattach strands thread until remount (useChatStreaming.ts:1472-1474) | low | open | — | — | 08-18 |
+| R4-L22 | updateFilters/updatePage read state in setState updater — batched updates fetch with defaults (useDocuments.ts:346-380) | low | open | — | — | 08-18 |
+| R4-L23 | search input fires fetch per keystroke, no debounce (DocumentLibrary.tsx:98-104) | low | open | — | — | 08-18 |
+| R4-L24 | BatchUploadManager entirely simulated + interval leak; unused (BatchUploadManager.tsx:102-179,235) | low | open | — | — | 08-18 |
+| R4-L25 | dead buttons: "Upload N Files" console.log only; Retry Upload no onClick (DocumentUploader.tsx:310, UploadProgress.tsx:219) | low | open | — | — | 08-18 |
+| R4-L26 | poll never cancels after removeFromQueue; cancelled/retrying job statuses unhandled → 20min error (uploadService.ts:372-399) | low | open | — | — | 08-25 |
+| R4-L27 | OptimizedDocumentList calls useWebSocketConnection() with no url — bogus permanent error; unused (OptimizedDocumentList.tsx:207) | low | open | — | — | 08-18 |
+| R4-L28 | WS-path status mapping gaps: pending/running/completed → "Unknown status"/eternal spinner (useDocumentProcessingStatus.ts:117, ProcessingStatus.tsx:316) | low | open | — | — | 08-18 |
+| R4-L29 | reconnect timer uncancellable post-logout; token refresh never propagates to socket (websocket.ts:179-198, useWebSocket.ts:140-151) | low | open | — | — | 08-18 |
+
+## Log
+- 2026-08-18: round 4 created. 36 findings (7 high, 19 med, 29 low → 55 rows). H1-H5 cluster = upload+realtime pipeline fundamentally broken end-to-end (auth handshake, event contract, missing title field, MIME validation) — likely why features "silently don't work" in dev. Verified-clean: documents API tenant scope + count parity + sort enums + delete ordering + presign authz, CORS allowlist, JWT alg/aud/expiry pinning, WS v2 connect flow (org from DB, caps, tenant gate, dedup), error handlers prod sanitization, multi_tenancy DB-source-of-truth, plan_reasoning persistence (all 4 paths, migration catalog-only, linear chain), #1469 stream-ownership race (monotonic counter, unreachable interleave), #1470 finishRun idempotency, finalize linkage single-txn, #1466/#1471 retry gating.
+- 2026-08-18 (earlier): round-3 ledger updated — 15 findings merged via #1467/#1469/#1470 (H2,H3,H4,H5,H6,H8, M3,M6,M7,M8,M12,M13, L1,L6,L13).

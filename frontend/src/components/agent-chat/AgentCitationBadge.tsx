@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import {
   HoverCard,
   HoverCardContent,
@@ -30,8 +30,43 @@ export function AgentCitationBadge({
   citationNumber,
   citation,
 }: AgentCitationBadgeProps) {
+  // HoverCard alone opens on pointer hover (and focus) only, so the source
+  // preview was unreachable on touch. Drive it as a controlled popover and let
+  // a tap/click toggle it too.
+  const [open, setOpen] = useState(false);
+  // Radix's HoverCardTrigger calls preventDefault() on touchstart, which
+  // suppresses the compatibility click — so a tap has to be handled from the
+  // pointer event itself. Mouse/pen keep using click (pointerup fires before
+  // the hover-open would settle, and toggling there would fight the hover).
+  const togglePreview = (): void => setOpen((current) => !current);
+  // A touch tap is handled from pointerup; the flag stops the compatibility
+  // click (when the browser does emit one) from toggling it straight back.
+  const handledByPointerRef = useRef(false);
   const badge = (
     <button
+      type="button"
+      onPointerUp={
+        citation
+          ? (event) => {
+              if (event.pointerType === 'mouse' || event.pointerType === 'pen')
+                return;
+              handledByPointerRef.current = true;
+              togglePreview();
+            }
+          : undefined
+      }
+      onClick={
+        citation
+          ? () => {
+              if (handledByPointerRef.current) {
+                handledByPointerRef.current = false;
+                return;
+              }
+              togglePreview();
+            }
+          : undefined
+      }
+      aria-expanded={citation ? open : undefined}
       className={cn(
         'inline-flex items-center justify-center',
         'px-1.5 py-0.5 mx-0.5',
@@ -59,7 +94,12 @@ export function AgentCitationBadge({
     : null;
 
   return (
-    <HoverCard openDelay={150} closeDelay={100}>
+    <HoverCard
+      open={open}
+      onOpenChange={setOpen}
+      openDelay={150}
+      closeDelay={100}
+    >
       <HoverCardTrigger asChild>{badge}</HoverCardTrigger>
       <HoverCardContent
         align="start"

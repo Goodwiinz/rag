@@ -76,6 +76,21 @@ AGENT_STREAM_SCHEMA_VERSION = "1.0"
 _STREAM_ROUTES = frozenset({"pending", "luna", "graph", "unknown"})
 
 
+def _ttft_ms(emitter: Any, stream_started_at: float) -> Optional[int]:
+    """Milliseconds from stream start to this turn's first token frame.
+
+    ``None`` when the turn emitted no token at all — an error raised before
+    generation, or a stop during the tool phase. Measured against the caller's
+    ``stream_started_at`` rather than the tracker's own (earlier) origin so the
+    reading stays a subset of the ``latency_ms`` written to the same row and
+    the two subtract into an honest "working" / "writing" split.
+    """
+    at = getattr(getattr(emitter, "slo_tracker", None), "first_token_at", None)
+    if at is None:
+        return None
+    return max(0, int((at - stream_started_at) * 1000))
+
+
 def _accept_eligible(thread_obj: Any) -> bool:
     """True when this submission has a thread the accept transaction can use.
 
@@ -354,6 +369,7 @@ async def _stream_luna_fast_path(
             tool_executions_out=None,
             retrieved_contexts=None,
             latency_ms=int((time.monotonic() - stream_started_at) * 1000),
+            ttft_ms=_ttft_ms(emitter, stream_started_at),
             stopped=True,
             client_message_id=assistant_cmid,
         )
@@ -485,6 +501,7 @@ async def _stream_luna_fast_path(
             tool_executions_out=None,
             retrieved_contexts=None,
             latency_ms=int((time.monotonic() - stream_started_at) * 1000),
+            ttft_ms=_ttft_ms(emitter, stream_started_at),
             stopped=False,
             client_message_id=assistant_cmid,
             token_usage=(
@@ -1666,6 +1683,7 @@ async def stream_event_generator(
                 tool_executions_out=None,
                 retrieved_contexts=None,
                 latency_ms=int((time.monotonic() - stream_started_at) * 1000),
+                ttft_ms=_ttft_ms(emitter, stream_started_at),
                 stopped=True,
                 client_message_id=assistant_cmid,
                 # Tokens accumulated up to the abort; no plan here — it
@@ -2019,6 +2037,7 @@ async def stream_event_generator(
                     tool_executions_out=tool_executions_out,
                     retrieved_contexts=final_values.get("retrieved_contexts"),
                     latency_ms=int((time.monotonic() - stream_started_at) * 1000),
+                    ttft_ms=_ttft_ms(emitter, stream_started_at),
                     stopped=False,
                     client_message_id=assistant_cmid,
                     plan=final_values.get("plan") or None,
@@ -2980,6 +2999,7 @@ async def stream_confirm_event_generator(
                 token_usage=token_usage_payload,
                 client_message_id=assistant_cmid,
                 latency_ms=int((time.monotonic() - stream_started_at) * 1000),
+                ttft_ms=_ttft_ms(emitter, stream_started_at),
             )
             # _persist_assistant_message_safe opens its own session so this
             # request session can be closed immediately after `done`. Run it
