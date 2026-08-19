@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { uploadService, UploadQueueItem, UploadStats } from '@/services/uploadService';
 import { FileValidationError, validateFileBatch } from '@/utils/fileValidation';
 import { UPLOAD_LIMITS } from '@/types';
-import { useDocumentProcessingUpdates } from '@/hooks/useWebSocket';
 
 export interface UseDocumentUploadOptions {
   maxConcurrentUploads?: number;
@@ -50,7 +49,8 @@ export interface UseDocumentUploadReturn {
 
 export const useDocumentUpload = (options: UseDocumentUploadOptions = {}): UseDocumentUploadReturn => {
   const {
-    maxConcurrentUploads = 3,
+    // Reserved for a future concurrent-upload limiter; not yet wired up.
+    maxConcurrentUploads: _maxConcurrentUploads = 3,
     maxFileSize = UPLOAD_LIMITS.MAX_FILE_SIZE_MB * 1024 * 1024,
     maxFiles = UPLOAD_LIMITS.MAX_FILES_PER_UPLOAD,
     allowedTypes = [...UPLOAD_LIMITS.SUPPORTED_FORMATS],
@@ -75,9 +75,6 @@ export const useDocumentUpload = (options: UseDocumentUploadOptions = {}): UseDo
 
   const cleanupIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // WebSocket for real-time updates
-  const { updates: processingUpdates } = useDocumentProcessingUpdates();
-
   // Subscribe to upload service progress
   useEffect(() => {
     const unsubscribeProgress = uploadService.onProgress((items) => {
@@ -93,45 +90,6 @@ export const useDocumentUpload = (options: UseDocumentUploadOptions = {}): UseDo
       unsubscribeStats();
     };
   }, []);
-
-  // Handle WebSocket processing updates.
-  // Build a new state tree via the setter — find() returns a reference to the
-  // stored object, so assigning to its properties would mutate React state in
-  // place and skip the re-render (the progress UI would silently stall).
-  useEffect(() => {
-    if (processingUpdates.length === 0) return;
-
-    setQueueItems((prev) =>
-      prev.map((item) => {
-        const update = processingUpdates.find(
-          (u) => u.payload.job_id === item.jobId
-        );
-        if (!update) return item;
-
-        const next = {
-          ...item,
-          progress: update.payload.progress ?? item.progress,
-        };
-
-        if (update.payload.status === 'indexed') {
-          return {
-            ...next,
-            status: 'completed',
-            completedAt: Date.now(),
-            progress: 100,
-          };
-        }
-        if (update.payload.status === 'failed') {
-          return {
-            ...next,
-            status: 'error',
-            error: update.payload.error_message ?? 'Processing failed',
-          };
-        }
-        return next;
-      })
-    );
-  }, [processingUpdates]);
 
   // Auto-cleanup completed items
   useEffect(() => {

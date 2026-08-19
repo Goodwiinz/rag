@@ -150,7 +150,50 @@ interface UseDocumentsOptions {
   autoFetch?: boolean;
 }
 
-export const useDocuments = (options: UseDocumentsOptions = {}) => {
+interface UseDocumentsReturn {
+  documents: Document[];
+  loading: boolean;
+  error: string | null;
+  pagination: UseDocumentsState['pagination'];
+  filters: DocumentFilters;
+  selectedDocuments: Set<string>;
+  selectedCount: number;
+  hasSelection: boolean;
+  isAllSelected: boolean;
+  isPolling: boolean;
+  fetchDocuments: (
+    page?: number,
+    pageSize?: number,
+    filters?: DocumentFilters
+  ) => Promise<void>;
+  updateFilters: (newFilters: Partial<DocumentFilters>) => void;
+  updatePage: (page: number) => void;
+  updatePageSize: (pageSize: number) => void;
+  selectDocument: (documentId: string) => void;
+  selectAllDocuments: () => void;
+  clearSelection: () => void;
+  deleteDocument: (documentId: string) => Promise<void>;
+  deleteSelectedDocuments: () => Promise<void>;
+  refreshDocuments: () => void;
+  retryDocument: (documentId: string) => Promise<unknown | undefined>;
+}
+
+// Non-terminal processing statuses — while any listed document is in one of
+// these, the list is polled for updates instead of waiting on a push that
+// never arrives (the FE WebSocket realtime stack never worked end-to-end and
+// was removed - R4-H1/H2/H3).
+const NON_TERMINAL_STATUSES: ReadonlySet<Document['processing_status']> =
+  new Set(['queued', 'processing']);
+
+const DOCUMENT_POLL_INTERVAL_MS = 5000;
+const DOCUMENT_POLL_MAX_MS = 10 * 60 * 1000; // 10 minutes
+
+const hasNonTerminalDocument = (documents: Document[]): boolean =>
+  documents.some((doc) => NON_TERMINAL_STATUSES.has(doc.processing_status));
+
+export const useDocuments = (
+  options: UseDocumentsOptions = {}
+): UseDocumentsReturn => {
   const { initialPageSize = 20, autoFetch = true } = options;
 
   const {
@@ -340,7 +383,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
         }));
       }
     },
-    [handleAuthError, isAuthenticated, authLoading]
+    [handleAuthError, isAuthenticated]
   );
 
   const updateFilters = useCallback(
@@ -585,6 +628,30 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
     }
   }, [autoFetch, fetchDocuments, isAuthenticated, authLoading]);
 
+  // Poll the list while any visible document is still queued/processing —
+  // the FE realtime stack never delivered a push for this, so this is the
+  // only source of "document finished processing" updates.
+  const pollingActive = hasNonTerminalDocument(state.documents);
+  useEffect(() => {
+    if (!pollingActive || !isAuthenticated) {
+      return;
+    }
+
+    const startedAt = Date.now();
+    const intervalId = setInterval(() => {
+      if (!mountedRef.current) {
+        return;
+      }
+      if (Date.now() - startedAt >= DOCUMENT_POLL_MAX_MS) {
+        clearInterval(intervalId);
+        return;
+      }
+      fetchDocuments();
+    }, DOCUMENT_POLL_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [pollingActive, isAuthenticated, fetchDocuments]);
+
   return {
     // State
     documents: state.documents,
@@ -596,6 +663,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
     selectedCount: state.selectedDocuments.size,
     hasSelection: state.selectedDocuments.size > 0,
     isAllSelected: state.selectedDocuments.size === state.documents.length,
+    isPolling: pollingActive,
 
     // Actions
     fetchDocuments,

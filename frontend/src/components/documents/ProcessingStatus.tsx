@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ClockIcon,
   CheckCircleIcon,
@@ -12,10 +12,104 @@ import {
   InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
-import { Document, UploadProgress } from '@/types';
-import { useDocumentProcessingStatus } from '@/hooks/useDocumentProcessingStatus';
+import { Document } from '@/types';
+import { api } from '@/services/api-client';
 import { Badge } from '@/components/ui/badge';
 import { ErrorDisplay } from './ErrorDisplay';
+
+// Mirrors ProcessingStatusResponse (GET /processing/documents/{id}/status),
+// same contract uploadService.ts polls (#1489).
+interface ProcessingStatusResponse {
+  document_id: string;
+  processing_status: 'pending' | 'processing' | 'completed' | 'failed' | string;
+  is_embedded: boolean;
+  is_indexed: boolean;
+  processing_error: string | null;
+}
+
+const POLL_INTERVAL_MS = 3000;
+
+const toDocumentProcessingStatus = (
+  status: ProcessingStatusResponse['processing_status']
+): Document['processing_status'] => {
+  if (status === 'pending') return 'queued';
+  if (status === 'completed') return 'indexed';
+  if (status === 'processing' || status === 'failed') return status;
+  return 'queued';
+};
+
+interface PollState {
+  status: Document['processing_status'] | null;
+  error: string | null;
+  lastUpdate: Date | null;
+}
+
+interface UseProcessingStatusPollingReturn extends PollState {
+  isPolling: boolean;
+}
+
+const isTerminalStatus = (
+  status: Document['processing_status'] | null
+): boolean => status === 'indexed' || status === 'failed';
+
+/**
+ * Polls GET /processing/documents/{id}/status while `enabled` is true and
+ * stops once the document reaches a terminal status (indexed/failed) or is
+ * unmounted. Replaces the WebSocket subscription that never worked
+ * (R4-H1/H2/H3: handshake/payload-shape mismatch, server emitted no events).
+ */
+function useProcessingStatusPolling(
+  documentId: string,
+  enabled: boolean
+): UseProcessingStatusPollingReturn {
+  const [state, setState] = useState<PollState>({
+    status: null,
+    error: null,
+    lastUpdate: null,
+  });
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const poll = async (): Promise<void> => {
+      try {
+        const response = await api.get<ProcessingStatusResponse>(
+          `/processing/documents/${documentId}/status`
+        );
+        if (cancelled) return;
+
+        const status = toDocumentProcessingStatus(response.processing_status);
+        setState({
+          status,
+          error: response.processing_error,
+          lastUpdate: new Date(),
+        });
+
+        if (!isTerminalStatus(status)) {
+          timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
+        }
+      } catch {
+        if (cancelled) return;
+        setState((prev) => ({ ...prev, lastUpdate: new Date() }));
+        timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
+      }
+    };
+
+    void poll();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [documentId, enabled]);
+
+  return { ...state, isPolling: enabled && !isTerminalStatus(state.status) };
+}
 
 export interface ProcessingStatusProps {
   document: Document;
@@ -27,7 +121,7 @@ export interface ProcessingStatusProps {
   estimatedRemainingSeconds?: number;
   error?: string;
 
-  // WebSocket real-time mode
+  // Poll GET /processing/documents/{id}/status while true
   enableRealtime?: boolean;
 
   // Callbacks
@@ -128,7 +222,61 @@ const getProcessingSteps = (document: Document): ProcessingStep[] => {
   return steps;
 };
 
-const getStepIcon = (step: ProcessingStep) => {
+// Pure derivation of step state from the current props — replaces the old
+// effect-driven `setSteps` chain (rendered progress is a function of props,
+// not independent state that needs synchronizing).
+const applyStepProgress = (
+  baseSteps: ProcessingStep[],
+  currentStep: string | undefined,
+  progress: number,
+  error: string | null | undefined,
+  isIndexed: boolean
+): ProcessingStep[] => {
+  let steps = baseSteps;
+
+  if (currentStep && progress > 0) {
+    const currentStepIndex = steps.findIndex(
+      (step) => step.id === currentStep
+    );
+
+    if (currentStepIndex !== -1) {
+      steps = steps.map((step, i) => {
+        if (i < currentStepIndex && step.status === 'pending') {
+          return { ...step, status: 'completed', endTime: new Date().toISOString() };
+        }
+        if (i === currentStepIndex && step.status === 'pending') {
+          return { ...step, status: 'in_progress', startTime: new Date().toISOString() };
+        }
+        return step;
+      });
+    }
+  }
+
+  if (error && error.length > 0) {
+    const lastInProgressIndex = steps.findIndex(
+      (step) => step.status === 'in_progress'
+    );
+    if (lastInProgressIndex !== -1) {
+      steps = steps.map((step, i) =>
+        i === lastInProgressIndex
+          ? { ...step, status: 'error', error, endTime: new Date().toISOString() }
+          : step
+      );
+    }
+  }
+
+  if (isIndexed) {
+    steps = steps.map((step) => ({
+      ...step,
+      status: 'completed' as const,
+      endTime: new Date().toISOString(),
+    }));
+  }
+
+  return steps;
+};
+
+const getStepIcon = (step: ProcessingStep): React.ReactElement => {
   const iconClass = 'h-5 w-5';
   switch (step.status) {
     case 'in_progress':
@@ -201,35 +349,31 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
   className,
   compact = false,
 }) => {
-  const [steps, setSteps] = useState<ProcessingStep[]>(() =>
-    getProcessingSteps(document)
-  );
+  const baseSteps = useMemo(() => getProcessingSteps(document), [document]);
   const [expanded, setExpanded] = useState(false);
 
-  // Subscribe to WebSocket updates when enableRealtime is true
-  const realtime = useDocumentProcessingStatus({
-    documentId: document.id,
-    jobId,
-    enabled:
-      enableRealtime &&
+  // Poll processing status when enableRealtime is true
+  const realtime = useProcessingStatusPolling(
+    document.id,
+    enableRealtime &&
       (document.processing_status === 'processing' ||
-        document.processing_status === 'queued'),
-  });
+        document.processing_status === 'queued')
+  );
 
-  // Merge realtime data with props (priority: realtime > props > defaults)
-  const useRealtimeData = enableRealtime && realtime.isConnected;
-  const currentStep = useRealtimeData ? realtime.currentStep : propCurrentStep;
-  const progress = useRealtimeData ? realtime.progress : propProgress;
-  const estimatedRemainingSeconds = useRealtimeData
-    ? realtime.estimatedRemainingSeconds
-    : propEstimatedTime;
+  // The status-poll endpoint only reports terminal state + error, not
+  // step/progress detail, so those still come from props/caller-driven state.
+  const useRealtimeData = enableRealtime && realtime.status !== null;
+  const currentStep = propCurrentStep;
+  const progress = propProgress;
+  const estimatedRemainingSeconds = propEstimatedTime;
   const error = useRealtimeData ? realtime.error : propError;
 
-  // Notify parent when status changes (from WebSocket)
+  // Notify parent when status changes (from polling)
   useEffect(() => {
     if (
       useRealtimeData &&
       onStatusChange &&
+      realtime.status &&
       realtime.status !== document.processing_status
     ) {
       onStatusChange(realtime.status);
@@ -241,76 +385,19 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
     onStatusChange,
   ]);
 
-  useEffect(() => {
-    if (currentStep && progress > 0) {
-      setSteps((prevSteps) => {
-        const newSteps = [...prevSteps];
-        const currentStepIndex = newSteps.findIndex(
-          (step) => step.id === currentStep
-        );
-
-        if (currentStepIndex !== -1) {
-          // Mark steps before current as completed
-          for (let i = 0; i < currentStepIndex; i++) {
-            const step = newSteps[i];
-            if (step && step.status === 'pending') {
-              newSteps[i] = {
-                ...step,
-                status: 'completed',
-                endTime: new Date().toISOString(),
-              };
-            }
-          }
-
-          // Mark current step as in progress
-          const currentStepData = newSteps[currentStepIndex];
-          if (currentStepData && currentStepData.status === 'pending') {
-            newSteps[currentStepIndex] = {
-              ...currentStepData,
-              status: 'in_progress',
-              startTime: new Date().toISOString(),
-            };
-          }
-        }
-
-        return newSteps;
-      });
-    }
-
-    if (error && error.length > 0) {
-      setSteps((prevSteps) => {
-        const newSteps = [...prevSteps];
-        const lastInProgressStep = newSteps.findIndex(
-          (step: ProcessingStep) => step.status === 'in_progress'
-        );
-
-        if (lastInProgressStep !== -1) {
-          const stepData = newSteps[lastInProgressStep];
-          if (stepData) {
-            newSteps[lastInProgressStep] = {
-              ...stepData,
-              status: 'error',
-              error,
-              endTime: new Date().toISOString(),
-            };
-          }
-        }
-
-        return newSteps;
-      });
-    }
-
-    // Mark all steps as completed when document is indexed (regardless of progress prop)
-    if (document.processing_status === 'indexed') {
-      setSteps((prevSteps) =>
-        prevSteps.map((step) => ({
-          ...step,
-          status: 'completed' as const,
-          endTime: new Date().toISOString(),
-        }))
-      );
-    }
-  }, [currentStep, progress, error, document.processing_status]);
+  // Derived, not effect-driven: rendered step state is a pure function of
+  // the current props/poll result, so it doesn't need its own copy in state.
+  const steps = useMemo(
+    () =>
+      applyStepProgress(
+        baseSteps,
+        currentStep,
+        progress,
+        error,
+        document.processing_status === 'indexed'
+      ),
+    [baseSteps, currentStep, progress, error, document.processing_status]
+  );
 
   const status = document.processing_status;
   const isCompleted = status === 'indexed';
@@ -329,7 +416,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
     return `~ ${minutes}m`;
   };
 
-  const getStatusIcon = () => {
+  const getStatusIcon = (): React.ReactElement => {
     if (isCompleted)
       return <CheckCircleIcon className="h-6 w-6 text-green-600" />;
     if (hasError) return <XCircleIcon className="h-6 w-6 text-destructive" />;
@@ -338,7 +425,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
     );
   };
 
-  const getStatusText = () => {
+  const getStatusText = (): string => {
     if (isCompleted) return 'Processing completed';
     if (hasError) return 'Processing failed';
     if (status === 'queued') return 'Queued for processing';
@@ -346,7 +433,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
     return 'Preparing to process';
   };
 
-  const getFileIcon = () => {
+  const getFileIcon = (): React.ReactElement => {
     switch (document.file_type) {
       case 'pdf':
         return <DocumentTextIcon className="h-8 w-8 text-red-600" />;
@@ -372,7 +459,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
           <span className="text-muted-foreground truncate">
             {getStatusText()}
           </span>
-          {enableRealtime && realtime.isConnected && (
+          {enableRealtime && realtime.isPolling && (
             <Badge variant="default" className="text-xs px-1.5 py-0">
               <span className="inline-block w-1.5 h-1.5 bg-green-500 rounded-full mr-1 animate-pulse" />
               Live
@@ -425,10 +512,10 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
               {getStatusIcon()}
               {enableRealtime && (
                 <Badge
-                  variant={realtime.isConnected ? 'default' : 'secondary'}
+                  variant={realtime.isPolling ? 'default' : 'secondary'}
                   className="text-xs"
                 >
-                  {realtime.isConnected ? (
+                  {realtime.isPolling ? (
                     <>
                       <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse" />
                       Live
@@ -503,7 +590,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
             Processing Steps
           </h4>
           <div className="space-y-2">
-            {steps.map((step, index) => (
+            {steps.map((step) => (
               <div
                 key={step.id}
                 className={cn(

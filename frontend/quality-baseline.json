@@ -9,16 +9,6 @@
     "src/components/layout/Sidebar.tsx",
     "src/components/monitoring/PerformanceMetricsDashboard.tsx",
     "src/components/monitoring/SystemOverviewDashboard.tsx",
-    "src/components/processing/ConnectionManager.tsx",
-    "src/components/processing/NotificationCenter.tsx",
-    "src/components/processing/PerformanceMonitor.tsx",
-    "src/components/processing/RealtimeStatusDashboard.tsx",
-    "src/components/realtime/DocumentProcessingCard.tsx",
-    "src/components/realtime/DocumentProcessingDashboard.tsx",
-    "src/components/realtime/ProcessingProgressBar.tsx",
-    "src/components/realtime/RealtimeProcessingDashboard.tsx",
-    "src/components/realtime/RealtimeProcessingProvider.tsx",
-    "src/components/realtime/VirtualizedDocumentList.tsx",
     "src/components/search/QueryRewriter.tsx",
     "src/components/search/ResultAggregator.tsx",
     "src/components/ui/enhanced-new-chat-dialog.tsx",
@@ -26,8 +16,6 @@
     "src/examples/**/*",
     "src/hooks/analytics/**/*",
     "src/hooks/useAnalyticsTracking.ts",
-    "src/hooks/useDocuments.ts",
-    "src/hooks/useRealtimeProcessing.ts",
     "src/lib/analytics.ts",
     "src/lib/thread-hooks.ts",
     "src/page-components/**/*",
@@ -36,7 +24,6 @@
     "src/services/graphService.ts",
     "src/services/monitoringWebsocketService.ts",
     "src/services/searchService.ts",
-    "src/store/realtimeProcessingStore.ts",
     "src/stores/analytics/**/*",
     "src/stores/graphStore.ts",
     "src/stores/monitoringStore.ts",
@@ -278,10 +265,6 @@
       "app/components/Pagination.tsx": {
         "errors": 0,
         "warnings": 3
-      },
-      "app/components/realtime/DocumentProgressVisualizer.tsx": {
-        "errors": 0,
-        "warnings": 21
       },
       "app/documents/components/DocumentList.tsx": {
         "errors": 0,
@@ -727,10 +710,6 @@
         "errors": 0,
         "warnings": 1
       },
-      "src/components/documents/BatchUploadManager.tsx": {
-        "errors": 1,
-        "warnings": 2
-      },
       "src/components/documents/CropExtractOverlay.tsx": {
         "errors": 1,
         "warnings": 1
@@ -771,10 +750,6 @@
         "errors": 0,
         "warnings": 1
       },
-      "src/components/documents/DocumentUploader.tsx": {
-        "errors": 0,
-        "warnings": 6
-      },
       "src/components/documents/DocumentUploadZone.tsx": {
         "errors": 0,
         "warnings": 19
@@ -798,10 +773,6 @@
       "src/components/documents/ProcessingStatus.tsx": {
         "errors": 1,
         "warnings": 6
-      },
-      "src/components/documents/UploadProgress.tsx": {
-        "errors": 0,
-        "warnings": 4
       },
       "src/components/entities/__tests__/DocumentEntityExtractor.test.tsx": {
         "errors": 0,
@@ -1059,10 +1030,6 @@
         "errors": 0,
         "warnings": 5
       },
-      "src/components/metrics/RealTimeMetrics.tsx": {
-        "errors": 1,
-        "warnings": 10
-      },
       "src/components/monitoring/AlertList.tsx": {
         "errors": 0,
         "warnings": 11
@@ -1099,10 +1066,6 @@
         "errors": 0,
         "warnings": 1
       },
-      "src/components/optimized/OptimizedDocumentList.tsx": {
-        "errors": 0,
-        "warnings": 9
-      },
       "src/components/preview/MultimodalViewer.stories.tsx": {
         "errors": 0,
         "warnings": 1
@@ -1110,66 +1073,6 @@
       "src/components/preview/MultimodalViewer.tsx": {
         "errors": 5,
         "warnings": 14
-      },
-      "src/components/processing/__tests__/ErrorBoundary.test.tsx": {
-        "errors": 0,
-        "warnings": 1
-      },
-      "src/components/processing/ConnectionManager.tsx": {
-        "errors": 0,
-        "warnings": 13
-      },
-      "src/components/processing/DocumentProgressVisualizer.tsx": {
-        "errors": 2,
-        "warnings": 11
-      },
-      "src/components/processing/ErrorBoundary.tsx": {
-        "errors": 1,
-        "warnings": 9
-      },
-      "src/components/processing/NotificationCenter.tsx": {
-        "errors": 0,
-        "warnings": 9
-      },
-      "src/components/processing/PerformanceMonitor.tsx": {
-        "errors": 3,
-        "warnings": 4
-      },
-      "src/components/processing/ProcessingDashboard.stories.tsx": {
-        "errors": 0,
-        "warnings": 2
-      },
-      "src/components/processing/ProcessingDashboard.tsx": {
-        "errors": 4,
-        "warnings": 5
-      },
-      "src/components/processing/RealtimeStatusDashboard.tsx": {
-        "errors": 0,
-        "warnings": 18
-      },
-      "src/components/realtime/DocumentProcessingDashboard.tsx": {
-        "errors": 0,
-        "warnings": 7
-      },
-      "src/components/realtime/ErrorDisplay.tsx": {
-        "errors": 0,
-        "warnings": 3
-      },
-      "src/components/realtime/RealtimeProcessingDashboard.stories.tsx": {
-        "errors": 0,
-        "warnings": 8
-      },
-      "src/components/realtime/RealtimeProcessingDashboard.tsx": {
-        "errors": 1,
-        "warnings": 15
-      },
-      "src/components/realtime/RealtimeProcessingProvider.tsx": {
-        "errors": 6,
-        "warnings": 9
-      },
-      "src/components/realtime/VirtualizedDocumentList.tsx": {
-        "errors": 0,
-        "warnings": 10
       },
       "src/components/research-engine/BlueprintEditor.tsx": {
         "errors": 1,
@@ -1599,14 +1502,6 @@
         "errors": 0,
         "warnings": 1
       },
-      "src/hooks/useDocumentProcessingStatus.ts": {
-        "errors": 1,
-        "warnings": 2
-      },
-      "src/hooks/useDocuments.ts": {
-        "errors": 0,
-        "warnings": 2
-      },
       "src/hooks/useEvidenceMeter.ts": {
         "errors": 0,
         "warnings": 2
@@ -1635,29 +1530,13 @@
         "errors": 0,
         "warnings": 28
       },
-      "src/hooks/useProcessingStatus.ts": {
-        "errors": 2,
-        "warnings": 1
-      },
       "src/hooks/useProjectChat.ts": {
         "errors": 0,
         "warnings": 10
       },
-      "src/hooks/useRealtimeProcessing.ts": {
-        "errors": 1,
-        "warnings": 7
-      },
       "src/hooks/useSidebarToggle.ts": {
         "errors": 2,
         "warnings": 7
-      },
-      "src/hooks/useWebSocket.ts": {
-        "errors": 3,
-        "warnings": 14
-      },
-      "src/hooks/useWebSocketConnection.ts": {
-        "errors": 1,
-        "warnings": 3
       },
       "src/integration/__tests__/monitoring-store.test.ts": {
         "errors": 0,
@@ -1703,10 +1582,6 @@
         "errors": 0,
         "warnings": 4
       },
-      "src/providers/WebSocketProvider.tsx": {
-        "errors": 0,
-        "warnings": 3
-      },
       "src/security/frontendSecurity.ts": {
         "errors": 0,
         "warnings": 10
@@ -1734,10 +1609,6 @@
       "src/services/__tests__/enhancedDocumentService.test.ts": {
         "errors": 0,
         "warnings": 1
-      },
-      "src/services/__tests__/realtimeWebSocketService.test.ts": {
-        "errors": 0,
-        "warnings": 6
       },
       "src/services/__tests__/streamingService.test.ts": {
         "errors": 0,
@@ -1819,10 +1690,6 @@
         "errors": 0,
         "warnings": 3
       },
-      "src/services/realtimeWebSocketService.ts": {
-        "errors": 0,
-        "warnings": 7
-      },
       "src/services/researchEngineService.ts": {
         "errors": 0,
         "warnings": 13
@@ -1838,10 +1705,6 @@
       "src/services/uploadService.ts": {
         "errors": 0,
         "warnings": 1
-      },
-      "src/services/websocket.ts": {
-        "errors": 0,
-        "warnings": 4
       },
       "src/services/workspaceService.ts": {
         "errors": 0,
@@ -1890,10 +1753,6 @@
       "src/store/projectChatStore.ts": {
         "errors": 0,
         "warnings": 5
-      },
-      "src/store/realtimeProcessingStore.ts": {
-        "errors": 0,
-        "warnings": 9
       },
       "src/store/sidebar-store.ts": {
         "errors": 0,

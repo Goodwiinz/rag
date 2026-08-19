@@ -40080,31 +40080,6 @@
           "health"
         ]
       }
-    },
-    "/ws/status": {
-      "get": {
-        "description": "Get WebSocket connection statistics",
-        "operationId": "websocket_status_ws_status_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Websocket Status",
-        "tags": [
-          "websocket"
-        ]
-      }
     }
   }
 }

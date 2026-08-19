@@ -2,49 +2,12 @@
 
 import { useEffect, useRef } from 'react';
 import { useNotificationStore } from '@/store/notificationStore';
-import { useRealtimeProcessingStore } from '@/store/realtimeProcessingStore';
 import { useAgentChatStore } from '@/store/agentChatStore';
-import type { NotificationChannel } from '@/components/notifications/types';
 
-function mapRealtimeType(
-  type: 'success' | 'error' | 'warning' | 'info'
-): 'info' | 'warn' | 'error' {
-  if (type === 'error') return 'error';
-  if (type === 'warning') return 'warn';
-  return 'info';
-}
-
-export function useNotificationBridge() {
+export function useNotificationBridge(): void {
   const addNotification = useNotificationStore((s) => s.addNotification);
 
-  // --- 1. Bridge realtime processing notifications ---
-  const realtimeNotifications = useRealtimeProcessingStore(
-    (s) => s.notifications
-  );
-  const lastRealtimeIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (realtimeNotifications.length === 0) return;
-
-    const latest = realtimeNotifications[0];
-    if (!latest || latest.id === lastRealtimeIdRef.current) return;
-
-    lastRealtimeIdRef.current = latest.id;
-
-    const channel: NotificationChannel = latest.documentId
-      ? 'document'
-      : 'system';
-
-    addNotification({
-      channel,
-      title: latest.title,
-      snippet: latest.message,
-      severity: mapRealtimeType(latest.type),
-      linkTo: latest.documentId ? '/documents' : undefined,
-    });
-  }, [realtimeNotifications, addNotification]);
-
-  // --- 2. Bridge agent chat events ---
+  // --- Bridge agent chat events ---
   const agentMessages = useAgentChatStore((s) => s.messages);
   const isStreaming = useAgentChatStore((s) => s.isStreaming);
   const pendingConfirmations = useAgentChatStore((s) => s.pendingConfirmations);
