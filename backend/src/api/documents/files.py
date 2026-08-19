@@ -4,6 +4,7 @@ File upload and management API endpoints
 
 import logging
 import os
+import uuid
 from datetime import datetime
 from typing import List, Optional
 
@@ -332,7 +333,7 @@ async def get_file_statistics(
 
 @router.get("/{file_id}")
 async def get_file_info(
-    file_id: str,
+    file_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
@@ -356,7 +357,7 @@ async def get_file_info(
 
 @router.get("/{file_id}/download")
 async def download_file(
-    file_id: str,
+    file_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
@@ -424,7 +425,7 @@ async def download_file(
 
 @router.put("/{file_id}")
 async def update_file_metadata(
-    file_id: str,
+    file_id: uuid.UUID,
     title: Optional[str] = None,
     tags: Optional[List[str]] = None,
     is_public: Optional[bool] = None,
@@ -482,7 +483,7 @@ async def update_file_metadata(
 
 @router.delete("/{file_id}")
 async def delete_file(
-    file_id: str,
+    file_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
@@ -519,7 +520,7 @@ async def delete_file(
 
 @router.get("/{file_id}/content")
 async def get_file_content(
-    file_id: str,
+    file_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
@@ -547,7 +548,7 @@ async def get_file_content(
 
 @router.get("/{file_id}/metadata")
 async def get_file_metadata(
-    file_id: str,
+    file_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
@@ -725,7 +726,7 @@ async def cancel_upload(
 
 @router.post("/{file_id}/reprocess")
 async def reprocess_file(
-    file_id: str,
+    file_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),

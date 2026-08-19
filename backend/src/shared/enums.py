@@ -96,6 +96,21 @@ class DocumentSortField(str, Enum):
     DOCUMENT_TYPE = "document_type"
 
 
+class DocumentDateRange(str, Enum):
+    """
+    Allowed quick date-range filters for document search.
+
+    SECURITY: An unconstrained free-text ``date_range`` query param is
+    silently ignored by every branch that doesn't match, which looks like a
+    working filter to the caller but returns unfiltered results. Restricting
+    it to an enum makes an unknown value a 422 instead of a silent no-op.
+    """
+
+    LAST_WEEK = "last_week"
+    LAST_MONTH = "last_month"
+    LAST_YEAR = "last_year"
+
+
 class SortOrder(str, Enum):
     """
     Sort order direction.

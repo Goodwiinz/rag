@@ -8,7 +8,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ class ProcessingStatusResponse(BaseModel):
 
 
 class BatchProcessingRequest(BaseModel):
-    document_ids: List[str]
+    document_ids: List[str] = Field(..., max_length=100)
     priority: Optional[str] = "normal"
 
 
@@ -67,16 +67,17 @@ class RetryProcessingRequest(BaseModel):
 
 @router.post("/documents/{document_id}/process")
 async def start_document_processing(
-    document_id: str,
+    document_id: UUID,
     current_user: User = Depends(get_current_user),
+    organization: Organization = Depends(get_current_organization),
     processing_service: ProcessingPipeline = Depends(get_processing_service),
 ):
     """Start processing for a document"""
     try:
         job = await processing_service.process_document(
-            document_id=document_id,
+            document_id=str(document_id),
             user_id=str(current_user.id),
-            organization_id=str(current_user.organization_id),
+            organization_id=str(organization.id),
         )
 
         return {
@@ -96,7 +97,7 @@ async def start_document_processing(
 
 @router.get("/documents/{document_id}/status", response_model=ProcessingStatusResponse)
 async def get_document_processing_status(
-    document_id: str,
+    document_id: UUID,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     processing_service: ProcessingPipeline = Depends(get_processing_service),
@@ -118,14 +119,14 @@ async def get_document_processing_status(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
         )
 
-    status_info = processing_service.get_processing_status(document_id)
+    status_info = processing_service.get_processing_status(str(document_id))
 
     return ProcessingStatusResponse(**status_info)
 
 
 @router.get("/jobs/{job_id}", response_model=ProcessingJobResponse)
 async def get_processing_job_status(
-    job_id: str,
+    job_id: UUID,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     db: Session = Depends(get_db_sync),
@@ -151,8 +152,8 @@ async def get_processing_job_status(
 async def list_processing_jobs(
     status_filter: Optional[str] = Query(default=None, alias="status"),
     job_type: Optional[str] = None,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     db: Session = Depends(get_db_sync),
@@ -322,6 +323,8 @@ async def retry_failed_jobs(
 
         return {"message": message, "retried_count": retried_count}
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -331,7 +334,7 @@ async def retry_failed_jobs(
 
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_processing_job(
-    job_id: str,
+    job_id: UUID,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     db: Session = Depends(get_db_sync),

@@ -115,9 +115,11 @@ class RealtimeStatusSubscription(BaseModel):
 class BulkStatusRequest(BaseModel):
     """Request for bulk document status"""
 
-    document_ids: List[str] = Field(..., description="List of document IDs")
+    document_ids: List[str] = Field(
+        ..., max_length=100, description="List of document IDs"
+    )
     include_jobs: bool = Field(
-        default=True, description="Include processing job information"
+        default=False, description="Include processing job information"
     )
     include_stages: bool = Field(
         default=True, description="Include processing stage details"
@@ -459,6 +461,21 @@ async def get_bulk_realtime_status(
         # Build status responses
         document_statuses = {}
 
+        # Fetch jobs for every found document in ONE query instead of one
+        # query per document (N+1 — with the 100-id cap this was up to 100
+        # round trips per request) and group the results in python, keeping
+        # only the 5 most recent per document to match the old per-document
+        # limit.
+        jobs_by_document_id: Dict[str, List[ProcessingJob]] = {}
+        if request.include_jobs and documents:
+            jobs_result = await session.execute(
+                select(ProcessingJob)
+                .where(ProcessingJob.document_id.in_([doc.id for doc in documents]))
+                .order_by(desc(ProcessingJob.created_at))
+            )
+            for job in jobs_result.scalars().all():
+                jobs_by_document_id.setdefault(str(job.document_id), []).append(job)
+
         for document in documents:
             # Get basic status without full details for performance
             document_statuses[str(document.id)] = {
@@ -484,13 +501,7 @@ async def get_bulk_realtime_status(
 
             # Add job information if requested
             if request.include_jobs:
-                jobs_result = await session.execute(
-                    select(ProcessingJob)
-                    .where(ProcessingJob.document_id == document.id)
-                    .order_by(desc(ProcessingJob.created_at))
-                    .limit(5)  # Limit for performance
-                )
-                jobs = jobs_result.scalars().all()
+                jobs = jobs_by_document_id.get(str(document.id), [])[:5]
 
                 document_statuses[str(document.id)]["jobs"] = [
                     {
