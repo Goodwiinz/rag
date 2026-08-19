@@ -62,7 +62,12 @@ backend:
           - dev-api.gen-text.app
   resources:
     limits:
-      cpu: "1"
+      # 1 CPU throttled the single-worker loop during agent synthesis + arXiv
+      # ingest bursts: trivial SELECTs stretched to ~2.7s, /health past the 5s
+      # probe timeout, and kubelet SIGKILLed a healthy pod mid-SSE (2026-08-18,
+      # 3 restarts). 2 gives burst headroom; requests unchanged so scheduling
+      # and node memory pressure are unaffected.
+      cpu: "2"
       memory: 2Gi
     requests:
       cpu: 250m
@@ -279,8 +284,14 @@ backend:
       failureThreshold: 18
     initialDelaySeconds: 10
     periodSeconds: 15
-    timeoutSeconds: 5
-    failureThreshold: 3
+    # Liveness exists to catch a dead process, not a slow one. With a single
+    # worker and in-process agent work, CPU-throttle bursts pushed /health past
+    # 5s while the app was still serving; 3x5s killed it mid-SSE-stream
+    # ("Stream ended before completion" in the chat UI). Tolerate ~90s of
+    # degradation before restarting; readiness (unchanged) already sheds
+    # traffic during the burst.
+    timeoutSeconds: 10
+    failureThreshold: 6
     # Readiness is deliberately slack: it gates the LB, so a transient DB/Redis
     # blip must not flap every pod out at once. failureThreshold >= 3 and
     # periodSeconds >= 10 are enforced as floors in the template.
