@@ -50,6 +50,12 @@ class RealtimeAnalyticsService:
         self.subscriptions: Dict[str, Dict[str, Any]] = (
             {}
         )  # websocket_id -> subscriptions
+        # R5-M22: tenant scope for the in-process pub/sub keyspace. Populated
+        # at connect time from the authenticated user's org (never from
+        # client input) and consulted by handle_subscribe/publish_* to
+        # namespace channel names so one org can never subscribe to or
+        # publish onto another org's channel.
+        self.connection_orgs: Dict[str, uuid.UUID] = {}  # connection_id -> org_id
         self.event_handlers: Dict[str, List[Callable]] = {}
         self.running = False
         self.background_tasks: Set[asyncio.Task] = set()
@@ -130,7 +136,11 @@ class RealtimeAnalyticsService:
         cleanup_task.add_done_callback(self.background_tasks.discard)
 
     async def websocket_endpoint(
-        self, websocket: WebSocket, user_id: uuid.UUID, session_id: str
+        self,
+        websocket: WebSocket,
+        user_id: uuid.UUID,
+        session_id: str,
+        organization_id: Optional[uuid.UUID] = None,
     ):
         """WebSocket endpoint for real-time analytics"""
         connection_id = str(uuid.uuid4())
@@ -149,16 +159,26 @@ class RealtimeAnalyticsService:
                 from src.models.user import User
 
                 user = await db.get(User, user_id)
+                resolved_org_id = organization_id or (
+                    user.organization_id if user else None
+                )
                 db_connection = WebSocketConnection(
                     connection_id=connection_id,
                     user_id=user_id,
-                    organization_id=user.organization_id if user else None,
+                    organization_id=resolved_org_id,
                     session_id=session_id,
                     ip_address=websocket.client.host if websocket.client else "unknown",
                     user_agent=websocket.headers.get("user-agent"),
                 )
                 db.add(db_connection)
                 await db.commit()
+
+            # R5-M22: pin the org for this connection's lifetime so
+            # handle_subscribe/handle_unsubscribe can namespace channels.
+            # A caller with no resolvable org gets no channel access at all
+            # (fail closed) rather than falling into a shared/global namespace.
+            if resolved_org_id is not None:
+                self.connection_orgs[connection_id] = resolved_org_id
 
             logger.info(
                 f"WebSocket connection established: {connection_id} for user {user_id}"
@@ -253,6 +273,17 @@ class RealtimeAnalyticsService:
                 await self.send_error(connection_id, "Invalid channel name")
                 return
 
+            # R5-M22: a connection with no resolved org (see websocket_endpoint)
+            # gets no channel access — fail closed rather than falling back to
+            # an unnamespaced (cross-org) channel.
+            organization_id = self.connection_orgs.get(connection_id)
+            if organization_id is None:
+                await self.send_error(
+                    connection_id, "No organization scope for connection"
+                )
+                return
+            namespaced = self.namespaced_channel(organization_id, channel)
+
             # Create subscription
             subscription_id = str(uuid.uuid4())
 
@@ -262,7 +293,7 @@ class RealtimeAnalyticsService:
 
             self.subscriptions[connection_id][subscription_id] = {
                 "type": subscription_type,
-                "channel": channel,
+                "channel": namespaced,
                 "filters": data.get("filters", {}),
                 "batch_size": data.get("batch_size", 100),
                 "update_interval": data.get("update_interval", 1000),
@@ -276,7 +307,7 @@ class RealtimeAnalyticsService:
                     session_id=data.get("session_id"),
                     websocket_id=connection_id,
                     subscription_type=subscription_type,
-                    channel=channel,
+                    channel=namespaced,
                     filters=data.get("filters"),
                     batch_size=data.get("batch_size", 100),
                     update_interval=data.get("update_interval", 1000),
@@ -313,6 +344,16 @@ class RealtimeAnalyticsService:
             channel = data.get("channel")
             subscription_type = data.get("subscription_type")
 
+            # R5-M22: subscriptions are stored under the namespaced channel
+            # (see handle_subscribe); re-derive the same namespace from this
+            # connection's org so the channel+type removal branch matches.
+            organization_id = self.connection_orgs.get(connection_id)
+            namespaced_channel = (
+                self.namespaced_channel(organization_id, channel)
+                if channel and organization_id is not None
+                else channel
+            )
+
             if connection_id in self.subscriptions:
                 if subscription_id:
                     # Remove specific subscription
@@ -323,7 +364,7 @@ class RealtimeAnalyticsService:
                     to_remove = [
                         sub_id
                         for sub_id, sub in self.subscriptions[connection_id].items()
-                        if sub["channel"] == channel
+                        if sub["channel"] == namespaced_channel
                         and sub["type"] == subscription_type
                     ]
                     for sub_id in to_remove:
@@ -344,7 +385,7 @@ class RealtimeAnalyticsService:
                             ),
                             (
                                 and_(
-                                    RealtimeSubscription.channel == channel,
+                                    RealtimeSubscription.channel == namespaced_channel,
                                     RealtimeSubscription.subscription_type
                                     == subscription_type,
                                 )
@@ -471,8 +512,15 @@ class RealtimeAnalyticsService:
         except Exception as e:
             logger.error(f"Error broadcasting to channel {channel}: {e}")
 
-    async def publish_metric(self, metric_data: LiveMetricData):
-        """Publish live metric data"""
+    async def publish_metric(
+        self, metric_data: LiveMetricData, organization_id: uuid.UUID
+    ):
+        """Publish live metric data.
+
+        R5-M22: ``organization_id`` is the server-resolved caller org (never
+        client input) and namespaces the broadcast channel so a publish can
+        never reach another org's subscribers.
+        """
         try:
             # Store in database
             async with get_async_session() as db:
@@ -499,17 +547,23 @@ class RealtimeAnalyticsService:
                 db.add(db_metric)
                 await db.commit()
 
-            # Broadcast to subscribers
+            # Broadcast to subscribers (namespaced to the caller's org)
             await self.broadcast_to_channel(
-                metric_data.channel,
+                self.namespaced_channel(organization_id, metric_data.channel),
                 {"type": "metric_update", "metric": metric_data.model_dump()},
             )
 
         except Exception as e:
             logger.error(f"Error publishing metric: {e}")
 
-    async def publish_event(self, event_data: EventStreamData):
-        """Publish event stream data"""
+    async def publish_event(
+        self, event_data: EventStreamData, organization_id: uuid.UUID
+    ):
+        """Publish event stream data.
+
+        R5-M22: ``organization_id`` is the server-resolved caller org (never
+        client input) and namespaces each broadcast channel.
+        """
         try:
             # Store in database
             async with get_async_session() as db:
@@ -533,11 +587,12 @@ class RealtimeAnalyticsService:
                 db.add(db_event)
                 await db.commit()
 
-            # Broadcast to channels
+            # Broadcast to channels (each namespaced to the caller's org)
             channels = event_data.channels or [f"events:{event_data.event_type}"]
             for channel in channels:
                 await self.broadcast_to_channel(
-                    channel, {"type": "event", "event": event_data.model_dump()}
+                    self.namespaced_channel(organization_id, channel),
+                    {"type": "event", "event": event_data.model_dump()},
                 )
 
         except Exception as e:
@@ -644,6 +699,9 @@ class RealtimeAnalyticsService:
             # Remove subscriptions
             if connection_id in self.subscriptions:
                 del self.subscriptions[connection_id]
+
+            # Remove the connection's org-scope pin (R5-M22)
+            self.connection_orgs.pop(connection_id, None)
 
             # Update database
             async with get_async_session() as db:
@@ -760,6 +818,20 @@ class RealtimeAnalyticsService:
         import re
 
         return bool(re.match(r"^[a-zA-Z0-9._-]+$", channel))
+
+    @staticmethod
+    def namespaced_channel(organization_id: uuid.UUID, channel: str) -> str:
+        """R5-M22: prefix a bare channel name with the caller's org.
+
+        The org is always the server-resolved value (websocket connect-time
+        lookup or the HTTP dependency's ``current_user.organization_id``),
+        never a client-supplied field, so a caller cannot address another
+        org's channel by constructing the string themselves. subscribe and
+        publish both route through this, so the underlying
+        ``self.subscriptions`` / ``broadcast_to_channel`` string-match logic
+        stays tenant-isolated without further changes.
+        """
+        return f"org:{organization_id}:{channel}"
 
     async def get_connection_stats(
         self, connection_id: str
