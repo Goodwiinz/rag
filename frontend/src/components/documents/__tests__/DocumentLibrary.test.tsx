@@ -262,19 +262,22 @@ describe('DocumentLibrary', () => {
     ).toBeInTheDocument();
   });
 
-  it('calls updateFilters when typing in the search input', async () => {
+  it('debounces updateFilters while typing in the search input (R4-L23)', async () => {
     const user = userEvent.setup();
     render(<DocumentLibrary />);
 
     const searchInput = screen.getByPlaceholderText('Search documents...');
     await user.type(searchInput, 'report');
 
-    // updateFilters should have been called for each keystroke
-    expect(mockUpdateFilters).toHaveBeenCalled();
-    // The last call should include the full typed string
-    const lastCall =
-      mockUpdateFilters.mock.calls[mockUpdateFilters.mock.calls.length - 1];
-    expect(lastCall[0]).toEqual({ search_term: 'report' });
+    // Debounced — no fetch yet, even though every keystroke landed in the input.
+    expect(mockUpdateFilters).not.toHaveBeenCalled();
+    expect(searchInput).toHaveValue('report');
+
+    // Only once the debounce delay elapses does a single call go out, with
+    // the final typed value (not one call per keystroke).
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(mockUpdateFilters).toHaveBeenCalledTimes(1);
+    expect(mockUpdateFilters).toHaveBeenCalledWith({ search_term: 'report' });
   });
 
   // ---------------------------------------------------------------

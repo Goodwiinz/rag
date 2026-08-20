@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { debounce } from 'lodash-es';
 import {
   DocumentPlusIcon,
   MagnifyingGlassIcon,
@@ -33,7 +34,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Document } from '@/types';
+import { Document, UI_CONFIG } from '@/types';
 import toast from 'react-hot-toast';
 
 // Helper function to format file sizes
@@ -95,12 +96,26 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
   const [showBulkActionsMenu, setShowBulkActionsMenu] = useState(false);
   const [retryingDocument, setRetryingDocument] = useState<string | null>(null);
 
+  // Debounce the filter update (and its fetch) so typing doesn't fire one
+  // request per keystroke (R4-L23); the input itself stays responsive since
+  // setSearchQuery is not debounced.
+  const debouncedUpdateFilters = useMemo(
+    () =>
+      debounce(
+        (query: string) => updateFilters({ search_term: query || undefined }),
+        UI_CONFIG.DEBOUNCE_DELAY_MS
+      ),
+    [updateFilters]
+  );
+
+  useEffect(() => () => debouncedUpdateFilters.cancel(), [debouncedUpdateFilters]);
+
   const handleSearch = useCallback(
     (query: string) => {
       setSearchQuery(query);
-      updateFilters({ search_term: query || undefined });
+      debouncedUpdateFilters(query);
     },
-    [updateFilters]
+    [debouncedUpdateFilters]
   );
 
   const handleFileTypeFilter = useCallback(
