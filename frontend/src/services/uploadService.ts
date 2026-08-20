@@ -280,6 +280,18 @@ class UploadService {
   }
 
   /**
+   * Mark an item as failed, routing every error path through one place so
+   * completedAt is always set — cleanupCompleted() requires it, and the old
+   * per-site error handling left it unset, making failed items immortal.
+   */
+  private failItem(item: UploadQueueItem, message: string): void {
+    item.status = 'error';
+    item.error = message;
+    item.completedAt = Date.now();
+    this.notifyProgress();
+  }
+
+  /**
    * Process upload queue
    */
   private async processQueue(): Promise<void> {
@@ -351,9 +363,7 @@ class UploadService {
     } catch (error) {
       console.error('Upload failed for file:', item.file.name, error);
 
-      item.status = 'error';
-      item.error = error instanceof Error ? error.message : 'Upload failed';
-      this.notifyProgress();
+      this.failItem(item, error instanceof Error ? error.message : 'Upload failed');
     } finally {
       // Clean up controller
       this.uploadControllers.delete(item.id);
@@ -371,9 +381,7 @@ class UploadService {
     const poll = async () => {
       try {
         if (attempts >= maxAttempts) {
-          item.status = 'error';
-          item.error = 'Processing timeout';
-          this.notifyProgress();
+          this.failItem(item, 'Processing timeout');
           return;
         }
 
@@ -393,9 +401,7 @@ class UploadService {
         }
 
         if (status.processing_status === 'failed') {
-          item.status = 'error';
-          item.error = status.processing_error || 'Processing failed';
-          this.notifyProgress();
+          this.failItem(item, status.processing_error || 'Processing failed');
           return;
         }
 
