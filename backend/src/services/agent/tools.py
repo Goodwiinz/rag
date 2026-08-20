@@ -118,7 +118,9 @@ def _reject_over_cap(
     return None
 
 
-def _reject_invalid_identifier(value: Optional[str], *, kind: str) -> Optional[Dict[str, Any]]:
+def _reject_invalid_identifier(
+    value: Optional[str], *, kind: str
+) -> Optional[Dict[str, Any]]:
     """Return an error payload when *value* was supplied but is not allowlisted.
 
     Omitting a connector/domain means "search everything" — a legitimate
@@ -127,7 +129,9 @@ def _reject_invalid_identifier(value: Optional[str], *, kind: str) -> Optional[D
     identifier must fail loudly instead.
     """
     if value and _validate_connector_name(value) is None:
-        return {"error": f"Unknown {kind} {value!r}; call list_external_databases first."}
+        return {
+            "error": f"Unknown {kind} {value!r}; call list_external_databases first."
+        }
     return None
 
 
