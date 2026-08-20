@@ -582,8 +582,13 @@ class FileService:
             )
             raise
 
-    def _extract_text_from_path(self, file_path: str, document: Document) -> str:
-        """Extract text from a local file path."""
+    @staticmethod
+    def _extract_text_from_path(file_path: str, document: Document) -> str:
+        """Extract text from a local file path.
+
+        Static: needs no session/instance state, so callers without a DB
+        session (e.g. the DO KB pre-flight guard) can use it directly.
+        """
         try:
             if document.document_type == DocumentType.TEXT:
                 # Simple text file

@@ -72,9 +72,11 @@ async def ensure_content_text_for_kb(document) -> bool:
         from src.services.documents.file_service import FileService
         from src.services.documents.storage_utils import local_file_for_document
 
-        file_service = FileService()
         with local_file_for_document(document) as file_path:
-            text = file_service._extract_text_from_path(file_path, document)
+            # Static: no AsyncSession is in scope on the sync path, and
+            # FileService() without one raised TypeError that the except
+            # below swallowed — so this path never ran.
+            text = FileService._extract_text_from_path(file_path, document)
 
         if text and text.strip():
             document.content_text = text
@@ -88,6 +90,16 @@ async def ensure_content_text_for_kb(document) -> bool:
         logger.warning(
             "do_kb pre-flight: text extraction returned empty for document %s",
             getattr(document, "id", "?"),
+        )
+        return False
+    except (TypeError, AttributeError, ImportError):
+        # Our own bad call site (wrong signature / missing attribute / bad
+        # import), not a bad document. Still non-fatal, but logged at error
+        # with a traceback so it can't hide as "extraction returned empty".
+        logger.error(
+            "do_kb pre-flight: extraction call site is broken for document %s",
+            getattr(document, "id", "?"),
+            exc_info=True,
         )
         return False
     except Exception as exc:  # noqa: BLE001 - guard must never block sync
