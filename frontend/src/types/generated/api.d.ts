@@ -7391,6 +7391,13 @@ export interface paths {
          * @description Check health of the thread/message search system.
          *
          *     Verifies that full-text search indexes exist and are functional.
+         *
+         *     R5-M13: this endpoint carried no auth dependency, so any unauthenticated
+         *     caller could enumerate the raw GIN index DDL (``pg_indexes.indexdef``) for
+         *     the threads/chat_messages tables plus FTS liveness — schema disclosure.
+         *     Now gated on ``get_current_user`` (same convention as the WS status
+         *     endpoints fixed in #1493), and the response reports index *names* and a
+         *     boolean per index rather than echoing the DDL text.
          */
         get: operations["search_health_check_api_v2_search_health_get"];
         put?: never;

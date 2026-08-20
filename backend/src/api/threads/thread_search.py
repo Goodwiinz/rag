@@ -463,16 +463,28 @@ def get_search_suggestions(
 
 
 @router.get("/health")
-def search_health_check(db: Session = Depends(get_db_sync)):
+def search_health_check(
+    db: Session = Depends(get_db_sync),
+    current_user: User = Depends(get_current_user),
+):
     """
     Check health of the thread/message search system.
 
     Verifies that full-text search indexes exist and are functional.
+
+    R5-M13: this endpoint carried no auth dependency, so any unauthenticated
+    caller could enumerate the raw GIN index DDL (``pg_indexes.indexdef``) for
+    the threads/chat_messages tables plus FTS liveness — schema disclosure.
+    Now gated on ``get_current_user`` (same convention as the WS status
+    endpoints fixed in #1493), and the response reports index *names* and a
+    boolean per index rather than echoing the DDL text.
     """
     try:
         from sqlalchemy import text
 
-        # Check if GIN indexes exist
+        # Check if GIN indexes exist. Only the index name is surfaced below —
+        # not indexdef (the raw DDL) — since the auth gate above narrows who
+        # can call this, not what a caller who legitimately can should see.
         index_check_sql = """
             SELECT indexname, indexdef
             FROM pg_indexes
@@ -481,13 +493,11 @@ def search_health_check(db: Session = Depends(get_db_sync)):
         """
 
         result = db.execute(text(index_check_sql))
-        indexes = [
-            {"name": row.indexname, "definition": row.indexdef} for row in result
-        ]
+        indexes = [{"name": row.indexname, "gin": True} for row in result]
 
         # Try a simple search to verify functionality
         test_search_sql = """
-            SELECT COUNT(*) FROM threads 
+            SELECT COUNT(*) FROM threads
             WHERE search_vector @@ plainto_tsquery('test')
         """
 

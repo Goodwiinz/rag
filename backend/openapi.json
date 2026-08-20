@@ -35887,7 +35887,7 @@
     },
     "/api/v2/search/health": {
       "get": {
-        "description": "Check health of the thread/message search system.\n\nVerifies that full-text search indexes exist and are functional.",
+        "description": "Check health of the thread/message search system.\n\nVerifies that full-text search indexes exist and are functional.\n\nR5-M13: this endpoint carried no auth dependency, so any unauthenticated\ncaller could enumerate the raw GIN index DDL (``pg_indexes.indexdef``) for\nthe threads/chat_messages tables plus FTS liveness — schema disclosure.\nNow gated on ``get_current_user`` (same convention as the WS status\nendpoints fixed in #1493), and the response reports index *names* and a\nboolean per index rather than echoing the DDL text.",
         "operationId": "search_health_check_api_v2_search_health_get",
         "responses": {
           "200": {
@@ -35899,6 +35899,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Search Health Check",
         "tags": [
           "Thread & Message Search"
