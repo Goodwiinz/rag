@@ -7,7 +7,7 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round2-details.md
 | R2-H1 | tracker KG integration omits organization_id → entities MERGE into shared ""-org partition, cross-tenant KG mixing (arxiv_change_tracker.py:511,577) | high | open | — | — | 08-17 |
 | R2-H2 | delete_project hard-DELETE hits RESTRICT FKs (project_skills, agent_runtime_snapshots) → IntegrityError 500; violates soft-delete convention (project_service.py:228-234) | high | open | — | — | 08-17 |
 | R2-H3 | fields_changed built only from title/authors/category — abstract updates never detected; new hash persisted, text/search vector never updated, change never re-emitted (arxiv_change_tracker.py:246-259,536-544) | high | open | — | — | 08-17 |
-| R2-H4 | FileService() built without required db arg in do_kb pre-flight → TypeError swallowed → forced text extraction NEVER runs (pre_flight.py:75) | high | fixed | clawd | #PRNUM | 08-19 |
+| R2-H4 | FileService() built without required db arg in do_kb pre-flight → TypeError swallowed → forced text extraction NEVER runs (pre_flight.py:75) | high | fixed | clawd | #1503 | 08-19 |
 | R2-H5 | fail_job(committed FAILED) before self.retry → claim guard sees terminal → retry machinery self-destructs; transient error = permanent fail (document_processing_tasks.py:127-153) | high | open | — | — | 08-17 |
 | R2-H6 | no db.rollback() before fail_job in except → PendingRollbackError masks self.retry; job stuck RUNNING til sweeper (document_processing_tasks.py:127-133) | high | open | — | — | 08-17 |
 | R2-H7 | document never leaves PROCESSING on task failure; sweeper fails jobs not docs; dedup blocks re-upload (document_processing_tasks.py:80-82) | high | open | — | — | 08-17 |
