@@ -13,7 +13,6 @@
     "src/components/search/ResultAggregator.tsx",
     "src/components/ui/enhanced-new-chat-dialog.tsx",
     "src/components/ui/shadcn-io/**/*",
-    "src/examples/**/*",
     "src/hooks/analytics/**/*",
     "src/hooks/useAnalyticsTracking.ts",
     "src/lib/analytics.ts",
