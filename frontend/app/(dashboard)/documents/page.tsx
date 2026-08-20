@@ -34,7 +34,7 @@ export default function DocumentsPage() {
     filters,
     updateFilters,
     deleteDocument,
-    deleteSelectedDocuments,
+    deleteDocuments,
     refreshDocuments,
     selectDocument,
     selectAllDocuments,
@@ -109,7 +109,8 @@ export default function DocumentsPage() {
   const confirmBulkDelete = async () => {
     setIsBulkDeleting(true);
     try {
-      await deleteSelectedDocuments();
+      // Single refetch after the whole batch, not one per id (R4-M22).
+      await deleteDocuments(Array.from(selectedDocuments));
     } catch (err) {
       console.error('Failed to delete documents:', err);
     } finally {

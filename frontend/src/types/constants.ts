@@ -5,6 +5,7 @@ export const UPLOAD_LIMITS = {
   // Source of truth: `allowed_extensions` in
   // backend/src/services/documents/file_service.py (dots stripped) — keep in
   // sync with that list (R4-M24).
+  // prettier-ignore
   SUPPORTED_FORMATS: [
     'txt', 'md', 'pdf', 'docx', 'doc', 'xlsx', 'xls', 'csv', 'pptx', 'ppt',
     'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff',

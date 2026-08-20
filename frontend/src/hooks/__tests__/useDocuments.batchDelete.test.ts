@@ -11,6 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useDocuments } from '../useDocuments';
+import { APIErrorClass } from '@/types';
 
 const mockGet = vi.fn();
 const mockDelete = vi.fn();
@@ -105,7 +106,7 @@ describe('useDocuments.deleteDocuments', () => {
     expect(result.current.selectedDocuments.has('c')).toBe(true);
   });
 
-  it('continues past a failing delete, still refetches once, and reports failed titles', async () => {
+  it('continues past a failing delete, still refetches once, and reports the failure reason per title', async () => {
     mockDelete.mockImplementation((path: string) => {
       if (path === '/documents/b') {
         return Promise.reject(new Error('boom'));
@@ -126,8 +127,48 @@ describe('useDocuments.deleteDocuments', () => {
     });
 
     expect(caught).toBeInstanceOf(Error);
-    expect((caught as Error).message).toMatch(/b/);
+    // The message names which id failed AND why (not just the id).
+    expect((caught as Error).message).toMatch(/b: boom/);
     expect(mockDelete).toHaveBeenCalledTimes(3);
     expect(mockGet).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops the loop on a mid-batch auth failure, skips the rest, and calls handleAuthError once', async () => {
+    mockDelete.mockImplementation((path: string) => {
+      if (path === '/documents/b') {
+        return Promise.reject(
+          new APIErrorClass({
+            message: 'Session expired',
+            status_code: 401,
+            type: 'auth_error',
+          })
+        );
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const { result } = renderHook(() => useDocuments({ autoFetch: false }));
+    mockGet.mockClear();
+
+    let caught: unknown;
+    await act(async () => {
+      try {
+        await result.current.deleteDocuments(['a', 'b', 'c']);
+      } catch (error) {
+        caught = error;
+      }
+    });
+
+    // 'c' is never attempted once the auth failure on 'b' breaks the loop.
+    expect(mockDelete).toHaveBeenCalledTimes(2);
+    expect(mockDelete).toHaveBeenCalledWith('/documents/a');
+    expect(mockDelete).toHaveBeenCalledWith('/documents/b');
+    expect(mockHandleAuthError).toHaveBeenCalledTimes(1);
+
+    // Still one refetch and one selection prune, covering the whole batch.
+    expect(mockGet).toHaveBeenCalledTimes(1);
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toMatch(/c: skipped: session expired/);
   });
 });

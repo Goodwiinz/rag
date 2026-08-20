@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Document } from '@/types';
 
@@ -15,7 +15,6 @@ const mockSelectAllDocuments = vi.fn();
 const mockClearSelection = vi.fn();
 const mockDeleteDocument = vi.fn();
 const mockDeleteDocuments = vi.fn();
-const mockDeleteSelectedDocuments = vi.fn();
 const mockRefreshDocuments = vi.fn();
 const mockRetryDocument = vi.fn();
 
@@ -45,7 +44,6 @@ const defaultHookReturn = {
   clearSelection: mockClearSelection,
   deleteDocument: mockDeleteDocument,
   deleteDocuments: mockDeleteDocuments,
-  deleteSelectedDocuments: mockDeleteSelectedDocuments,
   refreshDocuments: mockRefreshDocuments,
   retryDocument: mockRetryDocument,
 };
@@ -263,21 +261,23 @@ describe('DocumentLibrary', () => {
   });
 
   it('debounces updateFilters while typing in the search input (R4-L23)', async () => {
+    // ponytail: fake timers + userEvent.type hang here even with the
+    // documented `advanceTimers` option (tried first, per review) — falls
+    // back to real timers + waitFor, which is deterministic enough (no
+    // fixed sleep) without depending on fake-timer/userEvent interop.
     const user = userEvent.setup();
     render(<DocumentLibrary />);
 
     const searchInput = screen.getByPlaceholderText('Search documents...');
     await user.type(searchInput, 'report');
-
-    // Debounced — no fetch yet, even though every keystroke landed in the input.
-    expect(mockUpdateFilters).not.toHaveBeenCalled();
     expect(searchInput).toHaveValue('report');
 
     // Only once the debounce delay elapses does a single call go out, with
     // the final typed value (not one call per keystroke).
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    await waitFor(() =>
+      expect(mockUpdateFilters).toHaveBeenCalledWith({ search_term: 'report' })
+    );
     expect(mockUpdateFilters).toHaveBeenCalledTimes(1);
-    expect(mockUpdateFilters).toHaveBeenCalledWith({ search_term: 'report' });
   });
 
   // ---------------------------------------------------------------

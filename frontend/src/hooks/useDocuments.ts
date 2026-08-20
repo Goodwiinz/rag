@@ -177,7 +177,6 @@ interface UseDocumentsReturn {
     documentIds: string[],
     onProgress?: (done: number, total: number) => void
   ) => Promise<void>;
-  deleteSelectedDocuments: () => Promise<void>;
   refreshDocuments: () => void;
   retryDocument: (documentId: string) => Promise<unknown | undefined>;
 }
@@ -468,19 +467,24 @@ export const useDocuments = (
   }, []);
 
   // Shared by deleteDocument/deleteDocuments: normalize a caught delete error
-  // into the message the caller should throw, handling auth (401/403) the
-  // same way fetchDocuments does. Never returns — always throws.
+  // into `{ message, isAuth }`, firing the same handleAuthError side effect
+  // fetchDocuments does for 401/403. Never throws — callers decide what to
+  // do with the result (deleteDocument re-throws message; deleteDocuments
+  // uses isAuth to stop the loop).
   const mapDeleteError = useCallback(
-    (error: unknown): never => {
+    (error: unknown): { message: string; isAuth: boolean } => {
       if (error instanceof APIErrorClass) {
         if (
           error.error.status_code === 401 ||
           error.error.status_code === 403
         ) {
           handleAuthError();
-          throw new Error('Your session has expired. Please log in again.');
+          return {
+            message: 'Your session has expired. Please log in again.',
+            isAuth: true,
+          };
         }
-        throw new Error(error.error.message || 'Request failed');
+        return { message: error.error.message || 'Request failed', isAuth: false };
       }
 
       const errorMessage =
@@ -495,9 +499,12 @@ export const useDocuments = (
 
       if (isAuthError) {
         handleAuthError();
-        throw new Error('Your session has expired. Please log in again.');
+        return {
+          message: 'Your session has expired. Please log in again.',
+          isAuth: true,
+        };
       }
-      throw new Error(errorMessage);
+      return { message: errorMessage, isAuth: false };
     },
     [handleAuthError]
   );
@@ -521,7 +528,8 @@ export const useDocuments = (
           return { ...prev, selectedDocuments: newSelected };
         });
       } catch (error) {
-        mapDeleteError(error);
+        const { message } = mapDeleteError(error);
+        throw new Error(message);
       }
     },
     [fetchDocuments, isAuthenticated, mapDeleteError]
@@ -530,8 +538,11 @@ export const useDocuments = (
   // Batch delete: unlike deleteDocument (which refetches after every call and
   // races itself when looped — R4-M22), this deletes every id first, then
   // refetches exactly once and prunes the whole batch from selection in one
-  // update. A failing id doesn't stop the rest; failures are collected and
-  // reported together after the single refetch/prune runs.
+  // update. A failing id doesn't stop the rest — except an auth failure,
+  // which stops the loop immediately (handleAuthError already fired once;
+  // no point hammering the rest of the batch through an expired session).
+  // Failures are collected with their reason and reported together after
+  // the single refetch/prune runs.
   const deleteDocuments = useCallback(
     async (
       documentIds: string[],
@@ -542,7 +553,7 @@ export const useDocuments = (
       }
 
       const total = documentIds.length;
-      const failedIds: string[] = [];
+      const failures: { id: string; reason: string }[] = [];
 
       // Snapshot current titles for the failure message without adding
       // `documents` to this callback's deps (same read-without-rerender
@@ -553,16 +564,22 @@ export const useDocuments = (
         return prev;
       });
 
-      for (let i = 0; i < total; i++) {
-        const documentId = documentIds[i];
+      for (const [i, documentId] of documentIds.entries()) {
         try {
           await api.delete(`/documents/${documentId}`);
         } catch (error) {
-          try {
-            mapDeleteError(error);
-          } catch {
-            failedIds.push(documentId);
+          const { message, isAuth } = mapDeleteError(error);
+          failures.push({ id: documentId, reason: message });
+          onProgress?.(i + 1, total);
+          if (isAuth) {
+            // Mark the remaining, un-attempted ids as skipped rather than
+            // silently dropping them from the failure report.
+            for (const skippedId of documentIds.slice(i + 1)) {
+              failures.push({ id: skippedId, reason: 'skipped: session expired' });
+            }
+            break;
           }
+          continue;
         }
         onProgress?.(i + 1, total);
       }
@@ -577,37 +594,17 @@ export const useDocuments = (
         return { ...prev, selectedDocuments: newSelected };
       });
 
-      if (failedIds.length > 0) {
-        const labels = failedIds.map((id) => titleById.get(id) || id);
+      if (failures.length > 0) {
+        const labels = failures.map(
+          ({ id, reason }) => `${titleById.get(id) || id}: ${reason}`
+        );
         throw new Error(
-          `Failed to delete ${failedIds.length} of ${total} document(s): ${labels.join(', ')}`
+          `Failed to delete ${failures.length} of ${total} document(s): ${labels.join(', ')}`
         );
       }
     },
     [fetchDocuments, isAuthenticated, mapDeleteError]
   );
-
-  const deleteSelectedDocuments = useCallback(async () => {
-    const documentIds = Array.from(state.selectedDocuments);
-
-    // Use Promise.allSettled to handle partial failures
-    const results = await Promise.allSettled(
-      documentIds.map((id) => deleteDocument(id))
-    );
-
-    // Count successes and failures
-    const failures = results.filter((r) => r.status === 'rejected');
-    const successes = results.filter((r) => r.status === 'fulfilled');
-
-    // Clear selection for successfully deleted documents
-    clearSelection();
-
-    // If there were any failures, throw an error with details
-    if (failures.length > 0) {
-      const errorMessage = `Failed to delete ${failures.length} of ${documentIds.length} documents. ${successes.length} documents were deleted successfully.`;
-      throw new Error(errorMessage);
-    }
-  }, [state.selectedDocuments, deleteDocument, clearSelection]);
 
   const refreshDocuments = useCallback(() => {
     fetchDocuments();
@@ -745,7 +742,6 @@ export const useDocuments = (
     clearSelection,
     deleteDocument,
     deleteDocuments,
-    deleteSelectedDocuments,
     refreshDocuments,
     retryDocument,
   };

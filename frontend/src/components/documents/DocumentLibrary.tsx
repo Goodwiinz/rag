@@ -206,7 +206,6 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
         setDeleteProgress(Math.round((done / total) * 100))
       );
 
-      setShowBatchDeleteDialog(false);
       toast.success(
         `Deleted ${totalItems} ${totalItems === 1 ? 'document' : 'documents'}`
       );
@@ -215,6 +214,10 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
       const message = error instanceof Error ? error.message : 'Unknown error';
       toast.error(`Failed to delete documents: ${message}`);
     } finally {
+      // Always close — on partial failure the dialog would otherwise stay
+      // open showing a stale "Delete 0 documents?" (selection is already
+      // pruned by deleteDocuments by the time we get here).
+      setShowBatchDeleteDialog(false);
       setIsDeleting(false);
       setDeleteProgress(0);
     }
