@@ -599,7 +599,6 @@ app.include_router(
 app.include_router(
     arxiv_local_router, prefix="/api/v1/arxiv/local"
 )  # Local ArXiv PDF processing endpoints
-# app.include_router(arxiv_batch_router, prefix="/api/v1/arxiv/batch")  # Temporarily disabled due to import error
 app.include_router(
     arxiv_bulk_router, prefix="/api/v1"
 )  # Kaggle bulk ingestion endpoints
