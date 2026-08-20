@@ -26,6 +26,7 @@ from __future__ import annotations
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
+from typing import Any, AsyncIterator
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -34,7 +35,7 @@ pytestmark = pytest.mark.unit
 
 
 class _FakeWebSocket:
-    def __init__(self):
+    def __init__(self) -> None:
         self.sent: list[str] = []
 
     async def send_text(self, text: str) -> None:
@@ -42,12 +43,12 @@ class _FakeWebSocket:
 
 
 @asynccontextmanager
-async def _fake_session():
+async def _fake_session() -> AsyncIterator[AsyncMock]:
     db = AsyncMock()
     yield db
 
 
-def _service():
+def _service() -> Any:
     from src.services.analytics.realtime_service import RealtimeAnalyticsService
 
     svc = RealtimeAnalyticsService()
@@ -58,7 +59,7 @@ def _service():
 # --- namespacing primitive ---------------------------------------------------
 
 
-def test_namespaced_channel_differs_by_org():
+def test_namespaced_channel_differs_by_org() -> None:
     from src.services.analytics.realtime_service import RealtimeAnalyticsService
 
     org_a, org_b = uuid.uuid4(), uuid.uuid4()
@@ -73,7 +74,7 @@ def test_namespaced_channel_differs_by_org():
 
 
 @pytest.mark.asyncio
-async def test_handle_subscribe_rejects_connection_with_no_org():
+async def test_handle_subscribe_rejects_connection_with_no_org() -> None:
     svc = _service()
     ws = _FakeWebSocket()
     svc.active_connections["conn"] = ws
@@ -95,7 +96,7 @@ async def test_handle_subscribe_rejects_connection_with_no_org():
 
 
 @pytest.mark.asyncio
-async def test_broadcast_never_crosses_org_for_the_same_bare_channel_name():
+async def test_broadcast_never_crosses_org_for_the_same_bare_channel_name() -> None:
     """broadcast_to_channel's target-connection selection is what enforces
     isolation; assert on which connection_ids it messages (via a mocked
     send_message) rather than on JSON-serialized payload bytes — the raw
@@ -168,7 +169,7 @@ async def test_broadcast_never_crosses_org_for_the_same_bare_channel_name():
 
 
 @pytest.mark.asyncio
-async def test_publish_event_namespaces_every_channel_to_the_caller_org():
+async def test_publish_event_namespaces_every_channel_to_the_caller_org() -> None:
     svc = _service()
     org_a, org_b = uuid.uuid4(), uuid.uuid4()
 

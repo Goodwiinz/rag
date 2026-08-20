@@ -15,6 +15,7 @@ from __future__ import annotations
 import pathlib
 import re
 import uuid
+from typing import Any
 
 import pytest
 
@@ -26,7 +27,7 @@ _BACKEND = pathlib.Path(__file__).parents[3]
 # --- model contract: real ORM introspection ---------------------------------
 
 
-def test_metric_model_has_tenant_scoped_organization_id_column():
+def test_metric_model_has_tenant_scoped_organization_id_column() -> None:
     """Introspect the mapped column, not the source file.
 
     organization_id must exist, be a nullable FK to organizations.id, and be
@@ -57,7 +58,7 @@ def test_metric_model_has_tenant_scoped_organization_id_column():
 # configure_mappers()-avoidance reason as the KPI test.
 
 
-async def _make_metric_engine():
+async def _make_metric_engine() -> Any:
     from sqlalchemy.ext.asyncio import create_async_engine
 
     from src.models.analytics.analytics_models import AnalyticsMetric
@@ -68,7 +69,7 @@ async def _make_metric_engine():
     return engine
 
 
-async def _seed_three_orgs(conn, org_a, org_b):
+async def _seed_three_orgs(conn: Any, org_a: uuid.UUID, org_b: uuid.UUID) -> None:
     """Seed three metrics: org A, org B, and a legacy NULL-org row."""
     from sqlalchemy import insert
 
@@ -78,7 +79,7 @@ async def _seed_three_orgs(conn, org_a, org_b):
         MetricType,
     )
 
-    def _metric(name, org):
+    def _metric(name: str, org: uuid.UUID | None) -> dict[str, Any]:
         return {
             "id": uuid.uuid4(),
             "name": name,
@@ -96,7 +97,7 @@ async def _seed_three_orgs(conn, org_a, org_b):
 
 
 @pytest.mark.asyncio
-async def test_read_filter_isolates_tenants_and_excludes_null_org():
+async def test_read_filter_isolates_tenants_and_excludes_null_org() -> None:
     from sqlalchemy import select
 
     from src.models.analytics.analytics_models import AnalyticsMetric
@@ -132,7 +133,9 @@ async def test_read_filter_isolates_tenants_and_excludes_null_org():
 
 
 @pytest.mark.asyncio
-async def test_read_filter_never_returns_legacy_null_rows_to_a_null_org_caller():
+async def test_read_filter_never_returns_legacy_null_rows_to_a_null_org_caller() -> (
+    None
+):
     """Defense in depth for the null-org caller guard.
 
     The list_metrics endpoint short-circuits a null-org caller before querying
@@ -176,7 +179,7 @@ async def test_read_filter_never_returns_legacy_null_rows_to_a_null_org_caller()
 # --- migration pinning: legitimately file-based ------------------------------
 
 
-def test_migration_chains_off_documented_head():
+def test_migration_chains_off_documented_head() -> None:
     mig = _BACKEND / "alembic/versions/add_org_id_to_analytics_metrics.py"
     text = mig.read_text()
     assert 'revision = "add_org_id_to_analytics_metrics"' in text
@@ -186,7 +189,7 @@ def test_migration_chains_off_documented_head():
     assert "def downgrade" in text
 
 
-def test_migration_revision_id_is_unique_across_versions():
+def test_migration_revision_id_is_unique_across_versions() -> None:
     versions = _BACKEND / "alembic/versions"
     count = sum(
         1

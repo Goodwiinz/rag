@@ -37,7 +37,7 @@ def _where_clauses_text(stmt: Any) -> str:
 def _msg(
     *,
     is_deleted: bool = False,
-    superseded_by_message_id=None,
+    superseded_by_message_id: Any = None,
     role: MessageRole = MessageRole.USER,
     content: str = "hello",
 ) -> MagicMock:
@@ -63,7 +63,7 @@ def _thread(
     thread_deleted: bool = False,
     conversation_deleted: bool = False,
     workspace_deleted: bool = False,
-    messages: Optional[list] = None,
+    messages: Optional[list[Any]] = None,
     user_id: str = "u-1",
 ) -> MagicMock:
     thread = MagicMock()
@@ -87,7 +87,7 @@ def _thread(
     return thread
 
 
-async def _load(thread: Any, user_id: str = "u-1"):
+async def _load(thread: Any, user_id: str = "u-1") -> tuple[Any, AsyncMock]:
     db = AsyncMock()
     result = MagicMock()
     result.unique.return_value.scalar_one_or_none.return_value = thread
