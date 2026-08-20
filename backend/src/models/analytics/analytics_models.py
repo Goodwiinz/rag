@@ -86,6 +86,15 @@ class AnalyticsMetric(SQLBaseModel):
     description = Column(Text, nullable=True)
     metric_type = Column(SQLEnum(MetricType), nullable=False)
 
+    # Tenant scope. Nullable for backward-compat with rows created before this
+    # column existed; the read endpoints reject NULL-org callers and require
+    # `organization_id IS NOT NULL` matching the caller's org, so legacy
+    # NULL-org rows are never returned (fail closed). See
+    # add_org_id_to_analytics_metrics migration.
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=True, index=True
+    )
+
     # Configuration
     unit = Column(String(50), nullable=True)
     data_source = Column(String(255), nullable=True)  # Where data comes from

@@ -46,7 +46,9 @@ async def create_metric(
     """Create a new analytics metric"""
     try:
         metric = await metrics_service.create_metric(
-            request=request, owner_id=current_user.id
+            request=request,
+            owner_id=current_user.id,
+            organization_id=current_user.organization_id,
         )
         return metric
 
@@ -71,10 +73,23 @@ async def list_metrics(
 ):
     """List analytics metrics"""
     try:
+        # A null-org caller must NOT match legacy NULL-org rows: the SQL
+        # `organization_id == None` compiles to `IS NULL`, which would return
+        # exactly the un-owned legacy metrics. Short-circuit to empty.
+        if current_user.organization_id is None:
+            return []
+
         # This is a simplified implementation
         # In production, you'd implement proper filtering and search
         async with get_async_session() as db:
-            query = select(AnalyticsMetric).where(AnalyticsMetric.is_deleted == False)
+            # Tenant scope: an exact org match (plus IS NOT NULL) excludes
+            # legacy NULL-org rows (fail closed). Previously unscoped → every
+            # org's metrics.
+            query = select(AnalyticsMetric).where(
+                AnalyticsMetric.is_deleted == False,
+                AnalyticsMetric.organization_id.isnot(None),
+                AnalyticsMetric.organization_id == current_user.organization_id,
+            )
 
             if metric_type:
                 query = query.where(AnalyticsMetric.metric_type == metric_type)
