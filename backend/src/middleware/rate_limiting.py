@@ -32,6 +32,7 @@ class InMemoryRateLimiter:
         # Structure: {key: deque of timestamps}
         self.requests: Dict[str, deque] = defaultdict(deque)
         self.locks: Dict[str, bool] = {}
+        self._calls_since_sweep = 0
 
     def is_allowed(self, key: str, limit: int, window: int) -> Tuple[bool, Dict]:
         """
@@ -52,7 +53,27 @@ class InMemoryRateLimiter:
         while self.requests[key] and self.requests[key][0] < window_start:
             self.requests[key].popleft()
 
-        current_requests = len(self.requests[key])
+        # ponytail: opportunistic eviction; move to TTL cache if key cardinality
+        # ever matters. A key with an empty deque after pruning is dropped
+        # immediately (defaultdict[key] above would otherwise resurrect it
+        # forever), plus a periodic full sweep below catches keys that simply
+        # stop being queried (their deque never gets pruned by the line above
+        # since is_allowed is never called for them again).
+        if not self.requests[key]:
+            del self.requests[key]
+
+        self._calls_since_sweep += 1
+        if self._calls_since_sweep >= 1024:
+            self._calls_since_sweep = 0
+            stale_keys = [
+                k
+                for k, timestamps in self.requests.items()
+                if not timestamps or timestamps[-1] < window_start
+            ]
+            for stale_key in stale_keys:
+                del self.requests[stale_key]
+
+        current_requests = len(self.requests.get(key, ()))
 
         info = {
             "current_requests": current_requests,
