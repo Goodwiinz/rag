@@ -237,6 +237,9 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
     expect(screen.getByText('2.3s')).toBeInTheDocument();
     expect(screen.getByText(/1\.2k in/)).toBeInTheDocument();
     expect(screen.getByText(/340 out/)).toBeInTheDocument();
+    expect(
+      document.querySelectorAll('[data-slot="message-timing"]')
+    ).toHaveLength(1);
   });
 
   it('renders citation footer chips and forwards clicks', () => {
