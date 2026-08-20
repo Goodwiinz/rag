@@ -27,9 +27,8 @@ describe('EnhancedDocumentService.maxAttemptsFor', () => {
   it('sizes the budget above 60 attempts for a large video file', () => {
     const service =
       new EnhancedDocumentService() as unknown as ServiceWithPrivateMaxAttempts;
-    const bigVideo = new File([new Uint8Array(100 * 1024 * 1024)], 'movie.mp4', {
-      type: 'video/mp4',
-    });
+    const bigVideo = new File(['x'], 'movie.mp4', { type: 'video/mp4' });
+    Object.defineProperty(bigVideo, 'size', { value: 100 * 1024 * 1024 });
 
     expect(service.maxAttemptsFor(bigVideo)).toBeGreaterThan(60);
   });

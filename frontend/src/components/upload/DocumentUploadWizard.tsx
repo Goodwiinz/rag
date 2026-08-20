@@ -65,6 +65,10 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
   const [isClosing, setIsClosing] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Mirrors selectedFiles for use in callbacks/cleanup without retriggering
+  // effects on every list change (see unmount-only preview cleanup below).
+  const selectedFilesRef = useRef(selectedFiles);
+  selectedFilesRef.current = selectedFiles;
 
   const {
     addToQueue,
@@ -239,13 +243,11 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
   }, [performClose]);
 
   const removeFile = useCallback((fileId: string) => {
-    setSelectedFiles(prev => {
-      const removed = prev.find(file => file.id === fileId);
-      if (removed?.preview) {
-        URL.revokeObjectURL(removed.preview);
-      }
-      return prev.filter(file => file.id !== fileId);
-    });
+    const removed = selectedFilesRef.current.find(file => file.id === fileId);
+    if (removed?.preview) {
+      URL.revokeObjectURL(removed.preview);
+    }
+    setSelectedFiles(prev => prev.filter(file => file.id !== fileId));
     removeFromQueue(fileId);
   }, [removeFromQueue]);
 
@@ -316,8 +318,6 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
   // Cleanup previews on unmount only. The old [selectedFiles] dependency
   // revoked every still-displayed file's preview URL on each list change
   // (add/remove), breaking images already on screen (R4-M17).
-  const selectedFilesRef = useRef(selectedFiles);
-  selectedFilesRef.current = selectedFiles;
   useEffect(() => {
     return () => {
       selectedFilesRef.current.forEach(file => {

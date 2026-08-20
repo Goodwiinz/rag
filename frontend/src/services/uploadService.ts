@@ -107,7 +107,9 @@ class UploadService {
       processingFiles: items.filter(item => item.status === 'processing').length,
       totalSize: items.reduce((sum, item) => sum + item.file.size, 0),
       uploadedSize: items.reduce((sum, item) => {
-        if (item.completedAt) return sum + item.file.size;
+        // completedAt is now also set on error (R4-M18) — key success on
+        // status, not just the timestamp, or a failed item counts full size.
+        if (item.status === 'completed') return sum + item.file.size;
         if (item.uploadStartTime && item.progress > 0) {
           return sum + (item.file.size * item.progress / 100);
         }
@@ -268,7 +270,9 @@ class UploadService {
       processingFiles: items.filter(item => item.status === 'processing').length,
       totalSize: items.reduce((sum, item) => sum + item.file.size, 0),
       uploadedSize: items.reduce((sum, item) => {
-        if (item.completedAt) return sum + item.file.size;
+        // completedAt is now also set on error (R4-M18) — key success on
+        // status, not just the timestamp, or a failed item counts full size.
+        if (item.status === 'completed') return sum + item.file.size;
         if (item.uploadStartTime && item.progress > 0) {
           return sum + (item.file.size * item.progress / 100);
         }

@@ -526,12 +526,13 @@ export class EnhancedDocumentService {
    * Poll budget for a given file: 2x the processing-time estimate (as attempts
    * at statusPollIntervalMs), floored at UPLOAD_PROCESSING_TIMEOUT_MS. The old
    * fixed 60 attempts (2 minutes) gave up on large video files well before
-   * estimateProcessingTime() itself predicts they'd finish.
+   * estimateProcessingTime() itself predicts they'd finish. The 50MB cap in
+   * validateFile() bounds the worst case here, so this can't grow unbounded.
    */
   private maxAttemptsFor(file: File): number {
-    const estimateMs = this.estimateProcessingTime(file) * 1000 * 2; // 2x safety
+    const budgetMs = this.estimateProcessingTime(file) * 1000 * 2; // 2x safety
     return Math.ceil(
-      Math.max(estimateMs, PERFORMANCE_THRESHOLDS.UPLOAD_PROCESSING_TIMEOUT_MS) /
+      Math.max(budgetMs, PERFORMANCE_THRESHOLDS.UPLOAD_PROCESSING_TIMEOUT_MS) /
         this.statusPollIntervalMs
     );
   }

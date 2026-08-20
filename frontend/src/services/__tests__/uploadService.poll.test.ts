@@ -3,7 +3,7 @@
  * 20 minutes even after removeFromQueue()/cancelAllUploads() dropped the
  * item, and a 'cancelled' processing_status was never treated as terminal.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/services/api-client', () => ({
   api: {
@@ -44,6 +44,11 @@ describe('uploadService poll lifecycle', () => {
     vi.useFakeTimers();
     uploadMock.mockReset();
     getMock.mockReset();
+    uploadService.cancelAllUploads();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('stops polling once the item is removed from the queue', async () => {

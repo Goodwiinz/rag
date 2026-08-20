@@ -3,7 +3,7 @@
  * its signal into api.upload, so removeFromQueue()'s controller.abort() did
  * nothing — the underlying request kept running.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/services/api-client', () => ({
   api: {
@@ -23,6 +23,11 @@ describe('uploadService abort wiring', () => {
     vi.useFakeTimers();
     uploadMock.mockReset();
     getMock.mockReset();
+    uploadService.cancelAllUploads();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('aborts the api.upload signal when the item is removed from the queue', async () => {
