@@ -24,6 +24,7 @@ from sqlalchemy.orm import selectinload
 
 from src.models.chat_message import ChatMessage, MessageRole
 from src.models.citation import Citation
+from src.models.conversation import Conversation
 from src.models.thread import Thread
 from src.shared.export_schemas import (
     CitationExport,
@@ -439,8 +440,7 @@ class ExportService:
     ) -> Optional[ThreadExport]:
         """Load thread with messages and citations."""
         query = (
-            select(Thread)
-            .options(
+            select(Thread).options(
                 selectinload(Thread.messages).selectinload(ChatMessage.citations),
                 # has_attachments (chat_message.py) touches the attachments
                 # relationship; without eager-loading it, the export path
@@ -449,17 +449,27 @@ class ExportService:
                 # every thread export 500'd (Sentry JAVASCRIPT-NEXTJS-4Q,
                 # 2026-08-12).
                 selectinload(Thread.messages).selectinload(ChatMessage.attachments),
-                selectinload(
-                    Thread.conversation
-                ),  # Load conversation for ownership check
+                # Load conversation (+ its workspace, for the soft-delete
+                # cascade check below) for ownership + soft-delete checks.
+                selectinload(Thread.conversation).selectinload(Conversation.workspace),
             )
-            .where(Thread.id == thread_id)
+            # R5-M12: a soft-deleted thread must not be exportable. Neither
+            # delete cascades to children (see workspace_access.py), so the
+            # thread's own is_deleted is filtered here and the parent
+            # conversation/workspace are re-checked explicitly below.
+            .where(Thread.id == thread_id, Thread.is_deleted == False)  # noqa: E712
         )
 
         result = await self._db.execute(query)
         thread = result.unique().scalar_one_or_none()
 
         if not thread:
+            return None
+
+        # R5-M12: a soft-deleted parent conversation or workspace revokes
+        # export access to the thread even though its own is_deleted stayed
+        # False (same convention as workspace_access.get_thread).
+        if thread.conversation.is_deleted or thread.conversation.workspace.is_deleted:
             return None
 
         # Authorization check: Verify user owns the thread or has admin privileges
@@ -482,6 +492,11 @@ class ExportService:
         # Convert to export schema
         messages = []
         for msg in thread.messages:
+            # R5-M12: a soft-deleted message (which may carry PII the user
+            # believes scrubbed/removed) must never reappear in an export.
+            if msg.is_deleted:
+                continue
+
             # Edit-and-resend tombstone: an exported document must not contain
             # a turn the user replaced (nor its answer).
             if msg.superseded_by_message_id is not None:
