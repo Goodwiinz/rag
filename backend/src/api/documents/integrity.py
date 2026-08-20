@@ -140,16 +140,6 @@ async def trigger_integrity_check(
     await db.execute(upsert_stmt)
     await db.commit()
 
-    score_result = await db.execute(
-        select(IntegrityScore).where(
-            and_(
-                IntegrityScore.document_id == document_id,
-                IntegrityScore.method == result["method"],
-            )
-        )
-    )
-    score = score_result.scalar_one()
-
     logger.info(
         "integrity_check_complete",
         document_id=str(document_id),
@@ -203,14 +193,22 @@ async def get_integrity_score(
         )
 
     result = await db.execute(
-        select(IntegrityScore).where(
+        select(IntegrityScore)
+        .where(
             and_(
                 IntegrityScore.document_id == document_id,
                 IntegrityScore.is_deleted == False,
             )
         )
+        # More than one method can now upsert a row for the same document
+        # (unique constraint is (document_id, method)); "most recent" per the
+        # docstring means order + limit here, not scalar_one_or_none() on
+        # document_id alone (which 500s with MultipleResultsFound once a
+        # second method's row exists).
+        .order_by(IntegrityScore.analyzed_at.desc())
+        .limit(1)
     )
-    score = result.scalar_one_or_none()
+    score = result.scalars().first()
 
     if not score:
         raise HTTPException(

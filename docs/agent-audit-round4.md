@@ -24,7 +24,7 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 | R4-M11 | JWKS cached forever, no TTL — Supabase key rotation = all ES256 auth 401 until pod restart (security.py:33,140-154) | med | fixed | clawd | #1493 | 08-19 |
 | R4-M12 | ENVIRONMENT=dev/staging ships exception details in 500 bodies (env check excludes only "production") (main.py:765-783, websocket_v2.py:375) | med | fixed | clawd | #1493 | 08-19 |
 | R4-M13 | unconditional XFF trust rewrites request.client process-wide — IP-keyed controls forgeable if any direct reachability (security.py:59-93; api_security.py:195 takes [-1] vs comment "first") | med | fixed | clawd | #1499 | 08-19 |
-| R4-M14 | /workers/status|health only require USER — hostname/pool/queue disclosure + inspect() fan-out storm per call (workers.py:47-48,318-319) | med | fixed | clawd | #1499 | 08-20 |
+| R4-M14 | /workers/status\|health only require USER — hostname/pool/queue disclosure + inspect() fan-out storm per call (workers.py:47-48,318-319) | med | fixed | clawd | #1499 | 08-20 |
 | R4-M15 | shared-socket ownership war: any consumer unmount disconnects singleton for all; subscribe() return ignored → duplicate handlers per reconnect (useRealtimeProcessing.ts:326-345, realtimeWebSocketService.ts:204-221) | med | fixed | clawd | #1497 | 08-19 |
 | R4-M16 | status-poll budget 2min < service's own >2min estimate for video → premature "Failed", later dedup blocks re-upload (enhancedDocumentService.ts:154,530-539; 5min constant unused) | med | open | — | — | 08-18 |
 | R4-M17 | preview-cleanup effect revokes object URLs of files still in list — thumbnails break after second interaction (DocumentUploader.tsx:52-60, DocumentUploadWizard.tsx:311-319) | med | open | — | — | 08-18 |
@@ -43,7 +43,7 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 | R4-L4 | to_dict leaks storage_path, storage_backend, checksum, do_kb uuid (files.py:354,285) | low | fixed | clawd | #1499 | 08-19 |
 | R4-L5 | integrity route: sync ML in request, no rate limit; select-then-insert race → MultipleResultsFound 500 (integrity.py:31-89) | low | fixed | clawd | TBD-this-PR | 08-20 |
 | R4-L6 | bulk status unbounded + N+1 (include_jobs default True) (realtime_document_status.py:431-505) | low | fixed | clawd | #1500 | 08-19 |
-| R4-L7 | sync db.query inside async handlers throughout processing.py — event-loop stalls (processing.py:107+) | low | fixed | clawd | TBD-this-PR | 08-20 |
+| R4-L7 | sync db.query inside async handlers throughout processing.py — event-loop stalls (processing.py:107+) — route handlers ported to async; ProcessingPipeline internals (get_processing_status sync db.query ×3, retry/queue paths) still sync — tracked as follow-up task | low | partial | clawd | TBD-this-PR | 08-20 |
 | R4-L8 | v1 WS manager: no per-user cap, no reaper — unbounded sockets, authenticated memory exhaustion (websocket.py:17-43) | low | fixed | clawd | #1497 | 08-19 |
 | R4-L9 | document_management.py dead standalone service: zero auth (client-supplied org), wrong attrs, quota drift, header injection — landmine if mounted (entire file) | low | fixed | clawd | #1498 | 08-19 |
 | R4-L10 | orgless user → unscoped processing lookup, fail-open (processing.py:79) | low | fixed | clawd | #1500 | 08-19 |
