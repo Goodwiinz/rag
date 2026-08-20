@@ -763,6 +763,7 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
                             }
                         ),
                         tool_call_id=tc["id"],
+                        status="error",
                     )
                 )
 

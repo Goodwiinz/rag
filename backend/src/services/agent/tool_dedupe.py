@@ -259,7 +259,7 @@ def build_failure_capped_tool_message(
             "error_category": "repeated_failure",
         }
     )
-    return ToolMessage(content=content, tool_call_id=tool_call_id)
+    return ToolMessage(content=content, tool_call_id=tool_call_id, status="error")
 
 
 def build_failure_capped_execution_entry(
