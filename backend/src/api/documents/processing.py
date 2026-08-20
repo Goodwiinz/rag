@@ -332,6 +332,10 @@ async def retry_failed_jobs(
     except HTTPException:
         raise
     except Exception as e:
+        # get_db hands back the request-scoped session shared with the rest
+        # of this request (multi_tenancy middleware) -- leaving it dirty
+        # after a mid-loop failure poisons whatever runs next on it.
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retry jobs: {str(e)}",

@@ -16,10 +16,11 @@ second method's row exists, the exact class of failure R4-L5 was filed for.
 import asyncio
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy.dialects import postgresql
 
 from src.api.documents import integrity as integrity_mod
@@ -69,6 +70,21 @@ def test_upsert_set_clause_updates_mutable_fields_not_the_conflict_key():
     # document_id/method are the conflict target: never rewritten by the SET clause.
     assert "SET DOCUMENT_ID" not in sql
     assert "SET METHOD" not in sql
+
+
+def test_upsert_set_clause_refreshes_updated_at():
+    """BaseModel's onupdate=... never fires for a raw ON CONFLICT DO UPDATE
+    (no ORM UPDATE runs), so updated_at must be set explicitly or it freezes
+    at row-creation time forever."""
+    document_id = uuid4()
+    stmt = build_integrity_upsert_stmt(
+        document_id, _result(0.5), datetime.now(timezone.utc)
+    )
+    sql = _compiled_sql(stmt)
+    # Set to a bound literal (the route's own datetime.now(timezone.utc)),
+    # not EXCLUDED.updated_at -- IntegrityScore has no updated_at input column.
+    assert "UPDATED_AT = " in sql
+    assert "UPDATED_AT = EXCLUDED.UPDATED_AT" not in sql
 
 
 def test_repeated_upsert_for_same_document_targets_one_row():
@@ -132,3 +148,57 @@ def test_get_integrity_score_query_orders_by_recency_and_limits_to_one():
     sql = str(score_stmt.compile(dialect=postgresql.dialect())).upper()
     assert "ORDER BY INTEGRITY_SCORES.ANALYZED_AT DESC" in sql
     assert "LIMIT" in sql
+
+
+def test_sixth_integrity_check_within_a_minute_is_rate_limited():
+    """5/min per user (R4-L5). Drives the route function directly with a
+    mocked service + db, same user each call. Swaps in a fresh
+    InMemoryRateLimiter for the duration of the test so the assertion is
+    deterministic regardless of whether this environment's REDIS_URL points
+    at a reachable Redis (create_rate_limiter prefers Redis when configured,
+    and RedisRateLimiter deliberately fails open when unreachable -- R4-L11)."""
+    from src.core.rate_limit import InMemoryRateLimiter
+
+    document_id = uuid4()
+    current_user = MagicMock()
+    current_user.id = "rate-limit-test-user"
+    organization = MagicMock()
+
+    document = MagicMock()
+    document.content_text = "some text to analyze"
+    document.title = "title"
+    doc_result = MagicMock()
+    doc_result.scalar_one_or_none.return_value = document
+
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=doc_result)
+    db.commit = AsyncMock()
+
+    async def _call():
+        with patch.object(
+            integrity_mod._service,
+            "analyze",
+            AsyncMock(return_value=_result(0.1)),
+        ):
+            return await integrity_mod.trigger_integrity_check(
+                document_id=document_id,
+                current_user=current_user,
+                organization=organization,
+                db=db,
+            )
+
+    async def _run():
+        for _ in range(5):
+            await _call()
+        with pytest.raises(HTTPException) as exc_info:
+            await _call()
+        assert exc_info.value.status_code == 429
+
+    with patch.object(
+        integrity_mod,
+        "_integrity_rate_limiter",
+        InMemoryRateLimiter(
+            max_attempts=integrity_mod._INTEGRITY_RATE_LIMIT_RPM, window_minutes=1
+        ),
+    ):
+        asyncio.run(_run())

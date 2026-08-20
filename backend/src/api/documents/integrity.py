@@ -56,6 +56,10 @@ def build_integrity_upsert_stmt(document_id: UUID, result: dict, analyzed_at: da
             "human_probability": insert_stmt.excluded.human_probability,
             "analyzed_at": insert_stmt.excluded.analyzed_at,
             "segment_scores": insert_stmt.excluded.segment_scores,
+            # BaseModel's onupdate=... never fires for a raw ON CONFLICT DO
+            # UPDATE (no ORM-level UPDATE statement runs), so updated_at
+            # would otherwise freeze at row-creation time forever.
+            "updated_at": datetime.now(timezone.utc),
         },
     )
 
@@ -65,7 +69,11 @@ def build_integrity_upsert_stmt(document_id: UUID, result: dict, analyzed_at: da
 # ============================================================================
 
 
-@router.post("/{document_id}/integrity-check", status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/{document_id}/integrity-check",
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={429: {"description": "Rate limit exceeded"}},
+)
 async def trigger_integrity_check(
     document_id: UUID,
     current_user: User = Depends(get_current_user),
