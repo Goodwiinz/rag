@@ -1590,52 +1590,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/arxiv/kg/analyze-trends": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Analyze Research Trends
-         * @description Analyze trends in a research area
-         *
-         *     This endpoint analyzes recent papers in a specific arXiv category
-         *     to identify trending topics, author collaborations, and citation patterns.
-         */
-        post: operations["analyze_research_trends_api_v1_arxiv_kg_analyze_trends_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/arxiv/kg/author-network": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Get Author Collaboration Network
-         * @description Build collaboration network for an author
-         *
-         *     This endpoint searches for papers by the specified author and builds
-         *     a collaboration network showing co-authors and collaboration strength.
-         */
-        post: operations["get_author_collaboration_network_api_v1_arxiv_kg_author_network_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/arxiv/kg/bulk-ingest": {
         parameters: {
             query?: never;
@@ -1653,99 +1607,6 @@ export interface paths {
          *     creates knowledge graph entries for extracted entities and relationships.
          */
         post: operations["bulk_ingest_with_kg_api_v1_arxiv_kg_bulk_ingest_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/arxiv/kg/entity/{entity_name}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Entity Details
-         * @description Get details about a specific entity in the knowledge graph
-         *
-         *     This endpoint retrieves information about an entity including related papers,
-         *     connected entities, and relationship patterns.
-         */
-        get: operations["get_entity_details_api_v1_arxiv_kg_entity__entity_name__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/arxiv/kg/path/{source}/{target}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Find Entity Path
-         * @description Find shortest path between two entities in the knowledge graph
-         *
-         *     This endpoint finds the shortest path between two entities, showing
-         *     the chain of relationships that connect them.
-         */
-        get: operations["find_entity_path_api_v1_arxiv_kg_path__source___target__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/arxiv/kg/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Knowledge Graph Stats
-         * @description Get statistics about the arXiv knowledge graph
-         *
-         *     This endpoint returns statistics about the knowledge graph including
-         *     entity counts, relationship types, and growth metrics.
-         */
-        get: operations["get_knowledge_graph_stats_api_v1_arxiv_kg_stats_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/arxiv/kg/subgraph": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create Paper Subgraph
-         * @description Create a knowledge graph subgraph for a specific paper
-         *
-         *     This endpoint extracts entities and relationships from an arXiv paper
-         *     and creates a knowledge graph subgraph showing connections to concepts,
-         *     authors, and cited works.
-         */
-        post: operations["create_paper_subgraph_api_v1_arxiv_kg_subgraph_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8861,20 +8722,6 @@ export interface components {
             /** User Id */
             user_id: string | null;
         };
-        /** AuthorNetworkRequest */
-        AuthorNetworkRequest: {
-            /**
-             * Author Name
-             * @description Author name
-             */
-            author_name: string;
-            /**
-             * Max Depth
-             * @description Depth of collaboration network
-             * @default 2
-             */
-            max_depth: number;
-        };
         /**
          * BatchEntityRequest
          * @description Request for batch entity operations
@@ -11413,20 +11260,6 @@ export interface components {
             old_key_id: string;
             /** Rotated Resources */
             rotated_resources: number;
-        };
-        /** KnowledgeGraphRequest */
-        KnowledgeGraphRequest: {
-            /**
-             * Depth
-             * @description Depth of subgraph exploration
-             * @default 2
-             */
-            depth: number;
-            /**
-             * Paper Id
-             * @description ArXiv paper ID
-             */
-            paper_id: string;
         };
         /**
          * LLMBulkIngestionRequest
@@ -14218,20 +14051,6 @@ export interface components {
          * @enum {string}
          */
         ToneOption: "academic" | "simplified" | "concise" | "expanded";
-        /** TrendAnalysisRequest */
-        TrendAnalysisRequest: {
-            /**
-             * Category
-             * @description ArXiv category (e.g., cs.LG)
-             */
-            category: string;
-            /**
-             * Days
-             * @description Number of recent days to analyze
-             * @default 30
-             */
-            days: number;
-        };
         /**
          * TriggerExtractionRequest
          * @description Request to trigger extraction on selected documents.
@@ -17803,72 +17622,6 @@ export interface operations {
             };
         };
     };
-    analyze_research_trends_api_v1_arxiv_kg_analyze_trends_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TrendAnalysisRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_author_collaboration_network_api_v1_arxiv_kg_author_network_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AuthorNetworkRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     bulk_ingest_with_kg_api_v1_arxiv_kg_bulk_ingest_post: {
         parameters: {
             query?: never;
@@ -17879,128 +17632,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["src__api__arxiv__arxiv_knowledge_graph__BulkIngestionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_entity_details_api_v1_arxiv_kg_entity__entity_name__get: {
-        parameters: {
-            query?: {
-                /** @description Entity type filter */
-                entity_type?: string | null;
-            };
-            header?: never;
-            path: {
-                entity_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    find_entity_path_api_v1_arxiv_kg_path__source___target__get: {
-        parameters: {
-            query?: {
-                /** @description Maximum path depth */
-                max_depth?: number;
-            };
-            header?: never;
-            path: {
-                source: string;
-                target: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_knowledge_graph_stats_api_v1_arxiv_kg_stats_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    create_paper_subgraph_api_v1_arxiv_kg_subgraph_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["KnowledgeGraphRequest"];
             };
         };
         responses: {
