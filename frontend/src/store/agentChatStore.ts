@@ -80,11 +80,12 @@ interface AgentChatStore extends AgentChatState, AgentChatActions {
  */
 function settleStreamingMessage(
   message: AgentMessage,
-  options: { fallbackContent?: string } = {}
+  options: { fallbackContent?: string; toolStatus?: 'failed' | 'cancelled' } = {}
 ): void {
   message.isStreaming = false;
+  const toolStatus = options.toolStatus ?? 'failed';
   for (const execution of message.toolExecutions ?? []) {
-    if (execution.status === 'running') execution.status = 'failed';
+    if (execution.status === 'running') execution.status = toolStatus;
   }
   if (!message.content && options.fallbackContent) {
     message.content = options.fallbackContent;
@@ -760,7 +761,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
             (m) => !(m.isStreaming && !m.content)
           );
           for (const message of state.messages) {
-            if (message.isStreaming) settleStreamingMessage(message);
+            if (message.isStreaming) {
+              settleStreamingMessage(message, { toolStatus: 'cancelled' });
+            }
           }
         });
       }
@@ -1309,6 +1312,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
           if (idx !== -1) {
             settleStreamingMessage(state.messages[idx], {
               fallbackContent: 'Generation stopped.',
+              toolStatus: 'cancelled',
             });
           }
         }

@@ -7,6 +7,7 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  Ban,
 } from 'lucide-react';
 import type { ToolExecution } from '@/types/agent-chat';
 
@@ -62,6 +63,8 @@ export function ToolExecutionCard({ execution }: ToolExecutionCardProps) {
     statusIcon = <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />;
   } else if (execution.status === 'failed') {
     statusIcon = <XCircle className="h-3.5 w-3.5 text-destructive" />;
+  } else if (execution.status === 'cancelled') {
+    statusIcon = <Ban className="h-3.5 w-3.5 text-muted-foreground" />;
   }
 
   const hasDetails = execution.result != null || execution.error != null;
