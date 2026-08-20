@@ -6,6 +6,7 @@
 
 import { api } from '@/services/api-client';
 import { APIResponse } from '@/types/api';
+import { PERFORMANCE_THRESHOLDS } from '@/types/constants';
 import { getPublicWebSocketOrigin } from '@/utils/publicEndpoints';
 
 // Enhanced types for the new API
@@ -151,7 +152,6 @@ export class EnhancedDocumentService {
   private websocketConnections: Map<string, WebSocket> = new Map();
   private statusPollers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private readonly statusPollIntervalMs = 2000;
-  private readonly maxStatusPollAttempts = 60;
 
   /**
    * Upload a single document with enhanced processing
@@ -226,7 +226,7 @@ export class EnhancedDocumentService {
           timestamp: new Date().toISOString(),
         });
       } else {
-        void this.pollDocumentStatus(response, onProgress);
+        void this.pollDocumentStatus(response, onProgress, this.maxAttemptsFor(file));
       }
     }
 
@@ -522,12 +522,27 @@ export class EnhancedDocumentService {
     return Math.ceil((baseTime + sizeTime) * multiplier);
   }
 
+  /**
+   * Poll budget for a given file: 2x the processing-time estimate (as attempts
+   * at statusPollIntervalMs), floored at UPLOAD_PROCESSING_TIMEOUT_MS. The old
+   * fixed 60 attempts (2 minutes) gave up on large video files well before
+   * estimateProcessingTime() itself predicts they'd finish.
+   */
+  private maxAttemptsFor(file: File): number {
+    const estimateMs = this.estimateProcessingTime(file) * 1000 * 2; // 2x safety
+    return Math.ceil(
+      Math.max(estimateMs, PERFORMANCE_THRESHOLDS.UPLOAD_PROCESSING_TIMEOUT_MS) /
+        this.statusPollIntervalMs
+    );
+  }
+
   private async pollDocumentStatus(
     response: DocumentUploadResponse,
     onProgress: (update: WebSocketProgressUpdate) => void,
+    maxAttempts: number,
     attempt: number = 0
   ): Promise<void> {
-    if (attempt >= this.maxStatusPollAttempts) {
+    if (attempt >= maxAttempts) {
       this.clearStatusPolling(response.upload_id);
       onProgress({
         type: 'error',
@@ -581,25 +596,26 @@ export class EnhancedDocumentService {
         return;
       }
 
-      this.scheduleStatusPolling(response, onProgress, attempt + 1);
+      this.scheduleStatusPolling(response, onProgress, maxAttempts, attempt + 1);
     } catch (error) {
       console.error(
         `Failed to poll document status for ${response.document_id}:`,
         error
       );
-      this.scheduleStatusPolling(response, onProgress, attempt + 1);
+      this.scheduleStatusPolling(response, onProgress, maxAttempts, attempt + 1);
     }
   }
 
   private scheduleStatusPolling(
     response: DocumentUploadResponse,
     onProgress: (update: WebSocketProgressUpdate) => void,
+    maxAttempts: number,
     attempt: number
   ): void {
     this.clearStatusPolling(response.upload_id);
 
     const poller = setTimeout(() => {
-      void this.pollDocumentStatus(response, onProgress, attempt);
+      void this.pollDocumentStatus(response, onProgress, maxAttempts, attempt);
     }, this.statusPollIntervalMs);
 
     this.statusPollers.set(response.upload_id, poller);
