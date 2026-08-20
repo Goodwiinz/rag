@@ -132,8 +132,7 @@ async def _cleanup_document_graph(document_id: str, organization_id: str) -> Non
     tenancy). See ``KnowledgeGraphService.delete_document_graph``.
 
     The KG service is synchronous (blocking Neo4j driver), so it's offloaded to a
-    worker thread to avoid stalling the event loop — the same pattern
-    ``ResilientKnowledgeGraphService`` uses.
+    worker thread to avoid stalling the event loop.
 
     Failure-isolated: the KG call can raise when the neo4j circuit breaker is open
     or the driver can't connect. Graph cleanup must never block or fail the user's

@@ -13,8 +13,6 @@ Neo4j-backed service responsible for storing, querying, and visualizing the enti
 | File                                  | Purpose                                                                                                                                                                                                                                       |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `knowledge_graph_service.py`          | Core synchronous service — entity/relationship CRUD, full-text search, path traversal, neighborhood queries. The canonical implementation used by the main backend.                                                                           |
-| `knowledge_graph_service_improved.py` | `ResilientKnowledgeGraphService` wrapper — offloads blocking Neo4j calls to `asyncio.to_thread`, adds per-operation retry logic for connection failures.                                                                                      |
-| `graph_algorithms.py`                 | `GraphAlgorithms` class — centrality, community detection, path finding, anomaly detection. Validates `organization_id` as a UUID before any GDS query (prevents cross-tenant leakage and parameter injection into GDS `nodeFilter` strings). |
 | `layout_algorithms.py`                | Pure-Python layout algorithms (force-directed Fruchterman-Reingold, others) — iterations are bounded by graph size to avoid blocking the event loop on large graphs.                                                                          |
 
 ## Neo4j connection
@@ -44,11 +42,9 @@ Schema constraints and indexes applied at startup:
 
 All query methods accept `organization_id` and/or `source_document_ids`. The `_entity_scope_predicate` and `_two_endpoint_scope` helpers inject a WHERE clause that prefers the indexed `organization_id` equality, falling back to `source_document_id IN [...]` for environments where the backfill has not yet run. **Path traversal queries scope both endpoints** — a path node that satisfies the start-entity filter but whose far endpoint belongs to a different organization is not returned.
 
-`graph_algorithms.py` enforces that `organization_id` is a valid UUID before interpolating it into GDS `nodeFilter` strings (GDS projection parameters cannot use Cypher bind variables, so the UUID format check is the injection boundary).
-
 ## Gotchas
 
 - `metadata` and `evidence` fields are stored as JSON strings in Neo4j (not native maps). `_parse_metadata` handles JSON, Python `repr` strings (legacy), and native dicts. Always `json.dumps` before writing.
 - Older Neo4j nodes may carry `tenant_id` (written by the removed standalone microservice) instead of `organization_id`. Both refer to the same concept but the property name differs in older nodes.
 - `updated_at` must be set with the Cypher function `datetime()` inline — passing the string `"datetime()"` as a bind parameter stores the literal text, not a timestamp.
-- The `KnowledgeGraphService` driver is synchronous (`neo4j.GraphDatabase`). Calling it directly from async FastAPI handlers blocks the event loop; use `ResilientKnowledgeGraphService` (which wraps calls in `asyncio.to_thread`).
+- The `KnowledgeGraphService` driver is synchronous (`neo4j.GraphDatabase`). Calling it directly from async FastAPI handlers blocks the event loop; wrap calls in `asyncio.to_thread`.

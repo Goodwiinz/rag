@@ -10,10 +10,6 @@ from .arxiv_llm_bulk import router as arxiv_llm_bulk_router
 from .arxiv_local import router as arxiv_local_router
 from .core import router as arxiv_router
 
-# Note: arxiv_local_batch is temporarily disabled due to import error
-# from .arxiv_local_batch import router as arxiv_batch_router
-# from .arxiv_local_simple import router as arxiv_local_simple_router
-
 __all__ = [
     "arxiv_router",
     "arxiv_kg_router",
