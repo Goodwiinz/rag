@@ -205,6 +205,14 @@ export const useAgentChatStore = create<AgentChatStore>()(
         // Step 2: Add a streaming placeholder message
         // Try SSE streaming first, fall back to polling
         let useStreaming = true;
+        // R4-L19: the backend parks the run awaiting confirmation the
+        // moment it emits this frame — a disconnect afterwards must not
+        // re-run the turn via the durable fallback below, since that would
+        // double-execute whatever tool the user is about to confirm. Set
+        // regardless of isCurrentGeneration: the run is parked server-side
+        // either way. Declared outside the inner try so the catch (a
+        // sibling block, not a child of try) can still see it.
+        let sawConfirmationFrame = false;
         if (useStreaming) {
           set((state) => {
             state.messages.push({
@@ -375,6 +383,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   threadId: string,
                   confirmation: Record<string, unknown>
                 ) => {
+                  sawConfirmationFrame = true;
                   if (!isCurrentGeneration()) {
                     // A parked HITL confirmation from a superseded generation
                     // is silently unrecoverable — the card never renders and
@@ -476,6 +485,30 @@ export const useAgentChatStore = create<AgentChatStore>()(
             );
             return; // SSE streaming succeeded
           } catch {
+            // R4-L19: the SSE transport died after the backend had already
+            // parked this turn awaiting confirmation. The durable fallback
+            // below re-runs the turn from the original request payload —
+            // against a run that's sitting on a LangGraph interrupt, that
+            // would execute the confirmed tool a second time once the user
+            // approves. Settle the placeholder as a (recoverable-by-reload)
+            // error instead of falling through.
+            if (sawConfirmationFrame) {
+              set((state) => {
+                const idx = state.messages.findIndex(
+                  (m) => m.id === placeholderId
+                );
+                if (idx !== -1) {
+                  state.messages[idx].content =
+                    'Connection lost during confirmation — reopen the thread to continue.';
+                  state.messages[idx].isError = true;
+                  settleStreamingMessage(state.messages[idx]);
+                }
+                state.isStreaming = false;
+                state.currentPlan = null;
+                (state as unknown as AgentChatStore)._abortController = null;
+              });
+              return;
+            }
             // SSE failed — fall back to polling below
             // Remove the placeholder if it's still empty
             const msgs = get().messages;
