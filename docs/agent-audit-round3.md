@@ -30,7 +30,7 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round3-details.md
 | R3-L1 | exception path leaves token rAF un-cancelled → stale write post-turn (useChatStreaming.ts:1021-1061 vs 837-842) | low | fixed | claude | #1469 | 08-18 |
 | R3-L2 | HITL cold-load probe not aborted by new submit → phantom approval card, stuck gate (useChatStreaming.ts:1428-1475) | low | fixed | clawd | #1487 | 08-19 |
 | R3-L3 | confirm catch-path error bubble lacks error block/category/retry (useChatStreaming.ts:1877-1891 vs 1821-1842) | low | fixed | claude | #1474 | 08-18 |
-| R3-L4 | deleteThread during live stream: orphan refreshMessages re-creates deleted thread cache entries; parkedMessagesRef never pruned (threadSlice.ts:173-198, useChatSession.ts:817) | low | fixed | clawd | #1487 +#PRNUM | 08-19 |
+| R3-L4 | deleteThread during live stream: orphan refreshMessages re-creates deleted thread cache entries; parkedMessagesRef never pruned (threadSlice.ts:173-198, useChatSession.ts:817) | low | fixed | clawd | #1487 +#1504 | 08-19 |
 | R3-L5 | unmount drops pending seq cursor (rAF) → larger replay window on remount (useChatStreaming.ts:474-490) | low | fixed | claude | #1474 | 08-18 |
 | R3-L6 | finally omits streamingSteps reset → stale tool-strip if rendered ungated (useChatStreaming.ts:1052-1057) | low | fixed | claude | #1469 | 08-18 |
 | R3-L7 | cold-thread confirmation probe attaches to live runs, consumes whole run server-side, discards tokens (useChatStreaming.ts:1448-1468) | low | fixed | clawd | #1487 | 08-19 |
