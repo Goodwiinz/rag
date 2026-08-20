@@ -9,7 +9,6 @@ import asyncio
 import json
 import logging
 import re
-from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from src.models.document import DocumentType
@@ -55,10 +54,15 @@ class ArXivKnowledgeGraphIntegration:
                     session.run("RETURN 1")
                 logger.info("Knowledge graph service initialized successfully")
         except Exception as e:
+            # Loud, not silent. Swallowing this left kg_service=None, and every
+            # caller then either skipped all KG writes or AttributeError'd per
+            # paper into a swallowed log — "success" while writing nothing.
             logger.error(
                 f"Failed to initialize knowledge graph service: {e}", exc_info=True
             )
             self.kg_service = None
+            await self.arxiv_service.__aexit__(type(e), e, e.__traceback__)
+            raise RuntimeError(f"Knowledge graph service unavailable: {e}") from e
 
         return self
 
@@ -701,10 +705,10 @@ class ArXivKnowledgeGraphIntegration:
         entity: Dict[str, Any],
         paper: Dict[str, Any],
         organization_id: Optional[str] = None,
-    ):
-        """Add entity to knowledge graph, stamped with the owning org when known."""
+    ) -> bool:
+        """Add entity to the KG. Returns True only if a node was written."""
         if not self.kg_service:
-            return
+            return False
 
         try:
             from src.models.graph import (
@@ -749,19 +753,21 @@ class ArXivKnowledgeGraphIntegration:
 
             # Create entity
             self.kg_service.create_entity(request)
+            return True
 
         except Exception as e:
             logger.error(f"Failed to add entity to KG: {e}")
+            return False
 
     async def _add_relationship_to_kg(
         self,
         relationship: Dict[str, Any],
         paper: Dict[str, Any],
         organization_id: Optional[str] = None,
-    ):
-        """Add relationship to knowledge graph, scoped to the owning org when known."""
+    ) -> bool:
+        """Add a relationship to the KG. Returns True only if an edge was written."""
         if not self.kg_service:
-            return
+            return False
 
         try:
             from src.models.graph import CreateRelationshipRequest, RelationshipType
@@ -778,7 +784,7 @@ class ArXivKnowledgeGraphIntegration:
             )
             if not source_entities:
                 # logger.warning(f"Source entity not found for relationship: {source_name}")
-                return
+                return False
             source_id = source_entities[0].id
 
             # Find target entity
@@ -787,7 +793,7 @@ class ArXivKnowledgeGraphIntegration:
             )
             if not target_entities:
                 # logger.warning(f"Target entity not found for relationship: {target_name}")
-                return
+                return False
             target_id = target_entities[0].id
 
             # Create relationship request
@@ -811,283 +817,11 @@ class ArXivKnowledgeGraphIntegration:
 
             # Create relationship
             self.kg_service.create_relationship(request)
+            return True
 
         except Exception as e:
             logger.error(f"Failed to add relationship to KG: {e}")
-
-    async def create_paper_kg_subgraph(
-        self, paper_id: str, depth: int = 2
-    ) -> Dict[str, Any]:
-        """
-        Create a knowledge graph subgraph for a specific paper
-
-        Args:
-            paper_id: ArXiv paper ID
-            depth: How many citation levels to explore
-
-        Returns:
-            Subgraph information
-        """
-        if not self.kg_service:
-            return {"error": "Knowledge graph service not available"}
-
-        try:
-            # Get paper details
-            async with self.arxiv_service as service:
-                papers = await service.search_papers(
-                    query=f"id:{paper_id}", max_results=1
-                )
-
-            if not papers:
-                return {"error": f"Paper {paper_id} not found"}
-
-            paper = papers[0]
-
-            # Create nodes and relationships
-            entities = await self._extract_entities_from_paper(paper)
-            relationships = await self._extract_relationships_from_paper(paper)
-
-            # Extract cited papers (simplified)
-            cited_papers = await self._extract_cited_papers(paper["abstract"])
-
-            return {
-                "paper": paper,
-                "entities": entities,
-                "relationships": relationships,
-                "cited_papers": cited_papers,
-            }
-
-        except Exception as e:
-            logger.error(f"Failed to create KG subgraph: {e}")
-            return {"error": str(e)}
-
-    async def _extract_cited_papers(self, text: str) -> List[str]:
-        """Extract cited paper references from text"""
-        cited_papers = []
-
-        # Simple pattern to find [Author, Year] style citations
-        citation_pattern = r"\[([^,]+,\s*\d{4})\]"
-        matches = re.findall(citation_pattern, text)
-
-        for match in matches:
-            # Extract just the author name part
-            authors = match[0].split(",")[0].strip()
-            cited_papers.append(authors)
-
-        return cited_papers
-
-    async def get_author_collaboration_network(
-        self, author_name: str, max_depth: int = 2
-    ) -> Dict[str, Any]:
-        """
-        Build collaboration network for an author
-
-        Args:
-            author_name: Author name to search for
-            max_depth: How many levels deep to explore
-
-        Returns:
-            Network information
-        """
-        if not self.kg_service:
-            return {"error": "Knowledge graph service not available"}
-
-        try:
-            # Search for papers by author
-            async with self.arxiv_service as service:
-                papers = await service.search_papers(
-                    query=f'au:"{author_name}"', max_results=50
-                )
-
-            # Extract co-authors and build network
-            network = {
-                "author": author_name,
-                "papers": papers,
-                "coauthors": set(),
-                "collaborators": {},
-                "collaboration_strength": {},
-            }
-
-            for paper in papers:
-                for coauthor in paper.get("authors", []):
-                    if coauthor != author_name:
-                        network["coauthors"].add(coauthor)
-                        if coauthor not in network["collaborators"]:
-                            network["collaborators"][coauthor] = []
-                        network["collaborators"][coauthor].append(paper)
-
-            # Calculate collaboration strength
-            for coauthor, papers_list in network["collaborators"].items():
-                network["collaboration_strength"][coauthor] = len(papers_list)
-
-            return network
-
-        except Exception as e:
-            logger.error(f"Failed to build collaboration network: {e}")
-            return {"error": str(e)}
-
-    async def analyze_research_area_trends(
-        self, category: str, days: int = 30
-    ) -> Dict[str, Any]:
-        """
-        Analyze trends in a research area
-
-        Args:
-            category: ArXiv category (e.g., cs.LG)
-            days: Number of recent days to analyze
-
-        Returns:
-            Trend analysis results
-        """
-        try:
-            # Get recent papers in category
-            async with self.arxiv_service as service:
-                papers = await service.search_papers(
-                    query=f"cat:{category}",
-                    max_results=1000,
-                    date_from=datetime.now() - timedelta(days=days),
-                )
-
-            # Analyze patterns
-            analysis = {
-                "category": category,
-                "period_days": days,
-                "total_papers": len(papers),
-                "trending_topics": self._extract_trending_topics(papers),
-                "author_collaborations": self._analyze_author_collaborations(papers),
-                "citation_patterns": self._analyze_citation_patterns(papers),
-                "keyword_evolution": self._analyze_keyword_evolution(papers),
-            }
-
-            return analysis
-
-        except Exception as e:
-            logger.error(f"Failed to analyze trends: {e}")
-            return {"error": str(e)}
-
-    def _extract_trending_topics(
-        self, papers: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """Extract trending topics from paper titles and abstracts"""
-        # Simple frequency analysis of terms
-        all_text = " ".join(
-            [p.get("title", "") + " " + p.get("abstract", "") for p in papers]
-        )
-        words = re.findall(r"\b\w+\b", all_text.lower())
-
-        # Filter out common words
-        stop_words = {
-            "the",
-            "a",
-            "an",
-            "and",
-            "or",
-            "but",
-            "in",
-            "on",
-            "at",
-            "to",
-            "for",
-            "of",
-            "with",
-            "by",
-        }
-        filtered_words = [w for w in words if w not in stop_words and len(w) > 3]
-
-        # Count frequencies
-        word_counts = {}
-        for word in filtered_words:
-            word_counts[word] = word_counts.get(word, 0) + 1
-
-        # Get top words
-        top_words = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)[:20]
-
-        trending = [
-            {"term": word, "count": count, "trend": "increasing"}
-            for word, count in top_words
-        ]
-
-        return trending
-
-    def _analyze_author_collaborations(
-        self, papers: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """Analyze author collaboration patterns"""
-        collab_counts = {}
-
-        for paper in papers:
-            authors = paper.get("authors", [])
-            num_authors = len(authors)
-
-            if num_authors > 1:
-                for i in range(num_authors):
-                    for j in range(i + 1, num_authors):
-                        pair = tuple(sorted([authors[i], authors[j]]))
-                        collab_counts[pair] = collab_counts.get(pair, 0) + 1
-
-        # Get top collaborations
-        top_collabs = sorted(collab_counts.items(), key=lambda x: x[1], reverse=True)[
-            :10
-        ]
-
-        return {
-            "total_collaborations": sum(collab_counts.values()),
-            "top_pairs": [
-                {"authors": pair, "count": count} for pair, count in top_collabs
-            ],
-        }
-
-    def _analyze_citation_patterns(
-        self, papers: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """Analyze citation patterns in abstracts"""
-        papers_with_citations = 0
-        total_citations = 0
-
-        for paper in papers:
-            abstract = paper.get("abstract", "")
-            citation_count = len(re.findall(r"\[", abstract))
-            if citation_count > 0:
-                papers_with_citations += 1
-                total_citations += citation_count
-
-        return {
-            "papers_with_citations": papers_with_citations,
-            "total_citations_estimated": total_citations,
-            "average_citations_per_paper": total_citations
-            / max(1, papers_with_citations),
-        }
-
-    def _analyze_keyword_evolution(
-        self, papers: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """Analyze how keywords evolve over time"""
-        # Group papers by month
-        monthly_keywords = {}
-
-        for paper in papers:
-            try:
-                pub_date = datetime.fromisoformat(
-                    paper["published"].replace("Z", "+00:00")
-                )
-                month_key = pub_date.strftime("%Y-%m")
-
-                if month_key not in monthly_keywords:
-                    monthly_keywords[month_key] = {}
-
-                # Extract key terms from title
-                title = paper["title"].lower()
-                words = re.findall(r"\b\w+\b", title)
-
-                for word in words:
-                    if len(word) > 3:
-                        monthly_keywords[month_key][word] = (
-                            monthly_keywords[month_key].get(word, 0) + 1
-                        )
-            except:
-                pass
-
-        return {"monthly_trends": monthly_keywords}
+            return False
 
     async def process_paper_kg_integration(
         self, paper: Dict[str, Any], organization_id: Optional[str] = None
@@ -1105,6 +839,22 @@ class ArXivKnowledgeGraphIntegration:
             f"Processing KG integration for paper: {paper.get('title', 'Unknown')}"
         )
 
+        # Extraction costs a paid LLM call per paper. With no graph to write to
+        # there is nothing to spend it on — bail before extracting, not after.
+        if not self.kg_service:
+            logger.warning(
+                "Knowledge graph unavailable — skipping extraction for paper "
+                f"{paper.get('id')}"
+            )
+            return {
+                "paper_id": paper.get("id"),
+                "entities": [],
+                "relationships": [],
+                "entities_created": 0,
+                "relationships_created": 0,
+                "kg_updated": False,
+            }
+
         try:
             # Extract entities
             entities = await self._extract_entities_from_paper(paper)
@@ -1112,25 +862,28 @@ class ArXivKnowledgeGraphIntegration:
             # Extract relationships
             relationships = await self._extract_relationships_from_paper(paper)
 
-            # Add to knowledge graph if available
-            if self.kg_service:
-                # Add entities
-                for entity in entities:
-                    await self._add_entity_to_kg(
-                        entity, paper, organization_id=organization_id
-                    )
+            entities_created = 0
+            for entity in entities:
+                if await self._add_entity_to_kg(
+                    entity, paper, organization_id=organization_id
+                ):
+                    entities_created += 1
 
-                # Add relationships
-                for relationship in relationships:
-                    await self._add_relationship_to_kg(
-                        relationship, paper, organization_id=organization_id
-                    )
+            relationships_created = 0
+            for relationship in relationships:
+                if await self._add_relationship_to_kg(
+                    relationship, paper, organization_id=organization_id
+                ):
+                    relationships_created += 1
 
             return {
                 "paper_id": paper.get("id"),
                 "entities": entities,
                 "relationships": relationships,
-                "kg_updated": self.kg_service is not None,
+                # Counts of what was *written*, not what was extracted.
+                "entities_created": entities_created,
+                "relationships_created": relationships_created,
+                "kg_updated": bool(entities_created or relationships_created),
             }
 
         except Exception as e:
