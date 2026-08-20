@@ -239,7 +239,13 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
   }, [performClose]);
 
   const removeFile = useCallback((fileId: string) => {
-    setSelectedFiles(prev => prev.filter(file => file.id !== fileId));
+    setSelectedFiles(prev => {
+      const removed = prev.find(file => file.id === fileId);
+      if (removed?.preview) {
+        URL.revokeObjectURL(removed.preview);
+      }
+      return prev.filter(file => file.id !== fileId);
+    });
     removeFromQueue(fileId);
   }, [removeFromQueue]);
 
@@ -307,16 +313,20 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
     }
   }, [currentStep, hasActiveUploads]);
 
-  // Cleanup previews on unmount
+  // Cleanup previews on unmount only. The old [selectedFiles] dependency
+  // revoked every still-displayed file's preview URL on each list change
+  // (add/remove), breaking images already on screen (R4-M17).
+  const selectedFilesRef = useRef(selectedFiles);
+  selectedFilesRef.current = selectedFiles;
   useEffect(() => {
     return () => {
-      selectedFiles.forEach(file => {
+      selectedFilesRef.current.forEach(file => {
         if (file.preview) {
           URL.revokeObjectURL(file.preview);
         }
       });
     };
-  }, [selectedFiles]);
+  }, []);
 
   if (!isOpen) return null;
 
