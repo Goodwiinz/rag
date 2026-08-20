@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { getAppQueryClient } from '@/lib/query-client';
-import type { AgentExecuteRequest } from '@/services/agentChatService';
+import type {
+  AgentErrorCategory,
+  AgentExecuteRequest,
+} from '@/services/agentChatService';
 import type {
   AgentChatState,
   AgentChatActions,
@@ -969,8 +972,21 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   invalidateProjectQueries(get().pageContext.projectId);
                 }
               },
-              onError: (error: string) => {
+              onError: (error: string, category?: AgentErrorCategory) => {
                 if (!isCurrentGeneration()) return;
+                // The run already finalized server-side (e.g. Stop cancelled
+                // it while this confirmation was parked) — the checkpoint
+                // this card resumes is gone, so re-arming it only sets up
+                // the next Approve click to fail the same way forever
+                // (R4-M26). backend/src/api/agent/streaming.py:2475 and
+                // :2617 emit exactly this message with category "conflict"
+                // when confirming a run that is no longer awaiting
+                // confirmation; every OTHER conflict (e.g. "Confirmation
+                // already in progress") means the run is still live, so
+                // match the specific message, not the category alone.
+                const runGone =
+                  category === 'conflict' &&
+                  /awaiting confirmation/i.test(error);
                 set((state) => {
                   const idx = state.messages.findIndex(
                     (m) => m.id === targetMessageId
@@ -982,7 +998,11 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }
                   state.isStreaming = false;
                   state.isConfirming = false;
-                  state.pendingConfirmations[threadId] = pendingConfirmation;
+                  if (runGone) {
+                    delete state.pendingConfirmations[threadId];
+                  } else {
+                    state.pendingConfirmations[threadId] = pendingConfirmation;
+                  }
                   (state as unknown as AgentChatStore)._abortController = null;
                 });
               },
