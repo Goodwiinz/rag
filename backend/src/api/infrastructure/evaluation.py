@@ -63,7 +63,7 @@ class BatchEvaluationRequest(BaseModel):
         None, description="Description of the evaluation"
     )
     queries: List[str] = Field(
-        ..., min_length=1, max_length=100, description="List of queries to evaluate"
+        ..., max_length=100, description="List of queries to evaluate"
     )
     search_type: str = Field("hybrid", description="Search type to use")
     search_limit: int = Field(
@@ -102,9 +102,7 @@ class DatasetEvaluationRequest(BaseModel):
     )
     evaluation_type: str = Field("rag_triad", description="Type of evaluation")
     # R5-L14: same unbounded-list/unbounded-limit hazard as BatchEvaluationRequest.
-    questions: List[str] = Field(
-        ..., min_length=1, max_length=100, description="List of questions"
-    )
+    questions: List[str] = Field(..., max_length=100, description="List of questions")
     reference_answers: Optional[List[str]] = Field(
         None, description="Reference answers"
     )

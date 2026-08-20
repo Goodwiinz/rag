@@ -969,7 +969,6 @@
               "type": "string"
             },
             "maxItems": 100,
-            "minItems": 1,
             "title": "Queries",
             "type": "array"
           },
@@ -3935,7 +3934,6 @@
               "type": "string"
             },
             "maxItems": 100,
-            "minItems": 1,
             "title": "Questions",
             "type": "array"
           },
