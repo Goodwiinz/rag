@@ -35,6 +35,20 @@ jobs:
     environment:
       name: production
     steps:
+      # Same contract as docker-build.yml's "Validate requested source identity":
+      # the only tags that exist in the registry are the full-SHA trace tags
+      # docker-build.yml pushes as backend:<source_sha>. Anything else is a typo
+      # that would be committed to values-production.yaml on main and crashloop
+      # the cluster (R5-L22).
+      - name: Validate requested image tag
+        env:
+          TAG: ${{ inputs.image_tag }}
+        run: |
+          if [[ ! "$TAG" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::image_tag must be a full lowercase 40-character commit SHA"
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:

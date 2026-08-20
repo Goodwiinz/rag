@@ -1,7 +1,12 @@
 name: Deploy to DigitalOcean Kubernetes
 
 on:
-  # Legacy staging/production path: manual only. Automatic dev release
+  # Legacy staging/production path: manual only, and almost certainly
+  # vestigial: the staging and production Argo CD Applications were retired in
+  # #442 (infrastructure/argocd/applications/ holds only dev.yaml), and
+  # CLUSTER_NAME below is `rag-cluster`, which is not the live cluster
+  # (do-nyc3-rag-system-cluster). Kept, but it must not report green while
+  # deploying nothing. Automatic dev release
   # (release-dev.yml) was removed as never-bootstrapped; dev images are no
   # longer built on develop pushes. Do not add a workflow_run trigger here.
   workflow_dispatch:
@@ -114,23 +119,29 @@ jobs:
 
       - name: Run smoke tests
         run: |
-          # Get staging ingress URL
+          # A failing health check must fail the job. It used to end in
+          # `|| echo "Health check pending..."`, so a broken deploy still
+          # reported green (R5-M27).
           STAGING_URL=$(kubectl get ingress -n rag-staging -o jsonpath='{.items[0].spec.rules[0].host}' 2>/dev/null || echo "")
 
           if [ -n "$STAGING_URL" ]; then
             echo "Running smoke tests against https://$STAGING_URL"
-            curl -sf "https://$STAGING_URL/api/health" || echo "Health check pending..."
+            curl -sf "https://$STAGING_URL/api/health"
           else
             echo "No ingress found, checking service directly..."
             kubectl port-forward svc/rag-staging-backend 8000:8000 -n rag-staging &
             sleep 5
-            curl -sf http://localhost:8000/health || echo "Health check pending..."
+            curl -sf http://localhost:8000/health
           fi
 
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: [check-build, deploy-staging]
+    # NOT `needs: deploy-staging`: the two jobs are mutually exclusive by the
+    # `inputs.environment` gate below, so a production dispatch always skipped
+    # staging, which skipped production too — and the run still reported green
+    # (R5-M27).
+    needs: check-build
     if: |
       needs.check-build.outputs.should_deploy == 'true' &&
       inputs.environment == 'production'
@@ -192,17 +203,20 @@ jobs:
         run: |
           PROD_URL=$(kubectl get ingress -n rag-production -o jsonpath='{.items[0].spec.rules[0].host}' 2>/dev/null || echo "")
 
-          if [ -n "$PROD_URL" ]; then
-            echo "Running health checks against https://$PROD_URL"
-
-            # Health endpoint
-            curl -sf "https://$PROD_URL/api/health" || exit 1
-
-            # Ready endpoint
-            curl -sf "https://$PROD_URL/api/ready" || echo "Ready check not implemented"
-
-            echo "Production deployment verified!"
+          if [ -z "$PROD_URL" ]; then
+            echo "::error::No ingress found in rag-production; cannot verify the deploy"
+            exit 1
           fi
+
+          echo "Running health checks against https://$PROD_URL"
+
+          # Health endpoint
+          curl -sf "https://$PROD_URL/api/health"
+
+          # Ready endpoint
+          curl -sf "https://$PROD_URL/api/ready" || echo "Ready check not implemented"
+
+          echo "Production deployment verified!"
 
       - name: Upload backup artifact
         # v4.4.3 - pinned for security
