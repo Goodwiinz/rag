@@ -491,23 +491,39 @@ export const useAgentChatStore = create<AgentChatStore>()(
             // below re-runs the turn from the original request payload —
             // against a run that's sitting on a LangGraph interrupt, that
             // would execute the confirmed tool a second time once the user
-            // approves. Settle the placeholder as a (recoverable-by-reload)
-            // error instead of falling through.
+            // approves. Settle the placeholder with a status note instead
+            // of falling through. The pendingConfirmations card itself is
+            // untouched here (onConfirmation already populated it) and stays
+            // fully usable — confirming is a separate request from this
+            // dead stream, not something this disconnect invalidates.
             if (sawConfirmationFrame) {
+              // Mirrors the outer catches' supersede guard (:701, :1275): a
+              // stopGeneration/thread-switch that already aborted this
+              // generation has its own reset in flight — don't clobber
+              // whatever owns isStreaming/currentPlan/_abortController now.
+              if (abortController.signal.aborted) return;
               set((state) => {
                 const idx = state.messages.findIndex(
                   (m) => m.id === placeholderId
                 );
                 if (idx !== -1) {
                   state.messages[idx].content =
-                    'Connection lost during confirmation — reopen the thread to continue.';
-                  state.messages[idx].isError = true;
+                    'Connection interrupted — your confirmation is still pending below.';
                   settleStreamingMessage(state.messages[idx]);
+                }
+                // Parity with the sibling onError path above: tool calls run
+                // before the confirmation frame may have already mutated
+                // project data.
+                if (didMutateProjectData) {
+                  state.projectDataVersion += 1;
                 }
                 state.isStreaming = false;
                 state.currentPlan = null;
                 (state as unknown as AgentChatStore)._abortController = null;
               });
+              if (didMutateProjectData) {
+                invalidateProjectQueries(pageContext.projectId);
+              }
               return;
             }
             // SSE failed — fall back to polling below
@@ -1028,9 +1044,16 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     (m) => m.id === targetMessageId
                   );
                   if (idx !== -1) {
-                    state.messages[idx].content =
-                      streamedContent || error || 'Action failed.';
-                    state.messages[idx].isStreaming = false;
+                    // Don't show the raw regex-matched backend string —
+                    // decouple the display copy from the string this branch
+                    // matches on.
+                    state.messages[idx].content = runGone
+                      ? 'This confirmation is no longer active — the run was stopped.'
+                      : streamedContent || error || 'Action failed.';
+                    // settleStreamingMessage (not a bare isStreaming = false)
+                    // so any running tool execution on this message settles
+                    // too — the exact bug class this PR fixes elsewhere.
+                    settleStreamingMessage(state.messages[idx]);
                   }
                   state.isStreaming = false;
                   state.isConfirming = false;

@@ -75,7 +75,35 @@ describe('agentChatStore confirmAction dead-run handling (R4-M26)', () => {
     const msg = useAgentChatStore
       .getState()
       .messages.find((m) => m.id === ASSISTANT_MSG_ID);
-    expect(msg?.content).toBe('Run is not awaiting confirmation');
+    // User-facing copy is decoupled from the raw backend string this branch
+    // matches on (review point 5) — assert the friendly message, not the
+    // regex-matched literal.
+    expect(msg?.content).toBe(
+      'This confirmation is no longer active — the run was stopped.'
+    );
+  });
+
+  it('restores the card on a same-category conflict that is not the dead-run message', async () => {
+    // Pins the regex contract: "Confirmation already in progress" (streaming.py
+    // :2538/:2578) is ALSO category "conflict" but means a concurrent confirm
+    // holds the claim — the run is still live. Matching on category alone
+    // would wrongly wipe a perfectly recoverable card here.
+    seedPendingConfirmation();
+    mockAgentChatService.streamConfirm.mockImplementation(
+      async (_request, callbacks) => {
+        callbacks.onError?.('Confirmation already in progress', 'conflict');
+      }
+    );
+
+    await act(async () => {
+      await useAgentChatStore.getState().confirmAction(THREAD_ID, true);
+    });
+
+    expect(
+      useAgentChatStore.getState().pendingConfirmations[THREAD_ID]
+    ).toEqual(
+      expect.objectContaining({ threadId: THREAD_ID, jobId: THREAD_ID })
+    );
   });
 
   it('still restores the card on a generic network failure', async () => {
