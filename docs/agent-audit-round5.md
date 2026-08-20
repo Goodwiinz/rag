@@ -39,8 +39,8 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round5-details.md
 | R5-M25 | run_rag_triad_evaluation reads metadata keys never written → answers/contexts resolve empty once R5-H7 fixed (evaluation_tasks.py:164-169 vs writers :633-637) | med | open | — | — | 08-18 |
 | R5-M26 | compose DATABASE_URL interpolation broken: ${DATABASE_URL:-postgresql://postgres:postgres@}host.docker.internal... appends literal suffix to any override → garbage URL (docker-compose.development.yml:14,229,304,333) | med | open | — | — | 08-18 |
 | R5-M27 | production deploy job unreachable: needs staging which is env-gated without always() → prod dispatch goes green, deploys nothing, no rollback; staging smoke swallows failure (deploy.yml:130-137,59-65,122) | med | open | — | — | 08-18 |
-| R5-M28 | synthetic traffic attaches to arbitrary REAL org (select limit 1, no order) — real tenant quota consumed, real users can surface synth docs in search (synthetic_traffic.py:220-264) | med | open | — | — | 08-18 |
-| R5-M29 | synthetic ingest re-arms dedup: 6 rotating papers, cleanup only soft-deletes collections → after ~14h all papers dedup-blocked forever → TOOL-FAILED noise permanently masks real regressions (synthetic_traffic.py:92-99,717-793) | med | open | — | — | 08-18 |
+| R5-M28 | synthetic traffic attaches to arbitrary REAL org (select limit 1, no order) — real tenant quota consumed, real users can surface synth docs in search (synthetic_traffic.py:220-264) | med | fixed | claude | #1510 | 08-19 |
+| R5-M29 | synthetic ingest re-arms dedup: 6 rotating papers, cleanup only soft-deletes collections → after ~14h all papers dedup-blocked forever → TOOL-FAILED noise permanently masks real regressions (synthetic_traffic.py:92-99,717-793) | med | fixed | claude | #1510 | 08-19 |
 | R5-M30 | retention never cleans synthetic Documents/objects/chunks/memories — unbounded dev Spaces+DB growth under 20-min cron (synthetic_traffic.py:20-23, config.py:675-687) | med | open | — | — | 08-18 |
 | R5-M31 | staging deploy chain missing: no bump path, values-staging pins short tag never pushed (full SHA only) → ImagePullBackOff if synced; argocd dir missing staging.yaml/production.yaml (release-dev.yml:76-92, docker-build.yml:67, values-staging.yaml:26-27, root.yaml:13-17) | med | open | — | — | 08-18 |
 | R5-M32 | PDB minAvailable 1 on single-replica workloads = zero voluntary disruptions — drains/upgrades hang (values-dev.yaml:447-449, pdb.yaml:29) | med | open | — | — | 08-18 |
@@ -65,12 +65,12 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round5-details.md
 | R5-L17 | citation with neither document_id nor message_id matches no access_filter branch → invisible to creator, orphan accumulation (citations.py:301-313) | low | open | — | — | 08-18 |
 | R5-L18 | get_evaluation_metrics ignores organization_id param, swallows exceptions → [] (rag_evaluation_service.py:903-927) | low | open | — | — | 08-18 |
 | R5-L19 | ResearchEvidence model has zero writers — evidence tables permanently empty; export reads forever-empty table (model + export_service.py:54-77) | low | open | — | — | 08-18 |
-| R5-L20 | cronjob activeDeadlineSeconds 600 < worst-case 1440s → HITL runs killed, backoffLimit 1 re-runs whole sweep (double spend) (synthetic-traffic-cronjob.yaml:33-36) | low | open | — | — | 08-18 |
-| R5-L21 | synthetic_traffic no ENVIRONMENT guard — runnable in prod pod via kubectl exec (synthetic_traffic.py:526) | low | open | — | — | 08-18 |
+| R5-L20 | cronjob activeDeadlineSeconds 600 < worst-case 1440s → HITL runs killed, backoffLimit 1 re-runs whole sweep (double spend) (synthetic-traffic-cronjob.yaml:33-36) | low | fixed | claude | #1510 | 08-19 |
+| R5-L21 | synthetic_traffic no ENVIRONMENT guard — runnable in prod pod via kubectl exec (synthetic_traffic.py:526) | low | fixed | claude | #1510 | 08-19 |
 | R5-L22 | gitops-image-update image_tag input unvalidated → typo committed to values-production → crashloop (gitops-image-update.yml:16,55) | low | open | — | — | 08-18 |
 | R5-L23 | buildkit driver moby/buildkit:latest unpinned (docker-build.yml:96-97) | low | open | — | — | 08-18 |
 | R5-L24 | MINIO_ROOT_PASSWORD no default → container exits; backend dev boot pip-installs unpinned langgraph at runtime (compose :359, 88-91) | low | open | — | — | 08-18 |
-| R5-L25 | synthetic bootstrap non-healing: crash between user+workspace commits → permanently broken runs (synthetic_traffic.py:267-303) | low | open | — | — | 08-18 |
+| R5-L25 | synthetic bootstrap non-healing: crash between user+workspace commits → permanently broken runs (synthetic_traffic.py:267-303) | low | fixed | claude | #1510 | 08-19 |
 
 ## Log
 - 2026-08-19: H3+L12 fixed (#1484 members.user eager-load + soft-deleted member filter). H4 fixed (#1485 owner-role guard; schema/model enum equality gotcha). H8 fixed (#1486 opencode workflow author gate + SHA pin).
