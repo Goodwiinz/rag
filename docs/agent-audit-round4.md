@@ -30,8 +30,8 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 | R4-M17 | preview-cleanup effect revokes object URLs of files still in list — thumbnails break after second interaction (DocumentUploader.tsx:52-60, DocumentUploadWizard.tsx:311-319) | med | open | — | — | 08-18 |
 | R4-M18 | failed queue items never cleaned (completedAt never set on error paths) — unbounded session queue/stats (uploadService.ts:426-435,346,384) | med | open | — | — | 08-18 |
 | R4-M19 | AbortController created but never wired (api.upload no signal; XHR path no abort) — cancel/navigate never stops upload (uploadService.ts:316-317, DocumentUploadZone.tsx:419, BatchUploadManager.tsx:160) | med | open | — | — | 08-18 |
-| R4-M20 | optimistic rollback setTimeout overwrites refetched correct list 5s later; id=file.name collision mutates both (useOptimisticUpload.ts:83-94,24,43) | med | open | — | — | 08-18 |
-| R4-M21 | documentService.uploadFile/batch-upload target nonexistent routes → 404; useOptimisticUpload built on them (documentService.ts:21,78) | med | open | — | — | 08-18 |
+| R4-M20 | optimistic rollback setTimeout overwrites refetched correct list 5s later; id=file.name collision mutates both (useOptimisticUpload.ts:83-94,24,43) | med | dead | clawd | #1511 (hook deleted — zero importers) | 08-19 |
+| R4-M21 | documentService.uploadFile/batch-upload target nonexistent routes → 404; useOptimisticUpload built on them (documentService.ts:21,78) | med | dead | clawd | #1511 (both methods deleted — only caller was the dead hook) | 08-19 |
 | R4-M22 | batch delete N concurrent refetches race final commit — deleted docs reappear (useDocuments.ts:477-497; DocumentLibrary.tsx:189 N+1) | med | open | — | — | 08-18 |
 | R4-M23 | documents rows never transition processing→indexed (no realtime, no polling) — spinner until manual refresh (DocumentCard.tsx:315-326) | med | fixed | clawd | #1497 | 08-19 |
 | R4-M24 | size/type parity drift: FE 50MB vs BE 10MB FREE; FE allowlist narrower than BE 31 ext — late 400s or wrong client rejects (types/constants.ts:3, file_service.py:227-259) | med | open | — | — | 08-18 |
@@ -66,6 +66,7 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 | R4-L27 | OptimizedDocumentList calls useWebSocketConnection() with no url — bogus permanent error; unused (OptimizedDocumentList.tsx:207) | low | dead | — | (verified 08-19: zero importers) | 08-19 |
 | R4-L28 | WS-path status mapping gaps: pending/running/completed → "Unknown status"/eternal spinner (useDocumentProcessingStatus.ts:117, ProcessingStatus.tsx:316) | low | fixed | clawd | #1497 | 08-19 |
 | R4-L29 | reconnect timer uncancellable post-logout; token refresh never propagates to socket (websocket.ts:179-198, useWebSocket.ts:140-151) | low | fixed | clawd | #1497 | 08-19 |
+| R4-L30 | DocumentUploadZone.tsx (1214 lines) unreachable — sole importer examples/DocumentUploadWithAnalytics.tsx has zero importers, no barrel re-export | low | dead | clawd | #1511 (both deleted) | 08-19 |
 
 ## Log
 - 2026-08-19 (WS decision executed): never-worked FE WS stack + v1 /ws deleted, polling standardized (#1497). Closes H1/H2/H3/H6/H7, M15, M23, M25, L8, L27, L28, L29; L16 partial (FE registries gone, backend websocket_manager dicts remain). v2 backend WS infra kept dormant.
