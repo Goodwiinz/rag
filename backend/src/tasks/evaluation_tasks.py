@@ -3,6 +3,7 @@ Celery tasks for evaluation processing and RAG Triad metrics calculation
 """
 
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -104,10 +105,15 @@ def run_rag_triad_evaluation(self, job_id: str):
                 "skipped": "duplicate_delivery",
             }
 
-        # Get evaluation dataset
+        # Get evaluation dataset. R5-H6: the writer path is now single (the
+        # API builds the dataset it wants and the service persists exactly
+        # one EvaluationDataset row per job) — order_by is belt-and-braces
+        # against any future regression back to more than one row per job,
+        # so a stray duplicate can't win on unordered heap order again.
         dataset = (
             db.query(EvaluationDataset)
             .filter(EvaluationDataset.job_id == job_id)
+            .order_by(EvaluationDataset.created_at.desc())
             .first()
         )
 
@@ -345,6 +351,12 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
             # Save metrics to database
             for i, metrics in enumerate(metrics_results):
                 try:
+                    # R5-M25: metrics.metadata now carries generated_answer/
+                    # retrieved_context (the writer side, rag_evaluation_
+                    # service.evaluate_search_pipeline, was fixed to populate
+                    # them) instead of always reading back "" / []. Column is
+                    # Text, so the context list needs json.dumps like every
+                    # other retrieved_context write in this codebase.
                     metric = EvaluationMetric(
                         job_id=job_id,
                         metric_type="rag_triad_overall",
@@ -352,8 +364,10 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
                         value=metrics.overall_score,
                         query=queries[i],
                         generated_answer=metrics.metadata.get("generated_answer", ""),
-                        retrieved_context=metrics.metadata.get("retrieved_context", []),
-                        metadata={
+                        retrieved_context=json.dumps(
+                            metrics.metadata.get("retrieved_context", [])
+                        ),
+                        metric_metadata={
                             "answer_relevancy": metrics.answer_relevancy,
                             "faithfulness": metrics.faithfulness,
                             "contextual_relevancy": metrics.contextual_relevancy,

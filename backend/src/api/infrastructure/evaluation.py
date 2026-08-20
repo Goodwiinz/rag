@@ -10,6 +10,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
 from kombu.exceptions import OperationalError
 from pydantic import BaseModel, Field
+from sqlalchemy import Integer, func
 
 from src.core.database import get_db_sync
 from src.core.dependencies import get_current_user
@@ -61,9 +62,13 @@ class BatchEvaluationRequest(BaseModel):
     description: Optional[str] = Field(
         None, description="Description of the evaluation"
     )
-    queries: List[str] = Field(..., description="List of queries to evaluate")
+    queries: List[str] = Field(
+        ..., max_length=100, description="List of queries to evaluate"
+    )
     search_type: str = Field("hybrid", description="Search type to use")
-    search_limit: int = Field(5, description="Number of search results to retrieve")
+    search_limit: int = Field(
+        5, ge=1, le=50, description="Number of search results to retrieve"
+    )
     reference_answers: Optional[List[str]] = Field(
         None, description="Reference answers for queries"
     )
@@ -96,7 +101,8 @@ class DatasetEvaluationRequest(BaseModel):
         None, description="Description of the evaluation"
     )
     evaluation_type: str = Field("rag_triad", description="Type of evaluation")
-    questions: List[str] = Field(..., description="List of questions")
+    # R5-L14: same unbounded-list/unbounded-limit hazard as BatchEvaluationRequest.
+    questions: List[str] = Field(..., max_length=100, description="List of questions")
     reference_answers: Optional[List[str]] = Field(
         None, description="Reference answers"
     )
@@ -107,7 +113,7 @@ class DatasetEvaluationRequest(BaseModel):
         "hybrid", description="Search type if contexts not provided"
     )
     search_limit: int = Field(
-        5, description="Search results limit if contexts not provided"
+        5, ge=1, le=50, description="Search results limit if contexts not provided"
     )
 
 
@@ -163,12 +169,41 @@ async def create_evaluation_job(
                 status_code=400, detail="Contexts length must match questions length"
             )
 
+        # R5-L13: EvaluationType(...) raises ValueError on an unrecognized
+        # free-string evaluation_type — surface it as a 400, not a 500.
+        try:
+            parsed_evaluation_type = EvaluationType(request.evaluation_type)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown evaluation_type: {request.evaluation_type!r}",
+            )
+
+        # R5-H6: build the real dataset items here so create_evaluation_job
+        # persists ONE EvaluationDataset row with the actual questions —
+        # this endpoint used to pass dataset=[] and then insert a SECOND,
+        # populated EvaluationDataset itself. The task fetched whichever of
+        # the two rows `.first()` happened to return; the empty one usually
+        # won and the job failed with "No items were successfully processed".
+        dataset_items = [
+            RAGEvaluationInput(
+                query=question,
+                generated_answer="",
+                retrieved_context=(request.contexts[i] if request.contexts else []),
+                reference_answer=(
+                    request.reference_answers[i] if request.reference_answers else None
+                ),
+                search_type=request.search_type,
+            )
+            for i, question in enumerate(request.questions)
+        ]
+
         # Create evaluation request
         evaluation_request = EvaluationRequest(
             name=request.name,
             description=request.description,
-            evaluation_type=EvaluationType(request.evaluation_type),
-            dataset=[],  # Will be populated from questions/answers
+            evaluation_type=parsed_evaluation_type,
+            dataset=dataset_items,
             parameters={
                 "search_type": request.search_type,
                 "search_limit": request.search_limit,
@@ -177,24 +212,9 @@ async def create_evaluation_job(
             organization_id=str(current_user.organization_id),
         )
 
-        # Create evaluation job
+        # Create evaluation job — this also persists the single
+        # EvaluationDataset row built from dataset_items above.
         job = await rag_evaluation_service.create_evaluation_job(evaluation_request, db)
-
-        # Create dataset entries
-        from src.models.evaluation import EvaluationDataset
-
-        dataset = EvaluationDataset(
-            job_id=job.id,
-            name=request.name,
-            description=request.description,
-            questions=request.questions,
-            reference_answers=request.reference_answers,
-            contexts=request.contexts,
-            dataset_type="qa_pairs",
-        )
-
-        db.add(dataset)
-        db.commit()
 
         # Enqueue inline so a broker failure reaches the caller — see the note
         # in create_batch_evaluation_job.
@@ -326,6 +346,12 @@ async def evaluate_real_time(
             "message": "Real-time evaluation started",
         }
 
+    # R5-M14: this was the only endpoint in the file missing this
+    # re-raise, so the 503 raised above fell into the except Exception
+    # below and was reported to the caller as a 500 (a permanent-defect
+    # code) instead of the retryable outage it actually is.
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error starting real-time evaluation: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -344,6 +370,7 @@ async def get_evaluation_job(
             .filter(
                 EvaluationJob.id == job_id,
                 EvaluationJob.organization_id == current_user.organization_id,
+                EvaluationJob.is_deleted.is_(False),
             )
             .first()
         )
@@ -379,7 +406,8 @@ async def list_evaluation_jobs(
     """
     try:
         query = db.query(EvaluationJob).filter(
-            EvaluationJob.organization_id == current_user.organization_id
+            EvaluationJob.organization_id == current_user.organization_id,
+            EvaluationJob.is_deleted.is_(False),
         )
 
         if status:
@@ -440,6 +468,7 @@ async def get_evaluation_metrics(
             .filter(
                 EvaluationJob.id == job_id,
                 EvaluationJob.organization_id == current_user.organization_id,
+                EvaluationJob.is_deleted.is_(False),
             )
             .first()
         )
@@ -465,13 +494,19 @@ async def get_evaluation_metrics(
                 "threshold_max": metric.threshold_max,
                 "is_threshold_violation": metric.is_threshold_violation,
                 "query": metric.query,
+                # R5-H5: the model column is metric_metadata — .metadata on
+                # a SQLAlchemy declarative instance is the class-level
+                # MetaData object, not this row's data, and .get() on it
+                # raised AttributeError (500).
                 "calculation_method": (
-                    metric.metadata.get("calculation_method")
-                    if metric.metadata
+                    metric.metric_metadata.get("calculation_method")
+                    if metric.metric_metadata
                     else None
                 ),
                 "model_used": (
-                    metric.metadata.get("model_used") if metric.metadata else None
+                    metric.metric_metadata.get("model_used")
+                    if metric.metric_metadata
+                    else None
                 ),
                 "created_at": metric.created_at.isoformat(),
             }
@@ -502,6 +537,7 @@ async def create_evaluation_comparison(
             .filter(
                 EvaluationJob.id == request.baseline_job_id,
                 EvaluationJob.organization_id == current_user.organization_id,
+                EvaluationJob.is_deleted.is_(False),
             )
             .first()
         )
@@ -511,6 +547,7 @@ async def create_evaluation_comparison(
             .filter(
                 EvaluationJob.id == request.comparison_job_id,
                 EvaluationJob.organization_id == current_user.organization_id,
+                EvaluationJob.is_deleted.is_(False),
             )
             .first()
         )
@@ -620,12 +657,22 @@ async def trigger_evaluation_report(
     Generate a report for an evaluation job
     """
     try:
+        # R5-L13: report_type is a free string the task later matches against
+        # {"summary", "detailed"}, raising ValueError (post-200, inside the
+        # worker) for anything else. Reject it here instead.
+        if report_type not in ("summary", "detailed"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown report_type: {report_type!r} (expected 'summary' or 'detailed')",
+            )
+
         # Verify job exists and user has access
         job = (
             db.query(EvaluationJob)
             .filter(
                 EvaluationJob.id == job_id,
                 EvaluationJob.organization_id == current_user.organization_id,
+                EvaluationJob.is_deleted.is_(False),
             )
             .first()
         )
@@ -767,19 +814,37 @@ async def get_metrics_summary(
 
         start_date = datetime.utcnow() - timedelta(days=days)
 
-        # Get metrics for the period
-        metrics = (
-            db.query(EvaluationMetric)
-            .join(EvaluationJob)
-            .filter(
-                EvaluationJob.organization_id == current_user.organization_id,
-                EvaluationJob.created_at >= start_date,
-                EvaluationJob.status == EvaluationStatus.COMPLETED.value,
+        # R5-L15: aggregate in SQL (count/avg/min/max grouped by metric_type)
+        # instead of pulling every EvaluationMetric row — including its Text
+        # columns (query, generated_answer, retrieved_context) and JSON
+        # columns (metric_metadata, additional_data) — into Python only to
+        # throw them away. std_dev still needs the raw values (portable
+        # across the sync-engine's SQLite test config and Postgres, unlike
+        # func.stddev_samp), so that one query selects just the float column,
+        # not full ORM rows.
+        base_filter = (
+            EvaluationJob.organization_id == current_user.organization_id,
+            EvaluationJob.created_at >= start_date,
+            EvaluationJob.status == EvaluationStatus.COMPLETED.value,
+            EvaluationJob.is_deleted.is_(False),
+        )
+
+        aggregates = (
+            db.query(
+                EvaluationMetric.metric_type,
+                func.count(EvaluationMetric.id),
+                func.avg(EvaluationMetric.value),
+                func.min(EvaluationMetric.value),
+                func.max(EvaluationMetric.value),
+                func.sum(func.cast(EvaluationMetric.is_threshold_violation, Integer)),
             )
+            .join(EvaluationJob, EvaluationMetric.job_id == EvaluationJob.id)
+            .filter(*base_filter)
+            .group_by(EvaluationMetric.metric_type)
             .all()
         )
 
-        if not metrics:
+        if not aggregates:
             return {
                 "period_days": days,
                 "total_metrics": 0,
@@ -788,43 +853,54 @@ async def get_metrics_summary(
                 "average_scores": {},
             }
 
-        # Group metrics by type
-        metrics_by_type = {}
-        total_violations = 0
+        # Only the float values, only for the std_dev calculation.
+        values_by_type: Dict[str, List[float]] = {}
+        for metric_type, value in (
+            db.query(EvaluationMetric.metric_type, EvaluationMetric.value)
+            .join(EvaluationJob, EvaluationMetric.job_id == EvaluationJob.id)
+            .filter(*base_filter)
+            .all()
+        ):
+            values_by_type.setdefault(metric_type, []).append(value)
 
-        for metric in metrics:
-            metric_type = metric.metric_type
-            if metric_type not in metrics_by_type:
-                metrics_by_type[metric_type] = []
-            metrics_by_type[metric_type].append(metric.value)
-
-            if metric.is_threshold_violation:
-                total_violations += 1
-
-        # Calculate statistics for each metric type
         import statistics
 
         metric_summary = {}
         average_scores = {}
+        total_metrics = 0
+        total_violations = 0
 
-        for metric_type, values in metrics_by_type.items():
-            if values:
-                metric_summary[metric_type] = {
-                    "count": len(values),
-                    "mean": statistics.mean(values),
-                    "min": min(values),
-                    "max": max(values),
-                    "std_dev": statistics.stdev(values) if len(values) > 1 else 0.0,
-                }
-                average_scores[metric_type] = statistics.mean(values)
+        for (
+            metric_type,
+            count,
+            avg_value,
+            min_value,
+            max_value,
+            violations,
+        ) in aggregates:
+            values = values_by_type.get(metric_type, [])
+            metric_summary[metric_type] = {
+                "count": count,
+                "mean": float(avg_value) if avg_value is not None else 0.0,
+                "min": float(min_value) if min_value is not None else 0.0,
+                "max": float(max_value) if max_value is not None else 0.0,
+                "std_dev": statistics.stdev(values) if len(values) > 1 else 0.0,
+            }
+            average_scores[metric_type] = (
+                float(avg_value) if avg_value is not None else 0.0
+            )
+            total_metrics += count
+            total_violations += violations or 0
 
         return {
             "period_days": days,
-            "total_metrics": len(metrics),
+            "total_metrics": total_metrics,
             "metric_summary": metric_summary,
             "threshold_violations": total_violations,
             "average_scores": average_scores,
-            "violation_rate": (total_violations / len(metrics)) * 100 if metrics else 0,
+            "violation_rate": (
+                (total_violations / total_metrics) * 100 if total_metrics else 0
+            ),
         }
 
     except Exception as e:
@@ -845,6 +921,7 @@ async def delete_evaluation_job(
             .filter(
                 EvaluationJob.id == job_id,
                 EvaluationJob.organization_id == current_user.organization_id,
+                EvaluationJob.is_deleted.is_(False),
             )
             .first()
         )
