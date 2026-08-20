@@ -320,6 +320,9 @@ async def compact_messages(
             content=f"{_COMPACTED_PREFIX} {summary}",
             tool_call_id=msg.tool_call_id,
             id=msg.id,
+            # Preserve the original status — compaction must not reset an
+            # error message to LangChain's default status="success".
+            status=getattr(msg, "status", "success") or "success",
         )
 
     results = await asyncio.gather(*[_compact_one(msg) for msg in candidates])

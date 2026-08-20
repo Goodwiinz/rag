@@ -415,10 +415,12 @@ async def test_owned_project_id_with_unresolvable_chunks_returns_empty():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_project_id_not_owned_returns_access_denied():
-    """A project_id the caller does not own must be rejected, not used as a
-    filter — otherwise it leaks which org documents belong to that project
-    (membership inference). Mirrors the sibling project tools' guard."""
+async def test_project_id_not_owned_falls_back_to_org_wide():
+    """An unverifiable project_id (stale page context, another member's
+    project) must NOT hard-fail retrieval — it is usually injected, not
+    model-chosen (trace 01a0209b). The filter is dropped and org-wide
+    results are returned; org-wide output reveals nothing about the
+    unverified project, so membership inference is still prevented."""
     user = MagicMock()
     user.organization_id = "org-1"
 
@@ -427,10 +429,14 @@ async def test_project_id_not_owned_returns_access_denied():
     org_row.do_kb_uuid = "kb-1"
     db.get = AsyncMock(return_value=org_row)
 
+    empty_rows = MagicMock()
+    empty_rows.__iter__ = lambda self: iter([])
+    db.execute = AsyncMock(return_value=empty_rows)
+
     fake_client = MagicMock()
     fake_client.retrieve = AsyncMock(
         return_value=RetrieveResult(
-            chunks=[Chunk(text="secret", score=0.9, document_id="x.pdf", metadata={})],
+            chunks=[Chunk(text="a", score=0.9, document_id="a.pdf", metadata={})],
             total=1,
         )
     )
@@ -452,6 +458,7 @@ async def test_project_id_not_owned_returns_access_denied():
             user,
         )
 
-    assert result["chunks"] == []
-    assert result["total"] == 0
-    assert "access denied" in result.get("error", "").lower()
+    # Fallback behaves exactly like the no-project path: no error, and no
+    # project-filtered result set derived from the unverified id.
+    assert "error" not in result
+    assert result["total"] == 1

@@ -614,8 +614,12 @@ def extract_entities(self, job_id: str):
         from datetime import datetime
 
         from src.models.entity import Entity, ExtractionMethod
+        from src.services.agent.llm_factory import get_lightweight_model_name
         from src.services.processing.llm_entity_extraction import map_to_entity_type
 
+        # Record the deployment that actually ran, not a hardcoded tier name —
+        # the stored "gpt-5-nano" string went stale when tiering changed.
+        extraction_model = get_lightweight_model_name()
         saved_entities = []
         for ent in extraction_result.entities:
             entity = Entity(
@@ -627,7 +631,7 @@ def extract_entities(self, job_id: str):
                 confidence=ent.confidence,
                 extraction_method=ExtractionMethod.OPENAI,
                 extracted_at=datetime.utcnow(),
-                extraction_model="gpt-5-nano",
+                extraction_model=extraction_model,
                 document_id=document.id,
                 organization_id=document.organization_id,
             )

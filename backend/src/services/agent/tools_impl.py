@@ -1291,8 +1291,7 @@ async def _tool_ingest_arxiv(
                 # real arXiv metadata (likely invalid or very new).
                 failed_papers.setdefault(
                     pid,
-                    "arXiv returned no metadata (invalid ID or paper not yet "
-                    "indexed)",
+                    "arXiv returned no metadata (invalid ID or paper not yet indexed)",
                 )
                 return {
                     "id": pid,
@@ -1668,13 +1667,22 @@ async def _tool_do_kb_retrieve(
         else:
             project = await _verify_project_ownership(project_id, db, current_user)
             if not project:
-                return {
-                    "chunks": [],
-                    "total": 0,
-                    "source": "do_kb",
-                    "error": "Project not found or access denied",
-                }
-            resolved_project_id = str(project.id)
+                # The project_id is usually injected from frontend page
+                # context, which can be stale or point at another member's
+                # project — hard-failing here killed retrieval entirely for
+                # an id the model never chose (trace 01a0209b, 2026-08-20).
+                # Degrade to org-wide scoping instead: resolve_and_filter_chunks
+                # still org-scopes every chunk, and org-wide results reveal
+                # nothing about the unverified project (safer against
+                # membership inference than a "not yours" error).
+                logger.warning(
+                    "do_kb_retrieve: project %s not found/owned; "
+                    "falling back to org-wide retrieval",
+                    project_id,
+                )
+                project_id = None
+            else:
+                resolved_project_id = str(project.id)
 
     title_by_key: dict[str, tuple[str, str]] = {}
     chunks_to_emit = result.chunks
@@ -2914,7 +2922,8 @@ async def _tool_export_bibliography(
         from src.services.research.bibliography_service import BibliographyService
 
         bibliography = BibliographyService.format_bibliography(
-            citations, bib_format  # type: ignore[arg-type]
+            citations,
+            bib_format,  # type: ignore[arg-type]
         )
 
         return {

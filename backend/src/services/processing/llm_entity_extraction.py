@@ -1,6 +1,7 @@
 """LLM-based entity extraction service.
 
-Replaces spaCy NER with gpt-5-nano structured extraction via Azure OpenAI.
+Replaces spaCy NER with structured extraction via the configured lightweight
+Azure OpenAI deployment (see llm_factory.build_lightweight_llm).
 Chunks document text, extracts entities per chunk, merges and deduplicates.
 """
 
@@ -415,7 +416,7 @@ class ExtractionResult:
 
 
 class LLMEntityExtractionService:
-    """Extracts entities from text using Azure OpenAI (gpt-5-nano)."""
+    """Extracts entities from text using the lightweight Azure OpenAI deployment."""
 
     def __init__(self) -> None:
         self._llm = build_lightweight_llm(max_tokens=2048)
