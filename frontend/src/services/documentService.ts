@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/client';
 import { APIResponse, API_CONFIG } from '@/types/api';
 import {
   Document,
@@ -10,81 +9,6 @@ import { api } from '@/services/api-client';
 
 export class DocumentService {
   private readonly basePath = '/documents';
-
-  /**
-   * Upload a single file
-   */
-  async uploadFile(
-    file: File,
-    onProgress?: (progress: number) => void
-  ): Promise<APIResponse<Document>> {
-    return api.upload(`${this.basePath}/upload`, file, { onProgress });
-  }
-
-  /**
-   * Upload multiple files
-   */
-  async uploadFiles(
-    files: File[],
-    onProgress?: (
-      fileIndex: number,
-      fileProgress: number,
-      totalProgress: number
-    ) => void
-  ): Promise<APIResponse<Document[]>> {
-    const formData = new FormData();
-    files.forEach((file) => {
-      formData.append('files', file);
-    });
-
-    // Fetch auth before entering the XHR Promise
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const token = session?.access_token;
-
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-
-      // Progress tracking
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable && onProgress) {
-          const fileProgress = (event.loaded / event.total) * 100;
-          // For simplicity, treat first file progress as overall progress
-          onProgress(0, fileProgress, fileProgress);
-        }
-      });
-
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const response = JSON.parse(xhr.responseText) as APIResponse<
-              Document[]
-            >;
-            resolve(response);
-          } catch (error) {
-            reject(new Error('Invalid response format'));
-          }
-        } else {
-          reject(new Error(`Upload failed with status ${xhr.status}`));
-        }
-      });
-
-      xhr.addEventListener('error', () => {
-        reject(new Error('Network error during upload'));
-      });
-
-      xhr.open('POST', `${API_CONFIG.BASE_URL}${this.basePath}/batch-upload`);
-
-      // Add auth headers
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      }
-
-      xhr.send(formData);
-    });
-  }
 
   /**
    * Get documents with pagination and filtering
