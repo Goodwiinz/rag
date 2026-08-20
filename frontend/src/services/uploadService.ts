@@ -346,6 +346,7 @@ class UploadService {
             item.progress = progress;
             this.notifyProgress();
           },
+          signal: controller.signal,
         }
       );
 
@@ -361,6 +362,12 @@ class UploadService {
       this.pollProcessingStatus(item);
 
     } catch (error) {
+      // removeFromQueue() aborts the controller and deletes the item; don't
+      // resurrect a removed item into the queue via notifyProgress().
+      if (!this.uploadQueue.has(item.id)) {
+        return;
+      }
+
       console.error('Upload failed for file:', item.file.name, error);
 
       this.failItem(item, error instanceof Error ? error.message : 'Upload failed');

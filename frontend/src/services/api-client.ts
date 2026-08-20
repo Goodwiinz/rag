@@ -39,6 +39,7 @@ export interface TypedResponse<T> {
 export interface UploadOptions {
   onProgress?: (progress: number) => void;
   metadata?: Record<string, string>;
+  signal?: AbortSignal;
 }
 
 function composeAbortSignals(signals: AbortSignal[]): {
@@ -437,7 +438,12 @@ export class APIClient {
 
     // For progress tracking, we need to use XMLHttpRequest
     if (options.onProgress) {
-      return this.uploadWithProgress<T>(endpoint, formData, options.onProgress);
+      return this.uploadWithProgress<T>(
+        endpoint,
+        formData,
+        options.onProgress,
+        options.signal
+      );
     }
 
     // Content-Type is intentionally not set here. request() strips the
@@ -449,13 +455,15 @@ export class APIClient {
       method: 'POST',
       body: formData,
       headers: {},
+      signal: options.signal,
     });
   }
 
   private uploadWithProgress<T>(
     endpoint: string,
     formData: FormData,
-    onProgress: (progress: number) => void
+    onProgress: (progress: number) => void,
+    signal?: AbortSignal
   ): Promise<T> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -504,6 +512,18 @@ export class APIClient {
           })
         );
       };
+
+      xhr.onabort = () => {
+        reject(
+          new APIErrorClass({
+            message: 'Upload cancelled',
+            status_code: 0,
+            type: 'http_error',
+          })
+        );
+      };
+
+      signal?.addEventListener('abort', () => xhr.abort(), { once: true });
 
       xhr.send(formData);
     });
