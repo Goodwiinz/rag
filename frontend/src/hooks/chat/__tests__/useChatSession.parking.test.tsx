@@ -104,4 +104,42 @@ describe('useChatSession overlay parking', () => {
 
     expect(result.current.messages).toHaveLength(0);
   });
+
+  it('FIFO-caps parked overlays on the ordinary switch-away path (L4)', async () => {
+    const { result } = renderHook(() => useChatSession());
+
+    // Park nine threads: switch INTO each, give it an overlay, then switch away
+    // while it is the streaming thread. Nine is one past MAX_PARKED_THREADS.
+    for (let i = 1; i <= 9; i += 1) {
+      await act(async () => {
+        useChatStore.setState({ streamingThreadId: null, currentThreadId: `thread-${i}` });
+      });
+      await act(async () => {
+        result.current.setMessages([
+          makeChatPageMessage({
+            id: `m${i}`,
+            role: 'user',
+            content: `overlay ${i}`,
+            timestamp: i,
+            source: 'optimistic',
+          }),
+        ]);
+      });
+      await act(async () => {
+        useChatStore.setState({
+          streamingThreadId: `thread-${i}`,
+          currentThreadId: `thread-${i + 1}`,
+        });
+      });
+    }
+
+    // Returning to the oldest parked thread must find nothing — the cap evicted
+    // it. A bare `.set` on this path bypassed eviction, so the map grew for the
+    // whole session and overlay 1 came back.
+    await act(async () => {
+      useChatStore.setState({ streamingThreadId: null, currentThreadId: 'thread-1' });
+    });
+
+    expect(result.current.messages).toHaveLength(0);
+  });
 });

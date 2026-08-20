@@ -12,7 +12,7 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round3-details.md
 | R3-H6 | confirm on old card aborts new turn's controller → new turn's onError/onDone blocked by identity guard → placeholder stuck streaming forever (agentChatStore.ts:595-654) | high | fixed | claude | #1470 | 08-18 |
 | R3-H7 | no dead-stream watchdog / no resume retry+backoff → proxy-killed resume = permanent "Something went wrong" though backend still running (useChatStreaming.ts:1392-1405, agentChatService.ts:188-322; compounding backend M13) | high | fixed | claude | #1473 | 08-18 |
 | R3-H8 | transport exception never calls finishRun → activity spinner stuck 'running'; recovery only via accidental messages-dep re-trigger (useChatStreaming.ts:1021-1061) | high | fixed | claude | #1469 | 08-18 |
-| R3-M1 | new-chat handoff bounce-back: parking effect run 2 setMessages([]) wipes live optimistic overlay for whole stream (useChatSession.ts:817-869) | med | open | — | — | 08-18 |
+| R3-M1 | new-chat handoff bounce-back: parking effect run 2 setMessages([]) wipes live optimistic overlay for whole stream (useChatSession.ts:817-869) | med | fixed | clawd | #1487 | 08-19 |
 | R3-M2 | handleStop: failed cancel API resets stoppedByUserRef after abort → partial confirmed answer not committed, bubble vanishes (useChatStreaming.ts:1311-1346, 1851-1862) | med | refuted | — | — | 08-18 |
 | R3-M3 | confirmAction poll-budget exhaustion falls off loop end → isConfirming stuck true, composer locked (agentChatStore.ts:883-944, 951-1026) | med | fixed | claude | #1470 | 08-18 |
 | R3-M4 | no buffer-trim gap detection on resume: client never checks seq === after+1 → silently truncated answer persisted (agentChatService.ts:534-593; backend L14) | med | fixed | claude | #1473 | 08-18 |
@@ -28,12 +28,12 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round3-details.md
 | R3-M14 | loadThreadMessages/loadThreads errors console-only → existing thread renders fresh empty state, user thinks thread lost (agentChatStore.ts:1235-1246, 1178-1184) | med | fixed | claude | #1474 | 08-18 |
 | R3-M15 | 401 on stream open categorized invalid_request, no auth retry (agentChatService.ts:34-38) | med | fixed | claude | #1473 | 08-18 |
 | R3-L1 | exception path leaves token rAF un-cancelled → stale write post-turn (useChatStreaming.ts:1021-1061 vs 837-842) | low | fixed | claude | #1469 | 08-18 |
-| R3-L2 | HITL cold-load probe not aborted by new submit → phantom approval card, stuck gate (useChatStreaming.ts:1428-1475) | low | open | — | — | 08-18 |
+| R3-L2 | HITL cold-load probe not aborted by new submit → phantom approval card, stuck gate (useChatStreaming.ts:1428-1475) | low | fixed | clawd | #1487 | 08-19 |
 | R3-L3 | confirm catch-path error bubble lacks error block/category/retry (useChatStreaming.ts:1877-1891 vs 1821-1842) | low | fixed | claude | #1474 | 08-18 |
-| R3-L4 | deleteThread during live stream: orphan refreshMessages re-creates deleted thread cache entries; parkedMessagesRef never pruned (threadSlice.ts:173-198, useChatSession.ts:817) | low | open | — | — | 08-18 |
+| R3-L4 | deleteThread during live stream: orphan refreshMessages re-creates deleted thread cache entries; parkedMessagesRef never pruned (threadSlice.ts:173-198, useChatSession.ts:817) | low | fixed | clawd | #1487 +#PRNUM | 08-19 |
 | R3-L5 | unmount drops pending seq cursor (rAF) → larger replay window on remount (useChatStreaming.ts:474-490) | low | fixed | claude | #1474 | 08-18 |
 | R3-L6 | finally omits streamingSteps reset → stale tool-strip if rendered ungated (useChatStreaming.ts:1052-1057) | low | fixed | claude | #1469 | 08-18 |
-| R3-L7 | cold-thread confirmation probe attaches to live runs, consumes whole run server-side, discards tokens (useChatStreaming.ts:1448-1468) | low | open | — | — | 08-18 |
+| R3-L7 | cold-thread confirmation probe attaches to live runs, consumes whole run server-side, discards tokens (useChatStreaming.ts:1448-1468) | low | fixed | clawd | #1487 | 08-19 |
 | R3-L8 | same-tool parallel calls corrupt durationMs (useChatStreaming.ts:599, 706, 731-732) | low | fixed | claude | #1474 | 08-18 |
 | R3-L9 | deprecated v2 streamingService: no tail flush, drops frame-less data — still live, imported by streamingSlice.ts:64 (streamingService.ts:189-215) | low | fixed | claude | #1474 | 08-18 |
 | R3-L10 | uiMode captured at send start → close-panel-mid-stream never sets unread badge (agentChatStore.ts:121, 379) | low | fixed | claude | #1474 | 08-18 |

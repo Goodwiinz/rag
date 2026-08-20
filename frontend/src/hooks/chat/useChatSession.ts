@@ -863,7 +863,11 @@ export function useChatSession(): UseChatSessionReturn {
       messagesRef.current.length > 0 &&
       useChatStore.getState().streamingThreadId === outgoingThreadId
     ) {
-      parkedMessagesRef.current.set(outgoingThreadId, messagesRef.current);
+      // Must go through parkOverlay, not a bare `.set` — this is the ordinary
+      // switch-away path and therefore the one that actually parks a thread the
+      // user may then delete mid-stream (round-3 L4). A raw set here left the
+      // map uncapped, which is exactly the leak the cap exists to bound.
+      parkOverlay(outgoingThreadId, messagesRef.current);
     }
 
     const isNewThreadHandoff =
