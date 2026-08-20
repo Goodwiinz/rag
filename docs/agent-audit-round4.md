@@ -41,9 +41,9 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 | R4-L2 | bulk-delete duplicate ids counted twice in success report (documents.py:1172) | low | fixed | clawd | #1500 | 08-19 |
 | R4-L3 | unknown date_range silently ignored — no filter, no 400 (documents.py:1044-1055) | low | fixed | clawd | #1500 | 08-19 |
 | R4-L4 | to_dict leaks storage_path, storage_backend, checksum, do_kb uuid (files.py:354,285) | low | fixed | clawd | #1499 | 08-19 |
-| R4-L5 | integrity route: sync ML in request, no rate limit; select-then-insert race → MultipleResultsFound 500 (integrity.py:31-89) | low | fixed | clawd | TBD-this-PR | 08-20 |
+| R4-L5 | integrity route: sync ML in request, no rate limit; select-then-insert race → MultipleResultsFound 500 (integrity.py:31-89) | low | fixed | clawd | #1518 | 08-20 |
 | R4-L6 | bulk status unbounded + N+1 (include_jobs default True) (realtime_document_status.py:431-505) | low | fixed | clawd | #1500 | 08-19 |
-| R4-L7 | sync db.query inside async handlers throughout processing.py — event-loop stalls (processing.py:107+) — route handlers ported to async; ProcessingPipeline internals (get_processing_status sync db.query ×3, retry/queue paths) still sync — tracked as follow-up task | low | partial | clawd | TBD-this-PR | 08-20 |
+| R4-L7 | sync db.query inside async handlers throughout processing.py — event-loop stalls (processing.py:107+) — route handlers ported to async; ProcessingPipeline internals (get_processing_status sync db.query ×3, retry/queue paths) still sync — tracked as follow-up task | low | partial | clawd | #1518 | 08-20 |
 | R4-L8 | v1 WS manager: no per-user cap, no reaper — unbounded sockets, authenticated memory exhaustion (websocket.py:17-43) | low | fixed | clawd | #1497 | 08-19 |
 | R4-L9 | document_management.py dead standalone service: zero auth (client-supplied org), wrong attrs, quota drift, header injection — landmine if mounted (entire file) | low | fixed | clawd | #1498 | 08-19 |
 | R4-L10 | orgless user → unscoped processing lookup, fail-open (processing.py:79) | low | fixed | clawd | #1500 | 08-19 |
@@ -52,7 +52,7 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 | R4-L13 | analytics_auth sync db.query on AsyncSession — AttributeError if ever called (zero callers, latent) (analytics_auth.py:118-126) | low | fixed | clawd | #1498 | 08-19 |
 | R4-L14 | services/websocket/auth.py nonexistent User attrs — module unusable if ever wired (dead) (auth.py:226,467,561) | low | fixed | clawd | #1498 | 08-19 |
 | R4-L15 | realtime_service.py standalone app: token in URL + arg mismatch — dead, violates token-in-URL convention (realtime_service.py:508-517) | low | fixed | clawd | #1498 | 08-19 |
-| R4-L16 | defaultdict(set) registries + rate-limit dicts never delete keys — lifetime memory creep (websocket_manager.py:176, rate_limiting.py:33) | low | fixed | clawd | TBD-this-PR | 08-20 |
+| R4-L16 | defaultdict(set) registries + rate-limit dicts never delete keys — lifetime memory creep (websocket_manager.py:176, rate_limiting.py:33) | low | fixed | clawd | #1518 | 08-20 |
 | R4-L17 | v1 /ws never echoes subprotocol — browser handshake fails outright; only non-browser clients work (websocket.py:102) | low | dead | clawd | #1497 | 08-19 |
 | R4-L18 | is_public gate dead code — has_permission(USER) true for all roles (dependencies.py:258) | low | fixed | clawd | #1499 | 08-19 |
 | R4-L19 | SSE throw after confirmation frame → durable fallback re-runs parked turn (agentChatStore.ts:469-482,497-508) | low | open | — | — | 08-18 |
