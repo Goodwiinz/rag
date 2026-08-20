@@ -50,6 +50,24 @@ class TestErrorRecoveryWiring:
         content = json.loads(result["message"].content)
         assert content["error_type"] == "recoverable"
         assert "ingest" in content["suggestion"].lower()
+        # Error payloads must not carry LangChain's default status="success" —
+        # that mislabeled every failure in traces and status-branching code.
+        assert result["message"].status == "error"
+
+    @pytest.mark.asyncio
+    async def test_success_message_has_success_status(self):
+        from src.services.agent.graph import _execute_single_tool
+
+        async def mock_execute_tool(**kwargs):
+            return {"status": "ok", "papers": []}
+
+        tc = {"name": "search_documents", "args": {"query": "test"}, "id": "tc4"}
+        config = {"configurable": {"user_id": "u1"}}
+
+        with patch("src.services.agent.graph.execute_tool", side_effect=mock_execute_tool):
+            result = await _execute_single_tool(tc, config, {})
+
+        assert result["message"].status == "success"
 
     @pytest.mark.asyncio
     async def test_error_count_resets_on_success(self):

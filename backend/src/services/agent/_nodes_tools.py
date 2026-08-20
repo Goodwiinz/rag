@@ -527,7 +527,14 @@ async def _execute_single_tool(
     _record_tool_metrics(tool_name, status)
 
     return {
-        "message": ToolMessage(content=result_content, tool_call_id=tool_call_id),
+        # status="error" keeps LangChain's ToolMessage status honest — the
+        # default is "success", which mislabeled every error payload in
+        # LangSmith traces and for any consumer branching on message status.
+        "message": ToolMessage(
+            content=result_content,
+            tool_call_id=tool_call_id,
+            status="error" if status == "failed" else "success",
+        ),
         "execution": {
             "id": tool_call_id,
             "tool_name": tool_name,
@@ -644,6 +651,7 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
                 ToolMessage(
                     content=json.dumps({"error": last_error}),
                     tool_call_id=tc["id"],
+                    status="error",
                 )
             )
             continue
@@ -659,6 +667,7 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
                 ToolMessage(
                     content=json.dumps({"error": str(r)}),
                     tool_call_id=tc["id"],
+                    status="error",
                 )
             )
             continue
@@ -857,6 +866,7 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
                     ToolMessage(
                         content=json.dumps({"error": last_error}),
                         tool_call_id=tc["id"],
+                        status="error",
                     )
                 )
                 continue
@@ -872,6 +882,7 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
                     ToolMessage(
                         content=json.dumps({"error": str(r)}),
                         tool_call_id=tc["id"],
+                        status="error",
                     )
                 )
                 continue
