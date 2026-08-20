@@ -1,4 +1,5 @@
 """Tests for error recovery wiring in graph.py."""
+
 import asyncio
 import json
 import pytest
@@ -14,6 +15,7 @@ class TestErrorRecoveryWiring:
         from src.services.agent.graph import _execute_single_tool
 
         call_count = 0
+
         async def mock_execute_tool(**kwargs):
             nonlocal call_count
             call_count += 1
@@ -27,7 +29,9 @@ class TestErrorRecoveryWiring:
         tc = {"name": "search_documents", "args": {"query": "test"}, "id": "tc1"}
         config = {"configurable": {"user_id": "u1"}}
 
-        with patch("src.services.agent.graph.execute_tool", side_effect=mock_execute_tool):
+        with patch(
+            "src.services.agent.graph.execute_tool", side_effect=mock_execute_tool
+        ):
             result = await _execute_single_tool(tc, config, {})
 
         assert result["error_increment"] == 0  # Transient retry succeeded
@@ -41,10 +45,16 @@ class TestErrorRecoveryWiring:
         async def mock_execute_tool(**kwargs):
             return {"error": "Document abc123 not found"}
 
-        tc = {"name": "add_document_to_project", "args": {"document_id": "abc123"}, "id": "tc2"}
+        tc = {
+            "name": "add_document_to_project",
+            "args": {"document_id": "abc123"},
+            "id": "tc2",
+        }
         config = {"configurable": {"user_id": "u1"}}
 
-        with patch("src.services.agent.graph.execute_tool", side_effect=mock_execute_tool):
+        with patch(
+            "src.services.agent.graph.execute_tool", side_effect=mock_execute_tool
+        ):
             result = await _execute_single_tool(tc, config, {})
 
         content = json.loads(result["message"].content)
@@ -64,7 +74,9 @@ class TestErrorRecoveryWiring:
         tc = {"name": "search_documents", "args": {"query": "test"}, "id": "tc4"}
         config = {"configurable": {"user_id": "u1"}}
 
-        with patch("src.services.agent.graph.execute_tool", side_effect=mock_execute_tool):
+        with patch(
+            "src.services.agent.graph.execute_tool", side_effect=mock_execute_tool
+        ):
             result = await _execute_single_tool(tc, config, {})
 
         assert result["message"].status == "success"
@@ -74,7 +86,12 @@ class TestErrorRecoveryWiring:
         """tool_node should reset error_count to 0 after a successful tool call."""
         from src.services.agent.graph import tool_node
 
-        ai_msg = AIMessage(content="", tool_calls=[{"name": "search_arxiv", "args": {"query": "test"}, "id": "tc1"}])
+        ai_msg = AIMessage(
+            content="",
+            tool_calls=[
+                {"name": "search_arxiv", "args": {"query": "test"}, "id": "tc1"}
+            ],
+        )
         state = {
             "messages": [ai_msg],
             "tool_executions": [],
@@ -90,7 +107,9 @@ class TestErrorRecoveryWiring:
 
         config = {"configurable": {"user_id": "u1"}}
 
-        with patch("src.services.agent.graph.execute_tool", side_effect=mock_execute_tool):
+        with patch(
+            "src.services.agent.graph.execute_tool", side_effect=mock_execute_tool
+        ):
             result = await tool_node(state, config)
 
         assert result["error_count"] == 0  # Reset on success

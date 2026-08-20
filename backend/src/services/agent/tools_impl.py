@@ -1291,8 +1291,7 @@ async def _tool_ingest_arxiv(
                 # real arXiv metadata (likely invalid or very new).
                 failed_papers.setdefault(
                     pid,
-                    "arXiv returned no metadata (invalid ID or paper not yet "
-                    "indexed)",
+                    "arXiv returned no metadata (invalid ID or paper not yet indexed)",
                 )
                 return {
                     "id": pid,
@@ -2923,7 +2922,8 @@ async def _tool_export_bibliography(
         from src.services.research.bibliography_service import BibliographyService
 
         bibliography = BibliographyService.format_bibliography(
-            citations, bib_format  # type: ignore[arg-type]
+            citations,
+            bib_format,  # type: ignore[arg-type]
         )
 
         return {
