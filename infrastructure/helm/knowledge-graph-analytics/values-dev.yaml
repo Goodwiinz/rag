@@ -504,6 +504,9 @@ syntheticTraffic:
   enabled: true
   schedule: "*/20 * * * *"
   args: ["--rotate"]
+  # One scenario per fire: SCENARIO_TIMEOUT_S (360 s) plus graph-build startup.
+  # Raise to >= 2700 if args ever become ["--all"].
+  activeDeadlineSeconds: 900
   # Keep ~one full scenario rotation of run history so heavy-scenario traces
   # (arxiv / kg / ingest) stay inspectable instead of being GC'd at limit 2.
   successfulJobsHistoryLimit: 8

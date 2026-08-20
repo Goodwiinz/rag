@@ -28,12 +28,16 @@ spec:
   startingDeadlineSeconds: 120
   jobTemplate:
     spec:
-      # Only retry once — a second attempt will just produce duplicate traces
-      # for the same window.  Prefer a clean failure over double-counting.
-      backoffLimit: 1
-      # Hard ceiling: the most expensive scenario (ingest) targets 60 s;
-      # 600 s gives ≈10× headroom for slow-path Azure + arXiv calls.
-      activeDeadlineSeconds: 600
+      # Never retry: a retry re-runs the WHOLE sweep at full LLM cost for a
+      # window whose traces were already partly emitted, and the CronJob fires
+      # again in 20 min anyway. Prefer a clean failure over double spend.
+      backoffLimit: 0
+      # Hard ceiling. Must exceed the sweep the configured args actually run:
+      # SCENARIO_TIMEOUT_S (360 s) is per scenario, so `--all` over the 7
+      # scenarios needs ~2520 s plus graph-build startup. 600 s killed those
+      # mid-flight (audit R5-L20). Default covers `--all`; values-dev.yaml
+      # runs `--rotate` and tightens this back down.
+      activeDeadlineSeconds: {{ .Values.syntheticTraffic.activeDeadlineSeconds | default 2700 }}
       template:
         metadata:
           {{- if .Values.backend.image.sourceSha }}
