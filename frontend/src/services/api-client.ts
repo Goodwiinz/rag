@@ -485,11 +485,23 @@ export class APIClient {
             resolve({} as T);
           }
         } else {
+          // Parse the backend's structured error envelope (e.g. the
+          // FileValidationError detail message) instead of discarding it in
+          // favor of the generic xhr.statusText (R4-M24).
+          let body: unknown = {};
+          try {
+            body = JSON.parse(xhr.responseText);
+          } catch {
+            // Response body may not be JSON
+          }
+          const parsed = parseErrorBody(body, xhr.statusText || 'Upload failed');
           reject(
             new APIErrorClass({
-              message: xhr.statusText || 'Upload failed',
+              message: parsed.message,
               status_code: xhr.status,
-              type: 'http_error',
+              type: parsed.type ?? 'http_error',
+              details: parsed.details,
+              ...(parsed.silent !== undefined ? { silent: parsed.silent } : {}),
             })
           );
         }
