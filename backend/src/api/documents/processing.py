@@ -9,11 +9,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-from src.core.database import get_db_sync
+from src.core.database import get_db
 from src.core.dependencies import (
     get_current_organization,
     get_current_user,
@@ -101,18 +102,18 @@ async def get_document_processing_status(
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     processing_service: ProcessingPipeline = Depends(get_processing_service),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get processing status for a document"""
     # Check if document belongs to user's organization
-    document = (
-        processing_service.db.query(Document)
-        .filter(
+    doc_result = await db.execute(
+        select(Document).where(
             Document.id == document_id,
             Document.organization_id == organization.id,
             Document.is_deleted == False,
         )
-        .first()
     )
+    document = doc_result.scalar_one_or_none()
 
     if not document:
         raise HTTPException(
@@ -129,16 +130,15 @@ async def get_processing_job_status(
     job_id: UUID,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db_sync),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get status of a specific processing job"""
-    job = (
-        db.query(ProcessingJob)
-        .filter(
+    job_result = await db.execute(
+        select(ProcessingJob).where(
             ProcessingJob.id == job_id, ProcessingJob.organization_id == organization.id
         )
-        .first()
     )
+    job = job_result.scalar_one_or_none()
 
     if not job:
         raise HTTPException(
@@ -156,18 +156,18 @@ async def list_processing_jobs(
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db_sync),
+    db: AsyncSession = Depends(get_db),
 ):
     """List processing jobs for the organization"""
-    query = db.query(ProcessingJob).filter(
+    conditions = [
         ProcessingJob.organization_id == organization.id,
         ProcessingJob.is_deleted == False,  # noqa: E712 — SQLAlchemy column comparison
-    )
+    ]
 
     if status_filter:
         try:
             job_status = JobStatus(status_filter)
-            query = query.filter(ProcessingJob.status == job_status)
+            conditions.append(ProcessingJob.status == job_status)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -179,20 +179,26 @@ async def list_processing_jobs(
 
         try:
             job_type_enum = JobType(job_type)
-            query = query.filter(ProcessingJob.job_type == job_type_enum)
+            conditions.append(ProcessingJob.job_type == job_type_enum)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid job type: {job_type}",
             )
 
-    total = query.count()
-    jobs = (
-        query.order_by(ProcessingJob.created_at.desc())
+    total_result = await db.execute(
+        select(func.count(ProcessingJob.id)).where(*conditions)
+    )
+    total = total_result.scalar_one()
+
+    jobs_result = await db.execute(
+        select(ProcessingJob)
+        .where(*conditions)
+        .order_by(ProcessingJob.created_at.desc())
         .offset(offset)
         .limit(limit)
-        .all()
     )
+    jobs = jobs_result.scalars().all()
 
     serialized: List[ProcessingJobResponse] = []
     for job in jobs:
@@ -221,21 +227,21 @@ async def start_batch_processing(
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
     processing_service: ProcessingPipeline = Depends(get_processing_service),
+    db: AsyncSession = Depends(get_db),
 ):
     """Start batch processing for multiple documents"""
     results = []
     errors = []
 
     # Verify all documents belong to the organization
-    documents = (
-        processing_service.db.query(Document)
-        .filter(
+    documents_result = await db.execute(
+        select(Document).where(
             Document.id.in_(request.document_ids),
             Document.organization_id == organization.id,
             Document.is_deleted == False,
         )
-        .all()
     )
+    documents = documents_result.scalars().all()
 
     found_document_ids = {str(doc.id) for doc in documents}
     missing_document_ids = set(request.document_ids) - found_document_ids
@@ -286,6 +292,7 @@ async def retry_failed_jobs(
     current_user: User = Depends(require_admin),
     organization: Organization = Depends(get_current_organization),
     processing_service: ProcessingPipeline = Depends(get_processing_service),
+    db: AsyncSession = Depends(get_db),
 ):
     """Retry failed processing jobs"""
     try:
@@ -299,18 +306,17 @@ async def retry_failed_jobs(
             # Retry specific jobs
             retried_count = 0
             for job_id in request.job_ids:
-                job = (
-                    processing_service.db.query(ProcessingJob)
-                    .filter(
+                job_result = await db.execute(
+                    select(ProcessingJob).where(
                         ProcessingJob.id == job_id,
                         ProcessingJob.organization_id == organization.id,
                     )
-                    .first()
                 )
+                job = job_result.scalar_one_or_none()
 
                 if job and job.can_retry:
                     job.retry_job()
-                    processing_service.db.commit()
+                    await db.commit()
                     processing_service.queue_processing_job(job_id)
                     retried_count += 1
 
@@ -337,16 +343,15 @@ async def cancel_processing_job(
     job_id: UUID,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db_sync),
+    db: AsyncSession = Depends(get_db),
 ):
     """Cancel a processing job"""
-    job = (
-        db.query(ProcessingJob)
-        .filter(
+    job_result = await db.execute(
+        select(ProcessingJob).where(
             ProcessingJob.id == job_id, ProcessingJob.organization_id == organization.id
         )
-        .first()
     )
+    job = job_result.scalar_one_or_none()
 
     if not job:
         raise HTTPException(
@@ -371,7 +376,7 @@ async def cancel_processing_job(
     try:
         # Cancel the job
         job.cancel_job()
-        db.commit()
+        await db.commit()
 
         # Also try to cancel the Celery task if it exists
         if job.celery_task_id:
@@ -386,7 +391,7 @@ async def cancel_processing_job(
         }
 
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to cancel job: {str(e)}",
@@ -397,34 +402,32 @@ async def cancel_processing_job(
 async def get_queue_status(
     current_user: User = Depends(require_admin),  # Admin only
     organization: Organization = Depends(get_current_organization),
-    processing_service: ProcessingPipeline = Depends(get_processing_service),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get processing queue status (admin only)"""
     try:
         from src.models.processing import JobStatus, JobType
 
+        async def _count(*conditions) -> int:
+            result = await db.execute(
+                select(func.count(ProcessingJob.id)).where(*conditions)
+            )
+            return result.scalar_one()
+
         # Get queue statistics
         queue_stats = {}
 
         for job_type in JobType:
-            queued_count = (
-                processing_service.db.query(ProcessingJob)
-                .filter(
-                    ProcessingJob.job_type == job_type,
-                    ProcessingJob.status == JobStatus.QUEUED,
-                    ProcessingJob.organization_id == organization.id,
-                )
-                .count()
+            queued_count = await _count(
+                ProcessingJob.job_type == job_type,
+                ProcessingJob.status == JobStatus.QUEUED,
+                ProcessingJob.organization_id == organization.id,
             )
 
-            running_count = (
-                processing_service.db.query(ProcessingJob)
-                .filter(
-                    ProcessingJob.job_type == job_type,
-                    ProcessingJob.status == JobStatus.RUNNING,
-                    ProcessingJob.organization_id == organization.id,
-                )
-                .count()
+            running_count = await _count(
+                ProcessingJob.job_type == job_type,
+                ProcessingJob.status == JobStatus.RUNNING,
+                ProcessingJob.organization_id == organization.id,
             )
 
             queue_stats[job_type.value] = {
@@ -434,31 +437,19 @@ async def get_queue_status(
             }
 
         # Get overall statistics
-        total_queued = (
-            processing_service.db.query(ProcessingJob)
-            .filter(
-                ProcessingJob.status == JobStatus.QUEUED,
-                ProcessingJob.organization_id == organization.id,
-            )
-            .count()
+        total_queued = await _count(
+            ProcessingJob.status == JobStatus.QUEUED,
+            ProcessingJob.organization_id == organization.id,
         )
 
-        total_running = (
-            processing_service.db.query(ProcessingJob)
-            .filter(
-                ProcessingJob.status == JobStatus.RUNNING,
-                ProcessingJob.organization_id == organization.id,
-            )
-            .count()
+        total_running = await _count(
+            ProcessingJob.status == JobStatus.RUNNING,
+            ProcessingJob.organization_id == organization.id,
         )
 
-        total_failed = (
-            processing_service.db.query(ProcessingJob)
-            .filter(
-                ProcessingJob.status == JobStatus.FAILED,
-                ProcessingJob.organization_id == organization.id,
-            )
-            .count()
+        total_failed = await _count(
+            ProcessingJob.status == JobStatus.FAILED,
+            ProcessingJob.organization_id == organization.id,
         )
 
         return {
@@ -483,7 +474,7 @@ async def cleanup_old_jobs(
     days: int = 30,
     current_user: User = Depends(require_admin),
     organization: Organization = Depends(get_current_organization),
-    db: Session = Depends(get_db_sync),
+    db: AsyncSession = Depends(get_db),
 ):
     """Clean up old processing jobs (admin only)"""
     try:
@@ -491,22 +482,21 @@ async def cleanup_old_jobs(
 
         cutoff_date = datetime.utcnow() - timedelta(days=days)
 
-        old_jobs = (
-            db.query(ProcessingJob)
-            .filter(
+        old_jobs_result = await db.execute(
+            select(ProcessingJob).where(
                 ProcessingJob.created_at < cutoff_date,
                 ProcessingJob.organization_id == organization.id,
                 ProcessingJob.status.in_(
                     [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]
                 ),
             )
-            .all()
         )
+        old_jobs = old_jobs_result.scalars().all()
 
         for job in old_jobs:
-            db.delete(job)
+            await db.delete(job)
 
-        db.commit()
+        await db.commit()
 
         return {
             "message": f"Cleaned up {len(old_jobs)} old processing jobs",
@@ -515,7 +505,7 @@ async def cleanup_old_jobs(
         }
 
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to cleanup jobs: {str(e)}",
