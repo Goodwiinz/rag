@@ -49,7 +49,11 @@ export function deriveStepStatus(
   if (!newest) return 'pending';
   if (newest.status === 'running') return 'in-progress';
   if (newest.status === 'completed') return 'completed';
-  if (newest.status === 'failed') return 'failed';
+  // R4-L20: 'cancelled' (stopped/superseded mid-run) is terminal, same as
+  // 'failed' — the plan UI has no separate vocabulary for it, and mapping
+  // to 'pending' made a stopped step look like it hadn't started.
+  if (newest.status === 'failed' || newest.status === 'cancelled')
+    return 'failed';
   return 'pending';
 }
 
