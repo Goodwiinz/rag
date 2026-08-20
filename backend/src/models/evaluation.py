@@ -27,6 +27,9 @@ from .base import GUID, BaseModel
 class EvaluationType(Enum):
     """Types of evaluations"""
 
+    # The dataset-evaluation endpoint's canonical job type (its request
+    # schema defaults to this and always dispatches run_rag_triad_evaluation).
+    RAG_TRIAD = "rag_triad"
     ANSWER_RELEVANCY = "answer_relevancy"
     FAITHFULNESS = "faithfulness"
     CONTEXTUAL_RELEVANCY = "contextual_relevancy"
