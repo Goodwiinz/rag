@@ -434,7 +434,14 @@ function StreamingThinkingPill({
       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
     >
       <ThinkingMatrix />
-      <span>{label}</span>
+      <motion.span
+        key={label}
+        initial={reduce ? false : { opacity: 0, y: 2 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+      >
+        {label}
+      </motion.span>
       {elapsed && (
         // aria-live off: the pill's own polite region announces the phase
         // label; a per-tick reading of the counter would just interrupt.
@@ -477,6 +484,7 @@ function AuiStreamingBody(): ReactElement {
   const isRetrievingRag = useChatStore((s) => s.isRetrievingRag);
   const elapsedMs = useChatStore((s) => s.streamingElapsedMs);
   const streamingPhase = useChatStore((s) => s.streamingPhase);
+  const statusDetail = useChatStore((s) => s.streamingStatusDetail);
   const streamingCitations = useChatStore((s) => s.streamingCitations);
   const threadId = useAgentActivityStore((s) => s.currentThreadId);
   const phaseLabel = streamingPhase
@@ -490,7 +498,9 @@ function AuiStreamingBody(): ReactElement {
       }[streamingPhase]
     : undefined;
   const thinkingLabel =
-    phaseLabel ?? (isRetrievingRag ? 'Reading sources' : 'Reflecting');
+    statusDetail ??
+    phaseLabel ??
+    (isRetrievingRag ? 'Reading sources' : 'Thinking');
 
   return (
     <>

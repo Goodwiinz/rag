@@ -56,5 +56,6 @@ export const initialState: ChatState = {
   streamingPlan: [],
   streamingElapsedMs: null,
   streamingPhase: null,
+  streamingStatusDetail: null,
   streamingThreadId: null,
 };

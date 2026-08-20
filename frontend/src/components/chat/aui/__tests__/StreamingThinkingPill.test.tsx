@@ -52,6 +52,7 @@ describe('streaming thinking pill elapsed time', () => {
       isRetrievingRag: false,
       streamingElapsedMs: null,
       streamingPhase: 'accepted',
+      streamingStatusDetail: null,
     });
   });
 
@@ -79,6 +80,19 @@ describe('streaming thinking pill elapsed time', () => {
 
     expect(screen.getByText('Choosing approach')).toBeInTheDocument();
     expect(screen.queryByText('Reading sources')).not.toBeInTheDocument();
+  });
+
+  it('prefers the specific live activity over the coarse phase', () => {
+    useChatStore.setState({
+      streamingPhase: 'routing',
+      streamingStatusDetail: 'Choosing the safest response path',
+    });
+    renderStreamingTurn();
+
+    expect(
+      screen.getByText('Choosing the safest response path')
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Choosing approach')).not.toBeInTheDocument();
   });
 
   it('keeps the ticking counter out of the pill’s live announcements', () => {

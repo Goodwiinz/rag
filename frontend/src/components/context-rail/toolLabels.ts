@@ -9,7 +9,7 @@ const KNOWN_TOOLS: Record<string, string> = {
   kg_query: 'Query knowledge graph',
   project_create: 'Create project',
   compare_documents: 'Compare documents',
-  reflect: 'Reflect on progress',
+  reflect: 'Review progress',
 };
 
 // Plain present-progressive narration for active steps.
@@ -24,7 +24,7 @@ const ACTIVE_LABELS: Record<string, string> = {
   kg_query: 'Querying the knowledge graph',
   project_create: 'Creating project',
   compare_documents: 'Comparing documents',
-  reflect: 'Reflecting on progress',
+  reflect: 'Reviewing progress',
 };
 
 // Past tense for completed steps.
@@ -39,7 +39,7 @@ const DONE_LABELS: Record<string, string> = {
   kg_query: 'Queried the knowledge graph',
   project_create: 'Created project',
   compare_documents: 'Compared documents',
-  reflect: 'Reflected on progress',
+  reflect: 'Reviewed progress',
 };
 
 function humanize(tool: string): string {
