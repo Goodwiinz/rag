@@ -289,7 +289,7 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
       },
     ]);
 
-    expect(screen.getByText('Execution plan')).toBeInTheDocument();
+    expect(screen.getByText('Execution plan · 0/1')).toBeInTheDocument();
   });
 });
 

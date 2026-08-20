@@ -17,20 +17,27 @@ describe('ChatInlinePlan', () => {
   it('defaults collapsed for a committed (non-streaming) instance', () => {
     render(<ChatInlinePlan plan={plan} />);
 
-    expect(screen.getByText('Execution plan')).toBeInTheDocument();
-    expect(screen.queryByText('Search arXiv for the paper')).not.toBeInTheDocument();
+    expect(screen.getByText('Execution plan · 0/1')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Toggle execution plan' })
+      document.querySelector('[data-slot="reasoning-panel"]')
+    ).toBeTruthy();
+    expect(
+      screen.queryByText('Search arXiv for the paper')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Execution plan · 0/1' })
     ).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('defaults open for a streaming instance so steps stream in visibly', () => {
     render(<ChatInlinePlan plan={plan} streaming />);
 
+    expect(screen.getByText('Thinking')).toBeInTheDocument();
     expect(screen.getByText('Search arXiv for the paper')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Toggle execution plan' })
-    ).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Thinking' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
   });
 
   it('renders the reasoning paragraph only while expanded', () => {
@@ -46,7 +53,7 @@ describe('ChatInlinePlan', () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Toggle execution plan' })
+      screen.getByRole('button', { name: 'Execution plan · 0/1' })
     );
     expect(
       screen.getByText('Search arXiv first, then summarize the top hit.')
@@ -55,14 +62,14 @@ describe('ChatInlinePlan', () => {
 
   it('omits the reasoning paragraph when no reasoning is provided', () => {
     render(<ChatInlinePlan plan={plan} streaming />);
-    expect(
-      screen.queryByText(/search arxiv first/i)
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/search arxiv first/i)).not.toBeInTheDocument();
   });
 
   it('toggles aria-expanded and visible content on click', () => {
     render(<ChatInlinePlan plan={plan} />);
-    const button = screen.getByRole('button', { name: 'Toggle execution plan' });
+    const button = screen.getByRole('button', {
+      name: 'Execution plan · 0/1',
+    });
 
     expect(button).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(button);
