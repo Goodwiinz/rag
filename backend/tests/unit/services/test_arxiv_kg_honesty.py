@@ -78,7 +78,7 @@ async def test_entities_created_counts_only_actual_writes(
             SimpleNamespace(id="e3"),
         ]
     )
-    integration.kg_service = kg_service
+    integration.kg_service = kg_service  # type: ignore[assignment]
 
     entities = [
         {"text": f"Concept {i}", "type": "concept", "confidence": 0.9, "source": "test"}
