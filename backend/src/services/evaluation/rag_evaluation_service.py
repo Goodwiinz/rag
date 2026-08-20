@@ -17,7 +17,7 @@ from sqlalchemy import and_, desc, func, or_
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
-from src.core.database import get_db
+from src.core.database import SessionLocal
 from src.models.document import Document
 from src.models.evaluation import (
     EvaluationComparison,
@@ -39,6 +39,19 @@ from src.models.search_schemas import (
 from src.services.search.hybrid_search_service import hybrid_search_service
 
 logger = logging.getLogger(__name__)
+
+
+class LLMJudgeError(Exception):
+    """A configured LLM judge failed to score a metric (R5-M24).
+
+    Raised by ``_call_llm`` when a real API call errors, and left
+    unswallowed by ``_calculate_*`` — the point is to distinguish "the judge
+    is down" from "the judge scored this 0.5", which the previous fabricated
+    fallback made indistinguishable. Left to propagate out of
+    ``run_rag_triad_evaluation`` like any other failure: the item is dropped
+    (not recorded with a fake score) and, if every item in a job fails this
+    way, the job ends FAILED rather than COMPLETED.
+    """
 
 
 @dataclass
@@ -210,7 +223,7 @@ class RAGEvaluationService:
                 generated_answer=evaluation_input.generated_answer,
                 retrieved_context=json.dumps(evaluation_input.retrieved_context),
                 reference_answer=evaluation_input.reference_answer,
-                metadata={
+                metric_metadata={
                     "calculation_method": "llm_judgment",
                     "model_used": self._get_default_model(),
                     "evaluation_timestamp": datetime.utcnow().isoformat(),
@@ -238,7 +251,7 @@ class RAGEvaluationService:
                 generated_answer=evaluation_input.generated_answer,
                 retrieved_context=json.dumps(evaluation_input.retrieved_context),
                 reference_answer=evaluation_input.reference_answer,
-                metadata={
+                metric_metadata={
                     "calculation_method": "llm_judgment",
                     "model_used": self._get_default_model(),
                     "evaluation_timestamp": datetime.utcnow().isoformat(),
@@ -265,7 +278,7 @@ class RAGEvaluationService:
                 generated_answer=evaluation_input.generated_answer,
                 retrieved_context=json.dumps(evaluation_input.retrieved_context),
                 reference_answer=evaluation_input.reference_answer,
-                metadata={
+                metric_metadata={
                     "calculation_method": "llm_judgment",
                     "model_used": self._get_default_model(),
                     "evaluation_timestamp": datetime.utcnow().isoformat(),
@@ -292,7 +305,7 @@ class RAGEvaluationService:
                 generated_answer=evaluation_input.generated_answer,
                 retrieved_context=json.dumps(evaluation_input.retrieved_context),
                 reference_answer=evaluation_input.reference_answer,
-                metadata={
+                metric_metadata={
                     "calculation_method": "llm_judgment",
                     "model_used": self._get_default_model(),
                     "evaluation_timestamp": datetime.utcnow().isoformat(),
@@ -333,8 +346,7 @@ class RAGEvaluationService:
         """
         Calculate answer relevancy - measures how relevant the answer is to the query
         """
-        try:
-            prompt = f"""
+        prompt = f"""
             Evaluate the relevance of the following answer to the given question.
             Rate on a scale of 0.0 to 1.0 where:
             - 0.0: Completely irrelevant
@@ -347,22 +359,22 @@ class RAGEvaluationService:
             Provide only a numerical score (0.0-1.0) as your response.
             """
 
-            response = await self._call_llm(prompt)
-            score = self._extract_score_from_response(response)
-            return max(0.0, min(1.0, score))
-
-        except Exception as e:
-            logger.error(f"Error calculating answer relevancy: {e}")
-            return 0.5  # Default to middle score on error
+        # R5-M24: no try/except here — a judge failure (LLMJudgeError from
+        # _call_llm) must propagate, not be papered over with a fabricated
+        # 0.5. The caller (run_rag_triad_evaluation) decides what a failed
+        # judge means for the item/job; this method must not decide it means
+        # "average".
+        response = await self._call_llm(prompt)
+        score = self._extract_score_from_response(response)
+        return max(0.0, min(1.0, score))
 
     async def _calculate_faithfulness(self, answer: str, context: List[str]) -> float:
         """
         Calculate faithfulness - measures if the answer is supported by the retrieved context
         """
-        try:
-            context_text = "\n\n".join(context) if context else ""
+        context_text = "\n\n".join(context) if context else ""
 
-            prompt = f"""
+        prompt = f"""
             Evaluate whether the following answer is faithful to and supported by the provided context.
             Rate on a scale of 0.0 to 1.0 where:
             - 0.0: Answer is completely unsupported or contradicts the context
@@ -377,13 +389,10 @@ class RAGEvaluationService:
             Provide only a numerical score (0.0-1.0) as your response.
             """
 
-            response = await self._call_llm(prompt)
-            score = self._extract_score_from_response(response)
-            return max(0.0, min(1.0, score))
-
-        except Exception as e:
-            logger.error(f"Error calculating faithfulness: {e}")
-            return 0.5  # Default to middle score on error
+        # R5-M24: see _calculate_answer_relevancy — no fabricated fallback.
+        response = await self._call_llm(prompt)
+        score = self._extract_score_from_response(response)
+        return max(0.0, min(1.0, score))
 
     async def _calculate_contextual_relevancy(
         self, query: str, context: List[str]
@@ -391,10 +400,9 @@ class RAGEvaluationService:
         """
         Calculate contextual relevancy - measures how relevant the retrieved context is to the query
         """
-        try:
-            context_text = "\n\n".join(context) if context else ""
+        context_text = "\n\n".join(context) if context else ""
 
-            prompt = f"""
+        prompt = f"""
             Evaluate how relevant the following context is to the given question.
             Rate on a scale of 0.0 to 1.0 where:
             - 0.0: Context is completely irrelevant to the question
@@ -409,13 +417,10 @@ class RAGEvaluationService:
             Provide only a numerical score (0.0-1.0) as your response.
             """
 
-            response = await self._call_llm(prompt)
-            score = self._extract_score_from_response(response)
-            return max(0.0, min(1.0, score))
-
-        except Exception as e:
-            logger.error(f"Error calculating contextual relevancy: {e}")
-            return 0.5  # Default to middle score on error
+        # R5-M24: see _calculate_answer_relevancy — no fabricated fallback.
+        response = await self._call_llm(prompt)
+        score = self._extract_score_from_response(response)
+        return max(0.0, min(1.0, score))
 
     async def _calculate_hallucination_rate(
         self, answer: str, context: List[str], reference_answer: Optional[str] = None
@@ -423,13 +428,10 @@ class RAGEvaluationService:
         """
         Calculate hallucination rate - measures fabricated information not supported by context
         """
-        try:
-            context_text = "\n\n".join(context) if context else ""
-            ref_text = (
-                f"\nReference Answer: {reference_answer}" if reference_answer else ""
-            )
+        context_text = "\n\n".join(context) if context else ""
+        ref_text = f"\nReference Answer: {reference_answer}" if reference_answer else ""
 
-            prompt = f"""
+        prompt = f"""
             Evaluate the following answer for hallucinations (fabricated information not supported by the context).
             Rate on a scale of 0.0 to 1.0 where:
             - 0.0: No hallucinations - answer is fully supported by context
@@ -445,17 +447,21 @@ class RAGEvaluationService:
             Provide only a numerical score (0.0-1.0) as your response.
             """
 
-            response = await self._call_llm(prompt)
-            score = self._extract_score_from_response(response)
-            return max(0.0, min(1.0, score))
-
-        except Exception as e:
-            logger.error(f"Error calculating hallucination rate: {e}")
-            return 0.3  # Default to low hallucination rate on error
+        # R5-M24: see _calculate_answer_relevancy — no fabricated fallback
+        # (this one used to default to 0.3 "low hallucination" on error,
+        # which is arguably the most misleading fabrication of the four).
+        response = await self._call_llm(prompt)
+        score = self._extract_score_from_response(response)
+        return max(0.0, min(1.0, score))
 
     async def _call_llm(self, prompt: str) -> str:
         """
         Call LLM for evaluation scoring
+
+        Raises ``LLMJudgeError`` if a configured client is reachable but the
+        call itself fails — a genuine outage must not be reported to callers
+        as "0.5" (see R5-M24). A missing client is not a failure: it falls
+        through to the deterministic heuristic fallback below.
         """
         try:
             # Try OpenAI first
@@ -479,12 +485,13 @@ class RAGEvaluationService:
                 return response.content[0].text.strip()
 
             else:
-                # Fallback to simple pattern-based scoring
+                # No LLM client configured at all — not an outage, use the
+                # heuristic fallback deliberately.
                 return self._fallback_scoring(prompt)
 
         except Exception as e:
             logger.error(f"Error calling LLM: {e}")
-            return "0.5"  # Default fallback score
+            raise LLMJudgeError(f"LLM judge call failed: {e}") from e
 
     def _extract_score_from_response(self, response: str) -> float:
         """
@@ -614,10 +621,14 @@ class RAGEvaluationService:
                     query, search_response.results
                 )
 
-                # Extract context from search results
+                # Extract context from search results. R5-H7 adjacent bug:
+                # SearchResult (models/search_schemas.py) has no
+                # content_text/snippet attributes — that's content_preview —
+                # so this raised AttributeError on every non-empty result
+                # set, caught by the except/continue below before the
+                # get_db()/to_dict() bugs were ever reached.
                 retrieved_context = [
-                    result.content_text or result.snippet or ""
-                    for result in search_response.results
+                    result.content_preview or "" for result in search_response.results
                 ]
 
                 # Create evaluation input
@@ -630,14 +641,30 @@ class RAGEvaluationService:
                     ],
                     search_type=search_type,
                     metadata={
+                        # R5-M25: callers (evaluation_tasks.py) read
+                        # generated_answer/retrieved_context back off
+                        # metrics.metadata — keep those keys populated here,
+                        # not just the search bookkeeping fields.
+                        "generated_answer": generated_answer,
+                        "retrieved_context": retrieved_context,
                         "search_time_ms": search_response.search_time_ms,
                         "results_count": len(search_response.results),
-                        "search_response": search_response.to_dict(),
+                        # R5-H7 adjacent bug: SearchResponse is a pydantic
+                        # BaseModel with no .to_dict() — that AttributeError
+                        # fired on every call, before the next(get_db())
+                        # line below was ever reached, so fixing get_db()
+                        # alone would not have resolved the reported "no
+                        # queries evaluated" symptom.
+                        "search_response": search_response.model_dump(),
                     },
                 )
 
-                # Calculate metrics
-                db = next(get_db())
+                # Calculate metrics. R5-H7: get_db is an async, request-scoped
+                # generator (`async def get_db(request: Request)`) — this
+                # method runs from sync Celery task contexts via
+                # `loop.run_until_complete`, so it needs its own plain sync
+                # session, not the ASGI request's async one.
+                db = SessionLocal()
                 try:
                     metrics = await self.run_rag_triad_evaluation(
                         evaluation_input, None, organization_id, db
@@ -659,9 +686,12 @@ class RAGEvaluationService:
         if not results:
             return f"I couldn't find relevant information about '{query}'."
 
-        # Simple answer generation based on top result
+        # Simple answer generation based on top result. See the R5-H7
+        # adjacent-bug note in evaluate_search_pipeline above:
+        # SearchResult's text field is content_preview, not content_text/
+        # snippet.
         top_result = results[0]
-        content = top_result.content_text or top_result.snippet or ""
+        content = top_result.content_preview or ""
 
         # Truncate to reasonable length
         if len(content) > 500:
@@ -682,16 +712,24 @@ class RAGEvaluationService:
         Compare two evaluation jobs
         """
         try:
-            # Get the jobs
+            # Get the jobs. R5-M15: exclude soft-deleted jobs from comparison.
             baseline_job = (
                 db.query(EvaluationJob)
-                .filter(EvaluationJob.id == baseline_job_id)
+                .filter(
+                    EvaluationJob.id == baseline_job_id,
+                    EvaluationJob.organization_id == organization_id,
+                    EvaluationJob.is_deleted.is_(False),
+                )
                 .first()
             )
 
             comparison_job = (
                 db.query(EvaluationJob)
-                .filter(EvaluationJob.id == comparison_job_id)
+                .filter(
+                    EvaluationJob.id == comparison_job_id,
+                    EvaluationJob.organization_id == organization_id,
+                    EvaluationJob.is_deleted.is_(False),
+                )
                 .first()
             )
 
@@ -711,16 +749,32 @@ class RAGEvaluationService:
                 .all()
             )
 
-            # Calculate comparison statistics
-            baseline_avg = (
-                statistics.mean([m.value for m in baseline_metrics])
-                if baseline_metrics
-                else 0.0
-            )
+            # R5-M16: a plain mean over every EvaluationMetric.value mixes
+            # higher-is-better metrics (answer_relevancy, faithfulness,
+            # contextual_relevancy) with higher-is-worse ones
+            # (hallucination_rate) — a run that gets WORSE at hallucinating
+            # can inflate baseline_score/improvement_percentage, and can flip
+            # the reported direction entirely. Score only the higher-is-better
+            # metrics; report the higher-is-worse ones separately so nothing
+            # is silently dropped from the comparison.
+            higher_is_worse = {
+                MetricType.HALLUCINATION_RATE.value,
+                MetricType.RESPONSE_TIME.value,
+            }
+            baseline_scored = [
+                m.value
+                for m in baseline_metrics
+                if m.metric_type not in higher_is_worse
+            ]
+            comparison_scored = [
+                m.value
+                for m in comparison_metrics
+                if m.metric_type not in higher_is_worse
+            ]
+
+            baseline_avg = statistics.mean(baseline_scored) if baseline_scored else 0.0
             comparison_avg = (
-                statistics.mean([m.value for m in comparison_metrics])
-                if comparison_metrics
-                else 0.0
+                statistics.mean(comparison_scored) if comparison_scored else 0.0
             )
 
             improvement_percentage = (
@@ -729,10 +783,35 @@ class RAGEvaluationService:
                 else 0.0
             )
 
-            # Statistical significance test (simplified)
+            # Statistical significance test (simplified) — over the same
+            # higher-is-better subset used for the score, for consistency.
+            baseline_scored_metrics = [
+                m for m in baseline_metrics if m.metric_type not in higher_is_worse
+            ]
+            comparison_scored_metrics = [
+                m for m in comparison_metrics if m.metric_type not in higher_is_worse
+            ]
             statistical_significance = self._calculate_statistical_significance(
-                baseline_metrics, comparison_metrics
+                baseline_scored_metrics, comparison_scored_metrics
             )
+
+            # Higher-is-worse metrics, reported separately (not blended into
+            # baseline_score/comparison_score/improvement_percentage above).
+            def _worse_avg(
+                metrics: List[EvaluationMetric], metric_type: str
+            ) -> Optional[float]:
+                values = [m.value for m in metrics if m.metric_type == metric_type]
+                return statistics.mean(values) if values else None
+
+            worse_is_better_comparisons = {
+                metric_type: {
+                    "baseline_avg": _worse_avg(baseline_metrics, metric_type),
+                    "comparison_avg": _worse_avg(comparison_metrics, metric_type),
+                }
+                for metric_type in sorted(higher_is_worse)
+                if _worse_avg(baseline_metrics, metric_type) is not None
+                or _worse_avg(comparison_metrics, metric_type) is not None
+            }
 
             # Create comparison record
             comparison = EvaluationComparison(
@@ -749,6 +828,9 @@ class RAGEvaluationService:
                     "comparison_metrics": len(comparison_metrics),
                     "baseline_avg_score": baseline_avg,
                     "comparison_avg_score": comparison_avg,
+                    # R5-M16: metrics where a lower value is better, kept out
+                    # of the higher-is-better score/improvement above.
+                    "higher_is_worse_metrics": worse_is_better_comparisons,
                 },
                 user_id=user_id,
                 organization_id=organization_id,
@@ -831,6 +913,7 @@ class RAGEvaluationService:
                     and_(
                         EvaluationJob.id == job_id,
                         EvaluationJob.organization_id == organization_id,
+                        EvaluationJob.is_deleted.is_(False),
                     )
                 )
                 .first()
@@ -910,20 +993,37 @@ class RAGEvaluationService:
         """
         Get metrics for a specific evaluation job
         """
-        try:
-            if not db:
-                db = next(get_db())
+        # R5-H7: get_db is an async request-scoped generator; this method is
+        # called from both async request handlers (with a db already passed
+        # in) and sync Celery contexts, so the fallback must be a plain sync
+        # session, not `next(get_db())` (TypeError, previously swallowed
+        # below into an empty list).
+        owns_db = db is None
+        if owns_db:
+            db = SessionLocal()
 
-            query = db.query(EvaluationMetric).filter(EvaluationMetric.job_id == job_id)
+        try:
+            # R5-L18: scope to the caller's organization via the owning job —
+            # EvaluationMetric itself has no organization_id — and let
+            # unexpected errors propagate instead of returning `[]`, which
+            # made a real failure indistinguishable from "no metrics yet".
+            query = (
+                db.query(EvaluationMetric)
+                .join(EvaluationJob, EvaluationMetric.job_id == EvaluationJob.id)
+                .filter(
+                    EvaluationMetric.job_id == job_id,
+                    EvaluationJob.organization_id == organization_id,
+                    EvaluationJob.is_deleted.is_(False),
+                )
+            )
 
             if metric_types:
                 query = query.filter(EvaluationMetric.metric_type.in_(metric_types))
 
             return query.order_by(desc(EvaluationMetric.created_at)).limit(limit).all()
-
-        except Exception as e:
-            logger.error(f"Error getting evaluation metrics: {e}")
-            return []
+        finally:
+            if owns_db:
+                db.close()
 
     def _generate_summary_report(self, summary: Dict[str, Any]) -> str:
         """
@@ -1081,8 +1181,8 @@ This detailed report provides a comprehensive analysis of all metrics calculated
                     )
                     violation = "Yes" if metric.is_threshold_violation else "No"
                     model = (
-                        metric.metadata.get("model_used", "Unknown")
-                        if metric.metadata
+                        metric.metric_metadata.get("model_used", "Unknown")
+                        if metric.metric_metadata
                         else "Unknown"
                     )
 

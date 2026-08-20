@@ -968,6 +968,8 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 100,
+            "minItems": 1,
             "title": "Queries",
             "type": "array"
           },
@@ -989,6 +991,8 @@
           "search_limit": {
             "default": 5,
             "description": "Number of search results to retrieve",
+            "maximum": 50.0,
+            "minimum": 1.0,
             "title": "Search Limit",
             "type": "integer"
           },
@@ -3930,6 +3934,8 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 100,
+            "minItems": 1,
             "title": "Questions",
             "type": "array"
           },
@@ -3951,6 +3957,8 @@
           "search_limit": {
             "default": 5,
             "description": "Search results limit if contexts not provided",
+            "maximum": 50.0,
+            "minimum": 1.0,
             "title": "Search Limit",
             "type": "integer"
           },
