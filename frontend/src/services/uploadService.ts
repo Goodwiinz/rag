@@ -386,6 +386,10 @@ class UploadService {
     const maxAttempts = 600; // 20 minutes max
 
     const poll = async () => {
+      // ponytail: queue membership is the cancellation token — removeFromQueue()
+      // and cancelAllUploads() just delete the entry, no separate flag needed.
+      if (!this.uploadQueue.has(item.id)) return;
+
       try {
         if (attempts >= maxAttempts) {
           this.failItem(item, 'Processing timeout');
@@ -412,7 +416,13 @@ class UploadService {
           return;
         }
 
-        // Continue polling
+        if (status.processing_status === 'cancelled') {
+          this.failItem(item, 'Processing cancelled');
+          return;
+        }
+
+        // Continue polling ('retrying' included — the backend will keep
+        // retrying so we keep watching it)
         attempts++;
         setTimeout(poll, pollInterval);
 
