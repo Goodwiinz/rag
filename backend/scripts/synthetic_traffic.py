@@ -18,9 +18,16 @@ and let ArgoCD sync.  No code changes needed.
 Cleanup
 -------
 Every run (unless ``--cleanup`` is passed alone) ends with a lightweight
-cleanup pass that soft-deletes Collections owned by the synthetic user
-whose names start with ``synthtraffic-`` and that were created more than
-6 hours ago, preventing accumulation of junk in the dev database.
+cleanup pass that soft-deletes the synthetic org's Documents and the
+Collections owned by the synthetic user whose names start with
+``synthtraffic-``, both older than 6 hours. Purging Documents is what keeps
+the content-hash dedup index from permanently blocking the ingest scenario.
+
+Refusal
+-------
+The script exits immediately unless ``ENVIRONMENT`` is one of
+``ALLOWED_ENVIRONMENTS``. It writes rows and spends LLM budget, so it must
+not be startable in a production pod via ``kubectl exec``.
 """
 
 from __future__ import annotations
@@ -55,6 +62,14 @@ SYNTH_EMAIL = "synthetic-traffic@nous.dev"
 SYNTH_FIRST_NAME = "Synthetic"
 SYNTH_LAST_NAME = "Traffic"
 SYNTH_PREFIX = "synthtraffic-"
+SYNTH_ORG_NAME = "Synthetic Traffic Org"
+
+# This script writes real rows and spends real LLM budget as a synthetic user.
+# Nothing but this allowlist stops `kubectl exec` in a prod pod from starting a
+# sweep, so it fails closed: an unset ENVIRONMENT refuses too (audit R5-L21).
+ALLOWED_ENVIRONMENTS = frozenset(
+    {"dev", "development", "local", "test", "testing", "ci"}
+)
 
 # Rotate window: one scenario per 20-minute window keeps cost bounded while
 # ensuring full coverage across 8 × 20 min = 2.7 h.
@@ -62,6 +77,26 @@ ROTATE_WINDOW_S = 1200  # 20 minutes in seconds
 
 MAX_HITL_RESUMES = 3
 SCENARIO_TIMEOUT_S = 360  # cap per scenario to match jobs._run_agent_graph
+
+
+def assert_safe_environment(environment: Optional[str] = None) -> str:
+    """Refuse to run anywhere but a dev-like environment (audit R5-L21).
+
+    ``ENVIRONMENT`` used to be read only to tag traces, so the generator was
+    perfectly runnable against production. Raises ``SystemExit`` — this is a
+    refusal, not an error to be caught and retried.
+    """
+    import os
+
+    raw = environment if environment is not None else os.environ.get("ENVIRONMENT", "")
+    env = (raw or "").strip().lower()
+    if env not in ALLOWED_ENVIRONMENTS:
+        raise SystemExit(
+            f"synthetic_traffic: refusing to run with ENVIRONMENT="
+            f"{env or '<unset>'!r}. This generator writes rows and spends LLM "
+            f"budget; allowed environments: {sorted(ALLOWED_ENVIRONMENTS)}"
+        )
+    return env
 
 
 # ---------------------------------------------------------------------------
@@ -192,20 +227,105 @@ def _expand_prompt(scenario: Scenario) -> str:
 # ---------------------------------------------------------------------------
 
 
+async def _get_or_create_synth_org(db: Any) -> Any:
+    """Return the org dedicated to synthetic traffic, creating it if absent.
+
+    Was ``select(Organization).limit(1)`` with no ``order_by`` and no filter:
+    that grabs an arbitrary REAL org, burning its quota and letting synthetic
+    documents surface in that tenant's org-scoped search (audit R5-M28).
+    ``Organization.name`` is unique, so the name IS the key.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.exc import IntegrityError
+
+    from src.models.organization import Organization, StorageTier
+
+    result = await db.execute(
+        select(Organization).where(Organization.name == SYNTH_ORG_NAME)
+    )
+    org: Optional[Any] = result.scalar_one_or_none()
+    if org is not None:
+        return org
+
+    org = Organization(
+        name=SYNTH_ORG_NAME,
+        storage_tier=StorageTier.FREE,
+        storage_limit_bytes=Organization.get_default_storage_limit(StorageTier.FREE),
+        is_active=True,
+    )
+    db.add(org)
+    try:
+        await db.flush()
+    except IntegrityError:
+        # Lost the create race against a concurrent pod; the unique name means
+        # the winner's row is the one we want.
+        await db.rollback()
+        result = await db.execute(
+            select(Organization).where(Organization.name == SYNTH_ORG_NAME)
+        )
+        org = result.scalar_one()
+    log.info("synthetic_traffic.bootstrap", action="org_ready", org_id=str(org.id))
+    return org
+
+
+async def _ensure_workspace(db: Any, user: Any, org_id: Any) -> Any:
+    """Guarantee the synthetic user owns a workspace, healing if it does not.
+
+    The user INSERT and the workspace INSERT are separate commits, and the
+    insert-race branch returned a user with no workspace at all. A crash
+    between the two used to leave a permanently broken account (audit R5-L25).
+    Running this on *every* path — found user included — makes that state heal
+    on the next fire instead of persisting forever.
+    """
+    from sqlalchemy import select
+
+    from src.models.workspace import Workspace
+
+    result = await db.execute(
+        select(Workspace).where(
+            Workspace.owner_id == user.id,
+            Workspace.is_deleted == False,  # noqa: E712
+        )
+    )
+    workspace = result.scalars().first()
+    if workspace is not None:
+        return workspace
+
+    workspace = Workspace(
+        name=f"{SYNTH_PREFIX}workspace",
+        description="Auto-created for synthetic traffic generation",
+        owner_id=user.id,
+        organization_id=org_id,
+        is_archived=False,
+        is_public=False,
+    )
+    db.add(workspace)
+    await db.commit()
+    log.info(
+        "synthetic_traffic.bootstrap",
+        action="workspace_healed",
+        user_id=str(user.id),
+    )
+    return workspace
+
+
 async def _get_or_create_synth_user(db: Any) -> Any:
     """Return the synthetic user, creating it (+ a Workspace) if absent.
 
     Matches the seeding shape in ``database.init_database``:
     - UserRole.USER (non-admin; the agent needs no elevated rights)
-    - organization_id = None (personal; avoids FK to a real org)
+    - organization_id = the dedicated SYNTH_ORG_NAME org, never a real one
     - is_active = True
     - password: random (synthetic user never authenticates via HTTP)
     """
-    from sqlalchemy import select, text
+    from sqlalchemy import select, text, update
 
-    from src.models.organization import Organization, StorageTier
     from src.models.user import User
-    from src.models.workspace import Workspace
+
+    # The org is dedicated to synthetic traffic and is resolved on every path,
+    # so a user created before R5-M28 gets re-pinned off whatever real org it
+    # originally latched onto.
+    org = await _get_or_create_synth_org(db)
 
     # 1. Look up user
     result = await db.execute(select(User).where(User.email == SYNTH_EMAIL))
@@ -213,23 +333,6 @@ async def _get_or_create_synth_user(db: Any) -> Any:
 
     if user is None:
         log.info("synthetic_traffic.bootstrap", action="create_user", email=SYNTH_EMAIL)
-
-        # Ensure an org exists for the synthetic user so FK is satisfied
-        # when other models reference organization_id.  Reuse the default
-        # org if it exists; otherwise create a synthetic one.
-        org_result = await db.execute(select(Organization).limit(1))
-        org: Optional[Any] = org_result.scalar_one_or_none()
-        if org is None:
-            org = Organization(
-                name="Synthetic Traffic Org",
-                storage_tier=StorageTier.FREE,
-                storage_limit_bytes=Organization.get_default_storage_limit(
-                    StorageTier.FREE
-                ),
-                is_active=True,
-            )
-            db.add(org)
-            await db.flush()
 
         # Insert the user via raw SQL, NOT the ORM. User.first_name/last_name
         # use an encrypted column type whose bind-param encrypts on flush, but
@@ -286,30 +389,34 @@ async def _get_or_create_synth_user(db: Any) -> Any:
                 action="reread_after_race",
                 user_id=str(user.id),
             )
-            return user
-
-        # Create a default workspace so project tools have a home
-        workspace = Workspace(
-            name=f"{SYNTH_PREFIX}workspace",
-            description="Auto-created for synthetic traffic generation",
-            owner_id=user.id,
-            organization_id=org.id,
-            is_archived=False,
-            is_public=False,
-        )
-        db.add(workspace)
-        await db.flush()
-
-        await db.commit()
-        log.info(
-            "synthetic_traffic.bootstrap",
-            action="user_created",
-            user_id=str(user.id),
-        )
+        else:
+            log.info(
+                "synthetic_traffic.bootstrap",
+                action="user_created",
+                user_id=str(user.id),
+            )
     else:
         log.debug(
             "synthetic_traffic.bootstrap", action="user_found", user_id=str(user.id)
         )
+        if user.organization_id != org.id:
+            # Core UPDATE, not attribute assignment: the ORM would try to
+            # re-encrypt first_name/last_name on flush (see the INSERT above).
+            await db.execute(
+                update(User).where(User.id == user.id).values(organization_id=org.id)
+            )
+            await db.commit()
+            result = await db.execute(select(User).where(User.email == SYNTH_EMAIL))
+            user = result.scalar_one()
+            log.warning(
+                "synthetic_traffic.bootstrap",
+                action="repinned_to_synth_org",
+                user_id=str(user.id),
+                org_id=str(org.id),
+            )
+
+    # Always — this is what makes a half-bootstrapped account heal (R5-L25).
+    await _ensure_workspace(db, user, org.id)
 
     return user
 
@@ -714,6 +821,53 @@ async def run_scenario(
 # ---------------------------------------------------------------------------
 
 
+async def _cleanup_documents(db: Any, user: Any, cutoff: datetime) -> int:
+    """Soft-delete stale Documents in the synthetic org (audit R5-M29).
+
+    ``cleanup`` only soft-deleted Collections, so ingested Documents — and the
+    content hashes behind ``uq_documents_org_checksum_live`` — accreted
+    forever, until every id in ``INGEST_PAPER_IDS`` was permanently
+    dedup-blocked and the ingest scenario reported TOOL-FAILED for a pipeline
+    that worked. That index is partial (``WHERE is_deleted = false``), so a
+    soft delete frees the hash while preserving the "never hard DELETE,
+    documents own storage objects" rule the migration set.
+    """
+    from sqlalchemy import select, update
+
+    from src.models.document import Document
+    from src.models.organization import Organization
+
+    org_id = getattr(user, "organization_id", None)
+    if org_id is None:
+        return 0
+
+    # Belt and braces: only ever purge inside the dedicated synthetic org. A
+    # synthetic user left pinned to a REAL org by a pre-R5-M28 bootstrap must
+    # not lose that tenant's documents.
+    org_name = (
+        await db.execute(select(Organization.name).where(Organization.id == org_id))
+    ).scalar_one_or_none()
+    if org_name != SYNTH_ORG_NAME:
+        log.warning(
+            "synthetic_traffic.cleanup",
+            warning="skipping document purge: user is not in the synthetic org",
+            org_name=org_name,
+        )
+        return 0
+
+    result = await db.execute(
+        update(Document)
+        .where(
+            Document.organization_id == org_id,
+            Document.created_at < cutoff,
+            Document.is_deleted == False,  # noqa: E712
+        )
+        .values(is_deleted=True, deleted_at=datetime.now(tz=timezone.utc))
+    )
+    await db.commit()
+    return result.rowcount or 0
+
+
 async def cleanup(db: Any, user: Any, older_than_hours: int = 6) -> None:
     """Soft-delete synthetic Collections (projects) older than ``older_than_hours``.
 
@@ -734,6 +888,10 @@ async def cleanup(db: Any, user: Any, older_than_hours: int = 6) -> None:
         from src.models.workspace import Workspace
 
         cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=older_than_hours)
+
+        docs_deleted = await _cleanup_documents(db, user, cutoff)
+        if docs_deleted:
+            log.info("synthetic_traffic.cleanup", documents_deleted=docs_deleted)
 
         # Fetch all Workspaces owned by the synthetic user
         ws_result = await db.execute(
@@ -931,6 +1089,9 @@ def main() -> int:
     )
 
     args = parser.parse_args()
+
+    # Before argparse-adjacent work turns into DB writes and LLM spend.
+    assert_safe_environment()
 
     # If no flag is given, behave as --rotate
     if not (args.all or args.scenario or args.cleanup):
