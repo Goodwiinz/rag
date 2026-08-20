@@ -744,7 +744,7 @@ export function useChatStreaming(
             },
             onHeartbeat: (elapsedMs) => {
               // The only progress signal during a long silent planner/LLM
-              // phase — rendered on the thinking pill.
+              // phase — used to correct the live MessageTiming clock.
               useChatStore.setState({ streamingElapsedMs: elapsedMs });
             },
             onStatus: (phase, detail) => {
