@@ -77,7 +77,11 @@ _MAX_RESULTS_EXTERNAL_CAP = 100
 _MAX_GRAPH_DEPTH = 5
 _MAX_GRAPH_LIMIT = 100
 _MAX_INGEST_BATCH = 10
-_MAX_COMPARE_DOCUMENTS = 10
+# Must match the impl's own limit (tools_impl `_tool_compare_documents`), which
+# rejects >5. Two independent constants drifted, so 6-10 documents were a
+# guaranteed error loop: the wrapper let them through, the impl always refused.
+_MAX_COMPARE_DOCUMENTS = 5
+_MAX_EXPORT_DOCUMENTS = 50
 _MAX_PROJECT_LIMIT = 100
 
 # External database connector / domain identifiers must be alphanumeric +
@@ -93,6 +97,38 @@ def _clamp_int(value: int, *, lo: int, hi: int) -> int:
     if value > hi:
         return hi
     return value
+
+
+def _reject_over_cap(
+    values: Optional[List[str]], *, cap: int, noun: str
+) -> Optional[Dict[str, Any]]:
+    """Return an error payload when *values* exceeds *cap*, else ``None``.
+
+    Truncating instead would drop ids the model asked for while still
+    reporting success against the truncated list — the caller never learns
+    anything went missing. Refusing lets the model split the batch.
+    """
+    if values is not None and len(values) > cap:
+        return {
+            "error": (
+                f"Maximum {cap} {noun} per request; {len(values)} were "
+                f"requested. Split them into batches of {cap} or fewer."
+            )
+        }
+    return None
+
+
+def _reject_invalid_identifier(value: Optional[str], *, kind: str) -> Optional[Dict[str, Any]]:
+    """Return an error payload when *value* was supplied but is not allowlisted.
+
+    Omitting a connector/domain means "search everything" — a legitimate
+    fan-out. Silently downgrading a REJECTED name to that same "unspecified"
+    state turned one typo into a ~250-connector burst, so a supplied-but-bad
+    identifier must fail loudly instead.
+    """
+    if value and _validate_connector_name(value) is None:
+        return {"error": f"Unknown {kind} {value!r}; call list_external_databases first."}
+    return None
 
 
 def _validate_connector_name(value: Optional[str]) -> Optional[str]:
@@ -263,14 +299,19 @@ async def ingest_arxiv_papers(
     config = config or {}
     from src.services.agent.tools_impl import _tool_ingest_arxiv
 
+    # Bound the batch — ingestion is heavy and a hallucinated 100-paper batch
+    # will saturate the worker pool and trip downstream timeouts. Refuse rather
+    # than truncate: the old slice dropped ids 11+ and still reported success
+    # over the ten that survived.
+    over_cap = _reject_over_cap(paper_ids, cap=_MAX_INGEST_BATCH, noun="papers")
+    if over_cap:
+        return over_cap
+
     async with _tool_context(config) as (db, current_user, page_ctx):
         user_id = str(current_user.id) if current_user else ""
-        # Cap batch size — ingestion is heavy and a hallucinated 100-paper
-        # batch will saturate the worker pool and trip downstream timeouts.
-        capped_ids = list(paper_ids or [])[:_MAX_INGEST_BATCH]
         resolved_project_id = _resolve_project_id(project_id, page_ctx)
         return await _tool_ingest_arxiv(
-            {"paper_ids": capped_ids, "project_id": resolved_project_id},
+            {"paper_ids": list(paper_ids or []), "project_id": resolved_project_id},
             user_id,
             db,
             current_user,
@@ -525,10 +566,16 @@ async def compare_documents(
 
     _COMPARISON_TYPES = {"general", "methodology", "findings", "themes"}
     safe_type = type if type in _COMPARISON_TYPES else "general"
-    capped_ids = list(document_ids or [])[:_MAX_COMPARE_DOCUMENTS]
+    over_cap = _reject_over_cap(
+        document_ids, cap=_MAX_COMPARE_DOCUMENTS, noun="documents"
+    )
+    if over_cap:
+        return over_cap
     async with _tool_context(config) as (db, current_user, _page_ctx):
         return await _tool_compare_documents(
-            {"document_ids": capped_ids, "type": safe_type}, db, current_user
+            {"document_ids": list(document_ids or []), "type": safe_type},
+            db,
+            current_user,
         )
 
 
@@ -686,6 +733,11 @@ async def export_bibliography(
     config = config or {}
     from src.services.agent.tools_impl import _tool_export_bibliography
 
+    over_cap = _reject_over_cap(
+        document_ids, cap=_MAX_EXPORT_DOCUMENTS, noun="documents"
+    )
+    if over_cap:
+        return over_cap
     async with _tool_context(config) as (db, current_user, _page_ctx):
         return await _tool_export_bibliography(
             {"document_ids": document_ids, "format": format}, db, current_user
@@ -720,9 +772,19 @@ async def execute_code(
     from src.services.agent.tools_impl import _tool_execute_code
 
     configurable = config.get("configurable", {})
-    thread_id = configurable.get("thread_id", "default")
 
     async with _tool_context(config) as (_db, current_user, _page_ctx):
+        # The sandbox is keyed by this id and is stateful, so a shared literal
+        # fallback ("default") put every thread that arrived without a
+        # thread_id into ONE sandbox — variables and files leaking across
+        # conversations and users. Fall back to the caller's own id, and fail
+        # closed when there isn't one rather than joining the shared box.
+        thread_id = configurable.get("thread_id") or (
+            f"user-{current_user.id}" if current_user else None
+        )
+        if not thread_id:
+            return {"error": "Authentication required"}
+
         return await _tool_execute_code(
             {
                 "code": code,
@@ -764,6 +826,12 @@ async def search_external_database(
     config = config or {}
     from src.services.agent.tools_impl import _tool_search_external_database
 
+    bad_identifier = _reject_invalid_identifier(
+        connector, kind="connector"
+    ) or _reject_invalid_identifier(domain, kind="domain")
+    if bad_identifier:
+        return bad_identifier
+
     args: Dict[str, Any] = {
         "query": query,
         "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_EXTERNAL_CAP),
@@ -800,6 +868,10 @@ async def list_external_databases(
     """
     config = config or {}
     from src.services.agent.tools_impl import _tool_list_external_databases
+
+    bad_identifier = _reject_invalid_identifier(domain, kind="domain")
+    if bad_identifier:
+        return bad_identifier
 
     args: Dict[str, Any] = {}
     safe_domain = _validate_connector_name(domain)

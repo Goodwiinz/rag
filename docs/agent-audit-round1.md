@@ -12,8 +12,8 @@ Source: opencode session, 4 parallel explore agents over backend/src/services/ag
 | M4 | stale `last_user_msg` for multimodal turns (_nodes_llm.py:264-280) → canned greeting answers image-only turn, image never sent | med | open | — | — | 08-16 |
 | M5 | multimodal content raises in `is_conversational` (_nodes_memory.py:166-179, outside try) → gather swallows, memory recall silently dropped every multimodal turn | med | open | — | — | 08-16 |
 | M6 | `return_exceptions=True` (tools_impl.py:3023-3056) — total connector failure returns success-shaped empty result, dedupe blocks retry, misreported to user | med | open | — | — | 08-16 |
-| M7 | invalid connector name silently degrades to fan-out across ALL connectors (tools.py:771-776, tools_impl.py:2992-3018) — typo → ~250-connector HTTP burst | med | open | — | — | 08-16 |
-| M8 | wrapper silently truncates paper_ids to 10 (tools.py:270) — 15 requested → 10 land, "Ingested 10 of 10", 5 vanish, impl's >10 error unreachable | med | open | — | — | 08-16 |
+| M7 | invalid connector name silently degrades to fan-out across ALL connectors (tools.py:771-776, tools_impl.py:2992-3018) — typo → ~250-connector HTTP burst | med | fixed | clawd | #PRNUM | 08-19 |
+| M8 | wrapper silently truncates paper_ids to 10 (tools.py:270) — 15 requested → 10 land, "Ingested 10 of 10", 5 vanish, impl's >10 error unreachable | med | fixed | clawd | #PRNUM | 08-19 |
 | M9 | `_resume_agent_graph` pins asyncpg connection up to 360s (agent_execution_service.py:2442, 2558-2595); same in `_run_agent_graph` skill-off path → pool exhaustion | med | open | — | — | 08-16 |
 | M10 | `set_job` monotonic guard compares stale pre-await `existing` (job_store.py:311-361) → older status resurrects newer cross-worker; redis_only has no guard | med | open | — | — | 08-16 |
 | M11 | circuit-breaker exit + HITL-deny leave dangling tool_calls (_factory.py:182-183, 390-401) → stale previous-turn answer persisted as COMPLETED assistant row | med | open | — | — | 08-16 |
@@ -25,9 +25,9 @@ Source: opencode session, 4 parallel explore agents over backend/src/services/ag
 | L4 | `_LLM_CACHE` key omits credentials (graph.py:244-246) — stale clients after secret rotation without restart | low | open | — | — | 08-16 |
 | L5 | `failed_papers` never reconciled after stub-path success (tools_impl.py:1272-1288) — contradictory payload → false failure report | low | open | — | — | 08-16 |
 | L6 | `list_project_documents` bypasses status mapping (tools_impl.py:2010-2012) — "completed" vs "indexed" inconsistent for same doc | low | open | — | — | 08-16 |
-| L7 | compare_documents cap mismatch: wrapper 10, impl 5 (tools.py:80,528 / tools_impl.py:2299) — guaranteed error loop 6-10 | low | open | — | — | 08-16 |
-| L8 | `export_bibliography` never caps document_ids (tools.py:676-692) — unbounded IN-clause | low | open | — | — | 08-16 |
-| L9 | `execute_code` falls back to thread_id="default" (tools.py:723) — shared stateful sandbox, cross-conversation leakage | low | open | — | — | 08-16 |
+| L7 | compare_documents cap mismatch: wrapper 10, impl 5 (tools.py:80,528 / tools_impl.py:2299) — guaranteed error loop 6-10 | low | fixed | clawd | #PRNUM | 08-19 |
+| L8 | `export_bibliography` never caps document_ids (tools.py:676-692) — unbounded IN-clause | low | fixed | clawd | #PRNUM | 08-19 |
+| L9 | `execute_code` falls back to thread_id="default" (tools.py:723) — shared stateful sandbox, cross-conversation leakage | low | fixed | clawd | #PRNUM | 08-19 |
 | L10 | project_service.py:72 `search` ilike unescaped — wildcard injection broadens match | low | open | — | — | 08-16 |
 | L11 | `_set_job` bypasses L1 monotonic guard, no `_seq` (agent_execution_service.py:119-156) | low | open | — | — | 08-16 |
 | L12 | failed Redis init leaks client per retry (job_store.py:129-135) | low | open | — | — | 08-16 |
