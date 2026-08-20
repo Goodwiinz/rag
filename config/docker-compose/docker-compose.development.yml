@@ -11,7 +11,7 @@ services:
       - "8002:8002"
     environment:
       # Database Configuration
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@}host.docker.internal:54322/postgres
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}
       - REDIS_URL=redis://redis:6379/0
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
@@ -87,7 +87,7 @@ services:
       - SUPABASE_STORAGE_TEMP_DIR=/tmp/rag_storage
     command: >-
       sh -lc "python -m pip show langgraph >/dev/null 2>&1 ||
-      python -m pip install --no-cache-dir langgraph &&
+      python -m pip install --no-cache-dir 'langgraph>=0.4,<2.0' &&
       exec uvicorn src.main:app --host 0.0.0.0 --port 8000"
     volumes:
       - ./backend:/app
@@ -174,7 +174,7 @@ services:
     volumes:
       - redis_dev_data:/data
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     networks:
       - multimodal-rag-network
     restart: unless-stopped
@@ -205,8 +205,8 @@ services:
       - neo4j_dev_import:/var/lib/neo4j/import
       - neo4j_dev_plugins:/plugins
     ports:
-      - "7474:7474" # HTTP
-      - "7687:7687" # Bolt
+      - "127.0.0.1:7474:7474" # HTTP
+      - "127.0.0.1:7687:7687" # Bolt
     networks:
       - multimodal-rag-network
     restart: unless-stopped
@@ -226,7 +226,7 @@ services:
     command: celery -A src.tasks.celery_app worker --loglevel=debug --concurrency=${WORKER_CONCURRENCY:-4} --hostname=worker@rag-celery-worker-dev --queues=celery,document_processing,text_processing,vector_processing,entity_processing,graph_processing
     environment:
       # Database Configuration
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@}host.docker.internal:54322/postgres
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}
       - REDIS_URL=redis://redis:6379/0
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
@@ -301,7 +301,7 @@ services:
       dockerfile: docker/Dockerfile.simple
     command: celery -A src.tasks.celery_app beat --loglevel=debug
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@}host.docker.internal:54322/postgres
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}
       - REDIS_URL=redis://redis:6379/0
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
@@ -326,18 +326,17 @@ services:
     build:
       context: ./backend
       dockerfile: docker/Dockerfile.simple
-    command: python -m celery --broker=redis://redis:6379/0 -A src.tasks.celery_app flower --port=5555 --max_tasks=10000 --purge_offline_workers=60
+    command: python -m celery --broker=redis://redis:6379/0 -A src.tasks.celery_app flower --port=5555 --max_tasks=10000 --purge_offline_workers=60 --basic_auth=${FLOWER_USER:-dev}:${FLOWER_PASSWORD:-dev-only-flower}
     ports:
-      - "5555:5555"
+      - "127.0.0.1:5555:5555"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@}host.docker.internal:54322/postgres
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-jwt-persistent-secret-key-32chars!}
       - ENVIRONMENT=development
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - FLOWER_UNAUTHENTICATED_API=true
     volumes:
       - flower_data:/data
     depends_on:
@@ -352,11 +351,11 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000" # API
-      - "9001:9001" # Console
+      - "127.0.0.1:9000:9000" # API
+      - "127.0.0.1:9001:9001" # Console
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-dev-only-insecure-minio}
     volumes:
       - minio_dev_data:/data
     networks:
@@ -402,7 +401,7 @@ services:
   adminer:
     image: adminer:latest
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       - ADMINER_DEFAULT_SERVER=host.docker.internal
     networks:
@@ -412,7 +411,7 @@ services:
   redis-commander:
     image: rediscommander/redis-commander:latest
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     environment:
       - REDIS_HOSTS=local:redis:6379
     depends_on:
