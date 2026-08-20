@@ -14,6 +14,7 @@ const mockSelectDocument = vi.fn();
 const mockSelectAllDocuments = vi.fn();
 const mockClearSelection = vi.fn();
 const mockDeleteDocument = vi.fn();
+const mockDeleteDocuments = vi.fn();
 const mockDeleteSelectedDocuments = vi.fn();
 const mockRefreshDocuments = vi.fn();
 const mockRetryDocument = vi.fn();
@@ -43,6 +44,7 @@ const defaultHookReturn = {
   selectAllDocuments: mockSelectAllDocuments,
   clearSelection: mockClearSelection,
   deleteDocument: mockDeleteDocument,
+  deleteDocuments: mockDeleteDocuments,
   deleteSelectedDocuments: mockDeleteSelectedDocuments,
   refreshDocuments: mockRefreshDocuments,
   retryDocument: mockRetryDocument,

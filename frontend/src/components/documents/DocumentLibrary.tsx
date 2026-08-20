@@ -77,7 +77,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
     selectAllDocuments,
     clearSelection,
     deleteDocument,
-    deleteSelectedDocuments,
+    deleteDocuments,
     refreshDocuments,
     retryDocument,
   } = useDocuments({ autoFetch: true });
@@ -185,16 +185,12 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
     const totalItems = selectedIds.length;
 
     try {
-      // Delete documents with progress tracking
-      for (let i = 0; i < totalItems; i++) {
-        const documentId = selectedIds[i];
-        if (documentId) {
-          await deleteDocument(documentId);
-        }
-        setDeleteProgress(Math.round(((i + 1) / totalItems) * 100));
-      }
+      // Single refetch after all deletes (R4-M22) — deleteDocuments
+      // continues past per-id failures and reports them together.
+      await deleteDocuments(selectedIds, (done, total) =>
+        setDeleteProgress(Math.round((done / total) * 100))
+      );
 
-      clearSelection();
       setShowBatchDeleteDialog(false);
       toast.success(
         `Deleted ${totalItems} ${totalItems === 1 ? 'document' : 'documents'}`
@@ -207,7 +203,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
       setIsDeleting(false);
       setDeleteProgress(0);
     }
-  }, [selectedDocuments, deleteDocument, clearSelection]);
+  }, [selectedDocuments, deleteDocuments]);
 
   const handleExportSelected = useCallback(async () => {
     // TODO: Implement bulk export functionality
