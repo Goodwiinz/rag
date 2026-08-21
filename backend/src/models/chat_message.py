@@ -151,6 +151,8 @@ class ChatMessage(BaseModel):
     # chat-model calls.
     plan = Column(JSONB, nullable=True)
     token_usage = Column(JSONB, nullable=True)
+    # Display-safe status frames emitted while producing this assistant turn.
+    progress_steps = Column(JSONB, nullable=True)
     # Planner's top-level rationale for `plan` (capped 2000 chars in planner_node).
     plan_reasoning = Column(Text, nullable=True)
 

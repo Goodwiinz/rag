@@ -194,9 +194,7 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
     const row = document.querySelector('.nous-msg-actionrow');
     expect(row).toBeTruthy();
     expect(row?.querySelector('.nous-msg-feedback')).toBeTruthy();
-    expect(
-      row?.querySelector('[aria-label="Good response"]')
-    ).toBeTruthy();
+    expect(row?.querySelector('[aria-label="Good response"]')).toBeTruthy();
 
     // Not hovered: the bar is absent, the rating is not.
     expect(
@@ -290,6 +288,30 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
     ]);
 
     expect(screen.getByText('Execution plan · 0/1')).toBeInTheDocument();
+  });
+
+  it('renders persisted progress in a collapsed reasoning panel', () => {
+    renderByIndex([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'Prepared answer.',
+        timestamp: 2,
+        progressSteps: [
+          { phase: 'accepted', detail: 'Request accepted' },
+          { phase: 'writing', detail: 'Drafting the response' },
+        ],
+      },
+    ]);
+
+    const trigger = screen.getByRole('button', {
+      name: /how this answer was prepared/i,
+    });
+    expect(trigger).toHaveAttribute('data-state', 'closed');
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute('data-state', 'open');
+    expect(screen.getByText('Request accepted')).toBeInTheDocument();
+    expect(screen.getByText('Drafting the response')).toBeInTheDocument();
   });
 });
 
@@ -572,7 +594,9 @@ describe('AuiUserMessage inline edit-and-resend', () => {
     fireEvent.keyDown(textarea, { key: 'Escape' });
 
     await waitFor(() =>
-      expect(screen.queryByLabelText('Edit your message')).not.toBeInTheDocument()
+      expect(
+        screen.queryByLabelText('Edit your message')
+      ).not.toBeInTheDocument()
     );
     // Without an explicit restore, unmounting the focused textarea drops
     // focus to <body> and keyboard users lose their place. The trigger is a

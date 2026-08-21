@@ -29,18 +29,16 @@ import {
   X,
 } from 'lucide-react';
 
-import { motion, useReducedMotion } from 'framer-motion';
-
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback';
 import { CitationRenderer } from '@/components/chat/CitationRenderer';
 import { MessageTiming } from '@/components/elements/message-timing';
+import { ReasoningPanel } from '@/components/elements/reasoning-panel';
 import { RetrievalChunks } from '@/components/elements/retrieval-chunks';
 import { ChatInlinePlan } from '@/components/chat/shared/ChatInlinePlan';
 import { CitationChips } from '@/components/chat/shared/CitationChips';
 import { formatStreamingElapsed } from '@/components/chat/shared/formatStreamingElapsed';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { MessageFeedback } from '@/components/chat/shared/MessageFeedback';
-import { ThinkingMatrix } from '@/components/chat/shared/ThinkingMatrix';
 import { AuiToolParts } from '@/components/chat/aui/AuiToolParts';
 import {
   ToolStrip,
@@ -242,7 +240,9 @@ function MessageActions({
           disabled={retryDisabled}
           className="nous-msg-action"
           aria-label="Regenerate response"
-          title={retryDisabled ? RETRY_UNAVAILABLE_REASON : 'Regenerate response'}
+          title={
+            retryDisabled ? RETRY_UNAVAILABLE_REASON : 'Regenerate response'
+          }
         >
           <RotateCcw className="h-3.5 w-3.5" />
         </button>
@@ -416,35 +416,6 @@ export function AuiUserMessage({
 // INTO ChatInlinePlan, which this file imports, would create an import cycle).
 export { formatStreamingElapsed };
 
-/** Pre-first-token status pill (mirrors the legacy ChatBubble ThinkingPill). */
-function StreamingThinkingPill({
-  label,
-}: {
-  label: string;
-}): ReactElement {
-  const reduce = useReducedMotion();
-  return (
-    <motion.div
-      className="nous-streaming-pill"
-      role="status"
-      aria-live="polite"
-      initial={reduce ? false : { opacity: 0, y: 2 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-    >
-      <ThinkingMatrix />
-      <motion.span
-        key={label}
-        initial={reduce ? false : { opacity: 0, y: 2 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-      >
-        {label}
-      </motion.span>
-    </motion.div>
-  );
-}
-
 function LiveMessageTiming({
   heartbeatMs,
 }: {
@@ -472,19 +443,68 @@ function LiveMessageTiming({
 }
 
 /**
- * Live in-flight execution plan. A separate component (rather than reading
- * `streamingPlan` inside AuiStreamingBody directly) so its own store
- * subscription doesn't widen AuiStreamingBody's re-render surface.
+ * Always-present live reasoning surface. Ordinary turns show the truthful
+ * server activity while explicit agent plans keep their existing detail view.
  */
-function StreamingPlanSection(): ReactElement | null {
+function StreamingReasoningSection({ label }: { label: string }): ReactElement {
   const streamingPlan = useChatStore((s) => s.streamingPlan);
   const streamingSteps = useChatStore((s) => s.streamingSteps);
-  if (streamingPlan.length === 0) return null;
+  const progress = useChatStore((s) => s.streamingProgress);
+  const [open, setOpen] = useState(true);
+
+  const reasoningSteps = (
+    progress.length > 0
+      ? progress
+      : [{ phase: 'accepted' as const, detail: label }]
+  ).map((step, index, all) => ({
+    title: step.detail,
+    body: index === all.length - 1 ? 'In progress' : 'Completed',
+  }));
+
   return (
-    <ChatInlinePlan
-      plan={streamingPlan}
-      toolExecutions={streamingSteps}
-      streaming
+    <>
+      <ReasoningPanel
+        steps={reasoningSteps}
+        visibleSteps={reasoningSteps.length}
+        streaming
+        open={open}
+        onOpenChange={setOpen}
+        restingLabel={label}
+        role="status"
+        aria-live="polite"
+        className="mb-2 max-w-none"
+      />
+      {streamingPlan.length > 0 ? (
+        <ChatInlinePlan
+          plan={streamingPlan}
+          toolExecutions={streamingSteps}
+          streaming
+        />
+      ) : null}
+    </>
+  );
+}
+
+function CompletedProgressSection({
+  message,
+}: {
+  message: ChatPageMessage;
+}): ReactElement | null {
+  const [open, setOpen] = useState(false);
+  if (!message.progressSteps?.length) return null;
+
+  return (
+    <ReasoningPanel
+      steps={message.progressSteps.map((step) => ({
+        title: step.detail,
+        body: 'Completed',
+      }))}
+      visibleSteps={message.progressSteps.length}
+      streaming={false}
+      open={open}
+      onOpenChange={setOpen}
+      restingLabel="How this answer was prepared"
+      className="mb-2 max-w-none"
     />
   );
 }
@@ -539,7 +559,7 @@ function AuiStreamingBody(): ReactElement {
   return (
     <>
       <InlineAgentSummary threadId={threadId} />
-      <StreamingPlanSection />
+      <StreamingReasoningSection label={thinkingLabel} />
       {(isRetrievingRag || retrievalChunks.length > 0) && (
         <RetrievalChunks
           query="Relevant project sources"
@@ -555,9 +575,7 @@ function AuiStreamingBody(): ReactElement {
       {steps.length > 0 && (
         <AuiToolParts messageId="streaming" steps={steps} isStreaming />
       )}
-      {!content ? (
-        <StreamingThinkingPill label={thinkingLabel} />
-      ) : (
+      {content && (
         <div className="nous-chat-body">
           <CitationRenderer
             content={completeStreamingMarkdown(content)}
@@ -638,19 +656,19 @@ export function AuiAssistantMessage({
     // Committed assistant prose is quotable (see QuoteToolbar). Streaming
     // content is deliberately excluded — the text is still moving.
     <div data-quotable>
-    <CitationRenderer
-      content={message.content}
-      citations={allCitations}
-      onCitationClick={(citation) => {
-        if (onCitationClick) {
-          onCitationClick(
-            visibleCitations,
-            citation,
-            message.diagnosticsTraceId
-          );
-        }
-      }}
-    />
+      <CitationRenderer
+        content={message.content}
+        citations={allCitations}
+        onCitationClick={(citation) => {
+          if (onCitationClick) {
+            onCitationClick(
+              visibleCitations,
+              citation,
+              message.diagnosticsTraceId
+            );
+          }
+        }}
+      />
     </div>
   ) : undefined;
 
@@ -726,6 +744,7 @@ export function AuiAssistantMessage({
       className="group relative mb-7 flex justify-start sm:mb-8"
     >
       <div className="min-w-0 flex-1 text-left">
+        {message && <CompletedProgressSection message={message} />}
         {/* Execution plan — committed provenance for agent turns */}
         {message?.plan && message.plan.length > 0 && (
           <ChatInlinePlan

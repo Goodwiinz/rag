@@ -85,6 +85,12 @@ export const AGENT_STREAM_PHASES = [
 
 export type AgentStreamPhase = (typeof AGENT_STREAM_PHASES)[number];
 
+/** Display-safe progress persisted with an assistant turn. */
+export interface AgentProgressStep {
+  phase: AgentStreamPhase;
+  detail: string;
+}
+
 /**
  * `heartbeat` is the keepalive the backend emits during silent planner/LLM
  * phases. It carries `elapsed_ms`, which the consumer surfaces as live

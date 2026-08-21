@@ -3,12 +3,7 @@
  * tokens arrive; the server heartbeat only corrects the local clock.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  act,
-  render,
-  screen,
-  type RenderResult,
-} from '@testing-library/react';
+import { act, render, screen, type RenderResult } from '@testing-library/react';
 
 import { makeChatPageMessage } from '@/test/chatMessageFactory';
 import { useChatStore } from '@/store/chat-store';
@@ -47,11 +42,12 @@ function renderStreamingTurn(): RenderResult {
   );
 }
 
-describe('streaming thinking pill elapsed time', () => {
+describe('streaming reasoning panel and elapsed time', () => {
   beforeEach(() => {
     useChatStore.setState({
       streamingContent: '',
       streamingSteps: [],
+      streamingProgress: [],
       streamingCitations: [],
       isRetrievingRag: false,
       streamingElapsedMs: null,
@@ -66,7 +62,9 @@ describe('streaming thinking pill elapsed time', () => {
     vi.useFakeTimers();
     renderStreamingTurn();
 
-    expect(screen.getByText('Starting')).toBeInTheDocument();
+    expect(
+      document.querySelector('[data-slot="reasoning-panel"]')
+    ).toHaveTextContent('Starting');
     expect(screen.getByText('0.0s')).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(9_400));
     expect(screen.getByText('9.4s')).toBeInTheDocument();
@@ -79,7 +77,9 @@ describe('streaming thinking pill elapsed time', () => {
     });
     renderStreamingTurn();
 
-    expect(screen.getByText('Choosing approach')).toBeInTheDocument();
+    expect(
+      document.querySelector('[data-slot="reasoning-panel"]')
+    ).toHaveTextContent('Choosing approach');
     expect(screen.queryByText('Reading sources')).not.toBeInTheDocument();
   });
 
@@ -91,9 +91,25 @@ describe('streaming thinking pill elapsed time', () => {
     renderStreamingTurn();
 
     expect(
-      screen.getByText('Choosing the safest response path')
-    ).toBeInTheDocument();
+      document.querySelector('[data-slot="reasoning-panel"]')
+    ).toHaveTextContent('Choosing the safest response path');
     expect(screen.queryByText('Choosing approach')).not.toBeInTheDocument();
+  });
+
+  it('shows every explicit server progress step', () => {
+    useChatStore.setState({
+      streamingProgress: [
+        { phase: 'accepted', detail: 'Request accepted' },
+        { phase: 'retrieving', detail: 'Reading relevant sources' },
+        { phase: 'writing', detail: 'Drafting the response' },
+      ],
+    });
+    renderStreamingTurn();
+
+    const panel = document.querySelector('[data-slot="reasoning-panel"]');
+    expect(panel).toHaveTextContent('Request accepted');
+    expect(panel).toHaveTextContent('Reading relevant sources');
+    expect(panel).toHaveTextContent('Drafting the response');
   });
 
   it('keeps message timing visible after answer tokens arrive', () => {
@@ -102,6 +118,9 @@ describe('streaming thinking pill elapsed time', () => {
     renderStreamingTurn();
 
     const timing = document.querySelector('[data-slot="message-timing"]');
+    expect(
+      document.querySelector('[data-slot="reasoning-panel"]')
+    ).toBeTruthy();
     expect(timing).toHaveTextContent('total47.0s');
     expect(timing).toHaveAttribute('aria-live', 'off');
   });

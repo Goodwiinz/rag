@@ -12,7 +12,6 @@
  */
 
 import type { ComponentProps } from 'react';
-import { useLayoutEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 /** Recessed surface for request/result panels. */
@@ -43,15 +42,7 @@ export function ShimmerLabel({
   return <span className={cn(active && 'tool-shimmer', className)} {...props} />;
 }
 
-const labelSwap =
-  'col-start-1 row-start-1 flex w-max items-center gap-1.5 leading-none transition-[opacity,filter] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none';
-const labelSwapIn = 'opacity-100 blur-none';
-const labelSwapOut = 'pointer-events-none select-none opacity-0 blur-[2px]';
-
-/**
- * Cross-fades between two labels while animating the box to the active label's
- * width, so a status change doesn't jump the surrounding layout.
- */
+/** Shows the active label at its native width. */
 export function SwapLabel({
   active,
   children,
@@ -61,39 +52,9 @@ export function SwapLabel({
   children: [React.ReactNode, React.ReactNode];
   className?: string;
 }): React.ReactElement {
-  const layers = [useRef<HTMLSpanElement>(null), useRef<HTMLSpanElement>(null)];
-  const [width, setWidth] = useState<number | null>(null);
-
-  useLayoutEffect(() => {
-    const target = layers[active]?.current;
-    if (!target) return undefined;
-    const measure = (): void =>
-      setWidth(Math.ceil(target.getBoundingClientRect().width));
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(target);
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refs are stable
-  }, [active]);
-
   return (
-    <span
-      style={width === null ? undefined : { width }}
-      className={cn(
-        'grid overflow-x-clip transition-[width] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none',
-        className
-      )}
-    >
-      {children.map((layer, index) => (
-        <span
-          key={index}
-          ref={layers[index]}
-          aria-hidden={active !== index}
-          className={cn(labelSwap, active === index ? labelSwapIn : labelSwapOut)}
-        >
-          {layer}
-        </span>
-      ))}
+    <span className={cn('flex w-max items-center gap-1.5 leading-none', className)}>
+      {children[active]}
     </span>
   );
 }

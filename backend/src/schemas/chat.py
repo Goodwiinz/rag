@@ -398,6 +398,8 @@ class ChatMessageResponse(ChatMessageBase, TimestampMixin):
     # Planner's top-level rationale for `plan`. Null for legacy/non-agent rows.
     plan_reasoning: Optional[str] = None
     token_usage: Optional[dict] = None
+    # Display-safe server-authored progress: [{phase, detail}].
+    progress_steps: Optional[List[dict]] = None
 
     # Nested data
     citations: List[CitationResponse] = []

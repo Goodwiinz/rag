@@ -2345,6 +2345,21 @@
             ],
             "title": "Plan Reasoning"
           },
+          "progress_steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Steps"
+          },
           "role": {
             "$ref": "#/components/schemas/MessageRole-Output",
             "default": "user"
