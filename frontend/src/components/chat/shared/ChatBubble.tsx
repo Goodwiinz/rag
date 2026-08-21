@@ -133,11 +133,6 @@ export const ChatBubble = React.memo(function ChatBubble({
     (message.toolExecutions && message.toolExecutions.length > 0
       ? message.toolExecutions.map((s) => s.label)
       : undefined);
-  // The execution plan's header shows its own "took …" duration — when a
-  // plan is present, the clock moved there (see ToolStrip.getToolStripProps).
-  const hasPlan = !!message.plan && message.plan.length > 0;
-  const stripResponseMs = hasPlan ? undefined : message.metadata?.responseTimeMs;
-
   // Steps to show in the activity strip:
   // — while streaming: live store steps (scoped to this turn)
   // — after commit: persisted toolExecutions on the message
@@ -205,8 +200,6 @@ export const ChatBubble = React.memo(function ChatBubble({
             reasoning={message.planReasoning}
             toolExecutions={activitySteps}
             streaming={isStreaming}
-            elapsedMs={message.metadata?.responseTimeMs}
-            ttftMs={message.metadata?.ttftMs}
           />
         )}
 
@@ -215,8 +208,8 @@ export const ChatBubble = React.memo(function ChatBubble({
           <ToolStrip
             toolsUsed={stripToolsUsed}
             sourcesCount={stripSourcesCount}
-            responseTimeMs={stripResponseMs}
-            ttftMs={hasPlan ? undefined : message.metadata?.ttftMs}
+            responseTimeMs={message.metadata?.responseTimeMs}
+            ttftMs={message.metadata?.ttftMs}
             stopped={message.metadata?.stopped}
             tokenUsage={message.metadata?.tokenUsage}
           />

@@ -469,13 +469,20 @@ class Settings(BaseSettings):
     AZURE_OPENAI_EMBEDDING_API_KEY: Optional[str] = None
 
     # Lightweight model for auxiliary agent tasks (classifier, compactor, etc.)
-    AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT: Optional[str] = None
+    #
+    # 2026-08-20: nano/mini tiering retired — every role defaults to
+    # gpt-5.6-luna. The tool-loop audit (trace 01a0209b) showed the cheap
+    # tiers doing the error-recovery reasoning where they measurably
+    # misbehaved (blind retry loops, premature "which paper?" stalls).
+    # NOTE: env values override these defaults — remove any
+    # AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT / AZURE_OPENAI_SYNTHESIS_DEPLOYMENT
+    # secrets still pointing at gpt-5-nano / gpt-5-mini (Infisical /do-kb).
+    AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT: Optional[str] = "gpt-5.6-luna"
 
-    # Optional separate deployment for post-tool prose synthesis. Falls back
-    # to AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT when unset. Use a slightly
-    # stronger model here (e.g. gpt-5-mini) while keeping classifier/planner
-    # on nano. Cheap tier for routing, mid tier for final-answer quality.
-    AZURE_OPENAI_SYNTHESIS_DEPLOYMENT: Optional[str] = None
+    # Separate deployment for post-tool prose synthesis. Falls back to
+    # AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT when unset. Same deployment as the
+    # lightweight tier since the nano/mini retirement.
+    AZURE_OPENAI_SYNTHESIS_DEPLOYMENT: Optional[str] = "gpt-5.6-luna"
 
     # Dedicated evidence-independent chat lane. Kept separate from the main
     # deployment so rollout/rollback never changes tool-calling behavior.

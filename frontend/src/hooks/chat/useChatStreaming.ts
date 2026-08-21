@@ -27,7 +27,10 @@ import {
 } from '@/store/chat-store';
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { useArtifactPanelStore } from '@/store/artifactPanelStore';
-import { toolLabel } from '@/components/context-rail/toolLabels';
+import {
+  toolLabel,
+  toolStatusLabel,
+} from '@/components/context-rail/toolLabels';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation } from '@/types/workspace';
 import type { CitationCreate, DbToolExecution } from '@/types/workspace';
@@ -690,6 +693,7 @@ export function useChatStreaming(
           // Fresh turn — drop the previous turn's heartbeat reading.
           streamingElapsedMs: null,
           streamingPhase: 'accepted',
+          streamingStatusDetail: null,
           streamingThreadId: turnThreadId,
         });
 
@@ -740,11 +744,14 @@ export function useChatStreaming(
             },
             onHeartbeat: (elapsedMs) => {
               // The only progress signal during a long silent planner/LLM
-              // phase — rendered on the thinking pill.
+              // phase — used to correct the live MessageTiming clock.
               useChatStore.setState({ streamingElapsedMs: elapsedMs });
             },
-            onStatus: (phase) => {
-              useChatStore.setState({ streamingPhase: phase });
+            onStatus: (phase, detail) => {
+              useChatStore.setState({
+                streamingPhase: phase,
+                streamingStatusDetail: detail ?? null,
+              });
             },
             onStreamId: (sid) => {
               if (!currentThreadId) return;
@@ -793,7 +800,10 @@ export function useChatStreaming(
                 argsSummary: summarizeToolArgs(args),
                 ...(args && typeof args === 'object' ? { args } : {}),
               });
-              useChatStore.setState({ streamingSteps: [...turnSteps] });
+              useChatStore.setState({
+                streamingSteps: [...turnSteps],
+                streamingStatusDetail: toolStatusLabel(tool, 'active'),
+              });
             },
             onToolEnd: (tool, result, isError) => {
               console.log('[Agent] Tool end:', tool, result, { isError });
@@ -825,13 +835,22 @@ export function useChatStreaming(
                   resultSummary: summarizeToolResult(result),
                 };
               }
-              useChatStore.setState({ streamingSteps: [...turnSteps] });
+              useChatStore.setState({
+                streamingSteps: [...turnSteps],
+                streamingStatusDetail: toolStatusLabel(
+                  tool,
+                  isError ? 'error' : 'done'
+                ),
+              });
             },
             onRagContext: (contexts) => {
               console.log('[Agent] RAG contexts:', contexts.length);
               useChatStore.setState({
                 streamingCitations: contexts,
                 isRetrievingRag: false,
+                streamingStatusDetail: `Reading ${contexts.length} ${
+                  contexts.length === 1 ? 'source' : 'sources'
+                }`,
               });
             },
             onPlan: (steps, reasoning) => {
@@ -842,7 +861,10 @@ export function useChatStreaming(
               // Live copy for the in-flight transcript row (AuiStreamingBody)
               // — lets the plan render WHILE the turn streams, not only
               // after commit. Plan events fire once per run, not per token.
-              useChatStore.setState({ streamingPlan: [...turnPlan] });
+              useChatStore.setState({
+                streamingPlan: [...turnPlan],
+                streamingStatusDetail: 'Working through the plan',
+              });
               if (!currentThreadId) return;
               const items = toActivityPlanItems(steps);
               if (items.length > 0) {
@@ -1544,7 +1566,7 @@ export function useChatStreaming(
     if (!threadId || isLoading) return;
     // A pending confirmation means the graph is deliberately parked waiting
     // for this user — not an interrupted stream to recover. Resuming here
-    // fired on every HITL pause: it rendered a phantom "Reflecting" bubble
+    // fired on every HITL pause: it rendered a phantom "Thinking" bubble
     // under the card, its empty replay wiped the card, and its 204 closed the
     // activity rail while the graph was still interrupted.
     if (pendingConfirmation) return;
@@ -1820,6 +1842,7 @@ export function useChatStreaming(
           streamingCitations: carriedCitations,
           streamingElapsedMs: null,
           streamingPhase: 'accepted',
+          streamingStatusDetail: null,
           streamingThreadId: pendingConfirmation.workspaceThreadId || null,
         });
 
@@ -1916,8 +1939,11 @@ export function useChatStreaming(
               onHeartbeat: (elapsedMs) => {
                 useChatStore.setState({ streamingElapsedMs: elapsedMs });
               },
-              onStatus: (phase) => {
-                useChatStore.setState({ streamingPhase: phase });
+              onStatus: (phase, detail) => {
+                useChatStore.setState({
+                  streamingPhase: phase,
+                  streamingStatusDetail: detail ?? null,
+                });
               },
               // Same resume-cursor bookkeeping as the primary stream. Without
               // it the cursor froze at whatever seq the pre-interrupt turn
@@ -1968,7 +1994,10 @@ export function useChatStreaming(
                   argsSummary: summarizeToolArgs(args),
                   ...(args && typeof args === 'object' ? { args } : {}),
                 });
-                useChatStore.setState({ streamingSteps: [...confirmSteps] });
+                useChatStore.setState({
+                  streamingSteps: [...confirmSteps],
+                  streamingStatusDetail: toolStatusLabel(tool, 'active'),
+                });
               },
               onToolEnd: (tool, result, isError) => {
                 useAgentActivityStore
@@ -2008,19 +2037,31 @@ export function useChatStreaming(
                     resultSummary: summarizeToolResult(result),
                   };
                 }
-                useChatStore.setState({ streamingSteps: [...confirmSteps] });
+                useChatStore.setState({
+                  streamingSteps: [...confirmSteps],
+                  streamingStatusDetail: toolStatusLabel(
+                    tool,
+                    isError ? 'error' : 'done'
+                  ),
+                });
               },
               onRagContext: (contexts) => {
                 resumeCitations = contexts;
                 useChatStore.setState({
                   streamingCitations: [...carriedCitations, ...contexts],
                   isRetrievingRag: false,
+                  streamingStatusDetail: `Reading ${contexts.length} ${
+                    contexts.length === 1 ? 'source' : 'sources'
+                  }`,
                 });
               },
               onPlan: (steps, reasoning) => {
                 confirmPlan = toTurnPlan(steps);
                 confirmPlanReasoning = reasoning;
-                useChatStore.setState({ streamingPlan: [...confirmPlan] });
+                useChatStore.setState({
+                  streamingPlan: [...confirmPlan],
+                  streamingStatusDetail: 'Working through the plan',
+                });
                 const items = toActivityPlanItems(steps);
                 if (pendingConfirmation.workspaceThreadId && items.length > 0) {
                   useAgentActivityStore

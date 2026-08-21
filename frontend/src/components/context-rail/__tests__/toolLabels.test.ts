@@ -13,7 +13,7 @@ describe('toolLabel', () => {
     ['kg_query', 'Query knowledge graph'],
     ['project_create', 'Create project'],
     ['compare_documents', 'Compare documents'],
-    ['reflect', 'Reflect on progress'],
+    ['reflect', 'Review progress'],
   ])('maps %s → %s', (tool, expected) => {
     expect(toolLabel(tool)).toBe(expected);
   });

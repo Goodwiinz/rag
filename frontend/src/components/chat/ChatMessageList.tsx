@@ -247,7 +247,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const lastIndex = messages.length - 1;
   const isVirtualized = messages.length > MESSAGE_VIRTUALIZATION_THRESHOLD;
   // Phase-aware "thinking" label (the pill only shows before any token arrives).
-  const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Reflecting';
+  const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Thinking';
 
   // Memoize the committed message list so it doesn't re-map on every
   // streaming token. The in-flight turn streams via its own placeholder

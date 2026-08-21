@@ -1,9 +1,12 @@
 'use client';
 
 import React from 'react';
-import { Clock, Coins, Search, Square } from 'lucide-react';
+import { Search, Square } from 'lucide-react';
 
-import { formatTurnSplit } from './formatStreamingElapsed';
+import {
+  MessageTiming,
+  type TimingStat,
+} from '@/components/elements/message-timing';
 import type { ChatPageMessage } from './cloudMessageView';
 
 /** Compact token count: 1234 → "1.2k", 2_500_000 → "2.5M", <1000 verbatim. */
@@ -33,10 +36,6 @@ export function getToolStripProps(
   message: ChatPageMessage,
   visibleCitationsCount: number
 ): ToolStripProps {
-  // The execution plan's header shows its own "took …" duration (Chat
-  // InlinePlan) — when a plan is present, the clock moved there. Showing it
-  // twice is worse than moving it, so the strip omits it in that case.
-  const hasPlan = !!message.plan && message.plan.length > 0;
   return {
     toolsUsed:
       message.metadata?.toolsUsed ??
@@ -44,8 +43,8 @@ export function getToolStripProps(
         ? message.toolExecutions.map((s) => s.label)
         : undefined),
     sourcesCount: message.metadata?.sourcesCount ?? visibleCitationsCount,
-    responseTimeMs: hasPlan ? undefined : message.metadata?.responseTimeMs,
-    ttftMs: hasPlan ? undefined : message.metadata?.ttftMs,
+    responseTimeMs: message.metadata?.responseTimeMs,
+    ttftMs: message.metadata?.ttftMs,
     stopped: message.metadata?.stopped,
     tokenUsage: message.metadata?.tokenUsage,
   };
@@ -64,12 +63,27 @@ export function ToolStrip({
   stopped,
   tokenUsage,
 }: ToolStripProps): React.JSX.Element | null {
-  // One decimal, matching the total rendered below.
-  const split = formatTurnSplit(responseTimeMs, ttftMs, (ms) =>
-    `${(ms / 1000).toFixed(1)}s`
-  );
   const hasTokens =
     !!tokenUsage && (tokenUsage.input > 0 || tokenUsage.output > 0);
+  const timingStats: TimingStat[] = [];
+  if (ttftMs && ttftMs > 0) {
+    timingStats.push({
+      label: 'first word',
+      value: `${(ttftMs / 1000).toFixed(1)}s`,
+    });
+  }
+  if (responseTimeMs && responseTimeMs > 0) {
+    timingStats.push({
+      label: 'total',
+      value: `${(responseTimeMs / 1000).toFixed(1)}s`,
+    });
+  }
+  if (hasTokens && tokenUsage) {
+    timingStats.push({
+      label: 'tokens',
+      value: `${formatTokenCount(tokenUsage.input)} in · ${formatTokenCount(tokenUsage.output)} out`,
+    });
+  }
   const hasAny =
     (toolsUsed && toolsUsed.length > 0) ||
     (sourcesCount && sourcesCount > 0) ||
@@ -107,27 +121,11 @@ export function ToolStrip({
           )}
         </>
       )}
-      {responseTimeMs && responseTimeMs > 0 && (
-        <span
-          className="nous-tool-strip-time inline-flex items-center gap-1"
-          title={split.title}
-        >
-          <Clock className="w-2.5 h-2.5" strokeWidth={2} />
-          {(responseTimeMs / 1000).toFixed(1)}s
-          {split.suffix && (
-            <span className="text-(--nous-fg-3)">· {split.suffix}</span>
-          )}
-        </span>
-      )}
-      {hasTokens && tokenUsage && (
-        <span
-          className="nous-tool-strip-tokens inline-flex items-center gap-1"
-          title={`${tokenUsage.input.toLocaleString()} input tokens · ${tokenUsage.output.toLocaleString()} output tokens (this turn)`}
-        >
-          <Coins className="w-2.5 h-2.5" strokeWidth={2} />
-          {formatTokenCount(tokenUsage.input)} in ·{' '}
-          {formatTokenCount(tokenUsage.output)} out
-        </span>
+      {timingStats.length > 0 && (
+        <MessageTiming
+          stats={timingStats}
+          className="w-auto max-w-none gap-x-3 [&>span>span:first-child]:text-(--nous-fg-3) [&>span>span:last-child]:text-(--nous-fg-2)"
+        />
       )}
       {stopped && (
         <span

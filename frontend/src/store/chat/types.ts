@@ -109,6 +109,8 @@ export interface ChatState {
   streamingElapsedMs: number | null;
   /** Truthful server-reported phase for the pre-first-token status pill. */
   streamingPhase: AgentStreamPhase | null;
+  /** Specific server/tool activity shown beside the phase matrix. */
+  streamingStatusDetail: string | null;
   // CX5: the workspace thread id that owns the CURRENT live stream (both the
   // main runStreamTurn path and the separate HITL confirm-resume path stamp
   // this). isStreaming etc. above stay global — single-flight streaming is
