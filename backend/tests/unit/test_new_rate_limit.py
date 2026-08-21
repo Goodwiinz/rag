@@ -1,11 +1,13 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from src.core.config import settings
 from src.core.rate_limit import (
     InMemoryRateLimiter,
     RedisRateLimiter,
     create_rate_limiter,
 )
-from src.core.config import settings
 
 
 @pytest.mark.asyncio
