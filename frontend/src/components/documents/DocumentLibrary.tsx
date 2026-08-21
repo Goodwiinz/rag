@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { debounce } from 'lodash-es';
 import {
   DocumentPlusIcon,
   MagnifyingGlassIcon,
@@ -33,7 +34,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Document } from '@/types';
+import { Document, UI_CONFIG } from '@/types';
 import toast from 'react-hot-toast';
 
 // Helper function to format file sizes
@@ -77,7 +78,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
     selectAllDocuments,
     clearSelection,
     deleteDocument,
-    deleteSelectedDocuments,
+    deleteDocuments,
     refreshDocuments,
     retryDocument,
   } = useDocuments({ autoFetch: true });
@@ -95,12 +96,26 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
   const [showBulkActionsMenu, setShowBulkActionsMenu] = useState(false);
   const [retryingDocument, setRetryingDocument] = useState<string | null>(null);
 
+  // Debounce the filter update (and its fetch) so typing doesn't fire one
+  // request per keystroke (R4-L23); the input itself stays responsive since
+  // setSearchQuery is not debounced.
+  const debouncedUpdateFilters = useMemo(
+    () =>
+      debounce(
+        (query: string) => updateFilters({ search_term: query || undefined }),
+        UI_CONFIG.DEBOUNCE_DELAY_MS
+      ),
+    [updateFilters]
+  );
+
+  useEffect(() => () => debouncedUpdateFilters.cancel(), [debouncedUpdateFilters]);
+
   const handleSearch = useCallback(
     (query: string) => {
       setSearchQuery(query);
-      updateFilters({ search_term: query || undefined });
+      debouncedUpdateFilters(query);
     },
-    [updateFilters]
+    [debouncedUpdateFilters]
   );
 
   const handleFileTypeFilter = useCallback(
@@ -185,17 +200,12 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
     const totalItems = selectedIds.length;
 
     try {
-      // Delete documents with progress tracking
-      for (let i = 0; i < totalItems; i++) {
-        const documentId = selectedIds[i];
-        if (documentId) {
-          await deleteDocument(documentId);
-        }
-        setDeleteProgress(Math.round(((i + 1) / totalItems) * 100));
-      }
+      // Single refetch after all deletes (R4-M22) — deleteDocuments
+      // continues past per-id failures and reports them together.
+      await deleteDocuments(selectedIds, (done, total) =>
+        setDeleteProgress(Math.round((done / total) * 100))
+      );
 
-      clearSelection();
-      setShowBatchDeleteDialog(false);
       toast.success(
         `Deleted ${totalItems} ${totalItems === 1 ? 'document' : 'documents'}`
       );
@@ -204,10 +214,14 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
       const message = error instanceof Error ? error.message : 'Unknown error';
       toast.error(`Failed to delete documents: ${message}`);
     } finally {
+      // Always close — on partial failure the dialog would otherwise stay
+      // open showing a stale "Delete 0 documents?" (selection is already
+      // pruned by deleteDocuments by the time we get here).
+      setShowBatchDeleteDialog(false);
       setIsDeleting(false);
       setDeleteProgress(0);
     }
-  }, [selectedDocuments, deleteDocument, clearSelection]);
+  }, [selectedDocuments, deleteDocuments]);
 
   const handleExportSelected = useCallback(async () => {
     // TODO: Implement bulk export functionality
@@ -615,7 +629,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                   </p>
                   <p className="text-sm text-red-700">
                     {documentToDelete.filename} •{' '}
-                    {formatFileSize(documentToDelete.file_size)}
+                    {formatFileSize(documentToDelete.file_size ?? 0)}
                   </p>
                 </div>
               </div>

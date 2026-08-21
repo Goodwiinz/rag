@@ -493,13 +493,16 @@ export class APIClient {
             resolve({} as T);
           }
         } else {
-          reject(
-            new APIErrorClass({
-              message: xhr.statusText || 'Upload failed',
-              status_code: xhr.status,
-              type: 'http_error',
-            })
-          );
+          // Parse the backend's structured error envelope (e.g. the
+          // FileValidationError detail message) instead of discarding it in
+          // favor of the generic xhr.statusText (R4-M24).
+          let body: unknown = {};
+          try {
+            body = JSON.parse(xhr.responseText);
+          } catch {
+            // Response body may not be JSON
+          }
+          reject(this.toAPIError(body, xhr.status, xhr.statusText || 'Upload failed'));
         }
       };
 
@@ -655,19 +658,30 @@ export class APIClient {
       // Response body may not be JSON
     }
 
+    return this.toAPIError(errorData, response.status, response.statusText);
+  }
+
+  // Shared by handleErrorResponse (fetch path) and uploadWithProgress's XHR
+  // error branch (R4-M24) — both need the same envelope-parsing → APIErrorClass
+  // construction, just from a differently-sourced raw body.
+  private toAPIError(
+    body: unknown,
+    statusCode: number,
+    statusText: string
+  ): APIErrorClass {
     // The backend rewrites every error into the structured envelope
     // `{ error: { message, status_code, type, details? } }`. Parse it so the
     // user sees the real cause, and surface `type` so callers can branch on
     // auth_error / rate_limit instead of only the raw HTTP status text.
-    const parsed = parseErrorBody(errorData, response.statusText);
+    const parsed = parseErrorBody(body, statusText);
     const rawDetails =
-      typeof errorData === 'object' && errorData !== null
-        ? (errorData as Record<string, unknown>)
+      typeof body === 'object' && body !== null
+        ? (body as Record<string, unknown>)
         : undefined;
 
     return new APIErrorClass({
       message: parsed.message,
-      status_code: response.status,
+      status_code: statusCode,
       type: parsed.type ?? 'http_error',
       details: parsed.details ?? rawDetails,
       ...(parsed.silent !== undefined ? { silent: parsed.silent } : {}),

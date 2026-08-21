@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useDocuments } from '@/hooks/useDocuments';
 import { Upload, RefreshCw, FolderOpen, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useSyncExternalStore } from 'react';
 import { Pagination } from '../../components/Pagination';
 import { DocumentStats } from './components/DocumentStats';
 import { DocumentFilters } from './components/DocumentFilters';
@@ -22,9 +22,23 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
+/** Mount state can never change again for the life of this store. */
+function _subscribeNever(): () => void {
+  return () => {};
+}
+
 export default function DocumentsPage() {
   const { isAuthenticated } = useAuthStore();
-  const [mounted, setMounted] = useState(false);
+  // Hydration guard: server always renders null (see getServerSnapshot),
+  // client flips true on first paint. useSyncExternalStore instead of
+  // useState+effect avoids the react-hooks/set-state-in-effect violation a
+  // mount-flag effect would otherwise trip (see ChatInput.tsx for the same
+  // pattern used elsewhere in this repo).
+  const mounted = useSyncExternalStore(
+    _subscribeNever,
+    () => true,
+    () => false
+  );
 
   const {
     documents: rawDocuments,
@@ -34,7 +48,7 @@ export default function DocumentsPage() {
     filters,
     updateFilters,
     deleteDocument,
-    deleteSelectedDocuments,
+    deleteDocuments,
     refreshDocuments,
     selectDocument,
     selectAllDocuments,
@@ -51,10 +65,6 @@ export default function DocumentsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Update backend filters when local state changes
   useEffect(() => {
@@ -109,7 +119,8 @@ export default function DocumentsPage() {
   const confirmBulkDelete = async () => {
     setIsBulkDeleting(true);
     try {
-      await deleteSelectedDocuments();
+      // Single refetch after the whole batch, not one per id (R4-M22).
+      await deleteDocuments(Array.from(selectedDocuments));
     } catch (err) {
       console.error('Failed to delete documents:', err);
     } finally {

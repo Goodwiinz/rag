@@ -2,7 +2,17 @@
 export const UPLOAD_LIMITS = {
   MAX_FILE_SIZE_MB: 50,
   MAX_FILES_PER_UPLOAD: 10,
-  SUPPORTED_FORMATS: ['pdf', 'txt', 'jpg', 'jpeg', 'png', 'mp3', 'mp4'],
+  // Source of truth: `allowed_extensions` in
+  // backend/src/services/documents/file_service.py (dots stripped) — keep in
+  // sync with that list (R4-M24).
+  // prettier-ignore
+  SUPPORTED_FORMATS: [
+    'txt', 'md', 'pdf', 'docx', 'doc', 'xlsx', 'xls', 'csv', 'pptx', 'ppt',
+    'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff',
+    'mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a',
+    'mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm',
+    'zip', 'rar',
+  ],
   CHUNK_SIZE_BYTES: 1024 * 1024, // 1MB chunks for large files
 } as const;
 

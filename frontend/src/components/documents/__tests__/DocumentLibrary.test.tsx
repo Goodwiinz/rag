@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Document } from '@/types';
 
@@ -14,7 +14,7 @@ const mockSelectDocument = vi.fn();
 const mockSelectAllDocuments = vi.fn();
 const mockClearSelection = vi.fn();
 const mockDeleteDocument = vi.fn();
-const mockDeleteSelectedDocuments = vi.fn();
+const mockDeleteDocuments = vi.fn();
 const mockRefreshDocuments = vi.fn();
 const mockRetryDocument = vi.fn();
 
@@ -43,7 +43,7 @@ const defaultHookReturn = {
   selectAllDocuments: mockSelectAllDocuments,
   clearSelection: mockClearSelection,
   deleteDocument: mockDeleteDocument,
-  deleteSelectedDocuments: mockDeleteSelectedDocuments,
+  deleteDocuments: mockDeleteDocuments,
   refreshDocuments: mockRefreshDocuments,
   retryDocument: mockRetryDocument,
 };
@@ -260,19 +260,24 @@ describe('DocumentLibrary', () => {
     ).toBeInTheDocument();
   });
 
-  it('calls updateFilters when typing in the search input', async () => {
+  it('debounces updateFilters while typing in the search input (R4-L23)', async () => {
+    // ponytail: fake timers + userEvent.type hang here even with the
+    // documented `advanceTimers` option (tried first, per review) — falls
+    // back to real timers + waitFor, which is deterministic enough (no
+    // fixed sleep) without depending on fake-timer/userEvent interop.
     const user = userEvent.setup();
     render(<DocumentLibrary />);
 
     const searchInput = screen.getByPlaceholderText('Search documents...');
     await user.type(searchInput, 'report');
+    expect(searchInput).toHaveValue('report');
 
-    // updateFilters should have been called for each keystroke
-    expect(mockUpdateFilters).toHaveBeenCalled();
-    // The last call should include the full typed string
-    const lastCall =
-      mockUpdateFilters.mock.calls[mockUpdateFilters.mock.calls.length - 1];
-    expect(lastCall[0]).toEqual({ search_term: 'report' });
+    // Only once the debounce delay elapses does a single call go out, with
+    // the final typed value (not one call per keystroke).
+    await waitFor(() =>
+      expect(mockUpdateFilters).toHaveBeenCalledWith({ search_term: 'report' })
+    );
+    expect(mockUpdateFilters).toHaveBeenCalledTimes(1);
   });
 
   // ---------------------------------------------------------------
