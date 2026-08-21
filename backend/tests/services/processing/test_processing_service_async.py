@@ -15,6 +15,7 @@ import asyncio
 import inspect
 import sys
 import uuid
+from collections.abc import Iterable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -33,7 +34,7 @@ def _async_db() -> MagicMock:
     return db
 
 
-def _result(scalar=None, scalars=()) -> MagicMock:
+def _result(scalar: object = None, scalars: "Iterable[object]" = ()) -> MagicMock:
     r = MagicMock()
     r.scalar_one_or_none.return_value = scalar
     r.scalars.return_value.all.return_value = list(scalars)
@@ -87,7 +88,7 @@ def test_process_document_awaits_session_and_queues() -> None:
     db = _async_db()
     db.execute.return_value = _result(scalar=_pending_document())
     pipeline = _pipeline(db)
-    pipeline.queue_processing_job = AsyncMock()
+    pipeline.queue_processing_job = AsyncMock()  # type: ignore[method-assign]
 
     job = asyncio.run(pipeline.process_document("doc-1", "user-1", "org-1"))
 
@@ -181,7 +182,7 @@ def test_retry_failed_jobs_retries_eligible() -> None:
     db = _async_db()
     db.execute.return_value = _result(scalars=[retryable, stuck])
     pipeline = _pipeline(db)
-    pipeline.queue_processing_job = AsyncMock()
+    pipeline.queue_processing_job = AsyncMock()  # type: ignore[method-assign]
 
     count = asyncio.run(pipeline.retry_failed_jobs(organization_id="org-1"))
 
