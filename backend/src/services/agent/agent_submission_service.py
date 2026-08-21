@@ -70,6 +70,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional, cast
 from uuid import UUID, uuid4
 
+from asyncpg.exceptions import ConnectionDoesNotExistError
 from sqlalchemy import case, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -843,7 +844,14 @@ async def finalize_submission(
                 await db.rollback()
             except Exception:
                 logger.debug("rollback after finalize failure failed", exc_info=True)
-            lost_connection = bool(getattr(exc, "connection_invalidated", False))
+            orig = getattr(exc, "orig", None)
+            lost_connection = (
+                bool(getattr(exc, "connection_invalidated", False))
+                or isinstance(orig, ConnectionDoesNotExistError)
+                or isinstance(
+                    getattr(orig, "__cause__", None), ConnectionDoesNotExistError
+                )
+            )
             if lost_connection and attempt + 1 < _FINALIZE_ATTEMPTS:
                 logger.warning(
                     "finalize_submission lost its connection for run %s, retrying",
