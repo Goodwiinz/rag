@@ -23,7 +23,7 @@ describe('APIClient upload error surfacing', () => {
     }));
   });
 
-  function mockXhr(status: number, statusText: string, responseText: string) {
+  function mockXhr(status: number, statusText: string, responseText: string): void {
     class MockXMLHttpRequest {
       upload = { onprogress: null as ((e: ProgressEvent) => void) | null };
       onload: (() => void) | null = null;
@@ -32,9 +32,9 @@ describe('APIClient upload error surfacing', () => {
       statusText = statusText;
       responseText = responseText;
 
-      open() {}
-      setRequestHeader() {}
-      send() {
+      open(): void {}
+      setRequestHeader(): void {}
+      send(): void {
         if (this.onload) this.onload();
       }
     }
