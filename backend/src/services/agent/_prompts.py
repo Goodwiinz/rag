@@ -230,7 +230,12 @@ SHARED_AGENT_RULES = (
     'for a project named "ML in FinTech"). Do not use arXiv paper IDs that appear in '
     "conversation history as the search_arxiv query — arXiv IDs are inputs to "
     "ingest_arxiv_papers, not search_arxiv. If you need to fetch one specific known paper, "
-    "use ingest_arxiv_papers directly with that ID.\n\n"
+    "use ingest_arxiv_papers directly with that ID.\n"
+    "arXiv search has NO venue or conference field. Never put publication venues "
+    "(NeurIPS, ICML, ICLR, ACL, EMNLP, CVPR, AAAI, arXiv, 'proceedings', "
+    "'workshop', etc.) in the search_arxiv query — they match almost no papers "
+    "and turn the whole AND query empty. Use topic keywords only, and do not "
+    "repeat the same term (quoted or unquoted) more than once.\n\n"
     "## Reusing document IDs from conversation history\n"
     'When the user says "it", "this paper", "that document", "the one I just '
     'added", or any short follow-up referring to a recent document, resolve to '
@@ -303,6 +308,13 @@ _LLM_NODE_STATIC_PROMPT = (
     "project_id (real UUID from list_projects) to target a DIFFERENT project. "
     "Never invent IDs like 'proj_12345' — they are rejected and the tool "
     "falls back to page context.\n"
+    "The same project_id rule applies to create_project_note and "
+    "add_document_to_project: when a project page is active, OMIT project_id "
+    "so the active project is used. Pass an explicit project_id ONLY when the "
+    "user explicitly names a different project to write into. Never infer or "
+    "pick a project from the note's topic, title, or contents, and never reuse "
+    "a project_id from a list_projects result unless the user named that "
+    "project — doing so silently files the note in the wrong project.\n"
     "If a tool returns an error, report the error honestly to the user.\n\n"
     "## Honest result reporting\n"
     "When a tool returns documents_ingested=0, total=0, an empty array, "
