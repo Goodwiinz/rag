@@ -63,8 +63,18 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         session_id = str(uuid.uuid4())
 
+        # R5-M22: derive the tenant scope from the verified token (TokenData's
+        # organization_id claim, threaded through by WebSocketAuthenticator),
+        # never from anything the client sends after connecting.
+        organization_id_raw = user_payload.get("organization_id")
+        organization_id = (
+            uuid.UUID(organization_id_raw) if organization_id_raw else None
+        )
+
         # Handle WebSocket connection
-        await realtime_service.websocket_endpoint(websocket, user_id, session_id)
+        await realtime_service.websocket_endpoint(
+            websocket, user_id, session_id, organization_id=organization_id
+        )
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
@@ -150,9 +160,21 @@ async def list_subscriptions(
 async def publish_metric(
     metric_data: LiveMetricData, current_user: User = Depends(get_current_user)
 ):
-    """Publish a live metric value"""
+    """Publish a live metric value.
+
+    R5-M22: the target channel is namespaced to the caller's own org — a
+    caller can never publish onto (or thereby broadcast into) another org's
+    channel, regardless of what ``metric_data.channel`` names.
+    """
+    if current_user.organization_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No organization scope for this account",
+        )
     try:
-        await realtime_service.publish_metric(metric_data)
+        await realtime_service.publish_metric(
+            metric_data, organization_id=current_user.organization_id
+        )
         return {"message": "Metric published successfully"}
 
     except Exception as e:
@@ -167,9 +189,20 @@ async def publish_metric(
 async def publish_event(
     event_data: EventStreamData, current_user: User = Depends(get_current_user)
 ):
-    """Publish an event stream"""
+    """Publish an event stream.
+
+    R5-M22: each target channel is namespaced to the caller's own org, same
+    as publish_metric.
+    """
+    if current_user.organization_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No organization scope for this account",
+        )
     try:
-        await realtime_service.publish_event(event_data)
+        await realtime_service.publish_event(
+            event_data, organization_id=current_user.organization_id
+        )
         return {"message": "Event published successfully"}
 
     except Exception as e:
@@ -288,46 +321,8 @@ async def check_realtime_health(current_user: User = Depends(get_current_user)):
         }
 
 
-@router.post("/test/subscribe", status_code=status.HTTP_200_OK)
-async def test_subscription(
-    channel: str = Query(..., description="Channel to test subscription"),
-    message_count: int = Query(10, ge=1, le=100, description="Number of test messages"),
-    current_user: User = Depends(get_current_user),
-):
-    """Test real-time subscription with sample data"""
-    try:
-        # Generate test messages
-        for i in range(message_count):
-            test_metric = LiveMetricData(
-                metric_id=f"test_metric_{i}",
-                metric_name=f"Test Metric {i}",
-                channel=channel,
-                current_value=float(i * 10),
-                previous_value=float((i - 1) * 10) if i > 0 else 0.0,
-                change_percentage=10.0,
-                timestamp=datetime.utcnow(),
-                time_window="1m",
-                aggregation_type="sum",
-                sample_count=1,
-                data_quality_score=1.0,
-                dimensions={"test": True},
-                tags=["test"],
-                is_anomaly=False,
-                source="test",
-                confidence=1.0,
-            )
-
-            await realtime_service.publish_metric(test_metric)
-
-        return {
-            "message": f"Published {message_count} test messages to channel: {channel}",
-            "channel": channel,
-            "message_count": message_count,
-        }
-
-    except Exception as e:
-        logger.error(f"Error testing subscription: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to test subscription",
-        )
+# R5-M22: /test/subscribe (unauthenticated-in-spirit spray endpoint — any
+# authenticated user could dump up to 100 junk metrics onto any channel with
+# no rate limit) removed. Nothing in frontend/src called it (grepped), and
+# the router it lived on is not mounted in main.py (dead code today), so
+# there is no reachable caller to migrate.

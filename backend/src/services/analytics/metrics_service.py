@@ -148,7 +148,10 @@ class MetricsService:
         logger.info("Metrics service shut down")
 
     async def create_metric(
-        self, request: MetricCreate, owner_id: uuid.UUID
+        self,
+        request: MetricCreate,
+        owner_id: uuid.UUID,
+        organization_id: Optional[uuid.UUID] = None,
     ) -> MetricResponse:
         """Create a new analytics metric"""
         try:
@@ -182,6 +185,7 @@ class MetricsService:
                     visualization_type=request.visualization_type,
                     color_scheme=request.color_scheme,
                     is_public=request.is_public,
+                    organization_id=organization_id,
                 )
                 db.add(metric)
                 await db.commit()
