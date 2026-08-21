@@ -52,7 +52,7 @@ function composeAbortSignals(signals: AbortSignal[]): {
 
   const controller = new AbortController();
   const listeners = signals.map((source) => {
-    const relayAbort = () => controller.abort(source.reason);
+    const relayAbort = (): void => controller.abort(source.reason);
     if (source.aborted) {
       relayAbort();
     } else {
@@ -526,7 +526,7 @@ export class APIClient {
       // A bare {once:true} listener never fires on normal completion, so it
       // would hold the signal's reference to this xhr/formData alive for the
       // signal's whole lifetime. Remove it ourselves once the request settles.
-      const onAbort = () => xhr.abort();
+      const onAbort = (): void => xhr.abort();
       xhr.onloadend = () => signal?.removeEventListener('abort', onAbort);
 
       if (signal?.aborted) {
