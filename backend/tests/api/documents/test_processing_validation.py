@@ -27,7 +27,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from src.api.documents import processing as processing_mod
-from src.core.database import get_db_sync
+from src.core.database import get_db
 from src.core.dependencies import (
     get_current_organization,
     get_current_user,
@@ -58,22 +58,28 @@ def client() -> Iterator[TestClient]:
     user = _user()
     org = _org()
 
-    sync_db = MagicMock()
-    sync_db.query.return_value.filter.return_value.first.return_value = None
-    sync_db.query.return_value.filter.return_value.count.return_value = 0
-    sync_db.query.return_value.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = (
-        []
-    )
+    # Async db.execute(...) result stub covering every shape the routes call:
+    # scalar_one_or_none() (single-row lookups), scalar_one() (count queries),
+    # and scalars().all() (list queries) all resolve to "nothing found".
+    execute_result = MagicMock()
+    execute_result.scalar_one_or_none.return_value = None
+    execute_result.scalar_one.return_value = 0
+    execute_result.scalars.return_value.all.return_value = []
+
+    async_db = MagicMock()
+    async_db.execute = AsyncMock(return_value=execute_result)
+    async_db.commit = AsyncMock()
+    async_db.rollback = AsyncMock()
+    async_db.delete = AsyncMock()
 
     processing_service = MagicMock()
-    processing_service.db = sync_db
     processing_service.process_document = AsyncMock(
         side_effect=ValueError("document not found")
     )
 
     app.dependency_overrides[get_current_user] = lambda: user
     app.dependency_overrides[get_current_organization] = lambda: org
-    app.dependency_overrides[get_db_sync] = lambda: sync_db
+    app.dependency_overrides[get_db] = lambda: async_db
     app.dependency_overrides[get_processing_service] = lambda: processing_service
     app.dependency_overrides[require_admin] = lambda: user
 

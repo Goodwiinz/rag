@@ -21,6 +21,10 @@ from src.models.user import UserRole
 
 logger = logging.getLogger(__name__)
 
+# ponytail: opportunistic full-sweep cadence; move to a TTL cache if key
+# cardinality ever matters.
+_SWEEP_EVERY_N_CALLS = 1024
+
 
 class InMemoryRateLimiter:
     """
@@ -31,7 +35,14 @@ class InMemoryRateLimiter:
     def __init__(self):
         # Structure: {key: deque of timestamps}
         self.requests: Dict[str, deque] = defaultdict(deque)
-        self.locks: Dict[str, bool] = {}
+        self._calls_since_sweep = 0
+        # Widest window ever seen across all callers (they share this one
+        # limiter instance across limit types e.g. 300s api_calls vs 3600s
+        # heavy_operations). The periodic sweep must judge staleness against
+        # the widest window in use, not whichever call happened to trigger
+        # it -- otherwise a 300s-window call sweeps away live 3600s-window
+        # keys that are merely >300s old, resetting their hourly budget.
+        self._max_window = 0
 
     def is_allowed(self, key: str, limit: int, window: int) -> Tuple[bool, Dict]:
         """
@@ -47,12 +58,37 @@ class InMemoryRateLimiter:
         """
         now = time.time()
         window_start = now - window
+        self._max_window = max(self._max_window, window)
 
         # Clean old requests
         while self.requests[key] and self.requests[key][0] < window_start:
             self.requests[key].popleft()
 
-        current_requests = len(self.requests[key])
+        # ponytail: opportunistic eviction; move to TTL cache if key cardinality
+        # ever matters. A key with an empty deque after pruning is dropped
+        # immediately (defaultdict[key] above would otherwise resurrect it
+        # forever), plus a periodic full sweep below catches keys that simply
+        # stop being queried (their deque never gets pruned by the line above
+        # since is_allowed is never called for them again).
+        if not self.requests[key]:
+            del self.requests[key]
+
+        self._calls_since_sweep += 1
+        if self._calls_since_sweep >= _SWEEP_EVERY_N_CALLS:
+            self._calls_since_sweep = 0
+            # Judge staleness against the widest window any caller uses, not
+            # this call's window -- a short-window call must not evict a
+            # longer-window key that's merely older than the short window.
+            sweep_horizon = now - self._max_window
+            stale_keys = [
+                k
+                for k, timestamps in self.requests.items()
+                if not timestamps or timestamps[-1] < sweep_horizon
+            ]
+            for stale_key in stale_keys:
+                del self.requests[stale_key]
+
+        current_requests = len(self.requests.get(key, ()))
 
         info = {
             "current_requests": current_requests,

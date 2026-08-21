@@ -579,13 +579,23 @@ class EnhancedConnectionManager(BaseService):
         # Remove from tracking
         del self.active_connections[connection_id]
         self.user_connections[connection_info.user_id].discard(connection_id)
+        # ponytail: opportunistic eviction; move to TTL cache if key cardinality
+        # ever matters. A defaultdict(set) never drops empty entries on its
+        # own, so a user/org/channel that disconnects for good would sit in
+        # these dicts forever.
+        if not self.user_connections[connection_info.user_id]:
+            del self.user_connections[connection_info.user_id]
         self.organization_connections[connection_info.organization_id].discard(
             connection_id
         )
+        if not self.organization_connections[connection_info.organization_id]:
+            del self.organization_connections[connection_info.organization_id]
 
         # Remove from channel subscriptions
         for channel in connection_info.subscribed_channels:
             self.channel_subscribers[channel].discard(connection_id)
+            if not self.channel_subscribers[channel]:
+                del self.channel_subscribers[channel]
 
         # Log disconnection to database
         await self._log_connection_event(
@@ -627,6 +637,8 @@ class EnhancedConnectionManager(BaseService):
         connection_info = self.active_connections[connection_id]
         connection_info.subscribed_channels.discard(channel)
         self.channel_subscribers[channel].discard(connection_id)
+        if not self.channel_subscribers[channel]:
+            del self.channel_subscribers[channel]
 
         # Send confirmation
         confirmation_message = WebSocketMessage(

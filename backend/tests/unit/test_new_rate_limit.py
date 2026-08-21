@@ -1,7 +1,14 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from src.core.rate_limit import InMemoryRateLimiter, RedisRateLimiter, create_rate_limiter
+
+import pytest
+
 from src.core.config import settings
+from src.core.rate_limit import (
+    InMemoryRateLimiter,
+    RedisRateLimiter,
+    create_rate_limiter,
+)
+
 
 @pytest.mark.asyncio
 async def test_in_memory_rate_limiter():
@@ -25,6 +32,47 @@ async def test_in_memory_rate_limiter():
 
     await limiter.close()
 
+
+@pytest.mark.asyncio
+async def test_in_memory_rate_limiter_evicts_expired_key_instead_of_leaking():
+    """R4-L16: this is the limiter the integrity-check route (and others
+    without Redis) actually fall back to. self.attempts never shrank on its
+    own -- every identifier that ever made one attempt/check stayed forever.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    limiter = InMemoryRateLimiter(max_attempts=5, window_minutes=1)
+    # Plant an already-expired attempt directly, bypassing real sleep.
+    limiter.attempts["user-1"] = [datetime.now(timezone.utc) - timedelta(minutes=5)]
+
+    # Re-touching the key must prune the expired entry away entirely --
+    # an empty [] left behind in self.attempts is exactly the leak.
+    await limiter.is_allowed("user-1")
+    assert len(limiter.attempts["user-1"]) == 1  # only the new attempt
+
+
+@pytest.mark.asyncio
+async def test_check_rate_limit_evicts_key_whose_attempts_all_expired():
+    from datetime import datetime, timedelta, timezone
+
+    limiter = InMemoryRateLimiter(max_attempts=5, window_minutes=1)
+    limiter.attempts["stale-user"] = [datetime.now(timezone.utc) - timedelta(minutes=5)]
+
+    allowed, _ = await limiter.check_rate_limit("stale-user")
+    assert allowed is True
+    assert "stale-user" not in limiter.attempts  # not left behind as []
+
+
+@pytest.mark.asyncio
+async def test_check_rate_limit_never_materializes_an_unknown_key():
+    """A pure read-only check for a key nobody has ever touched must not
+    create a dangling entry for it."""
+    limiter = InMemoryRateLimiter(max_attempts=5, window_minutes=1)
+    allowed, retry_after = await limiter.check_rate_limit("never-seen-user")
+    assert allowed is True
+    assert "never-seen-user" not in limiter.attempts
+
+
 @pytest.mark.asyncio
 async def test_redis_rate_limiter():
     # Mock redis client
@@ -34,7 +82,9 @@ async def test_redis_rate_limiter():
 
     # Patch from_url to return mock
     with patch("redis.asyncio.from_url", return_value=mock_redis):
-        limiter = RedisRateLimiter(max_attempts=2, window_minutes=1, redis_url="redis://test")
+        limiter = RedisRateLimiter(
+            max_attempts=2, window_minutes=1, redis_url="redis://test"
+        )
 
         # First attempt
         mock_redis.eval.return_value = 1
@@ -42,10 +92,7 @@ async def test_redis_rate_limiter():
 
         # Verify eval usage
         mock_redis.eval.assert_called_with(
-            limiter._incr_expire_script,
-            1,
-            "auth_rate_limit:test_user",
-            60
+            limiter._incr_expire_script, 1, "auth_rate_limit:test_user", 60
         )
 
         # Second attempt
@@ -61,10 +108,11 @@ async def test_redis_rate_limiter():
         await limiter.close()
         mock_redis.close.assert_called_once()
 
+
 @pytest.mark.asyncio
 async def test_redis_rate_limiter_get_remaining():
     mock_redis = MagicMock()
-    mock_redis.get = AsyncMock() # get is async
+    mock_redis.get = AsyncMock()  # get is async
 
     with patch("redis.asyncio.from_url", return_value=mock_redis):
         limiter = RedisRateLimiter(max_attempts=5, window_minutes=1)
@@ -80,6 +128,7 @@ async def test_redis_rate_limiter_get_remaining():
         remaining = await limiter.get_remaining_attempts("test_user")
         assert remaining == 5
 
+
 @pytest.mark.asyncio
 async def test_redis_rate_limiter_fail_open():
     # Mock redis client that raises exception
@@ -91,6 +140,7 @@ async def test_redis_rate_limiter_fail_open():
 
         # Should return True (fail open)
         assert await limiter.is_allowed("test_user") is True
+
 
 @pytest.mark.asyncio
 async def test_in_memory_check_rate_limit():
@@ -143,7 +193,9 @@ async def test_redis_check_rate_limit():
     mock_redis.eval = AsyncMock()
 
     with patch("redis.asyncio.from_url", return_value=mock_redis):
-        limiter = RedisRateLimiter(max_attempts=5, window_minutes=1, redis_url="redis://test")
+        limiter = RedisRateLimiter(
+            max_attempts=5, window_minutes=1, redis_url="redis://test"
+        )
 
         # Under limit
         mock_redis.eval.return_value = [2, 45]
@@ -164,7 +216,9 @@ async def test_redis_check_rate_limit_fail_open():
     mock_redis.eval = AsyncMock(side_effect=Exception("Redis down"))
 
     with patch("redis.asyncio.from_url", return_value=mock_redis):
-        limiter = RedisRateLimiter(max_attempts=5, window_minutes=1, redis_url="redis://test")
+        limiter = RedisRateLimiter(
+            max_attempts=5, window_minutes=1, redis_url="redis://test"
+        )
 
         # Should fail open
         allowed, retry = await limiter.check_rate_limit("user1")
@@ -178,7 +232,9 @@ async def test_redis_record_attempt():
     mock_redis.eval = AsyncMock(return_value=1)
 
     with patch("redis.asyncio.from_url", return_value=mock_redis):
-        limiter = RedisRateLimiter(max_attempts=5, window_minutes=1, redis_url="redis://test")
+        limiter = RedisRateLimiter(
+            max_attempts=5, window_minutes=1, redis_url="redis://test"
+        )
 
         await limiter.record_attempt("user1", prefix="test")
 
@@ -196,7 +252,9 @@ async def test_redis_record_attempt_fail_silent():
     mock_redis.eval = AsyncMock(side_effect=Exception("Redis down"))
 
     with patch("redis.asyncio.from_url", return_value=mock_redis):
-        limiter = RedisRateLimiter(max_attempts=5, window_minutes=1, redis_url="redis://test")
+        limiter = RedisRateLimiter(
+            max_attempts=5, window_minutes=1, redis_url="redis://test"
+        )
 
         # Should not raise
         await limiter.record_attempt("user1")
