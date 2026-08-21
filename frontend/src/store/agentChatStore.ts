@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { getAppQueryClient } from '@/lib/query-client';
-import type { AgentExecuteRequest } from '@/services/agentChatService';
+import type {
+  AgentErrorCategory,
+  AgentExecuteRequest,
+} from '@/services/agentChatService';
 import type {
   AgentChatState,
   AgentChatActions,
@@ -77,11 +80,12 @@ interface AgentChatStore extends AgentChatState, AgentChatActions {
  */
 function settleStreamingMessage(
   message: AgentMessage,
-  options: { fallbackContent?: string } = {}
+  options: { fallbackContent?: string; toolStatus?: 'failed' | 'cancelled' } = {}
 ): void {
   message.isStreaming = false;
+  const toolStatus = options.toolStatus ?? 'failed';
   for (const execution of message.toolExecutions ?? []) {
-    if (execution.status === 'running') execution.status = 'failed';
+    if (execution.status === 'running') execution.status = toolStatus;
   }
   if (!message.content && options.fallbackContent) {
     message.content = options.fallbackContent;
@@ -202,6 +206,14 @@ export const useAgentChatStore = create<AgentChatStore>()(
         // Step 2: Add a streaming placeholder message
         // Try SSE streaming first, fall back to polling
         let useStreaming = true;
+        // R4-L19: the backend parks the run awaiting confirmation the
+        // moment it emits this frame — a disconnect afterwards must not
+        // re-run the turn via the durable fallback below, since that would
+        // double-execute whatever tool the user is about to confirm. Set
+        // regardless of isCurrentGeneration: the run is parked server-side
+        // either way. Declared outside the inner try so the catch (a
+        // sibling block, not a child of try) can still see it.
+        let sawConfirmationFrame = false;
         if (useStreaming) {
           set((state) => {
             state.messages.push({
@@ -372,6 +384,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   threadId: string,
                   confirmation: Record<string, unknown>
                 ) => {
+                  sawConfirmationFrame = true;
                   if (!isCurrentGeneration()) {
                     // A parked HITL confirmation from a superseded generation
                     // is silently unrecoverable — the card never renders and
@@ -473,6 +486,46 @@ export const useAgentChatStore = create<AgentChatStore>()(
             );
             return; // SSE streaming succeeded
           } catch {
+            // R4-L19: the SSE transport died after the backend had already
+            // parked this turn awaiting confirmation. The durable fallback
+            // below re-runs the turn from the original request payload —
+            // against a run that's sitting on a LangGraph interrupt, that
+            // would execute the confirmed tool a second time once the user
+            // approves. Settle the placeholder with a status note instead
+            // of falling through. The pendingConfirmations card itself is
+            // untouched here (onConfirmation already populated it) and stays
+            // fully usable — confirming is a separate request from this
+            // dead stream, not something this disconnect invalidates.
+            if (sawConfirmationFrame) {
+              // Mirrors the outer catches' supersede guard (:701, :1275): a
+              // stopGeneration/thread-switch that already aborted this
+              // generation has its own reset in flight — don't clobber
+              // whatever owns isStreaming/currentPlan/_abortController now.
+              if (abortController.signal.aborted) return;
+              set((state) => {
+                const idx = state.messages.findIndex(
+                  (m) => m.id === placeholderId
+                );
+                if (idx !== -1) {
+                  state.messages[idx].content =
+                    'Connection interrupted — your confirmation is still pending below.';
+                  settleStreamingMessage(state.messages[idx]);
+                }
+                // Parity with the sibling onError path above: tool calls run
+                // before the confirmation frame may have already mutated
+                // project data.
+                if (didMutateProjectData) {
+                  state.projectDataVersion += 1;
+                }
+                state.isStreaming = false;
+                state.currentPlan = null;
+                (state as unknown as AgentChatStore)._abortController = null;
+              });
+              if (didMutateProjectData) {
+                invalidateProjectQueries(pageContext.projectId);
+              }
+              return;
+            }
             // SSE failed — fall back to polling below
             // Remove the placeholder if it's still empty
             const msgs = get().messages;
@@ -724,7 +777,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
             (m) => !(m.isStreaming && !m.content)
           );
           for (const message of state.messages) {
-            if (message.isStreaming) settleStreamingMessage(message);
+            if (message.isStreaming) {
+              settleStreamingMessage(message, { toolStatus: 'cancelled' });
+            }
           }
         });
       }
@@ -969,20 +1024,44 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   invalidateProjectQueries(get().pageContext.projectId);
                 }
               },
-              onError: (error: string) => {
+              onError: (error: string, category?: AgentErrorCategory) => {
                 if (!isCurrentGeneration()) return;
+                // The run already finalized server-side (e.g. Stop cancelled
+                // it while this confirmation was parked) — the checkpoint
+                // this card resumes is gone, so re-arming it only sets up
+                // the next Approve click to fail the same way forever
+                // (R4-M26). backend/src/api/agent/streaming.py:2475 and
+                // :2617 emit exactly this message with category "conflict"
+                // when confirming a run that is no longer awaiting
+                // confirmation; every OTHER conflict (e.g. "Confirmation
+                // already in progress") means the run is still live, so
+                // match the specific message, not the category alone.
+                const runGone =
+                  category === 'conflict' &&
+                  /awaiting confirmation/i.test(error);
                 set((state) => {
                   const idx = state.messages.findIndex(
                     (m) => m.id === targetMessageId
                   );
                   if (idx !== -1) {
-                    state.messages[idx].content =
-                      streamedContent || error || 'Action failed.';
-                    state.messages[idx].isStreaming = false;
+                    // Don't show the raw regex-matched backend string —
+                    // decouple the display copy from the string this branch
+                    // matches on.
+                    state.messages[idx].content = runGone
+                      ? 'This confirmation is no longer active — the run was stopped.'
+                      : streamedContent || error || 'Action failed.';
+                    // settleStreamingMessage (not a bare isStreaming = false)
+                    // so any running tool execution on this message settles
+                    // too — the exact bug class this PR fixes elsewhere.
+                    settleStreamingMessage(state.messages[idx]);
                   }
                   state.isStreaming = false;
                   state.isConfirming = false;
-                  state.pendingConfirmations[threadId] = pendingConfirmation;
+                  if (runGone) {
+                    delete state.pendingConfirmations[threadId];
+                  } else {
+                    state.pendingConfirmations[threadId] = pendingConfirmation;
+                  }
                   (state as unknown as AgentChatStore)._abortController = null;
                 });
               },
@@ -1256,6 +1335,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
           if (idx !== -1) {
             settleStreamingMessage(state.messages[idx], {
               fallbackContent: 'Generation stopped.',
+              toolStatus: 'cancelled',
             });
           }
         }

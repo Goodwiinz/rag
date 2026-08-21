@@ -256,7 +256,7 @@ describe('agentChatStore generation lifecycle', () => {
     expect(getAbortController()).toBeNull();
   });
 
-  it('fails orphaned tool executions and drops the plan on stop (M7)', () => {
+  it('cancels orphaned tool executions and drops the plan on stop (M7, R4-L20)', () => {
     useAgentChatStore.setState({
       messages: [
         {
@@ -292,7 +292,9 @@ describe('agentChatStore generation lifecycle', () => {
 
     const message = useAgentChatStore.getState().messages[0];
     expect(message.isStreaming).toBe(false);
-    expect(message.toolExecutions?.[0].status).toBe('failed');
+    // R4-L20: a tool still running when the user stopped generation didn't
+    // error — the turn was cut short. 'cancelled' says that, 'failed' lied.
+    expect(message.toolExecutions?.[0].status).toBe('cancelled');
     expect(useAgentChatStore.getState().currentPlan).toBeNull();
   });
 });

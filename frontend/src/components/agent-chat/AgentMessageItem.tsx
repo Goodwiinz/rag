@@ -19,6 +19,7 @@ import {
   RefreshCw,
   ListChecks,
   Loader2,
+  Ban,
 } from 'lucide-react';
 import { ToolExecutionCard } from './ToolExecutionCard';
 import { AgentMarkdownRenderer } from './AgentMarkdownRenderer';
@@ -247,6 +248,10 @@ function ToolExecutionGroupCard({
   const [isExpanded, setIsExpanded] = React.useState(false);
   const allCompleted = executions.every((e) => e.status === 'completed');
   const anyFailed = executions.some((e) => e.status === 'failed');
+  // R4-L20: a stopped/superseded turn settles its running executions to
+  // 'cancelled', not 'completed' or 'failed' — matching neither of the
+  // arms above left the group stuck on the spinner forever.
+  const anyCancelled = executions.some((e) => e.status === 'cancelled');
   const totalMs = executions.reduce((sum, e) => sum + (e.durationMs ?? 0), 0);
 
   return (
@@ -258,6 +263,8 @@ function ToolExecutionGroupCard({
       >
         {anyFailed ? (
           <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+        ) : anyCancelled ? (
+          <Ban className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         ) : allCompleted ? (
           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
         ) : (

@@ -41,6 +41,11 @@ describe('deriveStepStatus', () => {
     expect(deriveStepStatus(makeStep(), execs)).toBe('failed');
   });
 
+  it('returns failed when the newest matching execution was cancelled (R4-L20)', () => {
+    const execs = [makeExec({ status: 'cancelled' })];
+    expect(deriveStepStatus(makeStep(), execs)).toBe('failed');
+  });
+
   it('returns in-progress when any matching execution is running (and none failed)', () => {
     const execs = [
       makeExec({ status: 'completed' }),
