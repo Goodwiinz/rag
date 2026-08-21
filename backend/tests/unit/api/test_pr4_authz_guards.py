@@ -74,7 +74,7 @@ async def test_process_document_scopes_by_org():
         def scalar_one_or_none(self):
             return None  # not found in caller's org → ValueError
 
-    def _execute(stmt):
+    async def _execute(stmt):
         # Render the compiled WHERE to confirm organization_id is constrained.
         captured["sql"] = str(stmt)
         return _Result()
