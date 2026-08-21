@@ -259,7 +259,10 @@ async def search_arxiv(
 
     Use when the user asks to find, search, or look up research papers.
     Pass clean topic KEYWORDS in query — not filler like 'recent' or 'latest';
-    recency is controlled by recency_days. By default only papers from the
+    recency is controlled by recency_days. arXiv has NO venue field, so never
+    put conference names (NeurIPS, ICML, ICLR, ACL, etc.) in query — they
+    match almost nothing and empty the whole result. Do not repeat a term
+    (quoted or not) more than once. By default only papers from the
     last 365 days are returned. Pass recency_days=0 to disable the date
     filter for historical or all-time searches (e.g. papers from 2022-2024),
     or a larger N to widen the window. Set chronological=true to sort
@@ -442,8 +445,12 @@ async def create_project_note(
 ) -> Dict[str, Any]:
     """Create a markdown note in a research project.
 
-    If *project_id* is omitted and the user is on a project page, the
-    project is inferred from the page context.
+    When a project page is active, OMIT *project_id* — the note is written to
+    the project the user is viewing. Pass *project_id* (a real UUID from
+    list_projects) ONLY when the user explicitly asks to write into a
+    different project. Never infer the project from the note's topic, title,
+    or contents: topic-matching a project silently files the note in the
+    wrong place.
     """
     config = config or {}
     from src.services.agent.tools_impl import _tool_create_project_note

@@ -939,16 +939,52 @@ _ARXIV_STOPWORDS = {
     "please",
 }
 
+# Publication venues have no arXiv search field — arXiv indexes title,
+# abstract, authors and categories, not where a paper was published. ANDing a
+# venue token ('all:NeurIPS AND all:ICML') matches only papers that literally
+# print the conference name in their text, i.e. almost none, so the whole
+# query returns zero. Models nonetheless append venue names when asked for
+# "papers from NeurIPS/ICML"; strip them like filler stopwords.
+_ARXIV_VENUE_STOPWORDS = {
+    "neurips",
+    "nips",
+    "icml",
+    "iclr",
+    "acl",
+    "emnlp",
+    "naacl",
+    "aaai",
+    "ijcai",
+    "cvpr",
+    "iccv",
+    "eccv",
+    "kdd",
+    "sigir",
+    "colm",
+    "arxiv",
+    "preprint",
+    "proceedings",
+    "conference",
+    "workshop",
+}
+
 
 def _sanitize_arxiv_query(q: str) -> str:
-    """Drop leading recency/filler tokens so they don't pollute arXiv's
-    all-field search (e.g. 'recent papers on RAG' -> 'RAG'). Conservative:
-    only strips known stopwords, preserves the meaningful remainder verbatim;
-    returns the original if stripping would empty it."""
-    tokens = q.split()
-    kept = [
-        t for t in tokens if re.sub(r"[^a-z]", "", t.lower()) not in _ARXIV_STOPWORDS
-    ]
+    """Drop recency/filler and venue tokens, plus duplicate terms, so they
+    don't pollute or dead-end arXiv's all-field search (e.g. 'recent papers on
+    RAG' -> 'RAG'; 'jailbreak NeurIPS ICML jailbreak' -> 'jailbreak').
+    Conservative: only strips known stopwords/venues and repeats, preserves
+    the meaningful remainder verbatim; returns the original if stripping would
+    empty it."""
+    strip = _ARXIV_STOPWORDS | _ARXIV_VENUE_STOPWORDS
+    kept: List[str] = []
+    seen: set = set()
+    for t in q.split():
+        norm = re.sub(r"[^a-z0-9]", "", t.lower())
+        if not norm or norm in strip or norm in seen:
+            continue
+        seen.add(norm)
+        kept.append(t)
     cleaned = " ".join(kept).strip()
     return cleaned or q
 

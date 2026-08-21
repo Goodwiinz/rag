@@ -51,6 +51,30 @@ def test_sanitize_all_stopwords_returns_original() -> None:
     assert result == query
 
 
+@pytest.mark.unit
+def test_sanitize_strips_venue_tokens() -> None:
+    """Conference names have no arXiv field; ANDing them empties the query."""
+    result = _sanitize_arxiv_query("jailbreak NeurIPS ICML adversarial prompts")
+    assert result == "jailbreak adversarial prompts"
+
+
+@pytest.mark.unit
+def test_sanitize_dedupes_repeated_terms() -> None:
+    """Repeated tokens (quoted or not) collapse to one occurrence."""
+    result = _sanitize_arxiv_query("jailbreak RLHF jailbreak 'RLHF'")
+    assert result == "jailbreak RLHF"
+
+
+@pytest.mark.unit
+def test_sanitize_traced_dead_query_becomes_searchable() -> None:
+    """Regression: the exact query from thread 9e151940 returned 0 papers
+    because it ANDed venue names + duplicate quoted terms. After sanitising it
+    must reduce to real topic keywords only."""
+    query = "jailbreak RLHF NeurIPS ICML adversarial prompts 'RLHF' 'jailbreak' NeurIPS ICML"
+    result = _sanitize_arxiv_query(query)
+    assert result == "jailbreak RLHF adversarial prompts"
+
+
 # ---------------------------------------------------------------------------
 # _tool_search_arxiv — sort and query sanitisation via mocked service
 # ---------------------------------------------------------------------------
