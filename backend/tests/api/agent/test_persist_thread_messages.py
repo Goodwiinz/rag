@@ -151,6 +151,10 @@ async def test_assistant_plan_and_token_usage_round_trip(db_session, thread_fact
     ]
     usage = {"input_tokens": 1200, "output_tokens": 340}
     reasoning = "Search documents first, then summarize the findings."
+    progress = [
+        {"phase": "accepted", "detail": "Request accepted"},
+        {"phase": "writing", "detail": "Drafting the response"},
+    ]
 
     msg_id = await _persist_assistant_message(
         db_session,
@@ -161,6 +165,7 @@ async def test_assistant_plan_and_token_usage_round_trip(db_session, thread_fact
         plan=plan,
         plan_reasoning=reasoning,
         token_usage=usage,
+        progress_steps=progress,
     )
 
     row = await db_session.get(ChatMessage, UUID(msg_id))
@@ -168,11 +173,13 @@ async def test_assistant_plan_and_token_usage_round_trip(db_session, thread_fact
     assert row.plan == plan
     assert row.plan_reasoning == reasoning
     assert row.token_usage == usage
+    assert row.progress_steps == progress
 
     # Full round trip: persist kwarg -> column -> read serializer. Same
     # formatter threads.py's list-messages endpoint uses.
     response = _format_message_response(row)
     assert response.plan_reasoning == reasoning
+    assert response.progress_steps == progress
 
     db_session.info["_created"]["chat_messages"].append(row.id)
 
@@ -197,5 +204,6 @@ async def test_assistant_without_provenance_persists_null_columns(
     assert row.plan is None
     assert row.plan_reasoning is None
     assert row.token_usage is None
+    assert row.progress_steps is None
 
     db_session.info["_created"]["chat_messages"].append(row.id)

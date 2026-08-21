@@ -9418,6 +9418,10 @@ export interface components {
             }[] | null;
             /** Plan Reasoning */
             plan_reasoning?: string | null;
+            /** Progress Steps */
+            progress_steps?: {
+                [key: string]: unknown;
+            }[] | null;
             /** @default user */
             role: components["schemas"]["MessageRole-Output"];
             /** Stopped */

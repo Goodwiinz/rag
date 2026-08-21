@@ -8,6 +8,7 @@ import {
 } from '@/services/agentStreamEvents';
 import type { components } from '@/types/generated/api';
 import type {
+  AgentProgressStep,
   AgentErrorCategory,
   AgentStreamEvent,
   AgentStreamPhase,
@@ -123,6 +124,7 @@ export interface AgentStreamCallbacks {
     /** Full-fidelity tool executions from the graph state (parsed
      * results, real durations) — richer than the live SSE summaries. */
     tool_executions?: Array<Record<string, unknown>>;
+    progress_steps?: AgentProgressStep[];
   }) => void;
   /**
    * Fired for a server `error` frame and for HTTP-level failures on new or
@@ -489,6 +491,7 @@ export interface ThreadMessagesResponse {
       error?: string;
       duration_ms?: number;
     }>;
+    progress_steps?: AgentProgressStep[];
   }>;
   total: number;
 }

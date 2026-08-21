@@ -20,7 +20,10 @@ import {
   ChatMessageUpdate,
 } from '@/types/workspace';
 import type { ActivityStep } from '@/components/chat/shared/cloudMessageView';
-import type { AgentStreamPhase } from '@/services/agentStreamEvents';
+import type {
+  AgentProgressStep,
+  AgentStreamPhase,
+} from '@/services/agentStreamEvents';
 import type { PlanStep } from '@/types/agent-chat';
 
 export interface ChatState {
@@ -103,6 +106,8 @@ export interface ChatState {
    * transcript render the plan WHILE the turn streams instead of only after
    * commit. Mirrors the committed message's `plan` field shape exactly. */
   streamingPlan: PlanStep[];
+  /** Display-safe server progress accumulated for the current turn. */
+  streamingProgress: AgentProgressStep[];
   /** Elapsed time of the current turn as last reported by a `heartbeat`
    * frame (ms). null until the first heartbeat — a silent planner/LLM phase
    * is otherwise indistinguishable from a stalled run. */

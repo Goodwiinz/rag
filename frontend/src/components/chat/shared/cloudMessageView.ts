@@ -7,6 +7,7 @@ import {
 import { normalizeCitation } from '@/utils/citationNormalizer';
 import type { Citation } from '@/utils/citationParser';
 import type { PlanStep } from '@/types/agent-chat';
+import type { AgentProgressStep } from '@/services/agentStreamEvents';
 
 /** A single agent tool execution captured during a streaming turn. */
 export interface ActivityStep {
@@ -118,6 +119,8 @@ export interface ChatPageMessage {
   plan?: PlanStep[];
   /** Planner's top-level rationale for `plan`. */
   planReasoning?: string;
+  /** Display-safe progress persisted with this assistant turn. */
+  progressSteps?: AgentProgressStep[];
   /** Transient marker on the in-flight assistant turn path: the
    * message is a live placeholder whose text/steps/citations are read from the
    * streaming store, not from these fields. Cleared when the turn commits. */
@@ -162,8 +165,7 @@ export function mapDbMessageToChatPageMessage(
 ): ChatPageMessage {
   const hasMetadata =
     dbMsg.latency_ms || dbMsg.ttft_ms || dbMsg.stopped || dbMsg.token_usage;
-  const hasFeedback =
-    dbMsg.feedback_rating != null || !!dbMsg.feedback_text;
+  const hasFeedback = dbMsg.feedback_rating != null || !!dbMsg.feedback_text;
   return {
     id: dbMsg.id,
     runtimeId: dbMsg.client_message_id ?? dbMsg.id,
@@ -181,8 +183,9 @@ export function mapDbMessageToChatPageMessage(
     attachments: dbMsg.attachments,
     toolExecutions: mapDbToolExecutions(dbMsg.tool_executions),
     ...(dbMsg.plan && dbMsg.plan.length > 0 ? { plan: dbMsg.plan } : {}),
-    ...(dbMsg.plan_reasoning
-      ? { planReasoning: dbMsg.plan_reasoning }
+    ...(dbMsg.plan_reasoning ? { planReasoning: dbMsg.plan_reasoning } : {}),
+    ...(dbMsg.progress_steps && dbMsg.progress_steps.length > 0
+      ? { progressSteps: dbMsg.progress_steps }
       : {}),
     ...(hasFeedback
       ? {

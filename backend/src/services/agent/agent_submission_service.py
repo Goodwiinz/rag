@@ -761,6 +761,7 @@ async def finalize_submission(
     payload: Optional[dict[str, Any]] = None,
     error_code: Optional[str] = None,
     error: Optional[str] = None,
+    run_metadata: Optional[dict[str, Any]] = None,
 ) -> None:
     """Move the run to *status* at the end of the turn and commit.
 
@@ -786,6 +787,8 @@ async def finalize_submission(
     }
     if status in TERMINAL_JOB_STATUSES:
         values["completed_at"] = now
+    if run_metadata is not None:
+        values["run_metadata"] = run_metadata
     # Project the transcript linkage onto the run row itself. Terminal
     # payloads (run.completed / run.cancelled) carry the persisted assistant
     # row id; without this the AgentRun.assistant_message_id FK stays NULL

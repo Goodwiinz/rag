@@ -3,12 +3,7 @@
  * tokens arrive; the server heartbeat only corrects the local clock.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  act,
-  render,
-  screen,
-  type RenderResult,
-} from '@testing-library/react';
+import { act, render, screen, type RenderResult } from '@testing-library/react';
 
 import { makeChatPageMessage } from '@/test/chatMessageFactory';
 import { useChatStore } from '@/store/chat-store';
@@ -52,6 +47,7 @@ describe('streaming reasoning panel and elapsed time', () => {
     useChatStore.setState({
       streamingContent: '',
       streamingSteps: [],
+      streamingProgress: [],
       streamingCitations: [],
       isRetrievingRag: false,
       streamingElapsedMs: null,
@@ -98,6 +94,22 @@ describe('streaming reasoning panel and elapsed time', () => {
       document.querySelector('[data-slot="reasoning-panel"]')
     ).toHaveTextContent('Choosing the safest response path');
     expect(screen.queryByText('Choosing approach')).not.toBeInTheDocument();
+  });
+
+  it('shows every explicit server progress step', () => {
+    useChatStore.setState({
+      streamingProgress: [
+        { phase: 'accepted', detail: 'Request accepted' },
+        { phase: 'retrieving', detail: 'Reading relevant sources' },
+        { phase: 'writing', detail: 'Drafting the response' },
+      ],
+    });
+    renderStreamingTurn();
+
+    const panel = document.querySelector('[data-slot="reasoning-panel"]');
+    expect(panel).toHaveTextContent('Request accepted');
+    expect(panel).toHaveTextContent('Reading relevant sources');
+    expect(panel).toHaveTextContent('Drafting the response');
   });
 
   it('keeps message timing visible after answer tokens arrive', () => {

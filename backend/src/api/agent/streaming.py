@@ -74,6 +74,10 @@ logger = logging.getLogger(__name__)
 
 AGENT_STREAM_SCHEMA_VERSION = "1.0"
 _STREAM_ROUTES = frozenset({"pending", "luna", "graph", "unknown"})
+_PROGRESS_PHASES = frozenset(
+    {"accepted", "routing", "retrieving", "planning", "writing", "finalizing"}
+)
+_MAX_PROGRESS_STEPS = 16
 
 
 def _ttft_ms(emitter: Any, stream_started_at: float) -> Optional[int]:
@@ -120,6 +124,7 @@ async def _finalize_run(
     payload: Optional[Dict[str, Any]] = None,
     error_code: Optional[str] = None,
     error: Optional[str] = None,
+    run_metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Close the accepted run out at a stream exit. No-op without an accept.
 
@@ -138,6 +143,7 @@ async def _finalize_run(
         payload=payload,
         error_code=error_code,
         error=error,
+        run_metadata=run_metadata,
     )
 
 
@@ -151,6 +157,7 @@ async def _finalize_run_id(
     payload: Optional[Dict[str, Any]] = None,
     error_code: Optional[str] = None,
     error: Optional[str] = None,
+    run_metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Close a caller-owned durable run when only its id is available."""
     if not run_id:
@@ -164,6 +171,7 @@ async def _finalize_run_id(
         payload=payload,
         error_code=error_code,
         error=error,
+        run_metadata=run_metadata,
     )
 
 
@@ -372,6 +380,7 @@ async def _stream_luna_fast_path(
             ttft_ms=_ttft_ms(emitter, stream_started_at),
             stopped=True,
             client_message_id=assistant_cmid,
+            progress_steps=emitter.progress_steps or None,
         )
 
     async def cancel_fast_path() -> None:
@@ -504,6 +513,7 @@ async def _stream_luna_fast_path(
             ttft_ms=_ttft_ms(emitter, stream_started_at),
             stopped=False,
             client_message_id=assistant_cmid,
+            progress_steps=emitter.progress_steps or None,
             token_usage=(
                 {"input_tokens": input_tokens, "output_tokens": output_tokens}
                 if input_tokens or output_tokens
@@ -573,6 +583,7 @@ async def _stream_luna_fast_path(
 
         done_payload: Dict[str, Any] = {
             "status": "complete",
+            "progress_steps": emitter.progress_steps,
             "tool_executions": [],
         }
         if _canonical_persistence_enabled():
@@ -885,6 +896,23 @@ class _SeqEmitter:
         self.trace_id = trace_id or str(_uuid.uuid4())
         self.route = "pending"
         self.slo_tracker = slo_tracker or AgentStreamSLOTracker(started_at=started_at)
+        self.progress_steps: List[Dict[str, str]] = []
+
+    def _record_progress(self, data: Dict[str, Any]) -> None:
+        phase = data.get("phase")
+        detail = data.get("detail")
+        if phase not in _PROGRESS_PHASES or not isinstance(detail, str):
+            return
+        step = {"phase": phase, "detail": detail[:200]}
+        if self.progress_steps[-1:] == [step]:
+            return
+        self.progress_steps.append(step)
+        del self.progress_steps[:-_MAX_PROGRESS_STEPS]
+
+    def seed_progress(self, steps: Any) -> None:
+        for step in steps if isinstance(steps, list) else []:
+            if isinstance(step, dict):
+                self._record_progress(step)
 
     def set_context(
         self, *, thread_id: Optional[str] = None, route: Optional[str] = None
@@ -908,6 +936,8 @@ class _SeqEmitter:
         self, event_type: str, data: Dict[str, Any], *, buffer: bool = True
     ) -> str:
         self.seq += 1
+        if event_type == AgentStreamEvent.STATUS:
+            self._record_progress(data)
         self.slo_tracker.record(event_type, data)
         frame = format_stream_envelope_frame(
             event_type,
@@ -1067,6 +1097,21 @@ _PLANNER_CHAIN_NODES = frozenset(
         "data_planner_node",
     }
 )
+
+
+def _progress_status_for_event(kind: str, name: str) -> Optional[Dict[str, str]]:
+    """Translate LangGraph internals into fixed, display-safe progress copy."""
+    if kind == "on_tool_start":
+        return {"phase": "planning", "detail": "Using the selected tools"}
+    if kind != "on_chain_start":
+        return None
+    if name in _PLANNER_CHAIN_NODES:
+        return {"phase": "planning", "detail": "Planning the response"}
+    if name == "rag_node":
+        return {"phase": "retrieving", "detail": "Reading relevant sources"}
+    if name == "reflection_gate" or name.endswith("_reflection_gate"):
+        return {"phase": "finalizing", "detail": "Checking the response"}
+    return None
 
 
 def _consume_pending_pull_result(pending: asyncio.Task) -> None:
@@ -1686,6 +1731,7 @@ async def stream_event_generator(
                 ttft_ms=_ttft_ms(emitter, stream_started_at),
                 stopped=True,
                 client_message_id=assistant_cmid,
+                progress_steps=emitter.progress_steps or None,
                 # Tokens accumulated up to the abort; no plan here — it
                 # would need a checkpoint read on a path that must stay
                 # cheap (client already hung up).
@@ -1765,6 +1811,14 @@ async def stream_event_generator(
                         kind = event.get("event", "")
                         name = event.get("name", "")
 
+                        progress_status = _progress_status_for_event(kind, name)
+                        if progress_status is not None:
+                            frame = await emitter.emit(
+                                AgentStreamEvent.STATUS, progress_status
+                            )
+                            if not client_disconnected:
+                                yield frame
+
                         if kind == "on_chain_end" and not event.get("parent_ids"):
                             output = event.get("data", {}).get("output")
                             if isinstance(output, dict):
@@ -1786,6 +1840,16 @@ async def stream_event_generator(
                             # reasoning ones must not reach the wire.
                             chunk_text = _chunk_text(chunk) if chunk else ""
                             if chunk_text:
+                                if not streamed_token:
+                                    frame = await emitter.emit(
+                                        AgentStreamEvent.STATUS,
+                                        {
+                                            "phase": "writing",
+                                            "detail": "Drafting the response",
+                                        },
+                                    )
+                                    if not client_disconnected:
+                                        yield frame
                                 streamed_token = True
                                 # Buffer BEFORE recording for persistence.
                                 # streamed_parts feeds the stopped partial row;
@@ -1986,6 +2050,7 @@ async def stream_event_generator(
                     acceptance,
                     current_user,
                     status=JobStatus.AWAITING_CONFIRMATION,
+                    run_metadata={"progress_steps": emitter.progress_steps},
                 )
                 return
 
@@ -2005,6 +2070,12 @@ async def stream_event_generator(
             # empty response ("stream completed without any tokens").
             if not streamed_token and assistant_content:
                 frame = await emitter.emit(
+                    AgentStreamEvent.STATUS,
+                    {"phase": "writing", "detail": "Drafting the response"},
+                )
+                if not client_disconnected:
+                    yield frame
+                frame = await emitter.emit(
                     AgentStreamEvent.TOKEN, {"content": assistant_content}
                 )
                 if not client_disconnected:
@@ -2014,6 +2085,13 @@ async def stream_event_generator(
                 ToolExecutionResponse(**te)
                 for te in final_values.get("tool_executions", [])
             ] or None
+
+            frame = await emitter.emit(
+                AgentStreamEvent.STATUS,
+                {"phase": "finalizing", "detail": "Saving the response"},
+            )
+            if not client_disconnected:
+                yield frame
 
             # User row was already persisted up-front (before the LLM call).
             # Defer the assistant-row commit to a FastAPI BackgroundTask so
@@ -2042,6 +2120,7 @@ async def stream_event_generator(
                     client_message_id=assistant_cmid,
                     plan=final_values.get("plan") or None,
                     plan_reasoning=final_values.get("plan_reasoning") or None,
+                    progress_steps=emitter.progress_steps or None,
                     token_usage=(
                         {
                             "input_tokens": turn_input_tokens,
@@ -2110,6 +2189,7 @@ async def stream_event_generator(
         # like every browser-visible copy. Mirrors the /stream/confirm payload.
         done_payload: Dict[str, Any] = {
             "status": "complete",
+            "progress_steps": emitter.progress_steps,
             "tool_executions": (
                 [
                     {**te.model_dump(), "args": redact_tool_args(te.args)}
@@ -2240,6 +2320,7 @@ async def stream_event_generator(
                 acceptance,
                 current_user,
                 status=JobStatus.AWAITING_CONFIRMATION,
+                run_metadata={"progress_steps": emitter.progress_steps},
             )
         else:
             await _finalize_run(
@@ -2477,6 +2558,13 @@ async def stream_confirm_event_generator(
                 ),
             )
             return
+
+        run_metadata = getattr(active_run, "run_metadata", None)
+        emitter.seed_progress(
+            run_metadata.get("progress_steps")
+            if isinstance(run_metadata, dict)
+            else None
+        )
 
         page_context = _page_context_to_dict(
             current_snapshot.values.get("page_context", {})
@@ -2730,6 +2818,7 @@ async def stream_confirm_event_generator(
                 latency_ms=None,
                 stopped=True,
                 client_message_id=disconnect_cmid,
+                progress_steps=emitter.progress_steps or None,
                 token_usage=(
                     {
                         "input_tokens": turn_input_tokens,
@@ -2814,6 +2903,12 @@ async def stream_confirm_event_generator(
                 kind = event.get("event", "")
                 name = event.get("name", "")
 
+                progress_status = _progress_status_for_event(kind, name)
+                if progress_status is not None:
+                    frame = await emitter.emit(AgentStreamEvent.STATUS, progress_status)
+                    if not client_disconnected:
+                        yield frame
+
                 if kind == "on_chat_model_stream":
                     if not _is_user_facing_token_event(event):
                         continue
@@ -2822,6 +2917,16 @@ async def stream_confirm_event_generator(
                     # carry typed blocks, not a bare string.
                     chunk_text = _chunk_text(chunk) if chunk else ""
                     if chunk_text:
+                        if not tokens_emitted:
+                            frame = await emitter.emit(
+                                AgentStreamEvent.STATUS,
+                                {
+                                    "phase": "writing",
+                                    "detail": "Drafting the response",
+                                },
+                            )
+                            if not client_disconnected:
+                                yield frame
                         # Buffer BEFORE recording for persistence — same
                         # ordering invariant as the main stream: the stopped
                         # partial must stay a prefix of the buffered stream, so
@@ -2949,6 +3054,7 @@ async def stream_confirm_event_generator(
                 str(active_run.job_id) if active_run is not None else None,
                 current_user,
                 status=JobStatus.AWAITING_CONFIRMATION,
+                run_metadata={"progress_steps": emitter.progress_steps},
             )
             return
 
@@ -2986,6 +3092,19 @@ async def stream_confirm_event_generator(
             if (turn_input_tokens or turn_output_tokens)
             else None
         )
+        if not tokens_emitted and assistant_content:
+            frame = await emitter.emit(
+                AgentStreamEvent.STATUS,
+                {"phase": "writing", "detail": "Drafting the response"},
+            )
+            if not client_disconnected:
+                yield frame
+        frame = await emitter.emit(
+            AgentStreamEvent.STATUS,
+            {"phase": "finalizing", "detail": "Saving the response"},
+        )
+        if not client_disconnected:
+            yield frame
         # persisted_assistant_id is hoisted to the function top (see there).
         try:
             persist_kwargs = dict(
@@ -2996,6 +3115,7 @@ async def stream_confirm_event_generator(
                 retrieved_contexts=final_values.get("retrieved_contexts"),
                 plan=final_values.get("plan") or None,
                 plan_reasoning=final_values.get("plan_reasoning") or None,
+                progress_steps=emitter.progress_steps or None,
                 token_usage=token_usage_payload,
                 client_message_id=assistant_cmid,
                 latency_ms=int((time.monotonic() - stream_started_at) * 1000),
@@ -3079,6 +3199,7 @@ async def stream_confirm_event_generator(
         # preview was redacted in #1046 but this payload kept raw args).
         done_payload: Dict[str, Any] = {
             "status": "complete",
+            "progress_steps": emitter.progress_steps,
             "tool_executions": (
                 [
                     {**te.model_dump(), "args": redact_tool_args(te.args)}

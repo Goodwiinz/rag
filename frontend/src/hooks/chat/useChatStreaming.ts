@@ -19,6 +19,10 @@ import {
 } from '@/hooks/chat/chatTypes';
 import { agentChatService } from '@/services/agentChatService';
 import type { AgentStreamCallbacks } from '@/services/agentChatService';
+import type {
+  AgentProgressStep,
+  AgentStreamPhase,
+} from '@/services/agentStreamEvents';
 import { workspaceService } from '@/services/workspaceService';
 import {
   resolveBoundProjectId,
@@ -127,6 +131,19 @@ export function toCitationCreate(ctx: Record<string, unknown>): CitationCreate {
  * proxy-killed resume is usually transient; the run itself keeps going. */
 const RESUME_MAX_ATTEMPTS = 3;
 const RESUME_BACKOFF_MS = [1_000, 4_000];
+const MAX_PROGRESS_STEPS = 16;
+
+export function appendProgressStep(
+  steps: AgentProgressStep[],
+  phase: AgentStreamPhase,
+  detail?: string
+): AgentProgressStep[] {
+  if (!detail) return steps;
+  const next = { phase, detail: detail.slice(0, 200) };
+  const last = steps[steps.length - 1];
+  if (last?.phase === next.phase && last.detail === next.detail) return steps;
+  return [...steps, next].slice(-MAX_PROGRESS_STEPS);
+}
 
 const PROJECT_MUTATING_TOOLS = new Set([
   'ingest_arxiv',
@@ -152,6 +169,7 @@ export interface PendingConfirmation {
   plan?: PlanStep[];
   /** Planner's top-level rationale for `plan`, carried the same way. */
   planReasoning?: string;
+  progress?: AgentProgressStep[];
   /** RAG citations retrieved before the interrupt — the interrupt exit
    * clears streamingCitations, so they must ride the confirmation. */
   citations?: Array<Record<string, unknown>>;
@@ -648,6 +666,7 @@ export function useChatStreaming(
         assistant_message_id?: string | null;
         client_message_id?: string | null;
         tool_executions?: Array<Record<string, unknown>>;
+        progress_steps?: AgentProgressStep[];
       } = {};
 
       try {
@@ -670,6 +689,7 @@ export function useChatStreaming(
         let turnPlan: PlanStep[] = [];
         // Planner's top-level rationale for turnPlan, carried the same way.
         let turnPlanReasoning = '';
+        let turnProgress: AgentProgressStep[] = [];
         // One entry per invocation: two parallel calls to the same tool used
         // to share a slot, so the second end read the first's start time.
         const toolStartTimes = new Map<string, number[]>();
@@ -688,6 +708,7 @@ export function useChatStreaming(
           streamingContent: '',
           streamingSteps: [],
           streamingPlan: [],
+          streamingProgress: [],
           // Only "retrieving" when RAG is on; cleared on first token / context.
           isRetrievingRag: enableRAG,
           // Fresh turn — drop the previous turn's heartbeat reading.
@@ -748,9 +769,11 @@ export function useChatStreaming(
               useChatStore.setState({ streamingElapsedMs: elapsedMs });
             },
             onStatus: (phase, detail) => {
+              turnProgress = appendProgressStep(turnProgress, phase, detail);
               useChatStore.setState({
                 streamingPhase: phase,
                 streamingStatusDetail: detail ?? null,
+                streamingProgress: [...turnProgress],
               });
             },
             onStreamId: (sid) => {
@@ -896,6 +919,7 @@ export function useChatStreaming(
                 steps: turnSteps.filter((s) => s.status !== 'running'),
                 plan: [...turnPlan],
                 planReasoning: turnPlanReasoning || undefined,
+                progress: [...turnProgress],
                 // Snapshot NOW — the streamHadConfirmation exit below clears
                 // streamingCitations before the confirm stream starts.
                 citations: useChatStore.getState().streamingCitations,
@@ -974,6 +998,7 @@ export function useChatStreaming(
             streamingCitations: [],
             streamingSteps: [],
             streamingPlan: [],
+            streamingProgress: [],
             streamingThreadId: null,
           });
           await reconcileUser(
@@ -1017,6 +1042,7 @@ export function useChatStreaming(
             streamingCitations: [],
             streamingSteps: [],
             streamingPlan: [],
+            streamingProgress: [],
             streamingThreadId: null,
           });
           if (isStoppedByUser()) {
@@ -1077,6 +1103,12 @@ export function useChatStreaming(
             finalTurnSteps.length > 0 ? finalTurnSteps : undefined,
           plan: turnPlan.length > 0 ? turnPlan : undefined,
           planReasoning: turnPlanReasoning || undefined,
+          progressSteps:
+            doneIds.progress_steps && doneIds.progress_steps.length > 0
+              ? doneIds.progress_steps
+              : turnProgress.length > 0
+                ? turnProgress
+                : undefined,
           metadata: {
             responseTimeMs,
             ...(firstTokenAt !== null
@@ -1103,6 +1135,7 @@ export function useChatStreaming(
           streamingCitations: [],
           streamingSteps: [],
           streamingPlan: [],
+          streamingProgress: [],
           streamingThreadId: null,
         });
         lastStreamedContentRef.current = '';
@@ -1221,6 +1254,7 @@ export function useChatStreaming(
             streamingCitations: [],
             streamingSteps: [],
             streamingPlan: [],
+            streamingProgress: [],
             streamingThreadId: null,
           });
         }
@@ -1825,6 +1859,9 @@ export function useChatStreaming(
         const carriedCitations = pendingConfirmation.citations ?? [];
         let confirmPlan: PlanStep[] = [...(pendingConfirmation.plan ?? [])];
         let confirmPlanReasoning = pendingConfirmation.planReasoning ?? '';
+        let confirmProgress: AgentProgressStep[] = [
+          ...(pendingConfirmation.progress ?? []),
+        ];
         // CX5: the confirm-resume path is a SEPARATE live-stream owner from
         // runStreamTurn (a resumed HITL turn belongs to the confirmation's
         // workspace thread, which may differ from whatever thread is
@@ -1839,6 +1876,7 @@ export function useChatStreaming(
           // Seed from the pre-interrupt plan so it survives the HITL
           // resume — the interrupt exit already cleared streamingPlan.
           streamingPlan: [...confirmPlan],
+          streamingProgress: [...confirmProgress],
           streamingCitations: carriedCitations,
           streamingElapsedMs: null,
           streamingPhase: 'accepted',
@@ -1870,6 +1908,7 @@ export function useChatStreaming(
         let confirmDoneIds: {
           assistant_message_id?: string | null;
           client_message_id?: string | null;
+          progress_steps?: AgentProgressStep[];
         } = {};
         const confirmMessages = [...messages];
         const confirmRuntimeId =
@@ -1895,6 +1934,9 @@ export function useChatStreaming(
             ...(confirmPlan.length > 0 ? { plan: [...confirmPlan] } : {}),
             ...(confirmPlanReasoning
               ? { planReasoning: confirmPlanReasoning }
+              : {}),
+            ...(confirmProgress.length > 0
+              ? { progressSteps: [...confirmProgress] }
               : {}),
             metadata: {
               responseTimeMs: Date.now() - confirmStart,
@@ -1940,9 +1982,15 @@ export function useChatStreaming(
                 useChatStore.setState({ streamingElapsedMs: elapsedMs });
               },
               onStatus: (phase, detail) => {
+                confirmProgress = appendProgressStep(
+                  confirmProgress,
+                  phase,
+                  detail
+                );
                 useChatStore.setState({
                   streamingPhase: phase,
                   streamingStatusDetail: detail ?? null,
+                  streamingProgress: [...confirmProgress],
                 });
               },
               // Same resume-cursor bookkeeping as the primary stream. Without
@@ -2078,6 +2126,7 @@ export function useChatStreaming(
                   plan: [...confirmPlan],
                   planReasoning: confirmPlanReasoning || undefined,
                   citations: [...carriedCitations, ...resumeCitations],
+                  progress: [...confirmProgress],
                   userRuntimeId: pendingConfirmation.userRuntimeId,
                   assistantRuntimeId: pendingConfirmation.assistantRuntimeId,
                 };
@@ -2110,6 +2159,9 @@ export function useChatStreaming(
                   );
                   const msg: ChatPageMessage = {
                     ...baseMessage,
+                    ...(payload?.progress_steps?.length
+                      ? { progressSteps: payload.progress_steps }
+                      : {}),
                     ...(payload?.assistant_message_id
                       ? { id: payload.assistant_message_id }
                       : {}),
@@ -2262,6 +2314,7 @@ export function useChatStreaming(
               streamingContent: '',
               streamingSteps: [],
               streamingPlan: [],
+              streamingProgress: [],
               streamingCitations: [],
               streamingThreadId: null,
             });

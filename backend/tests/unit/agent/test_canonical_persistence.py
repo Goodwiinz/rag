@@ -80,12 +80,18 @@ class TestPersistSafeForwarding:
                 latency_ms=4200,
                 stopped=True,
                 client_message_id="cmid-1",
+                progress_steps=[
+                    {"phase": "writing", "detail": "Drafting the response"}
+                ],
             )
 
         assert result == "msg-123"
         assert captured["latency_ms"] == 4200
         assert captured["stopped"] is True
         assert captured["client_message_id"] == "cmid-1"
+        assert captured["progress_steps"] == [
+            {"phase": "writing", "detail": "Drafting the response"}
+        ]
 
     @pytest.mark.asyncio
     async def test_swallows_errors_and_returns_none(self):

@@ -1841,6 +1841,7 @@ async def _persist_assistant_message(
     plan: Optional[list] = None,
     plan_reasoning: Optional[str] = None,
     token_usage: Optional[dict] = None,
+    progress_steps: Optional[list] = None,
 ) -> Optional[str]:
     """Insert the assistant turn and bump ``thread.message_count`` by 1.
 
@@ -1902,6 +1903,7 @@ async def _persist_assistant_message(
         plan=plan,
         plan_reasoning=plan_reasoning,
         token_usage=token_usage,
+        progress_steps=progress_steps,
     )
 
     if client_message_id is not None:
@@ -1996,6 +1998,7 @@ async def _persist_assistant_message_safe(
     plan: Optional[list] = None,
     plan_reasoning: Optional[str] = None,
     token_usage: Optional[dict] = None,
+    progress_steps: Optional[list] = None,
     required: bool = False,
 ) -> Optional[str]:
     """Background-task-safe wrapper around ``_persist_assistant_message``.
@@ -2025,6 +2028,7 @@ async def _persist_assistant_message_safe(
                 plan=plan,
                 plan_reasoning=plan_reasoning,
                 token_usage=token_usage,
+                progress_steps=progress_steps,
             )
             if required and persisted_id is None:
                 raise RuntimeError("Assistant message persistence returned no id")

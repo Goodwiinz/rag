@@ -95,6 +95,26 @@ async def test_finalize_without_payload_leaves_column_untouched(
     assert "assistant_message_id" not in _update_values(db)
 
 
+async def test_finalize_writes_progress_bridge_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.services.agent.agent_submission_service as svc
+
+    monkeypatch.setattr(svc, "append_event", AsyncMock())
+    db = _spy_db()
+    progress = [{"phase": "planning", "detail": "Planning the response"}]
+
+    await finalize_submission(
+        db,
+        run_id=str(uuid.uuid4()),
+        status=JobStatus.AWAITING_CONFIRMATION,
+        organization_id=str(uuid.uuid4()),
+        run_metadata={"progress_steps": progress},
+    )
+
+    assert _update_values(db)["run_metadata"] == {"progress_steps": progress}
+
+
 async def test_terminal_finalize_failure_propagates_after_rollback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -87,6 +87,10 @@ describe('cloudMessageView', () => {
         ],
         plan_reasoning: 'Search first, then answer from the results.',
         token_usage: { input_tokens: 1200, output_tokens: 340 },
+        progress_steps: [
+          { phase: 'accepted', detail: 'Request accepted' },
+          { phase: 'writing', detail: 'Drafting the response' },
+        ],
       } as any,
     ]);
 
@@ -96,6 +100,10 @@ describe('cloudMessageView', () => {
       'Search first, then answer from the results.'
     );
     expect(msg.metadata?.tokenUsage).toEqual({ input: 1200, output: 340 });
+    expect(msg.progressSteps).toEqual([
+      { phase: 'accepted', detail: 'Request accepted' },
+      { phase: 'writing', detail: 'Drafting the response' },
+    ]);
   });
 
   it('leaves plan, planReasoning and tokenUsage absent for rows persisted without them', () => {

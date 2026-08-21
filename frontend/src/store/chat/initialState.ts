@@ -54,6 +54,7 @@ export const initialState: ChatState = {
   isRetrievingRag: false,
   streamingSteps: [],
   streamingPlan: [],
+  streamingProgress: [],
   streamingElapsedMs: null,
   streamingPhase: null,
   streamingStatusDetail: null,

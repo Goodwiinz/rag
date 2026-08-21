@@ -10,6 +10,7 @@
  * component imports from `@/types/workspace` don't need to change.
  */
 
+import type { AgentProgressStep } from '@/services/agentStreamEvents';
 import type { PlanStep } from './agent-chat';
 import type {
   ApiBulkThreadResponse,
@@ -186,11 +187,11 @@ export type ChatMessageCreate = Omit<ApiMessageCreate, 'role'> & {
 export type ChatMessageUpdate = ApiMessageUpdate;
 
 /**
- * `plan` / `tool_executions` / `token_usage` are persisted as loose JSONB on
+ * `plan` / `tool_executions` / `token_usage` / `progress_steps` are persisted as loose JSONB on
  * the backend, so the generated response types them as an untyped
  * passthrough (`Record<string, unknown>[] | null`). The frontend view-model
  * needs the concrete shapes (`PlanStep[]`, `DbToolExecution[]`, ...), so
- * those three fields β€” plus `role` (enum, not a plain string union) and
+ * those fields β€” plus `role` (enum, not a plain string union) and
  * `citations`/`attachments` (concrete `Citation`/`MessageAttachment`, not
  * the generated nested response types) β€” are narrowed back here rather than
  * left as the raw generated shape.
@@ -203,6 +204,7 @@ export type ChatMessage = Omit<
   | 'plan'
   | 'tool_executions'
   | 'token_usage'
+  | 'progress_steps'
 > & {
   role: MessageRole;
   /** Agent tool executions for this turn (JSONB passthrough from the
@@ -218,6 +220,8 @@ export type ChatMessage = Omit<
   /** Aggregated per-turn LLM token usage (chat_messages.token_usage JSONB).
    * Absent when the turn reported no usage. */
   token_usage?: { input_tokens: number; output_tokens: number };
+  /** Display-safe progress emitted while producing this turn. */
+  progress_steps?: AgentProgressStep[];
   citations: Citation[];
   attachments: MessageAttachment[];
 };

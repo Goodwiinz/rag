@@ -238,7 +238,9 @@ function MessageActions({
           disabled={retryDisabled}
           className="nous-msg-action"
           aria-label="Regenerate response"
-          title={retryDisabled ? RETRY_UNAVAILABLE_REASON : 'Regenerate response'}
+          title={
+            retryDisabled ? RETRY_UNAVAILABLE_REASON : 'Regenerate response'
+          }
         >
           <RotateCcw className="h-3.5 w-3.5" />
         </button>
@@ -439,39 +441,67 @@ function LiveMessageTiming({
 }
 
 /**
- * Always-present live reasoning surface. Real planner steps take over when
- * available; ordinary turns still show the truthful server activity instead
- * of mounting nothing while they wait for the first token.
+ * Always-present live reasoning surface. Ordinary turns show the truthful
+ * server activity while explicit agent plans keep their existing detail view.
  */
-function StreamingReasoningSection({
-  label,
-}: {
-  label: string;
-}): ReactElement {
+function StreamingReasoningSection({ label }: { label: string }): ReactElement {
   const streamingPlan = useChatStore((s) => s.streamingPlan);
   const streamingSteps = useChatStore((s) => s.streamingSteps);
+  const progress = useChatStore((s) => s.streamingProgress);
   const [open, setOpen] = useState(true);
 
-  if (streamingPlan.length > 0) {
-    return (
-      <ChatInlinePlan
-        plan={streamingPlan}
-        toolExecutions={streamingSteps}
+  const reasoningSteps = (
+    progress.length > 0
+      ? progress
+      : [{ phase: 'accepted' as const, detail: label }]
+  ).map((step, index, all) => ({
+    title: step.detail,
+    body: index === all.length - 1 ? 'In progress' : 'Completed',
+  }));
+
+  return (
+    <>
+      <ReasoningPanel
+        steps={reasoningSteps}
+        visibleSteps={reasoningSteps.length}
         streaming
+        open={open}
+        onOpenChange={setOpen}
+        restingLabel={label}
+        role="status"
+        aria-live="polite"
+        className="mb-2 max-w-none"
       />
-    );
-  }
+      {streamingPlan.length > 0 ? (
+        <ChatInlinePlan
+          plan={streamingPlan}
+          toolExecutions={streamingSteps}
+          streaming
+        />
+      ) : null}
+    </>
+  );
+}
+
+function CompletedProgressSection({
+  message,
+}: {
+  message: ChatPageMessage;
+}): ReactElement | null {
+  const [open, setOpen] = useState(false);
+  if (!message.progressSteps?.length) return null;
 
   return (
     <ReasoningPanel
-      steps={[{ title: label, body: 'In progress' }]}
-      visibleSteps={1}
-      streaming
+      steps={message.progressSteps.map((step) => ({
+        title: step.detail,
+        body: 'Completed',
+      }))}
+      visibleSteps={message.progressSteps.length}
+      streaming={false}
       open={open}
       onOpenChange={setOpen}
-      restingLabel={label}
-      role="status"
-      aria-live="polite"
+      restingLabel="How this answer was prepared"
       className="mb-2 max-w-none"
     />
   );
@@ -615,19 +645,19 @@ export function AuiAssistantMessage({
     // Committed assistant prose is quotable (see QuoteToolbar). Streaming
     // content is deliberately excluded — the text is still moving.
     <div data-quotable>
-    <CitationRenderer
-      content={message.content}
-      citations={allCitations}
-      onCitationClick={(citation) => {
-        if (onCitationClick) {
-          onCitationClick(
-            visibleCitations,
-            citation,
-            message.diagnosticsTraceId
-          );
-        }
-      }}
-    />
+      <CitationRenderer
+        content={message.content}
+        citations={allCitations}
+        onCitationClick={(citation) => {
+          if (onCitationClick) {
+            onCitationClick(
+              visibleCitations,
+              citation,
+              message.diagnosticsTraceId
+            );
+          }
+        }}
+      />
     </div>
   ) : undefined;
 
@@ -703,6 +733,7 @@ export function AuiAssistantMessage({
       className="group relative mb-7 flex justify-start sm:mb-8"
     >
       <div className="min-w-0 flex-1 text-left">
+        {message && <CompletedProgressSection message={message} />}
         {/* Execution plan — committed provenance for agent turns */}
         {message?.plan && message.plan.length > 0 && (
           <ChatInlinePlan
