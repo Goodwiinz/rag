@@ -124,18 +124,18 @@ async def test_terminal_finalize_failure_propagates_after_rollback(
 
 def _lost_connection_error() -> DBAPIError:
     """The production failure shape (Sentry JAVASCRIPT-NEXTJS-4W): SQLAlchemy
-    wrapping the asyncpg error raised when the pooler closes the socket
-    mid-operation. The asyncpg dialect's ``is_disconnect`` reports
-    ``connection.is_closed()`` for errors on a live connection, so SQLAlchemy
-    invalidates the pooled connection and stamps ``connection_invalidated`` —
-    the exact signal the retry gate keys on."""
-    exc = DBAPIError(
+    wraps its adapter error, whose cause is the asyncpg disconnect. In the
+    observed incident SQLAlchemy left ``connection_invalidated`` false."""
+    adapter_error = RuntimeError("asyncpg adapter error")
+    adapter_error.__cause__ = ConnectionDoesNotExistError(
+        "connection was closed in the middle of operation"
+    )
+    return DBAPIError(
         "UPDATE agent_runs",
         {},
-        ConnectionDoesNotExistError("connection was closed in the middle of operation"),
+        adapter_error,
+        connection_invalidated=False,
     )
-    exc.connection_invalidated = True
-    return exc
 
 
 async def test_finalize_retries_once_when_the_connection_is_lost(
