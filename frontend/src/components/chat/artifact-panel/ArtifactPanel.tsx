@@ -335,7 +335,7 @@ export function ArtifactPanel({
             icon={<X className="h-4 w-4" />}
             label="Close artifact panel"
             onClick={closePanel}
-            className="h-8 w-8 text-(--nous-fg-3) hover:bg-(--nous-aurum) hover:text-(--nous-fg-1)"
+            className="h-11 w-11 text-(--nous-fg-3) hover:bg-(--nous-aurum) hover:text-(--nous-fg-1)"
           />
         </div>
       </div>

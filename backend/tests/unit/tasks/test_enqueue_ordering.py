@@ -96,9 +96,9 @@ def _awaited_commit_lineno(node: ast.AST) -> int | None:
     Scoped to *awaited* commits on purpose: the ``enqueue_after_commit`` helper
     (Task 1.2) takes an ``AsyncSession``, so only async-session sites are in this
     ratchet's remit. Sync ``self.db.commit()`` sites carry the same race but need
-    a different fix — e.g. ``src/services/processing/processing_service.py:154``
-    (``queue_processing_job``), which would need a future sync-session enqueue
-    helper and is out of this PR's scope.
+    a different fix. (``ProcessingPipeline.queue_processing_job``, once the sync
+    example here, is now async and carries a justified enqueue-before-commit
+    marker: its job row is committed by the caller before enqueue.)
     """
     if (
         isinstance(node, ast.Await)

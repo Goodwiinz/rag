@@ -189,6 +189,41 @@ def test_retry_http_exception_direct_call_preserves_status() -> None:
     assert exc_info.value.status_code == 400
 
 
+# --- async service: status route must await get_processing_status ----------
+
+
+def test_status_route_awaits_async_service() -> None:
+    """get_processing_status became async (ProcessingPipeline now runs on the
+    AsyncSession that get_db actually injects); the route must await it."""
+    doc_result = MagicMock()
+    doc_result.scalar_one_or_none.return_value = MagicMock()
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=doc_result)
+
+    payload = {
+        "document_id": "d1",
+        "processing_status": "completed",
+        "is_embedded": True,
+        "is_indexed": True,
+        "processing_error": None,
+        "jobs": [],
+    }
+    service = MagicMock()
+    service.get_processing_status = AsyncMock(return_value=payload)
+
+    resp = asyncio.run(
+        processing_mod.get_document_processing_status(
+            document_id=uuid.uuid4(),
+            current_user=_user(),
+            organization=_org(),
+            processing_service=service,
+            db=db,
+        )
+    )
+    service.get_processing_status.assert_awaited_once()
+    assert resp.processing_status == "completed"
+
+
 # --- R4-L10: orgless user gets 404, not "None" passed downstream ----------
 
 
