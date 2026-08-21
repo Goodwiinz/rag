@@ -101,9 +101,11 @@ describe('ArtifactPanel', () => {
 
   it('close button hides the panel but keeps the artifact', async () => {
     const { user } = render(<ArtifactPanel artifact={docArtifact} />);
-    await user.click(
-      screen.getByRole('button', { name: 'Close artifact panel' })
-    );
+    const close = screen.getByRole('button', {
+      name: 'Close artifact panel',
+    });
+    expect(close).toHaveClass('h-11', 'w-11');
+    await user.click(close);
     const s = useArtifactPanelStore.getState();
     expect(s.isOpen).toBe(false);
     expect(s.artifact).toEqual(docArtifact);
