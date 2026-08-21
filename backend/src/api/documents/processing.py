@@ -120,7 +120,7 @@ async def get_document_processing_status(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
         )
 
-    status_info = processing_service.get_processing_status(str(document_id))
+    status_info = await processing_service.get_processing_status(str(document_id))
 
     return ProcessingStatusResponse(**status_info)
 
@@ -298,7 +298,7 @@ async def retry_failed_jobs(
     try:
         if request.organization_wide:
             # Retry all failed jobs for the organization
-            retried_count = processing_service.retry_failed_jobs(
+            retried_count = await processing_service.retry_failed_jobs(
                 organization_id=str(organization.id)
             )
             message = f"Retried {retried_count} failed jobs organization-wide"
@@ -317,7 +317,7 @@ async def retry_failed_jobs(
                 if job and job.can_retry:
                     job.retry_job()
                     await db.commit()
-                    processing_service.queue_processing_job(job_id)
+                    await processing_service.queue_processing_job(job_id)
                     retried_count += 1
 
             message = f"Retried {retried_count} specified jobs"
