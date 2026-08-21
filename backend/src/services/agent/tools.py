@@ -210,6 +210,68 @@ def _resolve_project_id(
     return None
 
 
+def _page_project_conflict(
+    resolved_project_id: Optional[str], page_context: dict
+) -> Optional[str]:
+    """Return the active-page project_id when it differs from the write target.
+
+    A project page is active AND the resolved target is a *different* project
+    means the model supplied an explicit id that overrode "the project I'm
+    viewing" (``_resolve_project_id`` honors any valid UUID; page context is
+    only its fallback). That is the silent-misfile shape traced on
+    ``create_project_note`` — the note lands in a topic-matched project the
+    user was not looking at. Returns the active project_id so the caller can
+    make the mismatch loud in the result; ``None`` when there is no conflict.
+    """
+    if page_context.get("type") != "project":
+        return None
+    active_pid = page_context.get("project_id")
+    if not active_pid or not resolved_project_id:
+        return None
+    return active_pid if str(active_pid) != str(resolved_project_id) else None
+
+
+async def _flag_project_mismatch(
+    result: Dict[str, Any],
+    resolved_project_id: Optional[str],
+    page_context: dict,
+    db: Any,
+    current_user: Any,
+) -> Dict[str, Any]:
+    """Make a cross-project write visible in a successful tool result.
+
+    When the note/document landed in a project other than the one the user is
+    viewing, prepend a warning to ``message`` (which the model surfaces to the
+    user under the honest-reporting rule) and set ``project_mismatch``. Best
+    effort: any failure leaves ``result`` untouched — never blocks the write.
+    """
+    if not isinstance(result, dict) or result.get("status") != "success":
+        return result
+    active_pid = _page_project_conflict(resolved_project_id, page_context)
+    if not active_pid:
+        return result
+    try:
+        from src.services.agent.tools_impl import _verify_project_ownership
+
+        active = await _verify_project_ownership(str(active_pid), db, current_user)
+        active_name = active.name if active else "the project you are viewing"
+        target_name = result.get("project_name")
+        if not target_name:
+            target = await _verify_project_ownership(
+                str(resolved_project_id), db, current_user
+            )
+            target_name = target.name if target else "another project"
+        result["project_mismatch"] = True
+        result["message"] = (
+            f"WARNING: saved to '{target_name}', which is NOT the project you "
+            f"are viewing ('{active_name}'). If that is wrong, tell me to move "
+            f"it. " + str(result.get("message", ""))
+        ).strip()
+    except Exception:  # noqa: BLE001 — advisory only, must not fail the write
+        logger.debug("project mismatch annotation failed", exc_info=True)
+    return result
+
+
 def _missing_project_error(tool_name: str) -> Dict[str, Any]:
     """Standard error payload when no project_id can be resolved.
 
@@ -389,8 +451,10 @@ async def add_document_to_project(
 ) -> Dict[str, Any]:
     """Add an existing document to a research project.
 
-    If *project_id* is omitted and the user is on a project page, the
-    project is inferred from the page context.
+    When a project page is active, OMIT *project_id* — the document is added to
+    the project the user is viewing. Pass *project_id* ONLY when the user
+    explicitly names a different project; never infer it from the document's
+    topic or title.
     """
     config = config or {}
     from src.services.agent.tools_impl import _tool_add_document_to_project
@@ -399,10 +463,13 @@ async def add_document_to_project(
         resolved_pid = _resolve_project_id(project_id, page_ctx)
         if not resolved_pid:
             return _missing_project_error("add_document_to_project")
-        return await _tool_add_document_to_project(
+        result = await _tool_add_document_to_project(
             {"document_id": document_id, "project_id": resolved_pid},
             db,
             current_user,
+        )
+        return await _flag_project_mismatch(
+            result, resolved_pid, page_ctx, db, current_user
         )
 
 
@@ -466,7 +533,10 @@ async def create_project_note(
         }
         if tags:
             args["tags"] = tags
-        return await _tool_create_project_note(args, db, current_user)
+        result = await _tool_create_project_note(args, db, current_user)
+        return await _flag_project_mismatch(
+            result, resolved_pid, page_ctx, db, current_user
+        )
 
 
 @tool
