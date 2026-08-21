@@ -100,7 +100,6 @@
     "src/services/graphService.ts",
     "src/services/monitoringWebsocketService.ts",
     "src/services/searchService.ts",
-    "src/components/documents/DocumentLibrary.tsx",
     "src/hooks/useAnalyticsTracking.ts",
     "src/components/analytics/AnalyticsProvider.tsx",
     "src/stores/analytics/**/*",

@@ -2,7 +2,6 @@
   "tsconfigProductionExclusions": [
     "app/components/AppNavbar.tsx",
     "src/components/analytics/AnalyticsProvider.tsx",
-    "src/components/documents/DocumentLibrary.tsx",
     "src/components/graph/ResponsiveGraphLayout.tsx",
     "src/components/layout/AppLayout.tsx",
     "src/components/layout/Header.tsx",

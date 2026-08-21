@@ -629,7 +629,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                   </p>
                   <p className="text-sm text-red-700">
                     {documentToDelete.filename} •{' '}
-                    {formatFileSize(documentToDelete.file_size)}
+                    {formatFileSize(documentToDelete.file_size ?? 0)}
                   </p>
                 </div>
               </div>
