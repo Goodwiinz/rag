@@ -47,7 +47,7 @@ function renderStreamingTurn(): RenderResult {
   );
 }
 
-describe('streaming thinking pill elapsed time', () => {
+describe('streaming reasoning panel and elapsed time', () => {
   beforeEach(() => {
     useChatStore.setState({
       streamingContent: '',
@@ -66,7 +66,9 @@ describe('streaming thinking pill elapsed time', () => {
     vi.useFakeTimers();
     renderStreamingTurn();
 
-    expect(screen.getByText('Starting')).toBeInTheDocument();
+    expect(
+      document.querySelector('[data-slot="reasoning-panel"]')
+    ).toHaveTextContent('Starting');
     expect(screen.getByText('0.0s')).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(9_400));
     expect(screen.getByText('9.4s')).toBeInTheDocument();
@@ -79,7 +81,9 @@ describe('streaming thinking pill elapsed time', () => {
     });
     renderStreamingTurn();
 
-    expect(screen.getByText('Choosing approach')).toBeInTheDocument();
+    expect(
+      document.querySelector('[data-slot="reasoning-panel"]')
+    ).toHaveTextContent('Choosing approach');
     expect(screen.queryByText('Reading sources')).not.toBeInTheDocument();
   });
 
@@ -91,8 +95,8 @@ describe('streaming thinking pill elapsed time', () => {
     renderStreamingTurn();
 
     expect(
-      screen.getByText('Choosing the safest response path')
-    ).toBeInTheDocument();
+      document.querySelector('[data-slot="reasoning-panel"]')
+    ).toHaveTextContent('Choosing the safest response path');
     expect(screen.queryByText('Choosing approach')).not.toBeInTheDocument();
   });
 
@@ -102,6 +106,9 @@ describe('streaming thinking pill elapsed time', () => {
     renderStreamingTurn();
 
     const timing = document.querySelector('[data-slot="message-timing"]');
+    expect(
+      document.querySelector('[data-slot="reasoning-panel"]')
+    ).toBeTruthy();
     expect(timing).toHaveTextContent('total47.0s');
     expect(timing).toHaveAttribute('aria-live', 'off');
   });
