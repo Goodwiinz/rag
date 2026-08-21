@@ -245,7 +245,7 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
   }, [messages.length, currentLastId]);
 
   const lastIndex = messages.length - 1;
-  const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Reflecting';
+  const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Thinking';
 
   // Scroll-to-top detection for loading older messages
   const lastScrollOffsetRef = useRef(0);

@@ -14,47 +14,30 @@ const plan: PlanStep[] = [
 ];
 
 describe('ChatInlinePlan', () => {
-  it('still reports a sub-second duration', () => {
-    // ToolStrip suppresses its clock for planned turns, so if the header
-    // rounded 900ms away the turn would show no duration at all.
-    render(
-      <ChatInlinePlan plan={plan} toolExecutions={[]} elapsedMs={900} />
-    );
-    expect(screen.getByText(/took 0\.9s/)).toBeInTheDocument();
-  });
-
   it('defaults collapsed for a committed (non-streaming) instance', () => {
     render(<ChatInlinePlan plan={plan} />);
 
-    expect(screen.getByText('Execution plan')).toBeInTheDocument();
-    expect(screen.queryByText('Search arXiv for the paper')).not.toBeInTheDocument();
+    expect(screen.getByText('Execution plan · 0/1')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Toggle execution plan' })
+      document.querySelector('[data-slot="reasoning-panel"]')
+    ).toBeTruthy();
+    expect(
+      screen.queryByText('Search arXiv for the paper')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Execution plan · 0/1' })
     ).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('defaults open for a streaming instance so steps stream in visibly', () => {
     render(<ChatInlinePlan plan={plan} streaming />);
 
+    expect(screen.getByText('Thinking')).toBeInTheDocument();
     expect(screen.getByText('Search arXiv for the paper')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Toggle execution plan' })
-    ).toHaveAttribute('aria-expanded', 'true');
-  });
-
-  it('shows the elapsed "took …" duration once resting, not while streaming', () => {
-    const { rerender } = render(
-      <ChatInlinePlan plan={plan} elapsedMs={15_400} />
+    expect(screen.getByRole('button', { name: 'Thinking' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
     );
-    expect(screen.getByText('took 15s')).toBeInTheDocument();
-
-    rerender(<ChatInlinePlan plan={plan} streaming elapsedMs={15_400} />);
-    expect(screen.queryByText(/took/)).not.toBeInTheDocument();
-  });
-
-  it('omits the "took …" duration when elapsed time is unknown or sub-second', () => {
-    render(<ChatInlinePlan plan={plan} />);
-    expect(screen.queryByText(/took/)).not.toBeInTheDocument();
   });
 
   it('renders the reasoning paragraph only while expanded', () => {
@@ -70,7 +53,7 @@ describe('ChatInlinePlan', () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Toggle execution plan' })
+      screen.getByRole('button', { name: 'Execution plan · 0/1' })
     );
     expect(
       screen.getByText('Search arXiv first, then summarize the top hit.')
@@ -79,14 +62,14 @@ describe('ChatInlinePlan', () => {
 
   it('omits the reasoning paragraph when no reasoning is provided', () => {
     render(<ChatInlinePlan plan={plan} streaming />);
-    expect(
-      screen.queryByText(/search arxiv first/i)
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/search arxiv first/i)).not.toBeInTheDocument();
   });
 
   it('toggles aria-expanded and visible content on click', () => {
     render(<ChatInlinePlan plan={plan} />);
-    const button = screen.getByRole('button', { name: 'Toggle execution plan' });
+    const button = screen.getByRole('button', {
+      name: 'Execution plan · 0/1',
+    });
 
     expect(button).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(button);

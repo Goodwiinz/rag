@@ -1,10 +1,14 @@
 /**
- * The pre-first-token pill is the only thing on screen during a long silent
- * planner/LLM phase. Without the heartbeat reading a 62-second run showed no
- * progress at all, which reads as a hung UI.
+ * Live message timing starts with the turn and remains mounted while answer
+ * tokens arrive; the server heartbeat only corrects the local clock.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, type RenderResult } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  act,
+  render,
+  screen,
+  type RenderResult,
+} from '@testing-library/react';
 
 import { makeChatPageMessage } from '@/test/chatMessageFactory';
 import { useChatStore } from '@/store/chat-store';
@@ -52,22 +56,20 @@ describe('streaming thinking pill elapsed time', () => {
       isRetrievingRag: false,
       streamingElapsedMs: null,
       streamingPhase: 'accepted',
+      streamingStatusDetail: null,
     });
   });
 
-  it('renders the heartbeat elapsed time next to the phase label', () => {
-    useChatStore.setState({ streamingElapsedMs: 47_000 });
+  afterEach(() => vi.useRealTimers());
+
+  it('renders message timing immediately and updates it during streaming', () => {
+    vi.useFakeTimers();
     renderStreamingTurn();
 
     expect(screen.getByText('Starting')).toBeInTheDocument();
-    expect(screen.getByText('· 47s')).toBeInTheDocument();
-  });
-
-  it('shows no reading before the first heartbeat', () => {
-    renderStreamingTurn();
-
-    expect(screen.getByText('Starting')).toBeInTheDocument();
-    expect(screen.queryByText(/·\s*\d/)).not.toBeInTheDocument();
+    expect(screen.getByText('0.0s')).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(9_400));
+    expect(screen.getByText('9.4s')).toBeInTheDocument();
   });
 
   it('renders the server-reported phase instead of guessing from the RAG toggle', () => {
@@ -81,11 +83,27 @@ describe('streaming thinking pill elapsed time', () => {
     expect(screen.queryByText('Reading sources')).not.toBeInTheDocument();
   });
 
-  it('keeps the ticking counter out of the pill’s live announcements', () => {
-    useChatStore.setState({ streamingElapsedMs: 47_000 });
+  it('prefers the specific live activity over the coarse phase', () => {
+    useChatStore.setState({
+      streamingPhase: 'routing',
+      streamingStatusDetail: 'Choosing the safest response path',
+    });
     renderStreamingTurn();
 
-    expect(screen.getByText('· 47s')).toHaveAttribute('aria-live', 'off');
+    expect(
+      screen.getByText('Choosing the safest response path')
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Choosing approach')).not.toBeInTheDocument();
+  });
+
+  it('keeps message timing visible after answer tokens arrive', () => {
+    useChatStore.setState({ streamingElapsedMs: 47_000 });
+    useChatStore.setState({ streamingContent: 'Drafting the answer' });
+    renderStreamingTurn();
+
+    const timing = document.querySelector('[data-slot="message-timing"]');
+    expect(timing).toHaveTextContent('total47.0s');
+    expect(timing).toHaveAttribute('aria-live', 'off');
   });
 
   it('formats elapsed readings', () => {

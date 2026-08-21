@@ -33,6 +33,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback';
 import { CitationRenderer } from '@/components/chat/CitationRenderer';
+import { MessageTiming } from '@/components/elements/message-timing';
 import { ChatInlinePlan } from '@/components/chat/shared/ChatInlinePlan';
 import { CitationChips } from '@/components/chat/shared/CitationChips';
 import { formatStreamingElapsed } from '@/components/chat/shared/formatStreamingElapsed';
@@ -416,14 +417,10 @@ export { formatStreamingElapsed };
 /** Pre-first-token status pill (mirrors the legacy ChatBubble ThinkingPill). */
 function StreamingThinkingPill({
   label,
-  elapsedMs,
 }: {
   label: string;
-  /** Last `heartbeat` reading for this turn (ms), or null before the first. */
-  elapsedMs?: number | null;
 }): ReactElement {
   const reduce = useReducedMotion();
-  const elapsed = formatStreamingElapsed(elapsedMs ?? null);
   return (
     <motion.div
       className="nous-streaming-pill"
@@ -434,15 +431,41 @@ function StreamingThinkingPill({
       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
     >
       <ThinkingMatrix />
-      <span>{label}</span>
-      {elapsed && (
-        // aria-live off: the pill's own polite region announces the phase
-        // label; a per-tick reading of the counter would just interrupt.
-        <span aria-live="off" style={{ color: 'var(--nous-fg-2)' }}>
-          · {elapsed}
-        </span>
-      )}
+      <motion.span
+        key={label}
+        initial={reduce ? false : { opacity: 0, y: 2 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+      >
+        {label}
+      </motion.span>
     </motion.div>
+  );
+}
+
+function LiveMessageTiming({
+  heartbeatMs,
+}: {
+  heartbeatMs: number | null;
+}): ReactElement {
+  const [startedAt] = useState(() => Date.now());
+  const [elapsedMs, setElapsedMs] = useState(0);
+
+  useEffect(() => {
+    const tick = (): void =>
+      setElapsedMs(Math.max(Date.now() - startedAt, heartbeatMs ?? 0));
+    tick();
+    const timer = window.setInterval(tick, 100);
+    return () => window.clearInterval(timer);
+  }, [heartbeatMs, startedAt]);
+
+  return (
+    <MessageTiming
+      stats={[{ label: 'total', value: `${(elapsedMs / 1000).toFixed(1)}s` }]}
+      streaming
+      aria-live="off"
+      className="mt-2 w-auto max-w-none [&>span>span:first-child]:text-(--nous-fg-3)"
+    />
   );
 }
 
@@ -477,6 +500,7 @@ function AuiStreamingBody(): ReactElement {
   const isRetrievingRag = useChatStore((s) => s.isRetrievingRag);
   const elapsedMs = useChatStore((s) => s.streamingElapsedMs);
   const streamingPhase = useChatStore((s) => s.streamingPhase);
+  const statusDetail = useChatStore((s) => s.streamingStatusDetail);
   const streamingCitations = useChatStore((s) => s.streamingCitations);
   const threadId = useAgentActivityStore((s) => s.currentThreadId);
   const phaseLabel = streamingPhase
@@ -490,7 +514,9 @@ function AuiStreamingBody(): ReactElement {
       }[streamingPhase]
     : undefined;
   const thinkingLabel =
-    phaseLabel ?? (isRetrievingRag ? 'Reading sources' : 'Reflecting');
+    statusDetail ??
+    phaseLabel ??
+    (isRetrievingRag ? 'Reading sources' : 'Thinking');
 
   return (
     <>
@@ -519,7 +545,7 @@ function AuiStreamingBody(): ReactElement {
         <AuiToolParts messageId="streaming" steps={steps} isStreaming />
       )}
       {!content ? (
-        <StreamingThinkingPill label={thinkingLabel} elapsedMs={elapsedMs} />
+        <StreamingThinkingPill label={thinkingLabel} />
       ) : (
         <div className="nous-chat-body">
           <CitationRenderer
@@ -534,6 +560,7 @@ function AuiStreamingBody(): ReactElement {
           />
         </div>
       )}
+      <LiveMessageTiming heartbeatMs={elapsedMs} />
     </>
   );
 }
@@ -694,8 +721,6 @@ export function AuiAssistantMessage({
             plan={message.plan}
             reasoning={message.planReasoning}
             toolExecutions={message.toolExecutions}
-            elapsedMs={message.metadata?.responseTimeMs}
-            ttftMs={message.metadata?.ttftMs}
           />
         )}
         {/* Tool strip — tools/sources/time/tokens/stopped */}
