@@ -7,6 +7,7 @@ user, org, or channel with zero live connections still sat in memory.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any, Iterable
 
 import pytest
 
@@ -19,25 +20,32 @@ pytestmark = pytest.mark.unit
 
 
 class FakeWS:
-    async def send_json(self, payload):
+    async def send_json(self, payload: Any) -> None:
         pass
 
-    async def close(self, *args, **kwargs):
+    async def close(self, *args: Any, **kwargs: Any) -> None:
         pass
 
 
-def _now():
+def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _register(mgr, *, user_id, org_id, channels=(), conn_id=None):
+def _register(
+    mgr: EnhancedConnectionManager,
+    *,
+    user_id: str,
+    org_id: str,
+    channels: Iterable[str] = (),
+    conn_id: str | None = None,
+) -> tuple[ConnectionInfo, FakeWS]:
     ws = FakeWS()
     cid = conn_id or f"c-{user_id}-{org_id}"
     conn = ConnectionInfo(
         user_id=user_id,
         organization_id=org_id,
         connection_id=cid,
-        websocket=ws,
+        websocket=ws,  # type: ignore[arg-type]  # test double, not a real WebSocket
         connected_at=_now(),
         last_heartbeat=_now(),
         subscribed_channels=set(channels),
@@ -52,7 +60,7 @@ def _register(mgr, *, user_id, org_id, channels=(), conn_id=None):
 
 
 @pytest.mark.asyncio
-async def test_disconnect_evicts_empty_registry_entries():
+async def test_disconnect_evicts_empty_registry_entries() -> None:
     mgr = EnhancedConnectionManager()
     _register(mgr, user_id="u1", org_id="orgA", channels=["ch1"], conn_id="c1")
 
@@ -68,7 +76,7 @@ async def test_disconnect_evicts_empty_registry_entries():
 
 
 @pytest.mark.asyncio
-async def test_disconnect_keeps_registry_entries_with_other_live_connections():
+async def test_disconnect_keeps_registry_entries_with_other_live_connections() -> None:
     mgr = EnhancedConnectionManager()
     _register(mgr, user_id="u1", org_id="orgA", channels=["ch1"], conn_id="c1")
     _register(mgr, user_id="u1", org_id="orgA", channels=["ch1"], conn_id="c2")
@@ -82,7 +90,7 @@ async def test_disconnect_keeps_registry_entries_with_other_live_connections():
 
 
 @pytest.mark.asyncio
-async def test_unsubscribe_evicts_empty_channel_entry():
+async def test_unsubscribe_evicts_empty_channel_entry() -> None:
     mgr = EnhancedConnectionManager()
     _register(mgr, user_id="u1", org_id="orgA", channels=["ch1"], conn_id="c1")
 

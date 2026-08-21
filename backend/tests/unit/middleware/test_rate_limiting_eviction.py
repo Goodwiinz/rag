@@ -19,7 +19,7 @@ from src.middleware.rate_limiting import _SWEEP_EVERY_N_CALLS, InMemoryRateLimit
 pytestmark = pytest.mark.unit
 
 
-def test_stale_timestamp_pruned_on_next_touch_of_same_key():
+def test_stale_timestamp_pruned_on_next_touch_of_same_key() -> None:
     limiter = InMemoryRateLimiter()
     limiter.is_allowed("user-1", limit=5, window=60)
     assert len(limiter.requests["user-1"]) == 1
@@ -30,7 +30,7 @@ def test_stale_timestamp_pruned_on_next_touch_of_same_key():
         assert len(limiter.requests["user-1"]) == 1
 
 
-def test_key_with_no_further_requests_is_dropped_not_kept_forever():
+def test_key_with_no_further_requests_is_dropped_not_kept_forever() -> None:
     limiter = InMemoryRateLimiter()
     limiter.is_allowed("one-shot-user", limit=5, window=60)
     assert "one-shot-user" in limiter.requests
@@ -46,7 +46,7 @@ def test_key_with_no_further_requests_is_dropped_not_kept_forever():
     assert "one-shot-user" not in limiter.requests
 
 
-def test_thousand_distinct_keys_do_not_survive_past_their_window():
+def test_thousand_distinct_keys_do_not_survive_past_their_window() -> None:
     limiter = InMemoryRateLimiter()
     base_time = time.time()
 
@@ -66,7 +66,9 @@ def test_thousand_distinct_keys_do_not_survive_past_their_window():
     assert all(k == "fresh-key" for k in limiter.requests)
 
 
-def test_sweep_does_not_evict_a_longer_window_key_that_is_merely_older_than_this_calls_window():
+def test_sweep_does_not_evict_a_longer_window_key_that_is_merely_older_than_this_calls_window() -> (
+    None
+):
     """A 300s-window (api_calls) call must not sweep away a 3600s-window
     (heavy_operations) key whose last hit is only 400s old -- that would
     silently reset an hourly security budget. The sweep has to judge
@@ -86,7 +88,7 @@ def test_sweep_does_not_evict_a_longer_window_key_that_is_merely_older_than_this
     assert "heavy-user" in limiter.requests
 
 
-def test_rate_limiting_still_enforced_after_eviction_logic_added():
+def test_rate_limiting_still_enforced_after_eviction_logic_added() -> None:
     limiter = InMemoryRateLimiter()
     for _ in range(3):
         allowed, _ = limiter.is_allowed("user-1", limit=3, window=60)

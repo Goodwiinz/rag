@@ -13,9 +13,12 @@ document_id alone -- the latter 500s with MultipleResultsFound the moment a
 second method's row exists, the exact class of failure R4-L5 was filed for.
 """
 
+from __future__ import annotations
+
 import asyncio
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -29,7 +32,7 @@ from src.api.documents.integrity import build_integrity_upsert_stmt
 pytestmark = pytest.mark.unit
 
 
-def _result(ai_probability: float) -> dict:
+def _result(ai_probability: float) -> dict[str, Any]:
     return {
         "ai_probability": ai_probability,
         "human_probability": 1.0 - ai_probability,
@@ -38,11 +41,11 @@ def _result(ai_probability: float) -> dict:
     }
 
 
-def _compiled_sql(stmt) -> str:
+def _compiled_sql(stmt: Any) -> str:
     return str(stmt.compile(dialect=postgresql.dialect())).upper()
 
 
-def test_upsert_is_single_statement_conflicting_on_document_and_method():
+def test_upsert_is_single_statement_conflicting_on_document_and_method() -> None:
     document_id = uuid4()
     stmt = build_integrity_upsert_stmt(
         document_id, _result(0.3), datetime.now(timezone.utc)
@@ -53,7 +56,7 @@ def test_upsert_is_single_statement_conflicting_on_document_and_method():
     assert "ON CONFLICT (DOCUMENT_ID, METHOD) DO UPDATE" in sql
 
 
-def test_upsert_set_clause_updates_mutable_fields_not_the_conflict_key():
+def test_upsert_set_clause_updates_mutable_fields_not_the_conflict_key() -> None:
     document_id = uuid4()
     stmt = build_integrity_upsert_stmt(
         document_id, _result(0.7), datetime.now(timezone.utc)
@@ -72,7 +75,7 @@ def test_upsert_set_clause_updates_mutable_fields_not_the_conflict_key():
     assert "SET METHOD" not in sql
 
 
-def test_upsert_set_clause_refreshes_updated_at():
+def test_upsert_set_clause_refreshes_updated_at() -> None:
     """BaseModel's onupdate=... never fires for a raw ON CONFLICT DO UPDATE
     (no ORM UPDATE runs), so updated_at must be set explicitly or it freezes
     at row-creation time forever."""
@@ -87,7 +90,7 @@ def test_upsert_set_clause_refreshes_updated_at():
     assert "UPDATED_AT = EXCLUDED.UPDATED_AT" not in sql
 
 
-def test_repeated_upsert_for_same_document_targets_one_row():
+def test_repeated_upsert_for_same_document_targets_one_row() -> None:
     """Two builds for the same document_id (e.g. a re-run integrity check) must
     both resolve to an upsert keyed on that document+method, so the second
     execution updates the first row in place instead of racing an insert."""
@@ -109,7 +112,7 @@ def test_repeated_upsert_for_same_document_targets_one_row():
     )
 
 
-def test_get_integrity_score_query_orders_by_recency_and_limits_to_one():
+def test_get_integrity_score_query_orders_by_recency_and_limits_to_one() -> None:
     """The GET reader must pick the newest row via ORDER BY analyzed_at DESC
     LIMIT 1 -- not scalar_one_or_none() over document_id alone, which raises
     MultipleResultsFound once a document has scores under two methods."""
@@ -150,7 +153,7 @@ def test_get_integrity_score_query_orders_by_recency_and_limits_to_one():
     assert "LIMIT" in sql
 
 
-def test_sixth_integrity_check_within_a_minute_is_rate_limited():
+def test_sixth_integrity_check_within_a_minute_is_rate_limited() -> None:
     """5/min per user (R4-L5). Drives the route function directly with a
     mocked service + db, same user each call. Swaps in a fresh
     InMemoryRateLimiter for the duration of the test so the assertion is
@@ -174,7 +177,7 @@ def test_sixth_integrity_check_within_a_minute_is_rate_limited():
     db.execute = AsyncMock(return_value=doc_result)
     db.commit = AsyncMock()
 
-    async def _call():
+    async def _call() -> Any:
         with patch.object(
             integrity_mod._service,
             "analyze",
@@ -187,7 +190,7 @@ def test_sixth_integrity_check_within_a_minute_is_rate_limited():
                 db=db,
             )
 
-    async def _run():
+    async def _run() -> None:
         for _ in range(5):
             await _call()
         with pytest.raises(HTTPException) as exc_info:
