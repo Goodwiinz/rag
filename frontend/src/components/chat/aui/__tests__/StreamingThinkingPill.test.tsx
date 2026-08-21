@@ -113,6 +113,26 @@ describe('streaming reasoning panel and elapsed time', () => {
     expect(timing).toHaveAttribute('aria-live', 'off');
   });
 
+  it('renders retrieved passages from live RAG context', () => {
+    useChatStore.setState({
+      streamingCitations: [
+        {
+          document_id: 'doc-1',
+          title: 'Attention Is All You Need',
+          content: 'The Transformer uses self-attention instead of recurrence.',
+          score: 0.91,
+        },
+      ],
+      isRetrievingRag: false,
+    });
+    renderStreamingTurn();
+
+    const retrieval = document.querySelector('[data-slot="retrieval-chunks"]');
+    expect(retrieval).toHaveTextContent('1 passages above threshold');
+    expect(retrieval).toHaveTextContent('Attention Is All You Need');
+    expect(retrieval).toHaveTextContent('0.91');
+  });
+
   it('formats elapsed readings', () => {
     expect(formatStreamingElapsed(null)).toBeNull();
     expect(formatStreamingElapsed(400)).toBeNull();
