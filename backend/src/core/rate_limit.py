@@ -47,45 +47,50 @@ class InMemoryRateLimiter(RateLimiterInterface):
         self.window_minutes = window_minutes
         self.attempts: Dict[str, List[datetime]] = {}
 
+    def _prune(self, key: str, window_start: datetime) -> List[datetime]:
+        """Drop expired attempts for key; evict the key entirely once empty
+        instead of leaving a dangling [] entry (R4-L16 -- self.attempts never
+        shrank on its own, so every identifier that ever made one attempt
+        stayed in memory for the process lifetime)."""
+        if key not in self.attempts:
+            return []
+        pruned = [t for t in self.attempts[key] if t > window_start]
+        if pruned:
+            self.attempts[key] = pruned
+        else:
+            del self.attempts[key]
+        return pruned
+
     async def is_allowed(self, identifier: str, prefix: str = "") -> bool:
         """Check if identifier is allowed to make an attempt"""
         key = f"{prefix}:{identifier}" if prefix else identifier
         now = datetime.now(timezone.utc)
         window_start = now - timedelta(minutes=self.window_minutes)
 
-        # Clean old attempts
-        if key in self.attempts:
-            self.attempts[key] = [
-                attempt_time
-                for attempt_time in self.attempts[key]
-                if attempt_time > window_start
-            ]
-        else:
-            self.attempts[key] = []
+        recent = self._prune(key, window_start)
 
         # Check if under limit
-        if len(self.attempts[key]) >= self.max_attempts:
+        if len(recent) >= self.max_attempts:
             return False
 
         # Record this attempt
-        self.attempts[key].append(now)
+        recent.append(now)
+        self.attempts[key] = recent
         return True
 
     async def check_rate_limit(
         self, identifier: str, prefix: str = ""
     ) -> Tuple[bool, int]:
-        """Read-only check: returns (allowed, retry_after_seconds)"""
+        """Read-only check: returns (allowed, retry_after_seconds). Must not
+        materialize an entry for a key that has never been seen."""
         key = f"{prefix}:{identifier}" if prefix else identifier
         now = datetime.now(timezone.utc)
         window_start = now - timedelta(minutes=self.window_minutes)
 
-        if key in self.attempts:
-            self.attempts[key] = [t for t in self.attempts[key] if t > window_start]
-        else:
-            self.attempts[key] = []
+        recent = self._prune(key, window_start)
 
-        if len(self.attempts[key]) >= self.max_attempts:
-            oldest = self.attempts[key][0]
+        if len(recent) >= self.max_attempts:
+            oldest = recent[0]
             retry_after = int(
                 (oldest + timedelta(minutes=self.window_minutes) - now).total_seconds()
             )

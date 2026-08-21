@@ -24,7 +24,7 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 | R4-M11 | JWKS cached forever, no TTL — Supabase key rotation = all ES256 auth 401 until pod restart (security.py:33,140-154) | med | fixed | clawd | #1493 | 08-19 |
 | R4-M12 | ENVIRONMENT=dev/staging ships exception details in 500 bodies (env check excludes only "production") (main.py:765-783, websocket_v2.py:375) | med | fixed | clawd | #1493 | 08-19 |
 | R4-M13 | unconditional XFF trust rewrites request.client process-wide — IP-keyed controls forgeable if any direct reachability (security.py:59-93; api_security.py:195 takes [-1] vs comment "first") | med | fixed | clawd | #1499 | 08-19 |
-| R4-M14 | /workers/status|health only require USER — hostname/pool/queue disclosure + inspect() fan-out storm per call (workers.py:47-48,318-319) | med | open | — | — | 08-18 |
+| R4-M14 | /workers/status\|health only require USER — hostname/pool/queue disclosure + inspect() fan-out storm per call (workers.py:47-48,318-319) | med | fixed | clawd | #1499 | 08-20 |
 | R4-M15 | shared-socket ownership war: any consumer unmount disconnects singleton for all; subscribe() return ignored → duplicate handlers per reconnect (useRealtimeProcessing.ts:326-345, realtimeWebSocketService.ts:204-221) | med | fixed | clawd | #1497 | 08-19 |
 | R4-M16 | status-poll budget 2min < service's own >2min estimate for video → premature "Failed", later dedup blocks re-upload (enhancedDocumentService.ts:154,530-539; 5min constant unused) | med | open | — | — | 08-18 |
 | R4-M17 | preview-cleanup effect revokes object URLs of files still in list — thumbnails break after second interaction (DocumentUploader.tsx:52-60, DocumentUploadWizard.tsx:311-319) | med | open | — | — | 08-18 |
@@ -41,18 +41,18 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 | R4-L2 | bulk-delete duplicate ids counted twice in success report (documents.py:1172) | low | fixed | clawd | #1500 | 08-19 |
 | R4-L3 | unknown date_range silently ignored — no filter, no 400 (documents.py:1044-1055) | low | fixed | clawd | #1500 | 08-19 |
 | R4-L4 | to_dict leaks storage_path, storage_backend, checksum, do_kb uuid (files.py:354,285) | low | fixed | clawd | #1499 | 08-19 |
-| R4-L5 | integrity route: sync ML in request, no rate limit; select-then-insert race → MultipleResultsFound 500 (integrity.py:31-89) | low | open | — | — | 08-18 |
+| R4-L5 | integrity route: sync ML in request, no rate limit; select-then-insert race → MultipleResultsFound 500 (integrity.py:31-89) | low | fixed | clawd | #1518 | 08-20 |
 | R4-L6 | bulk status unbounded + N+1 (include_jobs default True) (realtime_document_status.py:431-505) | low | fixed | clawd | #1500 | 08-19 |
-| R4-L7 | sync db.query inside async handlers throughout processing.py — event-loop stalls (processing.py:107+) | low | open | — | — | 08-18 |
+| R4-L7 | sync db.query inside async handlers throughout processing.py — event-loop stalls (processing.py:107+) — route handlers ported to async; ProcessingPipeline internals (get_processing_status sync db.query ×3, retry/queue paths) still sync — tracked as follow-up task | low | partial | clawd | #1518 | 08-20 |
 | R4-L8 | v1 WS manager: no per-user cap, no reaper — unbounded sockets, authenticated memory exhaustion (websocket.py:17-43) | low | fixed | clawd | #1497 | 08-19 |
 | R4-L9 | document_management.py dead standalone service: zero auth (client-supplied org), wrong attrs, quota drift, header injection — landmine if mounted (entire file) | low | fixed | clawd | #1498 | 08-19 |
 | R4-L10 | orgless user → unscoped processing lookup, fail-open (processing.py:79) | low | fixed | clawd | #1500 | 08-19 |
-| R4-L11 | auth/api-key rate limiters + CLI revocation all fail open on Redis outage (core/rate_limit.py:184, api_key_auth.py:182, config.py:306) | low | open | — | — | 08-18 |
+| R4-L11 | auth/api-key rate limiters + CLI revocation all fail open on Redis outage (core/rate_limit.py:184, api_key_auth.py:182, config.py:306) — wontfix, human tradeoff per #1499 decision | low | wontfix | — | — | 08-20 |
 | R4-L12 | get_current_user_optional can never return None (HTTPBearer auto_error) — dead latent trap (dependencies.py:268-290) | low | fixed | clawd | #1499 | 08-19 |
 | R4-L13 | analytics_auth sync db.query on AsyncSession — AttributeError if ever called (zero callers, latent) (analytics_auth.py:118-126) | low | fixed | clawd | #1498 | 08-19 |
 | R4-L14 | services/websocket/auth.py nonexistent User attrs — module unusable if ever wired (dead) (auth.py:226,467,561) | low | fixed | clawd | #1498 | 08-19 |
 | R4-L15 | realtime_service.py standalone app: token in URL + arg mismatch — dead, violates token-in-URL convention (realtime_service.py:508-517) | low | fixed | clawd | #1498 | 08-19 |
-| R4-L16 | defaultdict(set) registries + rate-limit dicts never delete keys — lifetime memory creep (websocket_manager.py:176, rate_limiting.py:33) | low | partial | clawd | #1497 | 08-19 |
+| R4-L16 | defaultdict(set) registries + rate-limit dicts never delete keys — lifetime memory creep (websocket_manager.py:176, rate_limiting.py:33) | low | fixed | clawd | #1518 | 08-20 |
 | R4-L17 | v1 /ws never echoes subprotocol — browser handshake fails outright; only non-browser clients work (websocket.py:102) | low | dead | clawd | #1497 | 08-19 |
 | R4-L18 | is_public gate dead code — has_permission(USER) true for all roles (dependencies.py:258) | low | fixed | clawd | #1499 | 08-19 |
 | R4-L19 | SSE throw after confirmation frame → durable fallback re-runs parked turn (agentChatStore.ts:469-482,497-508) | low | open | — | — | 08-18 |
@@ -76,4 +76,5 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 - 2026-08-19: H4+H5 fixed (#1489 upload contract: title form field, document-status polling, bare-extension validation). M1+M9 fixed (#1490 realtime 500s). WS realtime cluster H1/H2/H3/H6/H7 open pending event-design decision (server emits no document_processing_update; polling now covers upload).
 - 2026-08-18: round 4 created. 36 findings (7 high, 19 med, 29 low → 55 rows). H1-H5 cluster = upload+realtime pipeline fundamentally broken end-to-end (auth handshake, event contract, missing title field, MIME validation) — likely why features "silently don't work" in dev. Verified-clean: documents API tenant scope + count parity + sort enums + delete ordering + presign authz, CORS allowlist, JWT alg/aud/expiry pinning, WS v2 connect flow (org from DB, caps, tenant gate, dedup), error handlers prod sanitization, multi_tenancy DB-source-of-truth, plan_reasoning persistence (all 4 paths, migration catalog-only, linear chain), #1469 stream-ownership race (monotonic counter, unreachable interleave), #1470 finishRun idempotency, finalize linkage single-txn, #1466/#1471 retry gating.
 - 2026-08-18 (earlier): round-3 ledger updated — 15 findings merged via #1467/#1469/#1470 (H2,H3,H4,H5,H6,H8, M3,M6,M7,M8,M12,M13, L1,L6,L13).
+- 2026-08-20: R4 closure wave: L5/L7/L16 fixed here; M14 closed as already-fixed by #1499; L11 marked wontfix (deliberate fail-open decision). Frontend clusters land in sibling PRs (upload service, document library, confirm flow).
 
