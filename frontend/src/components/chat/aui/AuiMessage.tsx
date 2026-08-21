@@ -33,6 +33,7 @@ import { ToolFallback } from '@/components/assistant-ui/tool-fallback';
 import { CitationRenderer } from '@/components/chat/CitationRenderer';
 import { MessageTiming } from '@/components/elements/message-timing';
 import { ReasoningPanel } from '@/components/elements/reasoning-panel';
+import { RetrievalChunks } from '@/components/elements/retrieval-chunks';
 import { ChatInlinePlan } from '@/components/chat/shared/ChatInlinePlan';
 import { CitationChips } from '@/components/chat/shared/CitationChips';
 import { formatStreamingElapsed } from '@/components/chat/shared/formatStreamingElapsed';
@@ -48,6 +49,7 @@ import { completeStreamingMarkdown } from '@/lib/markdown-utils';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/store/chat-store';
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
+import { normalizeCitation } from '@/utils/citationNormalizer';
 import { getReferencedCitations, type Citation } from '@/utils/citationParser';
 
 export type OnCitationClick = (
@@ -522,6 +524,22 @@ function AuiStreamingBody(): ReactElement {
   const streamingPhase = useChatStore((s) => s.streamingPhase);
   const statusDetail = useChatStore((s) => s.streamingStatusDetail);
   const streamingCitations = useChatStore((s) => s.streamingCitations);
+  const retrievalChunks = useMemo(
+    () =>
+      streamingCitations.map((raw, index) => {
+        const citation = normalizeCitation(raw);
+        const sourceId =
+          citation.documentId ?? citation.externalReferenceId ?? 'passage';
+        return {
+          id: `${sourceId}-${index + 1}`,
+          source: citation.title,
+          locator: `passage ${index + 1}`,
+          score: citation.score,
+          text: citation.content ?? '',
+        };
+      }),
+    [streamingCitations]
+  );
   const threadId = useAgentActivityStore((s) => s.currentThreadId);
   const phaseLabel = streamingPhase
     ? {
@@ -542,24 +560,17 @@ function AuiStreamingBody(): ReactElement {
     <>
       <InlineAgentSummary threadId={threadId} />
       <StreamingReasoningSection label={thinkingLabel} />
-      {streamingCitations.length > 0 && (
-        <div
+      {(isRetrievingRag || retrievalChunks.length > 0) && (
+        <RetrievalChunks
+          query="Relevant project sources"
+          chunks={retrievalChunks}
+          visibleCount={retrievalChunks.length}
+          searching={isRetrievingRag}
           role="status"
           aria-live="polite"
-          className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-nous-mono text-[10px]"
-          style={{
-            color: 'var(--nous-fg-2)',
-            backgroundColor: 'var(--nous-bg-2)',
-            borderColor: 'var(--nous-border-1)',
-          }}
-        >
-          <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full"
-            style={{ backgroundColor: 'var(--nous-sol)' }}
-          />
-          Reading {streamingCitations.length}{' '}
-          {streamingCitations.length === 1 ? 'source' : 'sources'}
-        </div>
+          aria-label="Retrieval status"
+          className="mb-3"
+        />
       )}
       {steps.length > 0 && (
         <AuiToolParts messageId="streaming" steps={steps} isStreaming />

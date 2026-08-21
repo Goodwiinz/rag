@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import Depends
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.core.database import get_db
@@ -43,7 +43,11 @@ logger = logging.getLogger(__name__)
 class ProcessingPipeline:
     """Main processing pipeline for multimodal documents"""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
+        # NOTE: db-touching methods (process_document, queue_processing_job,
+        # get_processing_status, retry_failed_jobs) require an AsyncSession.
+        # Celery tasks construct this class with a sync Session but only call
+        # the extraction methods, which never touch self.db.
         # Import lazily to avoid circular import through src.services.documents.__init__
         from src.services.documents.file_service import FileService
 
@@ -70,7 +74,8 @@ class ProcessingPipeline:
         if organization_id is not None:
             conditions.append(Document.organization_id == organization_id)
         stmt = select(Document).where(*conditions).with_for_update()
-        document = self.db.execute(stmt).scalar_one_or_none()
+        result = await self.db.execute(stmt)
+        document = result.scalar_one_or_none()
 
         if not document:
             raise ValueError(f"Document {document_id} not found")
@@ -100,58 +105,54 @@ class ProcessingPipeline:
         )
 
         self.db.add(job)
-        self.db.commit()
-        self.db.refresh(job)
+        await self.db.commit()
+        await self.db.refresh(job)
 
         # Queue the job
-        self.queue_processing_job(job.id)
+        await self.queue_processing_job(job.id)
 
         return job
 
-    def queue_processing_job(self, job_id: str):
+    async def queue_processing_job(self, job_id: str):
         """Queue a processing job for execution"""
         # Lazy: see module-level NOTE — a top-level import cycles through
         # src.tasks.__init__ back into this module.
         from src.tasks.celery_app import celery_app
 
-        job = self.db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
+        result = await self.db.execute(
+            select(ProcessingJob).where(ProcessingJob.id == job_id)
+        )
+        job = result.scalar_one_or_none()
 
         if not job:
             logger.error(f"Job {job_id} not found")
             return
 
+        task_routes = {
+            JobType.DOCUMENT_INGESTION: (
+                "process_document_ingestion",
+                "document_processing",
+            ),
+            JobType.TEXT_EXTRACTION: ("extract_text_content", "text_processing"),
+            JobType.EMBEDDING_GENERATION: ("generate_embeddings", "vector_processing"),
+            JobType.ENTITY_EXTRACTION: ("extract_entities", "entity_processing"),
+            JobType.GRAPH_INDEXING: ("index_in_graph", "graph_processing"),
+        }
+
+        route = task_routes.get(job.job_type)
+        if route is None:
+            logger.error(f"Unknown job type: {job.job_type}")
+            return
+
+        task_name, queue = route
         try:
-            # Queue job based on type
-            if job.job_type == JobType.DOCUMENT_INGESTION:
-                task = celery_app.send_task(
-                    "process_document_ingestion",
-                    args=[job_id],
-                    queue="document_processing",
-                )
-            elif job.job_type == JobType.TEXT_EXTRACTION:
-                task = celery_app.send_task(
-                    "extract_text_content", args=[job_id], queue="text_processing"
-                )
-            elif job.job_type == JobType.EMBEDDING_GENERATION:
-                task = celery_app.send_task(
-                    "generate_embeddings", args=[job_id], queue="vector_processing"
-                )
-            elif job.job_type == JobType.ENTITY_EXTRACTION:
-                task = celery_app.send_task(
-                    "extract_entities", args=[job_id], queue="entity_processing"
-                )
-            elif job.job_type == JobType.GRAPH_INDEXING:
-                task = celery_app.send_task(
-                    "index_in_graph", args=[job_id], queue="graph_processing"
-                )
-            else:
-                logger.error(f"Unknown job type: {job.job_type}")
-                return
+            # enqueue-before-commit: job row committed by caller before this method; trailing commit only stores celery_task_id (unknowable until after send) + QUEUED status
+            task = celery_app.send_task(task_name, args=[job_id], queue=queue)
 
             # Update job with task ID
             job.celery_task_id = task.id
             job.queue_job()
-            self.db.commit()
+            await self.db.commit()
 
             logger.info(f"Queued job {job_id} with task ID {task.id}")
 
@@ -160,15 +161,14 @@ class ProcessingPipeline:
             job.fail_job(f"Failed to queue job: {str(e)}")
             # Also fail the associated document so it doesn't stay PENDING forever
             if job.document_id:
-                document = (
-                    self.db.query(Document)
-                    .filter(Document.id == job.document_id)
-                    .first()
+                doc_result = await self.db.execute(
+                    select(Document).where(Document.id == job.document_id)
                 )
+                document = doc_result.scalar_one_or_none()
                 if document:
                     document.processing_status = ProcessingStatus.FAILED
                     document.processing_error = f"Failed to queue: {str(e)}"
-            self.db.commit()
+            await self.db.commit()
 
     async def process_text_extraction(self, document: Document) -> Dict[str, Any]:
         """Extract text content from document"""
@@ -653,20 +653,23 @@ class ProcessingPipeline:
             )
             return None
 
-    def get_processing_status(self, document_id: str) -> Dict[str, Any]:
+    async def get_processing_status(self, document_id: str) -> Dict[str, Any]:
         """Get processing status for a document"""
-        document = self.db.query(Document).filter(Document.id == document_id).first()
+        doc_result = await self.db.execute(
+            select(Document).where(Document.id == document_id)
+        )
+        document = doc_result.scalar_one_or_none()
 
         if not document:
             return {"error": "Document not found"}
 
         # Get processing jobs
-        jobs = (
-            self.db.query(ProcessingJob)
-            .filter(ProcessingJob.document_id == document_id)
+        jobs_result = await self.db.execute(
+            select(ProcessingJob)
+            .where(ProcessingJob.document_id == document_id)
             .order_by(ProcessingJob.created_at.desc())
-            .all()
         )
+        jobs = jobs_result.scalars().all()
 
         return {
             "document_id": document_id,
@@ -677,29 +680,29 @@ class ProcessingPipeline:
             "jobs": [job.to_dict() for job in jobs],
         }
 
-    def retry_failed_jobs(self, organization_id: str = None) -> int:
+    async def retry_failed_jobs(self, organization_id: str = None) -> int:
         """Retry failed processing jobs"""
-        query = self.db.query(ProcessingJob).filter(
+        stmt = select(ProcessingJob).where(
             ProcessingJob.status == JobStatus.FAILED,
             ProcessingJob.retry_count < ProcessingJob.max_retries,
         )
 
         if organization_id:
-            query = query.filter(ProcessingJob.organization_id == organization_id)
+            stmt = stmt.where(ProcessingJob.organization_id == organization_id)
 
-        failed_jobs = query.all()
+        failed_jobs = (await self.db.execute(stmt)).scalars().all()
         retried_count = 0
 
         for job in failed_jobs:
             if job.can_retry:
                 job.retry_job()
-                self.db.commit()
-                self.queue_processing_job(job.id)
+                await self.db.commit()
+                await self.queue_processing_job(job.id)
                 retried_count += 1
 
         return retried_count
 
 
-def get_processing_service(db: Session = Depends(get_db)) -> ProcessingPipeline:
+def get_processing_service(db: AsyncSession = Depends(get_db)) -> ProcessingPipeline:
     """Get processing service instance"""
     return ProcessingPipeline(db)
