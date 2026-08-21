@@ -107,7 +107,9 @@ class UploadService {
       processingFiles: items.filter(item => item.status === 'processing').length,
       totalSize: items.reduce((sum, item) => sum + item.file.size, 0),
       uploadedSize: items.reduce((sum, item) => {
-        if (item.completedAt) return sum + item.file.size;
+        // completedAt is now also set on error (R4-M18) — key success on
+        // status, not just the timestamp, or a failed item counts full size.
+        if (item.status === 'completed') return sum + item.file.size;
         if (item.uploadStartTime && item.progress > 0) {
           return sum + (item.file.size * item.progress / 100);
         }
@@ -268,7 +270,9 @@ class UploadService {
       processingFiles: items.filter(item => item.status === 'processing').length,
       totalSize: items.reduce((sum, item) => sum + item.file.size, 0),
       uploadedSize: items.reduce((sum, item) => {
-        if (item.completedAt) return sum + item.file.size;
+        // completedAt is now also set on error (R4-M18) — key success on
+        // status, not just the timestamp, or a failed item counts full size.
+        if (item.status === 'completed') return sum + item.file.size;
         if (item.uploadStartTime && item.progress > 0) {
           return sum + (item.file.size * item.progress / 100);
         }
@@ -277,6 +281,18 @@ class UploadService {
       averageUploadSpeed: this.calculateAverageUploadSpeed(items),
       estimatedTimeRemaining: this.calculateEstimatedTimeRemaining(items),
     };
+  }
+
+  /**
+   * Mark an item as failed, routing every error path through one place so
+   * completedAt is always set — cleanupCompleted() requires it, and the old
+   * per-site error handling left it unset, making failed items immortal.
+   */
+  private failItem(item: UploadQueueItem, message: string): void {
+    item.status = 'error';
+    item.error = message;
+    item.completedAt = Date.now();
+    this.notifyProgress();
   }
 
   /**
@@ -334,6 +350,7 @@ class UploadService {
             item.progress = progress;
             this.notifyProgress();
           },
+          signal: controller.signal,
         }
       );
 
@@ -349,11 +366,15 @@ class UploadService {
       this.pollProcessingStatus(item);
 
     } catch (error) {
+      // removeFromQueue() aborts the controller and deletes the item; don't
+      // resurrect a removed item into the queue via notifyProgress().
+      if (!this.uploadQueue.has(item.id)) {
+        return;
+      }
+
       console.error('Upload failed for file:', item.file.name, error);
 
-      item.status = 'error';
-      item.error = error instanceof Error ? error.message : 'Upload failed';
-      this.notifyProgress();
+      this.failItem(item, error instanceof Error ? error.message : 'Upload failed');
     } finally {
       // Clean up controller
       this.uploadControllers.delete(item.id);
@@ -369,11 +390,13 @@ class UploadService {
     const maxAttempts = 600; // 20 minutes max
 
     const poll = async () => {
+      // ponytail: queue membership is the cancellation token — removeFromQueue()
+      // and cancelAllUploads() just delete the entry, no separate flag needed.
+      if (!this.uploadQueue.has(item.id)) return;
+
       try {
         if (attempts >= maxAttempts) {
-          item.status = 'error';
-          item.error = 'Processing timeout';
-          this.notifyProgress();
+          this.failItem(item, 'Processing timeout');
           return;
         }
 
@@ -393,13 +416,17 @@ class UploadService {
         }
 
         if (status.processing_status === 'failed') {
-          item.status = 'error';
-          item.error = status.processing_error || 'Processing failed';
-          this.notifyProgress();
+          this.failItem(item, status.processing_error || 'Processing failed');
           return;
         }
 
-        // Continue polling
+        if (status.processing_status === 'cancelled') {
+          this.failItem(item, 'Processing cancelled');
+          return;
+        }
+
+        // Continue polling ('retrying' included — the backend will keep
+        // retrying so we keep watching it)
         attempts++;
         setTimeout(poll, pollInterval);
 

@@ -39,6 +39,7 @@ export interface TypedResponse<T> {
 export interface UploadOptions {
   onProgress?: (progress: number) => void;
   metadata?: Record<string, string>;
+  signal?: AbortSignal;
 }
 
 function composeAbortSignals(signals: AbortSignal[]): {
@@ -51,7 +52,7 @@ function composeAbortSignals(signals: AbortSignal[]): {
 
   const controller = new AbortController();
   const listeners = signals.map((source) => {
-    const relayAbort = () => controller.abort(source.reason);
+    const relayAbort = (): void => controller.abort(source.reason);
     if (source.aborted) {
       relayAbort();
     } else {
@@ -437,7 +438,12 @@ export class APIClient {
 
     // For progress tracking, we need to use XMLHttpRequest
     if (options.onProgress) {
-      return this.uploadWithProgress<T>(endpoint, formData, options.onProgress);
+      return this.uploadWithProgress<T>(
+        endpoint,
+        formData,
+        options.onProgress,
+        options.signal
+      );
     }
 
     // Content-Type is intentionally not set here. request() strips the
@@ -449,13 +455,15 @@ export class APIClient {
       method: 'POST',
       body: formData,
       headers: {},
+      signal: options.signal,
     });
   }
 
   private uploadWithProgress<T>(
     endpoint: string,
     formData: FormData,
-    onProgress: (progress: number) => void
+    onProgress: (progress: number) => void,
+    signal?: AbortSignal
   ): Promise<T> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -504,6 +512,37 @@ export class APIClient {
           })
         );
       };
+
+      xhr.onabort = () => {
+        reject(
+          new APIErrorClass({
+            message: 'Upload cancelled',
+            status_code: 0,
+            type: 'http_error',
+          })
+        );
+      };
+
+      // A bare {once:true} listener never fires on normal completion, so it
+      // would hold the signal's reference to this xhr/formData alive for the
+      // signal's whole lifetime. Remove it ourselves once the request settles.
+      const onAbort = (): void => xhr.abort();
+      xhr.onloadend = () => signal?.removeEventListener('abort', onAbort);
+
+      if (signal?.aborted) {
+        // xhr.abort() on an UNSENT request never fires onabort — reject
+        // directly instead of relying on the event (mirrors composeAbortSignals'
+        // already-aborted check above).
+        reject(
+          new APIErrorClass({
+            message: 'Upload cancelled',
+            status_code: 0,
+            type: 'http_error',
+          })
+        );
+        return;
+      }
+      signal?.addEventListener('abort', onAbort, { once: true });
 
       xhr.send(formData);
     });

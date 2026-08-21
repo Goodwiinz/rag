@@ -65,6 +65,13 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
   const [isClosing, setIsClosing] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Mirrors selectedFiles for use in callbacks/cleanup without retriggering
+  // effects on every list change (see unmount-only preview cleanup below).
+  // Written in an effect, not during render — refs aren't render output.
+  const selectedFilesRef = useRef(selectedFiles);
+  useEffect(() => {
+    selectedFilesRef.current = selectedFiles;
+  });
 
   const {
     addToQueue,
@@ -148,57 +155,9 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
     multiple: true,
   });
 
-  const handleNext = useCallback(() => {
-    switch (currentStep) {
-      case 'upload':
-        if (selectedFiles.length > 0) {
-          setCurrentStep('review');
-        }
-        break;
-      case 'review':
-        setCurrentStep('processing');
-        handleStartUpload();
-        break;
-      case 'processing':
-        if (allCompleted) {
-          setCurrentStep('complete');
-        }
-        break;
-      case 'complete':
-        handleClose();
-        break;
-    }
-  }, [currentStep, selectedFiles, allCompleted]);
-
-  const handlePrevious = useCallback(() => {
-    switch (currentStep) {
-      case 'review':
-        setCurrentStep('upload');
-        break;
-      case 'processing':
-        if (!hasActiveUploads) {
-          setCurrentStep('review');
-        }
-        break;
-    }
-  }, [currentStep, hasActiveUploads]);
-
-  const handleStartUpload = useCallback(() => {
-    const result = addToQueue(selectedFiles);
-    if (result.errors.length > 0) {
-      setValidationErrors(result.errors);
-    }
-  }, [selectedFiles, addToQueue]);
-
-  const handleClose = useCallback(() => {
-    if (hasActiveUploads) {
-      setShowCloseConfirm(true);
-      return;
-    }
-
-    performClose();
-  }, [hasActiveUploads]);
-
+  // performClose/handleClose/handleStartUpload are declared before handleNext
+  // (which calls them) — react-hooks/immutability flags forward references to
+  // useCallback values as unsafe, since they can't be relied on to update.
   const performClose = useCallback(() => {
     setIsClosing(true);
 
@@ -233,12 +192,67 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
     }
   }, [selectedFiles, hasActiveUploads, cancelAllUploads, onClose, onComplete, allCompleted, queueItems]);
 
+  const handleClose = useCallback(() => {
+    if (hasActiveUploads) {
+      setShowCloseConfirm(true);
+      return;
+    }
+
+    performClose();
+  }, [hasActiveUploads, performClose]);
+
+  const handleStartUpload = useCallback(() => {
+    const result = addToQueue(selectedFiles);
+    if (result.errors.length > 0) {
+      setValidationErrors(result.errors);
+    }
+  }, [selectedFiles, addToQueue]);
+
+  const handleNext = useCallback(() => {
+    switch (currentStep) {
+      case 'upload':
+        if (selectedFiles.length > 0) {
+          setCurrentStep('review');
+        }
+        break;
+      case 'review':
+        setCurrentStep('processing');
+        handleStartUpload();
+        break;
+      case 'processing':
+        if (allCompleted) {
+          setCurrentStep('complete');
+        }
+        break;
+      case 'complete':
+        handleClose();
+        break;
+    }
+  }, [currentStep, selectedFiles, allCompleted, handleStartUpload, handleClose]);
+
+  const handlePrevious = useCallback(() => {
+    switch (currentStep) {
+      case 'review':
+        setCurrentStep('upload');
+        break;
+      case 'processing':
+        if (!hasActiveUploads) {
+          setCurrentStep('review');
+        }
+        break;
+    }
+  }, [currentStep, hasActiveUploads]);
+
   const handleConfirmClose = useCallback(() => {
     setShowCloseConfirm(false);
     performClose();
   }, [performClose]);
 
   const removeFile = useCallback((fileId: string) => {
+    const removed = selectedFilesRef.current.find(file => file.id === fileId);
+    if (removed?.preview) {
+      URL.revokeObjectURL(removed.preview);
+    }
     setSelectedFiles(prev => prev.filter(file => file.id !== fileId));
     removeFromQueue(fileId);
   }, [removeFromQueue]);
@@ -307,16 +321,18 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
     }
   }, [currentStep, hasActiveUploads]);
 
-  // Cleanup previews on unmount
+  // Cleanup previews on unmount only. The old [selectedFiles] dependency
+  // revoked every still-displayed file's preview URL on each list change
+  // (add/remove), breaking images already on screen (R4-M17).
   useEffect(() => {
     return () => {
-      selectedFiles.forEach(file => {
+      selectedFilesRef.current.forEach(file => {
         if (file.preview) {
           URL.revokeObjectURL(file.preview);
         }
       });
     };
-  }, [selectedFiles]);
+  }, []);
 
   if (!isOpen) return null;
 
