@@ -29,17 +29,15 @@ import {
   X,
 } from 'lucide-react';
 
-import { motion, useReducedMotion } from 'framer-motion';
-
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback';
 import { CitationRenderer } from '@/components/chat/CitationRenderer';
 import { MessageTiming } from '@/components/elements/message-timing';
+import { ReasoningPanel } from '@/components/elements/reasoning-panel';
 import { ChatInlinePlan } from '@/components/chat/shared/ChatInlinePlan';
 import { CitationChips } from '@/components/chat/shared/CitationChips';
 import { formatStreamingElapsed } from '@/components/chat/shared/formatStreamingElapsed';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { MessageFeedback } from '@/components/chat/shared/MessageFeedback';
-import { ThinkingMatrix } from '@/components/chat/shared/ThinkingMatrix';
 import { AuiToolParts } from '@/components/chat/aui/AuiToolParts';
 import {
   ToolStrip,
@@ -414,35 +412,6 @@ export function AuiUserMessage({
 // INTO ChatInlinePlan, which this file imports, would create an import cycle).
 export { formatStreamingElapsed };
 
-/** Pre-first-token status pill (mirrors the legacy ChatBubble ThinkingPill). */
-function StreamingThinkingPill({
-  label,
-}: {
-  label: string;
-}): ReactElement {
-  const reduce = useReducedMotion();
-  return (
-    <motion.div
-      className="nous-streaming-pill"
-      role="status"
-      aria-live="polite"
-      initial={reduce ? false : { opacity: 0, y: 2 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-    >
-      <ThinkingMatrix />
-      <motion.span
-        key={label}
-        initial={reduce ? false : { opacity: 0, y: 2 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-      >
-        {label}
-      </motion.span>
-    </motion.div>
-  );
-}
-
 function LiveMessageTiming({
   heartbeatMs,
 }: {
@@ -470,19 +439,40 @@ function LiveMessageTiming({
 }
 
 /**
- * Live in-flight execution plan. A separate component (rather than reading
- * `streamingPlan` inside AuiStreamingBody directly) so its own store
- * subscription doesn't widen AuiStreamingBody's re-render surface.
+ * Always-present live reasoning surface. Real planner steps take over when
+ * available; ordinary turns still show the truthful server activity instead
+ * of mounting nothing while they wait for the first token.
  */
-function StreamingPlanSection(): ReactElement | null {
+function StreamingReasoningSection({
+  label,
+}: {
+  label: string;
+}): ReactElement {
   const streamingPlan = useChatStore((s) => s.streamingPlan);
   const streamingSteps = useChatStore((s) => s.streamingSteps);
-  if (streamingPlan.length === 0) return null;
+  const [open, setOpen] = useState(true);
+
+  if (streamingPlan.length > 0) {
+    return (
+      <ChatInlinePlan
+        plan={streamingPlan}
+        toolExecutions={streamingSteps}
+        streaming
+      />
+    );
+  }
+
   return (
-    <ChatInlinePlan
-      plan={streamingPlan}
-      toolExecutions={streamingSteps}
+    <ReasoningPanel
+      steps={[{ title: label, body: 'In progress' }]}
+      visibleSteps={1}
       streaming
+      open={open}
+      onOpenChange={setOpen}
+      restingLabel={label}
+      role="status"
+      aria-live="polite"
+      className="mb-2 max-w-none"
     />
   );
 }
@@ -521,7 +511,7 @@ function AuiStreamingBody(): ReactElement {
   return (
     <>
       <InlineAgentSummary threadId={threadId} />
-      <StreamingPlanSection />
+      <StreamingReasoningSection label={thinkingLabel} />
       {streamingCitations.length > 0 && (
         <div
           role="status"
@@ -544,9 +534,7 @@ function AuiStreamingBody(): ReactElement {
       {steps.length > 0 && (
         <AuiToolParts messageId="streaming" steps={steps} isStreaming />
       )}
-      {!content ? (
-        <StreamingThinkingPill label={thinkingLabel} />
-      ) : (
+      {content && (
         <div className="nous-chat-body">
           <CitationRenderer
             content={completeStreamingMarkdown(content)}
