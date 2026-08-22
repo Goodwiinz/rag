@@ -48,11 +48,11 @@ ORG_INDEX = "ix_stance_classifications_organization_id"
 
 
 def upgrade():
-    # R6-M9 guard: this table originates from the out-of-band standalone
-    # add_evidence_meter.py script and is NOT in Base.metadata, so even the
-    # model baseline cannot provision it. One DO block skips every statement
-    # when the table is absent — the feature simply does not exist on
-    # databases that never ran the script.
+    # R6-M9 guard: stance_classifications is provisioned by the model baseline
+    # (R6-F8 registered it in Base.metadata) or, on legacy databases, by the
+    # out-of-band standalone add_evidence_meter.py script. One DO block skips
+    # every statement when the table is absent, so this revision stays runnable
+    # on databases that predate both.
     op.execute("""
         DO $$
         BEGIN
@@ -79,6 +79,18 @@ def upgrade():
 
 
 def downgrade():
-    op.execute(f"DROP INDEX IF EXISTS {ORG_INDEX}")
-    op.execute(f"DROP INDEX IF EXISTS {NEW_4TUPLE_INDEX}")
-    op.execute(f"ALTER TABLE {TABLE} DROP COLUMN IF EXISTS organization_id")
+    # Same guard as upgrade(): DROP COLUMN IF EXISTS tolerates a missing
+    # column, not a missing table, so an unguarded rollback would raise
+    # UndefinedTable on exactly the databases upgrade() skipped.
+    op.execute(f"""
+        DO $$
+        BEGIN
+            IF to_regclass('{TABLE}') IS NULL THEN
+                RETURN;
+            END IF;
+            DROP INDEX IF EXISTS {ORG_INDEX};
+            DROP INDEX IF EXISTS {NEW_4TUPLE_INDEX};
+            ALTER TABLE {TABLE} DROP COLUMN IF EXISTS organization_id;
+        END
+        $$;
+    """)
