@@ -238,6 +238,9 @@ async def upload_file(
             upload_progress=100,
         )
 
+    except HTTPException:
+        # R2-M10: intentional 4xx (validation/quota) must not be re-wrapped.
+        raise
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

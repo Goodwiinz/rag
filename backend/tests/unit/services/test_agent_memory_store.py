@@ -25,7 +25,8 @@ def _clear_qdrant_cache():
     ``from qdrant_client.models import PointStruct`` which fails against the
     stub.  Re-import the real package here so that deferred import succeeds.
     """
-    import importlib, sys
+    import importlib
+    import sys
     from src.services.agent import memory_store
 
     memory_store._QDRANT_CLIENT = None

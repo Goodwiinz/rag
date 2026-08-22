@@ -93,7 +93,9 @@ class EmbeddingService:
 
         try:
             logger.info(f"Loading embedding model: {self.model_name}")
-            self.model = SentenceTransformer(self.model_name, device=self.device)
+            # R6-M4: cache the default model too — every EmbeddingService()
+            # instance used to reload weights from disk.
+            self.model = _get_sentence_transformer(self.model_name, self.device)
             self.embedding_dimension = self.model.get_sentence_embedding_dimension()
             logger.info(
                 f"Model loaded successfully. Dimension: {self.embedding_dimension}"
@@ -509,13 +511,15 @@ class EmbeddingService:
             "available": self.model is not None,
         }
 
-    def test_embedding_quality(self, test_texts: List[str]) -> Dict[str, Any]:
+    async def test_embedding_quality(self, test_texts: List[str]) -> Dict[str, Any]:
         """Test embedding quality with sample texts"""
         self._ensure_initialized()
         try:
             # Generate embeddings for test texts
             request = BatchEmbeddingRequest(texts=test_texts)
-            response = self.generate_batch_embeddings(request)
+            # R6-L1: this coroutine was never awaited — .failed_count blew up
+            # on a coroutine object and the check always reported failure.
+            response = await self.generate_batch_embeddings(request)
 
             if response.failed_count > 0:
                 return {
@@ -599,6 +603,15 @@ class EmbeddingService:
 
         for sentence in sentences:
             s_words = sentence.split()
+            # R6-L6: an oversized sentence must be hard-split — feeding an
+            # unbounded chunk to the embedder silently truncates it.
+            while len(s_words) > chunk_size:
+                if current_words:
+                    chunks.append(" ".join(current_words))
+                    current_words = current_words[-overlap:] if overlap > 0 else []
+                take = chunk_size - len(current_words)
+                chunks.append(" ".join(s_words[:take]))
+                s_words = s_words[max(0, take - (overlap or 0)) :]
             if current_words and len(current_words) + len(s_words) > chunk_size:
                 chunks.append(" ".join(current_words))
                 # Keep overlap words from the end

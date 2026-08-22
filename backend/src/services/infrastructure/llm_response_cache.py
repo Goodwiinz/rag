@@ -259,11 +259,19 @@ class LLMResponseCache:
             return None
 
         try:
-            # Use the embed method which returns numpy array
-            embedding = embedding_service.embed(text)
+            # R6-M3: EmbeddingService has no .embed(); this AttributeError was
+            # swallowed and semantic cache silently never worked.
+            response = await embedding_service.generate_embedding(
+                type(
+                    "R",
+                    (),
+                    {"text": text, "model": "sentence-transformers/all-MiniLM-L6-v2"},
+                )()
+            )
+            embedding = getattr(response, "embedding", None)
             if isinstance(embedding, np.ndarray):
                 return embedding.tolist()
-            return embedding
+            return list(embedding) if embedding else None
         except Exception as e:
             logger.warning(f"Failed to compute embedding: {e}")
             return None

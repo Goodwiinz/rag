@@ -156,6 +156,30 @@ class Organization(BaseModel):
             )
         )
 
+    @staticmethod
+    def storage_quota_claim(organization_id, size_change_bytes: int):
+        """R2-M7: atomic quota ENFORCEMENT (not just accounting).
+
+        The friendly pre-check reads a possibly stale org row; two concurrent
+        uploads could both pass it and both increment. This UPDATE only
+        succeeds when the org still has room at commit time — rowcount 0
+        means the claim lost the race and must be rejected.
+        """
+        from sqlalchemy import update
+
+        return (
+            update(Organization)
+            .where(
+                Organization.id == organization_id,
+                Organization.is_active.is_(True),
+                Organization.storage_used_bytes + size_change_bytes
+                <= Organization.storage_limit_bytes,
+            )
+            .values(
+                storage_used_bytes=Organization.storage_used_bytes + size_change_bytes
+            )
+        )
+
     def check_storage_quota(self) -> dict:
         """Check storage quota status"""
         return {

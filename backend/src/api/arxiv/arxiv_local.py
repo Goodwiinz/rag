@@ -57,6 +57,20 @@ class LocalExtractionResponse(BaseModel):
     results: List[Dict[str, Any]]
 
 
+from src.models.vector import EmbeddingRequest  # noqa: E402
+from src.services.embedding.embedding_service import EmbeddingService  # noqa: E402
+
+_shared_embedding_service = None
+
+
+def _get_shared_embedding_service():
+    """Process-wide EmbeddingService (R6-M4: no per-document reloads)."""
+    global _shared_embedding_service
+    if _shared_embedding_service is None:
+        _shared_embedding_service = EmbeddingService(lazy=False)
+    return _shared_embedding_service
+
+
 @router.get("/local-papers")
 async def list_local_papers(
     limit: int = Query(default=50, description="Maximum number of papers to return"),
@@ -363,27 +377,16 @@ async def _post_process_extraction(result, request, organization_id=None):
             try:
                 from src.services.embedding.embedding_service import EmbeddingService
 
-                embedding_service = EmbeddingService()
-                # Set provider to Azure OpenAI if available
-                if (
-                    hasattr(embedding_service, "embedding_provider")
-                    and embedding_service.embedding_provider == "azure_openai"
-                ):
-                    logger.info("Using Azure OpenAI for embeddings")
-                    embedding = await embedding_service.generate_embedding_azure(
-                        extracted_text[:2000]
-                    )
-                else:
-                    # Fall back to default embedding method
-                    from src.models.vector import EmbeddingRequest
-
-                    embedding_request = EmbeddingRequest(
+                # R6-M4: one shared instance (fresh-per-paper reloaded the
+                # SentenceTransformer weights from disk every document); the
+                # azure_openai branch was dead — a fresh instance's provider
+                # is always the default.
+                embedding = await _get_shared_embedding_service().generate_embedding(
+                    EmbeddingRequest(
                         text=extracted_text[:2000],
                         model="sentence-transformers/all-MiniLM-L6-v2",
                     )
-                    embedding = await embedding_service.generate_embedding(
-                        embedding_request
-                    )
+                )
 
                 result["features"]["embedding"] = embedding
                 logger.info(
