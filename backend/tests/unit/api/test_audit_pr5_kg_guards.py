@@ -19,6 +19,7 @@ import inspect
 import logging
 import threading
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -88,12 +89,12 @@ async def test_create_entity_runs_off_event_loop() -> None:
     kg_service = MagicMock()
     seen_threads = []
 
-    def slow_create(request):
+    def slow_create(request: Any) -> SimpleNamespace:
         seen_threads.append(threading.get_ident())
         return SimpleNamespace(id="e1")
 
     kg_service.create_entity = MagicMock(side_effect=slow_create)
-    integration.kg_service = kg_service
+    integration.kg_service = kg_service  # type: ignore[assignment]
 
     ok = await integration._add_entity_to_kg(
         {
@@ -118,16 +119,18 @@ async def test_relationship_creation_runs_off_event_loop() -> None:
     seen_threads = []
     node = _node("n1", "Ada Lovelace")
 
-    def search(query, limit=None, organization_id=None):
+    def search(
+        query: str, limit: int | None = None, organization_id: str | None = None
+    ) -> list[SimpleNamespace]:
         return [node]
 
-    def create_rel(request):
+    def create_rel(request: Any) -> SimpleNamespace:
         seen_threads.append(threading.get_ident())
         return SimpleNamespace(id="r1")
 
     kg_service.search_entities = MagicMock(side_effect=search)
     kg_service.create_relationship = MagicMock(side_effect=create_rel)
-    integration.kg_service = kg_service
+    integration.kg_service = kg_service  # type: ignore[assignment]
 
     ok = await integration._add_relationship_to_kg(
         {
@@ -157,24 +160,26 @@ async def test_missing_paper_title_entity_is_created_before_edge(
     integration = ArXivKnowledgeGraphIntegration()
     kg_service = MagicMock()
 
-    created_names = []
+    created_names: list[str] = []
     ada = _node("ada-1", "Ada Lovelace")
 
-    def fake_search(query, limit=None, organization_id=None):
+    def fake_search(
+        query: str, limit: int | None = None, organization_id: str | None = None
+    ) -> list[SimpleNamespace]:
         if query == "Ada Lovelace":
             return [ada]
         if created_names:
             return [_node("title-1", title)]
         return []
 
-    def fake_create(request):
+    def fake_create(request: Any) -> SimpleNamespace:
         created_names.append(request.name)
         return SimpleNamespace(id="title-1")
 
     kg_service.search_entities = MagicMock(side_effect=fake_search)
     kg_service.create_entity = MagicMock(side_effect=fake_create)
     kg_service.create_relationship = MagicMock(return_value=SimpleNamespace(id="r1"))
-    integration.kg_service = kg_service
+    integration.kg_service = kg_service  # type: ignore[assignment]
 
     with caplog.at_level(logging.WARNING):
         ok = await integration._add_relationship_to_kg(
@@ -202,7 +207,7 @@ async def test_unresolvable_endpoint_skips_edge_loudly(
     integration = ArXivKnowledgeGraphIntegration()
     kg_service = MagicMock()
     kg_service.search_entities = MagicMock(return_value=[])
-    integration.kg_service = kg_service
+    integration.kg_service = kg_service  # type: ignore[assignment]
 
     with caplog.at_level(logging.WARNING):
         ok = await integration._add_relationship_to_kg(
@@ -243,14 +248,16 @@ async def test_exact_name_beats_prefix_hit() -> None:
     attention = _node("att-exact", "Attention")
     mechanism = _node("att-prefix", "Attention Mechanism")
 
-    def fake_search(query, limit=None, organization_id=None):
+    def fake_search(
+        query: str, limit: int | None = None, organization_id: str | None = None
+    ) -> list[SimpleNamespace]:
         if query == "Attention":
             return [mechanism, attention]
         return [_node("bert-1", "BERT")]
 
     kg_service.search_entities = MagicMock(side_effect=fake_search)
     kg_service.create_relationship = MagicMock(return_value=SimpleNamespace(id="r1"))
-    integration.kg_service = kg_service
+    integration.kg_service = kg_service  # type: ignore[assignment]
 
     ok = await integration._add_relationship_to_kg(
         _relationship("BERT", "Attention"), _paper(), organization_id="org-1"
@@ -268,7 +275,9 @@ async def test_ambiguous_prefix_without_exact_skips_edge(
     integration = ArXivKnowledgeGraphIntegration()
     kg_service = MagicMock()
 
-    def fake_search(query, limit=None, organization_id=None):
+    def fake_search(
+        query: str, limit: int | None = None, organization_id: str | None = None
+    ) -> list[SimpleNamespace]:
         if query == "Atten":
             return [
                 _node("p1", "Attention Mechanism"),
@@ -278,7 +287,7 @@ async def test_ambiguous_prefix_without_exact_skips_edge(
 
     kg_service.search_entities = MagicMock(side_effect=fake_search)
     kg_service.create_relationship = MagicMock()
-    integration.kg_service = kg_service
+    integration.kg_service = kg_service  # type: ignore[assignment]
 
     with caplog.at_level(logging.WARNING):
         ok = await integration._add_relationship_to_kg(
@@ -296,14 +305,16 @@ async def test_unambiguous_single_prefix_candidate_is_accepted() -> None:
     kg_service = MagicMock()
     only = _node("only-1", "Attention Mechanism")
 
-    def fake_search(query, limit=None, organization_id=None):
+    def fake_search(
+        query: str, limit: int | None = None, organization_id: str | None = None
+    ) -> list[SimpleNamespace]:
         if query == "Attenti":
             return [only]
         return [_node("bert-1", "BERT")]
 
     kg_service.search_entities = MagicMock(side_effect=fake_search)
     kg_service.create_relationship = MagicMock(return_value=SimpleNamespace(id="r1"))
-    integration.kg_service = kg_service
+    integration.kg_service = kg_service  # type: ignore[assignment]
 
     ok = await integration._add_relationship_to_kg(
         _relationship("BERT", "Attenti"), _paper(), organization_id="org-1"
@@ -330,7 +341,7 @@ async def test_ingest_correlates_documents_by_arxiv_id(
     integration = ArXivKnowledgeGraphIntegration()
     integration.arxiv_service = MagicMock()
     integration.arxiv_service.ingest_papers = AsyncMock(return_value=[doc2])
-    integration.kg_service = MagicMock()
+    integration.kg_service = MagicMock()  # type: ignore[assignment]
 
     extract_entities = AsyncMock(return_value=[])
     extract_relationships = AsyncMock(return_value=[])
@@ -353,10 +364,14 @@ async def test_ingest_correlates_documents_by_arxiv_id(
     )
 
     assert extract_entities.await_count == 1
-    assert extract_entities.await_args[0][0] is p2
+    extract_call = extract_entities.await_args
+    assert extract_call is not None
+    assert extract_call[0][0] is p2
     assert add_entity.await_count == 0  # p2 has no extracted entities here
     assert ensure_title.await_count == 1
-    assert ensure_title.await_args.kwargs["organization_id"] == "org-9"
+    title_call = ensure_title.await_args
+    assert title_call is not None
+    assert title_call.kwargs["organization_id"] == "org-9"
 
 
 @pytest.mark.asyncio
@@ -369,7 +384,7 @@ async def test_ingest_skips_document_without_arxiv_id(
     integration = ArXivKnowledgeGraphIntegration()
     integration.arxiv_service = MagicMock()
     integration.arxiv_service.ingest_papers = AsyncMock(return_value=[mystery_doc])
-    integration.kg_service = MagicMock()
+    integration.kg_service = MagicMock()  # type: ignore[assignment]
 
     extract_entities = AsyncMock(return_value=[])
     monkeypatch.setattr(integration, "_extract_entities_from_paper", extract_entities)
@@ -418,7 +433,7 @@ def test_database_name_is_explicit_not_private_session_attr() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _extraction_service():
+def _extraction_service() -> Any:
     from src.services.processing.entity_extraction_service import (
         EntityExtractionService,
     )
@@ -427,7 +442,9 @@ def _extraction_service():
     return object.__new__(EntityExtractionService)
 
 
-def _sent_entity(name: str, text: str, *, etype=None, label=None):
+def _sent_entity(
+    name: str, text: str, *, etype: Any = None, label: Any = None
+) -> SimpleNamespace:
     start = text.index(name)
     return SimpleNamespace(
         name=name,

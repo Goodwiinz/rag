@@ -6,6 +6,7 @@ source-guards where the code path needs live infra (Neo4j, route wiring).
 
 import ast
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -16,7 +17,9 @@ BACKEND_ROOT = Path(__file__).resolve().parents[3]
 # ---------------------------------------------------------------------------
 
 
-def test_config_prod_gates_fire_without_process_env(monkeypatch) -> None:
+def test_config_prod_gates_fire_without_process_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Simulates a deployment supplying ENVIRONMENT only via .env / init value.
 
     Before the fix the validators read os.getenv("ENVIRONMENT") and silently
@@ -35,7 +38,7 @@ def test_config_prod_gates_fire_without_process_env(monkeypatch) -> None:
     # DATABASE_URL-class vars into the process env; SUPABASE_DB_URL is pinned
     # empty because _override_database_url_from_supabase lets an env value
     # beat our explicit DATABASE_URL).
-    base = dict(
+    base: dict[str, Any] = dict(
         ENVIRONMENT="production",
         DATABASE_URL="postgresql://u:p@db.example.com:5432/db",
         SUPABASE_DB_URL="",
