@@ -7,6 +7,9 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from fastapi.concurrency import run_in_threadpool
+from sqlalchemy import text
+
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -191,10 +194,14 @@ async def search_documents(
     Perform search on documents with multiple search modalities
     """
     try:
-        # Route search to appropriate service based on search type
+        # Route search to appropriate service based on search type.
+        # R6-H1: every pipeline below is fully synchronous (PG ts_rank_cd +
+        # rerank HTTP); running it inline blocked the event loop for the
+        # whole worker whenever one query was slow.
         if search_request.search_type == SearchType.HYBRID:
             # Use hybrid search service
-            result = hybrid_search_service.search(
+            result = await run_in_threadpool(
+                hybrid_search_service.search,
                 search_request=search_request,
                 user_id=str(current_user.id),
                 organization_id=str(current_user.organization_id),
@@ -202,7 +209,8 @@ async def search_documents(
             )
         elif search_request.search_type == SearchType.FULLTEXT:
             # Use full-text search service
-            result = fulltext_search_service.search(
+            result = await run_in_threadpool(
+                fulltext_search_service.search,
                 search_request=search_request,
                 user_id=str(current_user.id),
                 organization_id=str(current_user.organization_id),
@@ -229,7 +237,8 @@ async def search_documents(
                 knowledge_graph_service,
             )
 
-            result = knowledge_graph_service.search(
+            result = await run_in_threadpool(
+                knowledge_graph_service.search,
                 search_request=search_request,
                 user_id=str(current_user.id),
                 organization_id=str(current_user.organization_id),
@@ -238,7 +247,8 @@ async def search_documents(
         else:
             # Default to hybrid search
             search_request.search_type = SearchType.HYBRID
-            result = hybrid_search_service.search(
+            result = await run_in_threadpool(
+                hybrid_search_service.search,
                 search_request=search_request,
                 user_id=str(current_user.id),
                 organization_id=str(current_user.organization_id),
@@ -258,6 +268,10 @@ async def search_documents(
 
         return result
 
+    except HTTPException:
+        # R2-M18: the VECTOR 400 above is an intentional client error — the
+        # blanket except used to re-wrap it as a 500.
+        raise
     except Exception as e:
         logger.error(f"Error performing search: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -277,8 +291,9 @@ async def hybrid_search(
         # Force hybrid search type
         search_request.search_type = SearchType.HYBRID
 
-        # Perform hybrid search
-        result = hybrid_search_service.search(
+        # Perform hybrid search (R6-H1: off the event loop)
+        result = await run_in_threadpool(
+            hybrid_search_service.search,
             search_request=search_request,
             user_id=str(current_user.id),
             organization_id=str(current_user.organization_id),
@@ -518,20 +533,26 @@ async def get_search_indexes(
     Get information about search indexes
     """
     try:
-        # Get index information from PostgreSQL
-        index_query = """
+        # Get index information from PostgreSQL.
+        # R6-M2: the previous string held a Python-style '#' comment (a PG
+        # syntax error) and was executed without text() — this endpoint had
+        # never once returned 200.
+        index_query = text("""
         SELECT
             schemaname || '.' || indexname as name,
-            'gin' as type,
-            0 as document_count,  -- Placeholder
-            0.0 as size_mb,       # Placeholder
+            amname as type,
+            (SELECT count(*) FROM documents d WHERE NOT d.is_deleted) as document_count,
+            round(pg_relation_size(i.indexrelid) / 1024.0 / 1024.0, 2) as size_mb,
             NOW() as last_updated,
-            true as is_active,
+            i.indisvalid as is_active,
             '{}'::jsonb as configuration
-        FROM pg_indexes
-        WHERE tablename = 'documents'
-            AND indexname LIKE '%search%'
-        """
+        FROM pg_indexes ix
+        JOIN pg_class c ON c.relname = ix.indexname
+        JOIN pg_am am ON am.oid = c.relam
+        JOIN pg_index i ON i.indexrelid = c.oid
+        WHERE ix.tablename = 'documents'
+            AND ix.indexname LIKE '%search%'
+        """)
 
         result = db.execute(index_query)
         indexes = []
@@ -724,7 +745,8 @@ async def search_health_check(
                 query="test", search_type=SearchType.HYBRID, limit=1
             )
             start_time = time.time()
-            hybrid_result = hybrid_search_service.search(
+            hybrid_result = await run_in_threadpool(
+                hybrid_search_service.search,
                 search_request=hybrid_query,
                 user_id=str(current_user.id),
                 organization_id=str(current_user.organization_id),
@@ -739,7 +761,7 @@ async def search_health_check(
         except Exception as e:
             health_status["services"]["hybrid"] = {
                 "status": "unhealthy",
-                "error": str(e),
+                "detail": type(e).__name__,
             }
             logger.error(f"Hybrid search health check failed: {e}")
 
@@ -751,7 +773,7 @@ async def search_health_check(
             WHERE tablename = 'documents'
                 AND indexname LIKE '%search%'
             """
-            index_result = db.execute(index_check_query)
+            index_result = db.execute(text(index_check_query))
             index_count = index_result.scalar()
             health_status["indexes"] = {
                 "search_indexes_count": index_count,
@@ -776,7 +798,8 @@ async def search_health_check(
                 query="test", search_type=SearchType.KNOWLEDGE_GRAPH, limit=1
             )
             start_time = time.time()
-            kg_result = knowledge_graph_service.search(
+            kg_result = await run_in_threadpool(
+                knowledge_graph_service.search,
                 search_request=kg_query,
                 user_id=str(current_user.id),
                 organization_id=str(current_user.organization_id),
@@ -808,7 +831,8 @@ async def search_health_check(
             status_code=503,
             content={
                 "status": "unhealthy",
-                "error": str(e),
+                # R6-L4: internals stay in logs, not client bodies.
+                "error": "search subsystem unavailable",
                 "timestamp": datetime.utcnow().isoformat(),
             },
         )
@@ -842,8 +866,9 @@ async def authenticated_hybrid_search(
                 detail="API key is not scoped to an organization",
             )
 
-        # Perform hybrid search with API key context
-        result = hybrid_search_service.search(
+        # Perform hybrid search with API key context (R6-H1: off the loop)
+        result = await run_in_threadpool(
+            hybrid_search_service.search,
             search_request=search_request,
             user_id=f"api_key:{api_key.id}",
             organization_id=api_key.organization_id,

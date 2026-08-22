@@ -272,3 +272,7 @@ __all__ = [
 from .api_key import APIKey, APIKeyUsageLog  # R6-L12
 
 __all__ += ["APIKey", "APIKeyUsageLog"]
+
+from .search_feedback import SearchFeedback  # R6-L5
+
+__all__ += ["SearchFeedback"]
