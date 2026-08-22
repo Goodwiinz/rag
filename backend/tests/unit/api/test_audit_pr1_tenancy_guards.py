@@ -23,7 +23,6 @@ def test_config_prod_gates_fire_without_process_env(monkeypatch) -> None:
     accepted weak secrets in production.
     """
     import os
-
     import sys
 
     sys.path.insert(0, str(BACKEND_ROOT))

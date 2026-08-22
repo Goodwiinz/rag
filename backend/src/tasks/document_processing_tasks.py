@@ -3,8 +3,8 @@ Background tasks for document processing with async pipeline execution
 """
 
 import logging
-from typing import Optional
 from datetime import datetime, timedelta
+from typing import Optional
 
 from sqlalchemy import text
 
