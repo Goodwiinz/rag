@@ -27,7 +27,9 @@ export function Providers({ children }: ProvidersProps) {
             refetchOnWindowFocus: false,
           },
           mutations: {
-            retry: 1,
+            // Mutations are non-idempotent (creates) — a retried mutation
+            // duplicates the create. Fail fast, surface the error (R6-M15).
+            retry: 0,
             retryDelay: 1000,
           },
         },
