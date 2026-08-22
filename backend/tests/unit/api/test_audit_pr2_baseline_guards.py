@@ -113,6 +113,7 @@ def test_generate_report_task_accepts_none_org() -> None:
                 src = ast.get_source_segment(
                     _read("src/tasks/document_processing_tasks.py"), node
                 )
+                assert src is not None
                 assert "_org_filter" in src
     assert found
 
