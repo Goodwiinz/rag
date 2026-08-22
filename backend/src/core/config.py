@@ -5,12 +5,11 @@ SECURITY NOTE: All sensitive configuration values MUST be provided via environme
 variables. Default values are only used for local development.
 """
 
-import os
 import re
 import secrets
 from typing import Dict, List, Optional
 
-from pydantic import field_validator, model_validator
+from pydantic import ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -206,7 +205,7 @@ class Settings(BaseSettings):
 
     @field_validator("CORS_ORIGIN_REGEX")
     @classmethod
-    def validate_cors_origin_regex(cls, v: str) -> str:
+    def validate_cors_origin_regex(cls, v: str, info: ValidationInfo) -> str:
         """Reject overly broad origin regexes used with credentialed CORS."""
         if not v or not v.strip():
             return ""
@@ -215,7 +214,7 @@ class Settings(BaseSettings):
         if not pattern.startswith("^") or not pattern.endswith("$"):
             raise ValueError("CORS_ORIGIN_REGEX must be anchored with ^ and $")
 
-        env = os.getenv("ENVIRONMENT", "development")
+        env = str(info.data.get("ENVIRONMENT", "development"))
         if env in ("production", "staging"):
             if not pattern.startswith("^https://"):
                 raise ValueError(
@@ -360,7 +359,7 @@ class Settings(BaseSettings):
         )
 
         if is_weak:
-            env = os.getenv("ENVIRONMENT", "development")
+            env = str(info.data.get("ENVIRONMENT", "development"))
             if env in ("production", "staging"):
                 raise ValueError(
                     "SECRET_KEY must be set to a strong value in production/staging"
@@ -386,7 +385,7 @@ class Settings(BaseSettings):
         )
 
         if is_weak:
-            env = os.getenv("ENVIRONMENT", "development")
+            env = str(info.data.get("ENVIRONMENT", "development"))
             if env in ("production", "staging"):
                 raise ValueError(
                     "JWT_SECRET_KEY must be set to a strong value in production/staging. "
@@ -399,10 +398,10 @@ class Settings(BaseSettings):
 
     @field_validator("NEO4J_PASSWORD", mode="before")
     @classmethod
-    def validate_neo4j_password(cls, v, info):
+    def validate_neo4j_password(cls, v, info: ValidationInfo):
         """Validate NEO4J_PASSWORD - require in production."""
         if not v or v == "neo4jpassword":
-            env = os.getenv("ENVIRONMENT", "development")
+            env = str(info.data.get("ENVIRONMENT", "development"))
             if env in ("production", "staging"):
                 raise ValueError(
                     "NEO4J_PASSWORD must be set via environment variable in production/staging"

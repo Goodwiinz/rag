@@ -166,17 +166,31 @@ class MessageCitationService:
             )
             raise
 
-    async def _get_document(self, document_id: UUID) -> Optional[Document]:
-        """Fetch document by ID.
+    async def _get_document(
+        self,
+        document_id: UUID,
+        organization_id: Optional[str] = None,
+    ) -> Optional[Document]:
+        """Fetch a live document by ID.
+
+        Soft-deleted documents never receive new citation rows, and when the
+        caller can supply a tenant partition the lookup is scoped to it
+        instead of trusting upstream scoping (R6-L10).
 
         Args:
             document_id: Document UUID
+            organization_id: Optional tenant partition
 
         Returns:
             Document object or None
         """
         try:
-            query = select(Document).where(Document.id == document_id)
+            query = select(Document).where(
+                Document.id == document_id,
+                Document.is_deleted == False,  # noqa: E712
+            )
+            if organization_id:
+                query = query.where(Document.organization_id == organization_id)
             result = await self.db.execute(query)
             return result.scalar_one_or_none()
         except Exception as e:

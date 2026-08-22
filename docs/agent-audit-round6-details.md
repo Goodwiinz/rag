@@ -1,0 +1,41 @@
+# Agent audit round 6 details — 2026-08-22
+Four explore agents. Ledger: agent-audit-round6.md
+
+## Agent A: memory / embedding / search APIs
+
+### Findings
+1. **HIGH — Event-loop blocking on every `/api/v1/search*` endpoint** — `src/api/search/search.py:197/205/241` (POST `/search`), `:281` (`/hybrid`), `:846` (`/authenticated/hybrid`). All `async def`, yet call fully synchronous hybrid pipeline inline: PG `ts_rank_cd` scans + sequential 2×10s future waits (`hybrid_search_service.py:547-552`) + sync Cohere rerank HTTP call, 30s timeout (`cohere_rerank_service.py:329`) + optional LLM synth. One slow query stalls every concurrent request on the worker. Codebase knows correct pattern — `chat.py:135` wraps same service in `run_in_executor`; these endpoints don't.
+2. **MED — `/search-quality/benchmark` pins event loop for minutes** — `search_quality.py:252`, `search_quality_service.py:445-503`. Up to 50 client-supplied queries × 2 search types, serial in-request, each full hybrid/fulltext incl rerank HTTP. Any authenticated user = whole-worker stall (DoS).
+3. **MED — GET `/search/indexes` guaranteed 500** — `search.py:527`: Python-style `#` comment inside SQL (PG has no `#` comments) → syntax error; compounded by `:536`: raw string passed to `Session.execute()` without `text()` → SQLAlchemy 2.0 ArgumentError first. Same raw-string bug in `/search/health` probe `:754` → check reports unhealthy forever → status stuck "degraded".
+4. **HIGH — LLM response cache cross-tenant key collisions** — `llm_response_cache.py:233-250`: key=sha256(query+model+temperature), no user/org component. `chat.py:399-435`: cache_query also omits client-supplied `system_prompt`. Two tenants, identical single-turn query → tenant B receives tenant A's response under A's system prompt. RAG arm mitigated only when retrieved_contexts non-empty (doc-ids appended `:419-422`); empty-retrieval and non-RAG paths collide freely.
+5. **MED — Semantic cache permanently dead, failure swallowed** — `llm_response_cache.py:263` calls `embedding_service.embed(text)`; no `embed()` method exists. AttributeError caught `:267-269`, warning, returns None. Config advertises `use_semantic_cache=True`; silently no-ops.
+6. **MED — Embedding model reloaded per document; sync encode in coroutines** — `embedding_service.py:96`: default model loaded directly via `SentenceTransformer(self.model_name)`, bypassing `_MODEL_CACHE` (cache only for non-default models `:366/:453`). `arxiv_local.py:366` constructs fresh EmbeddingService per paper → full model load from disk per document, inside async `_post_process_extraction` (`:373/:384`). Sync `.encode()` (`:360/:370/:457`) blocks loop.
+7. Dead Azure branch — `arxiv_local.py:368-371`: checks provider on fresh instance always default → unreachable despite log line claiming it (feeds 6).
+8. **LOW — missing await** in `test_embedding_quality` — `embedding_service.py:518`; `.failed_count` on coroutine → AttributeError, always success:False. Uncalled (dead API).
+9. **LOW — unscoped title-enrichment query** — `hybrid_search_service.py:1133-1136`: no organization_id/is_deleted; soft-deleted titles leak; defense-in-depth violation on tenant-mandatory rule.
+10. **LOW — LIKE wildcards unescaped in suggestions** — `fulltext_search_service.py:553`; org-scoped+parameterized; forced-scan worst case. Correct pattern at thread_search.py:397.
+11. **LOW — internal str(e) to clients** — search.py:806-813, thread_search.py:516-518.
+12. **LOW — mock analytics as real data** — search.py:443-455 hardcoded 150ms, results=docs/10; search_quality_service.py:407-427 fabricated "150 evaluations"; record_user_feedback replies success but _store_metric (:434-443) only logs — never persisted.
+13. **LOW — chunk_text oversized chunks** — embedding_service.py:600-609 sentence > chunk_size never hard-split.
+
+### Clean
+memory subsystem (per-user namespaces ("user", user_id); delete_memory_by_query fail-closed ≥0.6 threshold + ≥3-topic-token fallback; fire-and-forget persists strongly referenced + surfaced; insight PII-redacted; store singleton post-setup). Project-memory recall callers ownership-check client project_id (_resolve_and_bind_project :882-946). thread_message_search_service workspace predicate on result AND count, shared filters, tombstones excluded both. threads/thread_search sync endpoints (threadpool), auth incl health, LIKE escaping, scoped suggestions. fulltext_search_service parameterized plainto_tsquery, count mirrors results exactly, suggestions fail-closed []. cohere_rerank ContextVar provenance, breaker, order-preserving fallback, snapshot race-free. cohere_embed positional validation, refuses zero-vector, batch→retry, truncation guard. do_kb/rerank passthrough flag-gated. bm25 pure math. authenticated_hybrid rejects org-less API keys 403. reindex_document verifies org+not-deleted. Cache TTL mechanics (jittered setex, remaining_ttl>0 guard, eviction cleans index).
+
+## Agent B: notes / bibliography / citations
+(See ledger rows R6-H5, R6-M5/M6/M7/M8, R6-L7/L8/L9/L10 for the condensed findings with file:line.)
+
+### Clean
+Notes REST CRUD projects.py:663-959 every route _get_project_with_auth + _get_note scoped; no IDOR. create_note persistence-only, both callers guard. Agent tools create_project_note/add_document_to_project/create_draft ownership verified pre-write. save_thread_to_note project AND thread ownership, superseded/deleted excluded. Drafts API all 12 endpoints validate project ownership; status/cancel pin task project_id+user_id. DraftGenerationService doc query project-intersection + is_deleted. Thread export soft-delete chain checked :456-503, filename slugified, batch cap 100. export_bibliography tool org+is_deleted, format whitelist, dedupe. extract/lookup routes org+is_deleted gate; strategy whitelisted w/ fallback. Relationship/graph-node anchor accessibility enforced :806-1104. list_projects owner-scoped LIKE-escaped. RAG node _user_owns_project fail-closed three-state. list_citations count/result same subquery; notes count parity. No import parser exists (export-only) — reDoS N/A.
+
+## Agent C: migrations / config / celery beat
+(Full detail in ledger rows R6-H3/H4, R6-M8/M9/M10/M11/M12/M13, R6-L11/L12.)
+Key extra facts: audit_schema_drift.py diffs against LIVE DB only (create_engine DATABASE_URL) — unusable static, misses tables outside src/models. ~49 tables have NO creating migration (list in ledger H3). b7d4e9a1c3f2 docstring admits ORM-only crash-loop precedent. F5 window: d9f3g4h5i6j7 installed global unique citation indexes, o2r3s4t5u6v7 removed — DBs pinned mid-window keep breaking.
+
+### Clean
+Single head add_chat_progress_steps, zero dangling down_revisions, branchpoints merged. EntityType 18/18 enum↔migration; processingstage/contenttype/qualitymetrictype exact; AgentOutboxStatus contract-tested. CONCURRENTLY sites wrap autocommit_block(). op.execute interpolations use fixed constants only — no injection. Tenant-aware data migrations partition by org, keep-oldest soft-delete. chat_messages reverse-drift clean vs model. DEBUG forced off prod/staging; DATABASE_URL localhost rejection; CORS regex validated; DO_KB validator; retention/reconciler dry-run defaults. Beat: all 11 entries resolve to registered tasks, merge-not-assign, queue routing matches.
+
+## Agent D: frontend non-chat surfaces
+(Full detail in ledger rows R6-H6/H7, R6-M14-M18, R6-L13-L24.)
+
+### Clean
+api-client per-request Supabase session read; FormData CT strip both paths; XHR abort edges; blob revoke; envelope parsing. authStore signOut clears state+QueryClient+token+localStorage pre-network, force-clears SSR cookie, signInInFlight/profileFetchInFlight dedupe, getUser() verified at authz sites. projectStore request-token + dual React Query invalidation on every mutation. ProjectsPage aborted fetches, errors surfaced. CreateProjectModal inline submitError. DocumentInlineViewer {key,status} stale guard, blob cleanup, honest fallback. XSS: only 2 dangerouslySetInnerHTML sinks, KaTeX DOMPurify'd, react-markdown without rehype-raw everywhere, links noopener. useProjectSkills disciplined keys. Batch delete deletes-then-single-refetch holds (R4 lineage). Search page abort-on-unmount, isLoading guard. RunView SSE controller cleanup, malformed JSON skipped, terminal refetch. No index-key state bleed found. No keyboard traps beyond L17/L18.
