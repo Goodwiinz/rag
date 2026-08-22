@@ -328,6 +328,22 @@ class EntityExtractionService:
 
         return normalized
 
+    # Bare prepositions only count as located_in cues when the entity AFTER
+    # them actually looks like a place.
+    _BARE_LOCATION_PREPOSITIONS = frozenset({"in", "at"})
+    _LOCATION_SPACY_LABELS = frozenset({"GPE", "LOC", "FAC"})
+
+    @classmethod
+    def _is_location_like(cls, entity: Entity) -> bool:
+        """Heuristic location check for entities feeding a bare 'in'/'at' cue."""
+        if getattr(entity, "entity_type", None) == EntityType.LOCATION:
+            return True
+        properties = getattr(entity, "properties", None) or {}
+        if properties.get("spacy_label") in cls._LOCATION_SPACY_LABELS:
+            return True
+        name = (getattr(entity, "name", "") or "").strip()
+        return bool(name) and len(name) >= 3 and name[0].isupper()
+
     def _analyze_entity_relationship(
         self, sentence, entity1: Entity, entity2: Entity
     ) -> Optional[Dict[str, Any]]:
@@ -344,10 +360,15 @@ class EntityExtractionService:
             )
             entity2_end = entity2.properties.get("end_char", 0) - sentence.start_char
 
-            # Get text between entities
-            if entity1_end < entity2_start:
+            # Order the pair by position: these cues read subject->object
+            # left-to-right, so the source is whichever entity comes first.
+            # The old code always returned (entity1, entity2), reversing the
+            # direction whenever entity2 preceded entity1 in the sentence.
+            if entity1_end <= entity2_start:
+                source_entity, target_entity = entity1, entity2
                 between_text = sentence.text[entity1_end:entity2_start].strip().lower()
-            elif entity2_end < entity1_start:
+            elif entity2_end <= entity1_start:
+                source_entity, target_entity = entity2, entity1
                 between_text = sentence.text[entity2_end:entity1_start].strip().lower()
             else:
                 return None
@@ -365,15 +386,25 @@ class EntityExtractionService:
 
             for relationship_type, patterns in relationship_patterns.items():
                 for pattern in patterns:
-                    if pattern in between_text:
-                        return {
-                            "source_entity": entity1,
-                            "target_entity": entity2,
-                            "relationship_type": relationship_type,
-                            "confidence": 0.7,
-                            "evidence": sentence.text,
-                            "pattern_matched": pattern,
-                        }
+                    # Word-boundary match: a plain substring test made the bare
+                    # "in"/"at" patterns fire inside ordinary words ("working",
+                    # "national"), wiring LOCATED_IN between arbitrary entities.
+                    if not re.search(rf"\b{re.escape(pattern)}\b", between_text):
+                        continue
+                    if (
+                        relationship_type == "located_in"
+                        and pattern in self._BARE_LOCATION_PREPOSITIONS
+                        and not self._is_location_like(target_entity)
+                    ):
+                        continue
+                    return {
+                        "source_entity": source_entity,
+                        "target_entity": target_entity,
+                        "relationship_type": relationship_type,
+                        "confidence": 0.7,
+                        "evidence": sentence.text,
+                        "pattern_matched": pattern,
+                    }
 
             return None
 

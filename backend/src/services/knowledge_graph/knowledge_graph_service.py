@@ -250,6 +250,9 @@ class KnowledgeGraphService:
         self.uri = settings.NEO4J_URI
         self.user = settings.NEO4J_USER
         self.password = settings.NEO4J_PASSWORD
+        # Explicit database name for queries that need it (dbms.database.details)
+        # — never read the private per-session database attribute.
+        self.database = getattr(settings, "NEO4J_DATABASE", "neo4j") or "neo4j"
         # Re-entrancy guard: _maybe_ensure_schema -> _ensure_schema -> get_session
         # would otherwise recurse back into _maybe_ensure_schema on the same
         # instance. Per-instance flag keeps that nested call a no-op.
@@ -967,7 +970,7 @@ class KnowledgeGraphService:
                 {match_clause}
                 {where_clause}
                 {return_distinct}
-                ORDER BY e.created_at DESC
+                ORDER BY e.created_at DESC, e.id
                 SKIP $offset
                 LIMIT $limit
                 """
@@ -1126,7 +1129,7 @@ class KnowledgeGraphService:
                        r.confidence_score AS confidence,
                        r.source_document_id AS doc_id,
                        r.created_at AS created_at
-                ORDER BY r.created_at DESC
+                ORDER BY r.created_at DESC, rid
                 SKIP $offset
                 LIMIT $limit
                 """
@@ -1625,8 +1628,10 @@ class KnowledgeGraphService:
                 query = f"""
                 MATCH (start:Entity {{id: $entity_id}})
                 MATCH (start)-[r:RELATED_TO*1..{safe_depth}]-(related:Entity)
-                WHERE all(rel in r WHERE coalesce(rel.strength, 1.0) >= $min_strength){tenant_filter}
+                WHERE related.id <> $entity_id
+                  AND all(rel in r WHERE coalesce(rel.strength, 1.0) >= $min_strength){tenant_filter}
                 RETURN DISTINCT related
+                ORDER BY related.id
                 LIMIT $limit
                 """
 
@@ -1726,6 +1731,7 @@ class KnowledgeGraphService:
                      ] AS path_rels,
                      [n in nodes(shortest_path) | n.id] AS path_node_ids
                 RETURN related, path_rels, path_node_ids
+                ORDER BY length(shortest_path), related.id
                 LIMIT $limit
                 """
 
@@ -2442,7 +2448,7 @@ class KnowledgeGraphService:
                         CALL dbms.database.details($db_name) YIELD sizeOnDisk
                         RETURN sizeOnDisk
                         """,
-                        db_name=session._database or "neo4j",
+                        db_name=self.database,
                     ).single()
                     if size_result and size_result["sizeOnDisk"]:
                         database_size = str(size_result["sizeOnDisk"])

@@ -146,6 +146,17 @@ class ServiceCircuitBreaker:
             self._half_open_calls += 1
             if self._half_open_calls >= self.half_open_max_calls:
                 self._transition_to_closed()
+        elif self._state == CircuitState.CLOSED:
+            # A healthy call proves the service is up, so historical failures
+            # must not linger: without this reset a handful of isolated blips
+            # spread over days accumulated into a spurious OPEN as soon as the
+            # threshold was crossed by old, already-recovered incidents.
+            if self._failure_count:
+                logger.debug(
+                    f"Circuit breaker {self.service_name}: success in CLOSED "
+                    f"reset failure count ({self._failure_count} -> 0)"
+                )
+                self._failure_count = 0
 
     def record_failure(self, exception: Exception = None) -> None:
         """
