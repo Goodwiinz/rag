@@ -26,24 +26,24 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 | R4-M13 | unconditional XFF trust rewrites request.client process-wide — IP-keyed controls forgeable if any direct reachability (security.py:59-93; api_security.py:195 takes [-1] vs comment "first") | med | fixed | clawd | #1499 | 08-19 |
 | R4-M14 | /workers/status\|health only require USER — hostname/pool/queue disclosure + inspect() fan-out storm per call (workers.py:47-48,318-319) | med | fixed | clawd | #1499 | 08-20 |
 | R4-M15 | shared-socket ownership war: any consumer unmount disconnects singleton for all; subscribe() return ignored → duplicate handlers per reconnect (useRealtimeProcessing.ts:326-345, realtimeWebSocketService.ts:204-221) | med | fixed | clawd | #1497 | 08-19 |
-| R4-M16 | status-poll budget 2min < service's own >2min estimate for video → premature "Failed", later dedup blocks re-upload (enhancedDocumentService.ts:154,530-539; 5min constant unused) | med | open | — | — | 08-18 |
-| R4-M17 | preview-cleanup effect revokes object URLs of files still in list — thumbnails break after second interaction (DocumentUploader.tsx:52-60, DocumentUploadWizard.tsx:311-319) | med | open | — | — | 08-18 |
-| R4-M18 | failed queue items never cleaned (completedAt never set on error paths) — unbounded session queue/stats (uploadService.ts:426-435,346,384) | med | open | — | — | 08-18 |
-| R4-M19 | AbortController created but never wired (api.upload no signal; XHR path no abort) — cancel/navigate never stops upload (uploadService.ts:316-317, DocumentUploadZone.tsx:419, BatchUploadManager.tsx:160) | med | open | — | — | 08-18 |
+| R4-M16 | status-poll budget 2min < service's own >2min estimate for video → premature "Failed", later dedup blocks re-upload (enhancedDocumentService.ts:154,530-539; 5min constant unused) | med | fixed | clawd | #1516 | 08-21 |
+| R4-M17 | preview-cleanup effect revokes object URLs of files still in list — thumbnails break after second interaction (DocumentUploader.tsx:52-60, DocumentUploadWizard.tsx:311-319) | med | fixed | clawd | #1516 | 08-21 |
+| R4-M18 | failed queue items never cleaned (completedAt never set on error paths) — unbounded session queue/stats (uploadService.ts:426-435,346,384) | med | fixed | clawd | #1516 | 08-21 |
+| R4-M19 | AbortController created but never wired (api.upload no signal; XHR path no abort) — cancel/navigate never stops upload (uploadService.ts:316-317, DocumentUploadZone.tsx:419, BatchUploadManager.tsx:160) | med | fixed | clawd | #1516 | 08-21 |
 | R4-M20 | optimistic rollback setTimeout overwrites refetched correct list 5s later; id=file.name collision mutates both (useOptimisticUpload.ts:83-94,24,43) | med | dead | clawd | #1511 (hook deleted — zero importers) | 08-19 |
 | R4-M21 | documentService.uploadFile/batch-upload target nonexistent routes → 404; useOptimisticUpload built on them (documentService.ts:21,78) | med | dead | clawd | #1511 (both methods deleted — only caller was the dead hook) | 08-19 |
-| R4-M22 | batch delete N concurrent refetches race final commit — deleted docs reappear (useDocuments.ts:477-497; DocumentLibrary.tsx:189 N+1) | med | open | — | — | 08-18 |
+| R4-M22 | batch delete N concurrent refetches race final commit — deleted docs reappear (useDocuments.ts:477-497; DocumentLibrary.tsx:189 N+1) | med | fixed | clawd | #1517 | 08-21 |
 | R4-M23 | documents rows never transition processing→indexed (no realtime, no polling) — spinner until manual refresh (DocumentCard.tsx:315-326) | med | fixed | clawd | #1497 | 08-19 |
-| R4-M24 | size/type parity drift: FE 50MB vs BE 10MB FREE; FE allowlist narrower than BE 31 ext — late 400s or wrong client rejects (types/constants.ts:3, file_service.py:227-259) | med | open | — | — | 08-18 |
+| R4-M24 | size/type parity drift: FE 50MB vs BE 10MB FREE; FE allowlist narrower than BE 31 ext — late 400s or wrong client rejects (types/constants.ts:3, file_service.py:227-259) | med | fixed | clawd | #1517 | 08-21 |
 | R4-M25 | disconnect()/reconnect clears ALL listeners on shared singleton — update channels silently die after token-refresh reconnect (websocket.ts:105-112,219-228) | med | fixed | clawd | #1497 | 08-19 |
-| R4-M26 | Stop during SSE confirm re-arms dead card: abort-restore path re-inserts confirmation backend already finalized CANCELLED → Approve always errors (agentChatStore.ts:984-993 vs streaming.py:3098-3129) | med | open | — | — | 08-18 |
+| R4-M26 | Stop during SSE confirm re-arms dead card: abort-restore path re-inserts confirmation backend already finalized CANCELLED → Approve always errors (agentChatStore.ts:984-993 vs streaming.py:3098-3129) | med | fixed | clawd | #1519 | 08-21 |
 | R4-L1 | HTTPException(400) swallowed by own except → 500 (processing.py:317-325) | low | fixed | clawd | #1500 | 08-19 |
 | R4-L2 | bulk-delete duplicate ids counted twice in success report (documents.py:1172) | low | fixed | clawd | #1500 | 08-19 |
 | R4-L3 | unknown date_range silently ignored — no filter, no 400 (documents.py:1044-1055) | low | fixed | clawd | #1500 | 08-19 |
 | R4-L4 | to_dict leaks storage_path, storage_backend, checksum, do_kb uuid (files.py:354,285) | low | fixed | clawd | #1499 | 08-19 |
-| R4-L5 | integrity route: sync ML in request, no rate limit; select-then-insert race → MultipleResultsFound 500 (integrity.py:31-89) | low | fixed | clawd | #1518 | 08-20 |
+| R4-L5 | integrity route: sync ML in request, no rate limit; select-then-insert race → MultipleResultsFound 500 (integrity.py:31-89) | low | fixed | clawd | #1518 | 08-21 |
 | R4-L6 | bulk status unbounded + N+1 (include_jobs default True) (realtime_document_status.py:431-505) | low | fixed | clawd | #1500 | 08-19 |
-| R4-L7 | sync db.query inside async handlers throughout processing.py — event-loop stalls (processing.py:107+) — route handlers ported to async; ProcessingPipeline internals (get_processing_status sync db.query ×3, retry/queue paths) still sync — tracked as follow-up task | low | partial | clawd | #1518 | 08-20 |
+| R4-L7 | sync db.query inside async handlers throughout processing.py — event-loop stalls (processing.py:107+) — route handlers ported to async; ProcessingPipeline internals (get_processing_status sync db.query ×3, retry/queue paths) still sync — tracked as follow-up task | low | fixed | clawd | #1518 | 08-21 |
 | R4-L8 | v1 WS manager: no per-user cap, no reaper — unbounded sockets, authenticated memory exhaustion (websocket.py:17-43) | low | fixed | clawd | #1497 | 08-19 |
 | R4-L9 | document_management.py dead standalone service: zero auth (client-supplied org), wrong attrs, quota drift, header injection — landmine if mounted (entire file) | low | fixed | clawd | #1498 | 08-19 |
 | R4-L10 | orgless user → unscoped processing lookup, fail-open (processing.py:79) | low | fixed | clawd | #1500 | 08-19 |
@@ -52,17 +52,17 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 | R4-L13 | analytics_auth sync db.query on AsyncSession — AttributeError if ever called (zero callers, latent) (analytics_auth.py:118-126) | low | fixed | clawd | #1498 | 08-19 |
 | R4-L14 | services/websocket/auth.py nonexistent User attrs — module unusable if ever wired (dead) (auth.py:226,467,561) | low | fixed | clawd | #1498 | 08-19 |
 | R4-L15 | realtime_service.py standalone app: token in URL + arg mismatch — dead, violates token-in-URL convention (realtime_service.py:508-517) | low | fixed | clawd | #1498 | 08-19 |
-| R4-L16 | defaultdict(set) registries + rate-limit dicts never delete keys — lifetime memory creep (websocket_manager.py:176, rate_limiting.py:33) | low | fixed | clawd | #1518 | 08-20 |
+| R4-L16 | defaultdict(set) registries + rate-limit dicts never delete keys — lifetime memory creep (websocket_manager.py:176, rate_limiting.py:33) | low | fixed | clawd | #1518 | 08-21 |
 | R4-L17 | v1 /ws never echoes subprotocol — browser handshake fails outright; only non-browser clients work (websocket.py:102) | low | dead | clawd | #1497 | 08-19 |
 | R4-L18 | is_public gate dead code — has_permission(USER) true for all roles (dependencies.py:258) | low | fixed | clawd | #1499 | 08-19 |
-| R4-L19 | SSE throw after confirmation frame → durable fallback re-runs parked turn (agentChatStore.ts:469-482,497-508) | low | open | — | — | 08-18 |
-| R4-L20 | Stop/supersede relabels interrupted tools as 'failed' — cosmetic (agentChatStore.ts:78-89,1249,716) | low | open | — | — | 08-18 |
+| R4-L19 | SSE throw after confirmation frame → durable fallback re-runs parked turn (agentChatStore.ts:469-482,497-508) | low | fixed | clawd | #1519 | 08-21 |
+| R4-L20 | Stop/supersede relabels interrupted tools as 'failed' — cosmetic (agentChatStore.ts:78-89,1249,716) | low | fixed | clawd | #1519 | 08-21 |
 | R4-L21 | one-shot transport reattach deletes retry flag before attempt — failed reattach strands thread until remount (useChatStreaming.ts:1472-1474) | low | fixed | clawd | #1473 | 08-19 |
 | R4-L22 | updateFilters/updatePage read state in setState updater — batched updates fetch with defaults (useDocuments.ts:346-380) | low | fixed | — | (found fixed on develop 08-19 — updaters capture args, fetch moved outside setState) | 08-19 |
-| R4-L23 | search input fires fetch per keystroke, no debounce (DocumentLibrary.tsx:98-104) | low | open | — | — | 08-18 |
+| R4-L23 | search input fires fetch per keystroke, no debounce (DocumentLibrary.tsx:98-104) | low | fixed | clawd | #1517 | 08-21 |
 | R4-L24 | BatchUploadManager entirely simulated + interval leak; unused (BatchUploadManager.tsx:102-179,235) | low | fixed | clawd | #1498 | 08-19 |
 | R4-L25 | dead buttons: "Upload N Files" console.log only; Retry Upload no onClick (DocumentUploader.tsx:310, UploadProgress.tsx:219) | low | fixed | clawd | #1498 | 08-19 |
-| R4-L26 | poll never cancels after removeFromQueue; cancelled/retrying job statuses unhandled → 20min error (uploadService.ts:372-399) | low | open | — | — | 08-25 |
+| R4-L26 | poll never cancels after removeFromQueue; cancelled/retrying job statuses unhandled → 20min error (uploadService.ts:372-399) | low | fixed | clawd | #1516 | 08-21 |
 | R4-L27 | OptimizedDocumentList calls useWebSocketConnection() with no url — bogus permanent error; unused (OptimizedDocumentList.tsx:207) | low | dead | — | (verified 08-19: zero importers) | 08-19 |
 | R4-L28 | WS-path status mapping gaps: pending/running/completed → "Unknown status"/eternal spinner (useDocumentProcessingStatus.ts:117, ProcessingStatus.tsx:316) | low | fixed | clawd | #1497 | 08-19 |
 | R4-L29 | reconnect timer uncancellable post-logout; token refresh never propagates to socket (websocket.ts:179-198, useWebSocket.ts:140-151) | low | fixed | clawd | #1497 | 08-19 |
@@ -78,3 +78,5 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round4-details.md
 - 2026-08-18 (earlier): round-3 ledger updated — 15 findings merged via #1467/#1469/#1470 (H2,H3,H4,H5,H6,H8, M3,M6,M7,M8,M12,M13, L1,L6,L13).
 - 2026-08-20: R4 closure wave: L5/L7/L16 fixed here; M14 closed as already-fixed by #1499; L11 marked wontfix (deliberate fail-open decision). Frontend clusters land in sibling PRs (upload service, document library, confirm flow).
 
+
+- 2026-08-22: reconciliation — marked 14 rows fixed via #1516/#1517/#1518/#1519 (merged after last sweep).
