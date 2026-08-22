@@ -6,11 +6,12 @@ import logging
 import os
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import AsyncIterator, List, Optional
 from urllib.parse import quote
 
+import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -378,24 +379,42 @@ _SERVEABLE_MIME_TYPES = frozenset(
     }
 )
 
+_DOWNLOAD_CHUNK_BYTES = 64 * 1024
 
-def _object_response(data: bytes, document: Document) -> Response:
-    """Serve object-storage bytes from this origin.
 
-    Hardened because these bytes are user-uploaded and no longer isolated on the
-    bucket's origin: the type is allowlisted, the disposition is `attachment`,
-    and sniffing/embedding are disabled. The inline viewer reads this through
-    fetch().blob() and renders an object URL, so `attachment` costs it nothing.
+async def _iter_signed_url(url: str) -> AsyncIterator[bytes]:
+    """Yield an object's bytes from its presigned URL, a chunk at a time.
 
-    ponytail: whole object buffered in memory — fine for documents, swap for a
-    StreamingResponse over the storage client's body if large media lands here.
+    Never materializes the whole object: uploads run to 1 GiB on the enterprise
+    tier while a backend pod is capped at 4 GiB across 4 workers, so buffering
+    a few concurrent downloads would OOM the pod and kill unrelated requests.
+    """
+    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=300.0)) as client:
+        async with client.stream("GET", url) as upstream:
+            upstream.raise_for_status()
+            async for chunk in upstream.aiter_bytes(_DOWNLOAD_CHUNK_BYTES):
+                yield chunk
+
+
+def _object_response(signed_url: str, document: Document) -> StreamingResponse:
+    """Proxy object-storage bytes through this origin.
+
+    The bytes cannot be served straight from the bucket: a 302 to a presigned
+    URL is cross-origin, the bucket sends no Access-Control-Allow-Origin, and
+    the inline viewer reads the file with fetch().blob() — so the browser
+    blocks the redirect target. Proxying keeps it same-origin.
+
+    That origin move costs the isolation the bucket used to provide, so the
+    type is allowlisted, the disposition is `attachment`, and sniffing and
+    embedding are disabled. The viewer renders an object URL built from the
+    blob, so `attachment` costs it nothing.
     """
     filename = document.filename or "download"
     mime_type = (document.mime_type or "").split(";")[0].strip().lower()
     if mime_type not in _SERVEABLE_MIME_TYPES:
         mime_type = "application/octet-stream"
-    return Response(
-        content=data,
+    return StreamingResponse(
+        _iter_signed_url(signed_url),
         media_type=mime_type,
         headers={
             # RFC 5987 form so non-ASCII filenames survive the header; quote()
@@ -446,8 +465,10 @@ async def download_file(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="File not found in storage",
             )
-        data = await run_in_threadpool(helper.download_file, bucket, key)
-        return _object_response(data, document)
+        signed_url = await run_in_threadpool(
+            helper.create_signed_url, bucket, key, 3600
+        )
+        return _object_response(signed_url, document)
 
     # S3 / DO Spaces (the deployed default). Without this branch the code fell
     # through to the os.path.exists() check below against an 's3://...' path,
@@ -461,8 +482,10 @@ async def download_file(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="File not found in storage",
             )
-        data = await run_in_threadpool(s3_helper.download_file, document.storage_path)
-        return _object_response(data, document)
+        signed_url = await run_in_threadpool(
+            s3_helper.create_signed_url, document.storage_path, 3600
+        )
+        return _object_response(signed_url, document)
 
     # Local file path
     if not os.path.exists(document.file_path):

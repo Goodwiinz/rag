@@ -7,8 +7,9 @@ which never exists on disk, so every S3-backed document 404'd — and S3 (DO
 Spaces) is the deployed default. Second, the fix for that returned a 302 to a
 presigned bucket URL, which a browser navigation can follow but the inline
 viewer's fetch().blob() cannot: the bucket sends no Access-Control-Allow-Origin,
-so the cross-origin redirect target is CORS-blocked. The endpoint now serves the
-bytes from this origin.
+so the cross-origin redirect target is CORS-blocked. The endpoint now proxies
+the bytes through this origin, streaming them rather than buffering whole
+objects (uploads reach 1 GiB; a pod is 4 GiB across 4 workers).
 """
 
 from __future__ import annotations
@@ -17,8 +18,20 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi.responses import StreamingResponse
 
 from src.api.documents import files as files_mod
+
+
+def _fake_stream(payload: bytes):
+    """Stand in for the httpx streaming proxy, in two chunks."""
+
+    async def _stream(url: str):
+        assert url.startswith("https://signed")
+        yield payload[:4]
+        yield payload[4:]
+
+    return _stream
 
 
 def _doc(**over):
@@ -36,6 +49,11 @@ def _doc(**over):
     return d
 
 
+async def _collect(resp) -> bytes:
+    """Drain a StreamingResponse body iterator."""
+    return b"".join([chunk async for chunk in resp.body_iterator])
+
+
 def _db_returning(doc):
     db = MagicMock()
     result = MagicMock()
@@ -51,23 +69,29 @@ def test_s3_document_is_served_from_this_origin():
     org = MagicMock()
     org.id = "org-1"
 
-    with patch("src.core.s3_client.S3StorageHelper") as MockHelper:
+    with (
+        patch("src.core.s3_client.S3StorageHelper") as MockHelper,
+        patch.object(files_mod, "_iter_signed_url", _fake_stream(b"%PDF-1.4 bytes")),
+    ):
         MockHelper.return_value.object_exists.return_value = True
-        MockHelper.return_value.download_file.return_value = b"%PDF-1.4 bytes"
+        MockHelper.return_value.create_signed_url.return_value = "https://signed/x"
         resp = asyncio.run(
             files_mod.download_file(
                 "doc-1", current_user=MagicMock(), organization=org, db=db
             )
         )
+        body = asyncio.run(_collect(resp))
 
     # Same-origin bytes, not a redirect the browser would CORS-block.
     assert resp.status_code == 200
-    assert resp.body == b"%PDF-1.4 bytes"
+    assert body == b"%PDF-1.4 bytes"
     assert resp.media_type == "application/pdf"
     assert "paper.pdf" in resp.headers["content-disposition"]
     assert resp.headers["content-disposition"].startswith("attachment;")
     assert "location" not in resp.headers
-    MockHelper.return_value.download_file.assert_called_once_with(doc.storage_path)
+    MockHelper.return_value.create_signed_url.assert_called_once_with(
+        doc.storage_path, 3600
+    )
 
 
 @pytest.mark.unit
@@ -87,7 +111,7 @@ def test_s3_missing_object_is_a_clean_404():
             )
 
     assert getattr(exc.value, "status_code", None) == 404
-    MockHelper.return_value.download_file.assert_not_called()
+    MockHelper.return_value.create_signed_url.assert_not_called()
 
 
 @pytest.mark.unit
@@ -102,7 +126,7 @@ def test_s3_branch_does_not_touch_local_disk():
         patch("src.api.documents.files.os.path.exists") as mock_exists,
     ):
         MockHelper.return_value.object_exists.return_value = True
-        MockHelper.return_value.download_file.return_value = b"bytes"
+        MockHelper.return_value.create_signed_url.return_value = "https://signed/y"
         asyncio.run(
             files_mod.download_file(
                 "doc-1", current_user=MagicMock(), organization=org, db=db
@@ -127,9 +151,12 @@ def test_scriptable_upload_is_served_as_opaque_download():
         org = MagicMock()
         org.id = "org-1"
 
-        with patch("src.core.s3_client.S3StorageHelper") as MockHelper:
+        with (
+            patch("src.core.s3_client.S3StorageHelper") as MockHelper,
+            patch.object(files_mod, "_iter_signed_url", _fake_stream(b"<script>")),
+        ):
             MockHelper.return_value.object_exists.return_value = True
-            MockHelper.return_value.download_file.return_value = b"<script>x()</script>"
+            MockHelper.return_value.create_signed_url.return_value = "https://signed/z"
             resp = asyncio.run(
                 files_mod.download_file(
                     "doc-1", current_user=MagicMock(), organization=org, db=db
@@ -140,3 +167,39 @@ def test_scriptable_upload_is_served_as_opaque_download():
         assert resp.headers["content-disposition"].startswith("attachment;")
         assert resp.headers["x-content-type-options"] == "nosniff"
         assert "sandbox" in resp.headers["content-security-policy"]
+
+
+@pytest.mark.unit
+def test_object_is_streamed_not_buffered():
+    """The response body must arrive in chunks, never as one materialized blob.
+
+    Enterprise uploads reach 1 GiB while a backend pod is capped at 4 GiB across
+    4 workers, so buffering whole objects would let a few concurrent downloads
+    OOM the pod and take unrelated requests with it.
+    """
+    doc = _doc()
+    db = _db_returning(doc)
+    org = MagicMock()
+    org.id = "org-1"
+
+    with (
+        patch("src.core.s3_client.S3StorageHelper") as MockHelper,
+        patch.object(files_mod, "_iter_signed_url", _fake_stream(b"0123456789")),
+    ):
+        MockHelper.return_value.object_exists.return_value = True
+        MockHelper.return_value.create_signed_url.return_value = "https://signed/s"
+        resp = asyncio.run(
+            files_mod.download_file(
+                "doc-1", current_user=MagicMock(), organization=org, db=db
+            )
+        )
+
+        async def _chunks():
+            return [chunk async for chunk in resp.body_iterator]
+
+        chunks = asyncio.run(_chunks())
+
+    assert isinstance(resp, StreamingResponse)
+    assert chunks == [b"0123", b"456789"]
+    # No whole-object read on the storage client.
+    MockHelper.return_value.download_file.assert_not_called()
