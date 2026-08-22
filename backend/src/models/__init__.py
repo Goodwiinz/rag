@@ -268,3 +268,7 @@ __all__ = [
     "EvaluationReport",
     "EvaluationStatus",
 ]
+
+from .api_key import APIKey, APIKeyUsageLog  # R6-L12
+
+__all__ += ["APIKey", "APIKeyUsageLog"]

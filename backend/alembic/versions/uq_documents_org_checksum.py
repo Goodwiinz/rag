@@ -27,6 +27,10 @@ def upgrade() -> None:
     # Soft-delete newer duplicates so the unique index can build. Keep the
     # oldest live row per (org, hash) — that's the one dedup would have 409'd
     # against.
+    # R6-M9 guard: skip cleanly when documents is absent.
+    op.execute(
+        "DO $$ BEGIN IF to_regclass('documents') IS NULL THEN RETURN; END IF; END $$;"
+    )
     op.execute("""
         UPDATE documents d
         SET is_deleted = true, deleted_at = NOW()

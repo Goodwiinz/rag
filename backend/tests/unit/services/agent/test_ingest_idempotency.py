@@ -104,8 +104,11 @@ def test_exact_arxiv_constraint_is_non_destructive_and_tenant_scoped() -> None:
     )
     text = migration.read_text()
     assert "uq_documents_org_arxiv_id_live" in text
-    assert '["organization_id", "arxiv_id"]' in text
-    assert "unique=True" in text
+    # R6-M9: index creation is now guarded raw SQL (IF NOT EXISTS) instead of
+    # op.create_index — same columns, same partial predicate.
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS {INDEX_NAME}" in text
+    assert "ON documents (organization_id, arxiv_id)" in text
+    assert "WHERE is_deleted = false AND arxiv_id IS NOT NULL" in text
     assert "BEFORE INSERT ON documents" in text
     assert "NEW.document_metadata->>'arxiv_id'" in text
     assert "LENGTH(candidate) <= 64" in text
