@@ -1,10 +1,14 @@
-"""Regression: GET /files/{id} must serve S3-backed documents.
+"""Regression: GET /files/{id}/download must serve S3-backed documents inline.
 
-download_file branched only on storage_backend == 'supabase' and then fell
-through to os.path.exists(document.file_path); S3 docs have
-file_path='s3://bucket/key', which never exists on disk, so every S3-backed
-document 404'd — and S3 (DO Spaces) is the deployed default. The fix adds an
-'s3' branch that redirects to a presigned URL. This pins that branch.
+Two faults are pinned here. First, download_file branched only on
+storage_backend == 'supabase' and then fell through to
+os.path.exists(document.file_path); S3 docs have file_path='s3://bucket/key',
+which never exists on disk, so every S3-backed document 404'd — and S3 (DO
+Spaces) is the deployed default. Second, the fix for that returned a 302 to a
+presigned bucket URL, which a browser navigation can follow but the inline
+viewer's fetch().blob() cannot: the bucket sends no Access-Control-Allow-Origin,
+so the cross-origin redirect target is CORS-blocked. The endpoint now serves the
+bytes from this origin.
 """
 
 from __future__ import annotations
@@ -22,6 +26,8 @@ def _doc(**over):
     d.id = "doc-1"
     d.organization_id = "org-1"
     d.is_deleted = False
+    d.filename = "object.pdf"
+    d.mime_type = "application/pdf"
     d.storage_backend = "s3"
     d.storage_path = "documents/org-1/doc-1/object.pdf"
     d.file_path = "s3://rag-system-storage/documents/org-1/doc-1/object.pdf"
@@ -39,28 +45,48 @@ def _db_returning(doc):
 
 
 @pytest.mark.unit
-def test_s3_document_redirects_to_presigned_url():
-    doc = _doc()
+def test_s3_document_is_served_from_this_origin():
+    doc = _doc(mime_type="application/pdf", filename="paper.pdf")
     db = _db_returning(doc)
     org = MagicMock()
     org.id = "org-1"
 
     with patch("src.core.s3_client.S3StorageHelper") as MockHelper:
-        MockHelper.return_value.create_signed_url.return_value = (
-            "https://signed.example/x"
-        )
+        MockHelper.return_value.object_exists.return_value = True
+        MockHelper.return_value.download_file.return_value = b"%PDF-1.4 bytes"
         resp = asyncio.run(
             files_mod.download_file(
                 "doc-1", current_user=MagicMock(), organization=org, db=db
             )
         )
 
-    # 302 redirect to the presigned URL keyed by the stored object key.
-    assert resp.status_code == 302
-    assert resp.headers["location"] == "https://signed.example/x"
-    MockHelper.return_value.create_signed_url.assert_called_once_with(
-        doc.storage_path, expires_in=3600
-    )
+    # Same-origin bytes, not a redirect the browser would CORS-block.
+    assert resp.status_code == 200
+    assert resp.body == b"%PDF-1.4 bytes"
+    assert resp.media_type == "application/pdf"
+    assert "paper.pdf" in resp.headers["content-disposition"]
+    assert "location" not in resp.headers
+    MockHelper.return_value.download_file.assert_called_once_with(doc.storage_path)
+
+
+@pytest.mark.unit
+def test_s3_missing_object_is_a_clean_404():
+    doc = _doc()
+    db = _db_returning(doc)
+    org = MagicMock()
+    org.id = "org-1"
+
+    with patch("src.core.s3_client.S3StorageHelper") as MockHelper:
+        MockHelper.return_value.object_exists.return_value = False
+        with pytest.raises(Exception) as exc:
+            asyncio.run(
+                files_mod.download_file(
+                    "doc-1", current_user=MagicMock(), organization=org, db=db
+                )
+            )
+
+    assert getattr(exc.value, "status_code", None) == 404
+    MockHelper.return_value.download_file.assert_not_called()
 
 
 @pytest.mark.unit
@@ -74,9 +100,8 @@ def test_s3_branch_does_not_touch_local_disk():
         patch("src.core.s3_client.S3StorageHelper") as MockHelper,
         patch("src.api.documents.files.os.path.exists") as mock_exists,
     ):
-        MockHelper.return_value.create_signed_url.return_value = (
-            "https://signed.example/y"
-        )
+        MockHelper.return_value.object_exists.return_value = True
+        MockHelper.return_value.download_file.return_value = b"bytes"
         asyncio.run(
             files_mod.download_file(
                 "doc-1", current_user=MagicMock(), organization=org, db=db

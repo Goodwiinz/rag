@@ -5,14 +5,16 @@ File upload and management API endpoints
 import logging
 import os
 import uuid
+from urllib.parse import quote
 from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from src.core.database import get_db
 from src.core.dependencies import (
@@ -355,6 +357,23 @@ async def get_file_info(
     return {"file": document.to_dict(include_content=True)}
 
 
+def _object_response(data: bytes, document: Document) -> Response:
+    """Serve object-storage bytes from this origin.
+
+    ponytail: whole object buffered in memory — fine for documents, swap for a
+    StreamingResponse over the storage client's body if large media lands here.
+    """
+    filename = document.filename or "download"
+    return Response(
+        content=data,
+        media_type=document.mime_type or "application/octet-stream",
+        headers={
+            # RFC 5987 form so non-ASCII filenames survive the header.
+            "Content-Disposition": f"inline; filename*=UTF-8''{quote(filename)}",
+        },
+    )
+
+
 @router.get("/{file_id}/download")
 async def download_file(
     file_id: uuid.UUID,
@@ -376,39 +395,41 @@ async def download_file(
             status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
         )
 
-    # Branch on storage backend
+    # Branch on storage backend. Every branch serves the bytes from this
+    # origin: a 302 to a presigned object-storage URL works for navigations
+    # (<img>/<iframe>/new tab) but fails the CORS check for the inline
+    # viewer's fetch().blob(), which is how the app actually reads it — the
+    # bucket sends no Access-Control-Allow-Origin, so the browser blocks the
+    # redirect target and the viewer reports a generic load failure.
     if document.storage_backend == "supabase" and document.storage_path:
         from src.core.supabase_client import StorageHelper, parse_storage_key
 
         bucket, key = parse_storage_key(document.storage_path)
         helper = StorageHelper()
-        # Verify the object exists before redirecting: a blind presign+302 for
-        # a missing object serves the storage provider's raw XML error (and
-        # bucket hostname) instead of a clean app 404, unlike the local branch.
-        if not helper.object_exists(bucket, key):
+        # Explicit existence check so a missing object is a clean 404 rather
+        # than a 500 out of the storage client's raised error.
+        if not await run_in_threadpool(helper.object_exists, bucket, key):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="File not found in storage",
             )
-        signed_url = helper.create_signed_url(bucket, key, expires_in=3600)
-        return RedirectResponse(url=signed_url, status_code=302)
+        data = await run_in_threadpool(helper.download_file, bucket, key)
+        return _object_response(data, document)
 
     # S3 / DO Spaces (the deployed default). Without this branch the code fell
     # through to the os.path.exists() check below against an 's3://...' path,
-    # which never exists on disk → every S3-backed document 404'd. Mirror the
-    # supabase branch: redirect to a short-lived presigned URL keyed by the
-    # stored object key.
+    # which never exists on disk -> every S3-backed document 404'd.
     if document.storage_backend == "s3" and document.storage_path:
         from src.core.s3_client import S3StorageHelper
 
         s3_helper = S3StorageHelper()
-        if not s3_helper.object_exists(document.storage_path):
+        if not await run_in_threadpool(s3_helper.object_exists, document.storage_path):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="File not found in storage",
             )
-        signed_url = s3_helper.create_signed_url(document.storage_path, expires_in=3600)
-        return RedirectResponse(url=signed_url, status_code=302)
+        data = await run_in_threadpool(s3_helper.download_file, document.storage_path)
+        return _object_response(data, document)
 
     # Local file path
     if not os.path.exists(document.file_path):
