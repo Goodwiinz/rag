@@ -48,8 +48,13 @@ class Citation(BaseModel):
     authors = Column(JSONB, nullable=True)  # List of author names/objects
     year = Column(Integer, nullable=True)  # Publication year
     venue = Column(String(500), nullable=True)  # Journal/conference name
-    doi = Column(String(255), nullable=True, unique=True)  # Digital Object Identifier
-    arxiv_id = Column(String(100), nullable=True, unique=True)  # arXiv identifier
+    # Non-unique on purpose: DOI/arXiv ids identify public papers, so global
+    # uniqueness made tenant B's insert of a paper A cited first a 500 and
+    # leaked citation activity across tenants (R6-M8). o2r3s4t5u6v7 dropped
+    # the DB-level unique indexes; the model must not resurrect them via
+    # create_all. Per-org dedup is application logic.
+    doi = Column(String(255), nullable=True)  # Digital Object Identifier
+    arxiv_id = Column(String(100), nullable=True)  # arXiv identifier
     abstract = Column(Text, nullable=True)  # Paper abstract
     metadata_source = Column(
         String(100), nullable=True

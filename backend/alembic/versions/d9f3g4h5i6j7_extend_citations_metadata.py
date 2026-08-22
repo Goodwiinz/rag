@@ -18,32 +18,45 @@ Changes:
 - Add needs_review column (Boolean) flag for incomplete metadata
 - Add indexes on arxiv_id, doi, and document_id for fast lookups
 """
+
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-
 # revision identifiers, used by Alembic.
-revision = 'd9f3g4h5i6j7'
-down_revision = 'b2c3d4e5f6g7'  # After fulltext search
+revision = "d9f3g4h5i6j7"
+down_revision = "b2c3d4e5f6g7"  # After fulltext search
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-    # Add scholarly metadata columns
-    op.add_column('citations', sa.Column('authors', postgresql.JSONB, nullable=True))
-    op.add_column('citations', sa.Column('year', sa.Integer, nullable=True))
-    op.add_column('citations', sa.Column('venue', sa.String(500), nullable=True))
-    op.add_column('citations', sa.Column('doi', sa.String(255), nullable=True))
-    op.add_column('citations', sa.Column('arxiv_id', sa.String(100), nullable=True))
-    op.add_column('citations', sa.Column('abstract', sa.Text, nullable=True))
-    op.add_column('citations', sa.Column('metadata_source', sa.String(50), nullable=True))
-    op.add_column('citations', sa.Column('needs_review', sa.Boolean, nullable=False, server_default='false'))
+    # R6-M9 guard: the model baseline creates the current citations schema,
+    # so every column here may already exist. Idempotent ADD COLUMN keeps
+    # both provisioning worlds alive.
+    for stmt in (
+        "ALTER TABLE citations ADD COLUMN IF NOT EXISTS authors JSONB",
+        "ALTER TABLE citations ADD COLUMN IF NOT EXISTS year INTEGER",
+        "ALTER TABLE citations ADD COLUMN IF NOT EXISTS venue VARCHAR(500)",
+        "ALTER TABLE citations ADD COLUMN IF NOT EXISTS doi VARCHAR(255)",
+        "ALTER TABLE citations ADD COLUMN IF NOT EXISTS arxiv_id VARCHAR(100)",
+        "ALTER TABLE citations ADD COLUMN IF NOT EXISTS abstract TEXT",
+        "ALTER TABLE citations ADD COLUMN IF NOT EXISTS metadata_source VARCHAR(50)",
+        "ALTER TABLE citations ADD COLUMN IF NOT EXISTS needs_review BOOLEAN NOT NULL DEFAULT false",
+    ):
+        op.execute(stmt)
 
-    # Add unique constraints for doi and arxiv_id (to prevent duplicate entries)
-    op.create_index('ix_citations_doi', 'citations', ['doi'], unique=True, postgresql_where=sa.text("doi IS NOT NULL"))
-    op.create_index('ix_citations_arxiv_id', 'citations', ['arxiv_id'], unique=True, postgresql_where=sa.text("arxiv_id IS NOT NULL"))
+    # NOTE: intentionally NOT unique — global DOI/arXiv uniqueness was a
+    # cross-tenant collision bug removed by o2r3s4t5u6v7; keep that outcome
+    # for databases walking the chain fresh.
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_citations_doi "
+        "ON citations (doi) WHERE doi IS NOT NULL"
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_citations_arxiv_id "
+        "ON citations (arxiv_id) WHERE arxiv_id IS NOT NULL"
+    )
 
     # Ensure document_id index exists (should already exist from previous migrations)
     # op.create_index('ix_citations_document_id', 'citations', ['document_id'], unique=False)
@@ -51,15 +64,15 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # Drop indexes first
-    op.drop_index('ix_citations_arxiv_id', table_name='citations')
-    op.drop_index('ix_citations_doi', table_name='citations')
+    op.execute("DROP INDEX IF EXISTS ix_citations_arxiv_id")
+    op.execute("DROP INDEX IF EXISTS ix_citations_doi")
 
     # Drop columns in reverse order
-    op.drop_column('citations', 'needs_review')
-    op.drop_column('citations', 'metadata_source')
-    op.drop_column('citations', 'abstract')
-    op.drop_column('citations', 'arxiv_id')
-    op.drop_column('citations', 'doi')
-    op.drop_column('citations', 'venue')
-    op.drop_column('citations', 'year')
-    op.drop_column('citations', 'authors')
+    op.execute("ALTER TABLE citations DROP COLUMN IF EXISTS needs_review")
+    op.execute("ALTER TABLE citations DROP COLUMN IF EXISTS metadata_source")
+    op.execute("ALTER TABLE citations DROP COLUMN IF EXISTS abstract")
+    op.execute("ALTER TABLE citations DROP COLUMN IF EXISTS arxiv_id")
+    op.execute("ALTER TABLE citations DROP COLUMN IF EXISTS doi")
+    op.execute("ALTER TABLE citations DROP COLUMN IF EXISTS venue")
+    op.execute("ALTER TABLE citations DROP COLUMN IF EXISTS year")
+    op.execute("ALTER TABLE citations DROP COLUMN IF EXISTS authors")

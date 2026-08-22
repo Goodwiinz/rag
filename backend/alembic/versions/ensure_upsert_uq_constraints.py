@@ -38,22 +38,30 @@ CHAT_MSG_INDEX = "uq_chat_messages_thread_client_msg_user"
 
 def upgrade() -> None:
     # --- collection_documents: uq_collection_documents (collection_id, document_id)
-    op.execute("""
-        DELETE FROM collection_documents a
-        USING collection_documents b
-        WHERE a.ctid < b.ctid
-          AND a.collection_id = b.collection_id
-          AND a.document_id   = b.document_id;
-        """)
+    # R6-M9 guard: both tables are model-provisioned (baseline create_all),
+    # so every statement below must tolerate the table or column already
+    # existing on either provisioning path.
     op.execute("""
         DO $$
         BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM pg_constraint WHERE conname = 'uq_collection_documents'
-            ) THEN
-                ALTER TABLE collection_documents
-                ADD CONSTRAINT uq_collection_documents
-                UNIQUE (collection_id, document_id);
+            IF to_regclass('collection_documents') IS NOT NULL THEN
+                DELETE FROM collection_documents a
+                USING collection_documents b
+                WHERE a.ctid < b.ctid
+                  AND a.collection_id = b.collection_id
+                  AND a.document_id   = b.document_id;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'uq_collection_documents'
+                )
+                -- R6-M9: a same-named INDEX (constraint-backed or standalone)
+                -- also blocks ADD CONSTRAINT with duplicate_table.
+                AND to_regclass('uq_collection_documents') IS NULL
+                THEN
+                    ALTER TABLE collection_documents
+                    ADD CONSTRAINT uq_collection_documents
+                    UNIQUE (collection_id, document_id);
+                END IF;
             END IF;
         END
         $$;
