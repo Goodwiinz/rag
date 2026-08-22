@@ -525,7 +525,7 @@ async def rebuild_search_indexes(
 
 
 @router.get("/indexes", response_model=List[SearchIndex])
-async def get_search_indexes(
+def get_search_indexes(
     current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
 ):
     """
@@ -536,11 +536,16 @@ async def get_search_indexes(
         # R6-M2: the previous string held a Python-style '#' comment (a PG
         # syntax error) and was executed without text() — this endpoint had
         # never once returned 200.
+        # R6-F6: the count is scoped to the caller's organization — an
+        # unscoped count(*) disclosed the platform-wide document population
+        # to every authenticated tenant user.
         index_query = text("""
         SELECT
             schemaname || '.' || indexname as name,
             amname as type,
-            (SELECT count(*) FROM documents d WHERE NOT d.is_deleted) as document_count,
+            (SELECT count(*) FROM documents d
+             WHERE NOT d.is_deleted
+               AND d.organization_id = :org) as document_count,
             round(pg_relation_size(i.indexrelid) / 1024.0 / 1024.0, 2) as size_mb,
             NOW() as last_updated,
             i.indisvalid as is_active,
@@ -553,7 +558,7 @@ async def get_search_indexes(
             AND ix.indexname LIKE '%search%'
         """)
 
-        result = db.execute(index_query)
+        result = db.execute(index_query, {"org": str(current_user.organization_id)})
         indexes = []
 
         for row in result:

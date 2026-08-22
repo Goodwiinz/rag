@@ -103,3 +103,77 @@ def test_suggestion_like_escapes_wildcards() -> None:
     assert "_escape_like(query)" in src  # R2-L21
     assert "ESCAPE" in src
     assert 'f"%{query}%"' not in src
+
+
+def test_analytics_normalizes_like_per_feedback() -> None:
+    # F3c: /5.0 read all-one-star as 0.2; must match (rating - 1) / 4.0
+    svc = _read("src/services/search/search_quality_service.py")
+    analytics = svc[svc.find("def get_quality_analytics") :]
+    assert "float(avg_rating) / 5.0" not in analytics
+    assert "(float(avg_rating) - 1.0) / 4.0" in analytics
+
+
+def test_analytics_applies_search_type_filter() -> None:
+    # F3d: the filter was labelled in the response but never applied
+    svc = _read("src/services/search/search_quality_service.py")
+    analytics = svc[svc.find("def get_quality_analytics") :]
+    assert "SearchFeedback.search_type == search_type.value" in analytics
+
+    model = _read("src/models/search_feedback.py")
+    assert "search_type = Column(String(32)" in model
+
+    migration = _read("alembic/versions/r6_search_feedback.py")
+    assert "search_type VARCHAR(32)" in migration
+
+
+def test_persist_feedback_raises_on_db_error(monkeypatch) -> None:
+    # F3b: a lost row must not answer "Feedback recorded successfully"
+    import pytest
+
+    import src.core.database as database
+    from src.services.search import search_quality_service as mod
+
+    class _BoomSession:
+        closed = False
+
+        def add(self, obj: object) -> None:
+            pass
+
+        def commit(self) -> None:
+            raise RuntimeError("db down")
+
+        def close(self) -> None:
+            self.closed = True
+
+    session = _BoomSession()
+    monkeypatch.setattr(database, "SessionLocal", lambda: session)
+
+    with pytest.raises(RuntimeError, match="db down"):
+        mod.search_quality_service._persist_feedback(
+            organization_id="org",
+            user_id="user",
+            query_id="q",
+            rating=5,
+        )
+    assert session.closed is True
+
+
+def test_quality_endpoints_offload_sync_service_calls() -> None:
+    # F3a: both handlers are async over a sync-session service
+    src = _read("src/api/search/search_quality.py")
+    assert "from fastapi.concurrency import run_in_threadpool" in src
+    for call in ("record_user_feedback", "get_quality_analytics"):
+        idx = src.find(f"search_quality_service.{call},")
+        assert idx != -1, call
+        assert "await run_in_threadpool(" in src[idx - 120 : idx]
+
+
+def test_search_indexes_document_count_is_org_scoped() -> None:
+    # F6: an unscoped count(*) leaked the platform-wide document population
+    src = _read("src/api/search/search.py")
+    block = src[src.find("def get_search_indexes") :][:2500]
+    assert "d.organization_id = :org" in block
+    assert '{"org": str(current_user.organization_id)}' in block
+    assert "NOT d.is_deleted" in block
+    # sync handler -> FastAPI threadpool, no event-loop block on get_db_sync
+    assert "\nasync def get_search_indexes" not in src
