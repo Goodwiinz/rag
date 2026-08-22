@@ -54,7 +54,7 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round2-details.md
 | R2-L16 | execute_research_workflow: no idempotency, soft-limit 300s kills multi-step flows (research_tasks.py:206-377, dead code) | low | open | — | — | 08-17 |
 | R2-L17 | text_processing/vector_processing queues published but consumed by nobody → jobs stuck til sweeper (processing_service.py:133,137) | low | open | — | — | 08-17 |
 | R2-L18 | health_check/metrics leak session on exception path; beat every 5min (document_processing_tasks.py:609-710) | low | fixed | clawd | #1454 | 08-18 |
-| R2-L19 | beat generate-reports uses placeholder org id "default_organization_id" (document_processing_tasks.py:660-664) | low | open | — | — | 08-17 |
+| R2-L19 | beat generate-reports uses placeholder org id "default_organization_id" (document_processing_tasks.py:660-664) | low | pr | sess:audit-r6 | #1529 | 08-22 |
 | R2-L20 | " & " join fed to plainto_tsquery — operators stripped, AND by accident (fulltext_search_service.py:345) | low | open | — | — | 08-17 |
 | R2-L21 | suggestion LIKE pattern unescaped % _ (fulltext_search_service.py:548) | low | open | — | — | 08-17 |
 | R2-L22 | Cohere client: fresh httpx per call, 429 single-shot no Retry-After (cohere_rerank_service.py:153,329) | low | open | — | — | 08-17 |
