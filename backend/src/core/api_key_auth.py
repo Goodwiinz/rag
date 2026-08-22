@@ -20,56 +20,12 @@ from sqlalchemy.orm import Session
 from src.core.config import settings
 from src.core.database import Base, get_db
 from src.core.security import RateLimiter
+from src.models.api_key import APIKey, APIKeyUsageLog  # noqa: F401 — re-export (R6-L12)
 
 logger = logging.getLogger(__name__)
 
 # API Key Bearer scheme
 api_key_security = HTTPBearer()
-
-
-class APIKey(Base):
-    """API Key model for public endpoint access"""
-
-    __tablename__ = "api_keys"
-
-    id = Column(String, primary_key=True, default=lambda: secrets.token_hex(16))
-    name = Column(String, nullable=False)  # Human readable name
-    key_hash = Column(String, nullable=False, unique=True)  # Hashed API key
-    key_prefix = Column(String(8), nullable=False)  # First 8 chars for identification
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    last_used_at = Column(DateTime, nullable=True)
-    usage_count = Column(Integer, default=0, nullable=False)
-    rate_limit_per_hour = Column(
-        Integer, default=100, nullable=False
-    )  # Requests per hour
-    allowed_endpoints = Column(Text, nullable=True)  # JSON array of allowed endpoints
-    created_by = Column(String, nullable=True)  # Admin who created the key
-    description = Column(Text, nullable=True)
-    expires_at = Column(DateTime, nullable=True)  # Optional expiration
-    organization_id = Column(String, nullable=True)  # Organization the key is scoped to
-
-
-class APIKeyUsageLog(Base):
-    """API Key usage log model for audit trail"""
-
-    __tablename__ = "api_key_usage_log"
-
-    id = Column(String, primary_key=True, default=lambda: secrets.token_hex(16))
-    api_key_id = Column(String, nullable=False)  # Foreign key to api_keys
-    endpoint = Column(String(255), nullable=False)  # API endpoint accessed
-    method = Column(String(10), nullable=False)  # HTTP method used
-    client_ip = Column(String(45), nullable=True)  # Client IP address
-    user_agent = Column(Text, nullable=True)  # Client user agent
-    request_size_bytes = Column(Integer, nullable=True)  # Request payload size
-    response_status = Column(Integer, nullable=True)  # HTTP response status
-    response_time_ms = Column(Integer, nullable=True)  # Response time in milliseconds
-    search_query = Column(Text, nullable=True)  # Search query for search endpoints
-    results_count = Column(Integer, nullable=True)  # Number of results returned
-    error_message = Column(Text, nullable=True)  # Error message if request failed
-    accessed_at = Column(
-        DateTime, default=datetime.utcnow, nullable=False
-    )  # When the API was accessed
 
 
 class APIKeyData(BaseModel):
