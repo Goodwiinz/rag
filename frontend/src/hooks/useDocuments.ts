@@ -262,7 +262,7 @@ export const useDocuments = (
       });
 
       const requestToken = ++fetchTokenRef.current;
-      const isStale = () =>
+      const isStale = (): boolean =>
         fetchTokenRef.current !== requestToken || !mountedRef.current;
 
       try {

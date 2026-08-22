@@ -43,7 +43,7 @@ export const DraftGenerationProgress: React.FC<
     }
   }, [status.status, status.draft_id, onComplete]);
 
-  const handleCancel = () => {
+  const handleCancel = (): void => {
     if (!onCancel || cancelPending) return;
     setCancelPending(true);
     Promise.resolve(onCancel())

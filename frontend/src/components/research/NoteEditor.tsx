@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Eye, Pencil, Save } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -72,16 +72,21 @@ export function NoteEditor({
   } | null>(null);
   const [writeResult, setWriteResult] = useState<WriteResponse | null>(null);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    setTitle(initialNote?.title ?? '');
-    setContent(initialNote?.content ?? '');
-    setTags(initialNote?.tags ?? []);
-    setLinkedDocumentIds(initialNote?.linked_document_ids ?? []);
-    setTagInput('');
-    setPreview(false);
-    setSaveError(null);
-  }, [initialNote, isOpen]);
+  // Reset fields when the dialog opens — adjusting state during render
+  // instead of in an effect avoids cascading renders (lint set-state rule).
+  const [prevIsOpen, setPrevIsOpen] = useState(false);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) {
+      setTitle(initialNote?.title ?? '');
+      setContent(initialNote?.content ?? '');
+      setTags(initialNote?.tags ?? []);
+      setLinkedDocumentIds(initialNote?.linked_document_ids ?? []);
+      setTagInput('');
+      setPreview(false);
+      setSaveError(null);
+    }
+  }
 
   const canSave = useMemo(
     () => title.trim().length > 0 && !saving,
