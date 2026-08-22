@@ -2,69 +2,59 @@
 Alembic environment configuration
 """
 
-import sys
 import os
+import sys
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # Add the src directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-# Import models and database configuration
-from src.models.base import Base
-
 # Import all models to ensure they are registered with Base.metadata
 # The __init__.py exports all SQLAlchemy models
 from src.models import (
-    # Core models
-    User,
-    Organization,
+    AnalyticsEvent,
+    AuditEvent,
+    ChatMessage,
+    Citation,
+    Collection,
+    CollectionDocument,
+    ComplianceReport,
+    Conversation,
+    DataRetentionPolicy,
     Document,
+    DocumentAccessLog,
+    DocumentQualityMetrics,
+    DocumentVersion,
+    EncryptedOrganizationProfile,
+    EncryptedUserProfile,
+    EncryptionAuditLog,
     Entity,
-    # Search models
+    MessageAttachment,
+    MultimodalContent,
+    Organization,
+    PerformanceLog,
+    Permission,
+    ProcessingHistory,
+    ProcessingJob,
+    QualityMetric,
+    Role,
     SearchQuery,
     SearchResult,
     SearchSession,
-    # Processing models
-    ProcessingJob,
-    # Quality models
-    QualityMetric,
-    # Document processing models
-    ProcessingHistory,
-    DocumentVersion,
-    MultimodalContent,
-    DocumentQualityMetrics,
-    DocumentAccessLog,
-    # Session and analytics models
-    UserSession,
-    AnalyticsEvent,
-    PerformanceLog,
-    # Security models
-    EncryptedUserProfile,
-    EncryptedOrganizationProfile,
-    EncryptionAuditLog,
-    # Permission models
-    Permission,
-    Role,
-    UserRoleAssignment,
-    # Audit models
-    AuditEvent,
-    ComplianceReport,
-    DataRetentionPolicy,
     SecurityIncident,
-    # Thread-centric chat models (Terminal Observatory)
+    Thread,
+    User,
+    UserRoleAssignment,
+    UserSession,
     Workspace,
     WorkspaceMember,
-    Conversation,
-    Thread,
-    ChatMessage,
-    Collection,
-    CollectionDocument,
-    Citation,
-    MessageAttachment,
 )
+
+# Import models and database configuration
+from src.models.base import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

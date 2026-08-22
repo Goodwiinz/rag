@@ -18,9 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
-from src.models.api_key import APIKey, APIKeyUsageLog  # noqa: F401 — re-export (R6-L12)
 from src.core.database import Base, get_db
 from src.core.security import RateLimiter
+from src.models.api_key import APIKey, APIKeyUsageLog  # noqa: F401 — re-export (R6-L12)
 
 logger = logging.getLogger(__name__)
 
