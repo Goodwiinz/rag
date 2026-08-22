@@ -9,8 +9,8 @@ fresh databases get the table from r6h3_model_baseline and this revision
 must tolerate it existing (the env.py guard layer backstops this too).
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "r6_search_feedback"
 down_revision = "add_chat_progress_steps"

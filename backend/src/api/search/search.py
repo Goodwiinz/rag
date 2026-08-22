@@ -7,9 +7,6 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi.concurrency import run_in_threadpool
-from sqlalchemy import text
-
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -19,7 +16,9 @@ from fastapi import (
     Request,
     status,
 )
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from src.api.research.chat import (
     RAG_SYSTEM_PROMPT,
