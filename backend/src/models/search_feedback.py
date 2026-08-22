@@ -21,6 +21,9 @@ class SearchFeedback(Base):
     user_id = Column(String(64), nullable=False, index=True)
     query_id = Column(String(128), nullable=False)
     query_text = Column(Text, nullable=True)
+    # R6-F3d: analytics accepts a search_type filter; without this column the
+    # filter was silently ignored and every row was counted.
+    search_type = Column(String(32), nullable=True, index=True)
     rating = Column(Integer, nullable=False)  # 1-5
     feedback_text = Column(Text, nullable=True)
     document_id = Column(String(36), nullable=True)

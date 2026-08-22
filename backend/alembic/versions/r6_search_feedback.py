@@ -26,6 +26,7 @@ def upgrade() -> None:
             user_id VARCHAR(64) NOT NULL,
             query_id VARCHAR(128) NOT NULL,
             query_text TEXT,
+            search_type VARCHAR(32),
             rating INTEGER NOT NULL,
             feedback_text TEXT,
             document_id VARCHAR(36),
@@ -39,6 +40,10 @@ def upgrade() -> None:
     op.execute(
         "CREATE INDEX IF NOT EXISTS ix_search_feedback_user_id "
         "ON search_feedback (user_id)"
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_search_feedback_search_type "
+        "ON search_feedback (search_type)"
     )
     op.execute(
         "CREATE INDEX IF NOT EXISTS ix_search_feedback_org_created "

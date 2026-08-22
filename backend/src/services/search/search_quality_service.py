@@ -362,6 +362,7 @@ class SearchQualityService:
         document_id: str = None,
         organization_id: str = "",
         query_text: str = None,
+        search_type: SearchType = None,
     ) -> QualityMetric:
         """Record user feedback as a quality metric"""
         # Convert rating to 0-1 scale
@@ -372,7 +373,7 @@ class SearchQualityService:
             value=normalized_rating,
             timestamp=datetime.utcnow(),
             query=query_id,
-            search_type=SearchType.HYBRID,  # Default to hybrid
+            search_type=search_type or SearchType.HYBRID,
             result_count=1,
             user_id=user_id,
             metadata={
@@ -393,6 +394,7 @@ class SearchQualityService:
             rating=rating,
             feedback_text=feedback_text,
             document_id=document_id,
+            search_type=metric.search_type.value if search_type else None,
         )
         return metric
 
@@ -405,30 +407,35 @@ class SearchQualityService:
         feedback_text: str = None,
         document_id: str = None,
         query_text: str = None,
+        search_type: str = None,
     ) -> None:
-        """Write the feedback row; never raise into the request path."""
-        try:
-            from src.core.database import SessionLocal
-            from src.models.search_feedback import SearchFeedback
+        """Write the feedback row; DB errors propagate to the caller.
 
-            db = SessionLocal()
-            try:
-                db.add(
-                    SearchFeedback(
-                        organization_id=organization_id or "",
-                        user_id=user_id,
-                        query_id=str(query_id)[:128],
-                        query_text=query_text,
-                        rating=max(1, min(5, int(rating))),
-                        feedback_text=feedback_text,
-                        document_id=document_id,
-                    )
+        R6-L5: this used to swallow every exception, so a lost row still
+        answered "Feedback recorded successfully". Honest persistence beats a
+        comfortable lie — feedback submission is user-retryable, so the
+        endpoint's 500 handler is the correct answer to a failed write.
+        """
+        from src.core.database import SessionLocal
+        from src.models.search_feedback import SearchFeedback
+
+        db = SessionLocal()
+        try:
+            db.add(
+                SearchFeedback(
+                    organization_id=organization_id or "",
+                    user_id=user_id,
+                    query_id=str(query_id)[:128],
+                    query_text=query_text,
+                    rating=max(1, min(5, int(rating))),
+                    feedback_text=feedback_text,
+                    document_id=document_id,
+                    search_type=search_type,
                 )
-                db.commit()
-            finally:
-                db.close()
-        except Exception as e:
-            logger.error(f"Failed to persist search feedback: {e}")
+            )
+            db.commit()
+        finally:
+            db.close()
 
     def get_quality_analytics(
         self, organization_id: str, days: int = 30, search_type: SearchType = None
@@ -461,23 +468,29 @@ class SearchQualityService:
 
             db = SessionLocal()
             try:
-                row = (
-                    db.query(
-                        func.count(SearchFeedback.id),
-                        func.avg(SearchFeedback.rating),
-                    )
-                    .filter(
-                        SearchFeedback.organization_id == organization_id,
-                        SearchFeedback.created_at >= cutoff,
-                    )
-                    .one()
+                query = db.query(
+                    func.count(SearchFeedback.id),
+                    func.avg(SearchFeedback.rating),
+                ).filter(
+                    SearchFeedback.organization_id == organization_id,
+                    SearchFeedback.created_at >= cutoff,
                 )
+                if search_type is not None:
+                    # R6-F3d: the filter used to be advertised in the response
+                    # label but never applied.
+                    query = query.filter(
+                        SearchFeedback.search_type == search_type.value
+                    )
+                row = query.one()
                 total = int(row[0] or 0)
                 avg_rating = row[1]
                 analytics["total_evaluations"] = total
                 if total and avg_rating is not None:
+                    # R6-F3c: same 1-5 -> 0-1 map as record_user_feedback;
+                    # /5.0 floored all-one-star at 0.2 instead of 0.0. Exact
+                    # under averaging because the map is linear.
                     analytics["average_metrics"]["user_satisfaction"] = round(
-                        float(avg_rating) / 5.0, 3
+                        (float(avg_rating) - 1.0) / 4.0, 3
                     )
             finally:
                 db.close()
