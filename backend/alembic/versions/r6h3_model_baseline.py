@@ -30,7 +30,8 @@ downgrade() is a deliberate no-op: dropping the entire schema from a
 baseline node would destroy unrelated data on any downgrade walk.
 """
 
-from alembic import op
+import sqlalchemy as sa
+from alembic import context, op
 
 revision = "r6h3_model_baseline"
 down_revision = "258df00ea837"
@@ -41,15 +42,21 @@ depends_on = None
 def upgrade() -> None:
     import logging
 
-    from sqlalchemy.engine.reflection import Inspector
-
     # Import the full model package so Base.metadata is fully populated
     # (same registration contract as alembic/env.py).
     import src.models  # noqa: F401
     from src.models.base import Base
 
     bind = op.get_bind()
-    inspector = Inspector(bind)
+
+    if context.is_offline_mode():
+        # `alembic upgrade head --sql` binds a MockConnection, which cannot
+        # introspect (checkfirst=True would try, and die). Emit the full model
+        # DDL into the script — the empty-DB case the offline script targets.
+        Base.metadata.create_all(bind=bind, checkfirst=False)
+        return
+
+    inspector = sa.inspect(bind)
     existing = set(inspector.get_table_names())
 
     target = set(Base.metadata.tables.keys())
