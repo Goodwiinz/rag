@@ -357,19 +357,52 @@ async def get_file_info(
     return {"file": document.to_dict(include_content=True)}
 
 
+# Content types safe to hand back with their stored MIME. Anything outside this
+# set is served as an opaque download: the bytes are user-uploaded and now come
+# from the API's own origin, so an HTML/SVG/XML document echoed back with its
+# stored type would be stored XSS against this origin.
+_SERVEABLE_MIME_TYPES = frozenset(
+    {
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "audio/mpeg",
+        "audio/mp4",
+        "audio/wav",
+        "audio/webm",
+        "video/mp4",
+        "video/webm",
+        "video/quicktime",
+    }
+)
+
+
 def _object_response(data: bytes, document: Document) -> Response:
     """Serve object-storage bytes from this origin.
+
+    Hardened because these bytes are user-uploaded and no longer isolated on the
+    bucket's origin: the type is allowlisted, the disposition is `attachment`,
+    and sniffing/embedding are disabled. The inline viewer reads this through
+    fetch().blob() and renders an object URL, so `attachment` costs it nothing.
 
     ponytail: whole object buffered in memory — fine for documents, swap for a
     StreamingResponse over the storage client's body if large media lands here.
     """
     filename = document.filename or "download"
+    mime_type = (document.mime_type or "").split(";")[0].strip().lower()
+    if mime_type not in _SERVEABLE_MIME_TYPES:
+        mime_type = "application/octet-stream"
     return Response(
         content=data,
-        media_type=document.mime_type or "application/octet-stream",
+        media_type=mime_type,
         headers={
-            # RFC 5987 form so non-ASCII filenames survive the header.
-            "Content-Disposition": f"inline; filename*=UTF-8''{quote(filename)}",
+            # RFC 5987 form so non-ASCII filenames survive the header; quote()
+            # also keeps CR/LF in a stored filename out of the response headers.
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
         },
     )
 

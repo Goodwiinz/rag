@@ -65,6 +65,7 @@ def test_s3_document_is_served_from_this_origin():
     assert resp.body == b"%PDF-1.4 bytes"
     assert resp.media_type == "application/pdf"
     assert "paper.pdf" in resp.headers["content-disposition"]
+    assert resp.headers["content-disposition"].startswith("attachment;")
     assert "location" not in resp.headers
     MockHelper.return_value.download_file.assert_called_once_with(doc.storage_path)
 
@@ -110,3 +111,32 @@ def test_s3_branch_does_not_touch_local_disk():
 
     # The S3 path must NOT fall through to the on-disk existence check.
     mock_exists.assert_not_called()
+
+
+@pytest.mark.unit
+def test_scriptable_upload_is_served_as_opaque_download():
+    """Stored HTML/SVG must not come back with its own type.
+
+    The bytes are user-uploaded and are now served from the API's own origin
+    rather than the bucket's, so echoing back text/html or image/svg+xml would
+    be stored XSS against this origin.
+    """
+    for stored_type in ("text/html", "image/svg+xml", "application/xhtml+xml"):
+        doc = _doc(mime_type=stored_type, filename="payload.html")
+        db = _db_returning(doc)
+        org = MagicMock()
+        org.id = "org-1"
+
+        with patch("src.core.s3_client.S3StorageHelper") as MockHelper:
+            MockHelper.return_value.object_exists.return_value = True
+            MockHelper.return_value.download_file.return_value = b"<script>x()</script>"
+            resp = asyncio.run(
+                files_mod.download_file(
+                    "doc-1", current_user=MagicMock(), organization=org, db=db
+                )
+            )
+
+        assert resp.media_type == "application/octet-stream", stored_type
+        assert resp.headers["content-disposition"].startswith("attachment;")
+        assert resp.headers["x-content-type-options"] == "nosniff"
+        assert "sandbox" in resp.headers["content-security-policy"]
