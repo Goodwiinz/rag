@@ -412,9 +412,20 @@ async def chat_completions(
                 context_str.encode()
             ).hexdigest()[:16]
 
-        cache_query = last_query
+        # Tenant-scope the cache: identical queries from different orgs/users
+        # must never collide, and a client-supplied system_prompt changes the
+        # response contract, so it participates in the key too.
+        system_prompt_hash = ""
+        if request.system_prompt:
+            system_prompt_hash = hashlib.sha256(
+                request.system_prompt.encode()
+            ).hexdigest()[:16]
+        tenant_scope = f"org:{current_user.organization_id}|user:{current_user.id}"
+        cache_query = f"{tenant_scope}|{last_query}"
         if conversation_context_hash:
-            cache_query = f"{last_query}||conv:{conversation_context_hash}"
+            cache_query = f"{cache_query}||conv:{conversation_context_hash}"
+        if system_prompt_hash:
+            cache_query = f"{cache_query}|sys:{system_prompt_hash}"
 
         if request.use_rag and retrieved_contexts:
             # Include context doc IDs to differentiate responses with different context

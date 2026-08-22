@@ -73,6 +73,8 @@ class CitationGraphService:
         arxiv_id: Optional[str] = None,
         venue: Optional[str] = None,
         is_uploaded: bool = True,
+        organization_id: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Sync a citation to Neo4j as a :Citation node.
 
@@ -86,6 +88,8 @@ class CitationGraphService:
             arxiv_id: ArXiv identifier
             venue: Journal/conference name
             is_uploaded: Whether this is an uploaded document or external reference
+            organization_id: Owning tenant — required for graph isolation
+            project_id: Owning project, when the citation belongs to one
 
         Returns:
             Dict with node creation status
@@ -102,6 +106,8 @@ class CitationGraphService:
             c.arxiv_id = $arxiv_id,
             c.venue = $venue,
             c.is_uploaded = $is_uploaded,
+            c.organization_id = $organization_id,
+            c.project_id = $project_id,
             c.updated_at = datetime()
         RETURN c.citation_id as id, c.title as title
         """
@@ -118,6 +124,8 @@ class CitationGraphService:
                 arxiv_id=arxiv_id,
                 venue=venue,
                 is_uploaded=is_uploaded,
+                organization_id=organization_id,
+                project_id=project_id,
             )
             record = await result.single()
 
@@ -209,6 +217,7 @@ class CitationGraphService:
         depth: int = 2,
         include_external: bool = True,
         limit: int = 500,
+        organization_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get citation graph data for visualization.
 
@@ -218,26 +227,53 @@ class CitationGraphService:
             depth: How many levels of citations to traverse
             include_external: Include external (non-uploaded) papers
             limit: Maximum number of nodes to return
+            organization_id: Tenant partition — every branch is scoped to it
 
         Returns:
             Dict with nodes and edges for Cytoscape.js
         """
+        if not organization_id:
+            # Fail closed: without a tenant partition this query would span
+            # every organization's citations.
+            raise ValueError("organization_id is required for citation graph reads")
+
         driver = await self._ensure_connected()
 
-        # Build dynamic query based on filters
+        # Build dynamic query based on filters — all anchored inside the
+        # caller's tenant so the is_uploaded convenience branch can never
+        # pull in foreign citations.
+        org_scope = "start.organization_id = $organization_id"
         if document_id:
-            match_clause = "MATCH (start:Citation {document_id: $document_id})"
-            params = {"document_id": str(document_id), "depth": depth, "limit": limit}
+            match_clause = f"""
+            MATCH (start:Citation {{document_id: $document_id, organization_id: $organization_id}})
+            WHERE {org_scope}
+            """
+            params = {
+                "document_id": str(document_id),
+                "organization_id": organization_id,
+                "depth": depth,
+                "limit": limit,
+            }
         elif project_id:
             # For project, we need to match all documents in the project
-            match_clause = """
+            match_clause = f"""
             MATCH (start:Citation)
-            WHERE start.project_id = $project_id OR start.is_uploaded = true
+            WHERE {org_scope}
+              AND (start.project_id = $project_id OR start.is_uploaded = true)
             """
-            params = {"project_id": str(project_id), "depth": depth, "limit": limit}
+            params = {
+                "project_id": str(project_id),
+                "organization_id": organization_id,
+                "depth": depth,
+                "limit": limit,
+            }
         else:
-            match_clause = "MATCH (start:Citation)"
-            params = {"depth": depth, "limit": limit}
+            match_clause = f"MATCH (start:Citation) WHERE {org_scope}"
+            params = {
+                "organization_id": organization_id,
+                "depth": depth,
+                "limit": limit,
+            }
 
         # Query to get nodes and relationships
         query = f"""
@@ -263,6 +299,7 @@ class CitationGraphService:
             node.arxiv_id as arxiv_id,
             node.is_uploaded as is_uploaded,
             node.document_id as document_id,
+            node.organization_id as organization_id,
             citedBy as citation_count,
             relationships
         """
@@ -287,6 +324,7 @@ class CitationGraphService:
             node.arxiv_id as arxiv_id,
             node.is_uploaded as is_uploaded,
             node.document_id as document_id,
+            node.organization_id as organization_id,
             citedBy as citation_count
         LIMIT $limit
         """
@@ -312,6 +350,14 @@ class CitationGraphService:
                 r.relationship_type as type,
                 r.confidence as confidence
             """
+
+            # Traversal (apoc.subgraphAll / variable-length path) can reach
+            # nodes written before tenant scoping existed — drop anything
+            # foreign here so the payload can never carry another org's
+            # citations.
+            records = [
+                r for r in records if r.get("organization_id") == organization_id
+            ]
 
             node_ids = [r["id"] for r in records if r.get("id")]
 
@@ -590,6 +636,8 @@ class CitationGraphService:
                     arxiv_id=citation.get("arxiv_id"),
                     venue=citation.get("venue"),
                     is_uploaded=citation.get("is_uploaded", True),
+                    organization_id=citation.get("organization_id"),
+                    project_id=str(project_id),
                 )
                 synced += 1
             except Exception as e:

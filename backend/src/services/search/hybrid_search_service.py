@@ -1113,11 +1113,18 @@ class HybridSearchService:
 
         # Enrich titles for results that still have placeholder titles
         if db and final_results:
-            self._enrich_titles_from_db(final_results, db)
+            self._enrich_titles_from_db(
+                final_results, db, organization_id=organization_id
+            )
 
         return final_results, len(filtered_fused_results)
 
-    def _enrich_titles_from_db(self, results: List[SearchResult], db: Session) -> None:
+    def _enrich_titles_from_db(
+        self,
+        results: List[SearchResult],
+        db: Session,
+        organization_id: Optional[str] = None,
+    ) -> None:
         """Look up actual document titles from DB for results with placeholder titles."""
         try:
             ids_needing_titles = [
@@ -1130,9 +1137,19 @@ class HybridSearchService:
 
             from sqlalchemy import text
 
+            # Tenant-scoped + soft-delete aware: this is a bare-id lookup and
+            # would otherwise leak deleted documents' titles (R6-L2).
+            org_filter = ""
+            params: dict = {"ids": ids_needing_titles}
+            if organization_id:
+                org_filter = " AND organization_id = :organization_id"
+                params["organization_id"] = organization_id
             rows = db.execute(
-                text("SELECT id::text, title FROM documents WHERE id = ANY(:ids)"),
-                {"ids": ids_needing_titles},
+                text(
+                    "SELECT id::text, title FROM documents "
+                    "WHERE id = ANY(:ids) AND NOT is_deleted" + org_filter
+                ),
+                params,
             ).fetchall()
             title_map = {row[0]: row[1] for row in rows if row[1]}
 

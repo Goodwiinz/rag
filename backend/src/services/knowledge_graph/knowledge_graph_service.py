@@ -1563,26 +1563,28 @@ class KnowledgeGraphService:
         self,
         relationship_id: str,
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> bool:
-        """Delete a relationship by ID, optionally scoped to organization documents"""
+        """Delete a relationship by ID, scoped to the caller's tenant.
+
+        organization_id is the preferred scope (indexed, org-wide);
+        source_document_ids remains for legacy project-scoped callers.
+        Read and delete now honor the same partition so a relationship
+        listed inside an org can always be deleted by it (#R5-M7).
+        """
         try:
             with self.get_session() as session:
                 params: Dict[str, Any] = {"relationship_id": relationship_id}
-                if source_document_ids is not None:
-                    query = """
-                    MATCH (source:Entity)-[r:RELATED_TO {id: $relationship_id}]-(target:Entity)
-                    WHERE source.source_document_id IN $source_document_ids
-                      AND target.source_document_id IN $source_document_ids
-                    DELETE r
-                    RETURN count(r) as deleted_count
-                    """
-                    params["source_document_ids"] = source_document_ids
-                else:
-                    query = """
-                    MATCH (source)-[r:RELATED_TO {id: $relationship_id}]-(target)
-                    DELETE r
-                    RETURN count(r) as deleted_count
-                    """
+                tenant_filter, scope_params = _two_endpoint_scope(
+                    "source", "target", source_document_ids, organization_id
+                )
+                params.update(scope_params)
+                query = f"""
+                MATCH (source:Entity)-[r:RELATED_TO {{id: $relationship_id}}]-(target:Entity)
+                WHERE 1=1{tenant_filter}
+                DELETE r
+                RETURN count(r) as deleted_count
+                """
 
                 result = session.run(query, params)
                 deleted_count = result.single()["deleted_count"]
