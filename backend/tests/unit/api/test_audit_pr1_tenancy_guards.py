@@ -150,7 +150,7 @@ def test_delete_relationship_signature_and_scope() -> None:
             "def find_related_entities"
         )
     ]
-    # Uses the shared two-endpoint scope helper (org-preferred), not a bare
+    # Uses the shared two-endpoint scope helper (org OR doc-ids), not a bare
     # source_document_id IN-list that arXiv entities can never match.
     assert "_two_endpoint_scope(" in delete_block
     assert "$relationship_id" in delete_block
@@ -164,7 +164,13 @@ def test_delete_relationship_signature_and_scope() -> None:
 def test_analytics_route_passes_organization_id() -> None:
     source = (BACKEND_ROOT / "src/api/search/knowledge_graph.py").read_text()
     call = source[source.find("knowledge_graph_service.get_graph_analytics") :]
-    assert "organization_id=str(current_user.organization_id)" in call[:400]
+    assert "organization_id=str(current_user.organization_id)" in call[:800]
+    # F2: the doc-id list is only supplied for an explicit ?project_id= filter,
+    # where it NARROWS the org counts instead of replacing them.
+    assert (
+        "source_document_ids=scope_doc_ids if project_id is not None else None"
+        in call[:800]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -191,3 +197,139 @@ def test_title_enrichment_query_is_scoped() -> None:
     block = source[source.find("def _enrich_titles_from_db") :]
     assert "NOT is_deleted" in block[:1600]
     assert "organization_id = :organization_id" in block[:1600]
+
+
+# ---------------------------------------------------------------------------
+# F2 — two-endpoint traversal scope ORs org with the legacy doc-id list
+# ---------------------------------------------------------------------------
+
+
+def test_two_endpoint_scope_ors_org_and_doc_ids() -> None:
+    """Org-exclusive precedence made legacy NULL-org relationships listable
+    (via the OR'ing _entity_scope_predicate) but undeletable/untraversable."""
+    import sys
+
+    sys.path.insert(0, str(BACKEND_ROOT))
+    from src.services.knowledge_graph.knowledge_graph_service import _two_endpoint_scope
+
+    frag, params = _two_endpoint_scope("a", "b", ["d1", "d2"], "org-1")
+
+    assert (
+        "AND (a.organization_id = $organization_id "
+        "OR a.source_document_id IN $source_document_ids)" in frag
+    )
+    assert (
+        "AND (b.organization_id = $organization_id "
+        "OR b.source_document_id IN $source_document_ids)" in frag
+    )
+    assert params == {
+        "organization_id": "org-1",
+        "source_document_ids": ["d1", "d2"],
+    }
+
+    # Single-scope callers keep a bare equality (no stray OR / unbound param).
+    org_only, org_params = _two_endpoint_scope("a", "b", None, "org-1")
+    assert " OR " not in org_only
+    assert org_params == {"organization_id": "org-1"}
+
+
+def test_graph_analytics_ands_org_with_project_doc_ids() -> None:
+    """A ?project_id= doc-id list must narrow the org counts, not fall back.
+
+    The old ``elif source_document_ids`` made the doc-id branch dead (the route
+    always passes an org), so a project filter silently returned org-wide
+    counts.
+    """
+    source = _service_source("src/services/knowledge_graph/knowledge_graph_service.py")
+    block = source[
+        source.find("def get_graph_analytics") : source.find("def get_health_status")
+    ]
+    assert "elif source_document_ids is not None:" not in block
+    assert '" AND ".join(scope_preds)' in block
+    assert "{alias}.organization_id = $organization_id" in block
+    assert "{alias}.source_document_id IN $source_document_ids" in block
+
+
+# ---------------------------------------------------------------------------
+# N7/N8/N9 — citation graph counts, project scope and fail-closed writes
+# ---------------------------------------------------------------------------
+
+
+def test_citation_citedby_counts_are_org_scoped() -> None:
+    """citedBy counted cross-org edges while the post-filter dropped those
+    nodes — counts and returned nodes disagreed. Both the APOC query and the
+    no-APOC fallback must constrain the citing node."""
+    source = _service_source("src/services/research/citation_graph_service.py")
+    graph_block = source[
+        source.find("async def get_citation_graph") : source.find(
+            "async def get_node_details"
+        )
+    ]
+    assert "<-[incoming:CITES]-()" not in graph_block
+    assert (
+        graph_block.count(
+            "OPTIONAL MATCH (node)<-[incoming:CITES]-(citer:Citation)\n"
+            "        WHERE citer.organization_id = $organization_id"
+        )
+        == 2
+    )
+
+
+def test_citation_project_scope_is_strict() -> None:
+    """No is_uploaded escape hatch: an uploaded citation elsewhere in the org
+    must not enter the requested project's graph."""
+    source = _service_source("src/services/research/citation_graph_service.py")
+    block = source[source.find("elif project_id:") :]
+    match_clause = block[block.find('match_clause = f"""') : block.find("params = {")]
+    assert "AND start.project_id = $project_id" in match_clause
+    assert "is_uploaded" not in match_clause
+
+
+def test_sync_citation_requires_organization_id() -> None:
+    """Root cause of the null-org nodes: the write accepted org=None."""
+    import asyncio
+    import sys
+
+    sys.path.insert(0, str(BACKEND_ROOT))
+    from uuid import uuid4
+
+    from src.services.research.citation_graph_service import CitationGraphService
+
+    service = CitationGraphService()
+    with pytest.raises(ValueError, match="organization_id"):
+        asyncio.run(
+            service.sync_citation_to_graph(
+                citation_id=uuid4(),
+                document_id=None,
+                title="Legacy paper",
+            )
+        )
+
+
+def test_sync_project_citations_is_gone() -> None:
+    """Deleted: zero callers, and it fished a nonexistent "organization_id"
+    key out of plain citation dicts, writing null-org nodes while reporting
+    them as synced."""
+    source = _service_source("src/services/research/citation_graph_service.py")
+    assert "sync_project_citations" not in source
+
+
+# ---------------------------------------------------------------------------
+# F5 — the message-citation tenant predicate is actually reachable
+# ---------------------------------------------------------------------------
+
+
+def test_extraction_threads_org_into_document_lookup() -> None:
+    """_get_document grew an organization_id guard but the only call site did
+    not pass one, so the guard never ran."""
+    import inspect
+    import sys
+
+    sys.path.insert(0, str(BACKEND_ROOT))
+    from src.services.research.message_citation_service import MessageCitationService
+
+    sig = inspect.signature(MessageCitationService.extract_citations_from_message)
+    assert "organization_id" in sig.parameters
+
+    source = _service_source("src/services/research/message_citation_service.py")
+    assert "self._get_document(document_id, organization_id)" in source
