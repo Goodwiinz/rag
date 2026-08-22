@@ -184,15 +184,19 @@ async def test_pending_create_draft_returns_without_synthesis() -> None:
         ]
     }
 
-    with patch(
-        "src.core.config.get_settings",
-        side_effect=AssertionError("pending drafts must not construct an LLM"),
-    ), patch(
-        "src.services.agent.graph._build_llm",
-        side_effect=AssertionError("pending drafts must not construct an LLM"),
-    ), patch(
-        "src.services.agent.llm_factory.build_synthesis_llm",
-        side_effect=AssertionError("pending drafts must not construct an LLM"),
+    with (
+        patch(
+            "src.core.config.get_settings",
+            side_effect=AssertionError("pending drafts must not construct an LLM"),
+        ),
+        patch(
+            "src.services.agent.graph._build_llm",
+            side_effect=AssertionError("pending drafts must not construct an LLM"),
+        ),
+        patch(
+            "src.services.agent.llm_factory.build_synthesis_llm",
+            side_effect=AssertionError("pending drafts must not construct an LLM"),
+        ),
     ):
         result = await writing_llm_node(state, config={})
 
