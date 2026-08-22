@@ -42,8 +42,9 @@ def test_alembic_heads_single() -> None:
         timeout=120,
     ).stdout
     heads = [ln.split(" ")[0] for ln in out.splitlines() if "(head)" in ln]
+    # Single linear head — the exact id advances as revisions land.
     assert len(heads) == 1
-    assert heads[0] == "add_chat_progress_steps"
+    assert heads[0] and heads[0] != "<base>"
 
 
 def test_env_py_installs_idempotent_guards() -> None:

@@ -29,6 +29,11 @@ from src.models.search_schemas import (
 logger = logging.getLogger(__name__)
 
 
+def _escape_like(value: str) -> str:
+    """Escape LIKE wildcards so user input is matched literally (R2-L21)."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class FullTextSearchService:
     """Service for PostgreSQL full-text search functionality"""
 
@@ -347,8 +352,11 @@ class FullTextSearchService:
         if not words:
             return query.lower()
 
-        # Join with & for AND semantics in PostgreSQL
-        return " & ".join(words)
+        # Space-joined cleaned terms. The binding sites run these through
+        # plainto_tsquery(), which itself ANDs every lexeme — hand-building a
+        # tsquery string with '&' here was misleading (plainto strips the
+        # operators and re-ANDs anyway), so we just supply clean words (R2-L20).
+        return " ".join(words)
 
     def _build_filter_clauses(
         self, filters: SearchFilter
@@ -541,7 +549,7 @@ class FullTextSearchService:
                 WHERE is_deleted = false
                     AND processing_status = :completed_status
                     AND organization_id = :organization_id
-                    AND lower(title) LIKE lower(:query_pattern)
+                    AND lower(title) LIKE lower(:query_pattern) ESCAPE '\'
                 LIMIT 5
             """)
 
@@ -550,7 +558,8 @@ class FullTextSearchService:
                 {
                     "completed_status": ProcessingStatus.COMPLETED.name,
                     "organization_id": organization_id,
-                    "query_pattern": f"%{query}%",
+                    # R2-L21: escape %/_ so user input can't wildcard the scan
+                    "query_pattern": f"%{_escape_like(query)}%",
                 },
             )
 
