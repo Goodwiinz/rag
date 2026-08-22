@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -126,10 +128,10 @@ def test_analytics_applies_search_type_filter() -> None:
     assert "search_type VARCHAR(32)" in migration
 
 
-def test_persist_feedback_raises_on_db_error(monkeypatch) -> None:
+def test_persist_feedback_raises_on_db_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # F3b: a lost row must not answer "Feedback recorded successfully"
-    import pytest
-
     import src.core.database as database
     from src.services.search import search_quality_service as mod
 
