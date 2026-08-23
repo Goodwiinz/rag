@@ -5,7 +5,7 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 
 
-def _read(rel):
+def _read(rel: str) -> str:
     return (BACKEND_ROOT / rel).read_text()
 
 
