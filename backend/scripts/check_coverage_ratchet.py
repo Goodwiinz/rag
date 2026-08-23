@@ -99,7 +99,9 @@ FLOORS: dict[str, int] = {
     "src/cli/auth_loader.py": 78,
     "src/core/config.py": 78,
     "src/services/agent/graph.py": 77,
-    "src/tasks/research_tasks.py": 76,
+    # R2-L16: dead execute_research_workflow task deleted; remaining
+    # module (run_async helpers) sits at ~55% — floor follows.
+    "src/tasks/research_tasks.py": 54,
     "src/cli/agent_api_client.py": 76,
     "src/services/agent/subgraphs/data_agent.py": 75,
     # 70-75% coverage
