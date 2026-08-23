@@ -410,14 +410,20 @@ async def list_project_threads(
         # Verify project access
         await _get_project_with_auth(project_id, current_user, db)
 
-        # Get linked threads with thread details (exclude soft-deleted links)
+        # Get linked threads with thread details (exclude soft-deleted links).
+        # The thread-level soft-delete check also lives in SQL (audit B8):
+        # joining Thread here bounds the load to live links of live threads
+        # and keeps `total` consistent with the returned rows, instead of
+        # loading every link ever and dropping dead threads in Python.
         query = (
             select(ProjectThread)
+            .join(Thread, ProjectThread.thread_id == Thread.id)
             .options(selectinload(ProjectThread.thread))
             .where(
                 and_(
                     ProjectThread.project_id == project_id,
                     ProjectThread.is_deleted == False,
+                    Thread.is_deleted == False,  # noqa: E712
                 )
             )
             .order_by(ProjectThread.linked_at.desc())
@@ -427,7 +433,9 @@ async def list_project_threads(
 
         threads_response = []
         for pt in project_threads:
-            if pt.thread and not pt.thread.is_deleted:
+            # Defensive: the inner join guarantees pt.thread exists, but a
+            # stale session state should degrade to a skipped row, not a 500.
+            if pt.thread:
                 threads_response.append(
                     ProjectThreadResponse(
                         id=pt.id,
