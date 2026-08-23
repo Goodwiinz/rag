@@ -351,11 +351,17 @@ class DraftGenerationService:
                     .values(is_current=False)
                 )
 
-                # Create the draft
+                # Create the draft. GeneratedDraft.title is String(255) and
+                # themes are LLM-authored, so an unclamped join overflows the
+                # column and kills the insert *after* generation has run.
+                title = f"Literature Review - {', '.join(themes[:3])}"
+                if len(title) > 255:
+                    title = title[:252] + "..."
+
                 draft = GeneratedDraft(
                     project_id=project_id,
                     version=new_version,
-                    title=f"Literature Review - {', '.join(themes[:3])}",
+                    title=title,
                     content=draft_content,
                     themes=themes,
                     word_count=len(draft_content.split()),
