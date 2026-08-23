@@ -14200,6 +14200,8 @@ export interface components {
              * @description User rating (1-5)
              */
             rating: number;
+            /** @description Search type the feedback refers to */
+            search_type?: components["schemas"]["SearchType"] | null;
         };
         /**
          * UserPermissionsResponse

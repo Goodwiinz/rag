@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from src.services.agent.subgraphs.writing_agent import writing_llm_node
 
@@ -156,3 +156,90 @@ async def test_grounded_create_note_request_keeps_writing_tools() -> None:
 
     bound_tools = llm.bind_tools.call_args.args[0]
     assert any(tool.name == "create_project_note" for tool in bound_tools)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_pending_create_draft_returns_without_synthesis() -> None:
+    state = {
+        "messages": [
+            HumanMessage(content="Create a draft and apply my preferences."),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "draft-call",
+                        "name": "create_draft",
+                        "args": {},
+                    }
+                ],
+            ),
+            ToolMessage(
+                content=(
+                    '{"status":"pending","task_id":"task-123",'
+                    '"message":"Draft generation started."}'
+                ),
+                tool_call_id="draft-call",
+            ),
+        ]
+    }
+
+    with (
+        patch(
+            "src.core.config.get_settings",
+            side_effect=AssertionError("pending drafts must not construct an LLM"),
+        ),
+        patch(
+            "src.services.agent.graph._build_llm",
+            side_effect=AssertionError("pending drafts must not construct an LLM"),
+        ),
+        patch(
+            "src.services.agent.llm_factory.build_synthesis_llm",
+            side_effect=AssertionError("pending drafts must not construct an LLM"),
+        ),
+    ):
+        result = await writing_llm_node(state, config={})
+
+    content = result["messages"][0].content
+    assert "Draft generation started." in content
+    assert "Status: pending" in content
+    assert "Task ID: task-123" in content
+    assert "preferences" not in content.lower()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_batched_pending_create_draft_still_synthesizes() -> None:
+    llm = MagicMock()
+    bound = MagicMock()
+    bound.ainvoke = AsyncMock(return_value=AIMessage(content="Combined result"))
+    llm.bind_tools.return_value = bound
+    state = {
+        "messages": [
+            HumanMessage(content="Create a draft and summarize the project."),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "summary-call", "name": "summarize_document", "args": {}},
+                    {"id": "draft-call", "name": "create_draft", "args": {}},
+                ],
+            ),
+            ToolMessage(content='{"status":"completed"}', tool_call_id="summary-call"),
+            ToolMessage(
+                content=(
+                    '{"status":"pending","task_id":"task-123",'
+                    '"message":"Draft generation started."}'
+                ),
+                tool_call_id="draft-call",
+            ),
+        ]
+    }
+
+    with (
+        patch("src.core.config.get_settings", return_value=_settings()),
+        patch("src.services.agent.llm_factory.build_synthesis_llm", return_value=llm),
+    ):
+        result = await writing_llm_node(state, config={})
+
+    assert result["messages"][0].content == "Combined result"
+    bound.ainvoke.assert_awaited_once()

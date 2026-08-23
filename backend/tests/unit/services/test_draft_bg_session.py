@@ -19,6 +19,7 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+from src.models.generated_draft import GeneratedDraft
 from src.services.research.draft_generation_service import (
     DraftGenerationService,
     DraftGenerationStatus,
@@ -206,3 +207,57 @@ async def test_empty_documents_fails_without_committing():
     status = DraftGenerationService.get_status("task-empty")
     assert status["status"] == DraftGenerationStatus.FAILED
     bg_session.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_long_themes_do_not_overflow_title_column():
+    """GeneratedDraft.title is String(255). Themes are LLM-authored and can be
+    full sentences, so the `Literature Review - <themes>` join must be clamped
+    or the insert dies at the FINALIZING phase and the draft never appears.
+    """
+    documents = [MagicMock(id=uuid4(), title="Doc A")]
+    bg_session = _make_bg_session(documents)
+
+    service = DraftGenerationService(MagicMock())
+    service._build_draft_content = AsyncMock(return_value=("Body.", False))
+
+    long_themes = [
+        "Synthesize the six imported papers explicitly: Attention Is All You "
+        "Need (arXiv:1706.03762; document_id 74c232ea-e007-4a73-b8ed-df0f88bae654)"
+        + " and related work" * 10,
+        "Second theme " * 30,
+        "Third theme " * 30,
+    ]
+
+    patcher = _patch_session_factory(bg_session)
+    try:
+        _generation_status["task-long-title"] = {
+            "status": DraftGenerationStatus.PENDING,
+            "progress": 0,
+            "current_step": "Initializing",
+            "project_id": str(uuid4()),
+            "user_id": str(uuid4()),
+        }
+        await service._generate_draft_async(
+            task_id="task-long-title",
+            project_id=uuid4(),
+            user_id=uuid4(),
+            themes=long_themes,
+            document_ids=None,
+            style="academic",
+            max_sections=5,
+            include_abstract=True,
+        )
+    finally:
+        patcher.stop()
+
+    drafts = [
+        call.args[0]
+        for call in bg_session.add.call_args_list
+        if isinstance(call.args[0], GeneratedDraft)
+    ]
+    assert drafts, "no draft was persisted"
+    assert len(drafts[0].title) <= 255
+    assert drafts[0].title.startswith("Literature Review - ")
+    # Themes themselves are untouched — only the display title is clamped.
+    assert drafts[0].themes == long_themes

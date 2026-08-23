@@ -6,7 +6,12 @@
  * Drafts, Chat, Matrix, and Pipeline
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+} from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   FileText,
@@ -48,6 +53,7 @@ import {
 import { useProjectStore } from '@/store/projectStore';
 import { useAgentChatStore } from '@/store/agentChatStore';
 import { useAuthStore } from '@/stores/authStore';
+import toast from 'react-hot-toast';
 import { useProjectSkillCatalog } from '@/hooks/useProjectSkills';
 import { APIErrorClass } from '@/types/api';
 import type { ProjectNote, ProjectNoteCreate } from '@/services/projectService';
@@ -149,6 +155,11 @@ export default function ProjectDetailPage() {
   const pollTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
+  // Roving-tabindex focus (R6-L18): arrow/Home/End must move DOM focus, not
+  // just activeTab. Primary tabs are real buttons; secondary tabs live in the
+  // "More" dropdown, so they fall back to focusing the dropdown trigger.
+  const primaryTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const moreTabsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [showUploadWizard, setShowUploadWizard] = useState(false);
   const [deleteNoteDialogOpen, setDeleteNoteDialogOpen] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
@@ -398,22 +409,20 @@ export default function ProjectDetailPage() {
   };
 
   const handleSaveNote = async (noteData: ProjectNoteCreate) => {
-    try {
-      if (editingNote) {
-        await updateNote(projectId, editingNote.id, {
-          title: noteData.title.trim(),
-          content: noteData.content,
-          tags: noteData.tags,
-          linked_document_ids: noteData.linked_document_ids,
-        });
-      } else {
-        await createNote(projectId, noteData);
-      }
-      setShowNoteEditor(false);
-      setEditingNote(null);
-    } catch (err) {
-      console.error('Failed to save note:', err);
+    // Errors propagate to NoteEditor, which keeps the dialog open and shows
+    // the failure inline (R6-H7). Closing here would fake a successful save.
+    if (editingNote) {
+      await updateNote(projectId, editingNote.id, {
+        title: noteData.title.trim(),
+        content: noteData.content,
+        tags: noteData.tags,
+        linked_document_ids: noteData.linked_document_ids,
+      });
+    } else {
+      await createNote(projectId, noteData);
     }
+    setShowNoteEditor(false);
+    setEditingNote(null);
   };
 
   const handleDeleteNote = (noteId: string) => {
@@ -724,12 +733,26 @@ export default function ProjectDetailPage() {
               if (nextIndex !== -1 && nextIndex !== currentIndex) {
                 e.preventDefault();
                 handleTabChange(allTabs[nextIndex].id);
+                // Move DOM focus along with the selection so keyboard users
+                // aren't stranded on the previous tab (R6-L18).
+                const nextTab = allTabs[nextIndex];
+                const primaryIdx = primaryTabs.findIndex(
+                  (t) => t.id === nextTab.id
+                );
+                if (primaryIdx >= 0) {
+                  primaryTabRefs.current[primaryIdx]?.focus();
+                } else {
+                  moreTabsTriggerRef.current?.focus();
+                }
               }
             }}
           >
-            {primaryTabs.map((tab) => (
+            {primaryTabs.map((tab, tabIndex) => (
               <button
                 key={tab.id}
+                ref={(node) => {
+                  primaryTabRefs.current[tabIndex] = node;
+                }}
                 onClick={() => handleTabChange(tab.id)}
                 role="tab"
                 aria-selected={activeTab === tab.id}
@@ -764,6 +787,7 @@ export default function ProjectDetailPage() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
+                  ref={moreTabsTriggerRef}
                   className={`relative flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 text-xs sm:text-sm rounded-t-md transition-colors shrink-0 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                     isSecondaryTabActive
                       ? 'text-foreground bg-muted/60 border-b-2 border-primary'
@@ -1002,6 +1026,13 @@ export default function ProjectDetailPage() {
                             }
                           );
                           setGenerationTaskId(result.task_id);
+                          // Poll until terminal. Transient poll failures are
+                          // retried with backoff (bounded) instead of killing
+                          // the loop on the first hiccup (R6-M17); exhausting
+                          // the budget surfaces a terminal failed state so the
+                          // progress card can never freeze silently.
+                          const POLL_RETRY_LIMIT = 5;
+                          let pollFailures = 0;
                           const pollStatus = async () => {
                             try {
                               const status =
@@ -1009,6 +1040,7 @@ export default function ProjectDetailPage() {
                                   projectId,
                                   result.task_id
                                 );
+                              pollFailures = 0;
                               setGenerationStatus(status);
                               if (
                                 !['completed', 'failed', 'cancelled'].includes(
@@ -1020,13 +1052,33 @@ export default function ProjectDetailPage() {
                                   1000
                                 );
                               }
-                            } catch (err) {
-                              console.error('Poll error:', err);
+                            } catch {
+                              pollFailures += 1;
+                              if (pollFailures >= POLL_RETRY_LIMIT) {
+                                setGenerationStatus({
+                                  task_id: result.task_id,
+                                  status: 'failed',
+                                  progress: 0,
+                                  current_step:
+                                    'Lost contact with the generation job after repeated errors.',
+                                  started_at: new Date().toISOString(),
+                                });
+                                return;
+                              }
+                              pollTimeoutRef.current = setTimeout(
+                                pollStatus,
+                                Math.min(1000 * 2 ** pollFailures, 8000)
+                              );
                             }
                           };
-                          pollStatus();
+                          void pollStatus();
                         } catch (err) {
                           console.error('Generation failed:', err);
+                          toast.error(
+                            err instanceof Error
+                              ? `Failed to start draft generation: ${err.message}`
+                              : 'Failed to start draft generation'
+                          );
                         } finally {
                           setDraftsLoading(false);
                         }
