@@ -19,8 +19,6 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from types import SimpleNamespace
-
 import pytest
 
 from src.models.document import Document, DocumentType
