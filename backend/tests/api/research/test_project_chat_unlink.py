@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -124,3 +125,88 @@ class TestUnlinkThreadRowLock:
         # Sanity: mutation path still ran against the locked row.
         assert mock_thread.source_project_id is None
         db.commit.assert_awaited_once()
+
+
+class TestUnlinkIgnoresSoftDeletedLink:
+    """B7: a second DELETE must 404, not re-delete the dead link row."""
+
+    @pytest.mark.asyncio
+    async def test_unlink_fetch_filters_soft_deleted_links(
+        self,
+        mock_user,
+        mock_thread,
+    ):
+        """The link lookup itself excludes is_deleted rows (dialect-independent)."""
+        from sqlalchemy.dialects import postgresql as pg
+
+        statements = []
+        db = AsyncMock(spec=AsyncSession)
+
+        async def _capture(stmt, *args, **kwargs):
+            statements.append(stmt)
+            result = MagicMock()
+            result.scalar_one_or_none.return_value = None
+            return result
+
+        db.execute.side_effect = _capture
+
+        with (
+            patch(
+                "src.api.research.project_chat._get_project_with_auth",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                "src.api.research.project_chat._get_thread_with_auth",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await unlink_thread_from_project(
+                    uuid4(), mock_thread.id, current_user=mock_user, db=db
+                )
+
+        assert exc_info.value.status_code == 404
+
+        # The dead-row exclusion must live in the FIRST ProjectThread select
+        # (the plain link lookup) — not just somewhere in the call, e.g. the
+        # remaining-link query which already filters.
+        link_stmt = next(
+            s for s in statements if s.column_descriptions[0]["entity"] is ProjectThread
+        )
+        # Compile ONLY the WHERE clause: is_deleted also appears in every
+        # SELECT column list, which would make a whole-statement match vacuous.
+        where_sql = str(link_stmt.whereclause.compile(dialect=pg.dialect())).lower()
+        assert "is_deleted" in where_sql, (
+            "unlink link lookup does not filter is_deleted — "
+            "(audit B7: double DELETE re-deletes a dead row and re-runs "
+            "scope reassignment against it)"
+        )
+
+    @pytest.mark.asyncio
+    async def test_unlink_of_filtered_out_row_is_404_and_mutates_nothing(
+        self, mock_user
+    ):
+        """When the dead row is filtered out, nothing is mutated or committed."""
+        db = AsyncMock(spec=AsyncSession)
+        db.commit = AsyncMock()
+
+        async def _none_result(stmt, *args, **kwargs):
+            result = MagicMock()
+            result.scalar_one_or_none.return_value = None
+            return result
+
+        db.execute.side_effect = _none_result
+
+        # Simulate the SQL filter having dropped the row.
+        with patch(
+            "src.api.research.project_chat._get_project_with_auth",
+            new=AsyncMock(return_value=MagicMock()),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await unlink_thread_from_project(
+                    uuid4(), uuid4(), current_user=mock_user, db=db
+                )
+
+        assert exc_info.value.status_code == 404
+        db.commit.assert_not_awaited()
+        db.rollback.assert_not_awaited()

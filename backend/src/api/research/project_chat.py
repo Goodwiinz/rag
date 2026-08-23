@@ -486,11 +486,14 @@ async def unlink_thread_from_project(
         # Verify project access
         await _get_project_with_auth(project_id, current_user, db)
 
-        # Find and delete the link
+        # Find and delete the link. Exclude soft-deleted links: a second
+        # DELETE on an already-unlinked thread must 404, not re-run the
+        # scope reassignment below against a dead row (audit B7).
         query = select(ProjectThread).where(
             and_(
                 ProjectThread.project_id == project_id,
                 ProjectThread.thread_id == thread_id,
+                ProjectThread.is_deleted == False,  # noqa: E712
             )
         )
         result = await db.execute(query)
