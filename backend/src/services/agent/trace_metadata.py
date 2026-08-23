@@ -7,6 +7,32 @@ from typing import Any
 MAX_TRACE_METADATA_VALUE_CHARS = 128
 TRACE_SOURCE_METADATA_KEY = "trace_source"
 
+try:  # exported by langsmith >= 0.9; older versions accept the literal key
+    from langsmith import (  # type: ignore[attr-defined]
+        LS_MESSAGE_VIEW_EXCLUDE,
+    )
+except ImportError:  # pragma: no cover - depends on installed langsmith version
+    LS_MESSAGE_VIEW_EXCLUDE = "ls_message_view_exclude"
+
+
+def internal_llm_config(config: Any = None) -> dict[str, Any]:
+    """RunnableConfig hiding an internal LLM call from the LangSmith Messages view.
+
+    Classification, planning, reflection, compaction, evidence summarization
+    and other routing/bookkeeping LLM calls are not conversational turns; the
+    ``ls_message_view_exclude`` metadata key keeps them out of the Messages
+    view transcript while leaving them visible in the regular trace view.
+
+    When ``config`` (an existing RunnableConfig) is given, its keys are
+    preserved and only the metadata is extended, so callbacks and tracing
+    context pass through unchanged.
+    """
+    merged: dict[str, Any] = dict(config) if isinstance(config, dict) else {}
+    metadata = dict(merged.get("metadata") or {})
+    metadata[LS_MESSAGE_VIEW_EXCLUDE] = True
+    merged["metadata"] = metadata
+    return merged
+
 
 class TraceSource(str, Enum):
     """Bounded root source categories used to scope trace consumers."""
@@ -58,6 +84,8 @@ def build_trace_metadata(
 
 
 __all__ = [
+    "LS_MESSAGE_VIEW_EXCLUDE",
+    "internal_llm_config",
     "MAX_TRACE_METADATA_VALUE_CHARS",
     "TRACE_SOURCE_METADATA_KEY",
     "TraceSource",

@@ -8,6 +8,7 @@ import time
 from typing import Any
 
 from src.services.agent.llm_factory import build_lightweight_llm
+from src.services.agent.trace_metadata import internal_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ async def summarize_evidence(
                 title=chunk.get("title") or "untitled",
                 text=(chunk.get("text") or "")[:3000],
             )
-            return await llm.ainvoke(prompt)
+            return await llm.ainvoke(prompt, config=internal_llm_config())
 
         outcomes = await asyncio.wait_for(
             asyncio.gather(*(_call(c) for c in selected), return_exceptions=True),

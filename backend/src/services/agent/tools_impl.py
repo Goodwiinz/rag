@@ -89,6 +89,7 @@ from src.models.citation import Citation
 from src.models.collection import CollectionDocument
 from src.models.document import Document
 from src.models.user import User
+from src.services.agent.trace_metadata import internal_llm_config
 
 from .error_recovery import tool_error_payload
 from .tool_helpers import _escape_like, _resolve_document_id, _verify_project_ownership
@@ -2295,7 +2296,8 @@ async def _tool_summarize_document(
                         content="You are a research assistant. Provide a concise summary of the following document in 3-5 paragraphs. Focus on key findings, methodology, and conclusions."
                     ),
                     HumanMessage(content=text_for_summary),
-                ]
+                ],
+                config=internal_llm_config(),
             )
             summary = response.content
         except Exception as llm_exc:
@@ -2440,7 +2442,8 @@ async def _tool_compare_documents(
                         content=_compare_documents_system_prompt(comparison_type)
                     ),
                     HumanMessage(content=docs_content),
-                ]
+                ],
+                config=internal_llm_config(),
             )
             comparison = response.content
         except Exception as llm_exc:
