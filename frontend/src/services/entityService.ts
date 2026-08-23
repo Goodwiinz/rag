@@ -12,7 +12,9 @@ import { APIErrorClass } from '@/types/api';
 
 /**
  * Retry wrapper utility for API calls
- * Automatically retries failed requests once with exponential backoff
+ * Automatically retries failed requests once with exponential backoff.
+ * Never retries 4xx client errors (except 429 rate limiting) and is only
+ * for idempotent GET calls — mutating endpoints must not be wrapped (R6-M15).
  */
 async function withRetry<T>(
   fn: () => Promise<T>,
@@ -25,6 +27,15 @@ async function withRetry<T>(
       return await fn();
     } catch (error) {
       lastError = error as Error;
+      // Client errors are deterministic — retrying cannot fix a 400/404/409.
+      if (
+        error instanceof APIErrorClass &&
+        error.error.status_code >= 400 &&
+        error.error.status_code < 500 &&
+        error.error.status_code !== 429
+      ) {
+        throw error;
+      }
       if (attempt < maxRetries) {
         // Exponential backoff: wait 1s on first retry, 2s on second, etc.
         await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
@@ -177,16 +188,14 @@ class EntityService {
   }
 
   /**
-   * Create new entity (with retry)
+   * Create new entity — POST is non-idempotent, never auto-retried (R6-M15)
    */
   async createEntity(entityData: Partial<Entity>): Promise<Entity> {
-    return withRetry(async () => {
-      const response = await api.post<Entity>(
-        `${this.baseUrl}/entities`,
-        entityData
-      );
-      return response;
-    });
+    const response = await api.post<Entity>(
+      `${this.baseUrl}/entities`,
+      entityData
+    );
+    return response;
   }
 
   /**
@@ -247,7 +256,8 @@ class EntityService {
   }
 
   /**
-   * Create relationship between entities (with retry)
+   * Create relationship between entities — POST is non-idempotent, never
+   * auto-retried (R6-M15)
    */
   async createRelationship(relationshipData: {
     source_entity_id: string;
@@ -259,13 +269,11 @@ class EntityService {
     evidence?: string[];
     metadata?: Record<string, any>;
   }): Promise<GraphEdge> {
-    return withRetry(async () => {
-      const response = await api.post<GraphEdge>(
-        `${this.baseUrl}/relationships`,
-        relationshipData
-      );
-      return response;
-    });
+    const response = await api.post<GraphEdge>(
+      `${this.baseUrl}/relationships`,
+      relationshipData
+    );
+    return response;
   }
 
   /**

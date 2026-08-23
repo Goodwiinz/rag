@@ -2,69 +2,59 @@
 Alembic environment configuration
 """
 
-import sys
 import os
+import sys
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # Add the src directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-# Import models and database configuration
-from src.models.base import Base
-
 # Import all models to ensure they are registered with Base.metadata
 # The __init__.py exports all SQLAlchemy models
 from src.models import (
-    # Core models
-    User,
-    Organization,
+    AnalyticsEvent,
+    AuditEvent,
+    ChatMessage,
+    Citation,
+    Collection,
+    CollectionDocument,
+    ComplianceReport,
+    Conversation,
+    DataRetentionPolicy,
     Document,
+    DocumentAccessLog,
+    DocumentQualityMetrics,
+    DocumentVersion,
+    EncryptedOrganizationProfile,
+    EncryptedUserProfile,
+    EncryptionAuditLog,
     Entity,
-    # Search models
+    MessageAttachment,
+    MultimodalContent,
+    Organization,
+    PerformanceLog,
+    Permission,
+    ProcessingHistory,
+    ProcessingJob,
+    QualityMetric,
+    Role,
     SearchQuery,
     SearchResult,
     SearchSession,
-    # Processing models
-    ProcessingJob,
-    # Quality models
-    QualityMetric,
-    # Document processing models
-    ProcessingHistory,
-    DocumentVersion,
-    MultimodalContent,
-    DocumentQualityMetrics,
-    DocumentAccessLog,
-    # Session and analytics models
-    UserSession,
-    AnalyticsEvent,
-    PerformanceLog,
-    # Security models
-    EncryptedUserProfile,
-    EncryptedOrganizationProfile,
-    EncryptionAuditLog,
-    # Permission models
-    Permission,
-    Role,
-    UserRoleAssignment,
-    # Audit models
-    AuditEvent,
-    ComplianceReport,
-    DataRetentionPolicy,
     SecurityIncident,
-    # Thread-centric chat models (Terminal Observatory)
+    Thread,
+    User,
+    UserRoleAssignment,
+    UserSession,
     Workspace,
     WorkspaceMember,
-    Conversation,
-    Thread,
-    ChatMessage,
-    Collection,
-    CollectionDocument,
-    Citation,
-    MessageAttachment,
 )
+
+# Import models and database configuration
+from src.models.base import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -117,6 +107,9 @@ def _install_idempotent_op_guards() -> None:
     _orig_add_column = _op.add_column
 
     def add_column(table_name, column, *args, **kwargs):
+        if not _inspector().has_table(table_name):
+            log.warning("add_column skipped, table %s missing", table_name)
+            return None
         cols = {c["name"] for c in _inspector().get_columns(table_name)}
         if column.name in cols:
             log.warning(
@@ -158,15 +151,18 @@ def _install_idempotent_op_guards() -> None:
     _orig_drop_index = _op.drop_index
 
     def drop_index(index_name, table_name=None, *args, **kwargs):
-        try:
-            idx = (
-                {i["name"] for i in _inspector().get_indexes(table_name)}
-                if table_name
-                else set()
+        # Index names are schema-global relations in Postgres, so one
+        # to_regclass lookup covers every case the inspector could not:
+        # table_name omitted, or the owning table itself missing.
+        exists = (
+            _op.get_bind()
+            .execute(
+                sa.text("SELECT to_regclass(:n) IS NOT NULL"),
+                {"n": index_name},
             )
-        except Exception:
-            idx = set()
-        if table_name and idx and index_name not in idx:
+            .scalar()
+        )
+        if not exists:
             log.warning("drop_index skipped, %s missing", index_name)
             return None
         return _orig_drop_index(index_name, table_name, *args, **kwargs)
@@ -178,15 +174,22 @@ def _install_idempotent_op_guards() -> None:
     _op.create_index = create_index
     _op.drop_index = drop_index
 
-    def _constraint_exists(name: str) -> bool:
-        row = (
-            _op.get_bind()
-            .execute(
-                sa.text("SELECT 1 FROM pg_constraint WHERE conname = :n"),
-                {"n": name},
+    def _constraint_exists(name: str, table: str | None = None) -> bool:
+        # Constraint names are only unique per table in Postgres, so scope the
+        # lookup by conrelid whenever the caller knows the table — otherwise a
+        # same-named constraint elsewhere makes the guard skip (or drop) the
+        # wrong object.
+        if table:
+            sql = sa.text(
+                "SELECT 1 FROM pg_constraint c "
+                "JOIN pg_class r ON r.oid = c.conrelid AND r.relname = :t "
+                "WHERE c.conname = :n"
             )
-            .scalar()
-        )
+            params = {"n": name, "t": table}
+        else:
+            sql = sa.text("SELECT 1 FROM pg_constraint WHERE conname = :n")
+            params = {"n": name}
+        row = _op.get_bind().execute(sql, params).scalar()
         if row:
             return True
         # Unique/PK constraints materialize a same-named index relation; some
@@ -200,8 +203,8 @@ def _install_idempotent_op_guards() -> None:
             .scalar()
         )
 
-    def _skip_constraint(name: str, kind: str) -> bool:
-        if _constraint_exists(name):
+    def _skip_constraint(name: str, kind: str, table: str | None = None) -> bool:
+        if _constraint_exists(name, table):
             log.warning("%s skipped, %s already exists", kind, name)
             return True
         return False
@@ -209,21 +212,21 @@ def _install_idempotent_op_guards() -> None:
     _orig_create_unique = _op.create_unique_constraint
     _op.create_unique_constraint = lambda name, source, cols, **kw: (
         None
-        if _skip_constraint(name, "create_unique_constraint")
+        if _skip_constraint(name, "create_unique_constraint", source)
         else _orig_create_unique(name, source, cols, **kw)
     )
 
     _orig_create_pk = _op.create_primary_key
     _op.create_primary_key = lambda name, source, cols, **kw: (
         None
-        if _skip_constraint(name, "create_primary_key")
+        if _skip_constraint(name, "create_primary_key", source)
         else _orig_create_pk(name, source, cols, **kw)
     )
 
     _orig_create_fk = _op.create_foreign_key
 
     def create_foreign_key(name, source, referent, local_cols, remote_cols, **kw):
-        if name and _skip_constraint(name, "create_foreign_key"):
+        if name and _skip_constraint(name, "create_foreign_key", source):
             return None
         return _orig_create_fk(name, source, referent, local_cols, remote_cols, **kw)
 
@@ -232,14 +235,14 @@ def _install_idempotent_op_guards() -> None:
     _orig_create_check = _op.create_check_constraint
     _op.create_check_constraint = lambda name, source, condition, **kw: (
         None
-        if _skip_constraint(name, "create_check_constraint")
+        if _skip_constraint(name, "create_check_constraint", source)
         else _orig_create_check(name, source, condition, **kw)
     )
 
     _orig_drop_constraint = _op.drop_constraint
 
     def drop_constraint(name, table_name, type_=None):
-        if not _constraint_exists(name):
+        if not _constraint_exists(name, table_name):
             log.warning("drop_constraint skipped, %s missing on %s", name, table_name)
             return None
         return _orig_drop_constraint(name, table_name, type_) or None

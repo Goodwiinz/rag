@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -45,6 +46,9 @@ class UserFeedbackRequest(BaseModel):
     feedback_text: Optional[str] = Field(None, description="Optional feedback text")
     document_id: Optional[str] = Field(
         None, description="Document ID if feedback is specific to a result"
+    )
+    search_type: Optional[SearchType] = Field(
+        None, description="Search type the feedback refers to"
     )
 
 
@@ -167,13 +171,17 @@ async def submit_user_feedback(
     which are used to improve search quality metrics.
     """
     try:
-        metric = search_quality_service.record_user_feedback(
+        # R6-F3a: the service opens a sync session and commits inline —
+        # calling it directly from this async handler blocked the event loop.
+        metric = await run_in_threadpool(
+            search_quality_service.record_user_feedback,
             query_id=request.query_id,
             user_id=str(current_user.id),
             rating=request.rating,
             feedback_text=request.feedback_text,
             document_id=request.document_id,
             organization_id=str(current_user.organization_id or ""),
+            search_type=request.search_type,
         )
 
         # Log feedback for analytics
@@ -212,7 +220,9 @@ async def get_quality_analytics(
     for the specified time period.
     """
     try:
-        analytics = search_quality_service.get_quality_analytics(
+        # R6-F3a: sync session work — off the event loop.
+        analytics = await run_in_threadpool(
+            search_quality_service.get_quality_analytics,
             organization_id=str(current_user.organization_id),
             days=days,
             search_type=search_type,
@@ -252,8 +262,6 @@ async def run_quality_benchmark(
             raise HTTPException(
                 status_code=400, detail="Maximum 10 test queries allowed per benchmark"
             )
-
-        from fastapi.concurrency import run_in_threadpool
 
         benchmark_results = await run_in_threadpool(
             search_quality_service.run_quality_benchmark,

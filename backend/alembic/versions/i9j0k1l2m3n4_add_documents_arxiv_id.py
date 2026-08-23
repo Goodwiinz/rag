@@ -31,7 +31,7 @@ def upgrade() -> None:
     # Rolling deployments overlap old and new pods. Old code omits the new
     # column, so post-migration inserts must still participate in uniqueness.
     op.execute(f"""
-        CREATE FUNCTION {FUNCTION_NAME}() RETURNS trigger AS $$
+        CREATE OR REPLACE FUNCTION {FUNCTION_NAME}() RETURNS trigger AS $$
         DECLARE
             candidate TEXT;
         BEGIN

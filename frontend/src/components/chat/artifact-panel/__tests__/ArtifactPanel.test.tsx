@@ -51,18 +51,16 @@ describe('ArtifactPanel', () => {
         pinned: false,
       });
     });
+    // The API client resolves to the raw response body — no { data } wrapper.
     mockGetDocument.mockResolvedValue({
-      success: true,
-      data: {
-        id: 'doc-1',
-        user_id: 'u1',
-        organization_id: 'org1',
-        title: 'RLHF Survey',
-        filename: 'rlhf-survey.pdf',
-        file_type: 'pdf',
-        processing_status: 'indexed',
-        metadata: {},
-      },
+      id: 'doc-1',
+      user_id: 'u1',
+      organization_id: 'org1',
+      title: 'RLHF Survey',
+      filename: 'rlhf-survey.pdf',
+      file_type: 'pdf',
+      processing_status: 'indexed',
+      metadata: {},
     } as Awaited<ReturnType<typeof documentService.getDocument>>);
   });
 

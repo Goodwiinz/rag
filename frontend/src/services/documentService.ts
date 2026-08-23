@@ -1,4 +1,4 @@
-import { APIResponse, API_CONFIG } from '@/types/api';
+import { API_CONFIG } from '@/types/api';
 import {
   Document,
   DocumentFilters,
@@ -17,7 +17,7 @@ export class DocumentService {
     page: number = 1,
     pageSize: number = 20,
     filters?: DocumentFilters
-  ): Promise<APIResponse<DocumentListResponse>> {
+  ): Promise<DocumentListResponse> {
     const params: Record<string, any> = {
       page,
       page_size: pageSize,
@@ -50,7 +50,7 @@ export class DocumentService {
   /**
    * Get document by ID
    */
-  async getDocument(id: string): Promise<APIResponse<Document>> {
+  async getDocument(id: string): Promise<Document> {
     return api.get(`${this.basePath}/${id}`);
   }
 
@@ -62,21 +62,21 @@ export class DocumentService {
     updates: Partial<
       Pick<Document, 'title' | 'description' | 'tags' | 'custom_fields'>
     >
-  ): Promise<APIResponse<Document>> {
+  ): Promise<Document> {
     return api.patch(`${this.basePath}/${id}`, updates);
   }
 
   /**
    * Delete document
    */
-  async deleteDocument(id: string): Promise<APIResponse<void>> {
+  async deleteDocument(id: string): Promise<void> {
     return api.delete(`${this.basePath}/${id}`);
   }
 
   /**
    * Get upload progress
    */
-  async getUploadProgress(jobId: string): Promise<APIResponse<UploadProgress>> {
+  async getUploadProgress(jobId: string): Promise<UploadProgress> {
     return api.get(`${this.basePath}/upload-progress/${jobId}`);
   }
 
@@ -92,7 +92,7 @@ export class DocumentService {
    */
   async getDocumentPreview(
     id: string
-  ): Promise<APIResponse<{ preview: string }>> {
+  ): Promise<{ preview: string }> {
     return api.get(`${this.basePath}/${id}/preview`);
   }
 
@@ -106,14 +106,14 @@ export class DocumentService {
   /**
    * Get processing status
    */
-  async getProcessingStatus(id: string): Promise<APIResponse<UploadProgress>> {
+  async getProcessingStatus(id: string): Promise<UploadProgress> {
     return api.get(`${this.basePath}/${id}/processing-status`);
   }
 
   /**
    * Retry failed processing
    */
-  async retryProcessing(id: string): Promise<APIResponse<Document>> {
+  async retryProcessing(id: string): Promise<Document> {
     return api.post(`${this.basePath}/${id}/retry-processing`);
   }
 
@@ -124,7 +124,7 @@ export class DocumentService {
     query: string,
     documentIds?: string[],
     limit: number = 10
-  ): Promise<APIResponse<Document[]>> {
+  ): Promise<Document[]> {
     const params: Record<string, any> = {
       q: query,
       limit,
@@ -145,15 +145,13 @@ export class DocumentService {
   /**
    * Get document statistics
    */
-  async getDocumentStats(): Promise<
-    APIResponse<{
+  async getDocumentStats(): Promise<{
       total_documents: number;
       total_size: number;
       by_file_type: Record<string, number>;
       by_status: Record<string, number>;
       recent_uploads: Document[];
-    }>
-  > {
+    }> {
     return api.get(`${this.basePath}/stats`);
   }
 }
