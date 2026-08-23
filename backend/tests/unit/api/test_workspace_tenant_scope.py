@@ -45,9 +45,11 @@ def _db_that_refetches_created_workspace():
     async def execute(_stmt):
         # First call = R5-L11 quota count (scalar); subsequent = re-fetch
         if "count" in str(_stmt).lower() or not captured.get("workspace"):
+
             class _Scalar:
                 def scalar(self):
                     return 0
+
             return _Scalar()
         return _ExecuteResult(captured["workspace"])
 

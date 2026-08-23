@@ -8,10 +8,10 @@ import pytest
 
 from src.services.research_engine.export_service import ExportService
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _make_evidence(step_id, source_id):
     """Create a mock ResearchEvidence instance."""
@@ -125,6 +125,7 @@ def _mock_db_for_manifest(run):
 # Tests: export_json
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_export_json_returns_correct_structure():
     """export_json must return a report with run info, steps, sources, evidence."""
@@ -211,6 +212,7 @@ async def test_export_json_with_no_evidence():
 # ---------------------------------------------------------------------------
 # Tests: export_manifest
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_export_manifest_returns_stored_manifest():

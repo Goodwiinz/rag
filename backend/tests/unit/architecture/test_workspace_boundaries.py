@@ -132,7 +132,7 @@ CHAT_SERVICE_COMMIT_ALLOWLIST: frozenset[str] = frozenset(
         "delete_conversation",
         "update_thread",
         "delete_thread",
-                "delete_message",
+        "delete_message",
         "create_collection",
         "add_documents_to_collection",
         "remove_documents_from_collection",

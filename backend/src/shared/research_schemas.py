@@ -549,9 +549,7 @@ class ProjectNoteCreate(BaseModel):
     content: str = Field(
         ..., max_length=200_000, description="Markdown content (bounded, R6-L7)"
     )
-    linked_document_ids: List[UUID] = Field(
-        default_factory=list, max_length=100
-    )
+    linked_document_ids: List[UUID] = Field(default_factory=list, max_length=100)
     tags: List[str] = Field(default_factory=list, max_length=30)
     is_pinned: bool = Field(default=False)
 

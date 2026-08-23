@@ -65,12 +65,10 @@ from src.services.threads import (
 logger = logging.getLogger(__name__)
 
 
-
 def _escape_like(value: str) -> str:
     """Escape LIKE wildcards so search terms match literally (R5-L8)."""
-    return (
-        value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    )
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
 
 class ChatService:
     """

@@ -268,9 +268,7 @@ async def add_member(
     from src.models.user import User
 
     user_exists = (
-        await db.execute(
-            select(User.id).where(User.id == data.user_id)
-        )
+        await db.execute(select(User.id).where(User.id == data.user_id))
     ).scalar_one_or_none()
     if user_exists is None:
         raise ValueError("Target user does not exist")
