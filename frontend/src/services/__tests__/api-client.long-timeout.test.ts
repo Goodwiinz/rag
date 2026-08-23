@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * Regression: arXiv search/ingest/extract/track are slow AND non-idempotent.
  * They must go through `postWithLongTimeout`, which disables the client's
  * automatic retries — replaying a POST that already committed work server-side
- * would duplicate ingests/extractions. A plain `post` retries 5xx/network
- * errors up to RETRY_ATTEMPTS times, so these two paths must behave differently.
+ * would duplicate ingests/extractions (R6-M15). Since R6-M15 no HTTP verb is
+ * auto-retried by default except idempotent ones (GET/HEAD/OPTIONS); callers
+ * can still opt a known-idempotent endpoint in via an explicit `retries`.
  */
 describe('APIClient.postWithLongTimeout', () => {
   beforeEach(() => {
@@ -43,7 +44,7 @@ describe('APIClient.postWithLongTimeout', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('by contrast, plain post() retries the same 5xx (more than one fetch)', async () => {
+  it('plain post() no longer auto-retries non-idempotent POSTs (R6-M15)', async () => {
     const fetchMock = vi.fn().mockResolvedValue(server500());
     global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -54,8 +55,9 @@ describe('APIClient.postWithLongTimeout', () => {
       client.post('/arxiv/ingest', { paper_ids: ['1706.03762'] })
     ).rejects.toMatchObject({ name: 'APIError' });
 
-    // Default RETRY_ATTEMPTS means the plain path fetches more than once.
-    expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+    // R6-M15: POST is not idempotent — replaying a committed create would
+    // duplicate it, so the default retry pass is GET/HEAD/OPTIONS only.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('lets callers override retries explicitly', async () => {

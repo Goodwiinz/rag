@@ -114,6 +114,7 @@ def test_generate_report_task_accepts_none_org() -> None:
                 src = ast.get_source_segment(
                     _read("src/tasks/document_processing_tasks.py"), node
                 )
+                assert src is not None
                 assert "_org_filter" in src
     assert found
 
@@ -152,3 +153,134 @@ def test_citation_uniqueness_downgrade_is_noop() -> None:
     )
     down = source[source.find("def downgrade") :]
     assert "unique=True" not in down
+
+
+# ---------------------------------------------------------------------------
+# R6-F1 — the baseline must be runnable offline (`alembic upgrade head --sql`)
+# ---------------------------------------------------------------------------
+
+
+def test_baseline_has_offline_path() -> None:
+    baseline = _read("alembic/versions/r6h3_model_baseline.py")
+    assert "context.is_offline_mode()" in baseline
+    # checkfirst=True would introspect the MockConnection and raise.
+    assert "checkfirst=False" in baseline
+    # The deprecated Inspector(bind) constructor is gone.
+    assert "Inspector(" not in baseline
+
+
+# ---------------------------------------------------------------------------
+# R6-F8 — stance_classifications is model-registered and its migrations are
+# guarded in BOTH directions
+# ---------------------------------------------------------------------------
+
+
+def test_stance_classifications_registered_in_metadata() -> None:
+    import sys
+
+    sys.path.insert(0, str(BACKEND_ROOT))
+    import src.models  # noqa: F401
+    from src.models.base import Base
+
+    # src/api/evidence/router.py queries this table; without registration no
+    # provisioning path creates it and every evidence endpoint 500s.
+    assert "stance_classifications" in Base.metadata.tables
+    assert "StanceClassificationModel" in src.models.__all__
+
+
+def test_stance_migrations_guard_downgrade_too() -> None:
+    for rel in (
+        "alembic/versions/evidence_prov_20260816.py",
+        "alembic/versions/add_org_id_to_stance_classifications.py",
+    ):
+        source = _read(rel)
+        down = source[source.find("def downgrade") :]
+        # DROP COLUMN IF EXISTS tolerates a missing column, not a missing
+        # table — the downgrade needs the same to_regclass gate as upgrade().
+        assert "to_regclass" in down, rel
+
+
+# ---------------------------------------------------------------------------
+# R6-F9 — reparented f931599b6b5b must not drop baseline-owned schema
+# ---------------------------------------------------------------------------
+
+
+def test_f931_downgrade_is_noop() -> None:
+    source = _read("alembic/versions/f931599b6b5b_enhance_document_processing.py")
+    down = source[source.find("def downgrade") :]
+    assert "op.drop_table" not in down
+    assert "op.drop_column" not in down
+    assert "op.drop_index" not in down
+
+
+# ---------------------------------------------------------------------------
+# R6-F10/N1/N2/N3 — env.py guard bodies. These only truly execute against live
+# PostgreSQL, so source shape is the honest unit-level assertion.
+# ---------------------------------------------------------------------------
+
+
+def test_drop_index_guard_uses_relation_lookup() -> None:
+    source = _read("alembic/env.py")
+    body = source[
+        source.find("def drop_index(") : source.find("_orig_create_table_hooked")
+    ]
+    # Name-only to_regclass covers a missing table AND an omitted table_name,
+    # both of which the old get_indexes() guard fell through on.
+    assert "to_regclass" in body
+    assert "get_indexes" not in body
+
+
+def test_add_column_guard_handles_missing_table() -> None:
+    source = _read("alembic/env.py")
+    body = source[source.find("def add_column(") : source.find("_orig_drop_column")]
+    assert "has_table(table_name)" in body
+    assert body.find("has_table") < body.find("get_columns")
+
+
+def test_constraint_guards_are_table_scoped() -> None:
+    source = _read("alembic/env.py")
+    assert "r.oid = c.conrelid" in source
+    # Every wrapper has the table in hand and must thread it through.
+    for call in (
+        '_skip_constraint(name, "create_unique_constraint", source)',
+        '_skip_constraint(name, "create_primary_key", source)',
+        '_skip_constraint(name, "create_foreign_key", source)',
+        '_skip_constraint(name, "create_check_constraint", source)',
+        "_constraint_exists(name, table_name)",
+    ):
+        assert call in source, call
+
+
+# ---------------------------------------------------------------------------
+# R6-N4 / R6-N6 — SQL-level correctness of two historical revisions
+# ---------------------------------------------------------------------------
+
+
+def test_uq_documents_guard_is_python_not_do_block() -> None:
+    source = _read("alembic/versions/uq_documents_org_checksum.py")
+    # RETURN inside a DO block exits only the block, so the guard must be in
+    # Python or the later UPDATE / CREATE INDEX still run.
+    assert "DO $$ BEGIN IF to_regclass('documents')" not in source
+    assert 'has_table("documents")' in source
+    assert "context.is_offline_mode()" in source
+
+
+def test_arxiv_trigger_function_is_replaceable() -> None:
+    source = _read("alembic/versions/i9j0k1l2m3n4_add_documents_arxiv_id.py")
+    assert "CREATE OR REPLACE FUNCTION" in source
+
+
+# ---------------------------------------------------------------------------
+# R6-F7 — api_key_usage_log.api_key_id declares the FK the migration installs
+# ---------------------------------------------------------------------------
+
+
+def test_api_key_usage_log_has_foreign_key() -> None:
+    import sys
+
+    sys.path.insert(0, str(BACKEND_ROOT))
+    from src.models.api_key import APIKeyUsageLog
+
+    fks = APIKeyUsageLog.__table__.c.api_key_id.foreign_keys
+    assert fks
+    assert {fk.target_fullname for fk in fks} == {"api_keys.id"}

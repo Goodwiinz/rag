@@ -73,7 +73,7 @@ class CitationGraphService:
         arxiv_id: Optional[str] = None,
         venue: Optional[str] = None,
         is_uploaded: bool = True,
-        organization_id: Optional[str] = None,
+        organization_id: str = "",
         project_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Sync a citation to Neo4j as a :Citation node.
@@ -93,7 +93,15 @@ class CitationGraphService:
 
         Returns:
             Dict with node creation status
+
+        Raises:
+            ValueError: if organization_id is missing (fail closed, mirrors
+                get_citation_graph) — a null-org node is invisible to every
+                org-scoped read and needs a backfill to recover.
         """
+        if not organization_id:
+            raise ValueError("organization_id is required to sync a citation node")
+
         driver = await self._ensure_connected()
 
         query = """
@@ -255,11 +263,14 @@ class CitationGraphService:
                 "limit": limit,
             }
         elif project_id:
-            # For project, we need to match all documents in the project
+            # Strict project scope. The old `OR start.is_uploaded = true`
+            # escape hatch let every uploaded citation in the org into any
+            # project's graph (and, before project_id was stamped, the OR was
+            # the only branch that matched at all).
             match_clause = f"""
             MATCH (start:Citation)
             WHERE {org_scope}
-              AND (start.project_id = $project_id OR start.is_uploaded = true)
+              AND start.project_id = $project_id
             """
             params = {
                 "project_id": str(project_id),
@@ -287,7 +298,8 @@ class CitationGraphService:
         UNWIND nodes as n
         WITH COLLECT(DISTINCT n) as allNodes, relationships
         UNWIND allNodes as node
-        OPTIONAL MATCH (node)<-[incoming:CITES]-()
+        OPTIONAL MATCH (node)<-[incoming:CITES]-(citer:Citation)
+        WHERE citer.organization_id = $organization_id
         WITH node, COUNT(incoming) as citedBy, relationships
         RETURN
             node.citation_id as id,
@@ -310,7 +322,8 @@ class CitationGraphService:
         OPTIONAL MATCH path = (start)-[:CITES*0..{depth}]-(connected:Citation)
         WITH COLLECT(DISTINCT connected) + COLLECT(DISTINCT start) as nodes
         UNWIND nodes as node
-        OPTIONAL MATCH (node)<-[incoming:CITES]-()
+        OPTIONAL MATCH (node)<-[incoming:CITES]-(citer:Citation)
+        WHERE citer.organization_id = $organization_id
         WITH node, COUNT(incoming) as citedBy
         OPTIONAL MATCH (node)-[r:CITES]-(other:Citation)
         WHERE other IN nodes
@@ -604,58 +617,6 @@ class CitationGraphService:
             }
             for i, node in enumerate(nodes)
         ]
-
-    # =========================================================================
-    # Bulk Operations
-    # =========================================================================
-
-    async def sync_project_citations(
-        self, project_id: UUID, citations: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """Bulk sync all citations for a project to Neo4j.
-
-        Args:
-            project_id: The project ID
-            citations: List of citation dicts with metadata
-
-        Returns:
-            Summary of sync operation
-        """
-        synced = 0
-        failed = 0
-
-        for citation in citations:
-            try:
-                await self.sync_citation_to_graph(
-                    citation_id=citation["id"],
-                    document_id=citation.get("document_id"),
-                    title=citation.get("title", "Untitled"),
-                    authors=citation.get("authors"),
-                    year=citation.get("year"),
-                    doi=citation.get("doi"),
-                    arxiv_id=citation.get("arxiv_id"),
-                    venue=citation.get("venue"),
-                    is_uploaded=citation.get("is_uploaded", True),
-                    organization_id=citation.get("organization_id"),
-                    project_id=str(project_id),
-                )
-                synced += 1
-            except Exception as e:
-                logger.error(
-                    "citation_sync_failed",
-                    citation_id=str(citation.get("id")),
-                    error=str(e),
-                )
-                failed += 1
-
-        logger.info(
-            "project_citations_synced",
-            project_id=str(project_id),
-            synced=synced,
-            failed=failed,
-        )
-
-        return {"synced": synced, "failed": failed, "total": len(citations)}
 
     async def delete_citation_node(self, citation_id: UUID) -> bool:
         """Delete a citation node and all its relationships.

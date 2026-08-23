@@ -276,3 +276,10 @@ __all__ += ["APIKey", "APIKeyUsageLog"]
 from .search_feedback import SearchFeedback  # R6-L5
 
 __all__ += ["SearchFeedback"]
+
+# R6-F8: stance_classifications is queried by src/api/evidence/router.py (mounted
+# in src/main.py) but was never imported here, so it stayed out of Base.metadata
+# and no provisioning path — create_all or the model baseline — ever created it.
+from .evidence import StanceClassificationModel, StanceEnum  # noqa: E402
+
+__all__ += ["StanceClassificationModel", "StanceEnum"]

@@ -10,7 +10,7 @@ model; api_key_auth re-exports them for backwards compatibility.
 import secrets
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 
 from .base import Base
 
@@ -44,7 +44,10 @@ class APIKeyUsageLog(Base):
     __tablename__ = "api_key_usage_log"
 
     id = Column(String, primary_key=True, default=lambda: secrets.token_hex(16))
-    api_key_id = Column(String, nullable=False)  # Foreign key to api_keys
+    # R6-F7: the historical add_api_keys_table migration declares this FK, but
+    # it is skipped on fresh databases (the baseline creates the table first),
+    # so the model must declare it too or the two schemas diverge.
+    api_key_id = Column(String, ForeignKey("api_keys.id"), nullable=False)
     endpoint = Column(String(255), nullable=False)  # API endpoint accessed
     method = Column(String(10), nullable=False)  # HTTP method used
     client_ip = Column(String(45), nullable=True)  # Client IP address
