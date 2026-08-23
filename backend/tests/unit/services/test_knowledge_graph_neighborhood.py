@@ -130,7 +130,7 @@ def test_get_neighborhood_scopes_source_document_intermediates() -> None:
     assert {entity.id for entity in response["entities"]} == {"target", "intermediate"}
 
 
-def test_get_neighborhood_prefers_organization_scope_for_intermediate_refetch() -> None:
+def test_get_neighborhood_combines_scopes_for_intermediate_refetch() -> None:
     from src.services.knowledge_graph.knowledge_graph_service import (
         KnowledgeGraphService,
     )
@@ -155,15 +155,21 @@ def test_get_neighborhood_prefers_organization_scope_for_intermediate_refetch() 
             organization_id="org-1",
         )
 
-    traversal_query, traversal_params = session.run.call_args_list[0].args
-    assert "all(n IN nodes(path) WHERE n.organization_id = $organization_id)" in (
-        traversal_query
+    # Both scopes supplied → OR them (matching _two_endpoint_scope) so legacy
+    # NULL-org nodes reachable via source_document_ids stay traversable.
+    combined = (
+        "(n.organization_id = $organization_id"
+        " OR n.source_document_id IN $source_document_ids)"
     )
-    assert "all(n IN nodes(path) WHERE n.source_document_id" not in traversal_query
+    traversal_query, traversal_params = session.run.call_args_list[0].args
+    assert f"all(n IN nodes(path) WHERE {combined})" in traversal_query
     assert traversal_params["organization_id"] == "org-1"
-    assert "source_document_ids" not in traversal_params
+    assert traversal_params["source_document_ids"] == ["doc-legacy"]
 
     refetch_query, refetch_params = session.run.call_args_list[1].args
-    assert "n.organization_id = $organization_id" in refetch_query
-    assert "n.source_document_id" not in refetch_query
-    assert refetch_params == {"ids": ["intermediate"], "organization_id": "org-1"}
+    assert combined in refetch_query
+    assert refetch_params == {
+        "ids": ["intermediate"],
+        "organization_id": "org-1",
+        "source_document_ids": ["doc-legacy"],
+    }
