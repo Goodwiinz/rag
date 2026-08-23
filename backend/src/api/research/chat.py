@@ -253,7 +253,7 @@ def _run_rag_triad_evaluation_sync(
 ) -> None:
     """Run the RAG triad evaluation and link it to the diagnostics trace.
 
-    Purely synchronous (the async service calls are driven via asyncio.run);
+    Synchronous driver (async service calls executed via asyncio.run);
     must be invoked from a worker thread, never on the event loop — the sync
     ORM session blocks while queries run.
     """
@@ -297,6 +297,12 @@ def _run_rag_triad_evaluation_sync(
 
     db = next(get_db_sync())
     try:
+        # Requires sync-only clients in this path: asyncio.run() creates a
+        # fresh loop per call. If DiagnosticsStore ever gets an async redis
+        # client (or any shared AsyncClient enters this chain), pooled
+        # connections will bind to dead loops ("Event loop is closed").
+        # Switch to a persistent background loop before introducing async IO
+        # here.
         asyncio.run(_evaluate_and_link(db))
     finally:
         db.close()

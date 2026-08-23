@@ -31,7 +31,7 @@ def test_background_evaluate_runs_in_worker_thread():
     caller_thread = threading.get_ident()
     seen = {}
 
-    async def fake_evaluation(*args, **kwargs):
+    async def fake_evaluation(evaluation_input, job_id, organization_id, db):
         seen["thread"] = threading.get_ident()
         metrics = MagicMock()
         metrics.answer_relevancy = 0.9
@@ -81,7 +81,7 @@ def test_background_evaluate_swallows_and_logs_exceptions(caplog):
     from src.core import database as database_module
     from src.services.evaluation import rag_evaluation_service as rag_eval_module
 
-    async def failing_evaluation(*args, **kwargs):
+    async def failing_evaluation(evaluation_input, job_id, organization_id, db):
         raise RuntimeError("triad exploded")
 
     def fake_get_db_sync():
@@ -123,7 +123,7 @@ def test_background_evaluate_closes_db_session():
     def fake_get_db_sync():
         yield db_mock
 
-    async def fake_evaluation(*args, **kwargs):
+    async def fake_evaluation(evaluation_input, job_id, organization_id, db):
         metrics = MagicMock()
         metrics.overall_score = 0.5
         return metrics
