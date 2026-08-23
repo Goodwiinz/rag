@@ -555,7 +555,7 @@ async def chat_completions(
 
 
 @router.get("/health")
-async def chat_health_check():
+async def chat_health_check(current_user: User = Depends(get_current_user)):
     """
     Health check for chat service.
     """
@@ -570,7 +570,7 @@ async def chat_health_check():
 
 
 @router.get("/models")
-async def list_available_models():
+async def list_available_models(current_user: User = Depends(get_current_user)):
     """
     List available chat models.
     """
