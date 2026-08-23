@@ -48,3 +48,52 @@ def test_get_does_not_return_entry_set_by_other_organization():
         assert own is not None and own["content"] == "org a answer"
 
     asyncio.run(scenario())
+
+
+def test_semantic_match_is_organization_scoped():
+    """Org-B semantic get must never return an entry set by org-A.
+
+    Both queries resolve to the SAME embedding vector so similarity is
+    maximal — isolation must come purely from the index structure.
+    """
+    from src.services.infrastructure.llm_response_cache import (
+        LLMCacheConfig,
+        LLMResponseCache,
+    )
+
+    class _SameEmbeddingService:
+        def embed(self, text):
+            return [1.0, 0.0, 0.0]
+
+    async def scenario():
+        cache = LLMResponseCache(config=LLMCacheConfig(use_redis=False))
+        cache._embedding_service = _SameEmbeddingService()  # type: ignore[assignment]
+        await cache.set(
+            query="what is retrieval augmented generation",
+            response_content="org a answer",
+            model="gpt-4o",
+            temperature=0.7,
+            organization_id="org-a",
+        )
+        # Near-identical text (different hash → skips exact tier, forces semantic)
+        cross_tenant = await cache.get(
+            query="what is retrieval augmented generation?",
+            model="gpt-4o",
+            temperature=0.7,
+            use_semantic=True,
+            organization_id="org-b",
+        )
+        assert cross_tenant is None
+
+        own_org = await cache.get(
+            query="what is retrieval augmented generation?",
+            model="gpt-4o",
+            temperature=0.7,
+            use_semantic=True,
+            organization_id="org-a",
+        )
+        assert own_org is not None
+        assert own_org["cache_type"] == "semantic"
+        assert own_org["content"] == "org a answer"
+
+    asyncio.run(scenario())

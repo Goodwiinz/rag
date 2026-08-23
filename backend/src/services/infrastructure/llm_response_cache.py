@@ -173,7 +173,8 @@ class LLMResponseCache:
     def __init__(self, config: Optional[LLMCacheConfig] = None):
         self.config = config or LLMCacheConfig()
         self._memory_cache: Dict[str, LLMCacheEntry] = {}
-        self._embedding_index: Dict[str, List[float]] = {}  # hash -> embedding
+        # hash -> (embedding, organization_id); tenant boundary (2026-08-23 audit B1)
+        self._embedding_index: Dict[str, Tuple[List[float], str]] = {}
         self._redis_client = None
         self._embedding_service = None
         self._lock = asyncio.Lock()  # Thread safety for shared mutable state
@@ -292,9 +293,11 @@ class LLMResponseCache:
         return float(dot_product / (norm_a * norm_b))
 
     async def _find_semantic_match(
-        self, query_embedding: List[float]
+        self,
+        query_embedding: List[float],
+        organization_id: str = "",
     ) -> Optional[LLMCacheEntry]:
-        """Find semantically similar cached response."""
+        """Find semantically similar cached response within the same organization."""
         if not query_embedding:
             return None
 
@@ -303,7 +306,12 @@ class LLMResponseCache:
 
         # Search in-memory cache
         comparisons = 0
-        for query_hash, cached_embedding in list(self._embedding_index.items()):
+        for query_hash, indexed in list(self._embedding_index.items()):
+            cached_embedding, owner_org = indexed
+            # Tenant boundary: never match across organizations (audit B1)
+            if owner_org != organization_id:
+                continue
+
             if comparisons >= self.config.max_semantic_comparisons:
                 break
 
@@ -405,7 +413,10 @@ class LLMResponseCache:
                                 # Update memory cache
                                 self._memory_cache[cache_key] = entry
                                 if entry.embedding:
-                                    self._embedding_index[query_hash] = entry.embedding
+                                    self._embedding_index[query_hash] = (
+                                        entry.embedding,
+                                        organization_id,
+                                    )
                                 entry.hit_count += 1
                                 self._stats["exact_hits"] += 1
 
@@ -440,7 +451,9 @@ class LLMResponseCache:
             if use_semantic and self.config.use_semantic_cache:
                 query_embedding = await self._compute_embedding(query)
                 if query_embedding:
-                    semantic_match = await self._find_semantic_match(query_embedding)
+                    semantic_match = await self._find_semantic_match(
+                        query_embedding, organization_id=organization_id
+                    )
                     if semantic_match:
                         # Use lock for thread-safe hit_count increment
                         async with self._lock:
@@ -531,7 +544,7 @@ class LLMResponseCache:
                 # Store in memory
                 self._memory_cache[cache_key] = entry
                 if embedding:
-                    self._embedding_index[query_hash] = embedding
+                    self._embedding_index[query_hash] = (embedding, organization_id)
 
             # Store in Redis
             redis = await self._get_redis()
