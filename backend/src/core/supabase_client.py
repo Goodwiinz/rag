@@ -108,6 +108,11 @@ class StorageHelper:
             )
             raise
 
+    def upload_fileobj(self, fileobj, bucket: str, key: str, content_type: str) -> str:
+        """Upload from a binary stream without full in-memory read."""
+        data = fileobj.read()
+        return self.upload_file(bucket, key, data, content_type)
+
     def download_file(self, bucket: str, key: str) -> bytes:
         """Download a file from Supabase Storage. Returns file bytes."""
         self._log.debug("storage_download_start", bucket=bucket, key=key)
