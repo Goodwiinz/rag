@@ -11,6 +11,7 @@ Includes all non-trivial source files (>= 10 statements) at >= 30% actual
 coverage (floors may be up to 2 points lower due to the fluctuation buffer).
 Floor = int(actual_pct) - 2 for a small fluctuation buffer.
 """
+
 import json
 import sys
 from pathlib import Path
