@@ -11,9 +11,10 @@ prompt, and the LLM node with its grounded-synthesis path.
 """
 
 import asyncio
+import json
 import logging
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph
 
@@ -77,12 +78,48 @@ def _build_writing_system_prompt() -> str:
 @track_node_execution("writing_llm_node")
 async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Writing-specialized LLM node."""
-    from langchain_core.messages import ToolMessage
-
     from src.core.config import get_settings
     from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS
 
     sanitized = _sanitize_messages(state["messages"])
+    if (
+        len(sanitized) >= 2
+        and isinstance(sanitized[-1], ToolMessage)
+        and getattr(sanitized[-1], "status", "success") == "success"
+        and isinstance(sanitized[-2], AIMessage)
+        and len(sanitized[-2].tool_calls) == 1
+    ):
+        tool_message = sanitized[-1]
+        parent = sanitized[-2]
+        create_draft_call = next(
+            (
+                tool_call
+                for tool_call in getattr(parent, "tool_calls", [])
+                if isinstance(tool_call, dict)
+                and tool_call.get("id") == tool_message.tool_call_id
+                and tool_call.get("name") == "create_draft"
+            ),
+            None,
+        )
+        if create_draft_call is not None:
+            try:
+                payload = json.loads(tool_message.content)
+            except (TypeError, json.JSONDecodeError):
+                payload = None
+            if isinstance(payload, dict) and payload.get("status") == "pending":
+                message = payload.get("message")
+                task_id = payload.get("task_id")
+                if isinstance(message, str) and isinstance(task_id, str):
+                    return {
+                        "messages": [
+                            AIMessage(
+                                content=(
+                                    f"{message}\n\nStatus: pending\n"
+                                    f"Task ID: {task_id}"
+                                )
+                            )
+                        ]
+                    }
     messages = [SystemMessage(content=_build_writing_system_prompt())]
     retrieved = state.get("retrieved_contexts", [])
     if retrieved:

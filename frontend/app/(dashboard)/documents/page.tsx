@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import toast from 'react-hot-toast';
 
 /** Mount state can never change again for the life of this store. */
 function _subscribeNever(): () => void {
@@ -105,7 +106,12 @@ export default function DocumentsPage() {
     try {
       await deleteDocument(documentToDelete);
     } catch (err) {
+      // The hook builds a per-file failure reason — surface it (R6-M14)
+      // instead of closing the dialog as if the delete had succeeded.
       console.error('Failed to delete document:', err);
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to delete document'
+      );
     } finally {
       setDocumentToDelete(null);
       setDeleteDialogOpen(false);
@@ -123,6 +129,9 @@ export default function DocumentsPage() {
       await deleteDocuments(Array.from(selectedDocuments));
     } catch (err) {
       console.error('Failed to delete documents:', err);
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to delete documents'
+      );
     } finally {
       setIsBulkDeleting(false);
       setBulkDeleteDialogOpen(false);
@@ -135,6 +144,9 @@ export default function DocumentsPage() {
       await retryDocument(id);
     } catch (err) {
       console.error('Failed to retry document:', err);
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to retry document'
+      );
     }
   };
 

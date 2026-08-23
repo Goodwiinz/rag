@@ -362,20 +362,7 @@ export function useSlashCommands({
           });
           void (async () => {
             try {
-              // api.get() returns the raw body, so getDocuments resolves to
-              // { documents, pagination } directly (its APIResponse<> type
-              // annotation is wrong). Read .documents, not .data.documents.
-              const res = (await documentService.getDocuments(
-                1,
-                10
-              )) as unknown as {
-                documents?: Array<{
-                  id: string;
-                  title?: string;
-                  filename: string;
-                  processing_status?: string;
-                }>;
-              };
+              const res = await documentService.getDocuments(1, 10);
               const docs = res?.documents ?? [];
               const items: CommandOutputItem[] = docs.map((d) => ({
                 key: d.id,

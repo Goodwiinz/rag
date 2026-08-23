@@ -28,6 +28,7 @@ from src.services.agent.graph import (
     INTENT_KEYWORDS,
     INTENT_PRIORITY,
 )
+from src.services.agent.trace_metadata import internal_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -342,7 +343,9 @@ async def classify_intent_llm(
         HumanMessage(content=query),
     ]
 
-    classification: IntentClassification = await chain.ainvoke(messages)
+    classification: IntentClassification = await chain.ainvoke(
+        messages, config=internal_llm_config()
+    )
 
     return ClassificationResult(
         intent=classification.intent,

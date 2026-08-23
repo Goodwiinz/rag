@@ -19,8 +19,8 @@ Changes:
 - Add indexes on arxiv_id, doi, and document_id for fast lookups
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.

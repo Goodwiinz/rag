@@ -30,6 +30,18 @@ export interface RequestConfig extends RequestInit {
   timeout?: number;
 }
 
+/**
+ * Methods safe to auto-retry (R6-M15). A replayed POST that already committed
+ * server-side duplicates the create — so non-idempotent verbs never get the
+ * automatic retry pass. Callers that know a specific mutating endpoint is
+ * idempotent can still opt in via an explicit `retries` count.
+ */
+const IDEMPOTENT_METHODS: ReadonlySet<string> = new Set([
+  'GET',
+  'HEAD',
+  'OPTIONS',
+]);
+
 export interface TypedResponse<T> {
   data: T;
   status: number;
@@ -164,6 +176,13 @@ export class APIClient {
       ...fetchOptions
     } = options;
 
+    // Only idempotent verbs get the automatic retry pass — replaying a
+    // committed POST would duplicate the create (R6-M15). A caller-supplied
+    // `retries` count is an explicit opt-in and bypasses the verb check.
+    const explicitRetries =
+      options.retries !== undefined && options.retries !== null;
+    const method = (fetchOptions.method ?? 'GET').toUpperCase();
+
     const url = endpoint.startsWith('http')
       ? endpoint
       : endpoint.startsWith('/api/')
@@ -216,8 +235,13 @@ export class APIClient {
         });
       }
 
-      // Retry logic for network errors
-      if (retries > 0 && this.isRetryableError(error)) {
+      // Retry logic for network errors — idempotent methods or explicit
+      // opt-in only (R6-M15)
+      if (
+        retries > 0 &&
+        (explicitRetries || IDEMPOTENT_METHODS.has(method)) &&
+        this.isRetryableError(error)
+      ) {
         await this.delay(retryDelay);
         return this.request<T>(endpoint, {
           ...options,

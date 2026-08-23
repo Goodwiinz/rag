@@ -29,12 +29,29 @@ export const DraftGenerationProgress: React.FC<
   DraftGenerationProgressProps
 > = ({ status, onCancel, onComplete }) => {
   const [elapsed, setElapsed] = useState(0);
+  // Cancel may await a network round-trip; track it so the button can't be
+  // double-fired while in flight and rejections aren't unhandled (R6-L13).
+  const [cancelPending, setCancelPending] = useState(false);
 
   useEffect(() => {
     if (status.status === 'completed' && status.draft_id && onComplete) {
-      onComplete(status.draft_id);
+      // onComplete can await follow-up fetches; swallow rejections here — the
+      // parent already logs/refreshes on failure and this effect has no owner.
+      Promise.resolve(onComplete(status.draft_id)).catch((err) => {
+        console.error('DraftGenerationProgress onComplete failed:', err);
+      });
     }
   }, [status.status, status.draft_id, onComplete]);
+
+  const handleCancel = (): void => {
+    if (!onCancel || cancelPending) return;
+    setCancelPending(true);
+    Promise.resolve(onCancel())
+      .catch((err) => {
+        console.error('DraftGenerationProgress onCancel failed:', err);
+      })
+      .finally(() => setCancelPending(false));
+  };
 
   useEffect(() => {
     if (
@@ -93,8 +110,13 @@ export const DraftGenerationProgress: React.FC<
         </div>
 
         {isRunning && onCancel && (
-          <Button variant="outline" size="sm" onClick={onCancel}>
-            Cancel
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCancel}
+            disabled={cancelPending}
+          >
+            {cancelPending ? 'Cancelling…' : 'Cancel'}
           </Button>
         )}
       </div>

@@ -13,7 +13,8 @@ soft-delete, never hard DELETE, since documents own storage objects and
 cascades).
 """
 
-from alembic import op
+import sqlalchemy as sa
+from alembic import context, op
 
 revision = "uq_documents_org_checksum"
 down_revision = "z8a9b0c1d2e3"
@@ -27,10 +28,13 @@ def upgrade() -> None:
     # Soft-delete newer duplicates so the unique index can build. Keep the
     # oldest live row per (org, hash) — that's the one dedup would have 409'd
     # against.
-    # R6-M9 guard: skip cleanly when documents is absent.
-    op.execute(
-        "DO $$ BEGIN IF to_regclass('documents') IS NULL THEN RETURN; END IF; END $$;"
-    )
+    # R6-M9 guard: skip cleanly when documents is absent. RETURN inside a DO
+    # block only exits that block, so the guard has to live in Python. Offline
+    # (--sql) proceeds unconditionally: the baseline's DDL earlier in the same
+    # script creates documents.
+    if not context.is_offline_mode():
+        if not sa.inspect(op.get_bind()).has_table("documents"):
+            return
     op.execute("""
         UPDATE documents d
         SET is_deleted = true, deleted_at = NOW()
