@@ -3,6 +3,7 @@ Chat API endpoints for conversational AI
 Provides chat completion functionality using Azure OpenAI with optional RAG
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -243,6 +244,64 @@ async def retrieve_context(
         return [], None
 
 
+def _run_rag_triad_evaluation_sync(
+    query: str,
+    answer: str,
+    contexts: List[RetrievedContext],
+    trace_id: str,
+    organization_id: str,
+) -> None:
+    """Run the RAG triad evaluation and link it to the diagnostics trace.
+
+    Purely synchronous (the async service calls are driven via asyncio.run);
+    must be invoked from a worker thread, never on the event loop — the sync
+    ORM session blocks while queries run.
+    """
+    from src.core.database import get_db_sync
+    from src.services.diagnostics.diagnostics_store import diagnostics_store
+    from src.services.evaluation.rag_evaluation_service import (
+        RAGEvaluationInput,
+        rag_evaluation_service,
+    )
+
+    evaluation_input = RAGEvaluationInput(
+        query=query,
+        generated_answer=answer,
+        retrieved_context=[ctx.content for ctx in contexts],
+        document_ids=[ctx.document_id for ctx in contexts],
+        search_type="hybrid",
+        metadata={"trace_id": trace_id, "context_count": len(contexts)},
+    )
+
+    async def _evaluate_and_link(db) -> None:
+        metrics = await rag_evaluation_service.run_rag_triad_evaluation(
+            evaluation_input, None, None, db
+        )
+        scores = {
+            "answer_relevancy": metrics.answer_relevancy,
+            "faithfulness": metrics.faithfulness,
+            "contextual_relevancy": metrics.contextual_relevancy,
+            "overall_score": metrics.overall_score,
+            "hallucination_rate": metrics.hallucination_rate,
+        }
+        await diagnostics_store.update_trace_evaluation(
+            trace_id,
+            evaluation_id=f"eval-{trace_id}",
+            scores=scores,
+            organization_id=organization_id,
+        )
+        logger.info(
+            f"Background RAG evaluation completed for trace {trace_id}: "
+            f"overall={metrics.overall_score:.3f}"
+        )
+
+    db = next(get_db_sync())
+    try:
+        asyncio.run(_evaluate_and_link(db))
+    finally:
+        db.close()
+
+
 async def _background_evaluate_rag(
     query: str,
     answer: str,
@@ -252,47 +311,16 @@ async def _background_evaluate_rag(
 ) -> None:
     """Background task: evaluate RAG response quality and link to diagnostics trace."""
     try:
-        from src.services.diagnostics.diagnostics_store import diagnostics_store
-        from src.services.evaluation.rag_evaluation_service import (
-            RAGEvaluationInput,
-            rag_evaluation_service,
+        # Sync DB work must not run inline on the event loop; drive it from a
+        # worker thread (same pattern as ThreadSummarizationService).
+        await asyncio.to_thread(
+            _run_rag_triad_evaluation_sync,
+            query,
+            answer,
+            contexts,
+            trace_id,
+            organization_id,
         )
-
-        evaluation_input = RAGEvaluationInput(
-            query=query,
-            generated_answer=answer,
-            retrieved_context=[ctx.content for ctx in contexts],
-            document_ids=[ctx.document_id for ctx in contexts],
-            search_type="hybrid",
-            metadata={"trace_id": trace_id, "context_count": len(contexts)},
-        )
-
-        from src.core.database import get_db_sync
-
-        db = next(get_db_sync())
-        try:
-            metrics = await rag_evaluation_service.run_rag_triad_evaluation(
-                evaluation_input, None, None, db
-            )
-            scores = {
-                "answer_relevancy": metrics.answer_relevancy,
-                "faithfulness": metrics.faithfulness,
-                "contextual_relevancy": metrics.contextual_relevancy,
-                "overall_score": metrics.overall_score,
-                "hallucination_rate": metrics.hallucination_rate,
-            }
-            await diagnostics_store.update_trace_evaluation(
-                trace_id,
-                evaluation_id=f"eval-{trace_id}",
-                scores=scores,
-                organization_id=organization_id,
-            )
-            logger.info(
-                f"Background RAG evaluation completed for trace {trace_id}: "
-                f"overall={metrics.overall_score:.3f}"
-            )
-        finally:
-            db.close()
     except Exception as e:
         logger.warning(f"Background RAG evaluation failed for trace {trace_id}: {e}")
 
