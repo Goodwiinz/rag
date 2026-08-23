@@ -119,9 +119,18 @@ class TestExtractInsights:
         from src.services.agent.memory_store import extract_insights
 
         messages = [
-            {"role": "user", "content": "I'm researching quantum computing applications in drug discovery."},
-            {"role": "assistant", "content": "That's a fascinating area. Let me find relevant papers on quantum computing for molecular simulation."},
-            {"role": "user", "content": "Focus on papers from 2024. I prefer concise summaries."},
+            {
+                "role": "user",
+                "content": "I'm researching quantum computing applications in drug discovery.",
+            },
+            {
+                "role": "assistant",
+                "content": "That's a fascinating area. Let me find relevant papers on quantum computing for molecular simulation.",
+            },
+            {
+                "role": "user",
+                "content": "Focus on papers from 2024. I prefer concise summaries.",
+            },
         ]
 
         mock_response = MagicMock()
