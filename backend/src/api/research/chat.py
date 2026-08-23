@@ -490,11 +490,14 @@ async def chat_completions(
             cache_query = f"{cache_query}||ctx:{context_ids}"
 
         # Check LLM response cache (only for single-turn or last message caching)
-        # Skip cache for high-temperature (more creative) requests
+        # Skip cache for high-temperature (more creative) requests.
+        # Reads are gated on retrieval_error too (audit B10): entries cached
+        # before the write-skip exist under the context-free key shape, and a
+        # degraded turn must never be answered from the RAG-shaped cache.
         use_cache = request.temperature <= 1.0 and len(request.messages) <= 5
         cached_response = None
 
-        if use_cache:
+        if use_cache and not retrieval_error:
             cached_response = await llm_response_cache.get(
                 query=cache_query,
                 model=request.model,

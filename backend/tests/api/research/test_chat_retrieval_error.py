@@ -22,6 +22,10 @@ from src.api.research.chat import (
     RetrievedContext,
     retrieve_context,
 )
+from src.services.infrastructure.llm_response_cache import (
+    LLMCacheConfig,
+    LLMResponseCache,
+)
 
 
 @pytest.fixture
@@ -147,3 +151,64 @@ async def test_non_rag_turn_unaffected_by_flag(mock_user):
 
     assert response.rag_enabled is False
     assert response.retrieval_error is False
+
+
+@pytest.mark.asyncio
+async def test_degraded_turn_never_serves_poisoned_legacy_cache_entry(mock_user):
+    """A retrieval_error turn must not read the RAG-shaped cache key.
+
+    Entries cached before the write-skip fix exist under the context-free
+    key shape (context-free answers stored as if RAG-backed). If the cache
+    GET still runs on a degraded turn, one of those legacy poison entries
+    gets served as the answer.
+    """
+    POISON = "POISONED legacy answer"
+    cache = LLMResponseCache(
+        LLMCacheConfig(use_redis=False, use_semantic_cache=False)
+    )
+    # Pre-seed under the exact shape the endpoint computes for this turn:
+    # single user message -> query == last_query, no conv/ctx suffix.
+    await cache.set(
+        query="what is rag?",
+        response_content=POISON,
+        model="gpt-4o",
+        temperature=0.7,
+        organization_id="org-1",
+    )
+
+    request = ChatCompletionRequest(
+        messages=[ChatMessage(role="user", content="what is rag?")],
+        use_rag=True,
+    )
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch.object(
+                chat_module.azure_openai_service,
+                "is_chat_available",
+                return_value=True,
+            )
+        )
+        stack.enter_context(
+            patch.object(
+                chat_module.azure_openai_service,
+                "chat_completion",
+                new=AsyncMock(return_value={"content": "degraded answer"}),
+            )
+        )
+        # Real seeded instance: get/set NOT mocked, so a poisoned entry can
+        # actually be served (or not).
+        stack.enter_context(patch.object(chat_module, "llm_response_cache", cache))
+        stack.enter_context(
+            patch.object(
+                chat_module,
+                "retrieve_context",
+                new=AsyncMock(side_effect=RetrievalError("hybrid search down")),
+            )
+        )
+        response = await chat_module.chat_completions(
+            request, BackgroundTasks(), current_user=mock_user
+        )
+
+    # Degraded turn must regenerate fresh, never serve the poison.
+    assert response.retrieval_error is True
+    assert response.message.content != POISON
