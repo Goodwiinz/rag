@@ -123,8 +123,6 @@ async def test_cache_key_join_matches_expected_order(mock_user):
     assert cache_query.endswith("ctx:doc-a|doc-c")
 
 
-@pytest.mark.asyncio
-async def test_old_behavior_raised_type_error():
-    """Guard for the regression itself: None ids made the old join explode."""
-    with pytest.raises(TypeError):
-        "|".join(sorted([c.document_id for c in _contexts()]))
+# Old behavior (pre-B6), documented rather than unit-tested: the inline
+# expression "|".join(sorted([c.document_id for c in contexts])) over raw
+# Optional ids raised TypeError as soon as any document_id was None.

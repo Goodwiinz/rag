@@ -805,7 +805,7 @@ async def generate_suggestions(
         # Infrastructure failures must not masquerade as "no suggestions"
         # (audit B9): surface them so clients can retry, while the JSON
         # parse failure above keeps its genuine empty-suggestions fallback.
-        logger.exception("Suggestions generation failed", extra={"error": str(e)})
+        logger.exception("Suggestions generation failed")
         raise HTTPException(
             status_code=503,
             detail="Suggestions unavailable. Please try again shortly.",

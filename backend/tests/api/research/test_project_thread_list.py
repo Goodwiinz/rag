@@ -70,9 +70,11 @@ async def test_list_filters_soft_deleted_threads_in_sql():
     # Join on Thread + is_deleted exclusion must appear in WHERE (compiling
     # only the whereclause: is_deleted is also in every SELECT column list).
     where_sql = str(stmt.whereclause.compile(dialect=pg.dialect())).lower()
-    assert "is_deleted" in where_sql, (
-        "list_project_threads does not exclude soft-deleted threads in SQL "
-        "(audit B8: unbounded Python-side filtering)"
+    # Qualify with the table name: a bare "is_deleted" match would also pass
+    # if the Thread-side filter regressed to a ProjectThread-side one.
+    assert "threads.is_deleted" in where_sql, (
+        f"list_project_threads does not exclude soft-deleted threads in SQL "
+        f"(audit B8); compiled whereclause: {where_sql}"
     )
     from_sql = str(stmt.compile(dialect=pg.dialect())).lower()
     assert (
