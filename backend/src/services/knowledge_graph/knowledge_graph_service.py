@@ -1704,12 +1704,18 @@ class KnowledgeGraphService:
                 # ANY relationship and unbounded N caused combinatorial fanout
                 # on hub nodes).
                 safe_depth = max(1, min(int(max_depth), 5))
+                # Same OR semantics as _two_endpoint_scope: legacy NULL-org
+                # nodes reachable via source_document_ids must stay traversable
+                # when both scopes are supplied.
+                node_preds: List[str] = []
                 if organization_id is not None:
-                    path_node_predicate = "n.organization_id = $organization_id"
-                elif source_document_ids is not None:
-                    path_node_predicate = "n.source_document_id IN $source_document_ids"
+                    node_preds.append("n.organization_id = $organization_id")
+                if source_document_ids is not None:
+                    node_preds.append("n.source_document_id IN $source_document_ids")
+                if len(node_preds) > 1:
+                    path_node_predicate = "(" + " OR ".join(node_preds) + ")"
                 else:
-                    path_node_predicate = ""
+                    path_node_predicate = "".join(node_preds)
                 node_scope = (
                     "\n              AND all(n IN nodes(path) "
                     f"WHERE {path_node_predicate})"
