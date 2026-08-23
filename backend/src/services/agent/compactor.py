@@ -21,6 +21,7 @@ from langchain_core.runnables import RunnableConfig
 
 from src.services.agent.llm_factory import build_lightweight_llm
 from src.services.agent.state import AgentState
+from src.services.agent.trace_metadata import internal_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -294,7 +295,7 @@ async def compact_messages(
                         SystemMessage(content=_COMPACTION_SYSTEM_PROMPT),
                         HumanMessage(content=original_content),
                     ],
-                    config=config,
+                    config=internal_llm_config(config),
                 )
         except asyncio.CancelledError:
             # User abort / shutdown — propagate, never swallow into a
