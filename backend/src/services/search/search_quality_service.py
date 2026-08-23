@@ -360,6 +360,9 @@ class SearchQualityService:
         rating: int,  # 1-5 scale
         feedback_text: str = None,
         document_id: str = None,
+        organization_id: str = "",
+        query_text: str = None,
+        search_type: SearchType = None,
     ) -> QualityMetric:
         """Record user feedback as a quality metric"""
         # Convert rating to 0-1 scale
@@ -370,28 +373,88 @@ class SearchQualityService:
             value=normalized_rating,
             timestamp=datetime.utcnow(),
             query=query_id,
-            search_type=SearchType.HYBRID,  # Default to hybrid
+            search_type=search_type or SearchType.HYBRID,
             result_count=1,
             user_id=user_id,
             metadata={
                 "rating": rating,
                 "feedback_text": feedback_text,
                 "document_id": document_id,
+                "organization_id": organization_id,
+                "query_text": query_text,
             },
         )
 
-        # Store metric in database
-        self._store_metric(metric)
+        # Persist the rating (R6-L5: this used to only log a line).
+        self._persist_feedback(
+            organization_id=metric.metadata.get("organization_id", ""),
+            user_id=user_id,
+            query_id=query_id,
+            query_text=metric.metadata.get("query_text"),
+            rating=rating,
+            feedback_text=feedback_text,
+            document_id=document_id,
+            search_type=metric.search_type.value if search_type else None,
+        )
         return metric
+
+    def _persist_feedback(
+        self,
+        organization_id: str,
+        user_id: str,
+        query_id: str,
+        rating: int,
+        feedback_text: str = None,
+        document_id: str = None,
+        query_text: str = None,
+        search_type: str = None,
+    ) -> None:
+        """Write the feedback row; DB errors propagate to the caller.
+
+        R6-L5: this used to swallow every exception, so a lost row still
+        answered "Feedback recorded successfully". Honest persistence beats a
+        comfortable lie — feedback submission is user-retryable, so the
+        endpoint's 500 handler is the correct answer to a failed write.
+        """
+        from src.core.database import SessionLocal
+        from src.models.search_feedback import SearchFeedback
+
+        db = SessionLocal()
+        try:
+            db.add(
+                SearchFeedback(
+                    organization_id=organization_id or "",
+                    user_id=user_id,
+                    query_id=str(query_id)[:128],
+                    query_text=query_text,
+                    rating=max(1, min(5, int(rating))),
+                    feedback_text=feedback_text,
+                    document_id=document_id,
+                    search_type=search_type,
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
 
     def get_quality_analytics(
         self, organization_id: str, days: int = 30, search_type: SearchType = None
     ) -> Dict[str, Any]:
-        """Get quality analytics for a specific organization"""
-        try:
-            # This would query a quality_metrics table
-            # For now, return mock analytics
+        """Get quality analytics for a specific organization.
 
+        Real aggregation over persisted feedback — the hardcoded demo
+        numbers are gone, so an empty table honestly reads as zero
+        evaluations (R6-L5 / R2-M16).
+        """
+        try:
+            from datetime import timedelta
+
+            from sqlalchemy import func
+
+            from src.core.database import SessionLocal
+            from src.models.search_feedback import SearchFeedback
+
+            cutoff = datetime.utcnow() - timedelta(days=days)
             analytics = {
                 "period_days": days,
                 "organization_id": organization_id,
@@ -403,27 +466,34 @@ class SearchQualityService:
                 "top_improvements": [],
             }
 
-            # Mock data for demonstration
-            if search_type is None or search_type == SearchType.HYBRID:
-                analytics["total_evaluations"] = 150
-                analytics["average_metrics"] = {
-                    "relevancy": 0.82,
-                    "precision": 0.75,
-                    "recall": 0.68,
-                    "f1_score": 0.71,
-                    "response_time": 1.45,
-                    "result_diversity": 0.73,
-                    "contextual_precision": 0.78,
-                    "user_satisfaction": 0.85,
-                }
-                analytics["threshold_violations"] = [
-                    {"metric": "recall", "current_value": 0.68, "threshold": 0.7}
-                ]
-                analytics["top_improvements"] = [
-                    "Improve recall by expanding document indexing",
-                    "Optimize query understanding for complex questions",
-                    "Enhance result ranking for better relevance",
-                ]
+            db = SessionLocal()
+            try:
+                query = db.query(
+                    func.count(SearchFeedback.id),
+                    func.avg(SearchFeedback.rating),
+                ).filter(
+                    SearchFeedback.organization_id == organization_id,
+                    SearchFeedback.created_at >= cutoff,
+                )
+                if search_type is not None:
+                    # R6-F3d: the filter used to be advertised in the response
+                    # label but never applied.
+                    query = query.filter(
+                        SearchFeedback.search_type == search_type.value
+                    )
+                row = query.one()
+                total = int(row[0] or 0)
+                avg_rating = row[1]
+                analytics["total_evaluations"] = total
+                if total and avg_rating is not None:
+                    # R6-F3c: same 1-5 -> 0-1 map as record_user_feedback;
+                    # /5.0 floored all-one-star at 0.2 instead of 0.0. Exact
+                    # under averaging because the map is linear.
+                    analytics["average_metrics"]["user_satisfaction"] = round(
+                        (float(avg_rating) - 1.0) / 4.0, 3
+                    )
+            finally:
+                db.close()
 
             return analytics
 

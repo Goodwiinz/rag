@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -45,6 +46,9 @@ class UserFeedbackRequest(BaseModel):
     feedback_text: Optional[str] = Field(None, description="Optional feedback text")
     document_id: Optional[str] = Field(
         None, description="Document ID if feedback is specific to a result"
+    )
+    search_type: Optional[SearchType] = Field(
+        None, description="Search type the feedback refers to"
     )
 
 
@@ -167,12 +171,17 @@ async def submit_user_feedback(
     which are used to improve search quality metrics.
     """
     try:
-        metric = search_quality_service.record_user_feedback(
+        # R6-F3a: the service opens a sync session and commits inline —
+        # calling it directly from this async handler blocked the event loop.
+        metric = await run_in_threadpool(
+            search_quality_service.record_user_feedback,
             query_id=request.query_id,
             user_id=str(current_user.id),
             rating=request.rating,
             feedback_text=request.feedback_text,
             document_id=request.document_id,
+            organization_id=str(current_user.organization_id or ""),
+            search_type=request.search_type,
         )
 
         # Log feedback for analytics
@@ -211,7 +220,9 @@ async def get_quality_analytics(
     for the specified time period.
     """
     try:
-        analytics = search_quality_service.get_quality_analytics(
+        # R6-F3a: sync session work — off the event loop.
+        analytics = await run_in_threadpool(
+            search_quality_service.get_quality_analytics,
             organization_id=str(current_user.organization_id),
             days=days,
             search_type=search_type,
@@ -242,14 +253,18 @@ async def run_quality_benchmark(
     provides detailed quality comparisons and recommendations.
     """
     try:
-        # Validate request size
-        if len(request.test_queries) > 50:
+        # R6-M1: a serial multi-query × multi-type benchmark executed inline
+        # pinned the event loop/worker for minutes — any authenticated user
+        # could DoS the whole service. Admin-only + hard-capped + threadpool.
+        if current_user.role.value != "admin":
+            raise HTTPException(status_code=403, detail="Admin access required")
+        if len(request.test_queries) > 10:
             raise HTTPException(
-                status_code=400, detail="Maximum 50 test queries allowed per benchmark"
+                status_code=400, detail="Maximum 10 test queries allowed per benchmark"
             )
 
-        # Run benchmark
-        benchmark_results = search_quality_service.run_quality_benchmark(
+        benchmark_results = await run_in_threadpool(
+            search_quality_service.run_quality_benchmark,
             test_queries=request.test_queries,
             search_types=request.search_types,
             organization_id=str(current_user.organization_id),
@@ -262,17 +277,34 @@ async def run_quality_benchmark(
             for search_type, evaluation in query_results.items():
                 results_data = []
                 for result in evaluation.results:
+                    # R2-M17: several fields are optional on some result
+                    # shapes; getattr fallbacks instead of AttributeError-500
+                    # on any non-empty result set.
+                    doc_type = getattr(result, "document_type", None)
+                    src_type = getattr(result, "source_type", None)
                     results_data.append(
                         {
-                            "document_id": result.document_id,
-                            "title": result.title,
-                            "document_type": result.document_type.value,
-                            "content_preview": result.content_preview,
-                            "relevance_score": result.relevance_score,
-                            "score_breakdown": result.score_breakdown,
-                            "source_type": result.source_type.value,
-                            "highlights": result.highlights,
-                            "metadata": result.metadata,
+                            "document_id": getattr(result, "document_id", None),
+                            "title": getattr(result, "title", "") or "",
+                            "document_type": (
+                                doc_type.value
+                                if hasattr(doc_type, "value")
+                                else (doc_type or "unknown")
+                            ),
+                            "content_preview": getattr(result, "content_preview", "")
+                            or "",
+                            "relevance_score": float(
+                                getattr(result, "relevance_score", 0.0) or 0.0
+                            ),
+                            "score_breakdown": getattr(result, "score_breakdown", {})
+                            or {},
+                            "source_type": (
+                                src_type.value
+                                if hasattr(src_type, "value")
+                                else (src_type or "unknown")
+                            ),
+                            "highlights": list(getattr(result, "highlights", []) or []),
+                            "metadata": dict(getattr(result, "metadata", {}) or {}),
                         }
                     )
 
