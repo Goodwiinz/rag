@@ -28,7 +28,11 @@ interface AuthContextType {
   fetchProfile: () => Promise<void>;
   handleAuthError: () => void;
   // Legacy aliases for backward compatibility
-  login: (email: string, password: string) => Promise<void>;
+  login: (
+    email: string,
+    password: string,
+    rememberMe?: boolean
+  ) => Promise<void>;
   register: (userData: RegisterRequest) => Promise<RegisterResult>;
   // signOut is async; it resolves even when server-side revocation fails (the
   // local session is destroyed either way), so bare `logout()` call sites can

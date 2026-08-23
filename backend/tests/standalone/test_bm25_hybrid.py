@@ -5,12 +5,12 @@ Test BM25 Hybrid Search
 Tests the BM25 service and hybrid search functionality.
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.services.search.bm25_service import bm25_service, SparseVector
+from src.services.search.bm25_service import SparseVector, bm25_service
 
 
 def test_bm25_tokenization():

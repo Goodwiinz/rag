@@ -37,7 +37,7 @@ export const LoginPage: React.FC = () => {
     setError('');
 
     try {
-      await login(formData.email, formData.password); // rememberMe dropped — store API takes 2 args
+      await login(formData.email, formData.password, formData.rememberMe);
       if (formData.downloadCliAuth) {
         try {
           downloadStoredNousCliAuth();
