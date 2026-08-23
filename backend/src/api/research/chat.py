@@ -451,8 +451,13 @@ async def chat_completions(
             cache_query = f"{last_query}||conv:{conversation_context_hash}"
 
         if request.use_rag and retrieved_contexts:
-            # Include context doc IDs to differentiate responses with different context
-            context_ids = "|".join(sorted([c.document_id for c in retrieved_contexts]))
+            # Include context doc IDs to differentiate responses with different
+            # context. document_id is Optional (retrieve_context maps missing
+            # ids to None), so drop id-less contexts instead of feeding None
+            # to sorted() — a TypeError here 500s after retrieval succeeded.
+            context_ids = "|".join(
+                sorted(str(c.document_id) for c in retrieved_contexts if c.document_id)
+            )
             cache_query = f"{cache_query}||ctx:{context_ids}"
 
         # Check LLM response cache (only for single-turn or last message caching)
