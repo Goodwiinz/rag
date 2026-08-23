@@ -16,9 +16,8 @@ Pure unit test — no DB, no storage; the session and storage helper are faked.
 """
 
 import uuid
-from unittest.mock import MagicMock
-
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 

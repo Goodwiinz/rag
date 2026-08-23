@@ -27,6 +27,7 @@ def _clear_qdrant_cache():
     """
     import importlib
     import sys
+
     from src.services.agent import memory_store
 
     memory_store._QDRANT_CLIENT = None
