@@ -186,8 +186,15 @@ export function ChatSurface({
   // KNOW that up front instead of closing on a save nothing will act on.
   const canSubmitEdit = isSessionInteractive && !isBusy;
 
-  const runtimeHydrationPhase =
-    displayedMessages.length > 0 ? 'hydrated' : 'empty';
+  // F2 (chat-bug-hunt 2026-08-23): the runtime key encodes THREAD IDENTITY
+  // ONLY. It used to also encode a hydration phase (`new:empty` →
+  // `new:hydrated`), so the first optimistic message landing on a brand-new
+  // chat flipped the key mid-turn and React unmounted/remounted the whole
+  // ChatRuntimeProvider subtree — dropping composer focus to <body> and
+  // resetting internal runtime state on every new-chat first send.
+  // Thread switches still remount (activeThreadId changes); within one
+  // thread nothing needs a reset — ChatRuntimeProvider is a pure projection
+  // of its props via useExternalStoreRuntime.
 
   // Listen for populate-chat-input events. Follow-up Suggestions send a bare
   // string (replace); the artifact panel's "Cite" sends {text, mode:'append'}
@@ -303,7 +310,7 @@ export function ChatSurface({
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
         <ChatRuntimeProvider
-          key={`${activeThreadId ?? 'new'}:${runtimeHydrationPhase}`}
+          key={activeThreadId ?? 'new'}
           messages={displayedMessages}
           isRunning={isBusy}
           isSendDisabled={!!activeConfirmation || !isSessionInteractive}
