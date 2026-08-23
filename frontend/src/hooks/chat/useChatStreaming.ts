@@ -1747,6 +1747,16 @@ export function useChatStreaming(
               // rejects the card and Approve refuses to act.
               workspaceThreadId: threadId,
               confirmation,
+              // No userRuntimeId/assistantRuntimeId here (unlike the live path):
+              // the SSE confirmation frame carries only {thread_id, confirmation}
+              // — the interrupted turn's ids live in the server-side run ledger,
+              // which this probe never sees. Deriving them from the last
+              // displayed user row is unsafe: legacy rows have no
+              // client_message_id (their runtimeId is the persisted db id, not a
+              // cmid), so a guessed identity could be WRONG, which mis-targets
+              // reconciliation — absence degrades gracefully instead (the
+              // confirm stream's done.client_message_id stays the primary key,
+              // and confirmRuntimeId falls back to crypto.randomUUID()).
             });
             probeAbort.abort();
           },
