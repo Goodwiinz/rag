@@ -71,11 +71,14 @@ async def test_entities_created_counts_only_actual_writes(
     integration = ArXivKnowledgeGraphIntegration()
 
     kg_service = MagicMock()
+    # 4th slot: process_paper_kg_integration now also upserts the paper-title
+    # node before relationship creation (audit R5-M3).
     kg_service.create_entity = MagicMock(
         side_effect=[
             SimpleNamespace(id="e1"),
             RuntimeError("neo4j write failed"),
             SimpleNamespace(id="e3"),
+            SimpleNamespace(id="paper-title"),
         ]
     )
     integration.kg_service = kg_service  # type: ignore[assignment]

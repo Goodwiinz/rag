@@ -162,23 +162,29 @@ def _two_endpoint_scope(
 ) -> tuple[str, Dict[str, Any]]:
     """Scope a relationship/traversal query by BOTH endpoint Entity aliases (#50).
 
-    Prefers the indexed organization_id (org-wide scope, no doc-id list); falls
-    back to the legacy source_document_id IN-list (project scope — entities have
-    no project_id). Returns a fragment with a LEADING "\\n  AND ..." (empty when
-    unscoped) plus the bind params to merge in.
+    Same OR semantics as ``_entity_scope_predicate``: when both scopes are
+    supplied each endpoint matches `org = $org OR source_document_id IN $ids`.
+    Org-exclusive precedence here used to make legacy NULL-org relationships
+    listable (via the OR'ing sibling) but undeletable and untraversable.
+
+    Returns a fragment with a LEADING "\\n  AND ..." (empty when unscoped) plus
+    the bind params to merge in.
     """
+    preds: List[str] = []
+    params: Dict[str, Any] = {}
     if organization_id is not None:
-        frag = (
-            f"\n  AND {alias_a}.organization_id = $organization_id"
-            f"\n  AND {alias_b}.organization_id = $organization_id"
-        )
-        return frag, {"organization_id": organization_id}
+        preds.append("{alias}.organization_id = $organization_id")
+        params["organization_id"] = organization_id
     if source_document_ids is not None:
+        preds.append("{alias}.source_document_id IN $source_document_ids")
+        params["source_document_ids"] = source_document_ids
+    if preds:
+        joined = "(" + " OR ".join(preds) + ")"
         frag = (
-            f"\n  AND {alias_a}.source_document_id IN $source_document_ids"
-            f"\n  AND {alias_b}.source_document_id IN $source_document_ids"
+            f"\n  AND {joined.format(alias=alias_a)}"
+            f"\n  AND {joined.format(alias=alias_b)}"
         )
-        return frag, {"source_document_ids": source_document_ids}
+        return frag, params
     # Neither scope supplied → the traversal spans EVERY organization's
     # entities. Warn loudly (mirrors _entity_scope_predicate) so a dropped
     # tenant scope on a path/neighborhood query is auditable, not silent.
@@ -250,6 +256,9 @@ class KnowledgeGraphService:
         self.uri = settings.NEO4J_URI
         self.user = settings.NEO4J_USER
         self.password = settings.NEO4J_PASSWORD
+        # Explicit database name for queries that need it (dbms.database.details)
+        # — never read the private per-session database attribute.
+        self.database = getattr(settings, "NEO4J_DATABASE", "neo4j") or "neo4j"
         # Re-entrancy guard: _maybe_ensure_schema -> _ensure_schema -> get_session
         # would otherwise recurse back into _maybe_ensure_schema on the same
         # instance. Per-instance flag keeps that nested call a no-op.
@@ -967,7 +976,7 @@ class KnowledgeGraphService:
                 {match_clause}
                 {where_clause}
                 {return_distinct}
-                ORDER BY e.created_at DESC
+                ORDER BY e.created_at DESC, e.id
                 SKIP $offset
                 LIMIT $limit
                 """
@@ -1126,7 +1135,7 @@ class KnowledgeGraphService:
                        r.confidence_score AS confidence,
                        r.source_document_id AS doc_id,
                        r.created_at AS created_at
-                ORDER BY r.created_at DESC
+                ORDER BY r.created_at DESC, rid
                 SKIP $offset
                 LIMIT $limit
                 """
@@ -1625,8 +1634,10 @@ class KnowledgeGraphService:
                 query = f"""
                 MATCH (start:Entity {{id: $entity_id}})
                 MATCH (start)-[r:RELATED_TO*1..{safe_depth}]-(related:Entity)
-                WHERE all(rel in r WHERE coalesce(rel.strength, 1.0) >= $min_strength){tenant_filter}
+                WHERE related.id <> $entity_id
+                  AND all(rel in r WHERE coalesce(rel.strength, 1.0) >= $min_strength){tenant_filter}
                 RETURN DISTINCT related
+                ORDER BY related.id
                 LIMIT $limit
                 """
 
@@ -1693,12 +1704,18 @@ class KnowledgeGraphService:
                 # ANY relationship and unbounded N caused combinatorial fanout
                 # on hub nodes).
                 safe_depth = max(1, min(int(max_depth), 5))
+                # Same OR semantics as _two_endpoint_scope: legacy NULL-org
+                # nodes reachable via source_document_ids must stay traversable
+                # when both scopes are supplied.
+                node_preds: List[str] = []
                 if organization_id is not None:
-                    path_node_predicate = "n.organization_id = $organization_id"
-                elif source_document_ids is not None:
-                    path_node_predicate = "n.source_document_id IN $source_document_ids"
+                    node_preds.append("n.organization_id = $organization_id")
+                if source_document_ids is not None:
+                    node_preds.append("n.source_document_id IN $source_document_ids")
+                if len(node_preds) > 1:
+                    path_node_predicate = "(" + " OR ".join(node_preds) + ")"
                 else:
-                    path_node_predicate = ""
+                    path_node_predicate = "".join(node_preds)
                 node_scope = (
                     "\n              AND all(n IN nodes(path) "
                     f"WHERE {path_node_predicate})"
@@ -1726,6 +1743,7 @@ class KnowledgeGraphService:
                      ] AS path_rels,
                      [n in nodes(shortest_path) | n.id] AS path_node_ids
                 RETURN related, path_rels, path_node_ids
+                ORDER BY length(shortest_path), related.id
                 LIMIT $limit
                 """
 
@@ -2286,20 +2304,25 @@ class KnowledgeGraphService:
         """Get comprehensive graph analytics, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
-                # Build tenant-scoped queries — prefer indexed organization_id
-                # (mirrors _entity_scope_predicate logic), fall back to
-                # source_document_ids when org is unset.
+                # Build tenant-scoped queries. Unlike the traversal helpers this
+                # ANDs the two scopes: a doc-id list here comes from an explicit
+                # ?project_id= filter and must NARROW the org counts, not act as
+                # a fallback (the old elif made the doc-id branch dead, so a
+                # project filter silently returned org-wide counts).
                 params: Dict[str, Any] = {}
+                scope_preds: List[str] = []
                 if organization_id is not None:
-                    entity_where = "WHERE e.organization_id = $organization_id"
-                    rel_where = "WHERE source.organization_id = $organization_id"
+                    scope_preds.append("{alias}.organization_id = $organization_id")
                     params["organization_id"] = organization_id
-                elif source_document_ids is not None:
-                    entity_where = "WHERE e.source_document_id IN $source_document_ids"
-                    rel_where = (
-                        "WHERE source.source_document_id IN $source_document_ids"
+                if source_document_ids is not None:
+                    scope_preds.append(
+                        "{alias}.source_document_id IN $source_document_ids"
                     )
                     params["source_document_ids"] = source_document_ids
+                if scope_preds:
+                    joined = " AND ".join(scope_preds)
+                    entity_where = "WHERE " + joined.format(alias="e")
+                    rel_where = "WHERE " + joined.format(alias="source")
                 else:
                     # No tenant scope at all — counts span every organization.
                     # Log loudly: a None org reaching here means a caller dropped
@@ -2346,12 +2369,11 @@ class KnowledgeGraphService:
 
                 try:
                     # Count isolated vs connected entities as a lightweight proxy
-                    if organization_id is not None:
-                        iso_filter = "AND e.organization_id = $organization_id"
-                    elif source_document_ids is not None:
-                        iso_filter = "AND e.source_document_id IN $source_document_ids"
-                    else:
-                        iso_filter = ""
+                    iso_filter = (
+                        "AND " + " AND ".join(scope_preds).format(alias="e")
+                        if scope_preds
+                        else ""
+                    )
                     iso_result = session.run(
                         f"""
                         MATCH (e:Entity)
@@ -2442,7 +2464,7 @@ class KnowledgeGraphService:
                         CALL dbms.database.details($db_name) YIELD sizeOnDisk
                         RETURN sizeOnDisk
                         """,
-                        db_name=session._database or "neo4j",
+                        db_name=self.database,
                     ).single()
                     if size_result and size_result["sizeOnDisk"]:
                         database_size = str(size_result["sizeOnDisk"])

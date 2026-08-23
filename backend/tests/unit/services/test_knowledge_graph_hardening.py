@@ -410,7 +410,8 @@ class TestEntityScopePredicate:
 @pytest.mark.unit
 class TestTwoEndpointScope:
     """`_two_endpoint_scope` scopes relationship/traversal queries by BOTH endpoint
-    aliases — org-wide prefers indexed organization_id, project falls back to docs."""
+    aliases — same OR semantics as `_entity_scope_predicate`, so legacy NULL-org
+    relationships stay deletable/traversable, not just listable."""
 
     def _fn(self):
         from src.services.knowledge_graph.knowledge_graph_service import (
@@ -427,24 +428,30 @@ class TestTwoEndpointScope:
     def test_org_wide_uses_indexed_equality_on_both_endpoints(self):
         frag, params = self._fn()("start", "related", None, "org-1")
         assert frag == (
-            "\n  AND start.organization_id = $organization_id"
-            "\n  AND related.organization_id = $organization_id"
+            "\n  AND (start.organization_id = $organization_id)"
+            "\n  AND (related.organization_id = $organization_id)"
         )
         assert params == {"organization_id": "org-1"}
 
-    def test_project_falls_back_to_doc_list_on_both_endpoints(self):
+    def test_project_only_uses_doc_list_on_both_endpoints(self):
         frag, params = self._fn()("source", "target", ["d1", "d2"], None)
         assert frag == (
-            "\n  AND source.source_document_id IN $source_document_ids"
-            "\n  AND target.source_document_id IN $source_document_ids"
+            "\n  AND (source.source_document_id IN $source_document_ids)"
+            "\n  AND (target.source_document_id IN $source_document_ids)"
         )
         assert params == {"source_document_ids": ["d1", "d2"]}
 
-    def test_org_takes_precedence_over_docs(self):
+    def test_org_ors_with_docs_when_both_supplied(self):
+        """Org-exclusive precedence here (while the entity sibling OR'd) made
+        legacy NULL-org relationships listable but undeletable/untraversable."""
         frag, params = self._fn()("start", "end", ["d1"], "org-1")
-        assert "organization_id" in frag
-        assert "source_document_id" not in frag
-        assert params == {"organization_id": "org-1"}
+        assert frag == (
+            "\n  AND (start.organization_id = $organization_id"
+            " OR start.source_document_id IN $source_document_ids)"
+            "\n  AND (end.organization_id = $organization_id"
+            " OR end.source_document_id IN $source_document_ids)"
+        )
+        assert params == {"organization_id": "org-1", "source_document_ids": ["d1"]}
 
 
 # ---------------------------------------------------------------------------
