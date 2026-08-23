@@ -46,6 +46,16 @@ class RetrievedContext(BaseModel):
     source: Optional[str] = None
 
 
+class RetrievalError(Exception):
+    """Raised when RAG context retrieval fails on infrastructure grounds.
+
+    Distinguishing a real retrieval failure from a legitimate zero-context
+    result matters: a swallowed failure used to surface as rag_enabled=True
+    with no contexts, and the context-free answer got cached under the RAG
+    cache-key shape (audit B10).
+    """
+
+
 class ChatCompletionRequest(BaseModel):
     """Request for chat completion"""
 
@@ -83,6 +93,10 @@ class ChatCompletionResponse(BaseModel):
     rag_enabled: bool = False
     retrieved_contexts: Optional[List[RetrievedContext]] = None
     diagnostics_trace_id: Optional[str] = None
+    # Additive (audit B10): True when RAG retrieval failed this turn. The
+    # answer is served without context and was NOT written to the LLM cache.
+    # Frontends can ignore it until wired; it defaults to False everywhere.
+    retrieval_error: bool = False
 
 
 RAG_SYSTEM_PROMPT = """You are an AI research assistant with access to a knowledge base of academic papers and documents.
@@ -123,6 +137,11 @@ async def retrieve_context(
     Returns:
         Tuple of (contexts, diagnostics_trace_id).
         diagnostics_trace_id is None if diagnostics storage fails.
+
+    Raises:
+        RetrievalError: when the underlying search infrastructure fails.
+            Callers decide how to degrade; this endpoint must not mistake
+            the failure for a legitimate zero-context result.
     """
     if not organization_id:
         raise ValueError("organization_id is required for RAG retrieval")
@@ -241,7 +260,7 @@ async def retrieve_context(
 
     except Exception as e:
         logger.warning(f"Failed to retrieve context: {str(e)}", exc_info=True)
-        return [], None
+        raise RetrievalError(f"Context retrieval failed: {e}") from e
 
 
 def _run_rag_triad_evaluation_sync(
@@ -381,6 +400,7 @@ async def chat_completions(
 
         retrieved_contexts = []
         diagnostics_trace_id = None
+        retrieval_error = False
 
         # Get the last user message for caching and RAG
         user_messages = [m for m in request.messages if m.role == "user"]
@@ -398,13 +418,22 @@ async def chat_completions(
                     detail="User has no organization; RAG retrieval is unavailable.",
                 )
             if last_query:
-                retrieved_contexts, diagnostics_trace_id = await retrieve_context(
-                    last_query,
-                    request.max_context_docs,
-                    organization_id=str(current_user.organization_id),
-                    user_id=str(current_user.id),
-                )
-                logger.info(f"Retrieved {len(retrieved_contexts)} documents for RAG")
+                try:
+                    retrieved_contexts, diagnostics_trace_id = await retrieve_context(
+                        last_query,
+                        request.max_context_docs,
+                        organization_id=str(current_user.organization_id),
+                        user_id=str(current_user.id),
+                    )
+                    logger.info(
+                        f"Retrieved {len(retrieved_contexts)} documents for RAG"
+                    )
+                except RetrievalError:
+                    # Degrade visibly (audit B10): serve the answer without
+                    # context, flag it, and skip caching this turn so a
+                    # context-free answer can't be poisoned under the RAG
+                    # cache-key shape.
+                    retrieval_error = True
 
         # Build messages list
         messages = []
@@ -529,8 +558,10 @@ async def chat_completions(
             stream=False,
         )
 
-        # Cache the response for future similar queries
-        if use_cache and response.get("content"):
+        # Cache the response for future similar queries. Never cache a turn
+        # whose retrieval failed: the answer was produced without the RAG
+        # context the cache key implies (audit B10).
+        if use_cache and response.get("content") and not retrieval_error:
             # Convert RetrievedContext objects to dicts for serialization
             contexts_for_cache = None
             if retrieved_contexts:
@@ -584,6 +615,7 @@ async def chat_completions(
             rag_enabled=request.use_rag,
             retrieved_contexts=retrieved_contexts if request.use_rag else None,
             diagnostics_trace_id=diagnostics_trace_id,
+            retrieval_error=retrieval_error,
         )
 
     except HTTPException:
