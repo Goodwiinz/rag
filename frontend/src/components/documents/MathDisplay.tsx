@@ -83,7 +83,9 @@ export const MathDisplay: React.FC<MathDisplayProps> = ({
       } catch {
         if (!cancelled) {
           setKatexLoaded(false);
-          setError(false);
+          // Fall back to the raw-LaTeX error branch below; `false` here kept
+          // that branch dead and rendered nothing on failure (R6-L14).
+          setError(true);
         }
       }
     };

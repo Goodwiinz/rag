@@ -231,6 +231,11 @@ export const useDocuments = (
     };
   }, []);
 
+  // Monotonic request token (R6-M16): the 5s poll, debounced filter updates,
+  // and manual refreshes can interleave; a stale response must never commit
+  // over a newer list. Only the latest fetch may setState.
+  const fetchTokenRef = useRef(0);
+
   const fetchDocuments = useCallback(
     async (page?: number, pageSize?: number, filters?: DocumentFilters) => {
       // Check if user is authenticated before making API call
@@ -255,6 +260,10 @@ export const useDocuments = (
         actualFilters = filters ?? prev.filters;
         return { ...prev, loading: true, error: null };
       });
+
+      const requestToken = ++fetchTokenRef.current;
+      const isStale = (): boolean =>
+        fetchTokenRef.current !== requestToken || !mountedRef.current;
 
       try {
         const params: Record<string, string | number> = {
@@ -286,6 +295,7 @@ export const useDocuments = (
         // Check if response has the expected structure
         if (!response) {
           console.error('Empty API response:', response);
+          if (isStale()) return;
           setState((prev) => ({
             ...prev,
             loading: false,
@@ -296,6 +306,7 @@ export const useDocuments = (
 
         if (!response.pagination) {
           console.error('Invalid API response structure:', response);
+          if (isStale()) return;
           setState((prev) => ({
             ...prev,
             loading: false,
@@ -308,6 +319,10 @@ export const useDocuments = (
         const transformedDocuments = (response.documents || []).map(
           transformDocument
         );
+
+        // A newer fetch started (or the component unmounted) while this
+        // request was in flight — drop this result entirely (R6-M16).
+        if (isStale()) return;
 
         setState((prev) => ({
           ...prev,
@@ -338,6 +353,7 @@ export const useDocuments = (
             error.error.status_code === 403
           ) {
             handleAuthError();
+            if (isStale()) return;
             setState((prev) => ({
               ...prev,
               loading: false,
@@ -349,6 +365,7 @@ export const useDocuments = (
           }
 
           // Handle other API errors
+          if (isStale()) return;
           setState((prev) => ({
             ...prev,
             loading: false,
@@ -371,6 +388,7 @@ export const useDocuments = (
 
         if (isAuthError) {
           handleAuthError();
+          if (isStale()) return;
           setState((prev) => ({
             ...prev,
             loading: false,
@@ -379,6 +397,7 @@ export const useDocuments = (
           return;
         }
 
+        if (isStale()) return;
         setState((prev) => ({
           ...prev,
           loading: false,
