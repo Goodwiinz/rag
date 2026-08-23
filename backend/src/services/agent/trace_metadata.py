@@ -8,9 +8,7 @@ MAX_TRACE_METADATA_VALUE_CHARS = 128
 TRACE_SOURCE_METADATA_KEY = "trace_source"
 
 try:  # exported by langsmith >= 0.9; older versions accept the literal key
-    from langsmith import (  # type: ignore[attr-defined]
-        LS_MESSAGE_VIEW_EXCLUDE,
-    )
+    from langsmith import LS_MESSAGE_VIEW_EXCLUDE  # type: ignore[attr-defined]
 except ImportError:  # pragma: no cover - depends on installed langsmith version
     LS_MESSAGE_VIEW_EXCLUDE = "ls_message_view_exclude"
 
