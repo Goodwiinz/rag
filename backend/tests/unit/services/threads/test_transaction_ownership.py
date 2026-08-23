@@ -366,7 +366,8 @@ CHAT_DIRECT_TXN: Dict[str, FrozenSet[str]] = {
     "update_thread": frozenset({"commit"}),
     "delete_thread": frozenset({"commit"}),
     # -- messages flip --
-    "update_message_feedback": frozenset({"commit"}),
+    # R5-M11: flush-only; the route commits after its thread-match check.
+    "update_message_feedback": frozenset({"flush"}),
     "delete_message": frozenset({"commit"}),
 }
 
@@ -375,6 +376,7 @@ CHAT_DIRECT_TXN: Dict[str, FrozenSet[str]] = {
 # move ownership without rewriting these.
 CHAT_PURE_DELEGATES: FrozenSet[str] = frozenset(
     {
+        "_escape_like",
         "get_workspace",
         "list_workspaces",
         "_user_can_access_workspace",

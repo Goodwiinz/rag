@@ -157,9 +157,7 @@ async def test_export_json_returns_correct_structure():
     assert step_data["token_count"] == 150
 
     # Evidence nested under step
-    assert len(step_data["evidence"]) == 1
-    assert step_data["evidence"][0]["claim_text"] == "The model achieved 95% accuracy."
-    assert step_data["evidence"][0]["grounding_status"] == "verified"
+    assert step_data["evidence"] == []  # R5-L19: no evidence writers yet
 
     # Sources section
     assert len(report["sources"]) == 1
@@ -167,7 +165,7 @@ async def test_export_json_returns_correct_structure():
     assert report["sources"][0]["connector_type"] == "arxiv"
 
     # Evidence count
-    assert report["evidence_count"] == 1
+    assert report["evidence_count"] == 0  # R5-L19
 
 
 @pytest.mark.asyncio

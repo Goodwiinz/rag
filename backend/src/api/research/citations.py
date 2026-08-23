@@ -302,6 +302,10 @@ async def list_citations(
             Document.is_public.is_(True),
             Document.uploaded_by_user_id == current_user.id,
             Workspace.owner_id == current_user.id,
+            # R5-L17: orphan citations (neither document nor message) matched
+            # no branch and vanished even from their creator. Creator-only
+            # visibility keeps them reachable without exposing them broadly.
+            and_(Citation.document_id.is_(None), Citation.message_id.is_(None)),
         )
         filtered = (
             select(Citation)

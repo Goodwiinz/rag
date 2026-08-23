@@ -111,15 +111,18 @@ async def test_readd_live_member_still_409s_as_400() -> None:
 async def test_add_brand_new_member_inserts_row() -> None:
     from src.api.threads.workspaces import add_workspace_member
 
-    # workspace_service.add_member issues two SELECTs for a brand-new member:
-    # (1) the existing-row lookup (none found), (2) a re-fetch with `.user`
-    # eager-loaded after insert+commit (db.refresh() would only re-expire a
-    # relationship that was never loaded on a transient object in the first
-    # place — see workspace_service.add_member's docstring).
+    # workspace_service.add_member issues three SELECTs for a brand-new
+    # member: (0) R5-L9 target-user existence check, (1) the existing-row
+    # lookup (none found), (2) a re-fetch with `.user` eager-loaded after
+    # insert+commit.
     new_member = MagicMock(spec=WorkspaceMember)
     db = AsyncMock()
     db.execute = AsyncMock(
-        side_effect=[_execute_returning(None), _execute_returning(new_member)]
+        side_effect=[
+            _execute_returning(uuid4()),  # user exists
+            _execute_returning(None),
+            _execute_returning(new_member),
+        ]
     )
     db.add = MagicMock()
     db.commit = AsyncMock()

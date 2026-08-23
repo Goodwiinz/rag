@@ -68,7 +68,9 @@ export const Settings: React.FC = () => {
                 </label>
                 <p className="mt-1 text-sm text-foreground">
                   {user
-                    ? `${(user.storage_quota_used / 1024 / 1024).toFixed(1)} MB`
+                    user.storage_quota_used >= 1024 ** 3
+                      ? `${(user.storage_quota_used / 1024 ** 3).toFixed(2)} GB` // R6-L24
+                      : `${(user.storage_quota_used / 1024 / 1024).toFixed(1)} MB`
                     : 'N/A'}
                 </p>
               </div>

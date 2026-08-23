@@ -65,6 +65,13 @@ from src.services.threads import (
 logger = logging.getLogger(__name__)
 
 
+
+def _escape_like(value: str) -> str:
+    """Escape LIKE wildcards so search terms match literally (R5-L8)."""
+    return (
+        value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    )
+
 class ChatService:
     """
     Service layer for chat persistence operations.
@@ -896,7 +903,11 @@ class ChatService:
             )
         except PermissionError:
             return None
-        await self.db.commit()
+        # R5-M11: the route rejects cross-thread ids AFTER this method — the
+        # old unconditional commit applied feedback then answered 404.
+        # Flush-only here; the ROUTE commits after its thread-match check.
+        if result is not None and getattr(result, "thread_id", None) is not None:
+            await self.db.flush()
         return result
 
     async def delete_message(self, message_id: UUID, user_id: UUID) -> bool:
@@ -1064,19 +1075,9 @@ class ChatService:
 
         thread = await self.get_thread(thread_id, user_id, include_messages=True)
         if not thread:
-            # Return complete metadata structure matching the full response schema
-            return {
-                "messages": [],
-                "metadata": {
-                    "truncated": False,
-                    "total_tokens": 0,
-                    "max_tokens": effective_max_tokens,
-                    "message_count": 0,
-                    "total_messages": 0,
-                    "usage_ratio": 0.0,
-                    "approaching_limit": False,
-                },
-            }
+            # R5-M10: signal "not found / no access" distinctly so the route
+            # can 404; the old fake empty-context dict made that branch dead.
+            return None
 
         messages = []
         total_tokens = 0
@@ -1139,7 +1140,8 @@ class ChatService:
         if not workspace:
             return []
 
-        search_pattern = f"%{query}%"
+        # R5-L8: literal matching — %/_ no longer wildcard the scan
+        search_pattern = f"%{_escape_like(query)}%"
 
         stmt = (
             select(Conversation)

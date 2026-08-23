@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.models.research_blueprint import ResearchBlueprint
-from src.models.research_evidence import ResearchEvidence
 from src.models.research_run import ResearchRun
 from src.models.research_source import ResearchSource
 from src.models.research_step import ResearchStep
@@ -51,17 +50,11 @@ class ExportService:
                 f"Research run {run_id} is not completed (status: {run.status})"
             )
 
-        # Load evidence for each step
-        step_ids = [step.id for step in run.steps]
-        evidence_list: List[ResearchEvidence] = []
-        if step_ids:
-            ev_stmt = (
-                select(ResearchEvidence)
-                .where(ResearchEvidence.step_id.in_(step_ids))
-                .options(selectinload(ResearchEvidence.source))
-            )
-            ev_result = await db.execute(ev_stmt)
-            evidence_list = list(ev_result.scalars().all())
+        # R5-L19: the evidence model has zero writers anywhere in the codebase
+        # — querying a permanently-empty table and presenting it as an
+        # evidence section was dishonest output. Emit none until writers
+        # exist.
+        evidence_list: list = []
 
         # Build evidence lookup by step_id
         evidence_by_step: Dict[UUID, List[Dict[str, Any]]] = {}
