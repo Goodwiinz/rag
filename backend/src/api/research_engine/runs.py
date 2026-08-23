@@ -420,8 +420,27 @@ async def stream_run(
     }
     total_tokens = run.total_tokens or 0
 
-    # Mark the run as RUNNING before streaming begins
-    run.status = RunStatus.RUNNING.value
+    # R5-M18: claim the transition atomically — the old read-check-write let
+    # two concurrent SSE streams both pass the PENDING check and double-execute
+    # a paid run.
+    from sqlalchemy import update as _sa_update
+
+    claim = await db.execute(
+        _sa_update(ResearchRun)
+        .where(
+            ResearchRun.id == run_id,
+            ResearchRun.status.in_(["pending", "paused"]),
+        )
+        .values(status=RunStatus.RUNNING.value)
+    )
+    if claim.rowcount == 0:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Run was just claimed by another stream",
+        )
+    await db.commit()
+    await db.refresh(run)
     run.started_at = run.started_at or datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(run)
@@ -430,6 +449,25 @@ async def stream_run(
         """Yield SSE-formatted events from the workflow engine."""
         nonlocal total_tokens
         executor = StepExecutor(providers=providers, connectors=connectors)
+        # R5-M19: rehydrate accumulated step outputs so resumed/synthesize
+        # steps see everything earlier steps produced instead of starting
+        # from bare blueprint parameters.
+        prior_outputs: dict = {}
+        history = (
+            (
+                await db.execute(
+                    select(ResearchStep)
+                    .where(ResearchStep.run_id == run_id)
+                    .order_by(ResearchStep.step_index.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for done_step in history:
+            if isinstance(done_step.output, dict):
+                prior_outputs.update(done_step.output)
+
         engine = WorkflowEngine(step_executor=executor)
 
         try:
@@ -437,6 +475,7 @@ async def stream_run(
                 blueprint=blueprint_dict,
                 run_id=run_id,
                 start_from_step=start_from,
+                initial_context=prior_outputs,
             ):
                 event_type = event.get("event")
                 await db.refresh(run)

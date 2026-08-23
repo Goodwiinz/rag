@@ -389,7 +389,11 @@ async def _sweep_stale_agent_runs(*, lease_owner: str) -> dict:
                     )
                     continue
 
-                error = (
+                # R2-M13: preserve any real terminal error the run recorded
+                # before it went quiet instead of overwriting it with the
+                # generic swept-as-stale line.
+                prior_error = (job or {}).get("error")
+                error = prior_error or (
                     f"Swept as stale: status '{status.value}' with no progress "
                     "since "
                     f"{listed_updated_at.isoformat() if listed_updated_at else 'unknown'}"

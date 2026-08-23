@@ -104,6 +104,10 @@ class ThreadSummarizationService:
                 self._redis_client = redis.Redis.from_url(
                     settings.REDIS_URL or "redis://localhost:6379/0",
                     decode_responses=True,
+                    # R2-L8: unbounded socket waits pinned a Celery slot for
+                    # as long as Redis stayed dark.
+                    socket_connect_timeout=2,
+                    socket_timeout=2,
                 )
             except Exception as e:
                 logger.warning(f"Failed to connect to Redis: {e}")
@@ -147,7 +151,11 @@ class ThreadSummarizationService:
                 logger.warning(f"Failed to set rate limit: {e}")
 
     def _format_messages_for_prompt(
-        self, messages: list[ChatMessage], max_chars: int = 2000
+        self,
+        messages: list[ChatMessage],
+        max_chars: int = 2000,
+        *,
+        recent_window: int = 40,
     ) -> str:
         """
         Format messages for the summary prompt.
@@ -159,10 +167,15 @@ class ThreadSummarizationService:
         Returns:
             Formatted message string
         """
+        if len(messages) > recent_window:
+            # R2-M11: recent turns carry the live context; the old loop walked
+            # ascending and summarized only a thread's OPENING turns.
+            messages = messages[-recent_window:]
+
         formatted = []
         total_chars = 0
 
-        for msg in messages:
+        for msg in reversed(messages):
             role = "User" if msg.role == MessageRole.USER else "Assistant"
             content = msg.content or ""
 
@@ -178,7 +191,7 @@ class ThreadSummarizationService:
             formatted.append(line)
             total_chars += len(line) + 1  # +1 for newline
 
-        return "\n".join(formatted)
+        return "\n".join(reversed(formatted))  # chronological order restored
 
     async def generate_summary(
         self, thread_id: UUID, force: bool = False, timeout: float = 10.0
@@ -250,8 +263,12 @@ class ThreadSummarizationService:
 
         except asyncio.TimeoutError:
             logger.warning(f"Summary generation timed out for thread {thread_id}")
+            fallback = self._generate_fallback_summary(messages)
+            # R2-L7: persist — callers previously got a string never stored,
+            # so every following turn regenerated and re-paid.
+            self._update_thread_summary(thread, fallback)
             self._set_rate_limit(thread_id)
-            return self._generate_fallback_summary(messages)
+            return fallback
         except Exception as e:
             logger.error(f"Summary generation failed for thread {thread_id}: {e}")
             return None
@@ -269,35 +286,36 @@ class ThreadSummarizationService:
         try:
             import openai
 
-            client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            async with openai.AsyncOpenAI(
+                api_key=settings.OPENAI_API_KEY
+            ) as client:  # R2-L14: close per-call client
+                response = await asyncio.wait_for(
+                    client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are a helpful assistant that creates concise conversation summaries.",
+                            },
+                            {
+                                "role": "user",
+                                "content": SUMMARY_GENERATION_PROMPT.format(
+                                    messages=messages_text
+                                ),
+                            },
+                        ],
+                        max_tokens=100,
+                        temperature=0.3,
+                    ),
+                    timeout=timeout,
+                )
 
-            response = await asyncio.wait_for(
-                client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a helpful assistant that creates concise conversation summaries.",
-                        },
-                        {
-                            "role": "user",
-                            "content": SUMMARY_GENERATION_PROMPT.format(
-                                messages=messages_text
-                            ),
-                        },
-                    ],
-                    max_tokens=100,
-                    temperature=0.3,
-                ),
-                timeout=timeout,
-            )
+                if not response.choices or not response.choices[0].message.content:
+                    logger.warning("OpenAI returned empty response")
+                    return None
 
-            if not response.choices or not response.choices[0].message.content:
-                logger.warning("OpenAI returned empty response")
-                return None
-
-            summary = response.choices[0].message.content.strip()
-            return self._clean_summary(summary)
+                summary = response.choices[0].message.content.strip()
+                return self._clean_summary(summary)
 
         except ImportError:
             logger.debug("OpenAI package not installed")
@@ -310,30 +328,31 @@ class ThreadSummarizationService:
         try:
             import anthropic
 
-            client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+            async with anthropic.AsyncAnthropic(
+                api_key=settings.ANTHROPIC_API_KEY
+            ) as client:  # R2-L14: close per-call client
+                response = await asyncio.wait_for(
+                    client.messages.create(
+                        model="claude-3-haiku-20240307",
+                        max_tokens=100,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": SUMMARY_GENERATION_PROMPT.format(
+                                    messages=messages_text
+                                ),
+                            }
+                        ],
+                    ),
+                    timeout=timeout,
+                )
 
-            response = await asyncio.wait_for(
-                client.messages.create(
-                    model="claude-3-haiku-20240307",
-                    max_tokens=100,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": SUMMARY_GENERATION_PROMPT.format(
-                                messages=messages_text
-                            ),
-                        }
-                    ],
-                ),
-                timeout=timeout,
-            )
+                if not response.content or not response.content[0].text:
+                    logger.warning("Anthropic returned empty response")
+                    return None
 
-            if not response.content or not response.content[0].text:
-                logger.warning("Anthropic returned empty response")
-                return None
-
-            summary = response.content[0].text.strip()
-            return self._clean_summary(summary)
+                summary = response.content[0].text.strip()
+                return self._clean_summary(summary)
 
         except ImportError:
             logger.debug("Anthropic package not installed")

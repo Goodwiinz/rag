@@ -434,98 +434,133 @@ async def trigger_extraction(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="No OpenAI or Azure OpenAI API key configured.",
         )
-    extracted_count = 0
 
-    for doc_id in request.document_ids:
-        # Scope the fetch to the matrix's project (already verified as the
-        # caller's above). Without the collection join a client document_ids
-        # list could pull in another org's documents and exfiltrate their
-        # content_text into extraction cells (cross-tenant read). Mirrors the
-        # safe create_matrix auto-extract path, which derives ids from the
-        # project's collection_documents.
-        doc_result = await db.execute(_scoped_document_query(doc_id, matrix.project_id))
-        document = doc_result.scalar_one_or_none()
-        if not document or not document.content_text:
-            logger.warning(
-                "extraction_skip_no_text",
-                document_id=str(doc_id),
-            )
-            continue
+    # R5-M23/R5-L16: the LLM loop ran INLINE — a large matrix pinned the
+    # request for tens of minutes and client retries re-paid the spend.
+    # Offload to a tracked background task; 202 now tells the truth.
+    if len(request.document_ids) > 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum 10 documents per extraction batch",
+        )
 
-        # Truncate to ~12k chars to fit context window
-        doc_text = document.content_text[:12000]
-
-        prompt = extraction_service._build_extraction_prompt(matrix.columns, doc_text)
-
-        try:
-            response = await client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                max_tokens=2000,
-            )
-            raw_json = response.choices[0].message.content or ""
-            logger.info(
-                "extraction_llm_response",
-                document_id=str(doc_id),
-                raw_preview=raw_json[:500],
-            )
-            parsed = extraction_service._parse_extraction_result(
-                raw_json, matrix.columns
-            )
-        except Exception as e:
-            logger.error(
-                "extraction_llm_failed",
-                document_id=str(doc_id),
-                error=str(e),
-            )
-            continue
-
-        # Upsert cells
-        for col_name, cell_data in parsed.items():
-            existing = await db.execute(
-                select(ExtractionCell).where(
-                    and_(
-                        ExtractionCell.matrix_id == matrix_id,
-                        ExtractionCell.document_id == doc_id,
-                        ExtractionCell.column_name == col_name,
-                    )
-                )
-            )
-            existing_cell = existing.scalar_one_or_none()
-
-            if existing_cell:
-                existing_cell.value = cell_data.get("value")
-                existing_cell.citation_snippet = cell_data.get("citation")
-                existing_cell.confidence = 0.8
-            else:
-                db.add(
-                    ExtractionCell(
-                        matrix_id=matrix_id,
-                        document_id=doc_id,
-                        column_name=col_name,
-                        value=cell_data.get("value"),
-                        citation_snippet=cell_data.get("citation"),
-                        confidence=0.8,
-                    )
-                )
-
-        extracted_count += 1
-
-    await db.commit()
-
-    logger.info(
-        "extraction_complete",
-        matrix_id=str(matrix_id),
-        extracted_count=extracted_count,
+    task_id = str(uuid.uuid4())
+    ExtractionMatrixService.set_extraction_status(
+        task_id,
+        {
+            "matrix_id": str(matrix_id),
+            "status": "running",
+            "extracted": 0,
+            "total": len(request.document_ids),
+        },
     )
+    task = asyncio.create_task(
+        _run_extraction_background(
+            task_id=task_id,
+            matrix=matrix,
+            document_ids=list(request.document_ids),
+            client=client,
+            model=model,
+        )
+    )
+    # R5-L16: strong ref — an unreferenced task is GC-eligible mid-run.
+    _EXTRACTION_TASKS.add(task)
+    task.add_done_callback(_EXTRACTION_TASKS.discard)
 
     return {
+        "task_id": task_id,
         "matrix_id": str(matrix_id),
-        "document_ids": [str(d) for d in request.document_ids],
-        "status": "completed",
-        "message": f"Extraction completed for {extracted_count} document(s)",
+        "status": "accepted",
+        "message": f"Extraction started for {len(request.document_ids)} document(s)",
     }
+
+
+_EXTRACTION_TASKS: set = set()
+
+
+async def _run_extraction_background(
+    task_id: str,
+    matrix: ExtractionMatrix,
+    document_ids: list,
+    client,
+    model: str,
+) -> None:
+    """Background worker for trigger_extraction (R5-M23)."""
+    from src.core.database import AsyncSessionLocal
+
+    extraction_service = ExtractionMatrixService()
+    extracted_count = 0
+    try:
+        async with AsyncSessionLocal() as bg_db:
+            for doc_id in document_ids:
+                doc_result = await bg_db.execute(
+                    _scoped_document_query(doc_id, matrix.project_id)
+                )
+                document = doc_result.scalar_one_or_none()
+                if not document or not document.content_text:
+                    continue
+                prompt = extraction_service._build_extraction_prompt(
+                    matrix.columns, document.content_text[:12000]
+                )
+                try:
+                    response = await client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.1,
+                        max_tokens=2000,
+                    )
+                    raw_json = response.choices[0].message.content or ""
+                    parsed = extraction_service._parse_extraction_result(
+                        raw_json, matrix.columns
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "extraction_llm_failed",
+                        document_id=str(doc_id),
+                        error=str(exc),
+                    )
+                    continue
+
+                for col_name, cell_data in parsed.items():
+                    existing = await bg_db.execute(
+                        select(ExtractionCell).where(
+                            and_(
+                                ExtractionCell.matrix_id == matrix.id,
+                                ExtractionCell.document_id == doc_id,
+                                ExtractionCell.column_name == col_name,
+                            )
+                        )
+                    )
+                    cell = existing.scalar_one_or_none()
+                    if cell:
+                        cell.value = cell_data.get("value")
+                        cell.citation_snippet = cell_data.get("citation")
+                        cell.confidence = 0.8
+                    else:
+                        bg_db.add(
+                            ExtractionCell(
+                                matrix_id=matrix.id,
+                                document_id=doc_id,
+                                column_name=col_name,
+                                value=cell_data.get("value"),
+                                citation_snippet=cell_data.get("citation"),
+                                confidence=0.8,
+                            )
+                        )
+                extracted_count += 1
+                ExtractionMatrixService.set_extraction_status(
+                    task_id,
+                    {"status": "running", "extracted": extracted_count},
+                )
+            await bg_db.commit()
+        ExtractionMatrixService.set_extraction_status(
+            task_id, {"status": "completed", "extracted": extracted_count}
+        )
+    except Exception as exc:
+        logger.exception("background extraction failed")
+        ExtractionMatrixService.set_extraction_status(
+            task_id, {"status": "failed", "error": str(exc)}
+        )
 
 
 # ============================================================================

@@ -164,35 +164,6 @@ class BM25Service:
             return 1.0
         return math.log((self.doc_count - doc_freq + 0.5) / (doc_freq + 0.5) + 1)
 
-    def update_statistics(self, documents: List[str]):
-        """
-        Update corpus statistics for IDF calculation.
-        Call this during indexing to build proper IDF values.
-        """
-        total_length = 0
-
-        for doc in documents:
-            tokens = self.tokenize(doc)
-            total_length += len(tokens)
-            self.doc_count += 1
-
-            # Count unique terms per document
-            unique_terms = set(self._hash_token(t) for t in tokens)
-            for term_hash in unique_terms:
-                self.doc_freqs[term_hash] = self.doc_freqs.get(term_hash, 0) + 1
-
-        # Update average document length
-        if self.doc_count > 0:
-            self.avg_doc_length = total_length / self.doc_count
-
-        # Update IDF cache
-        for term_hash, doc_freq in self.doc_freqs.items():
-            self.idf_cache[term_hash] = self._compute_idf(doc_freq)
-
-        logger.info(
-            f"Updated BM25 stats: {self.doc_count} docs, avg_len={self.avg_doc_length:.1f}"
-        )
-
     def encode(self, text: str, is_query: bool = False) -> SparseVector:
         """
         Encode text to sparse BM25 vector.

@@ -39,6 +39,8 @@ class DraftGenerationStatus:
 
 
 # In-memory store for generation status (would use Redis in production)
+# R2-L2: bounded — unbounded growth leaked one entry per generation forever.
+_GENERATION_STATUS_MAX = 500
 _generation_status: Dict[str, Dict[str, Any]] = {}
 _draft_metrics_initialized = False
 _draft_metrics_disabled = False
@@ -664,6 +666,10 @@ Key takeaways include the importance of continued investigation and the potentia
         seen = set()
         for match in matches:
             doc_idx = int(match) - 1
+            # R2-L3: [Doc 0] is a model off-by-one — skip it instead of
+            # wrapping around to the last document.
+            if doc_idx < 0:
+                continue
             if doc_idx < len(documents) and doc_idx not in seen:
                 seen.add(doc_idx)
                 doc = documents[doc_idx]
@@ -688,7 +694,15 @@ Key takeaways include the importance of continued investigation and the potentia
     ) -> None:
         """Update generation status"""
         if task_id in _generation_status:
-            _generation_status[task_id].update(
+            current = _generation_status[task_id]
+            # R2-M3: CANCELLED is terminal — a still-running loop must not
+            # resurrect its own status bar (and must stop doing paid work).
+            # Callers pass either the enum or its .value; normalize.
+            cur_status = str(current.get("status"))
+            new_status = status.value if hasattr(status, "value") else str(status)
+            if cur_status == "cancelled" and new_status != "cancelled":
+                raise asyncio.CancelledError("generation cancelled by user")
+            current.update(
                 {
                     "status": status,
                     "progress": progress,
@@ -697,6 +711,12 @@ Key takeaways include the importance of continued investigation and the potentia
                     **extra,
                 }
             )
+            while len(_generation_status) > _GENERATION_STATUS_MAX:
+                oldest = min(
+                    _generation_status,
+                    key=lambda k: _generation_status[k].get("updated_at", ""),
+                )
+                _generation_status.pop(oldest)
 
     @staticmethod
     def get_status(task_id: str) -> Optional[Dict[str, Any]]:
@@ -899,8 +919,23 @@ Key takeaways include the importance of continued investigation and the potentia
         if not draft:
             return False
 
+        was_current = draft.is_current
         await self.db.delete(draft)
         await self.db.commit()
+
+        # R2-L5: leaving zero current drafts broke every current_only reader.
+        if was_current:
+            next_draft = (
+                await self.db.execute(
+                    select(GeneratedDraft)
+                    .where(GeneratedDraft.project_id == project_id)
+                    .order_by(GeneratedDraft.version.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if next_draft:
+                next_draft.is_current = True
+                await self.db.commit()
         return True
 
     async def get_draft_citations(
