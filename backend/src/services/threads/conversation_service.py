@@ -40,12 +40,10 @@ from src.schemas.chat import ConversationCreate, ConversationUpdate
 from src.services.threads import workspace_access
 
 
-
 def _escape_like(value: str) -> str:
     """Escape LIKE wildcards so search terms match literally (R5-L8)."""
-    return (
-        value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    )
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
 
 async def create_conversation(
     db: AsyncSession, data: ConversationCreate, user_id: UUID

@@ -1088,9 +1088,7 @@ Key takeaways include the importance of continued investigation and the potentia
         """R6-L8: escape characters that could start LaTeX commands."""
         import re as _re
 
-        return _re.sub(
-            r"([\\{}$&%#^_~])", r"\\\1", text
-        )
+        return _re.sub(r"([\\{}$&%#^_~])", r"\\\1", text)
 
     def _convert_to_latex(self, markdown_content: str) -> str:
         """Convert markdown to LaTeX"""
