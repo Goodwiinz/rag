@@ -62,8 +62,15 @@ def test_semantic_match_is_organization_scoped():
     )
 
     class _SameEmbeddingService:
-        def embed(self, text):
-            return [1.0, 0.0, 0.0]
+        async def generate_embedding(self, request):
+            from src.models.vector import EmbeddingResponse
+
+            return EmbeddingResponse(
+                embedding=[1.0, 0.0, 0.0],
+                model="test",
+                dimension=3,
+                processing_time=0.0,
+            )
 
     async def scenario():
         cache = LLMResponseCache(config=LLMCacheConfig(use_redis=False))
@@ -95,5 +102,38 @@ def test_semantic_match_is_organization_scoped():
         assert own_org is not None
         assert own_org["cache_type"] == "semantic"
         assert own_org["content"] == "org a answer"
+
+    asyncio.run(scenario())
+
+
+def test_compute_embedding_uses_generate_embedding():
+    """_compute_embedding must call the real EmbeddingService API.
+
+    EmbeddingService has no embed() — only async generate_embedding(
+    EmbeddingRequest). Calling a missing method raised AttributeError,
+    was swallowed, and permanently disabled the semantic tier.
+    """
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from src.services.infrastructure.llm_response_cache import (
+        LLMCacheConfig,
+        LLMResponseCache,
+    )
+
+    async def scenario():
+        cache = LLMResponseCache(config=LLMCacheConfig(use_redis=False))
+        fake_service = MagicMock()
+        fake_service.generate_embedding = AsyncMock(
+            return_value=MagicMock(embedding=[0.1, 0.2])
+        )
+        with patch.object(
+            cache, "_get_embedding_service", AsyncMock(return_value=fake_service)
+        ):
+            vec = await cache._compute_embedding("hello")
+        assert vec == [0.1, 0.2]
+        fake_service.generate_embedding.assert_awaited_once()
+        # request arg carries the text
+        args = fake_service.generate_embedding.await_args
+        assert args.args[0].text == "hello"
 
     asyncio.run(scenario())

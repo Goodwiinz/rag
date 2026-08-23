@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from src.core.config import settings
+from src.models.vector import EmbeddingRequest
 
 logger = logging.getLogger(__name__)
 
@@ -269,11 +270,10 @@ class LLMResponseCache:
             return None
 
         try:
-            # Use the embed method which returns numpy array
-            embedding = embedding_service.embed(text)
-            if isinstance(embedding, np.ndarray):
-                return embedding.tolist()
-            return embedding
+            embedding_response = await embedding_service.generate_embedding(
+                EmbeddingRequest(text=text)
+            )
+            return list(embedding_response.embedding)
         except Exception as e:
             logger.warning(f"Failed to compute embedding: {e}")
             return None
