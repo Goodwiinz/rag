@@ -432,6 +432,7 @@ async def chat_completions(
                 model=request.model,
                 temperature=request.temperature,
                 use_semantic=not request.use_rag,  # Disable semantic for RAG (context-dependent)
+                organization_id=str(current_user.organization_id or ""),
             )
 
         if cached_response:
@@ -518,6 +519,7 @@ async def chat_completions(
                     ),
                 },
                 retrieved_contexts=contexts_for_cache,
+                organization_id=str(current_user.organization_id or ""),
             )
 
         # Trigger background RAG evaluation if RAG was used

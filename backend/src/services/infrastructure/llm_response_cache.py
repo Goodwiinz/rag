@@ -230,7 +230,13 @@ class LLMResponseCache:
 
         return self._embedding_service
 
-    def _generate_query_hash(self, query: str, model: str, temperature: float) -> str:
+    def _generate_query_hash(
+        self,
+        query: str,
+        model: str,
+        temperature: float,
+        organization_id: str = "",
+    ) -> str:
         """Generate a hash key for exact matching."""
         # Normalize query
         normalized = query.lower().strip()
@@ -240,6 +246,9 @@ class LLMResponseCache:
             "query": normalized,
             "model": model,
             "temperature": round(temperature, 2),
+            # Tenant boundary: identical queries in different orgs must never
+            # share an entry (2026-08-23 audit B1).
+            "organization_id": organization_id,
         }
 
         hash_input = json.dumps(components, sort_keys=True)
@@ -325,6 +334,7 @@ class LLMResponseCache:
         model: str = "gpt-4o-mini",
         temperature: float = 0.7,
         use_semantic: bool = True,
+        organization_id: str = "",
     ) -> Optional[Dict[str, Any]]:
         """
         Get cached LLM response.
@@ -334,6 +344,7 @@ class LLMResponseCache:
             model: Model name/ID
             temperature: Sampling temperature
             use_semantic: Whether to use semantic similarity matching
+            organization_id: Tenant scope; entries are never shared across orgs
 
         Returns:
             Cached response dict or None if not found
@@ -344,7 +355,9 @@ class LLMResponseCache:
 
         try:
             # Generate hash for exact matching
-            query_hash = self._generate_query_hash(query, model, temperature)
+            query_hash = self._generate_query_hash(
+                query, model, temperature, organization_id=organization_id
+            )
             cache_key = self._generate_cache_key(query_hash)
 
             # Try exact match in memory first
@@ -461,6 +474,7 @@ class LLMResponseCache:
         ttl: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
         retrieved_contexts: Optional[List[Dict[str, Any]]] = None,
+        organization_id: str = "",
     ) -> bool:
         """
         Cache an LLM response.
@@ -474,6 +488,7 @@ class LLMResponseCache:
             ttl: Time-to-live in seconds
             metadata: Additional metadata to store
             retrieved_contexts: RAG contexts used to generate the response (for consistency)
+            organization_id: Tenant scope; entries are never shared across orgs
 
         Returns:
             True if cached successfully
@@ -483,7 +498,9 @@ class LLMResponseCache:
             return False
 
         try:
-            query_hash = self._generate_query_hash(query, model, temperature)
+            query_hash = self._generate_query_hash(
+                query, model, temperature, organization_id=organization_id
+            )
             cache_key = self._generate_cache_key(query_hash)
             effective_ttl = ttl or self.config.default_ttl
 
