@@ -564,6 +564,8 @@ class FileService:
                 document.file_path,
             )
 
+            document.checksum_sha256 = file_hash
+
             # Add file hash as metadata
             document.add_metadata("file_hash", file_hash)
             document.add_metadata("original_filename", file.filename)
