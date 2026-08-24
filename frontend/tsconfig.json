@@ -92,7 +92,6 @@
     "src/components/ui/shadcn-io/**/*",
     "src/lib/analytics.ts",
     "src/lib/thread-hooks.ts",
-    "src/page-components/**/*",
     "src/services/analytics/**/*",
     "src/services/graphAnalyticsService.ts",
     "src/services/graphService.ts",

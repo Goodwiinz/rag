@@ -31,8 +31,12 @@ backend:
 
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
+    # R5-M34 + review: 'latest' + IfNotPresent served a stale cached image
+    # whenever the CI override was missed. Always forces a registry check so a
+    # restart/scale-out can never resurrect an old local layer; CI still pins
+    # immutable SHAs via --set backend.image.tag=<sha> on every deploy.
     tag: "latest"  # overridden by CI via --set backend.image.tag=<sha>
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 
   service:
     type: ClusterIP
@@ -251,15 +255,17 @@ neo4j:
   persistence:
     size: 10Gi
   resources:
-    heapSize: "256m"
-    pagecacheSize: "128m"
+    # R5-M34: sized for production (the previous 256m/128m-in-1Gi default was
+    # the documented OOMKill configuration).
+    heapSize: "1400m"
+    pagecacheSize: "512m"
     container:
       limits:
-        cpu: 500m
-        memory: 1Gi
+        cpu: "2"
+        memory: 4Gi
       requests:
-        cpu: 200m
-        memory: 512Mi
+        cpu: 500m
+        memory: 2Gi
 
 # ──────────────────────────────────────────────
 # Celery (disabled for initial deploy)

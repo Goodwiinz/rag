@@ -325,3 +325,4 @@ data/archives/
 # Local scratch artifacts
 picker-check.png
 picker-snapshot.txt
+.venv/

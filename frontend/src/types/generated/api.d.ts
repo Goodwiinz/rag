@@ -12100,7 +12100,7 @@ export interface components {
         ProjectNoteCreate: {
             /**
              * Content
-             * @description Markdown content
+             * @description Markdown content (bounded, R6-L7)
              */
             content: string;
             /**
@@ -22672,7 +22672,7 @@ export interface operations {
     generate_draft_api_v1_projects__project_id__drafts_post: {
         parameters: {
             query: {
-                /** @description Themes to focus on */
+                /** @description Themes to focus on (max 10 items, 500 chars each) */
                 themes: string[];
                 /** @description Specific documents to include */
                 document_ids?: string[] | null;

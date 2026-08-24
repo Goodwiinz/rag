@@ -42,6 +42,16 @@ def upgrade() -> None:
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_generated_drafts_project_version
                     ON generated_drafts (project_id, version);
 
+                -- M13-review: keep only the newest current per project or the
+                -- partial index below fails to build on legacy data.
+                UPDATE generated_drafts g
+                SET is_current = FALSE
+                WHERE g.is_current
+                  AND g.version < (
+                      SELECT MAX(g2.version) FROM generated_drafts g2
+                      WHERE g2.project_id = g.project_id AND g2.is_current
+                  );
+
                 -- At most one current draft per project (partial)
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_generated_drafts_current
                     ON generated_drafts (project_id) WHERE is_current;

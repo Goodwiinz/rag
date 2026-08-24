@@ -461,7 +461,8 @@ networkPolicy:
     enabled: false
 podDisruptionBudget:
   enabled: true
-  minAvailable: 1
+  # R5-M32: minAvailable=1 on replicas=1 blocks every drain/upgrade.
+  maxUnavailable: 1
 serviceAccount:
   create: true
   annotations: {}

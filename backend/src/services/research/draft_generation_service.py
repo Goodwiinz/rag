@@ -927,6 +927,24 @@ Key takeaways include the importance of continued investigation and the potentia
 
         was_current = draft.is_current
         await self.db.delete(draft)
+
+        # R2-L5 + M12-review: promote within the SAME transaction so no
+        # reader ever observes a zero-current window.
+        if was_current:
+            next_draft = (
+                await self.db.execute(
+                    select(GeneratedDraft)
+                    .where(
+                        GeneratedDraft.project_id == project_id,
+                        GeneratedDraft.id != draft_id,
+                    )
+                    .order_by(GeneratedDraft.version.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if next_draft:
+                next_draft.is_current = True
+
         await self.db.commit()
 
         # R2-L5: leaving zero current drafts broke every current_only reader.
@@ -1043,7 +1061,7 @@ Key takeaways include the importance of continued investigation and the potentia
 
             return {
                 "format": "markdown",
-                "filename": f"{draft.title.replace(' ', '_')}.md",
+                "filename": self._safe_filename(draft.title, "md"),
                 "content": content,
                 "mime_type": "text/markdown",
             }
@@ -1061,7 +1079,7 @@ Key takeaways include the importance of continued investigation and the potentia
                 "format": "latex",
                 "files": [
                     {
-                        "filename": f"{draft.title.replace(' ', '_')}.tex",
+                        "filename": self._safe_filename(draft.title, "tex"),
                         "content": latex_content,
                         "mime_type": "application/x-tex",
                     },
@@ -1075,11 +1093,26 @@ Key takeaways include the importance of continued investigation and the potentia
 
         return {"error": f"Unsupported format: {format}"}
 
+    @staticmethod
+    def _safe_filename(title: str, ext: str) -> str:
+        """R6-L8: strip control chars / path separators; ASCII fallback."""
+        import re as _re
+
+        base = _re.sub(r"[^A-Za-z0-9._-]+", "_", title or "draft").strip("_")
+        return f"{base[:80] or 'draft'}.{ext}"
+
+    @staticmethod
+    def _latex_escape(text: str) -> str:
+        """R6-L8: escape characters that could start LaTeX commands."""
+        import re as _re
+
+        return _re.sub(r"([\\{}$&%#^_~])", r"\\\1", text)
+
     def _convert_to_latex(self, markdown_content: str) -> str:
         """Convert markdown to LaTeX"""
         import re
 
-        latex = markdown_content
+        latex = self._latex_escape(markdown_content)
 
         # Convert headers
         latex = re.sub(

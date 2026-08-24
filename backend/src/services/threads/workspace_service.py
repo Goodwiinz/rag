@@ -81,6 +81,28 @@ async def create_workspace(
     else:
         organization_id = data.organization_id
 
+    # R5-L11: unbounded workspace minting — cap per org (config-overridable).
+    from src.core.config import settings as _settings
+
+    org_scope = organization_id or user_organization_id
+    if org_scope is not None:
+        existing_count = (
+            await db.execute(
+                select(func.count(Workspace.id)).where(
+                    Workspace.organization_id == org_scope,
+                    Workspace.is_deleted == False,  # noqa: E712
+                )
+            )
+        ).scalar() or 0
+        cap = getattr(_settings, "MAX_WORKSPACES_PER_ORG", 200)
+        if existing_count >= cap:
+            from fastapi import HTTPException
+
+            raise HTTPException(
+                status_code=402,
+                detail=f"Workspace limit reached ({cap} for this organization)",
+            )
+
     workspace = Workspace(
         name=data.name,
         description=data.description,
@@ -240,6 +262,16 @@ async def add_member(
         return None
     if not workspace.can_user_admin(str(current_user_id)):
         raise PermissionError("Insufficient permissions to add members")
+
+    # R5-L9: validate the target user exists — the FK violation surfaced as
+    # a raw IntegrityError 500 otherwise.
+    from src.models.user import User
+
+    user_exists = (
+        await db.execute(select(User.id).where(User.id == data.user_id))
+    ).scalar_one_or_none()
+    if user_exists is None:
+        raise ValueError("Target user does not exist")
 
     stmt = (
         select(WorkspaceMember)

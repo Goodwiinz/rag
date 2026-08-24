@@ -706,19 +706,22 @@ async def get_thread_context(
         max_tokens=max_tokens,
     )
 
-    if not context:
-        # Could be empty thread or no access
-        thread = await service.get_thread(thread_id, current_user.id)
-        if not thread:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Thread not found or access denied",
-            )
+    if context is None:
+        # R5-M10: service distinguishes missing/no-access (None) from a real,
+        # possibly empty, context.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Thread not found or access denied",
+        )
 
+    metadata = context.get("metadata", {})
     return {
         "thread_id": str(thread_id),
-        "messages": context,
-        "message_count": len(context),
+        "messages": context.get("messages", []),
+        "message_count": metadata.get(
+            "message_count", len(context.get("messages", []))
+        ),
+        "metadata": metadata,
     }
 
 
@@ -891,11 +894,14 @@ async def update_message_feedback(
 
     # Verify thread matches
     if message.thread_id != thread_id:
+        # R5-M11: roll back the flushed feedback write before answering 404.
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Message not found in this thread",
         )
 
+    await db.commit()
     return _format_message_response(message)
 
 

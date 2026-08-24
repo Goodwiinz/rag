@@ -14,7 +14,6 @@
     "src/hooks/useAnalyticsTracking.ts",
     "src/lib/analytics.ts",
     "src/lib/thread-hooks.ts",
-    "src/page-components/**/*",
     "src/services/analytics/**/*",
     "src/services/graphAnalyticsService.ts",
     "src/services/graphService.ts",
@@ -1553,30 +1552,6 @@
       "src/lib/utils.ts": {
         "errors": 0,
         "warnings": 1
-      },
-      "src/page-components/auth/LoginPage.tsx": {
-        "errors": 0,
-        "warnings": 2
-      },
-      "src/page-components/DashboardPage.tsx": {
-        "errors": 0,
-        "warnings": 1
-      },
-      "src/page-components/Documents.tsx": {
-        "errors": 0,
-        "warnings": 8
-      },
-      "src/page-components/error/NotFoundPage.tsx": {
-        "errors": 0,
-        "warnings": 2
-      },
-      "src/page-components/Login.tsx": {
-        "errors": 0,
-        "warnings": 2
-      },
-      "src/page-components/Register.tsx": {
-        "errors": 0,
-        "warnings": 4
       },
       "src/security/frontendSecurity.ts": {
         "errors": 0,

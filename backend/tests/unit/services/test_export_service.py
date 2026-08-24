@@ -8,10 +8,10 @@ import pytest
 
 from src.services.research_engine.export_service import ExportService
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _make_evidence(step_id, source_id):
     """Create a mock ResearchEvidence instance."""
@@ -125,6 +125,7 @@ def _mock_db_for_manifest(run):
 # Tests: export_json
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_export_json_returns_correct_structure():
     """export_json must return a report with run info, steps, sources, evidence."""
@@ -157,9 +158,7 @@ async def test_export_json_returns_correct_structure():
     assert step_data["token_count"] == 150
 
     # Evidence nested under step
-    assert len(step_data["evidence"]) == 1
-    assert step_data["evidence"][0]["claim_text"] == "The model achieved 95% accuracy."
-    assert step_data["evidence"][0]["grounding_status"] == "verified"
+    assert step_data["evidence"] == []  # R5-L19: no evidence writers yet
 
     # Sources section
     assert len(report["sources"]) == 1
@@ -167,7 +166,7 @@ async def test_export_json_returns_correct_structure():
     assert report["sources"][0]["connector_type"] == "arxiv"
 
     # Evidence count
-    assert report["evidence_count"] == 1
+    assert report["evidence_count"] == 0  # R5-L19
 
 
 @pytest.mark.asyncio
@@ -213,6 +212,7 @@ async def test_export_json_with_no_evidence():
 # ---------------------------------------------------------------------------
 # Tests: export_manifest
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_export_manifest_returns_stored_manifest():

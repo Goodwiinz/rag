@@ -375,12 +375,20 @@ class CitationRelationshipCreate(BaseModel):
     target_citation_id: UUID = Field(
         ..., description="Target citation ID (the cited paper)"
     )
-    relationship_type: str = Field(default="CITES", description="Type of relationship")
+    relationship_type: CitationRelationshipType = Field(
+        default=CitationRelationshipType.CITES,
+        # R6-L9: free strings let NaN-ish garbage reach PG and the Neo4j UI.
+        description="Typed relationship",
+    )
     citation_context: Optional[str] = Field(
-        None, description="Text context where citation appears"
+        None, max_length=4000, description="Text context where citation appears"
     )
     confidence: float = Field(
-        default=1.0, ge=0.0, le=1.0, description="Confidence score"
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        allow_inf_nan=False,  # R6-L9
+        description="Confidence score",
     )
 
 
@@ -538,9 +546,11 @@ class ProjectNoteCreate(BaseModel):
         description="Parent project ID (optional when provided in route path)",
     )
     title: str = Field(..., min_length=1, max_length=255)
-    content: str = Field(..., description="Markdown content")
-    linked_document_ids: List[UUID] = Field(default_factory=list)
-    tags: List[str] = Field(default_factory=list)
+    content: str = Field(
+        ..., max_length=200_000, description="Markdown content (bounded, R6-L7)"
+    )
+    linked_document_ids: List[UUID] = Field(default_factory=list, max_length=100)
+    tags: List[str] = Field(default_factory=list, max_length=30)
     is_pinned: bool = Field(default=False)
 
 
@@ -548,9 +558,9 @@ class ProjectNoteUpdate(BaseModel):
     """Update project note (partial updates allowed)"""
 
     title: Optional[str] = Field(None, min_length=1, max_length=255)
-    content: Optional[str] = None
-    linked_document_ids: Optional[List[UUID]] = None
-    tags: Optional[List[str]] = None
+    content: Optional[str] = Field(None, max_length=200_000)
+    linked_document_ids: Optional[List[UUID]] = Field(None, max_length=100)
+    tags: Optional[List[str]] = Field(None, max_length=30)
     is_pinned: Optional[bool] = None
 
 

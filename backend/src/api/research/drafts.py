@@ -89,7 +89,11 @@ async def _validate_project_ownership(
 @router.post("", status_code=202)
 async def generate_draft(
     project_id: UUID,
-    themes: List[str] = Query(..., description="Themes to focus on"),
+    themes: List[str] = Query(
+        ...,
+        max_length=500,
+        description="Themes to focus on (max 10 items, 500 chars each)",
+    ),
     document_ids: Optional[List[UUID]] = Query(
         None, description="Specific documents to include"
     ),
@@ -107,6 +111,12 @@ async def generate_draft(
     Returns a task_id that can be used to check generation status.
     Generation runs asynchronously in the background.
     """
+    if len(themes) > 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum 10 themes allowed",
+        )
+
     # Validate project ownership
     await _validate_project_ownership(project_id, current_user, db)
 

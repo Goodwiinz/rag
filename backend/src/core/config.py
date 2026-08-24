@@ -774,6 +774,7 @@ class Settings(BaseSettings):
 
     # Thread Context Window Configuration
     # Model-aware defaults for context windows
+    MAX_WORKSPACES_PER_ORG: int = 200
     THREAD_DEFAULT_MAX_MESSAGES: int = 20  # Default messages to include in context
     THREAD_DEFAULT_MAX_TOKENS: int = 4000  # Default token limit for context
     THREAD_CONTEXT_WARN_THRESHOLD: float = (
