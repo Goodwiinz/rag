@@ -544,6 +544,32 @@ async def list_project_documents(
 
 
 @tool
+async def get_current_draft(
+    project_id: Optional[str] = None,
+    include_content: bool = False,
+    config: RunnableConfig = None,  # type: ignore[assignment]
+) -> Dict[str, Any]:
+    """Get the latest completed draft for a research project.
+
+    Use this before answering follow-ups about a draft being ready, missing,
+    or available to show. Set ``include_content`` only when the user asks to
+    read or continue the draft in chat.
+    """
+    config = config or {}
+    from src.services.agent.tools_impl import _tool_get_current_draft
+
+    async with _tool_context(config) as (db, current_user, page_ctx):
+        resolved_pid = _resolve_project_id(project_id, page_ctx)
+        if not resolved_pid:
+            return _missing_project_error("get_current_draft")
+        return await _tool_get_current_draft(
+            {"project_id": resolved_pid, "include_content": include_content},
+            db,
+            current_user,
+        )
+
+
+@tool
 async def summarize_document(
     document_id: str,
     config: RunnableConfig = None,  # type: ignore[assignment]
@@ -1115,6 +1141,15 @@ TOOL_REGISTRY = ToolRegistry(
                 (AgentSubgraph.WRITING, 8),
             ),
             policy_tags=frozenset(),
+        ),
+        ToolDescriptor(
+            name="get_current_draft",
+            tool=get_current_draft,
+            intents=frozenset({AgentIntent.WRITING}),
+            subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 13),),
+            policy_tags=frozenset(),
+            exposed_in_all_tools=False,
         ),
         ToolDescriptor(
             name="summarize_document",

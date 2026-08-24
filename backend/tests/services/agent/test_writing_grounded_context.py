@@ -22,6 +22,9 @@ def test_writing_prompt_forbids_claiming_pending_artifacts_are_complete() -> Non
     assert "status-only" in prompt
     assert "do not write a substitute draft body" in prompt
     assert "Treat tool results as the evidence boundary" in prompt
+    assert "A historical `pending` result is not live status" in prompt
+    assert "call `get_current_draft` before answering" in prompt
+    assert "does not prove that a particular task completed" in prompt
     assert "list_project_documents` says `project_id is required" in prompt
     assert "call `list_projects`" in prompt
 
