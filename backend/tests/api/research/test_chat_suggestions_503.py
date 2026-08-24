@@ -15,7 +15,7 @@ from src.api.research import chat as chat_module
 from src.api.research.chat import ChatMessage, SuggestionsRequest
 
 
-def _request():
+def _request() -> SuggestionsRequest:
     return SuggestionsRequest(
         messages=[ChatMessage(role="user", content="What is RAG?")],
         count=3,
@@ -23,12 +23,12 @@ def _request():
 
 
 @pytest.fixture
-def mock_user():
+def mock_user() -> Mock:
     return Mock(id="user-1", organization_id="org-1")
 
 
 @pytest.mark.asyncio
-async def test_infrastructure_failure_raises_503(mock_user):
+async def test_infrastructure_failure_raises_503(mock_user: Mock) -> None:
     """An unexpected LLM/service exception surfaces as 503, not empty 200."""
     with (
         patch.object(
@@ -48,7 +48,7 @@ async def test_infrastructure_failure_raises_503(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_unparseable_llm_output_still_returns_empty(mock_user):
+async def test_unparseable_llm_output_still_returns_empty(mock_user: Mock) -> None:
     """Genuine 'no suggestions' (unparseable reply) degrades to empty 200."""
     with (
         patch.object(
@@ -68,7 +68,7 @@ async def test_unparseable_llm_output_still_returns_empty(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_happy_path_returns_parsed_suggestions(mock_user):
+async def test_happy_path_returns_parsed_suggestions(mock_user: Mock) -> None:
     """Existing behavior preserved: valid JSON array is parsed and trimmed."""
     with (
         patch.object(
@@ -95,7 +95,7 @@ async def test_happy_path_returns_parsed_suggestions(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_service_unavailable_still_returns_empty(mock_user):
+async def test_service_unavailable_still_returns_empty(mock_user: Mock) -> None:
     """Explicit availability gate keeps its pre-existing empty-response contract."""
     with patch.object(
         chat_module.azure_openai_service, "is_chat_available", return_value=False

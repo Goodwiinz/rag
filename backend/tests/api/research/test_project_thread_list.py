@@ -7,6 +7,7 @@ the query itself; ``total`` must then match the returned rows exactly.
 """
 
 from datetime import datetime, timezone
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -18,7 +19,7 @@ from src.api.research.project_chat import list_project_threads
 from src.models import ProjectThread, Thread
 
 
-def _pt_row(thread):
+def _pt_row(thread: Any) -> MagicMock:
     pt = MagicMock(spec=ProjectThread)
     pt.id = uuid4()
     pt.project_id = uuid4()
@@ -31,7 +32,7 @@ def _pt_row(thread):
     return pt
 
 
-def _thread(title="T"):
+def _thread(title: str = "T") -> MagicMock:
     t = MagicMock(spec=Thread)
     t.id = uuid4()
     t.title = title
@@ -44,12 +45,12 @@ def _thread(title="T"):
 
 
 @pytest.mark.asyncio
-async def test_list_filters_soft_deleted_threads_in_sql():
+async def test_list_filters_soft_deleted_threads_in_sql() -> None:
     """The ProjectThread select joins Thread and excludes is_deleted there."""
     statements = []
     db = AsyncMock(spec=AsyncSession)
 
-    async def _capture(stmt, *args, **kwargs):
+    async def _capture(stmt: Any, *args: Any, **kwargs: Any) -> Any:
         statements.append(stmt)
         result = MagicMock()
         result.scalars.return_value.all.return_value = []
@@ -83,12 +84,12 @@ async def test_list_filters_soft_deleted_threads_in_sql():
 
 
 @pytest.mark.asyncio
-async def test_list_total_matches_rows_and_shape_preserved():
+async def test_list_total_matches_rows_and_shape_preserved() -> None:
     """Response keeps {threads, total} shape; total equals returned rows."""
     live_a, live_b = _thread("A"), _thread("B")
     db = AsyncMock(spec=AsyncSession)
 
-    async def _rows(stmt, *args, **kwargs):
+    async def _rows(stmt: Any, *args: Any, **kwargs: Any) -> Any:
         result = MagicMock()
         result.scalars.return_value.all.return_value = [
             _pt_row(live_a),
@@ -109,11 +110,11 @@ async def test_list_total_matches_rows_and_shape_preserved():
 
 
 @pytest.mark.asyncio
-async def test_list_skips_links_with_missing_thread_relation():
+async def test_list_skips_links_with_missing_thread_relation() -> None:
     """Defensive: a NULL thread relation still can't crash mapping."""
     db = AsyncMock(spec=AsyncSession)
 
-    async def _rows(stmt, *args, **kwargs):
+    async def _rows(stmt: Any, *args: Any, **kwargs: Any) -> Any:
         result = MagicMock()
         result.scalars.return_value.all.return_value = [
             _pt_row(None),  # inner join should prevent this, but stay safe

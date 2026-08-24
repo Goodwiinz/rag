@@ -15,7 +15,7 @@ from src.api.research import chat as chat_module
 from src.api.research.chat import ChatCompletionRequest, ChatMessage, RetrievedContext
 
 
-def _contexts():
+def _contexts() -> list[RetrievedContext]:
     return [
         RetrievedContext(
             document_id=None,
@@ -33,7 +33,7 @@ def _contexts():
 
 
 @pytest.fixture
-def mock_user():
+def mock_user() -> Mock:
     user = Mock()
     user.id = "user-1"
     user.organization_id = "org-1"
@@ -41,7 +41,9 @@ def mock_user():
 
 
 @pytest.mark.asyncio
-async def test_completion_survives_context_without_document_id(mock_user):
+async def test_completion_survives_context_without_document_id(
+    mock_user: Mock,
+) -> None:
     """A None document_id must not 500 after successful retrieval."""
     with (
         patch.object(
@@ -82,7 +84,7 @@ async def test_completion_survives_context_without_document_id(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_cache_key_join_matches_expected_order(mock_user):
+async def test_cache_key_join_matches_expected_order(mock_user: Mock) -> None:
     """Ids are stringified, de-None'd, sorted, and '|'-joined."""
     contexts = [
         RetrievedContext(document_id="doc-c", title="C", content="c", score=0.3),
@@ -116,12 +118,15 @@ async def test_cache_key_join_matches_expected_order(mock_user):
             request, BackgroundTasks(), current_user=mock_user
         )
 
+    assert cache_set.await_args is not None
     cache_query = cache_set.await_args.kwargs["query"]
     assert cache_query.endswith("ctx:doc-a|doc-c")
 
 
 @pytest.mark.asyncio
-async def test_orgless_user_cache_scope_falls_back_to_user_id(mock_user):
+async def test_orgless_user_cache_scope_falls_back_to_user_id(
+    mock_user: Mock,
+) -> None:
     """Org-less users must not share the semantic-cache tenant bucket."""
     mock_user.organization_id = None
     with (
@@ -147,6 +152,8 @@ async def test_orgless_user_cache_scope_falls_back_to_user_id(mock_user):
             request, BackgroundTasks(), current_user=mock_user
         )
 
+    assert cache_get.await_args is not None
+    assert cache_set.await_args is not None
     assert cache_get.await_args.kwargs["organization_id"] == "user:user-1"
     assert cache_set.await_args.kwargs["organization_id"] == "user:user-1"
 

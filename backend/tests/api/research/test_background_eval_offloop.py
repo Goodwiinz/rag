@@ -7,10 +7,12 @@ that work must be driven from a worker thread, never inline on the loop.
 
 import asyncio
 import threading
+from collections.abc import Iterator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-def _make_contexts():
+def _make_contexts() -> list[Any]:
     from src.api.research.chat import RetrievedContext
 
     return [
@@ -23,7 +25,7 @@ def _make_contexts():
     ]
 
 
-def test_background_evaluate_runs_in_worker_thread():
+def test_background_evaluate_runs_in_worker_thread() -> None:
     from src.api.research import chat as chat_module
     from src.core import database as database_module
     from src.services.evaluation import rag_evaluation_service as rag_eval_module
@@ -31,7 +33,9 @@ def test_background_evaluate_runs_in_worker_thread():
     caller_thread = threading.get_ident()
     seen = {}
 
-    async def fake_evaluation(evaluation_input, job_id, organization_id, db):
+    async def fake_evaluation(
+        evaluation_input: Any, job_id: Any, organization_id: Any, db: Any
+    ) -> Any:
         seen["thread"] = threading.get_ident()
         metrics = MagicMock()
         metrics.answer_relevancy = 0.9
@@ -41,7 +45,7 @@ def test_background_evaluate_runs_in_worker_thread():
         metrics.hallucination_rate = 0.1
         return metrics
 
-    def fake_get_db_sync():
+    def fake_get_db_sync() -> Iterator[MagicMock]:
         yield MagicMock()
 
     with (
@@ -75,16 +79,18 @@ def test_background_evaluate_runs_in_worker_thread():
     ), "evaluation must run off the event loop thread"
 
 
-def test_background_evaluate_swallows_and_logs_exceptions(caplog):
+def test_background_evaluate_swallows_and_logs_exceptions(caplog: Any) -> None:
     """Refactor guard: failures must still be logged, never raised to the caller."""
     from src.api.research import chat as chat_module
     from src.core import database as database_module
     from src.services.evaluation import rag_evaluation_service as rag_eval_module
 
-    async def failing_evaluation(evaluation_input, job_id, organization_id, db):
+    async def failing_evaluation(
+        evaluation_input: Any, job_id: Any, organization_id: Any, db: Any
+    ) -> None:
         raise RuntimeError("triad exploded")
 
-    def fake_get_db_sync():
+    def fake_get_db_sync() -> Iterator[MagicMock]:
         yield MagicMock()
 
     with (
@@ -112,7 +118,7 @@ def test_background_evaluate_swallows_and_logs_exceptions(caplog):
     )
 
 
-def test_background_evaluate_closes_db_session():
+def test_background_evaluate_closes_db_session() -> None:
     """Session acquired via get_db_sync must be closed even on success path."""
     from src.api.research import chat as chat_module
     from src.core import database as database_module
@@ -120,10 +126,12 @@ def test_background_evaluate_closes_db_session():
 
     db_mock = MagicMock()
 
-    def fake_get_db_sync():
+    def fake_get_db_sync() -> Iterator[MagicMock]:
         yield db_mock
 
-    async def fake_evaluation(evaluation_input, job_id, organization_id, db):
+    async def fake_evaluation(
+        evaluation_input: Any, job_id: Any, organization_id: Any, db: Any
+    ) -> Any:
         metrics = MagicMock()
         metrics.overall_score = 0.5
         return metrics

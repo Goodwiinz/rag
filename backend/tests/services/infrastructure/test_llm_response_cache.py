@@ -1,9 +1,10 @@
 """Tests for LLM response cache organization scoping."""
 
 import asyncio
+from typing import Any
 
 
-def test_cache_key_differs_per_organization():
+def test_cache_key_differs_per_organization() -> None:
     from src.services.infrastructure.llm_response_cache import LLMResponseCache
 
     cache = LLMResponseCache()
@@ -18,10 +19,10 @@ def test_cache_key_differs_per_organization():
     assert h_org_a != h_no_org
 
 
-def test_get_does_not_return_entry_set_by_other_organization():
+def test_get_does_not_return_entry_set_by_other_organization() -> None:
     from src.services.infrastructure.llm_response_cache import LLMResponseCache
 
-    async def scenario():
+    async def scenario() -> None:
         cache = LLMResponseCache()
         await cache.set(
             query="what is rag",
@@ -50,7 +51,7 @@ def test_get_does_not_return_entry_set_by_other_organization():
     asyncio.run(scenario())
 
 
-def test_semantic_match_is_organization_scoped():
+def test_semantic_match_is_organization_scoped() -> None:
     """Org-B semantic get must never return an entry set by org-A.
 
     Both queries resolve to the SAME embedding vector so similarity is
@@ -62,7 +63,7 @@ def test_semantic_match_is_organization_scoped():
     )
 
     class _SameEmbeddingService:
-        async def generate_embedding(self, request):
+        async def generate_embedding(self, request: Any) -> Any:
             from src.models.vector import EmbeddingResponse
 
             return EmbeddingResponse(
@@ -72,7 +73,7 @@ def test_semantic_match_is_organization_scoped():
                 processing_time=0.0,
             )
 
-    async def scenario():
+    async def scenario() -> None:
         cache = LLMResponseCache(config=LLMCacheConfig(use_redis=False))
         cache._embedding_service = _SameEmbeddingService()  # type: ignore[assignment]
         await cache.set(
@@ -106,7 +107,7 @@ def test_semantic_match_is_organization_scoped():
     asyncio.run(scenario())
 
 
-def test_semantic_match_requires_compatible_generation_settings():
+def test_semantic_match_requires_compatible_generation_settings() -> None:
     """Semantic hits must preserve the response-generation contract."""
     from src.models.vector import EmbeddingResponse
     from src.services.infrastructure.llm_response_cache import (
@@ -115,7 +116,7 @@ def test_semantic_match_requires_compatible_generation_settings():
     )
 
     class _SameEmbeddingService:
-        async def generate_embedding(self, request):
+        async def generate_embedding(self, request: Any) -> Any:
             return EmbeddingResponse(
                 embedding=[1.0, 0.0, 0.0],
                 model="test",
@@ -123,7 +124,9 @@ def test_semantic_match_requires_compatible_generation_settings():
                 processing_time=0.0,
             )
 
-    async def semantic_hit_for(**get_overrides):
+    async def semantic_hit_for(
+        *, model: str = "gpt-4o", temperature: float = 0.2
+    ) -> Any:
         cache = LLMResponseCache(config=LLMCacheConfig(use_redis=False))
         cache._embedding_service = _SameEmbeddingService()  # type: ignore[assignment]
         await cache.set(
@@ -134,26 +137,22 @@ def test_semantic_match_requires_compatible_generation_settings():
             metadata={"rag_enabled": False},
             organization_id="org-a",
         )
-        get_args = {
-            "query": "explain retrieval augmented generation?",
-            "model": "gpt-4o",
-            "temperature": 0.2,
-            "use_semantic": True,
-            "organization_id": "org-a",
-        }
-        get_args.update(get_overrides)
         return await cache.get(
-            **get_args,
+            query="explain retrieval augmented generation?",
+            model=model,
+            temperature=temperature,
+            use_semantic=True,
+            organization_id="org-a",
         )
 
-    async def scenario():
+    async def scenario() -> None:
         assert await semantic_hit_for(model="gpt-4o-mini") is None
         assert await semantic_hit_for(temperature=0.7) is None
 
     asyncio.run(scenario())
 
 
-def test_non_rag_semantic_lookup_rejects_rag_entries():
+def test_non_rag_semantic_lookup_rejects_rag_entries() -> None:
     """A context-dependent RAG answer must not satisfy a plain semantic lookup."""
     from src.models.vector import EmbeddingResponse
     from src.services.infrastructure.llm_response_cache import (
@@ -162,7 +161,7 @@ def test_non_rag_semantic_lookup_rejects_rag_entries():
     )
 
     class _SameEmbeddingService:
-        async def generate_embedding(self, request):
+        async def generate_embedding(self, request: Any) -> Any:
             return EmbeddingResponse(
                 embedding=[1.0, 0.0, 0.0],
                 model="test",
@@ -170,7 +169,7 @@ def test_non_rag_semantic_lookup_rejects_rag_entries():
                 processing_time=0.0,
             )
 
-    async def scenario():
+    async def scenario() -> None:
         cache = LLMResponseCache(config=LLMCacheConfig(use_redis=False))
         cache._embedding_service = _SameEmbeddingService()  # type: ignore[assignment]
         await cache.set(
@@ -193,7 +192,7 @@ def test_non_rag_semantic_lookup_rejects_rag_entries():
     asyncio.run(scenario())
 
 
-def test_compute_embedding_uses_generate_embedding():
+def test_compute_embedding_uses_generate_embedding() -> None:
     """_compute_embedding must call the real EmbeddingService API.
 
     EmbeddingService has no embed() — only async generate_embedding(
@@ -207,7 +206,7 @@ def test_compute_embedding_uses_generate_embedding():
         LLMResponseCache,
     )
 
-    async def scenario():
+    async def scenario() -> None:
         cache = LLMResponseCache(config=LLMCacheConfig(use_redis=False))
         fake_service = MagicMock()
         fake_service.generate_embedding = AsyncMock(
@@ -221,6 +220,7 @@ def test_compute_embedding_uses_generate_embedding():
         fake_service.generate_embedding.assert_awaited_once()
         # request arg carries the text
         args = fake_service.generate_embedding.await_args
+        assert args is not None
         assert args.args[0].text == "hello"
 
     asyncio.run(scenario())

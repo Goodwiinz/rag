@@ -11,6 +11,7 @@ SQLite drops FOR UPDATE at compile time, so the assertion is made on the
 statement object itself (dialect-independent), plus the PostgreSQL rendering.
 """
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -24,14 +25,14 @@ from src.models import ProjectThread, Thread, User
 
 
 @pytest.fixture
-def mock_user():
+def mock_user() -> MagicMock:
     user = MagicMock(spec=User)
     user.id = uuid4()
     return user
 
 
 @pytest.fixture
-def mock_thread():
+def mock_thread() -> MagicMock:
     thread = MagicMock(spec=Thread)
     thread.id = uuid4()
     thread.is_deleted = False
@@ -39,7 +40,7 @@ def mock_thread():
 
 
 @pytest.fixture
-def mock_project_thread(mock_thread):
+def mock_project_thread(mock_thread: MagicMock) -> MagicMock:
     pt = MagicMock(spec=ProjectThread)
     pt.id = uuid4()
     pt.project_id = uuid4()
@@ -54,10 +55,10 @@ class TestUnlinkThreadRowLock:
     @pytest.mark.asyncio
     async def test_unlink_locks_thread_row_before_computing_remaining_link(
         self,
-        mock_user,
-        mock_thread,
-        mock_project_thread,
-    ):
+        mock_user: MagicMock,
+        mock_thread: MagicMock,
+        mock_project_thread: MagicMock,
+    ) -> None:
         """Regression B5: thread row selected FOR UPDATE before remaining_link."""
         mock_thread.source_project_id = mock_project_thread.project_id
         mock_thread.rag_document_scope = {"document_ids": [str(uuid4())]}
@@ -74,7 +75,7 @@ class TestUnlinkThreadRowLock:
 
         db = AsyncMock(spec=AsyncSession)
 
-        async def _capture_and_execute(stmt, *args, **kwargs):
+        async def _capture_and_execute(stmt: Any, *args: Any, **kwargs: Any) -> Any:
             statements.append(stmt)
             return canned_results[len(statements) - 1]
 
@@ -93,7 +94,7 @@ class TestUnlinkThreadRowLock:
                 db=db,
             )
 
-        def _entity(stmt):
+        def _entity(stmt: Any) -> Any:
             return stmt.column_descriptions[0]["entity"]
 
         # The thread-row read whose result feeds the source_project_id /
@@ -133,16 +134,16 @@ class TestUnlinkIgnoresSoftDeletedLink:
     @pytest.mark.asyncio
     async def test_unlink_fetch_filters_soft_deleted_links(
         self,
-        mock_user,
-        mock_thread,
-    ):
+        mock_user: MagicMock,
+        mock_thread: MagicMock,
+    ) -> None:
         """The link lookup itself excludes is_deleted rows (dialect-independent)."""
         from sqlalchemy.dialects import postgresql as pg
 
         statements = []
         db = AsyncMock(spec=AsyncSession)
 
-        async def _capture(stmt, *args, **kwargs):
+        async def _capture(stmt: Any, *args: Any, **kwargs: Any) -> Any:
             statements.append(stmt)
             result = MagicMock()
             result.scalar_one_or_none.return_value = None
@@ -184,13 +185,13 @@ class TestUnlinkIgnoresSoftDeletedLink:
 
     @pytest.mark.asyncio
     async def test_unlink_of_filtered_out_row_is_404_and_mutates_nothing(
-        self, mock_user
-    ):
+        self, mock_user: MagicMock
+    ) -> None:
         """When the dead row is filtered out, nothing is mutated or committed."""
         db = AsyncMock(spec=AsyncSession)
         db.commit = AsyncMock()
 
-        async def _none_result(stmt, *args, **kwargs):
+        async def _none_result(stmt: Any, *args: Any, **kwargs: Any) -> Any:
             result = MagicMock()
             result.scalar_one_or_none.return_value = None
             return result

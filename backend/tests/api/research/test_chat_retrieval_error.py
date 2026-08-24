@@ -9,6 +9,7 @@ response cache for that turn.
 """
 
 from contextlib import ExitStack
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -29,14 +30,14 @@ from src.services.infrastructure.llm_response_cache import (
 
 
 @pytest.fixture
-def mock_user():
+def mock_user() -> Mock:
     user = Mock()
     user.id = "user-1"
     user.organization_id = "org-1"
     return user
 
 
-def _completion_patches(cache_set):
+def _completion_patches(cache_set: AsyncMock) -> tuple[Any, ...]:
     return (
         patch.object(
             chat_module.azure_openai_service, "is_chat_available", return_value=True
@@ -54,7 +55,7 @@ def _completion_patches(cache_set):
 
 
 @pytest.mark.asyncio
-async def test_retrieve_context_raises_dedicated_error_on_search_failure():
+async def test_retrieve_context_raises_dedicated_error_on_search_failure() -> None:
     """Hybrid-search infrastructure failures raise RetrievalError, not []."""
     with patch.object(
         chat_module.hybrid_search_service,
@@ -66,7 +67,9 @@ async def test_retrieve_context_raises_dedicated_error_on_search_failure():
 
 
 @pytest.mark.asyncio
-async def test_completion_marks_retrieval_error_and_skips_cache(mock_user):
+async def test_completion_marks_retrieval_error_and_skips_cache(
+    mock_user: Mock,
+) -> None:
     """Failure turn: retrieval_error=True, answer still served, never cached."""
     cache_set = AsyncMock()
     patches = _completion_patches(cache_set)
@@ -99,7 +102,9 @@ async def test_completion_marks_retrieval_error_and_skips_cache(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_successful_rag_turn_has_no_retrieval_error_and_caches(mock_user):
+async def test_successful_rag_turn_has_no_retrieval_error_and_caches(
+    mock_user: Mock,
+) -> None:
     """Success path unchanged: default flag False, response still cached."""
     cache_set = AsyncMock()
     patches = _completion_patches(cache_set)
@@ -134,7 +139,7 @@ async def test_successful_rag_turn_has_no_retrieval_error_and_caches(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_non_rag_turn_unaffected_by_flag(mock_user):
+async def test_non_rag_turn_unaffected_by_flag(mock_user: Mock) -> None:
     """use_rag=False responses default retrieval_error=False."""
     cache_set = AsyncMock()
     patches = _completion_patches(cache_set)
@@ -154,7 +159,9 @@ async def test_non_rag_turn_unaffected_by_flag(mock_user):
 
 
 @pytest.mark.asyncio
-async def test_degraded_turn_never_serves_poisoned_legacy_cache_entry(mock_user):
+async def test_degraded_turn_never_serves_poisoned_legacy_cache_entry(
+    mock_user: Mock,
+) -> None:
     """A retrieval_error turn must not read the RAG-shaped cache key.
 
     Entries cached before the write-skip fix exist under the context-free
