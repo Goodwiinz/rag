@@ -163,6 +163,54 @@ describe('ChatSurface runtime key (F2)', () => {
     expect(runtimeUnmounts).toBe(0);
   });
 
+  it('does NOT remount when the server assigns the new chat its thread id', () => {
+    const optimistic = {
+      ...msg('opt-1'),
+      source: 'optimistic' as const,
+    };
+    const initial = makeProps(
+      makeSession({ displayedMessages: [optimistic] })
+    );
+    const { rerender } = render(<ChatSurface {...initial} />);
+
+    const created = makeProps(
+      makeSession({
+        activeThreadId: 't-created',
+        displayedMessages: [optimistic],
+      })
+    );
+    rerender(<ChatSurface {...created} />);
+
+    expect(runtimeMounts).toBe(1);
+    expect(runtimeUnmounts).toBe(0);
+  });
+
+  it('remounts when starting another new chat after thread-id adoption', () => {
+    const optimistic = {
+      ...msg('opt-1'),
+      source: 'optimistic' as const,
+    };
+    const initial = makeProps(
+      makeSession({ displayedMessages: [optimistic] })
+    );
+    const { rerender } = render(<ChatSurface {...initial} />);
+
+    rerender(
+      <ChatSurface
+        {...makeProps(
+          makeSession({
+            activeThreadId: 't-created',
+            displayedMessages: [optimistic],
+          })
+        )}
+      />
+    );
+    rerender(<ChatSurface {...makeProps(makeSession())} />);
+
+    expect(runtimeMounts).toBe(2);
+    expect(runtimeUnmounts).toBe(1);
+  });
+
   it('does NOT remount while a turn streams into an existing thread', () => {
     const initial = makeProps(
       makeSession({ activeThreadId: 't-1', displayedMessages: [] })

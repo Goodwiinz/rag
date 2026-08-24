@@ -484,19 +484,30 @@ async def chat_completions(
                 request.system_prompt.encode()
             ).hexdigest()[:16]
         tenant_scope = f"org:{current_user.organization_id}|user:{current_user.id}"
+        # Semantic matching has a separate tenant filter from the exact-key
+        # hash. Preserve organization sharing where available, but give
+        # organization-less users distinct buckets instead of the shared "".
+        cache_tenant_scope = (
+            str(current_user.organization_id)
+            if current_user.organization_id
+            else f"user:{current_user.id}"
+        )
         cache_query = f"{tenant_scope}|{last_query}"
         if conversation_context_hash:
             cache_query = f"{cache_query}||conv:{conversation_context_hash}"
         if system_prompt_hash:
             cache_query = f"{cache_query}|sys:{system_prompt_hash}"
 
-        if request.use_rag and retrieved_contexts:
+        rag_contexts_cacheable = not request.use_rag or all(
+            context.document_id for context in retrieved_contexts
+        )
+
+        if request.use_rag and retrieved_contexts and rag_contexts_cacheable:
             # Include context doc IDs to differentiate responses with different
-            # context. document_id is Optional (retrieve_context maps missing
-            # ids to None), so drop id-less contexts instead of feeding None
-            # to sorted() — a TypeError here 500s after retrieval succeeded.
+            # context. If any context lacks an id, the full context set cannot
+            # be represented safely, so the turn is excluded from caching.
             context_ids = "|".join(
-                sorted(str(c.document_id) for c in retrieved_contexts if c.document_id)
+                sorted(str(c.document_id) for c in retrieved_contexts)
             )
             cache_query = f"{cache_query}||ctx:{context_ids}"
 
@@ -505,7 +516,11 @@ async def chat_completions(
         # Reads are gated on retrieval_error too (audit B10): entries cached
         # before the write-skip exist under the context-free key shape, and a
         # degraded turn must never be answered from the RAG-shaped cache.
-        use_cache = request.temperature <= 1.0 and len(request.messages) <= 5
+        use_cache = (
+            request.temperature <= 1.0
+            and len(request.messages) <= 5
+            and rag_contexts_cacheable
+        )
         cached_response = None
 
         if use_cache and not retrieval_error:
@@ -514,7 +529,7 @@ async def chat_completions(
                 model=request.model,
                 temperature=request.temperature,
                 use_semantic=not request.use_rag,  # Disable semantic for RAG (context-dependent)
-                organization_id=str(current_user.organization_id or ""),
+                organization_id=cache_tenant_scope,
             )
 
         if cached_response:
@@ -603,7 +618,7 @@ async def chat_completions(
                     ),
                 },
                 retrieved_contexts=contexts_for_cache,
-                organization_id=str(current_user.organization_id or ""),
+                organization_id=cache_tenant_scope,
             )
 
         # Trigger background RAG evaluation if RAG was used

@@ -145,6 +145,40 @@ export function ChatSurface({
 
   const isBusy = isLoading || storeIsStreaming || !!activeConfirmation;
 
+  // The first send starts before the server has assigned a thread id. Adopt
+  // that id into the current runtime identity while an optimistic message is
+  // present; changing the provider key here would remount it mid-turn. Real
+  // navigation still replaces the identity and resets the runtime.
+  const [runtimeIdentity, setRuntimeIdentity] = useState<{
+    threadId: string | null;
+    key: string;
+    generation: number;
+  }>({
+    threadId: activeThreadId,
+    key: activeThreadId ?? 'new:0',
+    generation: 0,
+  });
+  let runtimeKey = runtimeIdentity.key;
+  if (runtimeIdentity.threadId !== activeThreadId) {
+    const isNewThreadAdoption =
+      runtimeIdentity.threadId === null &&
+      activeThreadId !== null &&
+      displayedMessages.some((message) => message.source === 'optimistic');
+
+    const nextGeneration = isNewThreadAdoption
+      ? runtimeIdentity.generation
+      : runtimeIdentity.generation + 1;
+    const nextIdentity = {
+      threadId: activeThreadId,
+      key: isNewThreadAdoption
+        ? runtimeIdentity.key
+        : (activeThreadId ?? `new:${nextGeneration}`),
+      generation: nextGeneration,
+    };
+    setRuntimeIdentity(nextIdentity);
+    runtimeKey = nextIdentity.key;
+  }
+
   // Export/copy-all must reflect the DISPLAYED thread's snapshot, so it may
   // only be blocked while THIS thread's transcript is still growing.
   // `isStreamingThisThread` covers the stream itself. `isLoading` does not:
@@ -310,7 +344,7 @@ export function ChatSurface({
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
         <ChatRuntimeProvider
-          key={activeThreadId ?? 'new'}
+          key={runtimeKey}
           messages={displayedMessages}
           isRunning={isBusy}
           isSendDisabled={!!activeConfirmation || !isSessionInteractive}

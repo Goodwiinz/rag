@@ -13,15 +13,22 @@ import { screen, fireEvent } from '@testing-library/react';
 // Mock framer-motion to avoid animation issues in tests
 vi.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
-    button: ({ children, ...props }: any) => (
+    div: ({ children, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+      <div {...props}>{children}</div>
+    ),
+    span: ({ children, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+      <span {...props}>{children}</span>
+    ),
+    button: ({
+      children,
+      ...props
+    }: React.ComponentPropsWithoutRef<'button'>) => (
       <button {...props}>{children}</button>
     ),
   },
-  AnimatePresence: ({ children }: any) => <>{children}</>,
+  AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
   useMotionValue: () => ({ set: vi.fn(), get: () => 0 }),
-  useSpring: (v: any) => v,
+  useSpring: <T,>(value: T): T => value,
   useTransform: () => ({ set: vi.fn(), get: () => 0 }),
   useReducedMotion: () => false,
 }));
@@ -31,21 +38,33 @@ vi.mock('framer-motion', () => ({
 vi.mock('@assistant-ui/react', async () => {
   const React = await import('react');
   return {
-    AssistantRuntimeProvider: ({ children }: any) => <>{children}</>,
+    AssistantRuntimeProvider: ({ children }: React.PropsWithChildren) => (
+      <>{children}</>
+    ),
     useExternalStoreRuntime: () => ({}),
     ComposerPrimitive: {
-      Root: React.forwardRef<HTMLFormElement, any>(function ComposerRoot(
-        { children, asChild: _asChild, ...props },
-        ref
-      ) {
+      Root: React.forwardRef<
+        HTMLFormElement,
+        React.ComponentPropsWithoutRef<'form'> & { asChild?: boolean }
+      >(function ComposerRoot({ children, asChild: _asChild, ...props }, ref) {
         return (
           <form ref={ref} {...props}>
             {children}
           </form>
         );
       }),
-      Input: ({ children, asChild: _asChild, ...props }: any) =>
-        React.cloneElement(React.Children.only(children), props),
+      Input: ({
+        children,
+        asChild: _asChild,
+        ...props
+      }: React.PropsWithChildren<
+        React.HTMLAttributes<HTMLElement> & { asChild?: boolean }
+      >) => {
+        const child = React.Children.only(children) as React.ReactElement<
+          Record<string, unknown>
+        >;
+        return React.cloneElement(child, props);
+      },
     },
   };
 });

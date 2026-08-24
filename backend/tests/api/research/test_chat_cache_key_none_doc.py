@@ -59,7 +59,7 @@ async def test_completion_survives_context_without_document_id(mock_user):
         ),
         patch.object(
             chat_module.llm_response_cache, "get", new=AsyncMock(return_value=None)
-        ),
+        ) as cache_get,
         patch.object(
             chat_module.llm_response_cache, "set", new=AsyncMock()
         ) as cache_set,
@@ -75,12 +75,10 @@ async def test_completion_survives_context_without_document_id(mock_user):
     assert response.message.content == "answer"
     assert response.rag_enabled is True
 
-    # The cache key segment must contain only real ids — no "None" literal.
-    assert cache_set.await_count == 1
-    cache_query = cache_set.await_args.kwargs["query"]
-    assert "ctx:" in cache_query
-    assert "None" not in cache_query
-    assert "doc-b" in cache_query
+    # Omitting an id-less context from the fingerprint would make distinct
+    # context sets collide, so this turn is deliberately not cacheable.
+    cache_get.assert_not_awaited()
+    cache_set.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -89,7 +87,6 @@ async def test_cache_key_join_matches_expected_order(mock_user):
     contexts = [
         RetrievedContext(document_id="doc-c", title="C", content="c", score=0.3),
         RetrievedContext(document_id="doc-a", title="A", content="a", score=0.8),
-        RetrievedContext(document_id=None, title="N", content="n", score=0.1),
     ]
     with (
         patch.object(
@@ -121,6 +118,37 @@ async def test_cache_key_join_matches_expected_order(mock_user):
 
     cache_query = cache_set.await_args.kwargs["query"]
     assert cache_query.endswith("ctx:doc-a|doc-c")
+
+
+@pytest.mark.asyncio
+async def test_orgless_user_cache_scope_falls_back_to_user_id(mock_user):
+    """Org-less users must not share the semantic-cache tenant bucket."""
+    mock_user.organization_id = None
+    with (
+        patch.object(
+            chat_module.azure_openai_service, "is_chat_available", return_value=True
+        ),
+        patch.object(
+            chat_module.azure_openai_service,
+            "chat_completion",
+            new=AsyncMock(return_value={"content": "ok"}),
+        ),
+        patch.object(
+            chat_module.llm_response_cache, "get", new=AsyncMock(return_value=None)
+        ) as cache_get,
+        patch.object(
+            chat_module.llm_response_cache, "set", new=AsyncMock()
+        ) as cache_set,
+    ):
+        request = ChatCompletionRequest(
+            messages=[ChatMessage(role="user", content="q")], use_rag=False
+        )
+        await chat_module.chat_completions(
+            request, BackgroundTasks(), current_user=mock_user
+        )
+
+    assert cache_get.await_args.kwargs["organization_id"] == "user:user-1"
+    assert cache_set.await_args.kwargs["organization_id"] == "user:user-1"
 
 
 # Old behavior (pre-B6), documented rather than unit-tested: the inline

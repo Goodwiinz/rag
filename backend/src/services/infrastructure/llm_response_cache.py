@@ -101,6 +101,7 @@ class LLMCacheEntry:
     query_text: str
     response_content: str
     model: str
+    temperature: float
     usage: Dict[str, int]
     embedding: Optional[List[float]] = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -124,6 +125,7 @@ class LLMCacheEntry:
             "query_text": self.query_text,
             "response_content": self.response_content,
             "model": self.model,
+            "temperature": self.temperature,
             "usage": self.usage,
             "embedding": self.embedding,
             "created_at": self.created_at.isoformat(),
@@ -151,6 +153,7 @@ class LLMCacheEntry:
             query_text=data["query_text"],
             response_content=data["response_content"],
             model=data["model"],
+            temperature=data.get("temperature", 0.7),
             usage=data.get("usage", {}),
             embedding=data.get("embedding"),
             created_at=created_at,
@@ -295,9 +298,11 @@ class LLMResponseCache:
     async def _find_semantic_match(
         self,
         query_embedding: List[float],
+        model: str,
+        temperature: float,
         organization_id: str = "",
     ) -> Optional[LLMCacheEntry]:
-        """Find semantically similar cached response within the same organization."""
+        """Find a compatible semantic response within the same tenant scope."""
         if not query_embedding:
             return None
 
@@ -315,19 +320,30 @@ class LLMResponseCache:
             if comparisons >= self.config.max_semantic_comparisons:
                 break
 
+            cache_key = self._generate_cache_key(query_hash)
+            entry = self._memory_cache.get(cache_key)
+            if not entry or entry.is_expired:
+                continue
+
+            # A high vector similarity does not make responses generated with
+            # different model settings interchangeable. RAG entries are also
+            # context-dependent and semantic lookup is only used for plain
+            # chat requests, so they must never enter this candidate set.
+            if entry.model != model or round(entry.temperature, 2) != round(
+                temperature, 2
+            ):
+                continue
+            if entry.metadata.get("rag_enabled") is True:
+                continue
+
             similarity = self._cosine_similarity(query_embedding, cached_embedding)
 
             if (
                 similarity > best_similarity
                 and similarity >= self.config.similarity_threshold
             ):
-                # Get the actual cache entry
-                cache_key = self._generate_cache_key(query_hash)
-                entry = self._memory_cache.get(cache_key)
-
-                if entry and not entry.is_expired:
-                    best_similarity = similarity
-                    best_match = entry
+                best_similarity = similarity
+                best_match = entry
 
             comparisons += 1
 
@@ -452,7 +468,10 @@ class LLMResponseCache:
                 query_embedding = await self._compute_embedding(query)
                 if query_embedding:
                     semantic_match = await self._find_semantic_match(
-                        query_embedding, organization_id=organization_id
+                        query_embedding,
+                        model=model,
+                        temperature=temperature,
+                        organization_id=organization_id,
                     )
                     if semantic_match:
                         # Use lock for thread-safe hit_count increment
@@ -528,6 +547,7 @@ class LLMResponseCache:
                 query_text=query,
                 response_content=response_content,
                 model=model,
+                temperature=temperature,
                 usage=usage or {},
                 embedding=embedding,
                 ttl=effective_ttl,

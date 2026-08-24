@@ -163,9 +163,7 @@ async def test_degraded_turn_never_serves_poisoned_legacy_cache_entry(mock_user)
     gets served as the answer.
     """
     POISON = "POISONED legacy answer"
-    cache = LLMResponseCache(
-        LLMCacheConfig(use_redis=False, use_semantic_cache=False)
-    )
+    cache = LLMResponseCache(LLMCacheConfig(use_redis=False, use_semantic_cache=False))
     # Pre-seed under the exact shape the endpoint computes for this turn:
     # single user message -> query == last_query, no conv/ctx suffix.
     await cache.set(

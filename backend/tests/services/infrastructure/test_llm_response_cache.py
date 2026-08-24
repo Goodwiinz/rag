@@ -106,6 +106,93 @@ def test_semantic_match_is_organization_scoped():
     asyncio.run(scenario())
 
 
+def test_semantic_match_requires_compatible_generation_settings():
+    """Semantic hits must preserve the response-generation contract."""
+    from src.models.vector import EmbeddingResponse
+    from src.services.infrastructure.llm_response_cache import (
+        LLMCacheConfig,
+        LLMResponseCache,
+    )
+
+    class _SameEmbeddingService:
+        async def generate_embedding(self, request):
+            return EmbeddingResponse(
+                embedding=[1.0, 0.0, 0.0],
+                model="test",
+                dimension=3,
+                processing_time=0.0,
+            )
+
+    async def semantic_hit_for(**get_overrides):
+        cache = LLMResponseCache(config=LLMCacheConfig(use_redis=False))
+        cache._embedding_service = _SameEmbeddingService()  # type: ignore[assignment]
+        await cache.set(
+            query="explain retrieval augmented generation",
+            response_content="cached answer",
+            model="gpt-4o",
+            temperature=0.2,
+            metadata={"rag_enabled": False},
+            organization_id="org-a",
+        )
+        get_args = {
+            "query": "explain retrieval augmented generation?",
+            "model": "gpt-4o",
+            "temperature": 0.2,
+            "use_semantic": True,
+            "organization_id": "org-a",
+        }
+        get_args.update(get_overrides)
+        return await cache.get(
+            **get_args,
+        )
+
+    async def scenario():
+        assert await semantic_hit_for(model="gpt-4o-mini") is None
+        assert await semantic_hit_for(temperature=0.7) is None
+
+    asyncio.run(scenario())
+
+
+def test_non_rag_semantic_lookup_rejects_rag_entries():
+    """A context-dependent RAG answer must not satisfy a plain semantic lookup."""
+    from src.models.vector import EmbeddingResponse
+    from src.services.infrastructure.llm_response_cache import (
+        LLMCacheConfig,
+        LLMResponseCache,
+    )
+
+    class _SameEmbeddingService:
+        async def generate_embedding(self, request):
+            return EmbeddingResponse(
+                embedding=[1.0, 0.0, 0.0],
+                model="test",
+                dimension=3,
+                processing_time=0.0,
+            )
+
+    async def scenario():
+        cache = LLMResponseCache(config=LLMCacheConfig(use_redis=False))
+        cache._embedding_service = _SameEmbeddingService()  # type: ignore[assignment]
+        await cache.set(
+            query="what does this paper conclude",
+            response_content="context-dependent answer",
+            model="gpt-4o",
+            temperature=0.7,
+            metadata={"rag_enabled": True},
+            organization_id="org-a",
+        )
+        hit = await cache.get(
+            query="what does this paper conclude?",
+            model="gpt-4o",
+            temperature=0.7,
+            use_semantic=True,
+            organization_id="org-a",
+        )
+        assert hit is None
+
+    asyncio.run(scenario())
+
+
 def test_compute_embedding_uses_generate_embedding():
     """_compute_embedding must call the real EmbeddingService API.
 
