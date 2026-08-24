@@ -25,6 +25,9 @@ const chatStoreMocks = vi.hoisted(() => {
     loadingThreadId: null as string | null,
     messagePagination: {},
     setCurrentThread: vi.fn(),
+    // useChatSession indexes every thread it fetches into the store so the
+    // rail and page_context can read its project binding.
+    registerThread: vi.fn(),
   };
   const useStore = Object.assign(
     <T,>(selector: (store: typeof state) => T) => selector(state),
