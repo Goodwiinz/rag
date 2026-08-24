@@ -10,6 +10,7 @@ indices, so adding another progress frame cannot re-break them.
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
+from uuid import UUID
 
 import pytest
 
@@ -89,7 +90,9 @@ async def test_stream_event_generator_emits_trace_event_before_workflow_events()
     # pre-fix behaviour.)
     assert '"thread_id": "11111111-1111-1111-1111-111111111501"' not in trace_payload
     assert '"cli_session_id": ""' in trace_payload
-    assert '"langsmith_run_id": ""' in trace_payload
+    run_id = trace_payload.split('"langsmith_run_id": "', 1)[1].split('"', 1)[0]
+    UUID(run_id)
+    assert run_id
     assert '"langsmith_url": ""' in trace_payload
     assert "event: done\n" in events[-1]
 
@@ -146,6 +149,8 @@ async def test_stream_confirm_event_generator_emits_trace_event_before_workflow_
     trace_payload = workflow[0].split("data: ", 1)[1].strip()
     assert '"thread_id": "thread-456"' in trace_payload
     assert '"cli_session_id": ""' in trace_payload
-    assert '"langsmith_run_id": ""' in trace_payload
+    run_id = trace_payload.split('"langsmith_run_id": "', 1)[1].split('"', 1)[0]
+    UUID(run_id)
+    assert run_id
     assert '"langsmith_url": ""' in trace_payload
     assert "event: done\n" in events[-1]

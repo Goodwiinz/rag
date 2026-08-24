@@ -109,6 +109,149 @@ async def test_fast_chunks_wait_for_user_persistence_before_release():
     assert (await asyncio.wait_for(first, timeout=1)).content == "first"
 
 
+async def test_fast_path_root_stays_open_through_completion_without_network(
+    monkeypatch,
+):
+    from langsmith import run_helpers
+    from langsmith.run_helpers import get_current_run_tree
+
+    from src.api.agent import streaming as streaming_mod
+    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
+    from src.core.config import get_settings
+    from src.services.agent import agent_execution_service as jobs_mod
+    from src.services.agent import llm_factory
+
+    class _NoopClient:
+        def __init__(self):
+            self.created = []
+            self.updated = []
+
+        def create_run(self, **kwargs):
+            self.created.append(kwargs)
+
+        def update_run(self, **kwargs):
+            self.updated.append(kwargs)
+
+    class _TracingLuna:
+        async def astream(self, _messages, *, config=None):
+            root_run = get_current_run_tree()
+            observed["root"] = (root_run, root_run.end_time)
+            async with run_helpers.trace("fake_llm", run_type="llm"):
+                model_run = get_current_run_tree()
+                observed["model"] = (model_run, model_run.end_time)
+                yield AIMessageChunk(content="ok")
+
+    client = _NoopClient()
+    observed = {}
+    user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
+    thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4())
+    body = AgentExecuteRequest(
+        messages=[AgentMessage(role="user", content="Explain the sky")],
+        page_context={"type": "chat"},
+        use_rag=False,
+        thread_id=str(thread.id),
+    )
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    settings = get_settings()
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_ENABLED", True)
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_MAX_INPUT_CHARS", 8_000)
+    monkeypatch.setattr(llm_factory, "build_fast_path_llm", lambda: _TracingLuna())
+    fake_graph = _NoGraphExecution()
+    fake_session = SimpleNamespace(close=AsyncMock())
+
+    async def capture_checkpoint(*_args, **_kwargs):
+        run = get_current_run_tree()
+        observed["checkpoint"] = (run, run.end_time)
+
+    async def capture_finalize(*_args, **_kwargs):
+        run = get_current_run_tree()
+        observed["finalize"] = (run, run.end_time)
+
+    real_emit = streaming_mod._SeqEmitter.emit
+
+    async def capture_emit(self, event_type, data, *args, **kwargs):
+        if event_type is streaming_mod.AgentStreamEvent.DONE:
+            run = get_current_run_tree()
+            observed["done"] = (run, run.end_time)
+        return await real_emit(self, event_type, data, *args, **kwargs)
+
+    real_close = streaming_mod._close_async_iterator
+
+    async def capture_close(iterator):
+        run = get_current_run_tree()
+        observed["cleanup"] = (run, run.end_time)
+        await real_close(iterator)
+
+    with run_helpers.tracing_context(enabled=True, client=client):
+        with (
+            patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_session),
+            patch.object(streaming_mod, "_accept_eligible", return_value=False),
+            patch.object(
+                streaming_mod,
+                "_resolve_thread",
+                new=AsyncMock(return_value=(thread, str(thread.conversation_id))),
+            ),
+            patch.object(
+                streaming_mod,
+                "_persist_user_message_guarded",
+                new=AsyncMock(return_value=True),
+            ),
+            patch.object(
+                jobs_mod,
+                "_persist_assistant_message_safe",
+                new=AsyncMock(return_value="assistant-row-id"),
+            ),
+            patch.object(
+                streaming_mod._stream_buffer,
+                "start_stream",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "src.services.agent.checkpointer.get_checkpointer",
+                new=AsyncMock(return_value=object()),
+            ),
+            patch(
+                "src.services.agent.memory.get_memory_store",
+                new=AsyncMock(return_value=object()),
+            ),
+            patch(
+                "src.services.agent.graph.compile_agent_graph",
+                new=lambda **_kwargs: fake_graph,
+            ),
+            patch.object(fake_graph, "aupdate_state", side_effect=capture_checkpoint),
+            patch.object(streaming_mod, "_finalize_run", new=capture_finalize),
+            patch.object(streaming_mod._SeqEmitter, "emit", new=capture_emit),
+            patch.object(streaming_mod, "_close_async_iterator", new=capture_close),
+        ):
+            events = [
+                event
+                async for event in streaming_mod.stream_event_generator(
+                    body, request, user
+                )
+            ]
+
+    model_run, model_end_time = observed["model"]
+    root_run, root_end_time = observed["root"]
+    assert root_run.name == "luna_fast_path"
+    assert model_run.parent_run_id == root_run.id
+    assert root_run.metadata["trace_source"] == "non_graph"
+    assert model_run.metadata["thread_id"] == str(thread.id)
+    assert "Explain the sky" not in str(root_run.metadata)
+    assert root_end_time is None
+    assert model_end_time is None
+    for kind in ("checkpoint", "finalize", "done", "cleanup"):
+        observed_run, observed_end_time = observed[kind]
+        assert observed_run is root_run
+        assert observed_end_time is None
+    assert any("event: done" in event for event in events)
+    root_updates = [
+        update
+        for update in client.updated
+        if str(update.get("run_id")) == str(root_run.id)
+    ]
+    assert root_updates
+
+
 async def test_eligible_turn_streams_luna_and_reconciles_checkpoint_before_done(
     monkeypatch,
 ):
@@ -326,6 +469,8 @@ async def test_ineligible_turn_keeps_langgraph_path(
 async def test_luna_failure_persists_streamed_partial_as_stopped(
     monkeypatch, model, cancelled
 ):
+    from langsmith import run_helpers
+
     user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
     thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4())
     user_cmid = uuid4()
@@ -356,7 +501,21 @@ async def test_luna_failure_persists_streamed_partial_as_stopped(
 
     fake_session = SimpleNamespace(close=AsyncMock())
     persist_assistant = AsyncMock(return_value="partial-row-id")
+
+    class _NoopClient:
+        def __init__(self):
+            self.created = []
+            self.updated = []
+
+        def create_run(self, **kwargs):
+            self.created.append(kwargs)
+
+        def update_run(self, **kwargs):
+            self.updated.append(kwargs)
+
+    client = _NoopClient()
     with (
+        run_helpers.tracing_context(enabled=True, client=client),
         patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_session),
         patch.object(streaming_mod, "_accept_eligible", return_value=False),
         patch.object(
@@ -400,6 +559,21 @@ async def test_luna_failure_persists_streamed_partial_as_stopped(
     persist_assistant.assert_awaited_once()
     assert persist_assistant.await_args.kwargs["content"] == "partial"
     assert persist_assistant.await_args.kwargs["stopped"] is True
+    if not cancelled:
+        root_id = next(
+            created["id"]
+            for created in client.created
+            if created["name"] == "luna_fast_path"
+        )
+        root_updates = [
+            update
+            for update in client.updated
+            if str(update.get("run_id")) == str(root_id)
+        ]
+        assert any(
+            "model stream broke" in (update.get("error") or "")
+            for update in root_updates
+        )
 
 
 async def test_fast_path_disconnect_terminalizes_before_resistant_pull_cleanup(

@@ -276,7 +276,7 @@ async def _stream_luna_fast_path(
     resolved_thread_id: str,
     emitter: Any,
     stream_started_at: float,
-    trace_metadata: Dict[str, str],
+    trace_run_id: _uuid.UUID,
     acceptance: Optional[AcceptedSubmission] = None,
 ):
     """Run one evidence-independent turn without entering LangGraph execution.
@@ -419,7 +419,7 @@ async def _stream_luna_fast_path(
             build_trace_payload(
                 thread_id=stream_thread_id,
                 cli_session_id="",
-                langsmith_run_id="",
+                langsmith_run_id=str(trace_run_id),
             ),
         )
 
@@ -439,7 +439,6 @@ async def _stream_luna_fast_path(
                 llm=llm,
                 messages=prompt,
                 persist_user=persist_user,
-                trace_metadata=trace_metadata,
             ).__aiter__()
             fast_path_events = _graph_events_with_keepalive(fast_path_chunks, request)
             try:
@@ -632,6 +631,17 @@ async def _stream_luna_fast_path(
                 "message": client_safe_error(exc),
             },
         )
+        try:
+            from langsmith.run_helpers import get_current_run_tree
+
+            root_run = get_current_run_tree()
+            while getattr(root_run, "parent_run", None) is not None:
+                root_run = root_run.parent_run
+            if root_run is not None:
+                root_run.error = repr(exc)
+        except Exception:
+            logger.debug("Failed to mark Luna trace root failed", exc_info=True)
+        return
 
 
 def _canonical_persistence_enabled() -> bool:
@@ -1295,6 +1305,7 @@ async def stream_event_generator(
     )
 
     stream_thread_id = request_body.thread_id or "unknown"
+    trace_run_id = _uuid.uuid4()
     config: Dict[str, Any] = (
         {}
     )  # Initialize before try block for safe access in except handlers
@@ -1453,38 +1464,48 @@ async def stream_event_generator(
             and fast_decision.eligible
             and resolved_thread_id is not None
         ):
+            from langsmith.run_helpers import trace
+
             emitter.set_context(route="luna")
-            fast_path_iter = _stream_luna_fast_path(
-                request_body=request_body,
-                request=request,
-                current_user=current_user,
-                db=db,
-                resolved_thread_id=resolved_thread_id,
-                emitter=emitter,
-                stream_started_at=stream_started_at,
-                trace_metadata=build_trace_metadata(
-                    trace_source=TraceSource.NON_GRAPH,
-                    user_id=current_user.id,
-                    org_id=org_id,
-                    thread_id=(
-                        acceptance.thread_id if acceptance is not None else None
-                    ),
-                    request_id=emitter.trace_id,
-                    agent_run_id=(
-                        acceptance.run_id if acceptance is not None else None
-                    ),
-                    user_message_id=(
-                        acceptance.user_message_id if acceptance is not None else None
-                    ),
-                    client_message_id=client_message_id,
+            trace_metadata = build_trace_metadata(
+                trace_source=TraceSource.NON_GRAPH,
+                user_id=current_user.id,
+                org_id=org_id,
+                thread_id=(
+                    acceptance.thread_id
+                    if acceptance is not None
+                    else resolved_thread_id
                 ),
-                acceptance=acceptance,
+                request_id=emitter.trace_id,
+                agent_run_id=(acceptance.run_id if acceptance is not None else None),
+                user_message_id=(
+                    acceptance.user_message_id if acceptance is not None else None
+                ),
+                client_message_id=client_message_id,
             )
-            try:
-                async for frame in fast_path_iter:
-                    yield frame
-            finally:
-                await _close_async_iterator(fast_path_iter)
+            async with trace(
+                "luna_fast_path",
+                run_type="chain",
+                metadata=trace_metadata,
+                run_id=trace_run_id,
+                exceptions_to_handle=(asyncio.CancelledError, GeneratorExit),
+            ):
+                fast_path_iter = _stream_luna_fast_path(
+                    request_body=request_body,
+                    request=request,
+                    current_user=current_user,
+                    db=db,
+                    resolved_thread_id=resolved_thread_id,
+                    emitter=emitter,
+                    stream_started_at=stream_started_at,
+                    trace_run_id=trace_run_id,
+                    acceptance=acceptance,
+                )
+                try:
+                    async for frame in fast_path_iter:
+                        yield frame
+                finally:
+                    await _close_async_iterator(fast_path_iter)
             return
 
         # Edit-and-resend: whichever writer owned this turn's user row also
@@ -1608,6 +1629,8 @@ async def stream_event_generator(
         stream_thread_id = request_body.thread_id or str(_uuid.uuid4())
         config = {
             "recursion_limit": RECURSION_LIMIT,
+            "run_name": "agent:stream",
+            "run_id": trace_run_id,
             # Ids only (audit B8): graph nodes/tools open their own
             # tool_session() and re-load the user org-scoped — never smuggle
             # the live AsyncSession / ORM User through LangGraph config.
@@ -1628,7 +1651,11 @@ async def stream_event_generator(
                 trace_source=TraceSource.GRAPH,
                 user_id=current_user.id,
                 org_id=org_id,
-                thread_id=(acceptance.thread_id if acceptance is not None else None),
+                thread_id=(
+                    acceptance.thread_id
+                    if acceptance is not None
+                    else resolved_thread_id
+                ),
                 request_id=emitter.trace_id,
                 agent_run_id=(acceptance.run_id if acceptance is not None else None),
                 user_message_id=(
@@ -1651,7 +1678,7 @@ async def stream_event_generator(
             build_trace_payload(
                 thread_id=config["configurable"]["thread_id"],
                 cli_session_id="",
-                langsmith_run_id="",
+                langsmith_run_id=str(config["run_id"]),
             ),
         )
 
@@ -2446,6 +2473,7 @@ async def stream_confirm_event_generator(
     )
 
     db = AsyncSessionLocal()
+    trace_run_id = _uuid.uuid4()
     emitter = _SeqEmitter(trace_id=_request_trace_id(request))
     client_disconnected = False
     # Set once an assistant row for this turn has been persisted/scheduled —
@@ -2737,6 +2765,8 @@ async def stream_confirm_event_generator(
 
         config = {
             "recursion_limit": RECURSION_LIMIT,
+            "run_name": "agent:stream:resume",
+            "run_id": trace_run_id,
             # Ids only (audit B8) — see stream_event_generator's run config.
             "configurable": {
                 "thread_id": request_body.thread_id,
@@ -2773,7 +2803,7 @@ async def stream_confirm_event_generator(
             build_trace_payload(
                 thread_id=request_body.thread_id,
                 cli_session_id="",
-                langsmith_run_id="",
+                langsmith_run_id=str(config["run_id"]),
             ),
         )
 

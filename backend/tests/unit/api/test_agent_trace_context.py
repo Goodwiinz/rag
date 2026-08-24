@@ -38,6 +38,7 @@ def test_configure_langsmith_accepts_langsmith_prefixed_env(monkeypatch) -> None
 
     monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2_test_key")
     monkeypatch.setenv("LANGSMITH_PROJECT", "custom-project")
+    monkeypatch.setenv("LANGSMITH_TRACING", "true")
 
     configure_langsmith()
 
@@ -66,3 +67,40 @@ def test_configure_langsmith_noop_without_api_key(monkeypatch) -> None:
 
     assert "LANGCHAIN_TRACING_V2" not in os.environ
     assert "LANGSMITH_TRACING" not in os.environ
+
+
+def test_configure_langsmith_defaults_off_for_testing_with_a_key(monkeypatch) -> None:
+    from src.services.agent.observability import configure_langsmith
+
+    monkeypatch.setenv("ENVIRONMENT", "testing")
+    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2_test_key")
+    for key in (
+        "LANGSMITH_TRACING",
+        "LANGCHAIN_TRACING_V2",
+        "RUN_PERF_HARNESS",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+    configure_langsmith()
+
+    import os
+
+    assert "LANGCHAIN_TRACING_V2" not in os.environ
+    assert "LANGSMITH_TRACING" not in os.environ
+
+
+def test_configure_langsmith_allows_explicit_perf_opt_in(monkeypatch) -> None:
+    from src.services.agent.observability import configure_langsmith
+
+    monkeypatch.setenv("ENVIRONMENT", "testing")
+    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2_test_key")
+    monkeypatch.setenv("RUN_PERF_HARNESS", "1")
+    monkeypatch.delenv("LANGSMITH_TRACING", raising=False)
+    monkeypatch.delenv("LANGCHAIN_TRACING_V2", raising=False)
+
+    configure_langsmith()
+
+    import os
+
+    assert os.environ["LANGCHAIN_TRACING_V2"] == "true"
+    assert os.environ["LANGSMITH_TRACING"] == "true"
