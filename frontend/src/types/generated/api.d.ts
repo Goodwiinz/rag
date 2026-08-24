@@ -19327,7 +19327,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    /** @example {
+                    /**
+                     * @example {
                      *       "documents": [
                      *         {
                      *           "content_preview": "This paper explores...",
@@ -19356,7 +19357,8 @@ export interface operations {
                      *         "total": 42,
                      *         "total_pages": 3
                      *       }
-                     *     } */
+                     *     }
+                     */
                     "application/json": components["schemas"]["DocumentListResponse"];
                 };
             };
@@ -19487,7 +19489,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    /** @example {
+                    /**
+                     * @example {
                      *       "documents": [
                      *         {
                      *           "content_preview": "...comprehensive guide to machine learning...",
@@ -19510,7 +19513,8 @@ export interface operations {
                      *         ]
                      *       },
                      *       "search_query": "machine learning"
-                     *     } */
+                     *     }
+                     */
                     "application/json": components["schemas"]["DocumentSearchResponse"];
                 };
             };
