@@ -32,6 +32,9 @@ const chatStoreMocks = vi.hoisted(() => {
       { hasMore: boolean; loadingOlder: boolean; loadedCount: number }
     >,
     setCurrentThread: vi.fn(),
+    // useChatSession indexes every thread it fetches into the store so the
+    // rail and page_context can read its project binding.
+    registerThread: vi.fn(),
   };
   state.setCurrentThread.mockImplementation((threadId: string | null) => {
     state.currentThreadId = threadId;

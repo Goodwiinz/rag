@@ -59,7 +59,9 @@ class ExtractionMatrixService:
                 if v.get("status") in ("completed", "failed")
             ]
             pool = terminal or list(_extraction_status)
-            oldest = min(pool, key=lambda k: _extraction_status[k].get("updated_at", ""))
+            oldest = min(
+                pool, key=lambda k: _extraction_status[k].get("updated_at", "")
+            )
             _extraction_status.pop(oldest)
 
     def get_extraction_status(task_id: str) -> Optional[Dict[str, Any]]:

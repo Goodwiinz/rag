@@ -109,6 +109,27 @@ describe('ArtifactPanel', () => {
     expect(s.artifact).toEqual(docArtifact);
   });
 
+  it('Escape closes the panel without focus inside it', async () => {
+    const { user } = render(<ArtifactPanel artifact={docArtifact} />);
+    // Focus stays where it was (the composer, in the app) — the panel never
+    // grabs it, so a handler scoped to the <aside> would never fire.
+    await user.keyboard('{Escape}');
+    expect(useArtifactPanelStore.getState().isOpen).toBe(false);
+  });
+
+  it('leaves Escape to an overlay stacked above the panel', async () => {
+    const overlay = document.createElement('div');
+    overlay.setAttribute('data-dismissable-overlay', '');
+    document.body.appendChild(overlay);
+    try {
+      const { user } = render(<ArtifactPanel artifact={docArtifact} />);
+      await user.keyboard('{Escape}');
+      expect(useArtifactPanelStore.getState().isOpen).toBe(true);
+    } finally {
+      overlay.remove();
+    }
+  });
+
   it('pin button toggles the pinned flag with aria-pressed', async () => {
     const { user } = render(<ArtifactPanel artifact={docArtifact} />);
     const pin = screen.getByRole('button', { name: 'Pin this artifact' });

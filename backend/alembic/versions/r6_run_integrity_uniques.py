@@ -52,6 +52,7 @@ def upgrade() -> None:
                       WHERE g2.project_id = g.project_id AND g2.is_current
                   );
 
+                -- At most one current draft per project (partial)
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_generated_drafts_current
                     ON generated_drafts (project_id) WHERE is_current;
             END IF;

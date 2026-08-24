@@ -90,8 +90,20 @@ async def _get_thread_with_auth(
     thread_id: UUID,
     current_user: User,
     db: AsyncSession,
+    for_update: bool = False,
 ) -> Thread:
     """Get thread with authorization check.
+
+    Args:
+        thread_id: Thread ID
+        current_user: Authenticated user
+        db: Database session
+        for_update: Take a row lock (SELECT ... FOR UPDATE OF threads) on the
+            thread row. Required for read-modify-write flows that mutate
+            source_project_id / rag_document_scope, so concurrent writers
+            serialize instead of racing on last-commit-wins. No-op on SQLite.
+            ``of=Thread`` locks only the threads row, not the joined
+            conversation/workspace rows.
 
     Raises:
         HTTPException: If not found or not authorized
@@ -109,6 +121,8 @@ async def _get_thread_with_auth(
             )
         )
     )
+    if for_update:
+        query = query.with_for_update(of=Thread)
     result = await db.execute(query)
     thread = result.scalar_one_or_none()
 
@@ -396,14 +410,20 @@ async def list_project_threads(
         # Verify project access
         await _get_project_with_auth(project_id, current_user, db)
 
-        # Get linked threads with thread details (exclude soft-deleted links)
+        # Get linked threads with thread details (exclude soft-deleted links).
+        # The thread-level soft-delete check also lives in SQL (audit B8):
+        # joining Thread here bounds the load to live links of live threads
+        # and keeps `total` consistent with the returned rows, instead of
+        # loading every link ever and dropping dead threads in Python.
         query = (
             select(ProjectThread)
+            .join(Thread, ProjectThread.thread_id == Thread.id)
             .options(selectinload(ProjectThread.thread))
             .where(
                 and_(
                     ProjectThread.project_id == project_id,
                     ProjectThread.is_deleted == False,
+                    Thread.is_deleted == False,  # noqa: E712
                 )
             )
             .order_by(ProjectThread.linked_at.desc())
@@ -413,7 +433,9 @@ async def list_project_threads(
 
         threads_response = []
         for pt in project_threads:
-            if pt.thread and not pt.thread.is_deleted:
+            # Defensive: the inner join guarantees pt.thread exists, but a
+            # stale session state should degrade to a skipped row, not a 500.
+            if pt.thread:
                 threads_response.append(
                     ProjectThreadResponse(
                         id=pt.id,
@@ -472,11 +494,14 @@ async def unlink_thread_from_project(
         # Verify project access
         await _get_project_with_auth(project_id, current_user, db)
 
-        # Find and delete the link
+        # Find and delete the link. Exclude soft-deleted links: a second
+        # DELETE on an already-unlinked thread must 404, not re-run the
+        # scope reassignment below against a dead row (audit B7).
         query = select(ProjectThread).where(
             and_(
                 ProjectThread.project_id == project_id,
                 ProjectThread.thread_id == thread_id,
+                ProjectThread.is_deleted == False,  # noqa: E712
             )
         )
         result = await db.execute(query)
@@ -488,7 +513,14 @@ async def unlink_thread_from_project(
                 detail="Thread link not found",
             )
 
-        thread = await _get_thread_with_auth(thread_id, current_user, db)
+        # Lock the thread row BEFORE computing remaining_link: the read-
+        # modify-write of source_project_id / rag_document_scope below is a
+        # race window (audit B5) — two concurrent unlinks both read the same
+        # baseline and last commit wins, leaving stale document_ids feeding
+        # RAG scope. FOR UPDATE OF threads serializes per-thread unlinks.
+        thread = await _get_thread_with_auth(
+            thread_id, current_user, db, for_update=True
+        )
         project_thread.soft_delete()
 
         # Reassign the scalar source whenever the unlinked project was the

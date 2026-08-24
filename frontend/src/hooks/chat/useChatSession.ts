@@ -47,6 +47,16 @@ function threadToConversation(
   };
 }
 
+// The context rail and the agent's page_context read a thread's project
+// binding (source_project_id) off the CHAT STORE's thread row, but the store
+// only ever loads page 1 of one conversation (useChatPersistence, once per
+// session). Every thread this hook fetches is indexed there too, so a thread
+// from a later page or a deep link doesn't look permanently unbound.
+function indexThreads(threads: Thread[]): void {
+  const { registerThread } = useChatStore.getState();
+  for (const thread of threads) registerThread(thread);
+}
+
 export interface UseChatSessionReturn {
   // State
   conversations: ChatConversation[];
@@ -348,6 +358,7 @@ export function useChatSession(): UseChatSessionReturn {
             return;
           }
 
+          indexThreads([thread]);
           setConversations((prev) =>
             upsertConversationFromThread(prev, thread, [])
           );
@@ -386,6 +397,8 @@ export function useChatSession(): UseChatSessionReturn {
           conversationId,
           { page: 1, limit: THREADS_PAGE_SIZE }
         );
+
+        indexThreads(threadResponse.threads);
 
         // CX8: record what this list reflects so "show older threads" knows
         // which conversation + page to fetch next.
@@ -484,6 +497,8 @@ export function useChatSession(): UseChatSessionReturn {
         page: nextPage,
         limit: THREADS_PAGE_SIZE,
       });
+
+      indexThreads(response.threads);
 
       setConversations((prev) => {
         const existingIds = new Set(prev.map((c) => c.id));
@@ -636,6 +651,8 @@ export function useChatSession(): UseChatSessionReturn {
               );
               return;
             }
+
+            indexThreads([...threadListResponse.threads, restoreThread]);
 
             let uiConversations: ChatConversation[] =
               threadListResponse.threads.map((thread) =>

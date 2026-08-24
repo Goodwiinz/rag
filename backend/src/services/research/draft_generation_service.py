@@ -946,6 +946,20 @@ Key takeaways include the importance of continued investigation and the potentia
                 next_draft.is_current = True
 
         await self.db.commit()
+
+        # R2-L5: leaving zero current drafts broke every current_only reader.
+        if was_current:
+            next_draft = (
+                await self.db.execute(
+                    select(GeneratedDraft)
+                    .where(GeneratedDraft.project_id == project_id)
+                    .order_by(GeneratedDraft.version.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if next_draft:
+                next_draft.is_current = True
+                await self.db.commit()
         return True
 
     async def get_draft_citations(
