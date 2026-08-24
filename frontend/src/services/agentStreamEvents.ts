@@ -12,6 +12,7 @@
  */
 export const AGENT_STREAM_EVENTS = [
   'token',
+  'reasoning_delta',
   'tool_start',
   'tool_end',
   'rag_context',

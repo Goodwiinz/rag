@@ -48,6 +48,7 @@ describe('streaming reasoning panel and elapsed time', () => {
       streamingContent: '',
       streamingSteps: [],
       streamingProgress: [],
+      streamingReasoning: '',
       streamingCitations: [],
       isRetrievingRag: false,
       streamingElapsedMs: null,
@@ -110,6 +111,23 @@ describe('streaming reasoning panel and elapsed time', () => {
     expect(panel).toHaveTextContent('Request accepted');
     expect(panel).toHaveTextContent('Reading relevant sources');
     expect(panel).toHaveTextContent('Drafting the response');
+  });
+
+  it('shows provider summarized reasoning separately from progress', () => {
+    useChatStore.setState({
+      streamingProgress: [
+        { phase: 'retrieving', detail: 'Reading relevant sources' },
+      ],
+      streamingReasoning: 'Comparing the strongest evidence across sources.',
+    });
+    renderStreamingTurn();
+
+    const panel = document.querySelector('[data-slot="reasoning-panel"]');
+    expect(panel).toHaveTextContent('Reading relevant sources');
+    expect(panel).toHaveTextContent('Reasoning summary');
+    expect(panel).toHaveTextContent(
+      'Comparing the strongest evidence across sources.'
+    );
   });
 
   it('keeps message timing visible after answer tokens arrive', () => {

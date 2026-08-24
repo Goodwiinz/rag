@@ -246,6 +246,26 @@ def _chunk_text(chunk: Any) -> str:
     return ""
 
 
+def _chunk_reasoning_summary(chunk: Any) -> str:
+    """Extract provider-authored reasoning-summary deltas, never raw reasoning."""
+    content = getattr(chunk, "content", None)
+    if not isinstance(content, list):
+        return ""
+    parts: list[str] = []
+    for item in content:
+        if not isinstance(item, dict) or item.get("type") != "reasoning":
+            continue
+        summaries = item.get("summary")
+        if not isinstance(summaries, list):
+            continue
+        parts.extend(
+            str(summary.get("text", ""))
+            for summary in summaries
+            if isinstance(summary, dict) and summary.get("type") == "summary_text"
+        )
+    return "".join(parts)
+
+
 def _latest_turn_assistant_text(messages: Any) -> str:
     """Text of the newest AI message produced AFTER the newest human turn.
 
@@ -662,14 +682,18 @@ _SSE_HEADERS = {
 # complexity check, reflection critique, summarisers inside subgraph
 # tool nodes) ALSO trigger on_chat_model_stream — emitting their tokens
 # leaks raw JSON ({"intent":…}, {"step_count":1}) and interleaves
-# parallel summarisations into the response stream. The four allow-listed
-# nodes are the only ones whose chat output the user is meant to see.
+# parallel summarisations into the response stream. These allow-listed nodes
+# are the only ones whose chat output the user is meant to see.
 _USER_FACING_LLM_NODES = frozenset(
     {
         "llm_node",
+        "force_synthesis_node",
         "research_llm_node",
+        "research_force_synthesis_node",
         "writing_llm_node",
+        "writing_force_synthesis_node",
         "data_llm_node",
+        "data_force_synthesis_node",
     }
 )
 
@@ -1835,6 +1859,16 @@ async def stream_event_generator(
                             if not _is_user_facing_token_event(event):
                                 continue
                             chunk = event.get("data", {}).get("chunk")
+                            reasoning_delta = (
+                                _chunk_reasoning_summary(chunk) if chunk else ""
+                            )
+                            if reasoning_delta:
+                                frame = await emitter.emit(
+                                    AgentStreamEvent.REASONING_DELTA,
+                                    {"content": reasoning_delta},
+                                )
+                                if not client_disconnected:
+                                    yield frame
                             # _chunk_text, not chunk.content: on the Responses
                             # API content is a list of typed blocks, and the
                             # reasoning ones must not reach the wire.
@@ -2913,6 +2947,14 @@ async def stream_confirm_event_generator(
                     if not _is_user_facing_token_event(event):
                         continue
                     chunk = event.get("data", {}).get("chunk")
+                    reasoning_delta = _chunk_reasoning_summary(chunk) if chunk else ""
+                    if reasoning_delta:
+                        frame = await emitter.emit(
+                            AgentStreamEvent.REASONING_DELTA,
+                            {"content": reasoning_delta},
+                        )
+                        if not client_disconnected:
+                            yield frame
                     # See the note on the main stream: Responses-API chunks
                     # carry typed blocks, not a bare string.
                     chunk_text = _chunk_text(chunk) if chunk else ""

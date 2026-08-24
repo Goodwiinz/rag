@@ -132,6 +132,7 @@ export function toCitationCreate(ctx: Record<string, unknown>): CitationCreate {
 const RESUME_MAX_ATTEMPTS = 3;
 const RESUME_BACKOFF_MS = [1_000, 4_000];
 const MAX_PROGRESS_STEPS = 16;
+const MAX_REASONING_SUMMARY_CHARS = 8_000;
 
 export function appendProgressStep(
   steps: AgentProgressStep[],
@@ -690,6 +691,7 @@ export function useChatStreaming(
         // Planner's top-level rationale for turnPlan, carried the same way.
         let turnPlanReasoning = '';
         let turnProgress: AgentProgressStep[] = [];
+        let turnReasoning = '';
         // One entry per invocation: two parallel calls to the same tool used
         // to share a slot, so the second end read the first's start time.
         const toolStartTimes = new Map<string, number[]>();
@@ -709,6 +711,7 @@ export function useChatStreaming(
           streamingSteps: [],
           streamingPlan: [],
           streamingProgress: [],
+          streamingReasoning: '',
           // Only "retrieving" when RAG is on; cleared on first token / context.
           isRetrievingRag: enableRAG,
           // Fresh turn — drop the previous turn's heartbeat reading.
@@ -762,6 +765,13 @@ export function useChatStreaming(
                   }
                 });
               }
+            },
+            onReasoningDelta: (content) => {
+              turnReasoning = (turnReasoning + content).slice(
+                0,
+                MAX_REASONING_SUMMARY_CHARS
+              );
+              useChatStore.setState({ streamingReasoning: turnReasoning });
             },
             onHeartbeat: (elapsedMs) => {
               // The only progress signal during a long silent planner/LLM
@@ -999,6 +1009,7 @@ export function useChatStreaming(
             streamingSteps: [],
             streamingPlan: [],
             streamingProgress: [],
+            streamingReasoning: '',
             streamingThreadId: null,
           });
           await reconcileUser(
@@ -1043,6 +1054,7 @@ export function useChatStreaming(
             streamingSteps: [],
             streamingPlan: [],
             streamingProgress: [],
+            streamingReasoning: '',
             streamingThreadId: null,
           });
           if (isStoppedByUser()) {
@@ -1136,6 +1148,7 @@ export function useChatStreaming(
           streamingSteps: [],
           streamingPlan: [],
           streamingProgress: [],
+          streamingReasoning: '',
           streamingThreadId: null,
         });
         lastStreamedContentRef.current = '';
@@ -1255,6 +1268,7 @@ export function useChatStreaming(
             streamingSteps: [],
             streamingPlan: [],
             streamingProgress: [],
+            streamingReasoning: '',
             streamingThreadId: null,
           });
         }
@@ -1872,6 +1886,7 @@ export function useChatStreaming(
         let confirmProgress: AgentProgressStep[] = [
           ...(pendingConfirmation.progress ?? []),
         ];
+        let confirmReasoning = '';
         // CX5: the confirm-resume path is a SEPARATE live-stream owner from
         // runStreamTurn (a resumed HITL turn belongs to the confirmation's
         // workspace thread, which may differ from whatever thread is
@@ -1887,6 +1902,7 @@ export function useChatStreaming(
           // resume — the interrupt exit already cleared streamingPlan.
           streamingPlan: [...confirmPlan],
           streamingProgress: [...confirmProgress],
+          streamingReasoning: '',
           streamingCitations: carriedCitations,
           streamingElapsedMs: null,
           streamingPhase: 'accepted',
@@ -1987,6 +2003,15 @@ export function useChatStreaming(
                     }
                   });
                 }
+              },
+              onReasoningDelta: (content) => {
+                confirmReasoning = (confirmReasoning + content).slice(
+                  0,
+                  MAX_REASONING_SUMMARY_CHARS
+                );
+                useChatStore.setState({
+                  streamingReasoning: confirmReasoning,
+                });
               },
               onHeartbeat: (elapsedMs) => {
                 useChatStore.setState({ streamingElapsedMs: elapsedMs });
@@ -2325,6 +2350,7 @@ export function useChatStreaming(
               streamingSteps: [],
               streamingPlan: [],
               streamingProgress: [],
+              streamingReasoning: '',
               streamingCitations: [],
               streamingThreadId: null,
             });

@@ -450,6 +450,7 @@ function StreamingReasoningSection({ label }: { label: string }): ReactElement {
   const streamingPlan = useChatStore((s) => s.streamingPlan);
   const streamingSteps = useChatStore((s) => s.streamingSteps);
   const progress = useChatStore((s) => s.streamingProgress);
+  const reasoning = useChatStore((s) => s.streamingReasoning);
   const [open, setOpen] = useState(true);
 
   const reasoningSteps = (
@@ -460,6 +461,9 @@ function StreamingReasoningSection({ label }: { label: string }): ReactElement {
     title: step.detail,
     body: index === all.length - 1 ? 'In progress' : 'Completed',
   }));
+  if (reasoning) {
+    reasoningSteps.push({ title: 'Reasoning summary', body: reasoning });
+  }
 
   return (
     <>

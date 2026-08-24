@@ -304,6 +304,7 @@ class AgentStreamEvent(StrEnum):
     """
 
     TOKEN = "token"
+    REASONING_DELTA = "reasoning_delta"
     TOOL_START = "tool_start"
     TOOL_END = "tool_end"
     RAG_CONTEXT = "rag_context"

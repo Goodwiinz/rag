@@ -68,13 +68,13 @@ def test_chat_completions_is_the_default_and_sends_no_effort(
     )
 
 
-def test_responses_api_opt_in_restores_reasoning_effort(
+def test_responses_api_opt_in_requests_summarized_reasoning(
     build: Callable[[bool], dict[str, Any]],
 ) -> None:
     kwargs = build(True)
 
     assert kwargs["use_responses_api"] is True
-    assert kwargs["reasoning_effort"] == "medium"
+    assert kwargs["reasoning"] == {"effort": "medium", "summary": "auto"}
 
 
 class TestNormalizeAiContent:
