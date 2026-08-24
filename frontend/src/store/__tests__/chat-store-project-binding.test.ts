@@ -232,6 +232,23 @@ describe('registerThread', () => {
     );
   });
 
+  it('refreshes an already-registered thread with the server row', () => {
+    // A thread outside the store's single page-1 load (older page, deep
+    // link) is registered by the chat page; re-registering must adopt the
+    // server's source_project_id, not skip the row and report "unbound".
+    act(() => {
+      useChatStore.getState().registerThread(makeThread('t1', 'conv-a'));
+      useChatStore
+        .getState()
+        .registerThread(
+          makeThread('t1', 'conv-a', { source_project_id: 'p9' })
+        );
+    });
+    useChatStore.setState({ currentThreadId: 't1' });
+    expect(useChatStore.getState().threads['conv-a']).toHaveLength(1);
+    expect(selectCurrentThreadProjectId(useChatStore.getState())).toBe('p9');
+  });
+
   it('does not duplicate an already-registered thread', () => {
     const t = makeThread('t1', 'conv-a');
     act(() => {

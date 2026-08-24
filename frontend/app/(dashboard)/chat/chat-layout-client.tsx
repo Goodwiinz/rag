@@ -475,11 +475,25 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
             )}
             {showArtifactPanel && (
               <>
-                <ArtifactPanel
-                  artifact={artifact}
-                  onToggleRail={() => setRailOverlayOpen((o) => !o)}
-                  railOpen={railOverlayOpen}
-                />
+                {/* display:contents — the aside stays the flex item; this
+                    wrapper only catches pointer-downs so touching the panel
+                    dismisses the rail overlay like any other click-away. */}
+                <div
+                  className="contents"
+                  onPointerDownCapture={() => setRailOverlayOpen(false)}
+                >
+                  <ArtifactPanel
+                    artifact={artifact}
+                    onToggleRail={() => setRailOverlayOpen((o) => !o)}
+                    railOpen={railOverlayOpen}
+                    // The click-away layer below is `absolute inset-0`, so it
+                    // covers this column too. The panel is a static flex item
+                    // (z-auto), which put it UNDER that layer: while the rail
+                    // overlay was open every click inside the panel — its
+                    // close button included — was swallowed and did nothing.
+                    className="lg:z-40"
+                  />
+                </div>
                 {railOverlayOpen && (
                   <>
                     {/* Click-away layer for the rail overlay. */}

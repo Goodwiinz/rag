@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import {
   AlertTriangle,
   ExternalLink,
@@ -234,6 +235,18 @@ export function ArtifactPanel({
   const togglePin = useArtifactPanelStore((s) => s.togglePin);
   const openArtifact = useArtifactPanelStore((s) => s.openArtifact);
 
+  // Escape closes the panel. Handling it on the <aside> only worked while
+  // focus was already inside the panel — opening it never moves focus (it
+  // stays in the composer), so Escape did nothing. The panel is mounted only
+  // while open, so the listener's lifetime is the open state.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') closePanel();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [closePanel]);
+
   // "Open document" inside a sources view focuses that document here — the
   // split-view stays put, the panel just changes what it shows.
   const handleOpenCitedDocument = (citation: Citation): void => {
@@ -264,9 +277,6 @@ export function ArtifactPanel({
     <aside
       role="region"
       aria-label="Artifact viewer"
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') closePanel();
-      }}
       className={cn(
         'flex flex-col bg-(--nous-bg-1)',
         // Desktop: docked column in the layout's right slot.
