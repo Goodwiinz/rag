@@ -15575,7 +15575,7 @@
     },
     "/api/v1/agent/stream": {
       "post": {
-        "description": "Stream agent responses via Server-Sent Events.\n\nSSE event types are the ``AgentStreamEvent`` wire vocabulary\n(``src/shared/enums.py`` — the single source of truth): token, tool_start,\ntool_end, rag_context, plan, reflection, trace, usage, heartbeat, status,\nconfirmation, done, error. ``heartbeat`` is a payload-less keepalive; the\nterminal frames are done, error, or confirmation.",
+        "description": "Stream agent responses via Server-Sent Events.\n\nSSE event types are the ``AgentStreamEvent`` wire vocabulary\n(``src/shared/enums.py`` — the single source of truth): token,\nreasoning_delta, tool_start, tool_end, rag_context, plan, reflection,\ntrace, usage, heartbeat, status, confirmation, done, error. The terminal\nframes are done, error, or confirmation.",
         "operationId": "stream_agent_api_v1_agent_stream_post",
         "requestBody": {
           "content": {
