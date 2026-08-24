@@ -153,6 +153,15 @@ export function useSlashCommands({
           .getState()
           .linkThreadToProject(projectId, { thread_id: activeThreadId });
         if (linked) return;
+        // Drop the param we optimistically set: a thread the store has not
+        // loaded yet DOES read it, so leaving it behind would hand the agent
+        // a project the attach just failed to make real.
+        const current = new URLSearchParams(window.location.search);
+        if (current.get('projectId') === projectId) {
+          current.delete('projectId');
+          const query = current.toString();
+          router.replace(query ? `/chat?${query}` : '/chat');
+        }
         // The param can't stand in for a thread that is already loaded, so a
         // failed attach means no project context at all — say so instead of
         // leaving the success line up.

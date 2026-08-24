@@ -117,6 +117,19 @@ describe('ArtifactPanel', () => {
     expect(useArtifactPanelStore.getState().isOpen).toBe(false);
   });
 
+  it('leaves Escape to an overlay stacked above the panel', async () => {
+    const overlay = document.createElement('div');
+    overlay.setAttribute('data-dismissable-overlay', '');
+    document.body.appendChild(overlay);
+    try {
+      const { user } = render(<ArtifactPanel artifact={docArtifact} />);
+      await user.keyboard('{Escape}');
+      expect(useArtifactPanelStore.getState().isOpen).toBe(true);
+    } finally {
+      overlay.remove();
+    }
+  });
+
   it('pin button toggles the pinned flag with aria-pressed', async () => {
     const { user } = render(<ArtifactPanel artifact={docArtifact} />);
     const pin = screen.getByRole('button', { name: 'Pin this artifact' });

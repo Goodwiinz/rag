@@ -164,6 +164,9 @@ describe('useSlashCommands', () => {
 
   it('reports a failed project attach instead of claiming success', async () => {
     linkThreadToProjectMock.mockResolvedValue(null);
+    // The router is mocked, so stand in for the address bar it would have
+    // updated — the cleanup only drops a param that is still ours.
+    window.history.replaceState({}, '', '/chat?thread=thread-1&projectId=proj-1');
     const { result } = setup();
 
     await act(async () => {
@@ -177,6 +180,11 @@ describe('useSlashCommands', () => {
     expect(result.current.commandOutputs[0].lines?.[0]).toBe(
       'Could not attach this chat to My Project.'
     );
+    // The optimistic ?projectId= must not outlive the failed attach — a
+    // not-yet-loaded thread still reads it.
+    const lastUrl = mockRouterReplace.mock.calls.at(-1)?.[0] as string;
+    expect(lastUrl).not.toContain('projectId');
+    expect(lastUrl).toContain('thread=thread-1');
   });
 
   it('skips the thread attach when no thread exists yet (new chat)', async () => {

@@ -241,7 +241,18 @@ export function ArtifactPanel({
   // while open, so the listener's lifetime is the open state.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') closePanel();
+      if (event.key !== 'Escape') return;
+      // The panel is the bottom layer: anything stacked above it (command
+      // palette, a dialog) owns Escape first, and a document listener would
+      // otherwise close the panel behind it on the same press.
+      if (
+        document.querySelector(
+          '[data-dismissable-overlay], [role="dialog"][data-state="open"]'
+        )
+      ) {
+        return;
+      }
+      closePanel();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
