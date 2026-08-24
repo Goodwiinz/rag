@@ -2,6 +2,7 @@
 
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -46,10 +47,14 @@ export function ChatMarkdownMath({
   content,
   inline = false,
   freshTail = false,
+  remarkPlugins,
+  components,
 }: {
   content: string;
   inline?: boolean;
   freshTail?: boolean;
+  remarkPlugins?: React.ComponentProps<typeof ReactMarkdown>['remarkPlugins'];
+  components?: Components;
 }): React.ReactElement {
   // Fresh-tail runs after KaTeX and skips its generated markup (.katex /
   // .katex-display subtrees), so it never tints inside a rendered
@@ -57,11 +62,16 @@ export function ChatMarkdownMath({
   const rehypePlugins = freshTail
     ? [...(REHYPE_PLUGINS ?? []), rehypeFreshTail]
     : REHYPE_PLUGINS;
+  const markdownComponents = components
+    ? { ...(inline ? inlineComponents : baseComponents), ...components }
+    : inline
+      ? inlineComponents
+      : baseComponents;
   return (
     <ReactMarkdown
-      remarkPlugins={REMARK_PLUGINS}
+      remarkPlugins={[...REMARK_PLUGINS, ...(remarkPlugins ?? [])]}
       rehypePlugins={rehypePlugins}
-      components={inline ? inlineComponents : baseComponents}
+      components={markdownComponents}
     >
       {content}
     </ReactMarkdown>

@@ -87,18 +87,7 @@ export const baseComponents: Components = {
   // SECURITY (audit #21, PR #692): LLM-authored links open with
   // rel="noopener noreferrer" so a malicious target can't reach back via
   // window.opener (reverse tabnabbing).
-  a({ href, children }) {
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-(--nous-sol) hover:text-(--nous-helios) underline"
-      >
-        {children}
-      </a>
-    );
-  },
+  a: MarkdownLink,
   // GFM tables can exceed the bubble width; scroll them instead of breaking
   // the chat column layout.
   table({ children }) {
@@ -110,8 +99,29 @@ export const baseComponents: Components = {
   },
 };
 
-/** Variant for citation text segments: paragraphs unwrap to spans so a
- * <CitationLink> can sit inline between two markdown fragments. */
+/** Secure default for model-authored links; citation rendering reuses it for
+ * ordinary links while overriding only the internal citation destinations. */
+export function MarkdownLink({
+  href,
+  children,
+}: {
+  href?: string;
+  children?: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-(--nous-sol) hover:text-(--nous-helios) underline"
+    >
+      {children}
+    </a>
+  );
+}
+
+/** Compact variant for callers that explicitly need paragraph wrappers
+ * removed, such as the inline math compatibility surface. */
 export const inlineComponents: Components = {
   ...baseComponents,
   p({ children }) {
@@ -144,13 +154,17 @@ const ChatMarkdownMath = React.lazy(() =>
 
 export interface ChatMarkdownProps {
   content: string;
-  /** Unwrap paragraphs to spans (citation-segment interleaving). */
+  /** Unwrap paragraphs to spans for explicitly compact inline surfaces. */
   inline?: boolean;
   /**
    * Tag the trailing characters so the newest text can be tinted while a turn
    * streams. Off for committed messages — nothing there is "new".
    */
   freshTail?: boolean;
+  /** Additional AST transforms, applied after the shared GFM/math parser. */
+  remarkPlugins?: React.ComponentProps<typeof ReactMarkdown>['remarkPlugins'];
+  /** Element overrides layered over the shared safe component set. */
+  components?: Components;
 }
 
 /** Markdown without math — also the fallback while the math chunk loads. */
@@ -158,12 +172,19 @@ function PlainMarkdown({
   content,
   inline,
   freshTail,
+  remarkPlugins,
+  components,
 }: ChatMarkdownProps): React.ReactElement {
+  const markdownComponents = components
+    ? { ...(inline ? inlineComponents : baseComponents), ...components }
+    : inline
+      ? inlineComponents
+      : baseComponents;
   return (
     <ReactMarkdown
-      remarkPlugins={REMARK_PLUGINS}
+      remarkPlugins={[...REMARK_PLUGINS, ...(remarkPlugins ?? [])]}
       rehypePlugins={freshTail ? FRESH_TAIL_PLUGINS : undefined}
-      components={inline ? inlineComponents : baseComponents}
+      components={markdownComponents}
     >
       {content}
     </ReactMarkdown>
@@ -175,9 +196,17 @@ export function ChatMarkdown({
   content,
   inline = false,
   freshTail = false,
+  remarkPlugins,
+  components,
 }: ChatMarkdownProps): React.ReactElement {
   const plain = (
-    <PlainMarkdown content={content} inline={inline} freshTail={freshTail} />
+    <PlainMarkdown
+      content={content}
+      inline={inline}
+      freshTail={freshTail}
+      remarkPlugins={remarkPlugins}
+      components={components}
+    />
   );
   if (!MATH_DELIMITERS.test(content)) return plain;
 
@@ -187,6 +216,8 @@ export function ChatMarkdown({
         content={content}
         inline={inline}
         freshTail={freshTail}
+        remarkPlugins={remarkPlugins}
+        components={components}
       />
     </React.Suspense>
   );

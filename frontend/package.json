@@ -156,6 +156,8 @@
     "test:e2e:accessibility": "playwright test --project=accessibility",
     "test:e2e:performance": "playwright test --project=performance",
     "test:e2e:visual": "playwright test --project=visual",
+    "test:visual:responses": "playwright test --config=playwright.response-layout.config.ts",
+    "test:visual:responses:update": "playwright test --config=playwright.response-layout.config.ts --update-snapshots",
     "test:e2e:cross-browser": "playwright test --project=chromium --project=firefox --project=webkit",
     "test:e2e:mobile": "playwright test --project=iPhone --project=Android",
     "test:e2e:report": "playwright test --reporter=html",

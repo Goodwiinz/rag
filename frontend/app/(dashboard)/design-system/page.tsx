@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
+import { CitationRenderer } from '@/components/chat/CitationRenderer';
 
 function SectionEyebrow({ children }: { children: React.ReactNode }) {
   return (
@@ -199,6 +200,17 @@ const SOURCES: Array<{
       'The Pile is composed of 22 diverse sub-datasets totaling 825 GiB, constructed to cover academic prose, web text, dialogue, and source code.',
   },
 ];
+
+const CHAT_RESPONSE = `## Key differences
+
+Flash attention keeps the attention formulation unchanged while reducing GPU memory traffic through blockwise computation [Doc 1]. Mamba-2 instead expresses attention and selective state-space models through the same structured-matrix framework [Doc 2, Doc 3].
+
+| Approach | Primary optimization |
+| --- | --- |
+| Flash attention | Exact attention with fewer HBM reads [Doc 1] |
+| Mamba-2 | Recurrent or parallel state-space execution [Doc 2] |
+
+**Bottom line:** flash attention optimizes how attention runs; Mamba-2 changes the sequence-model architecture.`;
 
 export default function DesignSystemPage() {
   const [activeTab, setActiveTab] = React.useState('#primitives');
@@ -523,8 +535,9 @@ export default function DesignSystemPage() {
           <SectionEyebrow>03 · Agent chat</SectionEyebrow>
           <SurfaceTitle>Composer and reply</SurfaceTitle>
           <SurfaceSub>
-            The reply is set in Source Serif 4 at 16px with 1.65 line-height.
-            Citations are warm-gold pills rendered inline as superscripts.
+            The reply uses the production Markdown renderer at a 72-character
+            reading measure. Citations stay inline without flattening document
+            structure.
           </SurfaceSub>
 
           <div className="mx-auto max-w-[820px]">
@@ -575,34 +588,19 @@ export default function DesignSystemPage() {
                 NOUS · 2 agents · 4 sources
               </p>
               <div
-                style={{
-                  fontFamily: 'var(--nous-font-body)',
-                  fontSize: '16px',
-                  lineHeight: 1.65,
-                  color: 'var(--nous-fg-1)',
-                }}
+                className="nous-chat-body"
+                data-testid="chat-response-specimen"
               >
-                <p className="m-0 mb-3">
-                  Mamba-2 and flash attention optimize sequence modeling along
-                  different axes. Flash attention
-                  <span className="nous-cite-ref">1</span> keeps the attention
-                  formulation unchanged but restructures memory access on GPU,
-                  reducing HBM reads through blockwise computation.
-                </p>
-                <p className="m-0 mb-3">
-                  Mamba-2<span className="nous-cite-ref">2</span> instead
-                  re-derives attention as a structured state-space matrix, the
-                  &quot;SSD&quot; duality
-                  <span className="nous-cite-ref">3</span>, which lets the same
-                  computation run either recurrently or in parallel, trading
-                  FLOPs for a smaller activation footprint.
-                </p>
-                <p className="m-0 mb-3">
-                  In benchmarks on Pile
-                  <span className="nous-cite-ref">4</span>, Mamba-2 matches
-                  Transformer++ quality at 8x the training throughput for long
-                  contexts.
-                </p>
+                <CitationRenderer
+                  content={CHAT_RESPONSE}
+                  citations={SOURCES.map((source, index) => ({
+                    documentId: `design-source-${index + 1}`,
+                    title: source.title,
+                    score: source.score,
+                    content: source.excerpt,
+                    source: source.source,
+                  }))}
+                />
                 <div className="mt-3 flex flex-wrap gap-2">
                   {['Show sources', 'Trace reasoning', 'Save to notebook'].map(
                     (chip) => (

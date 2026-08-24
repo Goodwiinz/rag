@@ -193,14 +193,13 @@
 
   .nous-chat-body {
     font-family: var(--nous-font-body);
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1.7;
     color: var(--nous-fg-1);
   }
 
   @media (max-width: 639px) {
     .nous-chat-body {
-      font-size: 14px;
       line-height: 1.65;
     }
   }
@@ -213,7 +212,7 @@
     font-family: var(--nous-font-mono);
     font-size: 0.85em;
     background: var(--nous-aurum);
-    color: var(--nous-sol-safe);
+    color: var(--nous-fresh-ink);
     padding: 0.15em 0.4em;
     border-radius: var(--nous-radius-sm);
   }

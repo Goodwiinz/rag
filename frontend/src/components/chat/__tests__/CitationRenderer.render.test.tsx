@@ -8,7 +8,7 @@
  * paths, which previously had divergent configs.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { CitationRenderer } from '../CitationRenderer';
 import { completeStreamingMarkdown } from '@/lib/markdown-utils';
 import type { Citation } from '@/utils/citationParser';
@@ -134,9 +134,118 @@ describe('CitationRenderer — citation-segmented path', () => {
     );
     expect(container.querySelector('strong')).toHaveTextContent('attention');
     expect(screen.getAllByText('1').length).toBeGreaterThan(0);
-    // Segments must render inline (p→span unwrap) so the chip doesn't force
-    // a line break — the whole reason the `inline` variant exists.
-    expect(container.querySelector('p')).toBeNull();
+    const paragraph = container.querySelector('p');
+    expect(paragraph).toBeTruthy();
+    expect(paragraph).toContainElement(
+      screen.getByRole('button', { name: /^Citation 1/ })
+    );
+  });
+
+  it('preserves paragraph rhythm around inline citations', () => {
+    const { container } = render(
+      <CitationRenderer
+        content={
+          'First paragraph.\n\nSecond paragraph [Doc 1].\n\nThird paragraph.'
+        }
+        citations={CITATIONS}
+      />
+    );
+
+    expect(container.querySelectorAll('p')).toHaveLength(3);
+  });
+
+  it('keeps a citation inside its list item without splitting the list', () => {
+    const { container } = render(
+      <CitationRenderer
+        content={'- First finding [Doc 1]\n- Second finding\n- Third finding'}
+        citations={CITATIONS}
+      />
+    );
+
+    expect(container.querySelectorAll('ul')).toHaveLength(1);
+    expect(container.querySelectorAll('li')).toHaveLength(3);
+    expect(container.querySelector('li')).toContainElement(
+      screen.getByRole('button', { name: /^Citation 1/ })
+    );
+  });
+
+  it('keeps citations inside headings, emphasis, quotes, and table cells', () => {
+    const content = [
+      '## Evidence [Doc 1]',
+      '',
+      '**Strong evidence [Doc 1]** supports the claim.',
+      '',
+      '> The study reports an improvement [Doc 1].',
+      '',
+      '| Finding | Evidence |',
+      '| --- | --- |',
+      '| Accuracy | Improved [Doc 1] |',
+    ].join('\n');
+    const { container } = render(
+      <CitationRenderer content={content} citations={CITATIONS} />
+    );
+
+    expect(screen.getByRole('heading', { level: 2 })).toContainElement(
+      screen.getAllByRole('button', { name: /^Citation 1/ })[0]
+    );
+    expect(container.querySelector('strong')).toContainElement(
+      screen.getAllByRole('button', { name: /^Citation 1/ })[1]
+    );
+    expect(container.querySelector('blockquote')).toContainElement(
+      screen.getAllByRole('button', { name: /^Citation 1/ })[2]
+    );
+    expect(screen.getByRole('cell', { name: /Improved/ })).toContainElement(
+      screen.getAllByRole('button', { name: /^Citation 1/ })[3]
+    );
+  });
+
+  it('preserves linked emphasis beside a citation', () => {
+    const { container } = render(
+      <CitationRenderer
+        content={'See **[the paper](https://example.com) [Doc 1]** now.'}
+        citations={CITATIONS}
+      />
+    );
+
+    const strong = container.querySelector('strong');
+    expect(strong).toContainElement(
+      screen.getByRole('link', { name: 'the paper' })
+    );
+    expect(strong).toContainElement(
+      screen.getByRole('button', { name: /^Citation 1/ })
+    );
+    expect(container).not.toHaveTextContent('**');
+  });
+
+  it('uses the polished reading measure without constraining table overflow', () => {
+    const { container } = render(
+      <CitationRenderer
+        content={'| Model | Score |\n| --- | --- |\n| BERT | 82.1 |'}
+      />
+    );
+
+    expect(container.firstElementChild).toHaveClass(
+      'nous-prose',
+      'w-full',
+      'max-w-[72ch]'
+    );
+    expect(screen.getByRole('table').parentElement).toHaveClass(
+      'overflow-x-auto'
+    );
+  });
+
+  it('keeps the same document structure when streaming citations resolve', () => {
+    const content = '- Supported finding [Doc 1]\n- Follow-up finding';
+    const view = render(<CitationRenderer content={content} citations={[]} />);
+
+    expect(view.container.querySelectorAll('ul')).toHaveLength(1);
+    expect(view.container.querySelectorAll('li')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Citation 1' })).toBeDisabled();
+
+    view.rerender(<CitationRenderer content={content} citations={CITATIONS} />);
+    expect(view.container.querySelectorAll('ul')).toHaveLength(1);
+    expect(view.container.querySelectorAll('li')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: /^Citation 1:/ })).toBeEnabled();
   });
 
   it('keeps bracketed indexing inside a code fence as code, not a chip', () => {
@@ -148,6 +257,34 @@ describe('CitationRenderer — citation-segmented path', () => {
     expect(screen.getAllByRole('button', { name: /^Citation 1/ })).toHaveLength(
       1
     );
+  });
+
+  it('leaves explicit citation syntax inside inline code untouched', () => {
+    render(
+      <CitationRenderer
+        content={'Write `[Doc 1]` literally, then cite it [Doc 1].'}
+        citations={CITATIONS}
+      />
+    );
+
+    expect(screen.getByText('[Doc 1]').tagName).toBe('CODE');
+    expect(screen.getAllByRole('button', { name: /^Citation 1/ })).toHaveLength(
+      1
+    );
+  });
+
+  it('applies the same citation transform on the lazy math path', async () => {
+    const { container } = render(
+      <CitationRenderer
+        content={'The relation is $E=mc^2$ [Doc 1].'}
+        citations={CITATIONS}
+      />
+    );
+
+    expect(
+      await screen.findByRole('button', { name: /^Citation 1/ })
+    ).toBeInTheDocument();
+    await waitFor(() => expect(container.querySelector('.katex')).toBeTruthy());
   });
 
   it('renders an unresolvable citation index as a disabled chip', () => {
