@@ -4,6 +4,7 @@ Background tasks for document processing with async pipeline execution
 
 import logging
 from datetime import datetime, timedelta
+from typing import Optional
 
 from sqlalchemy import text
 
@@ -177,20 +178,35 @@ def retry_failed_processing(self, job_id: str):
 
 
 @celery_app.task(bind=True)
-def generate_processing_report(self, organization_id: str, date_range_days: int = 30):
+def generate_processing_report(
+    self, organization_id: Optional[str], date_range_days: int = 30
+):
     """
-    Generate processing report for organization
+    Generate processing report for one organization, or across all
+    organizations when organization_id is None (the scheduled beat mode).
+
+    R2-L19 / R6-M13: the schedule previously passed a literal
+    "default_organization_id" that never matches any UUID PK, so the daily
+    job always produced empty reports. None now means every org.
     """
+    from datetime import timedelta
+
+    from sqlalchemy import func, true
+
     db = SessionLocal()
 
     try:
-        logger.info(f"Generating processing report for organization {organization_id}")
-
-        from datetime import timedelta
-
-        from sqlalchemy import func
+        logger.info(
+            f"Generating processing report for "
+            f"{organization_id or 'ALL_ORGANIZATIONS'}"
+        )
 
         cutoff_date = datetime.utcnow() - timedelta(days=date_range_days)
+
+        def _org_filter(model):
+            if organization_id:
+                return model.organization_id == organization_id
+            return true()
 
         # Get processing statistics
         stats = (
@@ -200,7 +216,7 @@ def generate_processing_report(self, organization_id: str, date_range_days: int 
                 func.avg(ProcessingJob.duration_seconds).label("avg_duration"),
             )
             .filter(
-                ProcessingJob.organization_id == organization_id,
+                _org_filter(ProcessingJob),
                 ProcessingJob.created_at >= cutoff_date,
             )
             .group_by(ProcessingJob.status)
@@ -211,7 +227,7 @@ def generate_processing_report(self, organization_id: str, date_range_days: int 
         doc_stats = (
             db.query(Document.document_type, func.count(Document.id).label("count"))
             .filter(
-                Document.organization_id == organization_id,
+                _org_filter(Document),
                 Document.created_at >= cutoff_date,
             )
             .group_by(Document.document_type)
@@ -224,7 +240,7 @@ def generate_processing_report(self, organization_id: str, date_range_days: int 
                 ProcessingJob.error_message, func.count(ProcessingJob.id).label("count")
             )
             .filter(
-                ProcessingJob.organization_id == organization_id,
+                _org_filter(ProcessingJob),
                 ProcessingJob.created_at >= cutoff_date,
                 ProcessingJob.status == JobStatus.FAILED,
             )
@@ -322,7 +338,10 @@ celery_app.conf.beat_schedule.update(
         "generate-reports": {
             "task": "src.tasks.document_processing_tasks.generate_processing_report",
             "schedule": crontab(hour=1, minute=0),  # Daily at 1 AM
-            "args": ("default_organization_id", 30),  # This should be configurable
+            # organization_id=None → aggregate across every org. The old
+            # literal "default_organization_id" never matched any UUID PK,
+            # so this job silently produced empty reports daily (R2-L19).
+            "args": (None, 30),
         },
     }
 )

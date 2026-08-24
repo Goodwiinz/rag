@@ -38,6 +38,7 @@ celery_app = Celery(
         "src.tasks.retention_tasks",
         "src.tasks.reconcile_tasks",
         "src.tasks.reconcile_jobs",
+        "src.tasks.research_run_tasks",
     ],
 )
 
@@ -153,6 +154,11 @@ celery_app.conf.update(
         # Task 1.4: re-enqueue processing_jobs whose post-commit Celery dispatch
         # was lost to a broker outage (PENDING/celery_task_id=NULL). Runs at the
         # lost-job window (10 min), ahead of the 30-min stuck-job sweep.
+        "sweep-stale-research-runs": {
+            # R5-M17: worker death bricked runs in RUNNING forever.
+            "task": "src.tasks.research_run_tasks.sweep_stale_research_runs",
+            "schedule": 1800.0,  # every 30 min; stale threshold is 2h
+        },
         "reconcile-lost-processing-jobs": {
             "task": "src.tasks.reconcile_jobs.reconcile_lost_processing_jobs",
             "schedule": 600.0,  # every 10 min

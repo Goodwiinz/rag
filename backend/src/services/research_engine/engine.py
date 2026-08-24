@@ -22,6 +22,7 @@ class WorkflowEngine:
         blueprint: Dict,
         run_id: UUID,
         start_from_step: int = 0,
+        initial_context: Dict[str, Any] | None = None,
     ) -> AsyncGenerator[Dict, None]:
         """Execute a blueprint and yield events as dicts.
 
@@ -31,6 +32,9 @@ class WorkflowEngine:
         """
         steps = blueprint.get("steps", [])
         context: Dict[str, Any] = dict(blueprint.get("parameters") or {})
+        if initial_context:
+            # R5-M19: persisted outputs of already-completed steps
+            context.update(initial_context)
 
         yield {"event": "run_start", "run_id": str(run_id), "total_steps": len(steps)}
 

@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from src.services.agent._sanitize import _sanitize_prompt_field
 from src.services.agent.llm_factory import build_lightweight_llm
+from src.services.agent.trace_metadata import internal_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -281,7 +282,9 @@ async def generate_plan(
         "overall approach (required)."
     )
 
-    result = await structured_llm.ainvoke([HumanMessage(content=prompt)])
+    result = await structured_llm.ainvoke(
+        [HumanMessage(content=prompt)], config=internal_llm_config()
+    )
     return result
 
 

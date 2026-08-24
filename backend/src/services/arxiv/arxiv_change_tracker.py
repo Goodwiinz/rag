@@ -92,8 +92,46 @@ class ArXivChangeTracker:
             str(organization_id), {}
         )
 
+    _REDIS_KEY = "arxiv:tracker:state"
+
+    def _redis_get_state(self) -> Optional[dict]:
+        """Read shared tracker state from Redis (multi-pod truth, R2-L4)."""
+        try:
+            import redis as _redis
+
+            from src.core.config import settings
+
+            client = _redis.from_url(settings.REDIS_URL, decode_responses=True)
+            raw = client.get(self._REDIS_KEY)
+            return json.loads(raw) if raw else None
+        except Exception:
+            return None
+
+    def _redis_set_state(self) -> None:
+        try:
+            import redis as _redis
+
+            from src.core.config import settings
+
+            client = _redis.from_url(settings.REDIS_URL, decode_responses=True)
+            client.set(
+                self._REDIS_KEY,
+                json.dumps(self.state, default=str),
+                ex=90 * 24 * 3600,
+            )
+        except Exception as e:
+            logger.debug(f"Redis state mirror unavailable: {e}")
+
     def load_state(self):
-        """Load previous tracking state from file"""
+        """Load tracking state — Redis first (shared across pods), file fallback."""
+        shared = self._redis_get_state()
+        if isinstance(shared, dict):
+            self.state = shared
+            logger.info(
+                "Loaded tracking state from Redis for "
+                f"{len(self.state.get('__orgs__', {}))} organizations"
+            )
+            return
         if self.state_file.exists():
             try:
                 with open(self.state_file, "r") as f:
@@ -133,6 +171,7 @@ class ArXivChangeTracker:
                     except OSError:
                         pass
                     raise
+            self._redis_set_state()
             logger.debug("Saved tracking state")
         except Exception as e:
             logger.error(f"Failed to save state: {e}")
@@ -169,6 +208,7 @@ class ArXivChangeTracker:
         organization_id: Any,
         tracked_categories: Optional[Set[str]] = None,
         commit: bool = True,
+        scan_truncated: bool = False,
     ) -> List[ChangeRecord]:
         """
         Detect changes between current papers and stored state, scoped to a
@@ -186,6 +226,11 @@ class ArXivChangeTracker:
                 observable by this scan and must NOT be treated as deleted.
             commit: When False (dry run), operate on a deep copy of the org
                 state and do NOT mutate ``self.state`` / persist anything.
+            scan_truncated: True when the arXiv result page was capped —
+                absence from a truncated scan is NOT deletion evidence, so
+                deletion detection is skipped this round (R2-M1: papers
+                sliding below the top-N cut were accumulating misses toward
+                a false "deleted" verdict).
 
         Returns:
             List of change records
@@ -308,8 +353,20 @@ class ArXivChangeTracker:
         # When `tracked_categories` is given, only papers whose stored
         # primary_category is in that set are observable enough to be deletion
         # candidates.
-        missing_ids = stored_ids - current_ids
-        for paper_id in missing_ids:
+        if scan_truncated:
+            # Reset miss counters for everything observed, then stop: an
+            # unobserved paper in a truncated window tells us nothing.
+            for paper_id in stored_ids & current_ids:
+                org_state[paper_id].pop("miss_count", None)
+            logger.info(
+                "deletion detection skipped (scan truncated)",
+                organization_id=str(organization_id),
+            )
+            return changes
+
+        for paper_id in sorted(stored_ids & current_ids):
+            org_state[paper_id].pop("miss_count", None)
+        for paper_id in stored_ids - current_ids:
             data = org_state[paper_id]
             if "deleted" in data:
                 # Already deleted, skip
@@ -619,12 +676,28 @@ class ArXivChangeTracker:
             doc.document_metadata = md
 
             if text_changed:
+                # R2-M2: content changed but the stored checksum (and the S3
+                # PDF artifact from the original revision) did not — every
+                # later reuse path trusted a stale checksum. Recompute from
+                # the new text and flag the binary artifact as stale so the
+                # repair path re-fetches it instead of trusting it.
+                import hashlib as _hl
+
+                doc.checksum_sha256 = _hl.sha256(
+                    (doc.content_text or "").encode("utf-8")
+                ).hexdigest()
+                md["source_pdf_stale"] = True
+
                 from src.services.search.fulltext_search_service import (
                     fulltext_search_service,
                 )
 
                 await fulltext_search_service.async_update_document_search_vectors(
                     [str(doc.id)], db
+                )
+                logger.warning(
+                    f"arxiv revision marked source PDF stale: "
+                    f"{paper['id']} (document {doc.id})"
                 )
             await db.commit()
 

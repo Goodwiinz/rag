@@ -25,11 +25,13 @@ FUNCTION_NAME = "set_documents_arxiv_id_on_insert"
 
 
 def upgrade() -> None:
-    op.add_column("documents", sa.Column("arxiv_id", sa.String(64), nullable=True))
+    # R6-M9 guard: this revision runs after the r6h3_model_baseline
+    # create_all on fresh databases, so the column may already exist.
+    op.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS arxiv_id VARCHAR(64)")
     # Rolling deployments overlap old and new pods. Old code omits the new
     # column, so post-migration inserts must still participate in uniqueness.
     op.execute(f"""
-        CREATE FUNCTION {FUNCTION_NAME}() RETURNS trigger AS $$
+        CREATE OR REPLACE FUNCTION {FUNCTION_NAME}() RETURNS trigger AS $$
         DECLARE
             candidate TEXT;
         BEGIN
@@ -46,17 +48,17 @@ def upgrade() -> None:
         END;
         $$ LANGUAGE plpgsql;
 
+        DROP TRIGGER IF EXISTS {TRIGGER_NAME} ON documents;
+
         CREATE TRIGGER {TRIGGER_NAME}
         BEFORE INSERT ON documents
         FOR EACH ROW EXECUTE FUNCTION {FUNCTION_NAME}();
         """)
-    op.create_index(
-        INDEX_NAME,
-        "documents",
-        ["organization_id", "arxiv_id"],
-        unique=True,
-        postgresql_where=sa.text("is_deleted = false AND arxiv_id IS NOT NULL"),
-    )
+    op.execute(f"""
+        CREATE UNIQUE INDEX IF NOT EXISTS {INDEX_NAME}
+        ON documents (organization_id, arxiv_id)
+        WHERE is_deleted = false AND arxiv_id IS NOT NULL
+        """)
 
 
 def downgrade() -> None:

@@ -17,6 +17,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.services.agent._pii_redact import redact_pii
+from src.services.agent.trace_metadata import internal_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +148,8 @@ async def extract_insights(
                     )
                 ),
                 HumanMessage(content=conversation),
-            ]
+            ],
+            config=internal_llm_config(),
         )
 
         # Parse numbered lines into a list

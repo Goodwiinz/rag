@@ -16,6 +16,7 @@ Pure unit test — no DB, no storage; the session and storage helper are faked.
 """
 
 import uuid
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -57,7 +58,7 @@ class _FakeDB:
         pass
 
     async def execute(self, _stmt):
-        return None
+        return SimpleNamespace(rowcount=1)
 
     async def rollback(self):
         self.rollbacks += 1
@@ -88,10 +89,16 @@ def quota_deltas(monkeypatch):
 
     def _record(org_id, delta):
         deltas.append(delta)
-        return ("storage_usage_update", str(org_id), delta)  # sentinel stmt
+        return ("storage_quota_claim", str(org_id), delta)  # sentinel stmt
+
+    monkeypatch.setattr(Organization, "storage_quota_claim", staticmethod(_record))
+
+    def _record_usage(org_id, delta):
+        deltas.append(delta)
+        return ("storage_usage_update", str(org_id), delta)
 
     monkeypatch.setattr(
-        Organization, "storage_usage_update", staticmethod(_record)
+        Organization, "storage_usage_update", staticmethod(_record_usage)
     )
     return deltas
 
@@ -177,7 +184,9 @@ async def test_correlated_failure_preserves_object_as_orphan(quota_deltas):
     """A real commit failure AND a failing compensation commit → the row stays
     live, so the object is preserved as a sweepable orphan (never a live row
     pointing at a deleted file)."""
-    db = _FakeDB(fail_commits={3, 4})  # job commit fails, then compensation commit fails
+    db = _FakeDB(
+        fail_commits={3, 4}
+    )  # job commit fails, then compensation commit fails
     svc = _make_service(db)
     org, user = _org_user()
 

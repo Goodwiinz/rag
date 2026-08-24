@@ -23,7 +23,6 @@ from src.api.research_engine.runs import router
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
 
-
 # ============================================================================
 # Helpers
 # ============================================================================
@@ -99,6 +98,16 @@ def _mock_db_returning(
                 last_step.step_index = last_step_index
                 step_mock.scalars.return_value.first.return_value = last_step
             results.append(step_mock)
+
+            # R5-M18 claim UPDATE → rowcount=1
+            claim_mock = Mock()
+            claim_mock.rowcount = 1
+            results.append(claim_mock)
+
+            # R5-M19 prior-outputs history SELECT
+            history_mock = Mock()
+            history_mock.scalars.return_value.all.return_value = []
+            results.append(history_mock)
 
     db.execute = AsyncMock(side_effect=results)
     # commit/refresh are no-ops in tests
@@ -201,7 +210,7 @@ class TestStreamEndpointSuccess:
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        async def mock_engine_run(blueprint, run_id, start_from_step=0):
+        async def mock_engine_run(blueprint, run_id, start_from_step=0, **kwargs):
             yield {"event": "run_start", "run_id": str(run_id), "total_steps": 1}
             yield {"event": "run_complete", "run_id": str(run_id), "context": {}}
 
@@ -222,7 +231,7 @@ class TestStreamEndpointSuccess:
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        async def mock_engine_run(blueprint, run_id, start_from_step=0):
+        async def mock_engine_run(blueprint, run_id, start_from_step=0, **kwargs):
             yield {"event": "run_complete", "run_id": str(run_id), "context": {}}
 
         response = self._patch_engine_and_get(
@@ -242,7 +251,7 @@ class TestStreamEndpointSuccess:
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        async def mock_engine_run(blueprint, run_id, start_from_step=0):
+        async def mock_engine_run(blueprint, run_id, start_from_step=0, **kwargs):
             yield {"event": "run_start", "run_id": str(run_id), "total_steps": 2}
             yield {
                 "event": "step_complete",
@@ -272,7 +281,7 @@ class TestStreamEndpointSuccess:
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        async def mock_engine_run(blueprint, run_id, start_from_step=0):
+        async def mock_engine_run(blueprint, run_id, start_from_step=0, **kwargs):
             yield {"event": "run_complete", "run_id": str(run_id), "context": {}}
 
         response = self._patch_engine_and_get(
@@ -299,7 +308,7 @@ class TestStreamEndpointSuccess:
 
         captured_start_from: dict[str, int | None] = {"value": None}
 
-        async def mock_engine_run(blueprint, run_id, start_from_step=0):
+        async def mock_engine_run(blueprint, run_id, start_from_step=0, **kwargs):
             captured_start_from["value"] = start_from_step
             yield {"event": "run_complete", "run_id": str(run_id), "context": {}}
 
@@ -323,7 +332,7 @@ class TestStreamEndpointSuccess:
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        async def mock_engine_run(blueprint, run_id, start_from_step=0):
+        async def mock_engine_run(blueprint, run_id, start_from_step=0, **kwargs):
             yield {
                 "event": "step_complete",
                 "run_id": str(run_id),
@@ -361,7 +370,7 @@ class TestStreamEndpointSuccess:
 
         stream_app.dependency_overrides[get_db] = lambda: db
 
-        async def mock_engine_run(blueprint, run_id, start_from_step=0):
+        async def mock_engine_run(blueprint, run_id, start_from_step=0, **kwargs):
             yield {"event": "step_start", "run_id": str(run_id), "step_index": 0}
             yield {
                 "event": "step_complete",
@@ -413,7 +422,9 @@ class TestStreamEndpointErrors:
         assert response.status_code == 409
         stream_app.dependency_overrides.pop(get_db, None)
 
-    def test_resume_keeps_paused_status_for_step_index_recovery(self, stream_app, stream_client):
+    def test_resume_keeps_paused_status_for_step_index_recovery(
+        self, stream_app, stream_client
+    ):
         run_id = uuid.uuid4()
         run = _make_run(id=run_id, status="paused")
         db = AsyncMock()

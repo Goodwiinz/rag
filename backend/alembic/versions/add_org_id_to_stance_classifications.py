@@ -48,31 +48,49 @@ ORG_INDEX = "ix_stance_classifications_organization_id"
 
 
 def upgrade():
-    # 1. Add the tenant column.
-    # Idempotent: the DOKS dev cluster HISTORICALLY ran create_all at startup
-    # (before the SUPABASE_DB_URL gate landed in #925), so the column may already
-    # exist from the model — a plain add_column would crash-loop the init container.
-    op.execute(f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS organization_id UUID")
+    # R6-M9 guard: stance_classifications is provisioned by the model baseline
+    # (R6-F8 registered it in Base.metadata) or, on legacy databases, by the
+    # out-of-band standalone add_evidence_meter.py script. One DO block skips
+    # every statement when the table is absent, so this revision stays runnable
+    # on databases that predate both.
+    op.execute("""
+        DO $$
+        BEGIN
+            IF to_regclass('stance_classifications') IS NULL THEN
+                RETURN;
+            END IF;
+            -- 1. tenant column (idempotent: create_all-era DBs already have it)
+            ALTER TABLE stance_classifications ADD COLUMN IF NOT EXISTS organization_id UUID;
 
-    # 2. Drop the legacy 3-tuple unique constraint if it exists (left behind by the
-    #    standalone migration). IF EXISTS makes this safe whether or not it ran.
-    op.execute(
-        f"ALTER TABLE {TABLE} DROP CONSTRAINT IF EXISTS {LEGACY_3TUPLE_CONSTRAINT}"
-    )
+            -- 2. legacy 3-tuple constraint from the standalone script, if any
+            ALTER TABLE stance_classifications
+                DROP CONSTRAINT IF EXISTS stance_classifications_claim_hash_source_id_model_version_key;
 
-    # 3. Create the new 4-tuple unique index. organization_id is part of the key so two
-    #    orgs analyzing the same claim/source/model are independent rows (never collide
-    #    or overwrite each other). This is the index the upsert (ON CONFLICT) targets.
-    op.execute(
-        f"CREATE UNIQUE INDEX IF NOT EXISTS {NEW_4TUPLE_INDEX} "
-        f"ON {TABLE} (claim_hash, source_id, model_version, organization_id)"
-    )
+            -- 3. 4-tuple unique index the upsert targets
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_stance_classifications_org_claim_src_model
+                ON stance_classifications (claim_hash, source_id, model_version, organization_id);
 
-    # 4. Plain index on organization_id for the scoped /breakdown read path.
-    op.execute(f"CREATE INDEX IF NOT EXISTS {ORG_INDEX} ON {TABLE} (organization_id)")
+            -- 4. plain index for the scoped /breakdown read path
+            CREATE INDEX IF NOT EXISTS ix_stance_classifications_organization_id
+                ON stance_classifications (organization_id);
+        END
+        $$;
+    """)
 
 
 def downgrade():
-    op.execute(f"DROP INDEX IF EXISTS {ORG_INDEX}")
-    op.execute(f"DROP INDEX IF EXISTS {NEW_4TUPLE_INDEX}")
-    op.drop_column(TABLE, "organization_id")
+    # Same guard as upgrade(): DROP COLUMN IF EXISTS tolerates a missing
+    # column, not a missing table, so an unguarded rollback would raise
+    # UndefinedTable on exactly the databases upgrade() skipped.
+    op.execute(f"""
+        DO $$
+        BEGIN
+            IF to_regclass('{TABLE}') IS NULL THEN
+                RETURN;
+            END IF;
+            DROP INDEX IF EXISTS {ORG_INDEX};
+            DROP INDEX IF EXISTS {NEW_4TUPLE_INDEX};
+            ALTER TABLE {TABLE} DROP COLUMN IF EXISTS organization_id;
+        END
+        $$;
+    """)

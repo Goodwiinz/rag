@@ -12893,6 +12893,17 @@
             "minimum": 1.0,
             "title": "Rating",
             "type": "integer"
+          },
+          "search_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Search type the feedback refers to"
           }
         },
         "required": [

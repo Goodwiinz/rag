@@ -58,7 +58,7 @@ function DocumentArtifactBody({
 }): React.ReactElement {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['document', documentId],
-    queryFn: async () => (await documentService.getDocument(documentId)).data,
+    queryFn: () => documentService.getDocument(documentId),
   });
 
   if (isLoading) {

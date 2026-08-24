@@ -2,7 +2,12 @@
 
 import pytest
 
-from src.services.agent.trace_metadata import TraceSource, build_trace_metadata
+from src.services.agent.trace_metadata import (
+    LS_MESSAGE_VIEW_EXCLUDE,
+    TraceSource,
+    build_trace_metadata,
+    internal_llm_config,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -105,6 +110,39 @@ def test_build_trace_metadata_bounds_every_value(
     assert all(
         len(value) == 128 for key, value in metadata.items() if key != "trace_source"
     )
+
+
+def test_internal_llm_config_sets_exclude_key_without_base_config() -> None:
+    config = internal_llm_config()
+
+    assert config == {"metadata": {LS_MESSAGE_VIEW_EXCLUDE: True}}
+    assert LS_MESSAGE_VIEW_EXCLUDE == "ls_message_view_exclude"
+
+
+def test_internal_llm_config_merges_and_does_not_mutate_base_config() -> None:
+    base = {
+        "metadata": {"thread_id": "thread-1"},
+        "callbacks": ["cb-sentinel"],
+        "configurable": {"thread_id": "thread-1"},
+    }
+
+    config = internal_llm_config(base)
+
+    assert config["metadata"] == {
+        "thread_id": "thread-1",
+        LS_MESSAGE_VIEW_EXCLUDE: True,
+    }
+    assert config["callbacks"] == ["cb-sentinel"]
+    assert config["configurable"] == {"thread_id": "thread-1"}
+    # The caller's config must not be mutated in place.
+    assert base["metadata"] == {"thread_id": "thread-1"}
+
+
+def test_internal_llm_config_handles_none_metadata_and_non_dict_config() -> None:
+    assert internal_llm_config({"metadata": None}) == {
+        "metadata": {LS_MESSAGE_VIEW_EXCLUDE: True}
+    }
+    assert internal_llm_config(None) == {"metadata": {LS_MESSAGE_VIEW_EXCLUDE: True}}
 
 
 def test_build_trace_metadata_rejects_unknown_fields() -> None:

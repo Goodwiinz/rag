@@ -1035,6 +1035,7 @@ async def get_citation_graph(
             document_id=document_id,
             depth=depth,
             include_external=include_external,
+            organization_id=str(current_user.organization_id),
         )
 
         logger.info(

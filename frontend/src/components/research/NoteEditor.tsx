@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Eye, Pencil, Save } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -52,6 +52,7 @@ export function NoteEditor({
   const [linkedDocumentIds, setLinkedDocumentIds] = useState<string[]>([]);
   const [preview, setPreview] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [selectedText, setSelectedText] = useState('');
   const [selectionRange, setSelectionRange] = useState<{
@@ -71,15 +72,21 @@ export function NoteEditor({
   } | null>(null);
   const [writeResult, setWriteResult] = useState<WriteResponse | null>(null);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    setTitle(initialNote?.title ?? '');
-    setContent(initialNote?.content ?? '');
-    setTags(initialNote?.tags ?? []);
-    setLinkedDocumentIds(initialNote?.linked_document_ids ?? []);
-    setTagInput('');
-    setPreview(false);
-  }, [initialNote, isOpen]);
+  // Reset fields when the dialog opens — adjusting state during render
+  // instead of in an effect avoids cascading renders (lint set-state rule).
+  const [prevIsOpen, setPrevIsOpen] = useState(false);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) {
+      setTitle(initialNote?.title ?? '');
+      setContent(initialNote?.content ?? '');
+      setTags(initialNote?.tags ?? []);
+      setLinkedDocumentIds(initialNote?.linked_document_ids ?? []);
+      setTagInput('');
+      setPreview(false);
+      setSaveError(null);
+    }
+  }
 
   const canSave = useMemo(
     () => title.trim().length > 0 && !saving,
@@ -181,6 +188,7 @@ export function NoteEditor({
   const handleSubmit = async () => {
     if (!title.trim()) return;
     setSaving(true);
+    setSaveError(null);
     try {
       await onSave({
         title: title.trim(),
@@ -189,6 +197,14 @@ export function NoteEditor({
         linked_document_ids: linkedDocumentIds,
       });
       onClose();
+    } catch (err) {
+      // Save failed: keep the dialog open and show why (R6-H7). Closing here
+      // would present the failure as a successful save and lose the note.
+      setSaveError(
+        err instanceof Error && err.message
+          ? `Failed to save note: ${err.message}`
+          : 'Failed to save note. Please try again.'
+      );
     } finally {
       setSaving(false);
     }
@@ -391,6 +407,15 @@ export function NoteEditor({
             </div>
           )}
         </div>
+
+        {saveError && (
+          <div
+            role="alert"
+            className="shrink-0 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            {saveError}
+          </div>
+        )}
 
         <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={handleOpenChange.bind(null, false)}>

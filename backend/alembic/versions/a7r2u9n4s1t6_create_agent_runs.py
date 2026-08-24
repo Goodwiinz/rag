@@ -18,7 +18,7 @@ Create Date: 2026-07-11
 """
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -38,6 +38,11 @@ _STATUS_CHECK = (
 
 
 def upgrade() -> None:
+    # Offline (--sql) binds a MockConnection that cannot introspect. The
+    # model baseline emits this table earlier in the same script, so the
+    # offline answer is always "already created".
+    if context.is_offline_mode():
+        return
     bind = op.get_bind()
     if _TABLE in sa.inspect(bind).get_table_names():
         return  # already created via Base.metadata.create_all
@@ -80,6 +85,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Offline (--sql) binds a MockConnection that cannot introspect. The
+    # model baseline emits this table earlier in the same script, so the
+    # offline answer is always "already created".
+    if context.is_offline_mode():
+        return
     bind = op.get_bind()
     if _TABLE not in sa.inspect(bind).get_table_names():
         return

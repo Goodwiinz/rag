@@ -1,3 +1,5 @@
+from datetime import datetime
+
 """Extraction Matrix service for structured data extraction from documents."""
 
 import json
@@ -34,6 +36,7 @@ def _scoped_document_query(doc_id: UUID, project_id: Optional[UUID]) -> Select:
 
 
 # In-memory store for background extraction status (same pattern as draft generation)
+_EXTRACTION_STATUS_MAX = 500  # R5-L16: bounded; cross-pod reads need Redis (future)
 _extraction_status: Dict[str, Dict[str, Any]] = {}
 
 
@@ -41,6 +44,20 @@ class ExtractionMatrixService:
     """Service for building extraction prompts and parsing LLM extraction results."""
 
     @staticmethod
+    @staticmethod
+    def set_extraction_status(task_id: str, payload: Dict[str, Any]) -> None:
+        _extraction_status[task_id] = {
+            **_extraction_status.get(task_id, {}),
+            "updated_at": datetime.utcnow().isoformat(),
+            **payload,
+        }
+        while len(_extraction_status) > _EXTRACTION_STATUS_MAX:
+            oldest = min(
+                _extraction_status,
+                key=lambda k: _extraction_status[k].get("updated_at", ""),
+            )
+            _extraction_status.pop(oldest)
+
     def get_extraction_status(task_id: str) -> Optional[Dict[str, Any]]:
         """Get the current status of a background extraction task."""
         return _extraction_status.get(task_id)

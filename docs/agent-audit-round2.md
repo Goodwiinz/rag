@@ -29,10 +29,10 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round2-details.md
 | R2-M12 | cleanup_old_evaluations: reports/comparisons FKs without ondelete → nightly batch IntegrityError forever (evaluation_tasks.py:623-647) | med | open | — | — | 08-17 |
 | R2-M13 | sweeper residual: get_job_fresh raise (Redis blip) → row FAILED "Swept as stale", real error destroyed — needs double failure (agent_run_tasks.py:362-390) | med | open | — | — | 08-17 |
 | R2-M14 | extract_entities guard covers COMPLETED-redelivery only; mid-run kill → RUNNING passes → duplicate OPENAI entity rows (processing_tasks.py:553-666, latent) | med | open | — | — | 08-17 |
-| R2-M15 | rerank truncates pool to limit*2 pre-pagination → offset≥20 empty pages, total lies, deep pagination dead on hybrid (hybrid_search_service.py:193-198,995+) | med | open | — | — | 08-17 |
-| R2-M16 | quality analytics endpoint returns hardcoded mock metrics; user feedback never persisted (search_quality_service.py:395-443) | med | open | — | — | 08-17 |
-| R2-M17 | benchmark serialization accesses nonexistent SearchResult fields → 500 on any non-empty result (search_quality.py:272-274) | med | open | — | — | 08-17 |
-| R2-M18 | VECTOR 400 swallowed by broad except → re-raised 500 (search.py:200-247) | med | open | — | — | 08-17 |
+| R2-M15 | rerank truncates pool to limit*2 pre-pagination → offset≥20 empty pages, total lies, deep pagination dead on hybrid (hybrid_search_service.py:193-198,995+) | med | pr | sess:audit-r6 | #1530 | 08-22 |
+| R2-M16 | quality analytics endpoint returns hardcoded mock metrics; user feedback never persisted (search_quality_service.py:395-443) | med | pr | sess:audit-r6 | #1530 | 08-22 |
+| R2-M17 | benchmark serialization accesses nonexistent SearchResult fields → 500 on any non-empty result (search_quality.py:272-274) | med | pr | sess:audit-r6 | #1530 | 08-22 |
+| R2-M18 | VECTOR 400 swallowed by broad except → re-raised 500 (search.py:200-247) | med | pr | sess:audit-r6 | #1530 | 08-22 |
 | R2-M19 | backfill dry_run mutates + commits progress state ("dry_run_done") — not read-only (backfill.py:209-215) | med | fixed | clawd | #1451 | 08-18 |
 | R2-M20 | backfill failed docs permanently skipped: cursor advances, no failed status, reconcile can't pick up (backfill.py:237-249) | med | fixed | clawd | #1451 | 08-18 |
 | R2-M21 | sync_document_to_kb commits shared session mid-call → commits caller's unrelated pending changes (do_kb/ingest.py:234-242) | med | open | — | — | 08-17 |
@@ -54,14 +54,14 @@ Detailed findings: ~/.audit-ledgers/rag/agent-audit-round2-details.md
 | R2-L16 | execute_research_workflow: no idempotency, soft-limit 300s kills multi-step flows (research_tasks.py:206-377, dead code) | low | open | — | — | 08-17 |
 | R2-L17 | text_processing/vector_processing queues published but consumed by nobody → jobs stuck til sweeper (processing_service.py:133,137) | low | open | — | — | 08-17 |
 | R2-L18 | health_check/metrics leak session on exception path; beat every 5min (document_processing_tasks.py:609-710) | low | fixed | clawd | #1454 | 08-18 |
-| R2-L19 | beat generate-reports uses placeholder org id "default_organization_id" (document_processing_tasks.py:660-664) | low | open | — | — | 08-17 |
-| R2-L20 | " & " join fed to plainto_tsquery — operators stripped, AND by accident (fulltext_search_service.py:345) | low | open | — | — | 08-17 |
-| R2-L21 | suggestion LIKE pattern unescaped % _ (fulltext_search_service.py:548) | low | open | — | — | 08-17 |
+| R2-L19 | beat generate-reports uses placeholder org id "default_organization_id" (document_processing_tasks.py:660-664) | low | pr | sess:audit-r6 | #1529 | 08-22 |
+| R2-L20 | " & " join fed to plainto_tsquery — operators stripped, AND by accident (fulltext_search_service.py:345) | low | pr | sess:audit-r6 | #1530 | 08-22 |
+| R2-L21 | suggestion LIKE pattern unescaped % _ (fulltext_search_service.py:548) | low | pr | sess:audit-r6 | #1530 | 08-22 |
 | R2-L22 | Cohere client: fresh httpx per call, 429 single-shot no Retry-After (cohere_rerank_service.py:153,329) | low | open | — | — | 08-17 |
 | R2-L23 | DO KB client: retry tail sleeps before raise; JSON decode errors unmapped (do_kb/client.py:126-152) | low | open | — | — | 08-17 |
 | R2-L24 | bm25 update_statistics accumulates corpus state — wrong IDF (dead code) (bm25_service.py:167-190) | low | open | — | — | 08-17 |
-| R2-L25 | hybrid suggestions always empty — hasattr on nonexistent field (hybrid_search_service.py:1131-1138) | low | open | — | — | 08-17 |
-| R2-L26 | entity-indicator substring matching ("who" in "whole") spuriously arms KG (hybrid_search_service.py:471-481) | low | open | — | — | 08-17 |
+| R2-L25 | hybrid suggestions always empty — hasattr on nonexistent field (hybrid_search_service.py:1131-1138) | low | pr | sess:audit-r6 | #1530 | 08-22 |
+| R2-L26 | entity-indicator substring matching ("who" in "whole") spuriously arms KG (hybrid_search_service.py:471-481) | low | pr | sess:audit-r6 | #1530 | 08-22 |
 
 | R2-M22 | api/arxiv/arxiv_knowledge_graph.py:218 calls ingest_papers(extract_entities=...) — kwarg doesn't exist → TypeError 500 on every bulk-ingest request | med | fixed | clawd | #1452 | 08-18 |
 

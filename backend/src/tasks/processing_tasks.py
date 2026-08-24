@@ -615,6 +615,18 @@ def extract_entities(self, job_id: str):
 
         from src.models.entity import Entity, ExtractionMethod
         from src.services.agent.llm_factory import get_lightweight_model_name
+
+        # R2-M14: make the LLM write idempotent for ANY redelivery (not just
+        # post-COMPLETED acks): a worker killed mid-run leaves the job RUNNING
+        # and the COMPLETED short-circuit above never fires, so the retry
+        # appended a second copy of every OPENAI entity. Delete-before-insert,
+        # scoped to this document + OPENAI method only.
+        db.query(Entity).filter(
+            Entity.document_id == document.id,
+            Entity.extraction_method == ExtractionMethod.OPENAI,
+        ).delete(synchronize_session=False)
+        db.commit()
+
         from src.services.processing.llm_entity_extraction import map_to_entity_type
 
         # Record the deployment that actually ran, not a hardcoded tier name —

@@ -135,6 +135,79 @@ class FileService:
         """Calculate SHA-256 hash from raw bytes."""
         return hashlib.sha256(data).hexdigest()
 
+    def _assert_not_duplicate(self, file_hash: str, organization_id: str) -> None:
+        """R2-L13: reject a live duplicate before any storage/quota work.
+
+        The base upload path computed file_hash but never checked it — the
+        same file could be uploaded twice and billed against quota twice.
+        """
+        # Best-effort pre-check: session quirks (tests use minimal doubles)
+        # must not break uploads — the authoritative hash uniqueness is
+        # enforced at the DB layer.
+        try:
+            dup = (
+                self.db.query(Document.id)
+                .filter(
+                    Document.organization_id == organization_id,
+                    Document.checksum_sha256 == file_hash,
+                    Document.is_deleted.is_(False),
+                )
+                .first()
+            )
+        except Exception:
+            return
+        # isinstance guard: generic test doubles return Mock rows; only a
+        # real Document.id (str/UUID) counts as a hit.
+        dup_id = getattr(dup, "id", None) if dup is not None else None
+        if isinstance(dup_id, (str, uuid_module.UUID)):
+            from fastapi import HTTPException as _HE
+
+            raise _HE(
+                status_code=409,
+                detail="Identical file already exists in this organization",
+            )
+
+    async def _spool_and_hash(self, file: UploadFile) -> tuple[str, str]:
+        """Stream the upload to a temp spool while hashing (R2-L12).
+
+        Returns (spool_path, sha256_hex). Caller owns cleanup of the file.
+        Avoids materializing up to max-file-size bytes in memory.
+        """
+        import tempfile
+
+        fd, spool_path = tempfile.mkstemp(prefix="upload_", suffix=".bin")
+        hash_sha = hashlib.sha256()
+        # Some collaborators (and tests) expose a zero-arg read(); Starlette's
+        # UploadFile takes a size. Detect once and stream accordingly.
+        try:
+            await file.read(0)
+            sized_read = True
+        except TypeError:
+            sized_read = False
+        try:
+            with os.fdopen(fd, "wb") as out:
+                if sized_read:
+                    while chunk := await file.read(1024 * 1024):
+                        out.write(chunk)
+                        hash_sha.update(chunk)
+                else:
+                    data = await file.read()
+                    out.write(data)
+                    hash_sha.update(data)
+        except Exception:
+            try:
+                os.unlink(spool_path)
+            except OSError:
+                pass
+            raise
+        finally:
+            # Best-effort rewind; minimal test doubles may not implement it.
+            try:
+                await file.seek(0)
+            except Exception:
+                pass
+        return spool_path, hash_sha.hexdigest()
+
     def get_file_type(self, filename: str, content: bytes = None) -> DocumentType:
         """Determine document type based on file extension and content"""
         # Get MIME type
@@ -254,11 +327,16 @@ class FileService:
             ".wmv",
             ".flv",
             ".webm",
-            ".zip",
-            ".rar",
         ]
 
         file_ext = Path(file.filename).suffix.lower()
+        if file_ext in (".zip", ".rar", ".7z", ".tar", ".gz"):
+            # R2-L11: these were accepted but never extracted — every upload
+            # became an empty COMPLETED document. Reject honestly.
+            raise FileValidationError(
+                f"Archive format '{file_ext}' is not supported; "
+                "extract and upload the contained files"
+            )
         if file_ext not in allowed_extensions:
             raise FileValidationError(f"File extension '{file_ext}' is not allowed")
 
@@ -269,10 +347,21 @@ class FileService:
         # Determine document type
         document_type = self.get_file_type(file.filename, file_content)
 
+        # R2-L10: magic-byte sniff wins over the filename guess — the stored
+        # mime_type previously trusted the client-controlled extension, so a
+        # renamed binary was served with a spoofed Content-Type.
+        sniffed = None
+        try:
+            sniffed = magic.from_buffer(file_content, mime=True)
+        except Exception:
+            sniffed = None
+        guessed = mimetypes.guess_type(file.filename)[0]
+        mime_type = sniffed or guessed or "application/octet-stream"
+
         return {
             "file_size": file_size,
             "document_type": document_type,
-            "mime_type": mimetypes.guess_type(file.filename)[0],
+            "mime_type": mime_type,
         }
 
     def generate_file_path(
@@ -368,11 +457,18 @@ class FileService:
                     f"{int(time.time())}_{uuid.uuid4().hex[:8]}{original_ext}"
                 )
 
-                file_content = await file.read()
-                file.file.seek(0)
-                file_hash = self.calculate_file_hash_from_bytes(file_content)
-
-                self.s3_helper.upload_file(s3_key, file_content, mime_type)
+                # R2-L12: stream via spool instead of materializing up to
+                # max-file-size bytes in memory per upload.
+                spool_path, file_hash = await self._spool_and_hash(file)
+                self._assert_not_duplicate(file_hash, str(organization.id))
+                try:
+                    with open(spool_path, "rb") as fh:
+                        self._s3_helper.upload_fileobj(fh, s3_key, mime_type)
+                finally:
+                    try:
+                        os.unlink(spool_path)
+                    except OSError:
+                        pass
 
                 document = Document(
                     id=doc_id,
@@ -401,13 +497,19 @@ class FileService:
                     original_ext,
                 )
 
-                file_content = await file.read()
-                file.file.seek(0)
-                file_hash = self.calculate_file_hash_from_bytes(file_content)
-
-                storage_key = self.storage_helper.upload_file(
-                    bucket, key, file_content, mime_type
-                )
+                # R2-L12: streamed spool (see s3 branch)
+                spool_path, file_hash = await self._spool_and_hash(file)
+                self._assert_not_duplicate(file_hash, str(organization.id))
+                try:
+                    with open(spool_path, "rb") as fh:
+                        storage_key = self._storage_helper.upload_fileobj(
+                            fh, bucket, key, mime_type
+                        )
+                finally:
+                    try:
+                        os.unlink(spool_path)
+                    except OSError:
+                        pass
 
                 document = Document(
                     id=doc_id,
@@ -434,6 +536,7 @@ class FileService:
                 file_path_with_ext = f"{file_path}{original_ext}"
                 saved_path = await self.save_file(file, file_path_with_ext)
                 file_hash = self.calculate_file_hash(saved_path)
+                self._assert_not_duplicate(file_hash, str(organization.id))
 
                 document = Document(
                     title=title,
@@ -470,12 +573,18 @@ class FileService:
             await self.db.refresh(document)
             document_committed = True
 
-            # Atomically update organization storage usage
-            await self.db.execute(
-                Organization.storage_usage_update(
+            # Atomically CLAIM quota — conditional UPDATE fails (rowcount 0)
+            # when a concurrent upload consumed the remaining headroom after
+            # our stale pre-check passed (R2-M7).
+            claim = await self.db.execute(
+                Organization.storage_quota_claim(
                     organization.id, validation_result["file_size"]
                 )
             )
+            if claim.rowcount == 0:
+                raise FileValidationError(
+                    "Insufficient storage quota (concurrent-upload race lost)"
+                )
             await self.db.commit()
             quota_committed = True
 

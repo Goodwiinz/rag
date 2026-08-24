@@ -36,14 +36,20 @@ class MessageCitationService:
         message_id: UUID,
         message_content: str,
         retrieved_documents: List[Dict[str, Any]],
+        organization_id: Optional[str] = None,
     ) -> List[Citation]:
         """Extract and save citations from AI response.
+
+        NOTE: this method currently has no production caller. When one is added
+        it MUST pass organization_id — otherwise the tenant guard in
+        ``_get_document`` is a no-op and any document id cites successfully.
 
         Args:
             message_id: Chat message ID
             message_content: AI response text with [Doc N] citations
             retrieved_documents: List of documents retrieved for RAG context
                 Format: [{"id": UUID, "title": str, "snippet": str, "score": float}, ...]
+            organization_id: Caller's tenant — scopes the document lookup
 
         Returns:
             List of created Citation objects
@@ -83,7 +89,7 @@ class MessageCitationService:
                 document_id = retrieved_doc.get("id")
 
                 # Fetch full document metadata
-                document = await self._get_document(document_id)
+                document = await self._get_document(document_id, organization_id)
                 if not document:
                     logger.warning(
                         "citation_document_not_found",
@@ -166,17 +172,31 @@ class MessageCitationService:
             )
             raise
 
-    async def _get_document(self, document_id: UUID) -> Optional[Document]:
-        """Fetch document by ID.
+    async def _get_document(
+        self,
+        document_id: UUID,
+        organization_id: Optional[str] = None,
+    ) -> Optional[Document]:
+        """Fetch a live document by ID.
+
+        Soft-deleted documents never receive new citation rows, and when the
+        caller can supply a tenant partition the lookup is scoped to it
+        instead of trusting upstream scoping (R6-L10).
 
         Args:
             document_id: Document UUID
+            organization_id: Optional tenant partition
 
         Returns:
             Document object or None
         """
         try:
-            query = select(Document).where(Document.id == document_id)
+            query = select(Document).where(
+                Document.id == document_id,
+                Document.is_deleted == False,  # noqa: E712
+            )
+            if organization_id:
+                query = query.where(Document.organization_id == organization_id)
             result = await self.db.execute(query)
             return result.scalar_one_or_none()
         except Exception as e:

@@ -193,7 +193,10 @@ class HybridSearchService:
                 reranked = self._apply_cohere_reranking(
                     search_request.query,
                     fused_results,
-                    search_request.limit * 2,  # Get more for filtering
+                    # R2-M15: rerank the full pool (bounded), not limit*2 —
+                    # truncating pre-pagination made offset>=20 return empty
+                    # pages while total claimed otherwise.
+                    min(len(fused_results), 200),
                 )
                 fused_results = reranked
 
@@ -362,7 +365,8 @@ class HybridSearchService:
                     reranked = self._apply_cohere_reranking(
                         search_request.query,
                         fused_results,
-                        search_request.limit * 2,
+                        # R2-M15: full pool, bounded
+                        min(len(fused_results), 200),
                     )
                     rerank_time = (time.time() - rerank_start) * 1000
 
@@ -467,17 +471,12 @@ class HybridSearchService:
         # Include knowledge graph search for entity-based queries
         if search_request.search_type in [SearchType.HYBRID]:
             # Check if query contains entities or relationship indicators
-            query_lower = search_request.query.lower()
-            entity_indicators = [
-                "who",
-                "what",
-                "where",
-                "when",
-                "how",
-                "relationship",
-                "connected",
-            ]
-            if any(indicator in query_lower for indicator in entity_indicators):
+            import re as _re
+
+            if _re.search(
+                r"\b(who|what|where|when|how|relationship[s]?|connected)\b",
+                search_request.query.lower(),
+            ):
                 sources.append(SearchSourceType.KNOWLEDGE_GRAPH)
 
         # Default to all sources for hybrid search
@@ -1113,11 +1112,18 @@ class HybridSearchService:
 
         # Enrich titles for results that still have placeholder titles
         if db and final_results:
-            self._enrich_titles_from_db(final_results, db)
+            self._enrich_titles_from_db(
+                final_results, db, organization_id=organization_id
+            )
 
         return final_results, len(filtered_fused_results)
 
-    def _enrich_titles_from_db(self, results: List[SearchResult], db: Session) -> None:
+    def _enrich_titles_from_db(
+        self,
+        results: List[SearchResult],
+        db: Session,
+        organization_id: Optional[str] = None,
+    ) -> None:
         """Look up actual document titles from DB for results with placeholder titles."""
         try:
             ids_needing_titles = [
@@ -1130,9 +1136,19 @@ class HybridSearchService:
 
             from sqlalchemy import text
 
+            # Tenant-scoped + soft-delete aware: this is a bare-id lookup and
+            # would otherwise leak deleted documents' titles (R6-L2).
+            org_filter = ""
+            params: dict = {"ids": ids_needing_titles}
+            if organization_id:
+                org_filter = " AND organization_id = :organization_id"
+                params["organization_id"] = organization_id
             rows = db.execute(
-                text("SELECT id::text, title FROM documents WHERE id = ANY(:ids)"),
-                {"ids": ids_needing_titles},
+                text(
+                    "SELECT id::text, title FROM documents "
+                    "WHERE id = ANY(:ids) AND NOT is_deleted" + org_filter
+                ),
+                params,
             ).fetchall()
             title_map = {row[0]: row[1] for row in rows if row[1]}
 
@@ -1217,18 +1233,36 @@ class HybridSearchService:
         search_request: SearchQuery,
         source_results: Dict[SearchSourceType, SearchSourceResult],
     ) -> List[str]:
-        """Get suggestions from multiple sources"""
-        suggestions = []
+        """Derive query suggestions from this search's own top titles.
 
-        # Collect suggestions from successful sources
-        for source_type, source_result in source_results.items():
-            if source_result.success and hasattr(source_result, "suggestions"):
-                if hasattr(source_result, "suggestions") and source_result.suggestions:
-                    suggestions.extend(source_result.suggestions)
+        SearchSourceResult has never carried a ``suggestions`` field, so the
+        old double-hasattr collected nothing and hybrid suggestions were
+        permanently empty (R2-L25). Titles are normalized the same way the
+        fulltext suggestion query normalizes them.
+        """
+        import re as _re
 
-        # Remove duplicates and limit
-        unique_suggestions = list(set(suggestions))
-        return unique_suggestions[:5]
+        suggestions: List[str] = []
+        for source_result in source_results.values():
+            if not source_result.success:
+                continue
+            for result in source_result.results[:5]:
+                title = ""
+                if result.search_result:
+                    title = result.search_result.title or ""
+                title = title or getattr(result, "title", "") or ""
+                cleaned = (
+                    _re.sub(r"\s+", " ", _re.sub(r"[^a-zA-Z0-9\s]", " ", title))
+                    .strip()
+                    .lower()
+                )
+                if cleaned and cleaned not in suggestions:
+                    suggestions.append(cleaned)
+                if len(suggestions) >= 5:
+                    break
+            if len(suggestions) >= 5:
+                break
+        return suggestions[:5]
 
     def _fallback_to_fulltext(
         self,

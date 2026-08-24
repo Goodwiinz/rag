@@ -546,7 +546,12 @@ def delete_relationship(
     try:
         org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         success = knowledge_graph_service.delete_relationship(
-            relationship_id, source_document_ids=org_doc_ids
+            relationship_id,
+            source_document_ids=org_doc_ids,
+            # Prefer the indexed org partition: arXiv-ingested entities carry
+            # no source_document_id, so the legacy doc-id list alone 404'd
+            # forever on relationships the same org could list.
+            organization_id=str(current_user.organization_id),
         )
         if not success:
             raise HTTPException(status_code=404, detail="Relationship not found")
@@ -1081,7 +1086,13 @@ def get_graph_analytics(
         if project_id is not None and not scope_doc_ids:
             return GraphAnalytics()
         analytics = knowledge_graph_service.get_graph_analytics(
-            source_document_ids=scope_doc_ids
+            # No project filter → pure org equality. arXiv entities carry no
+            # source_document_id, so passing the org's doc-id list here hid them
+            # and zeroed the counts (R5-M8). With ?project_id= the doc-id list is
+            # ANDed onto the org predicate so the counts actually narrow to the
+            # project instead of silently staying org-wide.
+            source_document_ids=scope_doc_ids if project_id is not None else None,
+            organization_id=str(current_user.organization_id),
         )
         return analytics
     except Exception as e:

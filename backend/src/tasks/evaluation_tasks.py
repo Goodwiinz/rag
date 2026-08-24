@@ -649,14 +649,25 @@ def cleanup_old_evaluations():
             .all()
         )
 
-        deleted_count = 0
+        # R2-M12: metrics/reports/comparisons FK the job without ondelete —
+        # deleting the parent row nightly raised IntegrityError forever and
+        # nothing ever got cleaned. Remove dependents first.
+        from src.models.evaluation import (
+            EvaluationComparison,
+            EvaluationMetric,
+            EvaluationReport,
+        )
+
+        job_ids = [job.id for job in old_jobs]
+        if job_ids:
+            for model in (EvaluationMetric, EvaluationReport, EvaluationComparison):
+                db.query(model).filter(model.job_id.in_(job_ids)).delete(
+                    synchronize_session=False
+                )
+
         for job in old_jobs:
-            try:
-                db.delete(job)
-                deleted_count += 1
-            except Exception as delete_error:
-                logger.error(f"Error deleting job {job.id}: {str(delete_error)}")
-                continue
+            db.delete(job)
+        deleted_count = len(old_jobs)
 
         db.commit()
         logger.info(f"Cleaned up {deleted_count} old evaluation jobs")

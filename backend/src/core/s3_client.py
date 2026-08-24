@@ -97,6 +97,26 @@ class S3StorageHelper:
             self._log.error("s3_upload_failed", key=key, error=str(exc))
             raise
 
+    def upload_fileobj(
+        self,
+        fileobj,
+        key: str,
+        content_type: str = "application/octet-stream",
+    ) -> str:
+        """Stream an object to S3/Spaces without buffering it in memory."""
+        try:
+            self.client.put_object(
+                Bucket=self.bucket,
+                Key=key,
+                Body=fileobj,
+                ContentType=content_type,
+                ACL="private",
+            )
+            return key
+        except Exception as exc:
+            self._log.error("s3_upload_failed", key=key, error=str(exc))
+            raise
+
     def download_file(self, key: str) -> bytes:
         """Download a file from S3/Spaces. Returns file bytes."""
         self._log.debug("s3_download_start", key=key)
