@@ -12095,7 +12095,7 @@ export interface components {
         ProjectNoteCreate: {
             /**
              * Content
-             * @description Markdown content
+             * @description Markdown content (bounded, R6-L7)
              */
             content: string;
             /**
@@ -19322,8 +19322,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
+                    /** @example {
                      *       "documents": [
                      *         {
                      *           "content_preview": "This paper explores...",
@@ -19352,8 +19351,7 @@ export interface operations {
                      *         "total": 42,
                      *         "total_pages": 3
                      *       }
-                     *     }
-                     */
+                     *     } */
                     "application/json": components["schemas"]["DocumentListResponse"];
                 };
             };
@@ -19484,8 +19482,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
+                    /** @example {
                      *       "documents": [
                      *         {
                      *           "content_preview": "...comprehensive guide to machine learning...",
@@ -19508,8 +19505,7 @@ export interface operations {
                      *         ]
                      *       },
                      *       "search_query": "machine learning"
-                     *     }
-                     */
+                     *     } */
                     "application/json": components["schemas"]["DocumentSearchResponse"];
                 };
             };
@@ -22667,7 +22663,7 @@ export interface operations {
     generate_draft_api_v1_projects__project_id__drafts_post: {
         parameters: {
             query: {
-                /** @description Themes to focus on */
+                /** @description Themes to focus on (max 10 items, 500 chars each) */
                 themes: string[];
                 /** @description Specific documents to include */
                 document_ids?: string[] | null;

@@ -1147,8 +1147,8 @@ class ChatService:
                 Conversation.workspace_id == workspace_id,
                 Conversation.is_deleted == False,
                 or_(
-                    Conversation.title.ilike(search_pattern),
-                    Conversation.description.ilike(search_pattern),
+                    Conversation.title.ilike(search_pattern, escape="\\"),
+                    Conversation.description.ilike(search_pattern, escape="\\"),
                 ),
             )
             .order_by(desc(Conversation.last_activity_at))

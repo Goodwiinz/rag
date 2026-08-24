@@ -76,10 +76,13 @@ def test_metrics_summary_is_sql_aggregate() -> None:
 
 
 # R5-L17
-def test_orphan_citations_visible_to_creator() -> None:
+def test_orphan_citations_fail_closed() -> None:
     src = _read("src/api/research/citations.py")
     af = src[src.find("access_filter = or_(") :]
-    assert "Citation.document_id.is_(None), Citation.message_id.is_(None)" in af[:500]
+    # R5-L17 final: no creator column exists, so orphans match nothing —
+    # fail-closed beats world-readable.
+    assert "document_id.is_(None), Citation.message_id.is_(None)" not in af[:600]
+    assert "R5-L17" in af[:800]
 
 
 # R5-L19

@@ -8224,7 +8224,8 @@
         "description": "Create a new project note",
         "properties": {
           "content": {
-            "description": "Markdown content",
+            "description": "Markdown content (bounded, R6-L7)",
+            "maxLength": 200000,
             "title": "Content",
             "type": "string"
           },
@@ -8238,6 +8239,7 @@
               "format": "uuid",
               "type": "string"
             },
+            "maxItems": 100,
             "title": "Linked Document Ids",
             "type": "array"
           },
@@ -8258,6 +8260,7 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 30,
             "title": "Tags",
             "type": "array"
           },
@@ -8362,6 +8365,7 @@
           "content": {
             "anyOf": [
               {
+                "maxLength": 200000,
                 "type": "string"
               },
               {
@@ -8388,6 +8392,7 @@
                   "format": "uuid",
                   "type": "string"
                 },
+                "maxItems": 100,
                 "type": "array"
               },
               {
@@ -8402,6 +8407,7 @@
                 "items": {
                   "type": "string"
                 },
+                "maxItems": 30,
                 "type": "array"
               },
               {
@@ -28180,15 +28186,16 @@
             }
           },
           {
-            "description": "Themes to focus on",
+            "description": "Themes to focus on (max 10 items, 500 chars each)",
             "in": "query",
             "name": "themes",
             "required": true,
             "schema": {
-              "description": "Themes to focus on",
+              "description": "Themes to focus on (max 10 items, 500 chars each)",
               "items": {
                 "type": "string"
               },
+              "maxItems": 500,
               "title": "Themes",
               "type": "array"
             }

@@ -111,6 +111,12 @@ async def generate_draft(
     Returns a task_id that can be used to check generation status.
     Generation runs asynchronously in the background.
     """
+    if len(themes) > 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum 10 themes allowed",
+        )
+
     # Validate project ownership
     await _validate_project_ownership(project_id, current_user, db)
 

@@ -44,7 +44,6 @@ class ExtractionMatrixService:
     """Service for building extraction prompts and parsing LLM extraction results."""
 
     @staticmethod
-    @staticmethod
     def set_extraction_status(task_id: str, payload: Dict[str, Any]) -> None:
         _extraction_status[task_id] = {
             **_extraction_status.get(task_id, {}),
@@ -52,10 +51,15 @@ class ExtractionMatrixService:
             **payload,
         }
         while len(_extraction_status) > _EXTRACTION_STATUS_MAX:
-            oldest = min(
-                _extraction_status,
-                key=lambda k: _extraction_status[k].get("updated_at", ""),
-            )
+            # M11-review: evict oldest TERMINAL entry first so a live
+            # running extraction can never be dropped under churn.
+            terminal = [
+                k
+                for k, v in _extraction_status.items()
+                if v.get("status") in ("completed", "failed")
+            ]
+            pool = terminal or list(_extraction_status)
+            oldest = min(pool, key=lambda k: _extraction_status[k].get("updated_at", ""))
             _extraction_status.pop(oldest)
 
     def get_extraction_status(task_id: str) -> Optional[Dict[str, Any]]:
@@ -116,8 +120,8 @@ class ExtractionMatrixService:
         try:
             client, model = self._get_openai_client()
         except RuntimeError as e:
-            _extraction_status[task_id]["status"] = "failed"
-            _extraction_status[task_id]["error"] = str(e)
+            self.set_extraction_status(task_id, {"status": "failed"})
+            self.set_extraction_status(task_id, {"error": str(e)})
             return
 
         async with AsyncSessionLocal() as db:

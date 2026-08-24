@@ -927,21 +927,25 @@ Key takeaways include the importance of continued investigation and the potentia
 
         was_current = draft.is_current
         await self.db.delete(draft)
-        await self.db.commit()
 
-        # R2-L5: leaving zero current drafts broke every current_only reader.
+        # R2-L5 + M12-review: promote within the SAME transaction so no
+        # reader ever observes a zero-current window.
         if was_current:
             next_draft = (
                 await self.db.execute(
                     select(GeneratedDraft)
-                    .where(GeneratedDraft.project_id == project_id)
+                    .where(
+                        GeneratedDraft.project_id == project_id,
+                        GeneratedDraft.id != draft_id,
+                    )
                     .order_by(GeneratedDraft.version.desc())
                     .limit(1)
                 )
             ).scalar_one_or_none()
             if next_draft:
                 next_draft.is_current = True
-                await self.db.commit()
+
+        await self.db.commit()
         return True
 
     async def get_draft_citations(

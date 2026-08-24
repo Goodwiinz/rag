@@ -115,8 +115,8 @@ async def list_conversations(
         pattern = f"%{_escape_like(search_query)}%"
         base_conditions.append(
             or_(
-                Conversation.title.ilike(pattern),
-                Conversation.description.ilike(pattern),
+                Conversation.title.ilike(pattern, escape="\\"),
+                Conversation.description.ilike(pattern, escape="\\"),
             )
         )
 

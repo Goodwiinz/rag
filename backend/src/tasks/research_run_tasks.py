@@ -25,27 +25,29 @@ def sweep_stale_research_runs() -> Dict[str, Any]:
     db = SessionLocal()
     try:
         cutoff = datetime.utcnow() - STALE_AFTER
-        stale = (
-            db.query(ResearchRun)
-            .filter(
+        # M2-review: conditional bulk UPDATE — a run reaching a terminal
+        # state between selection and commit is never overwritten.
+        from sqlalchemy import update as _sa_update
+
+        result = db.execute(
+            _sa_update(ResearchRun)
+            .where(
                 ResearchRun.status == RunStatus.RUNNING.value,
                 ResearchRun.updated_at < cutoff,
             )
-            .all()
-        )
-        for run in stale:
-            run.status = RunStatus.FAILED.value
-            if hasattr(run, "error"):
-                run.error = (
-                    f"Swept as stale: RUNNING with no progress since "
-                    f"{run.updated_at.isoformat() if run.updated_at else 'unknown'}"
-                )
-        db.commit()
-        if stale:
-            logger.warning(
-                "sweep_stale_research_runs: failed %d wedged runs", len(stale)
+            .values(
+                status=RunStatus.FAILED.value,
+                error=(
+                    "Swept as stale: RUNNING with no progress "
+                    f"since {cutoff.isoformat()}"
+                ),
             )
-        return {"swept": len(stale)}
+        )
+        db.commit()
+        swept = result.rowcount or 0
+        if swept:
+            logger.warning("sweep_stale_research_runs: failed %d wedged runs", swept)
+        return {"swept": swept}
     except Exception:
         db.rollback()
         logger.exception("sweep_stale_research_runs failed")

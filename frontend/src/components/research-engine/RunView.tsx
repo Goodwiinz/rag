@@ -217,6 +217,7 @@ export function RunView({ runId }: RunViewProps) {
     0;
 
   const handlePause = async () => {
+    setActionError(null);
     setActionLoading(true);
     try {
       await pauseRun(runId);
@@ -229,6 +230,7 @@ export function RunView({ runId }: RunViewProps) {
   };
 
   const handleResume = async () => {
+    setActionError(null);
     setActionLoading(true);
     try {
       await resumeRun(runId);

@@ -548,11 +548,13 @@ async def _run_extraction_background(
                             )
                         )
                 extracted_count += 1
+                # M10-review: durable per document — a later LLM failure
+                # must not discard already-extracted cells.
+                await bg_db.commit()
                 ExtractionMatrixService.set_extraction_status(
                     task_id,
                     {"status": "running", "extracted": extracted_count},
                 )
-            await bg_db.commit()
         ExtractionMatrixService.set_extraction_status(
             task_id, {"status": "completed", "extracted": extracted_count}
         )
