@@ -87,6 +87,9 @@ def test_upload_streams_via_spool() -> None:
 def test_duplicate_hash_checked() -> None:
     src = _read("src/services/documents/file_service.py")
     assert src.count("_assert_not_duplicate(file_hash") == 3  # s3+supabase+local
+    assert src.index("document.checksum_sha256 = file_hash") < src.index(
+        "self.db.add(document)"
+    )
     dup = src[src.find("def _assert_not_duplicate") :]
     assert "409" in dup[:1600]
 
