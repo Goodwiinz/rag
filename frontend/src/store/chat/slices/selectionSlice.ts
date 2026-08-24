@@ -118,14 +118,21 @@ export const createSelectionSlice: ChatSliceCreator<SelectionSlice> = (
     return found;
   },
 
-  // Register a thread created outside the store (e.g. the chat composer
-  // creates via workspaceService directly) so bindings and lookups work
-  // without waiting for the next loadThreads.
+  // Register a thread fetched outside the store (the chat composer creates
+  // via workspaceService directly; the chat page fetches thread pages and
+  // deep-linked threads into its own local list) so bindings and lookups
+  // work without waiting for the next loadThreads. Re-registering an
+  // already-indexed thread REPLACES the row rather than skipping it — a
+  // server row is the truth for source_project_id, and skipping left threads
+  // outside the store's one page-1 load looking permanently unbound.
   registerThread: (thread) => {
     set((state) => {
       const list = (state.threads[thread.conversation_id] ??= []);
-      if (!list.some((t) => t.id === thread.id)) {
+      const index = list.findIndex((t) => t.id === thread.id);
+      if (index === -1) {
         list.unshift(thread);
+      } else {
+        list[index] = thread;
       }
       state.threadToConversation[thread.id] = thread.conversation_id;
     });

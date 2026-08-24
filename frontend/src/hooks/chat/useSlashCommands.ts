@@ -18,6 +18,7 @@ import {
 import { ChatConversation } from '@/hooks/chat/chatTypes';
 import { documentService } from '@/services/documentService';
 import { projectService } from '@/services/projectService';
+import { useProjectChatStore } from '@/store/projectChatStore';
 import { useProjectStore } from '@/store/projectStore';
 
 function relativeTime(ms: number): string {
@@ -123,15 +124,57 @@ export function useSlashCommands({
     router.push(getNewChatUrl());
   }, [router, setCurrentThread]);
 
-  // Bind the chat to a project via the same ?projectId= param the context rail
-  // uses (the streaming hook reads it into page_context).
+  // Bind the chat to a project. The ?projectId= param alone is only the
+  // pre-thread intent: resolveBoundProjectId ignores it as soon as the thread
+  // row is in the store, and thread navigation drops it. So persist the
+  // binding on the thread itself (server row + store mirror), exactly like
+  // the context rail's picker, and keep the param for the not-yet-created
+  // thread of a brand-new chat.
   const handleSetProjectContext = useCallback(
-    (projectId: string) => {
+    (projectId: string, projectName: string) => {
       const params = new URLSearchParams(window.location.search);
       params.set('projectId', projectId);
       router.replace(`/chat?${params.toString()}`);
+
+      const outId = `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setCommandOutputs([
+        {
+          id: outId,
+          command: '/projects',
+          timestamp: Date.now(),
+          status: 'ready',
+          lines: [`Project context set: ${projectName}`],
+        },
+      ]);
+
+      if (!activeThreadId) return;
+      void (async () => {
+        const linked = await useProjectChatStore
+          .getState()
+          .linkThreadToProject(projectId, { thread_id: activeThreadId });
+        if (linked) return;
+        // Drop the param we optimistically set: a thread the store has not
+        // loaded yet DOES read it, so leaving it behind would hand the agent
+        // a project the attach just failed to make real.
+        const current = new URLSearchParams(window.location.search);
+        if (current.get('projectId') === projectId) {
+          current.delete('projectId');
+          const query = current.toString();
+          router.replace(query ? `/chat?${query}` : '/chat');
+        }
+        // The param can't stand in for a thread that is already loaded, so a
+        // failed attach means no project context at all — say so instead of
+        // leaving the success line up.
+        patchOutput(outId, {
+          lines: [
+            `Could not attach this chat to ${projectName}.`,
+            useProjectChatStore.getState().errors[projectId] ||
+              'Please try again.',
+          ],
+        });
+      })();
     },
-    [router]
+    [router, activeThreadId, patchOutput]
   );
 
   // Project-scoped memory commands. `/remember <fact>` saves a durable fact the
@@ -422,16 +465,7 @@ export function useSlashCommands({
           router.push(getSelectedThreadUrl(action.id));
           return;
         case 'set-project':
-          handleSetProjectContext(action.id);
-          setCommandOutputs([
-            {
-              id: `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-              command: '/projects',
-              timestamp: Date.now(),
-              status: 'ready',
-              lines: [`Project context set: ${action.name}`],
-            },
-          ]);
+          handleSetProjectContext(action.id, action.name);
           return;
         case 'cite-paper':
           setInput((cur) =>
