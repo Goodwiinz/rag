@@ -64,7 +64,15 @@ export function ChatDialogs({
             onChange={(e) =>
               setRenameDialog((d) => ({ ...d, value: e.target.value }))
             }
-            onKeyDown={(e) => e.key === 'Enter' && commitRename()}
+            onKeyDown={(e) => {
+              // The Enter that confirms an IME candidate must not commit a
+              // rename built from unconfirmed composition text.
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitRename();
+              }
+            }}
             autoFocus
           />
           <AlertDialogFooter>

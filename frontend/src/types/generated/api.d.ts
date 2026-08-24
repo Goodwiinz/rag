@@ -9309,6 +9309,11 @@ export interface components {
              * @default false
              */
             rag_enabled: boolean;
+            /**
+             * Retrieval Error
+             * @default false
+             */
+            retrieval_error: boolean;
             /** Retrieved Contexts */
             retrieved_contexts?: components["schemas"]["RetrievedContext"][] | null;
             /** Timestamp */

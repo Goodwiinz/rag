@@ -2048,6 +2048,11 @@
             "title": "Rag Enabled",
             "type": "boolean"
           },
+          "retrieval_error": {
+            "default": false,
+            "title": "Retrieval Error",
+            "type": "boolean"
+          },
           "retrieved_contexts": {
             "anyOf": [
               {
@@ -20526,6 +20531,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Chat Health Check",
         "tags": [
           "chat"
@@ -20546,6 +20556,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "List Available Models",
         "tags": [
           "chat"

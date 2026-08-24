@@ -145,6 +145,40 @@ export function ChatSurface({
 
   const isBusy = isLoading || storeIsStreaming || !!activeConfirmation;
 
+  // The first send starts before the server has assigned a thread id. Adopt
+  // that id into the current runtime identity while an optimistic message is
+  // present; changing the provider key here would remount it mid-turn. Real
+  // navigation still replaces the identity and resets the runtime.
+  const [runtimeIdentity, setRuntimeIdentity] = useState<{
+    threadId: string | null;
+    key: string;
+    generation: number;
+  }>({
+    threadId: activeThreadId,
+    key: activeThreadId ?? 'new:0',
+    generation: 0,
+  });
+  let runtimeKey = runtimeIdentity.key;
+  if (runtimeIdentity.threadId !== activeThreadId) {
+    const isNewThreadAdoption =
+      runtimeIdentity.threadId === null &&
+      activeThreadId !== null &&
+      displayedMessages.some((message) => message.source === 'optimistic');
+
+    const nextGeneration = isNewThreadAdoption
+      ? runtimeIdentity.generation
+      : runtimeIdentity.generation + 1;
+    const nextIdentity = {
+      threadId: activeThreadId,
+      key: isNewThreadAdoption
+        ? runtimeIdentity.key
+        : (activeThreadId ?? `new:${nextGeneration}`),
+      generation: nextGeneration,
+    };
+    setRuntimeIdentity(nextIdentity);
+    runtimeKey = nextIdentity.key;
+  }
+
   // Export/copy-all must reflect the DISPLAYED thread's snapshot, so it may
   // only be blocked while THIS thread's transcript is still growing.
   // `isStreamingThisThread` covers the stream itself. `isLoading` does not:
@@ -186,8 +220,15 @@ export function ChatSurface({
   // KNOW that up front instead of closing on a save nothing will act on.
   const canSubmitEdit = isSessionInteractive && !isBusy;
 
-  const runtimeHydrationPhase =
-    displayedMessages.length > 0 ? 'hydrated' : 'empty';
+  // F2 (chat-bug-hunt 2026-08-23): the runtime key encodes THREAD IDENTITY
+  // ONLY. It used to also encode a hydration phase (`new:empty` →
+  // `new:hydrated`), so the first optimistic message landing on a brand-new
+  // chat flipped the key mid-turn and React unmounted/remounted the whole
+  // ChatRuntimeProvider subtree — dropping composer focus to <body> and
+  // resetting internal runtime state on every new-chat first send.
+  // Thread switches still remount (activeThreadId changes); within one
+  // thread nothing needs a reset — ChatRuntimeProvider is a pure projection
+  // of its props via useExternalStoreRuntime.
 
   // Listen for populate-chat-input events. Follow-up Suggestions send a bare
   // string (replace); the artifact panel's "Cite" sends {text, mode:'append'}
@@ -303,7 +344,7 @@ export function ChatSurface({
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
         <ChatRuntimeProvider
-          key={`${activeThreadId ?? 'new'}:${runtimeHydrationPhase}`}
+          key={runtimeKey}
           messages={displayedMessages}
           isRunning={isBusy}
           isSendDisabled={!!activeConfirmation || !isSessionInteractive}

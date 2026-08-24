@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from src.core.config import settings
+from src.models.vector import EmbeddingRequest
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,7 @@ class LLMCacheEntry:
     query_text: str
     response_content: str
     model: str
+    temperature: float
     usage: Dict[str, int]
     embedding: Optional[List[float]] = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -123,6 +125,7 @@ class LLMCacheEntry:
             "query_text": self.query_text,
             "response_content": self.response_content,
             "model": self.model,
+            "temperature": self.temperature,
             "usage": self.usage,
             "embedding": self.embedding,
             "created_at": self.created_at.isoformat(),
@@ -150,6 +153,7 @@ class LLMCacheEntry:
             query_text=data["query_text"],
             response_content=data["response_content"],
             model=data["model"],
+            temperature=data.get("temperature", 0.7),
             usage=data.get("usage", {}),
             embedding=data.get("embedding"),
             created_at=created_at,
@@ -173,7 +177,8 @@ class LLMResponseCache:
     def __init__(self, config: Optional[LLMCacheConfig] = None):
         self.config = config or LLMCacheConfig()
         self._memory_cache: Dict[str, LLMCacheEntry] = {}
-        self._embedding_index: Dict[str, List[float]] = {}  # hash -> embedding
+        # hash -> (embedding, organization_id); tenant boundary (2026-08-23 audit B1)
+        self._embedding_index: Dict[str, Tuple[List[float], str]] = {}
         self._redis_client = None
         self._embedding_service = None
         self._lock = asyncio.Lock()  # Thread safety for shared mutable state
@@ -230,7 +235,13 @@ class LLMResponseCache:
 
         return self._embedding_service
 
-    def _generate_query_hash(self, query: str, model: str, temperature: float) -> str:
+    def _generate_query_hash(
+        self,
+        query: str,
+        model: str,
+        temperature: float,
+        organization_id: str = "",
+    ) -> str:
         """Generate a hash key for exact matching."""
         # Normalize query
         normalized = query.lower().strip()
@@ -240,6 +251,9 @@ class LLMResponseCache:
             "query": normalized,
             "model": model,
             "temperature": round(temperature, 2),
+            # Tenant boundary: identical queries in different orgs must never
+            # share an entry (2026-08-23 audit B1).
+            "organization_id": organization_id,
         }
 
         hash_input = json.dumps(components, sort_keys=True)
@@ -259,19 +273,10 @@ class LLMResponseCache:
             return None
 
         try:
-            # R6-M3: EmbeddingService has no .embed(); this AttributeError was
-            # swallowed and semantic cache silently never worked.
-            response = await embedding_service.generate_embedding(
-                type(
-                    "R",
-                    (),
-                    {"text": text, "model": "sentence-transformers/all-MiniLM-L6-v2"},
-                )()
+            embedding_response = await embedding_service.generate_embedding(
+                EmbeddingRequest(text=text)
             )
-            embedding = getattr(response, "embedding", None)
-            if isinstance(embedding, np.ndarray):
-                return embedding.tolist()
-            return list(embedding) if embedding else None
+            return list(embedding_response.embedding)
         except Exception as e:
             logger.warning(f"Failed to compute embedding: {e}")
             return None
@@ -291,9 +296,13 @@ class LLMResponseCache:
         return float(dot_product / (norm_a * norm_b))
 
     async def _find_semantic_match(
-        self, query_embedding: List[float]
+        self,
+        query_embedding: List[float],
+        model: str,
+        temperature: float,
+        organization_id: str = "",
     ) -> Optional[LLMCacheEntry]:
-        """Find semantically similar cached response."""
+        """Find a compatible semantic response within the same tenant scope."""
         if not query_embedding:
             return None
 
@@ -302,9 +311,30 @@ class LLMResponseCache:
 
         # Search in-memory cache
         comparisons = 0
-        for query_hash, cached_embedding in list(self._embedding_index.items()):
+        for query_hash, indexed in list(self._embedding_index.items()):
+            cached_embedding, owner_org = indexed
+            # Tenant boundary: never match across organizations (audit B1)
+            if owner_org != organization_id:
+                continue
+
             if comparisons >= self.config.max_semantic_comparisons:
                 break
+
+            cache_key = self._generate_cache_key(query_hash)
+            entry = self._memory_cache.get(cache_key)
+            if not entry or entry.is_expired:
+                continue
+
+            # A high vector similarity does not make responses generated with
+            # different model settings interchangeable. RAG entries are also
+            # context-dependent and semantic lookup is only used for plain
+            # chat requests, so they must never enter this candidate set.
+            if entry.model != model or round(entry.temperature, 2) != round(
+                temperature, 2
+            ):
+                continue
+            if entry.metadata.get("rag_enabled") is True:
+                continue
 
             similarity = self._cosine_similarity(query_embedding, cached_embedding)
 
@@ -312,13 +342,8 @@ class LLMResponseCache:
                 similarity > best_similarity
                 and similarity >= self.config.similarity_threshold
             ):
-                # Get the actual cache entry
-                cache_key = self._generate_cache_key(query_hash)
-                entry = self._memory_cache.get(cache_key)
-
-                if entry and not entry.is_expired:
-                    best_similarity = similarity
-                    best_match = entry
+                best_similarity = similarity
+                best_match = entry
 
             comparisons += 1
 
@@ -333,6 +358,7 @@ class LLMResponseCache:
         model: str = "gpt-4o-mini",
         temperature: float = 0.7,
         use_semantic: bool = True,
+        organization_id: str = "",
     ) -> Optional[Dict[str, Any]]:
         """
         Get cached LLM response.
@@ -342,6 +368,7 @@ class LLMResponseCache:
             model: Model name/ID
             temperature: Sampling temperature
             use_semantic: Whether to use semantic similarity matching
+            organization_id: Tenant scope; entries are never shared across orgs
 
         Returns:
             Cached response dict or None if not found
@@ -352,7 +379,9 @@ class LLMResponseCache:
 
         try:
             # Generate hash for exact matching
-            query_hash = self._generate_query_hash(query, model, temperature)
+            query_hash = self._generate_query_hash(
+                query, model, temperature, organization_id=organization_id
+            )
             cache_key = self._generate_cache_key(query_hash)
 
             # Try exact match in memory first
@@ -400,7 +429,10 @@ class LLMResponseCache:
                                 # Update memory cache
                                 self._memory_cache[cache_key] = entry
                                 if entry.embedding:
-                                    self._embedding_index[query_hash] = entry.embedding
+                                    self._embedding_index[query_hash] = (
+                                        entry.embedding,
+                                        organization_id,
+                                    )
                                 entry.hit_count += 1
                                 self._stats["exact_hits"] += 1
 
@@ -435,7 +467,12 @@ class LLMResponseCache:
             if use_semantic and self.config.use_semantic_cache:
                 query_embedding = await self._compute_embedding(query)
                 if query_embedding:
-                    semantic_match = await self._find_semantic_match(query_embedding)
+                    semantic_match = await self._find_semantic_match(
+                        query_embedding,
+                        model=model,
+                        temperature=temperature,
+                        organization_id=organization_id,
+                    )
                     if semantic_match:
                         # Use lock for thread-safe hit_count increment
                         async with self._lock:
@@ -469,6 +506,7 @@ class LLMResponseCache:
         ttl: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
         retrieved_contexts: Optional[List[Dict[str, Any]]] = None,
+        organization_id: str = "",
     ) -> bool:
         """
         Cache an LLM response.
@@ -482,6 +520,7 @@ class LLMResponseCache:
             ttl: Time-to-live in seconds
             metadata: Additional metadata to store
             retrieved_contexts: RAG contexts used to generate the response (for consistency)
+            organization_id: Tenant scope; entries are never shared across orgs
 
         Returns:
             True if cached successfully
@@ -491,7 +530,9 @@ class LLMResponseCache:
             return False
 
         try:
-            query_hash = self._generate_query_hash(query, model, temperature)
+            query_hash = self._generate_query_hash(
+                query, model, temperature, organization_id=organization_id
+            )
             cache_key = self._generate_cache_key(query_hash)
             effective_ttl = ttl or self.config.default_ttl
 
@@ -506,6 +547,7 @@ class LLMResponseCache:
                 query_text=query,
                 response_content=response_content,
                 model=model,
+                temperature=temperature,
                 usage=usage or {},
                 embedding=embedding,
                 ttl=effective_ttl,
@@ -522,7 +564,7 @@ class LLMResponseCache:
                 # Store in memory
                 self._memory_cache[cache_key] = entry
                 if embedding:
-                    self._embedding_index[query_hash] = embedding
+                    self._embedding_index[query_hash] = (embedding, organization_id)
 
             # Store in Redis
             redis = await self._get_redis()

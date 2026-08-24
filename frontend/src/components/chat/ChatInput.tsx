@@ -285,6 +285,9 @@ export function ChatInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent): void => {
+    // IME composition (ja/zh/ko): confirm-Enter must commit text, not submit.
+    // Same guard as AuiMessage.tsx.
+    if (e.nativeEvent.isComposing) return;
     // When the slash menu is open, intercept navigation/run keys. Enter runs
     // the highlighted command and never submits. The menu can only be open
     // while the whole value is a "/word" token, which is never a sendable

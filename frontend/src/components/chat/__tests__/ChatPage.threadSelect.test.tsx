@@ -262,7 +262,10 @@ describe('ChatPage thread selection', () => {
     expect(screen.getByTestId('chat-runtime')).not.toBe(runtimeForThreadOne);
   });
 
-  it('remounts an empty thread runtime once when its transcript hydrates', () => {
+  it('keeps the runtime mounted when an existing thread\'s transcript hydrates', () => {
+    // F2 (chat-bug-hunt 2026-08-23): the runtime key encodes thread identity
+    // only — hydrating a thread's transcript (or landing the first optimistic
+    // message) must NOT remount the runtime subtree mid-turn.
     const emptySession = {
       ...mockUseChatSession(),
       isLoadingMessages: true,
@@ -283,7 +286,7 @@ describe('ChatPage thread selection', () => {
     rerender(<ChatPage />);
 
     const hydratedRuntime = screen.getByTestId('chat-runtime');
-    expect(hydratedRuntime).not.toBe(emptyRuntime);
+    expect(hydratedRuntime).toBe(emptyRuntime);
 
     mockUseChatSession.mockReturnValue({
       ...emptySession,

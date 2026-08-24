@@ -3,6 +3,7 @@ Chat API endpoints for conversational AI
 Provides chat completion functionality using Azure OpenAI with optional RAG
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -45,6 +46,16 @@ class RetrievedContext(BaseModel):
     source: Optional[str] = None
 
 
+class RetrievalError(Exception):
+    """Raised when RAG context retrieval fails on infrastructure grounds.
+
+    Distinguishing a real retrieval failure from a legitimate zero-context
+    result matters: a swallowed failure used to surface as rag_enabled=True
+    with no contexts, and the context-free answer got cached under the RAG
+    cache-key shape (audit B10).
+    """
+
+
 class ChatCompletionRequest(BaseModel):
     """Request for chat completion"""
 
@@ -82,6 +93,10 @@ class ChatCompletionResponse(BaseModel):
     rag_enabled: bool = False
     retrieved_contexts: Optional[List[RetrievedContext]] = None
     diagnostics_trace_id: Optional[str] = None
+    # Additive (audit B10): True when RAG retrieval failed this turn. The
+    # answer is served without context and was NOT written to the LLM cache.
+    # Frontends can ignore it until wired; it defaults to False everywhere.
+    retrieval_error: bool = False
 
 
 RAG_SYSTEM_PROMPT = """You are an AI research assistant with access to a knowledge base of academic papers and documents.
@@ -122,6 +137,11 @@ async def retrieve_context(
     Returns:
         Tuple of (contexts, diagnostics_trace_id).
         diagnostics_trace_id is None if diagnostics storage fails.
+
+    Raises:
+        RetrievalError: when the underlying search infrastructure fails.
+            Callers decide how to degrade; this endpoint must not mistake
+            the failure for a legitimate zero-context result.
     """
     if not organization_id:
         raise ValueError("organization_id is required for RAG retrieval")
@@ -240,7 +260,71 @@ async def retrieve_context(
 
     except Exception as e:
         logger.warning(f"Failed to retrieve context: {str(e)}", exc_info=True)
-        return [], None
+        raise RetrievalError(f"Context retrieval failed: {e}") from e
+
+
+def _run_rag_triad_evaluation_sync(
+    query: str,
+    answer: str,
+    contexts: List[RetrievedContext],
+    trace_id: str,
+    organization_id: str,
+) -> None:
+    """Run the RAG triad evaluation and link it to the diagnostics trace.
+
+    Synchronous driver (async service calls executed via asyncio.run);
+    must be invoked from a worker thread, never on the event loop — the sync
+    ORM session blocks while queries run.
+    """
+    from src.core.database import get_db_sync
+    from src.services.diagnostics.diagnostics_store import diagnostics_store
+    from src.services.evaluation.rag_evaluation_service import (
+        RAGEvaluationInput,
+        rag_evaluation_service,
+    )
+
+    evaluation_input = RAGEvaluationInput(
+        query=query,
+        generated_answer=answer,
+        retrieved_context=[ctx.content for ctx in contexts],
+        document_ids=[ctx.document_id for ctx in contexts],
+        search_type="hybrid",
+        metadata={"trace_id": trace_id, "context_count": len(contexts)},
+    )
+
+    async def _evaluate_and_link(db) -> None:
+        metrics = await rag_evaluation_service.run_rag_triad_evaluation(
+            evaluation_input, None, None, db
+        )
+        scores = {
+            "answer_relevancy": metrics.answer_relevancy,
+            "faithfulness": metrics.faithfulness,
+            "contextual_relevancy": metrics.contextual_relevancy,
+            "overall_score": metrics.overall_score,
+            "hallucination_rate": metrics.hallucination_rate,
+        }
+        await diagnostics_store.update_trace_evaluation(
+            trace_id,
+            evaluation_id=f"eval-{trace_id}",
+            scores=scores,
+            organization_id=organization_id,
+        )
+        logger.info(
+            f"Background RAG evaluation completed for trace {trace_id}: "
+            f"overall={metrics.overall_score:.3f}"
+        )
+
+    db = next(get_db_sync())
+    try:
+        # Requires sync-only clients in this path: asyncio.run() creates a
+        # fresh loop per call. If DiagnosticsStore ever gets an async redis
+        # client (or any shared AsyncClient enters this chain), pooled
+        # connections will bind to dead loops ("Event loop is closed").
+        # Switch to a persistent background loop before introducing async IO
+        # here.
+        asyncio.run(_evaluate_and_link(db))
+    finally:
+        db.close()
 
 
 async def _background_evaluate_rag(
@@ -252,47 +336,16 @@ async def _background_evaluate_rag(
 ) -> None:
     """Background task: evaluate RAG response quality and link to diagnostics trace."""
     try:
-        from src.services.diagnostics.diagnostics_store import diagnostics_store
-        from src.services.evaluation.rag_evaluation_service import (
-            RAGEvaluationInput,
-            rag_evaluation_service,
+        # Sync DB work must not run inline on the event loop; drive it from a
+        # worker thread (same pattern as ThreadSummarizationService).
+        await asyncio.to_thread(
+            _run_rag_triad_evaluation_sync,
+            query,
+            answer,
+            contexts,
+            trace_id,
+            organization_id,
         )
-
-        evaluation_input = RAGEvaluationInput(
-            query=query,
-            generated_answer=answer,
-            retrieved_context=[ctx.content for ctx in contexts],
-            document_ids=[ctx.document_id for ctx in contexts],
-            search_type="hybrid",
-            metadata={"trace_id": trace_id, "context_count": len(contexts)},
-        )
-
-        from src.core.database import get_db_sync
-
-        db = next(get_db_sync())
-        try:
-            metrics = await rag_evaluation_service.run_rag_triad_evaluation(
-                evaluation_input, None, None, db
-            )
-            scores = {
-                "answer_relevancy": metrics.answer_relevancy,
-                "faithfulness": metrics.faithfulness,
-                "contextual_relevancy": metrics.contextual_relevancy,
-                "overall_score": metrics.overall_score,
-                "hallucination_rate": metrics.hallucination_rate,
-            }
-            await diagnostics_store.update_trace_evaluation(
-                trace_id,
-                evaluation_id=f"eval-{trace_id}",
-                scores=scores,
-                organization_id=organization_id,
-            )
-            logger.info(
-                f"Background RAG evaluation completed for trace {trace_id}: "
-                f"overall={metrics.overall_score:.3f}"
-            )
-        finally:
-            db.close()
     except Exception as e:
         logger.warning(f"Background RAG evaluation failed for trace {trace_id}: {e}")
 
@@ -347,6 +400,7 @@ async def chat_completions(
 
         retrieved_contexts = []
         diagnostics_trace_id = None
+        retrieval_error = False
 
         # Get the last user message for caching and RAG
         user_messages = [m for m in request.messages if m.role == "user"]
@@ -364,13 +418,22 @@ async def chat_completions(
                     detail="User has no organization; RAG retrieval is unavailable.",
                 )
             if last_query:
-                retrieved_contexts, diagnostics_trace_id = await retrieve_context(
-                    last_query,
-                    request.max_context_docs,
-                    organization_id=str(current_user.organization_id),
-                    user_id=str(current_user.id),
-                )
-                logger.info(f"Retrieved {len(retrieved_contexts)} documents for RAG")
+                try:
+                    retrieved_contexts, diagnostics_trace_id = await retrieve_context(
+                        last_query,
+                        request.max_context_docs,
+                        organization_id=str(current_user.organization_id),
+                        user_id=str(current_user.id),
+                    )
+                    logger.info(
+                        f"Retrieved {len(retrieved_contexts)} documents for RAG"
+                    )
+                except RetrievalError:
+                    # Degrade visibly (audit B10): serve the answer without
+                    # context, flag it, and skip caching this turn so a
+                    # context-free answer can't be poisoned under the RAG
+                    # cache-key shape.
+                    retrieval_error = True
 
         # Build messages list
         messages = []
@@ -421,28 +484,52 @@ async def chat_completions(
                 request.system_prompt.encode()
             ).hexdigest()[:16]
         tenant_scope = f"org:{current_user.organization_id}|user:{current_user.id}"
+        # Semantic matching has a separate tenant filter from the exact-key
+        # hash. Preserve organization sharing where available, but give
+        # organization-less users distinct buckets instead of the shared "".
+        cache_tenant_scope = (
+            str(current_user.organization_id)
+            if current_user.organization_id
+            else f"user:{current_user.id}"
+        )
         cache_query = f"{tenant_scope}|{last_query}"
         if conversation_context_hash:
             cache_query = f"{cache_query}||conv:{conversation_context_hash}"
         if system_prompt_hash:
             cache_query = f"{cache_query}|sys:{system_prompt_hash}"
 
-        if request.use_rag and retrieved_contexts:
-            # Include context doc IDs to differentiate responses with different context
-            context_ids = "|".join(sorted([c.document_id for c in retrieved_contexts]))
+        rag_contexts_cacheable = not request.use_rag or all(
+            context.document_id for context in retrieved_contexts
+        )
+
+        if request.use_rag and retrieved_contexts and rag_contexts_cacheable:
+            # Include context doc IDs to differentiate responses with different
+            # context. If any context lacks an id, the full context set cannot
+            # be represented safely, so the turn is excluded from caching.
+            context_ids = "|".join(
+                sorted(str(c.document_id) for c in retrieved_contexts)
+            )
             cache_query = f"{cache_query}||ctx:{context_ids}"
 
         # Check LLM response cache (only for single-turn or last message caching)
-        # Skip cache for high-temperature (more creative) requests
-        use_cache = request.temperature <= 1.0 and len(request.messages) <= 5
+        # Skip cache for high-temperature (more creative) requests.
+        # Reads are gated on retrieval_error too (audit B10): entries cached
+        # before the write-skip exist under the context-free key shape, and a
+        # degraded turn must never be answered from the RAG-shaped cache.
+        use_cache = (
+            request.temperature <= 1.0
+            and len(request.messages) <= 5
+            and rag_contexts_cacheable
+        )
         cached_response = None
 
-        if use_cache:
+        if use_cache and not retrieval_error:
             cached_response = await llm_response_cache.get(
                 query=cache_query,
                 model=request.model,
                 temperature=request.temperature,
                 use_semantic=not request.use_rag,  # Disable semantic for RAG (context-dependent)
+                organization_id=cache_tenant_scope,
             )
 
         if cached_response:
@@ -500,8 +587,10 @@ async def chat_completions(
             stream=False,
         )
 
-        # Cache the response for future similar queries
-        if use_cache and response.get("content"):
+        # Cache the response for future similar queries. Never cache a turn
+        # whose retrieval failed: the answer was produced without the RAG
+        # context the cache key implies (audit B10).
+        if use_cache and response.get("content") and not retrieval_error:
             # Convert RetrievedContext objects to dicts for serialization
             contexts_for_cache = None
             if retrieved_contexts:
@@ -529,6 +618,7 @@ async def chat_completions(
                     ),
                 },
                 retrieved_contexts=contexts_for_cache,
+                organization_id=cache_tenant_scope,
             )
 
         # Trigger background RAG evaluation if RAG was used
@@ -554,6 +644,7 @@ async def chat_completions(
             rag_enabled=request.use_rag,
             retrieved_contexts=retrieved_contexts if request.use_rag else None,
             diagnostics_trace_id=diagnostics_trace_id,
+            retrieval_error=retrieval_error,
         )
 
     except HTTPException:
@@ -564,7 +655,7 @@ async def chat_completions(
 
 
 @router.get("/health")
-async def chat_health_check():
+async def chat_health_check(current_user: User = Depends(get_current_user)):
     """
     Health check for chat service.
     """
@@ -579,7 +670,7 @@ async def chat_health_check():
 
 
 @router.get("/models")
-async def list_available_models():
+async def list_available_models(current_user: User = Depends(get_current_user)):
     """
     List available chat models.
     """
@@ -734,9 +825,17 @@ async def generate_suggestions(
 
         return SuggestionsResponse(suggestions=[])
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Suggestions generation error: {str(e)}")
-        return SuggestionsResponse(suggestions=[])
+        # Infrastructure failures must not masquerade as "no suggestions"
+        # (audit B9): surface them so clients can retry, while the JSON
+        # parse failure above keeps its genuine empty-suggestions fallback.
+        logger.exception("Suggestions generation failed")
+        raise HTTPException(
+            status_code=503,
+            detail="Suggestions unavailable. Please try again shortly.",
+        )
 
 
 @router.get(

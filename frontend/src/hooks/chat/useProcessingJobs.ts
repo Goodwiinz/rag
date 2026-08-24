@@ -72,6 +72,11 @@ export function useProcessingJobs(limit = 50): UseProcessingJobsResult {
   // Read by the scheduler without making it a dependency — otherwise every
   // poll would tear down and rebuild the timer.
   const pollFastRef = useRef(false);
+  // Monotonic token for in-flight loads: a manual refresh() and the scheduled
+  // tick can overlap, and whichever response landed last used to win — a slow
+  // stale payload could overwrite fresher jobs. Only the newest load may
+  // commit state.
+  const loadGenerationRef = useRef(0);
   const refresh = useRef<() => void>(() => undefined);
 
   useEffect(() => {
@@ -83,9 +88,10 @@ export function useProcessingJobs(limit = 50): UseProcessingJobsResult {
     let timer: ReturnType<typeof setTimeout>;
 
     const load = async (): Promise<void> => {
+      const gen = ++loadGenerationRef.current;
       try {
         const response = await entityService.listProcessingJobs({ limit });
-        if (cancelled) return;
+        if (cancelled || gen !== loadGenerationRef.current) return;
         const next = response.jobs ?? [];
         setJobs(next);
         // The list is newest-first and only the first page is fetched, so an
@@ -99,9 +105,13 @@ export function useProcessingJobs(limit = 50): UseProcessingJobsResult {
         pollFastRef.current = next.some(isJobActive) || truncated;
         setError(null);
       } catch (err) {
-        if (cancelled) return;
+        if (cancelled || gen !== loadGenerationRef.current) return;
         // A failed poll is not a failed job — keep the last known list on
-        // screen and say freshness is in doubt, rather than blanking.
+        // screen and say freshness is in doubt, rather than blanking. Also
+        // back off: with an active queue upstream of an outage, leaving this
+        // true would keep hammering at 4s forever; the next successful poll
+        // turns it back on if work really is in flight.
+        pollFastRef.current = false;
         setError(err instanceof Error ? err.message : 'Could not reach jobs');
       } finally {
         if (!cancelled) setIsInitialLoading(false);
