@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useThread, useThreadRuntime } from '@assistant-ui/react';
+import {
+  ComposerPrimitive,
+  useAui,
+  useThread,
+  useThreadRuntime,
+} from '@assistant-ui/react';
 
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { makeChatPageMessage } from '@/test/chatMessageFactory';
@@ -44,6 +49,25 @@ function CancelProbe() {
   );
 }
 
+function QueueProbe() {
+  const aui = useAui();
+  return (
+    <ComposerPrimitive.Root
+      onSubmit={() =>
+        aui.composer().setRunConfig({
+          custom: { attachmentIds: ['doc-1'] },
+        })
+      }
+    >
+      <ComposerPrimitive.Input aria-label="Follow-up" />
+      <ComposerPrimitive.Send>Queue</ComposerPrimitive.Send>
+      <ComposerPrimitive.Queue>
+        {({ queueItem }) => <span>{queueItem.prompt}</span>}
+      </ComposerPrimitive.Queue>
+    </ComposerPrimitive.Root>
+  );
+}
+
 describe('ChatRuntimeProvider', () => {
   it('projects messages and isRunning into the assistant-ui thread', () => {
     render(
@@ -77,6 +101,42 @@ describe('ChatRuntimeProvider', () => {
     await user.click(screen.getByRole('button', { name: 'cancel' }));
 
     await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(1));
+  });
+
+  it('queues a follow-up during a run and sends it after the run settles', async () => {
+    const onSend = vi.fn();
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ChatRuntimeProvider
+        messages={messages}
+        isRunning
+        onSend={onSend}
+        onCancel={vi.fn()}
+      >
+        <QueueProbe />
+      </ChatRuntimeProvider>
+    );
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Follow-up' }),
+      'next{Enter}'
+    );
+
+    expect(onSend).not.toHaveBeenCalled();
+    expect(screen.getByText('next')).toBeInTheDocument();
+
+    rerender(
+      <ChatRuntimeProvider
+        messages={messages}
+        isRunning={false}
+        onSend={onSend}
+        onCancel={vi.fn()}
+      >
+        <QueueProbe />
+      </ChatRuntimeProvider>
+    );
+
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('next', ['doc-1']));
   });
 
   it('keeps the runtime identity stable when an optimistic row becomes canonical', async () => {

@@ -13,9 +13,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ChatPage from '../../../../app/(dashboard)/chat/page';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
-import type { CommandAction, CommandOutput } from '@/components/chat/commandOutput';
+import type {
+  CommandAction,
+  CommandOutput,
+} from '@/components/chat/commandOutput';
 import type { PendingConfirmation } from '@/hooks/chat/useChatStreaming';
-import { getNewChatUrl, getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
+import {
+  getNewChatUrl,
+  getSelectedThreadUrl,
+} from '@/components/chat/shared/chatNavigation';
 
 const mockUseChatSession = vi.fn();
 const mockUseChatStreaming = vi.fn();
@@ -26,15 +32,11 @@ const mockRouterReplace = vi.fn();
 vi.mock('@/components/chat', () => ({
   ChatInput: (props: {
     onSubmit: () => void;
-    onStop: () => void;
     onCommand?: (id: string) => void;
     isLoading: boolean;
   }) => (
     <div>
       <span data-testid="input-is-loading">{String(props.isLoading)}</span>
-      <button type="button" data-testid="input-stop" onClick={props.onStop}>
-        Stop
-      </button>
       <button type="button" data-testid="input-submit" onClick={props.onSubmit}>
         Send
       </button>
@@ -288,14 +290,11 @@ describe('ChatPage commands, stop/retry/regenerate, and HITL gating', () => {
     expect(mockHandleSubmit).not.toHaveBeenCalled();
   });
 
-  it('stop is wired from both the composer and the runtime cancel action', () => {
+  it('stop is wired through the assistant-ui runtime cancel action', () => {
     render(<ChatPage />);
 
-    fireEvent.click(screen.getByTestId('input-stop'));
-    expect(mockHandleStop).toHaveBeenCalledTimes(1);
-
     fireEvent.click(screen.getByTestId('runtime-cancel'));
-    expect(mockHandleStop).toHaveBeenCalledTimes(2);
+    expect(mockHandleStop).toHaveBeenCalledTimes(1);
   });
 
   it('/clear clears ephemeral command output and the composer input', () => {
@@ -322,7 +321,9 @@ describe('ChatPage commands, stop/retry/regenerate, and HITL gating', () => {
     fireEvent.click(screen.getByTestId('command-item-thread-2'));
 
     expect(mockSetCurrentThread).toHaveBeenCalledWith('thread-2');
-    expect(mockRouterPush).toHaveBeenCalledWith(getSelectedThreadUrl('thread-2'));
+    expect(mockRouterPush).toHaveBeenCalledWith(
+      getSelectedThreadUrl('thread-2')
+    );
   });
 
   it('locks the composer only when the pending confirmation belongs to the active thread', () => {

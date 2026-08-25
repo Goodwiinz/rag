@@ -212,8 +212,7 @@ export function ChatSurface({
   // inert — the transcript already renders the matching state, but the
   // composer callbacks used to fire anyway and start work against a session
   // that can't own it.
-  const isSessionInteractive =
-    isAuthenticated && !isInitializing && !initError;
+  const isSessionInteractive = isAuthenticated && !isInitializing && !initError;
 
   // An edit resend goes through the same single-flight path as a normal send:
   // handleEditUserMessage bails while a turn is in flight, so the editor must
@@ -348,8 +347,10 @@ export function ChatSurface({
           messages={displayedMessages}
           isRunning={isBusy}
           isSendDisabled={!!activeConfirmation || !isSessionInteractive}
-          onSend={(text) => {
-            if (isSessionInteractive) void handleSubmit(text);
+          onSend={(text, attachmentIds) => {
+            if (isSessionInteractive) {
+              void handleSubmit(text, undefined, undefined, attachmentIds);
+            }
           }}
           onCancel={handleStop}
           onApproval={handleConfirmation}
@@ -407,16 +408,16 @@ export function ChatSurface({
             onChange={setInput}
             onSubmit={(attachmentIds) => {
               if (isSessionInteractive) {
-                submitMessage(attachmentIds);
+                return submitMessage(attachmentIds);
               } else {
                 console.warn('[Chat] Send ignored: session not interactive', {
                   isAuthenticated,
                   isInitializing,
                   initError,
                 });
+                return false;
               }
             }}
-            onStop={handleStop}
             isLoading={isBusy}
             disabled={!isSessionInteractive}
             enableRAG={enableRAG}

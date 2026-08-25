@@ -194,8 +194,13 @@ describe('ChatSurface session-interactivity gate', () => {
   ] as const)(
     'keeps every submission path inert while the session is %s',
     (_label, sessionOverrides) => {
-      const { handleSubmit, submitMessage, handleSlashCommand, handleRegenerate, props } =
-        makeProps(makeSession(sessionOverrides));
+      const {
+        handleSubmit,
+        submitMessage,
+        handleSlashCommand,
+        handleRegenerate,
+        props,
+      } = makeProps(makeSession(sessionOverrides));
 
       render(<ChatSurface {...props} />);
       fireAllSubmissionPaths();
@@ -209,14 +214,24 @@ describe('ChatSurface session-interactivity gate', () => {
   );
 
   it('passes every submission path through once the session is interactive', () => {
-    const { handleSubmit, submitMessage, handleSlashCommand, handleRegenerate, props } =
-      makeProps(makeSession());
+    const {
+      handleSubmit,
+      submitMessage,
+      handleSlashCommand,
+      handleRegenerate,
+      props,
+    } = makeProps(makeSession());
 
     render(<ChatSurface {...props} />);
     fireAllSubmissionPaths();
 
     expect(runtimeProps.isSendDisabled).toBe(false);
-    expect(handleSubmit).toHaveBeenCalledWith('hello');
+    expect(handleSubmit).toHaveBeenCalledWith(
+      'hello',
+      undefined,
+      undefined,
+      undefined
+    );
     expect(submitMessage).toHaveBeenCalledTimes(1);
     expect(handleSlashCommand).toHaveBeenCalledWith('new');
     expect(handleRegenerate).toHaveBeenCalledWith(0);

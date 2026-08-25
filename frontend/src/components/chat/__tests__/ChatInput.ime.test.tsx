@@ -65,7 +65,34 @@ vi.mock('@assistant-ui/react', async () => {
         >;
         return React.cloneElement(child, props);
       },
+      Queue: () => null,
+      Send: ({ children, ...props }: React.ComponentProps<'button'>) => (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      ),
+      Cancel: ({ children, ...props }: React.ComponentProps<'button'>) => (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      ),
     },
+    QueueItemPrimitive: {
+      Text: () => null,
+      Steer: ({ children }: React.PropsWithChildren) => (
+        <button>{children}</button>
+      ),
+      Remove: ({ children }: React.PropsWithChildren) => (
+        <button>{children}</button>
+      ),
+    },
+    useAui: () => ({
+      composer: () => ({
+        getState: () => ({ text: '' }),
+        setText: vi.fn(),
+        setRunConfig: vi.fn(),
+      }),
+    }),
   };
 });
 
@@ -99,8 +126,8 @@ describe('ChatInput IME composition safety', () => {
     fireEvent.keyDown(textarea, { key: 'Enter', isComposing: true });
     expect(onSubmit).not.toHaveBeenCalled();
 
-    // Control: once composition has ended, Enter submits.
-    fireEvent.keyDown(textarea, { key: 'Enter' });
+    // Control: once composition has ended, assistant-ui submits the form.
+    fireEvent.submit(textarea.closest('form')!);
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 

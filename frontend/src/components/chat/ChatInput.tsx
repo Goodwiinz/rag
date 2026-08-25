@@ -1,6 +1,10 @@
 'use client';
 
-import { ComposerPrimitive } from '@assistant-ui/react';
+import {
+  ComposerPrimitive,
+  QueueItemPrimitive,
+  useAui,
+} from '@assistant-ui/react';
 import { cn } from '@/lib/utils';
 import {
   SlashCommandMenu,
@@ -31,8 +35,9 @@ interface ChatInputProps {
   onChange: (value: string) => void;
   /** Sends the composed turn. Receives the document ids of the attachment
    * chips still present, so removing a chip un-attaches its document. */
-  onSubmit: (attachmentIds: string[]) => void;
-  onStop: () => void;
+  /** Return false when the host handled the draft locally and the runtime
+   * must not send it. */
+  onSubmit: (attachmentIds: string[]) => boolean | void;
   isLoading: boolean;
   /** Hard-disables the composer without swapping Send for Stop — used while
    * the session is still initializing, when a submit would be dropped. */
@@ -85,7 +90,6 @@ export function ChatInput({
   value,
   onChange,
   onSubmit,
-  onStop,
   isLoading,
   disabled = false,
   enableRAG,
@@ -94,6 +98,7 @@ export function ChatInput({
   onAttach,
   onCommand,
 }: ChatInputProps) {
+  const aui = useAui();
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = inputRef ?? internalRef;
   const [isFocused, setIsFocused] = useState(false);
@@ -278,6 +283,15 @@ export function ChatInput({
     }
   }, [value, textareaRef]);
 
+  // The page owns the controlled draft for slash commands and quote actions.
+  // Mirror programmatic changes into assistant-ui; direct typing is already
+  // synchronized by ComposerPrimitive.Input.
+  useEffect(() => {
+    if (aui.composer().getState().text !== value) {
+      aui.composer().setText(value);
+    }
+  }, [aui, value]);
+
   const runCommand = (command: SlashCommand | undefined): void => {
     if (!command) return;
     onChange('');
@@ -319,38 +333,39 @@ export function ChatInput({
         return;
       }
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (!isDisabled && value.trim() && !isOverLimit) {
-        onSubmit(attachedDocumentIds());
-        clearAttachments();
-      } else {
-        console.warn('[Chat] Composer Enter swallowed', {
-          isLoading,
-          disabled,
-          empty: !value.trim(),
-          isOverLimit,
-        });
-      }
-    }
   };
 
-  const handleComposerSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
-    e.preventDefault();
-    if (!isDisabled && value.trim() && !isOverLimit) {
-      onSubmit(attachedDocumentIds());
-      clearAttachments();
-    } else {
+  const prepareSubmission = (e: React.SyntheticEvent): boolean => {
+    if (isDisabled || !value.trim() || isOverLimit) {
+      e.preventDefault();
       console.warn('[Chat] Composer submit swallowed', {
         isLoading,
         disabled,
         empty: !value.trim(),
         isOverLimit,
       });
+      return false;
     }
+
+    const attachmentIds = attachedDocumentIds();
+    if (onSubmit(attachmentIds) === false) {
+      e.preventDefault();
+      aui.composer().setText('');
+      clearAttachments();
+      return false;
+    }
+
+    aui.composer().setRunConfig({ custom: { attachmentIds } });
+    onChange('');
+    clearAttachments();
+    return true;
   };
 
-  const isDisabled = isLoading || disabled;
+  const handleComposerSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
+    prepareSubmission(e);
+  };
+
+  const isDisabled = disabled;
   const charCount = value.length;
   const maxChars = 4000;
   const fillPct = Math.min(100, Math.round((charCount / maxChars) * 100));
@@ -590,6 +605,41 @@ export function ChatInput({
               </ul>
             )}
 
+            <ComposerPrimitive.Queue>
+              {({ queueItem }) => (
+                <div
+                  className="mb-2 flex min-h-11 items-center gap-2 rounded-md px-2 font-nous-mono text-[11px]"
+                  style={{
+                    background: 'var(--nous-bg-1)',
+                    border: '1px solid var(--nous-border-1)',
+                    color: 'var(--nous-fg-2)',
+                  }}
+                >
+                  <span
+                    className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.08em]"
+                    style={{ color: 'var(--nous-fg-3)' }}
+                  >
+                    Queued
+                  </span>
+                  <QueueItemPrimitive.Text className="min-w-0 flex-1 truncate" />
+                  <QueueItemPrimitive.Steer
+                    aria-label={`Run ${queueItem.prompt} next`}
+                    title="Run next"
+                    className="min-h-11 shrink-0 rounded-md px-2 transition-colors hover:bg-(--nous-aurum)"
+                  >
+                    Run next
+                  </QueueItemPrimitive.Steer>
+                  <QueueItemPrimitive.Remove
+                    aria-label={`Remove ${queueItem.prompt} from queue`}
+                    title="Remove from queue"
+                    className="grid size-11 shrink-0 place-items-center rounded-md transition-colors hover:bg-(--nous-aurum)"
+                  >
+                    <X className="size-3" strokeWidth={2} />
+                  </QueueItemPrimitive.Remove>
+                </div>
+              )}
+            </ComposerPrimitive.Queue>
+
             <ComposerPrimitive.Input asChild>
               <textarea
                 ref={textareaRef}
@@ -632,7 +682,7 @@ export function ChatInput({
             )}
 
             <div
-              className="flex items-center justify-between mt-2.5 pt-2.5 border-t"
+              className="flex flex-wrap items-center justify-between gap-2 mt-2.5 pt-2.5 border-t"
               style={{ borderColor: 'var(--nous-border-1)' }}
             >
               <div className="flex items-center gap-0.5">
@@ -740,7 +790,7 @@ export function ChatInput({
                     onChange('/');
                     textareaRef.current?.focus();
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-md ml-1.5 min-h-[44px] font-nous-mono text-[10px] cursor-pointer transition-colors hover:bg-(--nous-aurum)"
+                  className="hidden sm:inline-flex items-center gap-1.5 rounded-md ml-1.5 min-h-[44px] font-nous-mono text-[10px] cursor-pointer transition-colors hover:bg-(--nous-aurum)"
                   style={{
                     padding: '4px 8px',
                     border: '1px solid var(--nous-border-1)',
@@ -766,33 +816,35 @@ export function ChatInput({
                 </button>
               </div>
 
-              {isLoading ? (
-                <button
-                  type="button"
-                  onClick={onStop}
-                  className="inline-flex items-center gap-2 font-medium rounded-lg transition-all active:scale-[0.97]"
-                  style={{
-                    padding: '8px 16px',
-                    fontSize: '12px',
-                    letterSpacing: '0.01em',
-                    background: 'rgba(var(--nous-mars-rgb), 0.1)',
-                    border: '1px solid rgba(var(--nous-mars-rgb), 0.4)',
-                    color: 'var(--nous-mars)',
-                  }}
-                >
-                  <Square className="w-3 h-3" strokeWidth={2.2} />
-                  Stop
-                </button>
-              ) : (
-                <button
-                  type="submit"
+              <div className="flex items-center gap-2">
+                {isLoading && (
+                  <ComposerPrimitive.Cancel
+                    className="inline-flex min-h-11 items-center gap-2 font-medium rounded-lg transition-all active:scale-[0.97]"
+                    style={{
+                      padding: '8px 16px',
+                      fontSize: '12px',
+                      letterSpacing: '0.01em',
+                      background: 'rgba(var(--nous-mars-rgb), 0.1)',
+                      border: '1px solid rgba(var(--nous-mars-rgb), 0.4)',
+                      color: 'var(--nous-mars)',
+                    }}
+                    aria-label="Stop agent"
+                  >
+                    <Square className="w-3 h-3" strokeWidth={2.2} />
+                    Stop
+                  </ComposerPrimitive.Cancel>
+                )}
+                <ComposerPrimitive.Send
                   disabled={!value.trim() || isDisabled || isOverLimit}
+                  onClick={prepareSubmission}
                   title={
                     isOverLimit
                       ? `Message is over the ${maxChars}-character limit`
-                      : 'Send (Enter)'
+                      : isLoading
+                        ? 'Queue follow-up (Enter)'
+                        : 'Send (Enter)'
                   }
-                  className="group inline-flex items-center gap-2 font-semibold rounded-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+                  className="group inline-flex min-h-11 items-center gap-2 font-semibold rounded-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
                   style={{
                     padding: '8px 16px',
                     fontSize: '12px',
@@ -814,13 +866,13 @@ export function ChatInput({
                       '0 1px 2px rgba(var(--nous-sol-rgb), 0.2)';
                   }}
                 >
-                  Send
+                  {isLoading ? 'Queue' : 'Send'}
                   <ArrowRight
                     className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5"
                     strokeWidth={2}
                   />
-                </button>
-              )}
+                </ComposerPrimitive.Send>
+              </div>
             </div>
           </div>
         </ComposerPrimitive.Root>
@@ -838,7 +890,7 @@ export function ChatInput({
           >
             ↵
           </kbd>{' '}
-          to send ·{' '}
+          {isLoading ? 'to queue' : 'to send'} ·{' '}
           <kbd
             className="px-1.5 py-0.5 rounded-sm font-nous-mono text-[9px]"
             style={{
