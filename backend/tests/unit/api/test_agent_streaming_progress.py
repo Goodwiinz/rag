@@ -28,3 +28,29 @@ async def test_status_frames_accumulate_bounded_display_safe_progress() -> None:
         "phase": "planning",
         "detail": "Step 17",
     }
+
+
+async def test_buffer_append_failure_is_logged_not_silent(monkeypatch, caplog):
+    """Audit S2-M1 regression: a swallowed buffer-append gap must be logged
+    with enough context to detect resumable-ledger divergence."""
+    import logging
+
+    from src.api.agent import streaming as streaming_mod
+
+    emitter = _SeqEmitter()
+    emitter.set_context(thread_id="thread-1")
+    emitter.sid = "sid-x"
+
+    async def boom(sid, seq, frame):
+        raise RuntimeError("redis down")
+
+    monkeypatch.setattr(streaming_mod._stream_buffer, "append", boom)
+
+    with caplog.at_level(logging.WARNING):
+        frame = await emitter.emit(AgentStreamEvent.STATUS, {"phase": "p"})
+
+    assert frame  # stream continues despite the buffer failure
+    warnings = [r for r in caplog.records if r.message == "stream_buffer.append failed"]
+    assert len(warnings) == 1
+    assert getattr(warnings[0], "stream_id", None) == "sid-x"
+    assert getattr(warnings[0], "seq", None) == 1
