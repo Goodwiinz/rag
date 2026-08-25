@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useMemo, Fragment } from 'react';
+import React, { useMemo } from 'react';
+import type { Components } from 'react-markdown';
 import { cn } from '@/lib/utils';
-import { ChatMarkdown } from './ChatMarkdown';
+import { ChatMarkdown, MarkdownLink } from './ChatMarkdown';
 import { CitationLink } from './CitationLink';
 import {
   Citation,
   parseMessageWithCitations,
   getCitationByIndex,
-  hasCitations,
 } from '@/utils/citationParser';
 
 interface CitationRendererProps {
@@ -21,42 +21,62 @@ interface CitationRendererProps {
   freshTail?: boolean;
 }
 
-/** Split a message into fenced-code chunks and prose chunks. Citation
- * markers are only parsed in prose: bracketed indexing inside a code fence
- * (`arr[1]`) must render as code, not get carved out into a citation chip
- * that truncates the block. An unterminated final fence (mid-stream) stays
- * one code chunk. */
-function splitOnCodeFences(
-  content: string
-): Array<{ type: 'code' | 'prose'; content: string }> {
-  const chunks: Array<{ type: 'code' | 'prose'; content: string }> = [];
-  let buf: string[] = [];
-  let inFence = false;
+const CITATION_DESTINATION = '#nous-citation-';
 
-  const flush = (type: 'code' | 'prose'): void => {
-    if (buf.length > 0) {
-      chunks.push({ type, content: buf.join('\n') });
-      buf = [];
-    }
+type MarkdownNode = {
+  type: string;
+  value?: string;
+  url?: string;
+  children?: MarkdownNode[];
+};
+
+/**
+ * Replace citation markers after Markdown has been parsed. Transforming only
+ * text nodes preserves the document tree: citations inside emphasis, lists,
+ * headings, blockquotes and table cells remain children of those elements,
+ * while code/inline-code nodes and existing links stay untouched.
+ */
+function createCitationPlugin(citationCount: number) {
+  return function remarkCitations() {
+    return (tree: MarkdownNode): void => {
+      const transform = (node: MarkdownNode, insideLink = false): void => {
+        if (!node.children) return;
+
+        const children: MarkdownNode[] = [];
+        for (const child of node.children) {
+          const childIsLink =
+            child.type === 'link' || child.type === 'linkReference';
+          if (child.type !== 'text' || insideLink) {
+            transform(child, insideLink || childIsLink);
+            children.push(child);
+            continue;
+          }
+
+          for (const segment of parseMessageWithCitations(child.value ?? '', {
+            citationCount,
+          })) {
+            if (
+              segment.type === 'citation' &&
+              segment.citationIndex !== undefined
+            ) {
+              children.push({
+                type: 'link',
+                url: `${CITATION_DESTINATION}${segment.citationIndex}`,
+                children: [
+                  { type: 'text', value: String(segment.citationIndex) },
+                ],
+              });
+            } else if (segment.content) {
+              children.push({ type: 'text', value: segment.content });
+            }
+          }
+        }
+        node.children = children;
+      };
+
+      transform(tree);
+    };
   };
-
-  for (const line of content.split('\n')) {
-    if (line.trimStart().startsWith('```')) {
-      if (inFence) {
-        buf.push(line);
-        flush('code');
-        inFence = false;
-      } else {
-        flush('prose');
-        inFence = true;
-        buf.push(line);
-      }
-    } else {
-      buf.push(line);
-    }
-  }
-  flush(inFence ? 'code' : 'prose');
-  return chunks;
 }
 
 export function CitationRenderer({
@@ -67,84 +87,39 @@ export function CitationRenderer({
   className,
   freshTail = false,
 }: CitationRendererProps): React.ReactElement {
-  const chunks = useMemo(() => splitOnCodeFences(content), [content]);
-
-  // Bare bracketed numbers only resolve against the sources this message
-  // actually carries (round-3 M11) — same rule as the agent panel's renderer.
   const citationCount = citations.length;
-  const hasInlineCitations = useMemo(
-    () =>
-      chunks.some(
-        (chunk) =>
-          chunk.type === 'prose' &&
-          hasCitations(chunk.content, { citationCount })
-      ),
-    [chunks, citationCount]
+  const citationPlugin = useMemo(
+    () => createCitationPlugin(citationCount),
+    [citationCount]
+  );
+  const components = useMemo<Components>(
+    () => ({
+      a({ href, children }) {
+        const match = href?.match(/^#nous-citation-(\d+)$/);
+        if (!match) return <MarkdownLink href={href}>{children}</MarkdownLink>;
+
+        const citationIndex = Number(match[1]);
+        return (
+          <CitationLink
+            citationNumber={citationIndex}
+            citation={getCitationByIndex(citations, citationIndex)}
+            onClick={onCitationClick}
+            isActive={activeCitationIndex === citationIndex}
+          />
+        );
+      },
+    }),
+    [activeCitationIndex, citations, onCitationClick]
   );
 
-  if (!hasInlineCitations) {
-    return (
-      <div
-        className={cn('prose prose-sm dark:prose-invert max-w-none', className)}
-      >
-        <ChatMarkdown freshTail={freshTail} content={content} />
-      </div>
-    );
-  }
-
   return (
-    <div
-      className={cn('prose prose-sm dark:prose-invert max-w-none', className)}
-    >
-      {chunks.map((chunk, chunkIndex) => {
-        if (chunk.type === 'code') {
-          return (
-            <ChatMarkdown key={`code-${chunkIndex}`} content={chunk.content} />
-          );
-        }
-        return (
-          <Fragment key={`prose-${chunkIndex}`}>
-            {parseMessageWithCitations(chunk.content, { citationCount }).map(
-              (segment, index, segments) => {
-                if (
-                  segment.type === 'citation' &&
-                  segment.citationIndex !== undefined
-                ) {
-                  const citation = getCitationByIndex(
-                    citations,
-                    segment.citationIndex
-                  );
-                  return (
-                    <CitationLink
-                      key={`citation-${chunkIndex}-${index}-${segment.citationIndex}`}
-                      citationNumber={segment.citationIndex}
-                      citation={citation}
-                      onClick={onCitationClick}
-                      isActive={activeCitationIndex === segment.citationIndex}
-                    />
-                  );
-                }
-                return (
-                  <Fragment key={`text-${chunkIndex}-${index}`}>
-                    {/* Only the final segment of the final chunk holds text
-                      that just arrived; tinting every segment's tail would
-                      light up the whole message. */}
-                    <ChatMarkdown
-                      freshTail={
-                        freshTail &&
-                        chunkIndex === chunks.length - 1 &&
-                        index === segments.length - 1
-                      }
-                      content={segment.content}
-                      inline
-                    />
-                  </Fragment>
-                );
-              }
-            )}
-          </Fragment>
-        );
-      })}
+    <div className={cn('nous-prose w-full max-w-[72ch]', className)}>
+      <ChatMarkdown
+        content={content}
+        freshTail={freshTail}
+        remarkPlugins={[citationPlugin]}
+        components={components}
+      />
     </div>
   );
 }

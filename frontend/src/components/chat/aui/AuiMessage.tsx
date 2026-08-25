@@ -528,10 +528,13 @@ function AuiStreamingBody(): ReactElement {
   const streamingPhase = useChatStore((s) => s.streamingPhase);
   const statusDetail = useChatStore((s) => s.streamingStatusDetail);
   const streamingCitations = useChatStore((s) => s.streamingCitations);
+  const normalizedStreamingCitations = useMemo(
+    () => streamingCitations.map(normalizeCitation),
+    [streamingCitations]
+  );
   const retrievalChunks = useMemo(
     () =>
-      streamingCitations.map((raw, index) => {
-        const citation = normalizeCitation(raw);
+      normalizedStreamingCitations.map((citation, index) => {
         const sourceId =
           citation.documentId ?? citation.externalReferenceId ?? 'passage';
         return {
@@ -542,7 +545,7 @@ function AuiStreamingBody(): ReactElement {
           text: citation.content ?? '',
         };
       }),
-    [streamingCitations]
+    [normalizedStreamingCitations]
   );
   const threadId = useAgentActivityStore((s) => s.currentThreadId);
   const phaseLabel = streamingPhase
@@ -584,7 +587,7 @@ function AuiStreamingBody(): ReactElement {
           <CitationRenderer
             content={completeStreamingMarkdown(content)}
             freshTail
-            citations={[]}
+            citations={normalizedStreamingCitations}
             onCitationClick={() => {}}
           />
           <span
