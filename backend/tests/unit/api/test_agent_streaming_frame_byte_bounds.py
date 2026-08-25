@@ -11,6 +11,8 @@ consumers and replays see byte-identical bounded frames.
 
 import json
 
+import pytest
+
 from src.api.agent import streaming as streaming_mod
 from src.api.agent.streaming import _SeqEmitter
 from src.services.agent.run_event_types import MAX_PAYLOAD_BYTES
@@ -30,10 +32,12 @@ def _frame_data(frame: str) -> dict:
     raise AssertionError("frame carries no data line")
 
 
-async def _emitter_capturing_buffer(monkeypatch):
+async def _emitter_capturing_buffer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[_SeqEmitter, list[str]]:
     captured: list[str] = []
 
-    async def fake_append(sid, seq, frame):
+    async def fake_append(sid: str, seq: int, frame: str) -> None:
         captured.append(frame)
 
     monkeypatch.setattr(streaming_mod._stream_buffer, "append", fake_append)
@@ -43,7 +47,9 @@ async def _emitter_capturing_buffer(monkeypatch):
     return emitter, captured
 
 
-async def test_oversized_rag_context_bounded_on_wire_and_buffer(monkeypatch):
+async def test_oversized_rag_context_bounded_on_wire_and_buffer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     emitter, buffered = await _emitter_capturing_buffer(monkeypatch)
     giant_contexts = [{"text": "x" * 200_000} for _ in range(3)]
 
@@ -64,7 +70,7 @@ async def test_oversized_rag_context_bounded_on_wire_and_buffer(monkeypatch):
     )
 
 
-async def test_oversized_plan_bounded(monkeypatch):
+async def test_oversized_plan_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
     emitter, _ = await _emitter_capturing_buffer(monkeypatch)
 
     frame = await emitter.emit(
@@ -81,7 +87,9 @@ async def test_oversized_plan_bounded(monkeypatch):
     assert _frame_data(frame)["payload_truncated"] is True
 
 
-async def test_oversized_reflection_issues_bounded(monkeypatch):
+async def test_oversized_reflection_issues_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     emitter, _ = await _emitter_capturing_buffer(monkeypatch)
 
     frame = await emitter.emit(
@@ -100,7 +108,7 @@ async def test_oversized_reflection_issues_bounded(monkeypatch):
     assert data["passed"] is False and data["revising"] is True
 
 
-async def test_normal_sized_payload_passes_through_untouched():
+async def test_normal_sized_payload_passes_through_untouched() -> None:
     """Under-budget frames keep their exact pre-clamp shape — no marker, no
     mutation — so this is a no-op for every well-behaved producer."""
     emitter = _SeqEmitter()
@@ -116,7 +124,7 @@ async def test_normal_sized_payload_passes_through_untouched():
     assert "payload_truncated" not in data
 
 
-async def test_clamped_frames_stay_individually_valid_sse():
+async def test_clamped_frames_stay_individually_valid_sse() -> None:
     """A pathological multi-megabyte payload must not wedge the stream: the
     emitter degrades to a bounded frame instead of raising."""
     emitter = _SeqEmitter()
