@@ -8,7 +8,7 @@ Zero findings is a valid, reportable outcome.
 AUDIT TASK — <scope name>
 
 Target: detached worktree at <ABS_WORKTREE_PATH>, pinned SHA <SHA>.
-Handoff: <WORKTREE>/AUDIT_HANDOFF.md (prior ledgers — context only).
+Handoff: <SESSION_DIR>/AUDIT_HANDOFF.md (prior ledgers — context only).
 Primary checkout is off-limits. Do not write anywhere in this worktree.
 
 Scope (exhaustive, every line):
@@ -32,7 +32,7 @@ Evidence contract per finding:
 
 Do NOT:
 - propose fixes (that is a later phase)
-- re-report findings already closed in prior ledgers
+- treat prior-ledger status as evidence for <SHA>; re-verify applicable findings
 - pad with style nits that carry no runtime/behavioral consequence
 ```
 

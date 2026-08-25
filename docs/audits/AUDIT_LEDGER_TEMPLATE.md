@@ -11,7 +11,7 @@ invalid: findings that cannot be tied to an immutable SHA are not reproducible.
 - checkout: /absolute/path/to/.audit-worktrees/<repo>/<session>/worktree (read-only)
 - ref: origin/<branch>
 - sha: <40-char commit SHA the audit read>
-- primary_head_at_launch: <SHA> (primary untouched by this audit; verify receipt: scripts/audit/launch_audit.sh verify)
+- primary_head_at_launch: <SHA> (primary untouched by this audit; attach the archived <session>.verify.receipt)
 - dirty_status_at_launch: <N modified/untracked files, hash from session.env>
 - launched_at: <UTC ISO8601>
 - isolation: launch_audit.sh launch --ref <ref> --slug <slug>

@@ -13,7 +13,8 @@ Partitioning happens ONCE, before any agent dispatch.
    owned by the producing side and listed in the other side's `contract_files`
    — read-only context, not audit targets.
 3. **Validate** with `python scripts/audit/partition_check.py <partition.json>`.
-   Overlap exits non-zero. Fix before dispatch.
+   Missing owners, out-of-scope ownership, and overlap exit non-zero. Fix before
+   dispatch.
 4. **Cross-boundary reviewer.** After owners report, ONE reviewer agent receives
    all scope boundaries (the `contract_files` lists) plus every owner's finding
    list, and audits only the seams: producer/consumer frame agreement, enum and
@@ -23,6 +24,11 @@ Partitioning happens ONCE, before any agent dispatch.
 
 ```json
 {
+  "files": [
+    "backend/src/api/agent/streaming.py",
+    "backend/src/services/agent/run_event_types.py",
+    "frontend/src/hooks/chat/useChatStreaming.ts"
+  ],
   "scopes": [
     {
       "name": "sse-endpoint",
@@ -38,9 +44,11 @@ Partitioning happens ONCE, before any agent dispatch.
 }
 ```
 
-`own` entries are globs relative to repo root. A file matched by two scopes'
-`own` patterns is an overlap error. `contract_files` may repeat across scopes —
-that is their purpose (shared seam definitions).
+`files` is the exhaustive scoped-file manifest; `files`, `own`, and
+`contract_files` entries are globs relative to repo root. Every expanded file
+must appear in exactly one scope's `own` set, including contract files. A file
+matched by two scopes' `own` patterns is an overlap error. `contract_files` may
+repeat across scopes — that is their purpose (shared seam definitions).
 
 ## Streaming audit case study (2026-08-24 postmortem)
 

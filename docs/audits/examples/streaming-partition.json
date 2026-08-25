@@ -1,4 +1,25 @@
 {
+  "files": [
+    "backend/src/api/agent/streaming.py",
+    "backend/src/services/agent/stream_buffer.py",
+    "backend/src/api/threads/stream.py",
+    "backend/src/services/agent/job_store.py",
+    "backend/src/services/agent/observability.py",
+    "backend/src/services/agent/_prompts.py",
+    "backend/src/services/agent/run_event_types.py",
+    "backend/src/tasks/agent_run_tasks.py",
+    "frontend/src/hooks/chat/useChatStreaming.ts",
+    "frontend/src/store/agentChatStore.ts",
+    "frontend/src/services/agentChatService.ts",
+    "frontend/src/store/chat/slices/streamingSlice.ts",
+    "frontend/src/components/chat/aui/AuiMessage.tsx",
+    "frontend/src/components/chat/artifact-panel/*.tsx",
+    "frontend/src/components/elements/reasoning-panel.tsx",
+    "frontend/src/components/elements/retrieval-chunks.tsx",
+    "frontend/src/components/context-rail/AgentActivityPanel.tsx",
+    "frontend/src/components/context-rail/ContextPanel.tsx",
+    "frontend/src/lib/markdown-utils.ts"
+  ],
   "scopes": [
     {
       "name": "sse-endpoint",
@@ -12,12 +33,12 @@
     },
     {
       "name": "fe-pipeline",
-      "own": ["frontend/src/hooks/chat/useChatStreaming.ts", "frontend/src/store/agentChatStore.ts", "frontend/src/services/agentChatService.ts"],
-      "contract_files": ["backend/src/services/agent/run_event_types.py", "frontend/src/store/chat/slices/streamingSlice.ts"]
+      "own": ["frontend/src/hooks/chat/useChatStreaming.ts", "frontend/src/store/agentChatStore.ts", "frontend/src/services/agentChatService.ts", "frontend/src/store/chat/slices/streamingSlice.ts"],
+      "contract_files": ["backend/src/services/agent/run_event_types.py"]
     },
     {
       "name": "fe-consumers",
-      "own": ["frontend/src/components/chat/aui/AuiMessage.tsx", "frontend/src/components/chat/artifact-panel/*.tsx", "frontend/src/components/context-rail/ContextPanel.tsx", "frontend/src/lib/markdown-utils.ts"],
+      "own": ["frontend/src/components/chat/aui/AuiMessage.tsx", "frontend/src/components/chat/artifact-panel/*.tsx", "frontend/src/components/elements/reasoning-panel.tsx", "frontend/src/components/elements/retrieval-chunks.tsx", "frontend/src/components/context-rail/AgentActivityPanel.tsx", "frontend/src/components/context-rail/ContextPanel.tsx", "frontend/src/lib/markdown-utils.ts"],
       "contract_files": ["frontend/src/store/agentChatStore.ts"]
     }
   ]
