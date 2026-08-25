@@ -42,7 +42,34 @@ vi.mock('@assistant-ui/react', async () => {
       Root: MockComposerRoot,
       Input: ({ children, asChild: _asChild, ...props }: any) =>
         React.cloneElement(React.Children.only(children), props),
+      Queue: () => null,
+      Send: ({ children, ...props }: React.ComponentProps<'button'>) => (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      ),
+      Cancel: ({ children, ...props }: React.ComponentProps<'button'>) => (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      ),
     },
+    QueueItemPrimitive: {
+      Text: () => null,
+      Steer: ({ children }: React.ComponentProps<'button'>) => (
+        <button>{children}</button>
+      ),
+      Remove: ({ children }: React.ComponentProps<'button'>) => (
+        <button>{children}</button>
+      ),
+    },
+    useAui: () => ({
+      composer: () => ({
+        getState: () => ({ text: '' }),
+        setText: vi.fn(),
+        setRunConfig: vi.fn(),
+      }),
+    }),
   };
 });
 
@@ -152,7 +179,9 @@ describe('ChatInput file attach', () => {
     fireEvent.change(imageInput);
 
     // Chip is present before send.
-    expect(container.querySelector('ul[aria-label="Attached files"]')).not.toBeNull();
+    expect(
+      container.querySelector('ul[aria-label="Attached files"]')
+    ).not.toBeNull();
 
     const form = container.querySelector('form') as HTMLFormElement;
     fireEvent.submit(form);
@@ -160,7 +189,9 @@ describe('ChatInput file attach', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock');
     // Chips list is gone (attachments emptied).
-    expect(container.querySelector('ul[aria-label="Attached files"]')).toBeNull();
+    expect(
+      container.querySelector('ul[aria-label="Attached files"]')
+    ).toBeNull();
 
     vi.unstubAllGlobals();
   });

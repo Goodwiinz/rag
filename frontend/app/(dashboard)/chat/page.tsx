@@ -55,14 +55,13 @@ function ChatPageContent() {
     displayedMessages: session.displayedMessages,
   });
 
-  // Slash-command execution, project-context wiring, and the /new command
-  // the command vocabulary triggers. /retry and the plain send path delegate
-  // to useChatComposerActions.
+  // Slash-command execution, project-context wiring, and the /new command.
+  // /retry delegates to composer actions; plain sends flow through the
+  // assistant-ui runtime in ChatSurface.
   const slashCommands = useSlashCommands({
     input: streaming.input,
     setInput: streaming.setInput,
     handleSubmit: streaming.handleSubmit,
-    submit: composerActions.submit,
     retryLast: composerActions.retryLast,
     conversations: session.conversations,
     activeThreadId: session.activeThreadId,

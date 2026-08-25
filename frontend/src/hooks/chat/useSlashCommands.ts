@@ -44,9 +44,6 @@ export interface UseSlashCommandsParams {
     contentOverride?: string,
     historyOverride?: ChatPageMessage[]
   ) => Promise<void>;
-  /** Bare composer submit (useChatComposerActions) — used for a plain send
-   * once slash/memory interception has cleared it. */
-  submit: (attachmentIds?: string[]) => void;
   /** Regenerate-most-recent-assistant-turn (useChatComposerActions) — the
    * /retry command dispatches to it rather than re-implementing regenerate. */
   retryLast: () => void;
@@ -60,7 +57,9 @@ export interface UseSlashCommandsReturn {
   commandOutputs: CommandOutput[];
   handleSlashCommand: (id: SlashCommandId) => void;
   handleCommandItemAction: (action: CommandAction) => void;
-  submitMessage: (attachmentIds?: string[]) => void;
+  /** True when assistant-ui should send the draft; false when a local command
+   * consumed it. */
+  submitMessage: (attachmentIds?: string[]) => boolean;
   startNewChat: () => void;
 }
 
@@ -81,7 +80,6 @@ export function useSlashCommands({
   input,
   setInput,
   handleSubmit,
-  submit,
   retryLast,
   conversations,
   activeThreadId,
@@ -96,9 +94,8 @@ export function useSlashCommands({
   // (React's documented "adjusting state when a prop changes" pattern)
   // rather than in an effect, which would call setState synchronously and
   // trigger a redundant extra render.
-  const [prevThreadIdForCommands, setPrevThreadIdForCommands] = useState(
-    activeThreadId
-  );
+  const [prevThreadIdForCommands, setPrevThreadIdForCommands] =
+    useState(activeThreadId);
   if (activeThreadId !== prevThreadIdForCommands) {
     setPrevThreadIdForCommands(activeThreadId);
     setCommandOutputs([]);
@@ -364,9 +361,7 @@ export function useSlashCommands({
               await fetchProjects({ limit: 20, project_status: 'active' });
               const { projects, currentProject } = useProjectStore.getState();
               const contextProjectId =
-                new URLSearchParams(window.location.search).get(
-                  'projectId'
-                ) ||
+                new URLSearchParams(window.location.search).get('projectId') ||
                 currentProject?.id ||
                 null;
               const items: CommandOutputItem[] = projects.map((p) => ({
@@ -500,7 +495,7 @@ export function useSlashCommands({
   // menu — they look like a normal message — so they're intercepted here on
   // send instead of being dispatched to the agent.
   const submitMessage = useCallback(
-    (attachmentIds?: string[]) => {
+    (_attachmentIds?: string[]) => {
       const raw = input.trim();
       const memMatch = raw.match(/^\/(remember|memories)\b\s*([\s\S]*)$/i);
       if (memMatch) {
@@ -509,12 +504,12 @@ export function useSlashCommands({
           memMatch[1].toLowerCase() as 'remember' | 'memories',
           memMatch[2]
         );
-        return;
+        return false;
       }
       setCommandOutputs([]);
-      submit(attachmentIds);
+      return true;
     },
-    [input, setInput, submit, runMemoryCommand]
+    [input, setInput, runMemoryCommand]
   );
 
   return {

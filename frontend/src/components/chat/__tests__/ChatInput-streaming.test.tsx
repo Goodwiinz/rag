@@ -1,8 +1,7 @@
 /**
  * Unit tests for ChatInput streaming/loading behavior
  *
- * Tests the stop button, input disabling, and onStop callback
- * when the component is in loading mode (isLoading=true).
+ * Tests assistant-ui send/cancel controls while a run is active.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -33,16 +32,46 @@ vi.mock('@assistant-ui/react', async () => {
     AssistantRuntimeProvider: ({ children }: any) => <>{children}</>,
     useExternalStoreRuntime: () => ({}),
     ComposerPrimitive: {
-      Root: React.forwardRef<HTMLFormElement, any>(
-        ({ children, asChild: _asChild, ...props }, ref) => (
+      Root: React.forwardRef<HTMLFormElement, any>(function MockComposerRoot(
+        { children, asChild: _asChild, ...props },
+        ref
+      ) {
+        return (
           <form ref={ref} {...props}>
             {children}
           </form>
-        )
-      ),
+        );
+      }),
       Input: ({ children, asChild: _asChild, ...props }: any) =>
         React.cloneElement(React.Children.only(children), props),
+      Queue: () => null,
+      Send: ({ children, ...props }: React.ComponentProps<'button'>) => (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      ),
+      Cancel: ({ children, ...props }: React.ComponentProps<'button'>) => (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      ),
     },
+    QueueItemPrimitive: {
+      Text: () => null,
+      Steer: ({ children }: React.ComponentProps<'button'>) => (
+        <button>{children}</button>
+      ),
+      Remove: ({ children }: React.ComponentProps<'button'>) => (
+        <button>{children}</button>
+      ),
+    },
+    useAui: () => ({
+      composer: () => ({
+        getState: () => ({ text: '' }),
+        setText: vi.fn(),
+        setRunConfig: vi.fn(),
+      }),
+    }),
   };
 });
 
@@ -73,22 +102,17 @@ describe('ChatInput streaming behavior', () => {
       expect(stopButton).toBeInTheDocument();
     });
 
-    it('calls onStop when Stop button is clicked', () => {
-      const onStop = vi.fn();
-
-      renderWithChatRuntime(
-        <ChatInput {...defaultProps} onStop={onStop} isLoading={true} />
-      );
-
-      const stopButton = screen.getByText('Stop');
-      fireEvent.click(stopButton);
-
-      expect(onStop).toHaveBeenCalledTimes(1);
+    it('keeps the textarea enabled for a queued follow-up', () => {
+      renderWithChatRuntime(<ChatInput {...defaultProps} isLoading />);
+      expect(screen.getByRole('textbox')).not.toBeDisabled();
     });
 
-    it('does not show the Send button', () => {
-      renderWithChatRuntime(<ChatInput {...defaultProps} isLoading={true} />);
+    it('shows Queue instead of Send for a non-empty follow-up', () => {
+      renderWithChatRuntime(
+        <ChatInput {...defaultProps} isLoading value="follow up" />
+      );
 
+      expect(screen.getByText('Queue')).toBeInTheDocument();
       const sendButton = screen.queryByText('Send');
       expect(sendButton).not.toBeInTheDocument();
     });

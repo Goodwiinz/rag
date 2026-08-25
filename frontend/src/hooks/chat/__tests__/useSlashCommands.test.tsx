@@ -26,7 +26,9 @@ vi.mock('@/services/projectService', () => ({
 }));
 
 vi.mock('@/services/documentService', () => ({
-  documentService: { getDocuments: vi.fn().mockResolvedValue({ documents: [] }) },
+  documentService: {
+    getDocuments: vi.fn().mockResolvedValue({ documents: [] }),
+  },
 }));
 
 const linkThreadToProjectMock = vi.fn();
@@ -59,22 +61,21 @@ function setup(overrides: Record<string, unknown> = {}): {
   result: { current: UseSlashCommandsReturn };
   setInput: ReturnType<typeof vi.fn>;
   handleSubmit: ReturnType<typeof vi.fn>;
-  submit: ReturnType<typeof vi.fn>;
   retryLast: ReturnType<typeof vi.fn>;
   setCurrentThread: ReturnType<typeof vi.fn>;
   params: Record<string, unknown>;
 } {
   const setInput = vi.fn();
   const handleSubmit = vi.fn();
-  const submit = vi.fn();
   const retryLast = vi.fn();
   const setCurrentThread = vi.fn();
-  const chatInputRef = { current: null } as React.RefObject<HTMLTextAreaElement>;
+  const chatInputRef = {
+    current: null,
+  } as React.RefObject<HTMLTextAreaElement>;
   const params = {
     input: '',
     setInput,
     handleSubmit,
-    submit,
     retryLast,
     conversations: [makeConversation()],
     activeThreadId: 'thread-1',
@@ -83,7 +84,14 @@ function setup(overrides: Record<string, unknown> = {}): {
     ...overrides,
   };
   const { result } = renderHook(() => useSlashCommands(params));
-  return { result, setInput, handleSubmit, submit, retryLast, setCurrentThread, params };
+  return {
+    result,
+    setInput,
+    handleSubmit,
+    retryLast,
+    setCurrentThread,
+    params,
+  };
 }
 
 describe('useSlashCommands', () => {
@@ -130,7 +138,10 @@ describe('useSlashCommands', () => {
     ]);
 
     act(() => {
-      result.current.handleCommandItemAction({ type: 'open-thread', id: 'thread-1' });
+      result.current.handleCommandItemAction({
+        type: 'open-thread',
+        id: 'thread-1',
+      });
     });
 
     expect(setCurrentThread).toHaveBeenCalledWith('thread-1');
@@ -166,7 +177,11 @@ describe('useSlashCommands', () => {
     linkThreadToProjectMock.mockResolvedValue(null);
     // The router is mocked, so stand in for the address bar it would have
     // updated — the cleanup only drops a param that is still ours.
-    window.history.replaceState({}, '', '/chat?thread=thread-1&projectId=proj-1');
+    window.history.replaceState(
+      {},
+      '',
+      '/chat?thread=thread-1&projectId=proj-1'
+    );
     const { result } = setup();
 
     await act(async () => {
@@ -215,30 +230,32 @@ describe('useSlashCommands', () => {
     expect(retryLast).toHaveBeenCalledTimes(1);
   });
 
-  it('submitMessage sends a normal message straight through and clears output', () => {
-    const { result, submit } = setup({ input: 'hello there' });
+  it('submitMessage lets assistant-ui send a normal message and clears output', () => {
+    const { result } = setup({ input: 'hello there' });
+    let shouldSend = false;
 
     act(() => {
       result.current.handleSlashCommand('help'); // seed some output first
     });
     act(() => {
-      result.current.submitMessage();
+      shouldSend = result.current.submitMessage();
     });
 
-    expect(submit).toHaveBeenCalledTimes(1);
+    expect(shouldSend).toBe(true);
     expect(result.current.commandOutputs).toHaveLength(0);
   });
 
   it('submitMessage intercepts /remember instead of sending to the agent', () => {
-    const { result, setInput, submit } = setup({
+    const { result, setInput } = setup({
       input: '/remember always cite sources',
     });
+    let shouldSend = true;
 
     act(() => {
-      result.current.submitMessage();
+      shouldSend = result.current.submitMessage();
     });
 
-    expect(submit).not.toHaveBeenCalled();
+    expect(shouldSend).toBe(false);
     expect(setInput).toHaveBeenCalledWith('');
   });
 });

@@ -33,16 +33,46 @@ vi.mock('@assistant-ui/react', async () => {
     AssistantRuntimeProvider: ({ children }: any) => <>{children}</>,
     useExternalStoreRuntime: () => ({}),
     ComposerPrimitive: {
-      Root: React.forwardRef<HTMLFormElement, any>(
-        ({ children, asChild: _asChild, ...props }, ref) => (
+      Root: React.forwardRef<HTMLFormElement, any>(function MockComposerRoot(
+        { children, asChild: _asChild, ...props },
+        ref
+      ) {
+        return (
           <form ref={ref} {...props}>
             {children}
           </form>
-        )
-      ),
+        );
+      }),
       Input: ({ children, asChild: _asChild, ...props }: any) =>
         React.cloneElement(React.Children.only(children), props),
+      Queue: () => null,
+      Send: ({ children, ...props }: React.ComponentProps<'button'>) => (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      ),
+      Cancel: ({ children, ...props }: React.ComponentProps<'button'>) => (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      ),
     },
+    QueueItemPrimitive: {
+      Text: () => null,
+      Steer: ({ children }: React.ComponentProps<'button'>) => (
+        <button>{children}</button>
+      ),
+      Remove: ({ children }: React.ComponentProps<'button'>) => (
+        <button>{children}</button>
+      ),
+    },
+    useAui: () => ({
+      composer: () => ({
+        getState: () => ({ text: '' }),
+        setText: vi.fn(),
+        setRunConfig: vi.fn(),
+      }),
+    }),
   };
 });
 
