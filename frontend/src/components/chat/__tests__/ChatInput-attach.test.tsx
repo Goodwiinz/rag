@@ -43,12 +43,12 @@ vi.mock('@assistant-ui/react', async () => {
       Input: ({ children, asChild: _asChild, ...props }: any) =>
         React.cloneElement(React.Children.only(children), props),
       Queue: () => null,
-      Send: ({ children, ...props }: any) => (
+      Send: ({ children, ...props }: React.ComponentProps<'button'>) => (
         <button type="button" {...props}>
           {children}
         </button>
       ),
-      Cancel: ({ children, ...props }: any) => (
+      Cancel: ({ children, ...props }: React.ComponentProps<'button'>) => (
         <button type="button" {...props}>
           {children}
         </button>
@@ -56,8 +56,12 @@ vi.mock('@assistant-ui/react', async () => {
     },
     QueueItemPrimitive: {
       Text: () => null,
-      Steer: ({ children }: any) => <button>{children}</button>,
-      Remove: ({ children }: any) => <button>{children}</button>,
+      Steer: ({ children }: React.ComponentProps<'button'>) => (
+        <button>{children}</button>
+      ),
+      Remove: ({ children }: React.ComponentProps<'button'>) => (
+        <button>{children}</button>
+      ),
     },
     useAui: () => ({
       composer: () => ({

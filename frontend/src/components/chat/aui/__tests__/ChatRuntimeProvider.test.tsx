@@ -49,7 +49,7 @@ function CancelProbe() {
   );
 }
 
-function QueueProbe() {
+function QueueProbe(): React.JSX.Element {
   const aui = useAui();
   return (
     <ComposerPrimitive.Root
