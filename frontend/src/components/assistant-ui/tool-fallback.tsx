@@ -24,10 +24,11 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { field, mono, ShimmerLabel, SwapLabel } from "@/components/elements/surfaces";
+import { toolLabel } from "@/components/context-rail/toolLabels";
 
 const ANIMATION_DURATION = 200;
 
-const pressable = "active:scale-[0.98]";
+const pressable = "min-h-11 active:scale-[0.98]";
 
 export type ToolFallbackRootProps = Omit<
   React.ComponentProps<typeof Collapsible>,
@@ -142,6 +143,14 @@ function ToolFallbackTrigger({
   const isComplete = statusType === "complete";
   const isCancelled =
     status?.type === "incomplete" && status.reason === "cancelled";
+  const displayName = toolLabel(toolName);
+  const restingVerb = isCancelled
+    ? "Cancelled"
+    : statusType === "incomplete"
+      ? "Failed"
+      : statusType === "requires-action"
+        ? "Needs approval for"
+        : "Used";
 
   const Icon = statusIconMap[statusType];
 
@@ -149,7 +158,7 @@ function ToolFallbackTrigger({
     <CollapsibleTrigger
       data-slot="tool-fallback-trigger"
       className={cn(
-        "aui-tool-fallback-trigger group/trigger text-foreground/55 hover:text-foreground/90 flex w-full origin-left items-center gap-2 py-1.5 text-[13.5px] transition-[color,scale] outline-none active:scale-[0.98]",
+        "aui-tool-fallback-trigger group/trigger text-foreground/55 hover:text-foreground/90 flex min-h-11 w-full origin-left items-center gap-2 py-1.5 text-[13.5px] transition-[color,scale] outline-none active:scale-[0.98]",
         className,
       )}
       {...props}
@@ -170,13 +179,13 @@ function ToolFallbackTrigger({
       )}
       <SwapLabel active={isRunning ? 0 : 1} className="text-start">
         <ShimmerLabel active={isRunning} className="relative inline-block leading-none">
-          Using <b>{toolName}</b>
+          Using <b>{displayName}</b>
         </ShimmerLabel>
         <span
           data-slot="tool-fallback-trigger-label"
           className={cn(isCancelled && "line-through")}
         >
-          {isCancelled ? "Cancelled" : "Used"} <b>{toolName}</b>
+          {restingVerb} <b>{displayName}</b>
         </span>
       </SwapLabel>
       <ToolFallbackDuration />
@@ -543,6 +552,7 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
   toolName,
   argsText,
   result,
+  isError,
   status,
   addResult,
   resume,
@@ -550,9 +560,14 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
   approval,
   respondToApproval,
 }) => {
+  const effectiveStatus =
+    isError && status?.type !== "incomplete"
+      ? ({ type: "incomplete", reason: "error", error: result } as const)
+      : status;
   const isCancelled =
-    status?.type === "incomplete" && status.reason === "cancelled";
-  const isRequiresAction = status?.type === "requires-action";
+    effectiveStatus?.type === "incomplete" &&
+    effectiveStatus.reason === "cancelled";
+  const isRequiresAction = effectiveStatus?.type === "requires-action";
 
   const [open, setOpen] = useState(isRequiresAction);
   const [prevRequiresAction, setPrevRequiresAction] =
@@ -564,9 +579,9 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
 
   return (
     <ToolFallbackRoot open={open} onOpenChange={setOpen}>
-      <ToolFallbackTrigger toolName={toolName} status={status} />
+      <ToolFallbackTrigger toolName={toolName} status={effectiveStatus} />
       <ToolFallbackContent>
-        <ToolFallbackError status={status} />
+        <ToolFallbackError status={effectiveStatus} />
         <ToolFallbackArgs
           argsText={argsText}
           className={cn(isCancelled && "opacity-60")}
@@ -580,7 +595,9 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
             respondToApproval={respondToApproval}
           />
         )}
-        {!isCancelled && <ToolFallbackResult result={result} />}
+        {(effectiveStatus?.type ?? "complete") === "complete" && (
+          <ToolFallbackResult result={result} />
+        )}
       </ToolFallbackContent>
     </ToolFallbackRoot>
   );

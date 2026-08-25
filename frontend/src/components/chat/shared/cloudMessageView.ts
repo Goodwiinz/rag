@@ -8,12 +8,15 @@ import { normalizeCitation } from '@/utils/citationNormalizer';
 import type { Citation } from '@/utils/citationParser';
 import type { PlanStep } from '@/types/agent-chat';
 import type { AgentProgressStep } from '@/services/agentStreamEvents';
+import { toolLabel } from '@/components/context-rail/toolLabels';
 
 /** A single agent tool execution captured during a streaming turn. */
 export interface ActivityStep {
+  /** Invocation identity when the producer supplies one. */
+  id?: string;
   tool: string;
   label: string;
-  status: 'running' | 'done' | 'error';
+  status: 'running' | 'done' | 'error' | 'cancelled';
   durationMs?: number;
   /** Compact one-line summary of the tool's arguments (e.g. the query). */
   argsSummary?: string;
@@ -22,12 +25,17 @@ export interface ActivityStep {
   args?: Record<string, unknown>;
   /** Compact one-line summary of the result, or the error text on failure. */
   resultSummary?: string;
+  /** Structured, backend-redacted result for registered per-tool renderers. */
+  result?: unknown;
 }
 
 const SUMMARY_MAX = 140;
 
 function truncate(s: string): string {
-  return s.length > SUMMARY_MAX ? s.slice(0, SUMMARY_MAX - 1) + '…' : s;
+  const oneLine = s.replace(/\s+/g, ' ').trim();
+  return oneLine.length > SUMMARY_MAX
+    ? oneLine.slice(0, SUMMARY_MAX - 1) + '…'
+    : oneLine;
 }
 
 /** One-line `key: value` summary of tool-call args for the activity strip. */
@@ -51,7 +59,13 @@ export function summarizeToolArgs(
  */
 export function summarizeToolResult(result: unknown): string | undefined {
   if (result == null || result === '') return undefined;
-  const raw = typeof result === 'string' ? result : JSON.stringify(result);
+  let raw: string;
+  try {
+    raw = typeof result === 'string' ? result : JSON.stringify(result);
+  } catch {
+    return truncate(String(result));
+  }
+  if (!raw) return undefined;
   try {
     const parsed: unknown =
       typeof result === 'string' ? JSON.parse(raw) : result;
@@ -81,15 +95,22 @@ export function mapDbToolExecutions(
       ? summarizeToolResult(e.error)
       : summarizeToolResult(e.result);
     return {
+      ...(e.id ? { id: e.id } : {}),
       tool: e.tool_name,
-      label: e.tool_display_name || e.tool_name,
-      status: e.status === 'failed' || e.error ? 'error' : 'done',
+      label: toolLabel(e.tool_name, e.tool_display_name),
+      status:
+        e.status === 'failed' || e.error
+          ? 'error'
+          : e.status === 'cancelled' || e.status === 'running'
+            ? 'cancelled'
+            : 'done',
       ...(typeof e.duration_ms === 'number'
         ? { durationMs: e.duration_ms }
         : {}),
       ...(argsSummary ? { argsSummary } : {}),
       ...(e.args && typeof e.args === 'object' ? { args: e.args } : {}),
       ...(resultSummary ? { resultSummary } : {}),
+      ...(e.result !== undefined ? { result: e.result } : {}),
     } satisfies ActivityStep;
   });
 }
@@ -128,7 +149,10 @@ export interface ChatPageMessage {
   /** In-band HITL approval gate (P4): the agent paused awaiting
    * confirmation of this tool. convertMessage emits an approval tool-call part
    * that the registered HitlApprovalToolUI renders in the message stream. */
-  pendingApproval?: { toolName: string; args: Record<string, unknown> };
+  pendingApproval?: {
+    id: string;
+    tools: Array<{ name: string; args: Record<string, unknown> }>;
+  };
   metadata?: {
     toolsUsed?: string[];
     responseTimeMs?: number;

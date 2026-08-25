@@ -174,6 +174,7 @@ function pendingConfirmationFor(threadId: string): PendingConfirmation {
   return {
     threadId,
     workspaceThreadId: threadId,
+    approvalId: 'approval-1',
     confirmation: { action: 'ingest_document' },
   };
 }

@@ -6,9 +6,11 @@ import { HitlApprovalToolUI } from '../HitlApprovalToolUI';
 
 // makeAssistantToolUI attaches the raw tool (incl. the render component) as
 // `.unstable_tool`, so we can drive the renderer without a full runtime.
-const Renderer = (HitlApprovalToolUI as unknown as {
-  unstable_tool: { render: React.ComponentType<Record<string, unknown>> };
-}).unstable_tool.render;
+const Renderer = (
+  HitlApprovalToolUI as unknown as {
+    unstable_tool: { render: React.ComponentType<Record<string, unknown>> };
+  }
+).unstable_tool.render;
 
 function renderGate(props: Record<string, unknown>) {
   return render(createElement(Renderer, props));
@@ -23,8 +25,11 @@ describe('HitlApprovalToolUI', () => {
       respondToApproval,
     });
 
-    expect(screen.getByText('ingest_arxiv_papers')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(screen.getByText('Ingest arXiv papers')).toBeInTheDocument();
+    const approve = screen.getByRole('button', { name: 'Approve' });
+    expect(approve).toHaveClass('min-h-11');
+    expect(approve).toHaveAttribute('type', 'button');
+    fireEvent.click(approve);
     expect(respondToApproval).toHaveBeenCalledWith({ approved: true });
   });
 
@@ -41,6 +46,51 @@ describe('HitlApprovalToolUI', () => {
     fireEvent.click(deny); // second click must be ignored (submitted latch)
     expect(respondToApproval).toHaveBeenCalledTimes(1);
     expect(respondToApproval).toHaveBeenCalledWith({ approved: false });
+  });
+
+  it('shows every action covered by a multi-tool approval', () => {
+    renderGate({
+      args: {
+        tools: [
+          { name: 'create_project', args: { name: 'RAG audit' } },
+          {
+            name: 'create_project_note',
+            args: { title: 'Findings', project_id: 'p1' },
+          },
+        ],
+      },
+      approval: { id: 'multi-1' },
+      respondToApproval: vi.fn(),
+    });
+
+    expect(
+      screen.getByText('2 actions.', { exact: false })
+    ).toBeInTheDocument();
+    expect(screen.getByText('Create project')).toBeInTheDocument();
+    expect(screen.getByText('Save project note')).toBeInTheDocument();
+    expect(screen.getByText('project id')).toBeInTheDocument();
+  });
+
+  it('unlocks when a failed or nested gate is re-armed with a new id', () => {
+    const respondToApproval = vi.fn();
+    const { rerender } = renderGate({
+      args: { tools: [{ name: 'create_project', args: {} }] },
+      approval: { id: 'attempt-1' },
+      respondToApproval,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(screen.getByRole('button', { name: 'Processing…' })).toBeDisabled();
+
+    rerender(
+      createElement(Renderer, {
+        args: { tools: [{ name: 'create_project_note', args: {} }] },
+        approval: { id: 'attempt-2' },
+        respondToApproval,
+      })
+    );
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled();
+    expect(screen.getByText('Save project note')).toBeInTheDocument();
   });
 
   it('renders nothing once the gate is resolved', () => {

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.api.agent.streaming import _tool_args_preview
+from src.api.agent.streaming import _tool_args_preview, _tool_event_identity
 
 pytestmark = pytest.mark.unit
 
@@ -79,3 +79,8 @@ def test_non_json_scalar_is_stringified_so_payload_stays_serializable():
     # Non-string scalars that ARE JSON-safe keep their type.
     assert redact_tool_args(5) == 5
     assert redact_tool_args(True) is True
+
+
+def test_tool_event_identity_correlates_matching_start_and_end_frames():
+    assert _tool_event_identity({"run_id": "call-a"}) == {"call_id": "call-a"}
+    assert _tool_event_identity({}) == {}

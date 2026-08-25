@@ -5,6 +5,7 @@ import type { PendingConfirmation } from '@/hooks/chat/useChatStreaming';
 const pending = (workspaceThreadId: string): PendingConfirmation => ({
   threadId: 'agent-thread-1',
   workspaceThreadId,
+  approvalId: 'approval-1',
   confirmation: {},
 });
 

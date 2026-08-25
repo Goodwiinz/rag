@@ -33,6 +33,7 @@ export function InlineAgentSummary({
   const activeSteps = run.steps.filter((s) => s.status === 'active');
   const done = run.steps.filter((s) => s.status === 'done').length;
   const errored = run.steps.filter((s) => s.status === 'error').length;
+  const incomplete = run.steps.filter((s) => s.status === 'incomplete').length;
   const total = run.steps.length;
   const latestActive = activeSteps[activeSteps.length - 1];
 
@@ -41,19 +42,24 @@ export function InlineAgentSummary({
   // reader sees what the agent is doing right now, not just how many.
   const summary =
     run.state === 'done'
-      ? `Used ${total} ${total === 1 ? 'tool' : 'tools'}`
+      ? `Used ${total} ${total === 1 ? 'tool' : 'tools'}${
+          incomplete > 0 ? ` · ${incomplete} status unavailable` : ''
+        }`
       : run.state === 'error'
         ? `Used ${total} ${total === 1 ? 'tool' : 'tools'} · ${errored} failed`
-        : latestActive
-          ? toolStatusLabel(latestActive.tool, 'active')
-          : `${done}/${total} complete`;
+        : run.state === 'stopped'
+          ? `Stopped · ${done}/${total} complete`
+          : latestActive
+            ? toolStatusLabel(latestActive.tool, 'active')
+            : `${done}/${total} complete`;
 
   return (
     <div className="ml-4 mb-2">
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'group inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 text-[11px] transition-colors',
+          'group inline-flex min-h-11 items-center gap-2 rounded-lg border px-2.5 py-1 text-[11px] transition-colors',
           'border-(--nous-border-1) bg-(--nous-bg-2)/60',
           'text-(--nous-fg-3) hover:text-(--nous-fg-1)',
           'hover:border-(--nous-sol)/30'
@@ -92,10 +98,12 @@ export function InlineAgentSummary({
                 aria-hidden
                 className={cn(
                   'h-1.5 w-1.5 shrink-0 rounded-full',
-                  step.status === 'active' &&
-                    'animate-pulse bg-(--nous-sol)',
+                  step.status === 'active' && 'animate-pulse bg-(--nous-sol)',
                   step.status === 'done' && 'bg-(--nous-sol)/60',
-                  step.status === 'error' && 'bg-(--nous-mars)'
+                  step.status === 'error' && 'bg-(--nous-mars)',
+                  (step.status === 'cancelled' ||
+                    step.status === 'incomplete') &&
+                    'bg-(--nous-border-2)'
                 )}
               />
               <span className="text-(--nous-fg-3)">

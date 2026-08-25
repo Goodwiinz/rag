@@ -12,7 +12,7 @@ import threading
 import time
 import uuid as _uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 from anyio import CancelScope
 from langgraph.errors import GraphInterrupt
@@ -827,6 +827,12 @@ def _tool_args_preview(tool_input: Any) -> Any:
     if isinstance(tool_input, dict):
         return redact_tool_args(tool_input)
     return redact_pii(str(tool_input))[:500] if tool_input else ""
+
+
+def _tool_event_identity(event: Mapping[str, Any]) -> Dict[str, str]:
+    """Correlation carried by matching LangGraph tool start/end events."""
+    run_id = event.get("run_id")
+    return {"call_id": str(run_id)} if run_id else {}
 
 
 def _format_sse_event(
@@ -1937,7 +1943,11 @@ async def stream_event_generator(
                             args_preview = _tool_args_preview(tool_input)
                             frame = await emitter.emit(
                                 AgentStreamEvent.TOOL_START,
-                                {"tool": name, "args": args_preview},
+                                {
+                                    "tool": name,
+                                    "args": args_preview,
+                                    **_tool_event_identity(event),
+                                },
                             )
                             if not client_disconnected:
                                 yield frame
@@ -1953,6 +1963,7 @@ async def stream_event_generator(
                                     "tool": name,
                                     "result": _encode_tool_result(output),
                                     "is_error": is_error,
+                                    **_tool_event_identity(event),
                                 },
                             )
                             if not client_disconnected:
@@ -3022,7 +3033,11 @@ async def stream_confirm_event_generator(
                     args_preview = _tool_args_preview(tool_input)
                     frame = await emitter.emit(
                         AgentStreamEvent.TOOL_START,
-                        {"tool": name, "args": args_preview},
+                        {
+                            "tool": name,
+                            "args": args_preview,
+                            **_tool_event_identity(event),
+                        },
                     )
                     if not client_disconnected:
                         yield frame
@@ -3038,6 +3053,7 @@ async def stream_confirm_event_generator(
                             "tool": name,
                             "result": _encode_tool_result(output),
                             "is_error": is_error,
+                            **_tool_event_identity(event),
                         },
                     )
                     if not client_disconnected:

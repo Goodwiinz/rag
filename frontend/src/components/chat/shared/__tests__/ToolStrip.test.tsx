@@ -46,6 +46,24 @@ describe('getToolStripProps', () => {
 });
 
 describe('ToolStrip message timing', () => {
+  it('does not call a mutation-only turn a search', () => {
+    const { container } = render(
+      <ToolStrip toolsUsed={['Created project']} sourcesCount={0} />
+    );
+    expect(screen.getByText('Used')).toBeInTheDocument();
+    expect(screen.queryByText('Searched')).not.toBeInTheDocument();
+    expect(container.querySelector('.lucide-wrench')).toBeTruthy();
+    expect(container).not.toHaveTextContent('0');
+  });
+
+  it('uses search copy when the turn produced sources', () => {
+    const { container } = render(
+      <ToolStrip toolsUsed={['Search documents']} sourcesCount={2} />
+    );
+    expect(screen.getByText('Searched')).toBeInTheDocument();
+    expect(container.querySelector('.lucide-search')).toBeTruthy();
+  });
+
   it('uses one assistant-ui MessageTiming for all turn metrics', () => {
     const { container } = render(
       <ToolStrip

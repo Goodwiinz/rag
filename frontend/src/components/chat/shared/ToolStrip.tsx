@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Search, Square } from 'lucide-react';
+import { Search, Square, Wrench } from 'lucide-react';
 
 import {
   MessageTiming,
@@ -92,26 +92,29 @@ export function ToolStrip({
     stopped;
   if (!hasAny) return null;
 
-  // Only claim "Searched" when the agent actually retrieved/used tools; a
-  // response can carry just a timing with no sources (e.g. RAG off).
-  const didSearch =
-    (toolsUsed && toolsUsed.length > 0) || (sourcesCount && sourcesCount > 0);
+  // Tool-only turns may mutate data, so reserve "Searched" for turns that
+  // actually produced sources and use the neutral "Used" otherwise.
+  const hasTools = Boolean(toolsUsed?.length);
+  const hasSources = (sourcesCount ?? 0) > 0;
+  const hasActivity = hasTools || hasSources;
+  const activityLabel = hasSources ? 'Searched' : 'Used';
+  const ActivityIcon = hasSources ? Search : Wrench;
 
   return (
     <div className="nous-tool-strip">
-      {didSearch && (
+      {hasActivity && (
         <>
           <div className="nous-tool-strip-icon">
-            <Search className="w-2.5 h-2.5" strokeWidth={2} />
+            <ActivityIcon className="w-2.5 h-2.5" strokeWidth={2} />
           </div>
-          <span className="nous-tool-strip-label">Searched</span>
-          {toolsUsed?.slice(0, 3).map((tool) => (
-            <React.Fragment key={tool}>
+          <span className="nous-tool-strip-label">{activityLabel}</span>
+          {toolsUsed?.slice(0, 3).map((tool, index) => (
+            <React.Fragment key={`${tool}-${index}`}>
               <span className="nous-tool-strip-sep" />
               <span className="nous-tool-strip-chip">{tool}</span>
             </React.Fragment>
           ))}
-          {sourcesCount && sourcesCount > 0 && (
+          {hasSources && (
             <>
               <span className="nous-tool-strip-sep" />
               <span className="nous-tool-strip-chip">

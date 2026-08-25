@@ -339,10 +339,13 @@ describe('mapDbToolExecutions', () => {
         duration_ms: 1234,
       },
       { tool_name: 'ingest_document', status: 'failed', error: 'boom' },
+      { tool_name: 'create_project', status: 'cancelled' },
+      { tool_name: 'stale_tool', status: 'running' },
       { tool_name: 'bare_tool' },
     ]);
     expect(steps).toEqual([
       {
+        id: 'te-1',
         tool: 'search_arxiv',
         label: 'Search arXiv',
         status: 'done',
@@ -352,11 +355,21 @@ describe('mapDbToolExecutions', () => {
       },
       {
         tool: 'ingest_document',
-        label: 'ingest_document',
+        label: 'Ingest document',
         status: 'error',
         resultSummary: 'boom',
       },
-      { tool: 'bare_tool', label: 'bare_tool', status: 'done' },
+      {
+        tool: 'create_project',
+        label: 'Create project',
+        status: 'cancelled',
+      },
+      {
+        tool: 'stale_tool',
+        label: 'Stale Tool',
+        status: 'cancelled',
+      },
+      { tool: 'bare_tool', label: 'Bare Tool', status: 'done' },
     ]);
   });
 
@@ -374,7 +387,7 @@ describe('mapDbToolExecutions', () => {
       } as any,
     ]);
     expect(msg.toolExecutions).toEqual([
-      { tool: 'search_documents', label: 'search_documents', status: 'done' },
+      { tool: 'search_documents', label: 'Search documents', status: 'done' },
     ]);
   });
 });
@@ -395,6 +408,12 @@ describe('summarizeToolArgs', () => {
     const long = summarizeToolArgs({ query: 'x'.repeat(300) });
     expect(long!.length).toBeLessThanOrEqual(140);
     expect(long!.endsWith('…')).toBe(true);
+  });
+
+  it('collapses multiline arguments into a single activity row', () => {
+    expect(summarizeToolArgs({ query: 'first\n\nsecond\tterm' })).toBe(
+      'query: first second term'
+    );
   });
 });
 
@@ -417,6 +436,10 @@ describe('summarizeToolResult', () => {
     expect(summarizeToolResult('plain text')).toBe('plain text');
     const long = summarizeToolResult('y'.repeat(300));
     expect(long!.length).toBeLessThanOrEqual(140);
+  });
+
+  it('collapses multiline results into a single activity row', () => {
+    expect(summarizeToolResult('first\nsecond')).toBe('first second');
   });
 });
 

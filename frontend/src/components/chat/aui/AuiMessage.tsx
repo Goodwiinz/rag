@@ -16,6 +16,7 @@ import {
   MessagePartPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useAuiState,
   useThread,
 } from '@assistant-ui/react';
 import {
@@ -39,18 +40,22 @@ import { CitationChips } from '@/components/chat/shared/CitationChips';
 import { formatStreamingElapsed } from '@/components/chat/shared/formatStreamingElapsed';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { MessageFeedback } from '@/components/chat/shared/MessageFeedback';
-import { AuiToolParts } from '@/components/chat/aui/AuiToolParts';
+import { AuiToolParts, toPartStatus } from '@/components/chat/aui/AuiToolParts';
 import {
   ToolStrip,
   getToolStripProps,
 } from '@/components/chat/shared/ToolStrip';
-import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import type {
+  ActivityStep,
+  ChatPageMessage,
+} from '@/components/chat/shared/cloudMessageView';
 import { completeStreamingMarkdown } from '@/lib/markdown-utils';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/store/chat-store';
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { normalizeCitation } from '@/utils/citationNormalizer';
 import { getReferencedCitations, type Citation } from '@/utils/citationParser';
+import { toToolCallParts } from './convertMessage';
 
 export type OnCitationClick = (
   citations: Citation[],
@@ -95,13 +100,19 @@ function FilePart({ filename }: { filename?: string }): ReactElement {
 function MessageParts({
   assistant,
   assistantText,
+  executionByToolCallId,
 }: {
   assistant?: boolean;
   /** When provided, replaces the plain text part for assistant messages —
    * used to route committed content through CitationRenderer (markdown +
    * clickable inline citations) instead of raw MessagePartPrimitive.Text. */
   assistantText?: ReactNode;
+  /** Authoritative /chat execution state, keyed to the projected runtime part. */
+  executionByToolCallId?: ReadonlyMap<string, ActivityStep>;
 }): ReactElement {
+  // MessagePrimitive.Parts snapshots its registered tool UI before the
+  // registry effect runs. Subscribe here so the enriched part is rebuilt.
+  useAuiState((state) => state.tools);
   return (
     <MessagePrimitive.Parts>
       {({ part }) => {
@@ -117,8 +128,24 @@ function MessageParts({
             return <ImagePart />;
           case 'file':
             return <FilePart filename={part.filename} />;
-          case 'tool-call':
-            return part.toolUI ?? <ToolFallback {...part} />;
+          case 'tool-call': {
+            const execution = executionByToolCallId?.get(part.toolCallId);
+            const status = execution
+              ? toPartStatus(execution, false)
+              : part.status;
+            const fallback = (
+              <ToolFallback
+                {...part}
+                status={status}
+                result={execution?.resultSummary ?? part.result}
+              />
+            );
+            // assistant-ui 0.14.29 derives failed calls with truthy results as
+            // complete. Keep failures/cancelled rows on the truthful fallback;
+            // running and successful calls retain their registered renderer.
+            if (execution && status.type === 'incomplete') return fallback;
+            return part.toolUI ?? fallback;
+          }
           case 'data':
             return part.dataRendererUI ?? null;
           default:
@@ -659,6 +686,14 @@ export function AuiAssistantMessage({
   const visibleCitations =
     inlineCitations.length > 0 ? inlineCitations : allCitations;
 
+  const executionByToolCallId = message?.toolExecutions?.length
+    ? new Map(
+        toToolCallParts(message.runtimeId, message.toolExecutions).map(
+          (part, index) => [part.toolCallId, message.toolExecutions![index]]
+        )
+      )
+    : undefined;
+
   const assistantText = message ? (
     // Committed assistant prose is quotable (see QuoteToolbar). Streaming
     // content is deliberately excluded — the text is still moving.
@@ -766,7 +801,11 @@ export function AuiAssistantMessage({
         )}
         <MessageAttachments />
         <div className="nous-chat-body space-y-2">
-          <MessageParts assistant assistantText={assistantText} />
+          <MessageParts
+            assistant
+            assistantText={assistantText}
+            executionByToolCallId={executionByToolCallId}
+          />
         </div>
         <MessageError />
         {/* Citations footer chips — provenance over assertion */}

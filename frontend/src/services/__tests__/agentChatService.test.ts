@@ -135,6 +135,18 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     expect(onToolEnd).toHaveBeenCalledWith('search', 'ok', false);
   });
 
+  it('forwards tool invocation ids across matching start/end frames', async () => {
+    global.fetch = fetchWith([
+      'event: tool_start\ndata: {"tool":"search","args":{"q":"a"},"call_id":"call-a"}\n\n',
+      'event: tool_end\ndata: {"tool":"search","result":"ok","call_id":"call-a"}\n\n',
+    ]);
+    const onToolStart = vi.fn();
+    const onToolEnd = vi.fn();
+    await agentChatService.streamMessage(request, { onToolStart, onToolEnd });
+    expect(onToolStart).toHaveBeenCalledWith('search', { q: 'a' }, 'call-a');
+    expect(onToolEnd).toHaveBeenCalledWith('search', 'ok', false, 'call-a');
+  });
+
   it('forwards per-turn token usage to onUsage', async () => {
     global.fetch = fetchWith([
       'event: usage\ndata: {"input_tokens":1234,"output_tokens":340}\n\n',

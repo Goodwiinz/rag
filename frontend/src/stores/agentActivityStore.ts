@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { toolLabel } from '@/components/context-rail/toolLabels';
 
-export type StepStatus = 'active' | 'done' | 'error';
+export type StepStatus =
+  'active' | 'done' | 'error' | 'cancelled' | 'incomplete';
 
 export interface Step {
   id: string;
+  callId?: string;
   tool: string;
   label: string;
   status: StepStatus;
@@ -60,8 +62,13 @@ interface AgentActivityState {
   runs: Record<string, Run>;
   currentThreadId: string | null;
   startRun: (threadId: string, name: string, task: string) => void;
-  pushToolStart: (threadId: string, tool: string) => void;
-  pushToolEnd: (threadId: string, tool: string, ok: boolean) => void;
+  pushToolStart: (threadId: string, tool: string, callId?: string) => void;
+  pushToolEnd: (
+    threadId: string,
+    tool: string,
+    ok: boolean,
+    callId?: string
+  ) => void;
   setPlan: (threadId: string, items: PlanItemInput[]) => void;
   setStreamSeq: (threadId: string, seq: number, streamId?: string) => void;
   finishRun: (threadId: string, state: 'done' | 'error' | 'stopped') => void;
@@ -119,18 +126,21 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
       return { currentThreadId: threadId, runs: newRuns };
     }),
 
-  pushToolStart: (threadId, tool) =>
+  pushToolStart: (threadId, tool, callId) =>
     set((s) => {
       const run = s.runs[threadId];
       // Return the existing state reference so Zustand's Object.is check
       // short-circuits and no subscribers are notified for this no-op.
       if (!run) return s;
       const existing = run.steps.find(
-        (st) => st.tool === tool && st.status === 'active'
+        (step) =>
+          step.status === 'active' &&
+          (callId ? step.callId === callId : step.tool === tool)
       );
       if (existing) return s;
       const step: Step = {
-        id: nextId(),
+        id: callId ?? nextId(),
+        ...(callId ? { callId } : {}),
         tool,
         label: toolLabel(tool),
         status: 'active',
@@ -149,12 +159,14 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
       };
     }),
 
-  pushToolEnd: (threadId, tool, ok) =>
+  pushToolEnd: (threadId, tool, ok, callId) =>
     set((s) => {
       const run = s.runs[threadId];
       if (!run) return s;
       const idx = run.steps.findIndex(
-        (st) => st.tool === tool && st.status === 'active'
+        (step) =>
+          step.status === 'active' &&
+          (callId ? step.callId === callId : step.tool === tool)
       );
       let steps = run.steps;
       if (idx >= 0) {
@@ -207,7 +219,8 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
   setStreamSeq: (threadId, seq, streamId) =>
     set((s) => {
       const run = s.runs[threadId];
-      if (!run || (run.streamSeq === seq && run.streamId === streamId)) return s;
+      if (!run || (run.streamSeq === seq && run.streamId === streamId))
+        return s;
       return {
         runs: {
           ...s.runs,
@@ -234,10 +247,23 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
         state === 'done' && run.plan.length > 0
           ? run.plan.map((p) => (p.tool ? p : { ...p, done: true }))
           : run.plan;
+      const unresolvedStatus: StepStatus =
+        state === 'stopped'
+          ? 'cancelled'
+          : state === 'error'
+            ? 'error'
+            : 'incomplete';
+      const steps = run.steps.some((step) => step.status === 'active')
+        ? run.steps.map((step) =>
+            step.status === 'active'
+              ? { ...step, status: unresolvedStatus }
+              : step
+          )
+        : run.steps;
       return {
         currentThreadId:
           s.currentThreadId === threadId ? null : s.currentThreadId,
-        runs: { ...s.runs, [threadId]: { ...run, state, plan } },
+        runs: { ...s.runs, [threadId]: { ...run, state, plan, steps } },
       };
     }),
 }));
