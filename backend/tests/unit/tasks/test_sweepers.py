@@ -80,6 +80,12 @@ async def _status(session_factory, job_id):
         return run.status, run.error
 
 
+async def _lease(session_factory, job_id):
+    async with session_factory() as db:
+        run = await db.get(AgentRun, job_id)
+        return run.lease_owner, run.lease_expires_at
+
+
 def _sweep(session_factory, get_job_fresh=None, set_job=None):
     return (
         patch("src.core.database.AsyncSessionLocal", session_factory),
@@ -195,6 +201,21 @@ async def test_live_store_terminal_repairs_instead_of_failing(session_factory):
     assert result == {"scanned": 1, "failed": 0, "repaired": 1, "skipped": 0}
     assert (await _status(session_factory, lagged_id))[0] == "completed"
     set_job.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_live_store_read_failure_keeps_sweeper_lease(session_factory):
+    stale_id = await _seed(session_factory, status="running", updated_at=STALE)
+    read_failed = AsyncMock(side_effect=RuntimeError("redis unavailable"))
+    p1, p2, p3 = _sweep(session_factory, get_job_fresh=read_failed)
+    with p1, p2, p3:
+        result = await agent_tasks._sweep_stale_agent_runs(lease_owner="sweeper:t")
+
+    assert result == {"scanned": 1, "failed": 0, "repaired": 0, "skipped": 1}
+    assert (await _status(session_factory, stale_id))[0] == "running"
+    owner, expires_at = await _lease(session_factory, stale_id)
+    assert owner == "sweeper:t"
+    assert expires_at is not None
 
 
 @pytest.mark.asyncio

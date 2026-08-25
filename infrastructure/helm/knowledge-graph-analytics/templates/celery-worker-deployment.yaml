@@ -49,7 +49,7 @@ spec:
             # Consuming the (empty) queue while the flag is "background" is
             # free; without it here a values-level flag flip would enqueue
             # turns nobody consumes.
-            - celery,document_processing,high_priority,low_priority,entity_processing,graph_processing,agent_runs
+            - celery,document_processing,high_priority,low_priority,entity_processing,graph_processing,agent_runs,text_processing,vector_processing
           envFrom:
             {{- if .Values.backend.envFrom }}
             {{- toYaml .Values.backend.envFrom | nindent 12 }}

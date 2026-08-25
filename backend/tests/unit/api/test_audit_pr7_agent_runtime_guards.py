@@ -55,7 +55,7 @@ def test_summary_prompt_uses_recent_window() -> None:
 def test_timeout_fallback_persisted() -> None:
     src = _read("src/services/threads/thread_summarization_service.py")
     blk = src[src.find("except asyncio.TimeoutError") :]
-    assert "_update_thread_summary(thread, fallback)" in blk[:500]
+    assert "_persist_summary(thread, thread_id, fallback, inflight_token)" in blk[:500]
 
 
 # R2-L14
