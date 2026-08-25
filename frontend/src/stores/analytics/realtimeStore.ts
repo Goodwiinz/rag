@@ -5,17 +5,21 @@ import { AnalyticsMetric, TimeSeriesData } from './analyticsStore';
 interface RealtimeState {
   // Connection
   isConnected: boolean;
-  connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error' | 'reconnecting';
+  connectionStatus:
+    'connecting' | 'connected' | 'disconnected' | 'error' | 'reconnecting';
   lastConnected?: string;
   reconnectAttempts: number;
   maxReconnectAttempts: number;
 
   // Subscriptions
-  subscriptions: Record<string, {
-    metricIds: string[];
-    active: boolean;
-    lastUpdate: string;
-  }>;
+  subscriptions: Record<
+    string,
+    {
+      metricIds: string[];
+      active: boolean;
+      lastUpdate: string;
+    }
+  >;
 
   // Live Data
   liveMetrics: Record<string, AnalyticsMetric>;
@@ -122,16 +126,21 @@ export const useRealtimeStore = create<RealtimeState & RealtimeActions>()(
         // Simulate connection success
         setTimeout(() => {
           setConnectionStatus('connected');
-          set({
-            isConnected: true,
-            lastConnected: new Date().toISOString(),
-            reconnectAttempts: 0
-          }, false, 'connect');
+          set(
+            {
+              isConnected: true,
+              lastConnected: new Date().toISOString(),
+              reconnectAttempts: 0,
+            },
+            false,
+            'connect'
+          );
         }, 1000);
       },
 
       disconnect: () => {
-        const { clearSubscriptions, clearLiveData } = get();
+        const { clearSubscriptions, clearLiveData, setConnectionStatus } =
+          get();
         setConnectionStatus('disconnected');
         set({ isConnected: false }, false, 'disconnect');
         clearSubscriptions();
@@ -139,7 +148,13 @@ export const useRealtimeStore = create<RealtimeState & RealtimeActions>()(
       },
 
       reconnect: () => {
-        const { reconnectAttempts, maxReconnectAttempts, disconnect, connect } = get();
+        const {
+          reconnectAttempts,
+          maxReconnectAttempts,
+          disconnect,
+          connect,
+          setConnectionStatus,
+        } = get();
 
         if (reconnectAttempts >= maxReconnectAttempts) {
           disconnect();
@@ -147,7 +162,11 @@ export const useRealtimeStore = create<RealtimeState & RealtimeActions>()(
         }
 
         setConnectionStatus('reconnecting');
-        set({ reconnectAttempts: reconnectAttempts + 1 }, false, 'incrementReconnectAttempts');
+        set(
+          { reconnectAttempts: reconnectAttempts + 1 },
+          false,
+          'incrementReconnectAttempts'
+        );
 
         // Exponential backoff
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
@@ -157,14 +176,16 @@ export const useRealtimeStore = create<RealtimeState & RealtimeActions>()(
         }, delay);
       },
 
-      setConnectionStatus: (status) => set({ connectionStatus: status }, false, 'setConnectionStatus'),
+      setConnectionStatus: (status) =>
+        set({ connectionStatus: status }, false, 'setConnectionStatus'),
       incrementReconnectAttempts: () =>
         set(
           (state) => ({ reconnectAttempts: state.reconnectAttempts + 1 }),
           false,
           'incrementReconnectAttempts'
         ),
-      resetReconnectAttempts: () => set({ reconnectAttempts: 0 }, false, 'resetReconnectAttempts'),
+      resetReconnectAttempts: () =>
+        set({ reconnectAttempts: 0 }, false, 'resetReconnectAttempts'),
 
       // Subscription Management
       subscribe: (subscriptionId, metricIds) =>
@@ -225,7 +246,8 @@ export const useRealtimeStore = create<RealtimeState & RealtimeActions>()(
           'toggleSubscription'
         ),
 
-      clearSubscriptions: () => set({ subscriptions: {} }, false, 'clearSubscriptions'),
+      clearSubscriptions: () =>
+        set({ subscriptions: {} }, false, 'clearSubscriptions'),
 
       // Data Management
       updateLiveMetric: (metricId, metric) =>
@@ -250,7 +272,10 @@ export const useRealtimeStore = create<RealtimeState & RealtimeActions>()(
             }
 
             return {
-              liveTimeSeries: { ...state.liveTimeSeries, [metricId]: updatedData },
+              liveTimeSeries: {
+                ...state.liveTimeSeries,
+                [metricId]: updatedData,
+              },
               lastUpdate: new Date().toISOString(),
             };
           },
@@ -316,8 +341,14 @@ export const useRealtimeStore = create<RealtimeState & RealtimeActions>()(
           'incrementErrorCount'
         ),
 
-      setUpdateFrequency: (frequency) => set({ updateFrequency: frequency }, false, 'setUpdateFrequency'),
-      updateLastUpdateTime: () => set({ lastUpdate: new Date().toISOString() }, false, 'updateLastUpdateTime'),
+      setUpdateFrequency: (frequency) =>
+        set({ updateFrequency: frequency }, false, 'setUpdateFrequency'),
+      updateLastUpdateTime: () =>
+        set(
+          { lastUpdate: new Date().toISOString() },
+          false,
+          'updateLastUpdateTime'
+        ),
 
       // Settings
       toggleAutoReconnect: () =>
@@ -346,7 +377,11 @@ export const useRealtimeStore = create<RealtimeState & RealtimeActions>()(
 
       // Data Processing
       processIncomingData: (data) => {
-        const { handleMetricUpdate, handleTimeSeriesUpdate, handleConnectionEvent } = get();
+        const {
+          handleMetricUpdate,
+          handleTimeSeriesUpdate,
+          handleConnectionEvent,
+        } = get();
 
         switch (data.type) {
           case 'metric_update':
@@ -398,10 +433,14 @@ export const useRealtimeStore = create<RealtimeState & RealtimeActions>()(
 
       // Statistics
       getConnectionStats: () => {
-        const { lastConnected, updateCount, errorCount, updateFrequency } = get();
+        const { lastConnected, updateCount, errorCount, updateFrequency } =
+          get();
 
-        const uptime = lastConnected ? Date.now() - new Date(lastConnected).getTime() : 0;
-        const errorRate = updateCount > 0 ? (errorCount / updateCount) * 100 : 0;
+        const uptime = lastConnected
+          ? Date.now() - new Date(lastConnected).getTime()
+          : 0;
+        const errorRate =
+          updateCount > 0 ? (errorCount / updateCount) * 100 : 0;
 
         return {
           uptime,
