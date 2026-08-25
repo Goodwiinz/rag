@@ -41,8 +41,8 @@ _CONFIRMATION = {
 
 @pytest.mark.asyncio
 async def test_graph_park_failure_keeps_confirmation_terminal_and_never_fails_run(
-    monkeypatch,
-):
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """_finalize_run(AWAITING_CONFIRMATION) raising after the CONFIRMATION
     frame must not emit ERROR nor write FAILED."""
     from src.api.agent import streaming as streaming_mod
@@ -135,7 +135,9 @@ async def test_graph_park_failure_keeps_confirmation_terminal_and_never_fails_ru
 
 
 @pytest.mark.asyncio
-async def test_confirm_park_failure_after_nested_confirmation_stays_clean(monkeypatch):
+async def test_confirm_park_failure_after_nested_confirmation_stays_clean(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Nested-confirm twin: _finalize_run_id raising after CONFIRMATION must
     not produce a trailing ERROR frame."""
     from src.api.agent import streaming as streaming_mod
