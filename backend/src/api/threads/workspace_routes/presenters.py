@@ -286,6 +286,7 @@ def _attachment_to_response(attachment: MessageAttachment) -> MessageAttachmentR
 
 def _collection_to_response(collection: Collection) -> CollectionResponse:
     """Convert Collection model to response schema"""
+    document_count = getattr(collection, "_document_count", None)
     return CollectionResponse(
         id=collection.id,
         workspace_id=collection.workspace_id,
@@ -293,7 +294,9 @@ def _collection_to_response(collection: Collection) -> CollectionResponse:
         description=collection.description,
         color=collection.color,
         icon=collection.icon,
-        document_count=collection.document_count,
+        document_count=(
+            collection.document_count if document_count is None else document_count
+        ),
         created_at=collection.created_at,
         updated_at=collection.updated_at,
     )

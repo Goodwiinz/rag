@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
+from src.core.config import settings
 from src.models import Collection, Workspace
 from src.models.project_note import ProjectNote
 from src.services.agent.tool_helpers import _escape_like
@@ -107,6 +108,25 @@ class ProjectService:
     ) -> Collection:
         """Create a project after ownership validation."""
         await self._ensure_workspace_owned(project_data.workspace_id, user_id)
+
+        # R5-L11: collections are user-created durable rows just like
+        # workspaces. Cap active projects per workspace so a caller cannot mint
+        # an unbounded number of project containers; soft-deleted projects do
+        # not consume the quota.
+        existing_count = (
+            await self.db.execute(
+                select(func.count(Collection.id)).where(
+                    Collection.workspace_id == project_data.workspace_id,
+                    Collection.is_deleted.is_(False),
+                )
+            )
+        ).scalar() or 0
+        cap = getattr(settings, "MAX_PROJECTS_PER_WORKSPACE", 200)
+        if existing_count >= cap:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail=f"Project limit reached ({cap} for this workspace)",
+            )
 
         project = Collection(
             workspace_id=project_data.workspace_id,

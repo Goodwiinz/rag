@@ -13,20 +13,6 @@ from src.services.research_engine.export_service import ExportService
 # ---------------------------------------------------------------------------
 
 
-def _make_evidence(step_id, source_id):
-    """Create a mock ResearchEvidence instance."""
-    ev = MagicMock()
-    ev.id = uuid4()
-    ev.step_id = step_id
-    ev.source_id = source_id
-    ev.claim_text = "The model achieved 95% accuracy."
-    ev.confidence = 0.92
-    ev.grounding_status = "verified"
-    ev.page_reference = "p.12"
-    ev.source = MagicMock()
-    return ev
-
-
 def _make_step(run_id, index, step_type="synthesize"):
     """Create a mock ResearchStep instance."""
     step = MagicMock()
@@ -130,8 +116,7 @@ def _mock_db_for_manifest(run):
 async def test_export_json_returns_correct_structure():
     """export_json must return a report with run info, steps, sources, evidence."""
     run, step, source = _make_run(status="completed")
-    evidence = _make_evidence(step.id, source.id)
-    db = _mock_db_for_run(run, evidence_list=[evidence])
+    db = _mock_db_for_run(run)
 
     service = ExportService()
     report = await service.export_json(run.id, db)

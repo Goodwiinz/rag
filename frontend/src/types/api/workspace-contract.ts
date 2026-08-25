@@ -25,16 +25,20 @@ export type ApiWorkspaceDetail =
   components['schemas']['WorkspaceDetailResponse'];
 export type ApiWorkspaceCreate = components['schemas']['WorkspaceCreate'];
 export type ApiWorkspaceUpdate = components['schemas']['WorkspaceUpdate'];
+export type ApiWorkspaceMember =
+  components['schemas']['WorkspaceMemberResponse'];
+export type ApiWorkspaceMemberCreate =
+  components['schemas']['WorkspaceMemberCreate'];
+export type ApiWorkspaceMemberUpdate =
+  components['schemas']['WorkspaceMemberUpdate'];
 
 // ============================================================================
 // Conversation
 // ============================================================================
 
 export type ApiConversation = components['schemas']['ConversationResponse'];
-export type ApiConversationCreate =
-  components['schemas']['ConversationCreate'];
-export type ApiConversationUpdate =
-  components['schemas']['ConversationUpdate'];
+export type ApiConversationCreate = components['schemas']['ConversationCreate'];
+export type ApiConversationUpdate = components['schemas']['ConversationUpdate'];
 export type ApiConversationListResponse =
   components['schemas']['ConversationListResponse'];
 
@@ -78,5 +82,4 @@ export type ApiCollectionListResponse =
 // Bulk thread operations
 // ============================================================================
 
-export type ApiBulkThreadResponse =
-  components['schemas']['BulkThreadResponse'];
+export type ApiBulkThreadResponse = components['schemas']['BulkThreadResponse'];

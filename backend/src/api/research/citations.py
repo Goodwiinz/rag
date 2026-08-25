@@ -7,6 +7,7 @@ Handles:
 - Bibliography export
 """
 
+import math
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
@@ -36,6 +37,7 @@ from src.services.research.citation_extraction_service import CitationExtraction
 from src.shared.research_schemas import (
     CitationCreate,
     CitationListResponse,
+    CitationRelationshipType,
     CitationResponse,
     CitationUpdate,
 )
@@ -46,6 +48,8 @@ router = APIRouter(prefix="/api/v1/citations", tags=["citations"])
 
 def _document_is_accessible(document: object, current_user: User) -> bool:
     if document is None:
+        return False
+    if getattr(document, "is_deleted", False) is True:
         return False
 
     return bool(
@@ -61,10 +65,18 @@ def _message_is_accessible(message: object, current_user: User) -> bool:
     thread = getattr(message, "thread", None)
     conversation = getattr(thread, "conversation", None) if thread else None
     workspace = getattr(conversation, "workspace", None) if conversation else None
+    if any(
+        getattr(obj, "is_deleted", False) is True
+        for obj in (message, thread, conversation, workspace)
+        if obj is not None
+    ):
+        return False
     return getattr(workspace, "owner_id", None) == current_user.id
 
 
 def _citation_is_accessible(citation: Citation, current_user: User) -> bool:
+    if getattr(citation, "is_deleted", False) is True:
+        return False
     return _document_is_accessible(
         getattr(citation, "document", None), current_user
     ) or _message_is_accessible(getattr(citation, "message", None), current_user)
@@ -86,7 +98,7 @@ async def _load_accessible_citation(
             .selectinload(Thread.conversation)
             .selectinload(Conversation.workspace),
         )
-        .where(Citation.id == citation_id)
+        .where(Citation.id == citation_id, Citation.is_deleted.is_(False))
     )
     citation = result.scalar_one_or_none()
     if citation is None or not _citation_is_accessible(citation, current_user):
@@ -110,6 +122,7 @@ async def _ensure_project_access(
                 Collection.id == project_id,
                 Workspace.owner_id == current_user.id,
                 Collection.is_deleted.is_(False),
+                Workspace.is_deleted.is_(False),
             )
         )
     )
@@ -191,6 +204,10 @@ async def create_citation(
                 .where(
                     ChatMessage.id == citation_data.message_id,
                     Workspace.owner_id == current_user.id,
+                    ChatMessage.is_deleted.is_(False),
+                    Thread.is_deleted.is_(False),
+                    Conversation.is_deleted.is_(False),
+                    Workspace.is_deleted.is_(False),
                 )
             )
             if msg_check.scalar_one_or_none() is None:
@@ -299,9 +316,20 @@ async def list_citations(
         # thread → conversation → workspace ownership chain. All joins are
         # many-to-one from Citation, so no row multiplication.
         access_filter = or_(
-            Document.is_public.is_(True),
-            Document.uploaded_by_user_id == current_user.id,
-            Workspace.owner_id == current_user.id,
+            and_(
+                Document.is_deleted.is_(False),
+                or_(
+                    Document.is_public.is_(True),
+                    Document.uploaded_by_user_id == current_user.id,
+                ),
+            ),
+            and_(
+                ChatMessage.is_deleted.is_(False),
+                Thread.is_deleted.is_(False),
+                Conversation.is_deleted.is_(False),
+                Workspace.is_deleted.is_(False),
+                Workspace.owner_id == current_user.id,
+            ),
             # R5-L17 note: orphan citations (neither document nor message)
             # intentionally match NOTHING — the model has no creator column
             # to scope them to, and world-readable orphans would be worse
@@ -314,7 +342,7 @@ async def list_citations(
             .outerjoin(ChatMessage.thread)
             .outerjoin(Thread.conversation)
             .outerjoin(Conversation.workspace)
-            .where(and_(*filters, access_filter) if filters else access_filter)
+            .where(Citation.is_deleted.is_(False), access_filter, *filters)
         )
 
         count_result = await db.execute(
@@ -377,7 +405,7 @@ async def get_citation(
                 .selectinload(Thread.conversation)
                 .selectinload(Conversation.workspace),
             )
-            .where(Citation.id == citation_id)
+            .where(Citation.id == citation_id, Citation.is_deleted.is_(False))
         )
         result = await db.execute(query)
         citation = result.scalar_one_or_none()
@@ -708,12 +736,16 @@ async def export_bibliography(
             await _ensure_project_access(resolved_project_id, current_user, db)
 
         # Fetch citations
-        query = select(Citation).options(
-            selectinload(Citation.document),
-            selectinload(Citation.message)
-            .selectinload(ChatMessage.thread)
-            .selectinload(Thread.conversation)
-            .selectinload(Conversation.workspace),
+        query = (
+            select(Citation)
+            .options(
+                selectinload(Citation.document),
+                selectinload(Citation.message)
+                .selectinload(ChatMessage.thread)
+                .selectinload(Thread.conversation)
+                .selectinload(Conversation.workspace),
+            )
+            .where(Citation.is_deleted.is_(False))
         )
 
         document_ids: list = []
@@ -722,7 +754,8 @@ async def export_bibliography(
         elif resolved_project_id:
             # Get all document IDs in this project via CollectionDocument junction table
             doc_query = select(CollectionDocument.document_id).where(
-                CollectionDocument.collection_id == resolved_project_id
+                CollectionDocument.collection_id == resolved_project_id,
+                CollectionDocument.is_deleted.is_(False),
             )
             doc_result = await db.execute(doc_query)
             document_ids = [row[0] for row in doc_result.all()]
@@ -811,7 +844,7 @@ async def export_bibliography(
 async def list_citation_relationships(
     source_id: Optional[UUID] = Query(None, description="Filter by source citation ID"),
     target_id: Optional[UUID] = Query(None, description="Filter by target citation ID"),
-    relationship_type: Optional[str] = Query(
+    relationship_type: Optional[CitationRelationshipType] = Query(
         None, description="Filter by relationship type"
     ),
     current_user: User = Depends(get_current_user),
@@ -888,7 +921,7 @@ async def list_citation_relationships(
 async def create_citation_relationship(
     source_citation_id: UUID,
     target_citation_id: UUID,
-    relationship_type: str = "CITES",
+    relationship_type: CitationRelationshipType = CitationRelationshipType.CITES,
     citation_context: Optional[str] = None,
     confidence: float = 1.0,
     current_user: User = Depends(get_current_user),
@@ -910,6 +943,12 @@ async def create_citation_relationship(
     """
     from src.models import CitationRelationship
     from src.services.research.citation_graph_service import get_citation_graph_service
+
+    if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="confidence must be a finite number between 0 and 1",
+        )
 
     if source_citation_id == target_citation_id:
         raise HTTPException(

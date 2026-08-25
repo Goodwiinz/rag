@@ -178,12 +178,17 @@ def _offenders() -> list[str]:
             commit_lines = _happy_path_commit_linenos(func)
             if not enqueues or not commit_lines:
                 continue
-            last_commit = max(commit_lines)
+            # A function may commit durable input rows, enqueue a task, and
+            # then commit an unrelated row (for example, the document-add
+            # route's separate KG job). Compare with the first normal-path
+            # commit; using the last commit falsely labels that safe middle
+            # enqueue as pre-commit.
+            first_commit = min(commit_lines)
             for call, kind in enqueues:
                 if kind == "helper":
                     continue  # (a) fires post-commit by construction
-                if call.lineno >= last_commit:
-                    continue  # enqueue is after every commit — the fixed shape
+                if call.lineno >= first_commit:
+                    continue  # enqueue follows a normal-path durability commit
                 if _has_justification(src_lines, call.lineno):
                     continue  # (b) explicitly justified pre-commit enqueue
                 offenders.append(f"{rel}:{call.lineno}")

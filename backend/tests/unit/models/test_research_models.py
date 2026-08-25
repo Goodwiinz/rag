@@ -1,24 +1,20 @@
 """
 Unit tests for Research Engine data models.
 
-Tests all 6 research engine SQLAlchemy models:
+Tests the active research engine SQLAlchemy models:
 ResearchProject, ResearchBlueprint, ResearchRun,
-ResearchStep, ResearchSource, ResearchEvidence.
+ResearchStep, and ResearchSource.
 """
 
-import pytest
 from uuid import uuid4
 
-from src.models.research_project import ResearchProject
+import pytest
+
 from src.models.research_blueprint import ResearchBlueprint
+from src.models.research_project import ResearchProject
 from src.models.research_run import ResearchRun, RunStatus
-from src.models.research_step import (
-    ResearchStep,
-    StepType,
-    ExecutionMode,
-)
 from src.models.research_source import ResearchSource
-from src.models.research_evidence import ResearchEvidence, GroundingStatus
+from src.models.research_step import ExecutionMode, ResearchStep, StepType
 
 
 class TestRunStatusEnum:
@@ -59,18 +55,6 @@ class TestExecutionModeEnum:
 
     def test_member_count(self):
         assert len(ExecutionMode) == 2
-
-
-class TestGroundingStatusEnum:
-    """Tests for GroundingStatus enum."""
-
-    def test_values(self):
-        assert GroundingStatus.VERIFIED.value == "verified"
-        assert GroundingStatus.UNVERIFIED.value == "unverified"
-        assert GroundingStatus.FAILED.value == "failed"
-
-    def test_member_count(self):
-        assert len(GroundingStatus) == 3
 
 
 class TestResearchProject:
@@ -263,38 +247,3 @@ class TestResearchSource:
 
     def test_tablename(self):
         assert ResearchSource.__tablename__ == "research_sources"
-
-
-class TestResearchEvidence:
-    """Tests for ResearchEvidence model."""
-
-    def test_creation(self):
-        step_id = uuid4()
-        source_id = uuid4()
-        evidence = ResearchEvidence(
-            step_id=step_id,
-            source_id=source_id,
-            claim_text="AI improves healthcare outcomes",
-            confidence=0.85,
-            grounding_status="verified",
-            page_reference="p. 12",
-        )
-        assert evidence.step_id == step_id
-        assert evidence.source_id == source_id
-        assert evidence.claim_text == "AI improves healthcare outcomes"
-        assert evidence.confidence == 0.85
-        assert evidence.grounding_status == "verified"
-        assert evidence.page_reference == "p. 12"
-
-    def test_defaults(self):
-        evidence = ResearchEvidence(
-            step_id=uuid4(),
-            source_id=uuid4(),
-            claim_text="Some claim",
-        )
-        assert evidence.grounding_status == "unverified"
-        assert evidence.confidence is None
-        assert evidence.page_reference is None
-
-    def test_tablename(self):
-        assert ResearchEvidence.__tablename__ == "research_evidence"

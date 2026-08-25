@@ -162,7 +162,8 @@ async def test_happy_path_uses_s3_source(stub_settings):
         kb_uuid="kb-1", bucket="test-bucket", key="documents/doc-1.pdf"
     )
     client.start_indexing.assert_awaited_once_with(kb_uuid="kb-1")
-    assert session.commits == 1
+    # The adapter stages changes; the caller owns the transaction commit.
+    assert session.commits == 0
 
 
 @pytest.mark.unit
@@ -292,7 +293,7 @@ async def test_indexing_kick_failure_does_not_fail_sync(stub_settings):
     # Sync still succeeds — indexing is fire-and-forget.
     assert result == "ds-1"
     assert doc.do_kb_data_source_uuid == "ds-1"
-    assert session.commits == 1
+    assert session.commits == 0
     # FIX C2: never claim "indexed" — the kick failed, so the docs are NOT
     # queryable. The truthful status is "registered" (data source added only).
     assert doc.do_kb_index_status != "indexed"

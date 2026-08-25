@@ -62,8 +62,3 @@ class ResearchStep(BaseModel):
 
     # Relationships
     run = relationship("ResearchRun", back_populates="steps")
-    evidence = relationship(
-        "ResearchEvidence",
-        back_populates="step",
-        cascade="all, delete-orphan",
-    )

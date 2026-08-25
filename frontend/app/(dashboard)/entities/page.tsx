@@ -10,6 +10,7 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   Suspense,
 } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -138,6 +139,8 @@ function EntityManagementContent() {
   const [sourceEntityId, setSourceEntityId] = useState<string | null>(null);
   const [shortcutsDialogOpen, setShortcutsDialogOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const entitiesRequestToken = useRef(0);
+  const relationshipsRequestToken = useRef(0);
 
   // Dynamic types from API
   const [availableEntityTypes, setAvailableEntityTypes] = useState<string[]>(
@@ -149,6 +152,8 @@ function EntityManagementContent() {
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
+    // Hydration gate; this state intentionally flips once after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
 
     // Initialize state from URL params
@@ -204,17 +209,55 @@ function EntityManagementContent() {
 
   // Fetch entities with pagination
   const fetchEntities = useCallback(async () => {
+    const requestToken = ++entitiesRequestToken.current;
+    const hasClientFilters =
+      searchQuery.trim().length > 0 ||
+      confidenceRange[0] > 0 ||
+      confidenceRange[1] < 100 ||
+      sortField !== 'created_at' ||
+      sortOrder !== 'desc';
+
     try {
       setLoading(true);
-      const offset = (currentPage - 1) * pageSize;
-      const response = await entityService.getEntities(
-        pageSize,
-        offset,
-        selectedTypes.length > 0 ? selectedTypes : undefined
-      );
+      let paginatedResponse: PaginatedEntitiesResponse;
 
-      // Handle paginated response
-      const paginatedResponse = response as PaginatedEntitiesResponse;
+      if (hasClientFilters) {
+        // ponytail: fetches every API page because the current endpoint has no
+        // text/confidence/sort parameters; add those server-side if graph sizes
+        // make this full scan too expensive.
+        const allEntities: PaginatedEntitiesResponse['entities'] = [];
+        let offset = 0;
+
+        while (true) {
+          const response = await entityService.getEntities(
+            1000,
+            offset,
+            selectedTypes.length > 0 ? selectedTypes : undefined
+          );
+          if (requestToken !== entitiesRequestToken.current) return;
+
+          allEntities.push(...response.entities);
+          if (!response.has_more || response.entities.length === 0) break;
+          offset += response.entities.length;
+        }
+
+        paginatedResponse = {
+          entities: allEntities,
+          total: allEntities.length,
+          limit: allEntities.length,
+          offset: 0,
+          has_more: false,
+        };
+      } else {
+        const offset = (currentPage - 1) * pageSize;
+        paginatedResponse = await entityService.getEntities(
+          pageSize,
+          offset,
+          selectedTypes.length > 0 ? selectedTypes : undefined
+        );
+      }
+
+      if (requestToken !== entitiesRequestToken.current) return;
 
       // Convert EntityResponse to Entity format for display
       const convertedEntities: Entity[] = paginatedResponse.entities.map(
@@ -238,6 +281,7 @@ function EntityManagementContent() {
       setTotalEntities(paginatedResponse.total);
       setServiceUnavailable(false);
     } catch (error) {
+      if (requestToken !== entitiesRequestToken.current) return;
       logEntityPageError('Error fetching entities', error);
       if (isServiceUnavailableError(error)) {
         setServiceUnavailable(true);
@@ -247,18 +291,28 @@ function EntityManagementContent() {
       setEntities([]);
       setTotalEntities(0);
     } finally {
-      setLoading(false);
+      if (requestToken === entitiesRequestToken.current) setLoading(false);
     }
-  }, [currentPage, pageSize, selectedTypes]);
+  }, [
+    confidenceRange,
+    currentPage,
+    pageSize,
+    searchQuery,
+    selectedTypes,
+    sortField,
+    sortOrder,
+  ]);
 
   // Fetch relationships and connected entities for graph view
   const fetchRelationships = useCallback(async () => {
+    const requestToken = ++relationshipsRequestToken.current;
     try {
       setRelationshipsLoading(true);
       const [rels, connectedResponse] = await Promise.all([
         entityService.getAllRelationships(200),
         entityService.getEntities(200, 0, undefined, true),
       ]);
+      if (requestToken !== relationshipsRequestToken.current) return;
       setRelationships(rels);
 
       const paginatedResponse = connectedResponse as PaginatedEntitiesResponse;
@@ -278,6 +332,7 @@ function EntityManagementContent() {
       }));
       setGraphEntities(converted);
     } catch (error) {
+      if (requestToken !== relationshipsRequestToken.current) return;
       logEntityPageError('Error fetching relationships', error);
       if (isServiceUnavailableError(error)) {
         setServiceUnavailable(true);
@@ -285,18 +340,23 @@ function EntityManagementContent() {
       setRelationships([]);
       setGraphEntities([]);
     } finally {
-      setRelationshipsLoading(false);
+      if (requestToken === relationshipsRequestToken.current) {
+        setRelationshipsLoading(false);
+      }
     }
   }, []);
 
   // Initial load
   useEffect(() => {
-    fetchEntities();
+    const timeoutId = setTimeout(fetchEntities, 250);
+    return () => clearTimeout(timeoutId);
   }, [fetchEntities]);
 
   // Fetch relationships and connected entities when switching to graph tab
   useEffect(() => {
     if (activeTab === 'graph' && graphEntities.length === 0) {
+      // The async callback owns the request state updates.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchRelationships();
     }
   }, [activeTab, graphEntities.length, fetchRelationships]);
@@ -424,6 +484,11 @@ function EntityManagementContent() {
     setCurrentPage(1); // Reset to first page when filter changes
   };
 
+  const handleSearchChange = (query: string): void => {
+    setSearchQuery(query);
+    setCurrentPage(1);
+  };
+
   const handleSortChange = (field: SortField, order: SortOrder) => {
     setSortField(field);
     setSortOrder(order);
@@ -513,7 +578,21 @@ function EntityManagementContent() {
     }
   };
 
-  const totalPages = Math.ceil(totalEntities / pageSize);
+  const hasClientFilters =
+    searchQuery.trim().length > 0 ||
+    confidenceRange[0] > 0 ||
+    confidenceRange[1] < 100 ||
+    sortField !== 'created_at' ||
+    sortOrder !== 'desc';
+  const displayedEntities = hasClientFilters
+    ? filteredEntities.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize
+      )
+    : filteredEntities;
+  const totalPages = Math.ceil(
+    (hasClientFilters ? filteredEntities.length : totalEntities) / pageSize
+  );
 
   // Keyboard shortcuts
   useKeyboardShortcuts(
@@ -697,7 +776,7 @@ function EntityManagementContent() {
             <CardContent className="p-4">
               <EntityFilters
                 searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
+                onSearchChange={handleSearchChange}
                 selectedTypes={selectedTypes}
                 onTypesChange={handleTypesChange}
                 confidenceRange={confidenceRange}
@@ -824,7 +903,7 @@ function EntityManagementContent() {
             <TabsContent value="list" className="mt-0 outline-hidden">
               <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs">
                 <EntityList
-                  entities={filteredEntities}
+                  entities={displayedEntities}
                   loading={loading}
                   onEdit={(entity) => {
                     setSelectedEntity(entity);

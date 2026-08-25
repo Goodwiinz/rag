@@ -65,6 +65,29 @@ def test_workspace_quota_cap() -> None:
     cw = src[src.find("async def create_workspace") :]
     assert "MAX_WORKSPACES_PER_ORG" in cw[:2000]
     assert _read("src/core/config.py").count("MAX_WORKSPACES_PER_ORG") >= 1
+    assert "Project limit reached" in _read("src/services/research/project_service.py")
+    assert "Project limit reached" in _read("src/api/research_engine/projects.py")
+
+
+# R2-L6
+def test_collection_list_aggregates_document_count() -> None:
+    src = _read("src/services/threads/collection_service.py")
+    block = src[
+        src.find("async def list_collections") : src.find("async def update_collection")
+    ]
+    assert "func.count(CollectionDocument.id)" in block
+    assert "selectinload(Collection.documents)" not in block
+
+
+# R6-M11
+def test_local_fallback_secrets_are_process_stable() -> None:
+    from src.core.config import Settings
+
+    first = Settings(ENVIRONMENT="development", SECRET_KEY="", JWT_SECRET_KEY="")
+    second = Settings(ENVIRONMENT="development", SECRET_KEY="", JWT_SECRET_KEY="")
+    assert first.SECRET_KEY == second.SECRET_KEY
+    assert first.JWT_SECRET_KEY == second.JWT_SECRET_KEY
+    assert first.SECRET_KEY != first.JWT_SECRET_KEY
 
 
 # R5-L15 — already SQL-aggregated upstream; assert no full-row load
@@ -89,7 +112,20 @@ def test_orphan_citations_fail_closed() -> None:
 def test_export_does_not_read_empty_evidence_table() -> None:
     src = _read("src/services/research_engine/export_service.py")
     assert "ResearchEvidence" not in src
-    assert "evidence_list: list = []" in src
+    assert '"evidence_count": 0' in src
+    assert not (BACKEND_ROOT / "src/models/research_evidence.py").exists()
+
+
+# R5-M23/R5-L16
+def test_matrix_extraction_uses_durable_worker_and_shared_status() -> None:
+    api = _read("src/api/research/extraction_matrix.py")
+    projects = _read("src/api/research/projects.py")
+    task = _read("src/tasks/research_tasks.py")
+    assert "asyncio.create_task" not in api
+    assert "asyncio.create_task" not in projects
+    assert api.count("run_extraction_matrix.apply_async") == 2
+    assert "run_extraction_matrix.apply_async" in projects
+    assert 'name="src.tasks.research_tasks.run_extraction_matrix"' in task
 
 
 # R6-L7

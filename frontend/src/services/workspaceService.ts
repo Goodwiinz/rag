@@ -24,6 +24,9 @@ import type {
   ApiThreadUpdate,
   ApiWorkspace,
   ApiWorkspaceDetail,
+  ApiWorkspaceMember,
+  ApiWorkspaceMemberCreate,
+  ApiWorkspaceMemberUpdate,
   ApiWorkspaceUpdate,
 } from '@/types/api/workspace-contract';
 // View-model-aware shapes: these narrow/relax the generated contract (JSONB
@@ -56,7 +59,10 @@ let _defaultWorkspaceInFlight: Promise<ApiWorkspace> | null = null;
 // default conversation on mount; without this, each does an independent
 // listConversations()->[]->createConversation() and a fresh user gets two
 // "New Chat" conversations plus divergent hook state.
-const _defaultConversationInFlight = new Map<string, Promise<ApiConversation>>();
+const _defaultConversationInFlight = new Map<
+  string,
+  Promise<ApiConversation>
+>();
 
 /** Clear all workspace service caches (localStorage). Called on auth errors. */
 export function clearWorkspaceServiceCache(): void {
@@ -103,6 +109,36 @@ export const workspaceService = {
 
   async deleteWorkspace(workspaceId: string): Promise<void> {
     await api.delete(`${API_PREFIX}/workspaces/${workspaceId}`);
+  },
+
+  async addWorkspaceMember(
+    workspaceId: string,
+    data: ApiWorkspaceMemberCreate
+  ): Promise<ApiWorkspaceMember> {
+    return api.post<ApiWorkspaceMember>(
+      `${API_PREFIX}/workspaces/${workspaceId}/members`,
+      data
+    );
+  },
+
+  async updateWorkspaceMember(
+    workspaceId: string,
+    userId: string,
+    data: ApiWorkspaceMemberUpdate
+  ): Promise<ApiWorkspaceMember> {
+    return api.patch<ApiWorkspaceMember>(
+      `${API_PREFIX}/workspaces/${workspaceId}/members/${userId}`,
+      data
+    );
+  },
+
+  async removeWorkspaceMember(
+    workspaceId: string,
+    userId: string
+  ): Promise<void> {
+    await api.delete(
+      `${API_PREFIX}/workspaces/${workspaceId}/members/${userId}`
+    );
   },
 
   // ============================================================================
@@ -356,7 +392,6 @@ export const workspaceService = {
       body: JSON.stringify({ document_ids: documentIds }),
     });
   },
-
 
   // ============================================================================
   // Helper: Get or Create Default Workspace

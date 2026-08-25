@@ -25,10 +25,14 @@ class _FakeAsyncSession:
 
     def __init__(self) -> None:
         self.merged = None
+        self.commits = 0
 
     async def merge(self, document):
         self.merged = document
         return document
+
+    async def commit(self):
+        self.commits += 1
 
 
 class _FakeAsyncCtx:
@@ -69,6 +73,7 @@ def test_returns_data_source_uuid_on_success(patched_async_session):
     assert result == "ds-1"
     # Bridged the sync-loaded doc through merge(), then synced the merged object.
     assert patched_async_session.merged is doc
+    assert patched_async_session.commits == 1
     sync_mock.assert_awaited_once()
 
 

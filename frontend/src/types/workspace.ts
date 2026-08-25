@@ -35,6 +35,9 @@ import type {
   ApiWorkspace,
   ApiWorkspaceCreate,
   ApiWorkspaceDetail,
+  ApiWorkspaceMember,
+  ApiWorkspaceMemberCreate,
+  ApiWorkspaceMemberUpdate,
   ApiWorkspaceUpdate,
 } from './api/workspace-contract';
 
@@ -79,6 +82,9 @@ export type WorkspaceCreate = Omit<ApiWorkspaceCreate, 'is_public'> & {
 export type WorkspaceUpdate = ApiWorkspaceUpdate;
 export type Workspace = ApiWorkspace;
 export type WorkspaceDetail = ApiWorkspaceDetail;
+export type WorkspaceMember = ApiWorkspaceMember;
+export type WorkspaceMemberCreate = ApiWorkspaceMemberCreate;
+export type WorkspaceMemberUpdate = ApiWorkspaceMemberUpdate;
 
 // ============================================================================
 // Conversation Types (generated contract)

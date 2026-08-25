@@ -4,7 +4,7 @@ Search API endpoints for hybrid search functionality
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import (
@@ -18,7 +18,7 @@ from fastapi import (
 )
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
+from sqlalchemy import func, text
 
 from src.api.research.chat import (
     RAG_SYSTEM_PROMPT,
@@ -28,6 +28,7 @@ from src.api.research.chat import (
 from src.core.api_key_auth import APIKeyData, APIKeyUsageLog, get_api_key_data
 from src.core.database import get_db_sync
 from src.core.dependencies import get_current_user
+from src.models.search_analytics import SearchAnalyticsEvent
 from src.models.search_schemas import (
     DeterministicTrace,
     SearchAnalytics,
@@ -257,6 +258,7 @@ async def search_documents(
         # Log search query in background (for analytics)
         background_tasks.add_task(
             log_search_query,
+            str(result.search_id),
             str(current_user.id),
             str(current_user.organization_id),
             search_request.query,
@@ -343,6 +345,7 @@ async def hybrid_search(
         # Log search query in background
         background_tasks.add_task(
             log_search_query,
+            str(result.search_id),
             str(current_user.id),
             str(current_user.organization_id),
             search_request.query,
@@ -450,23 +453,12 @@ async def get_search_analytics(
     Get search analytics data
     """
     try:
-        analytics_data = fulltext_search_service.get_search_analytics(
-            organization_id=str(current_user.organization_id), days=days
+        analytics_data = await run_in_threadpool(
+            _load_search_analytics,
+            str(current_user.organization_id),
+            days,
         )
-
-        return SearchAnalytics(
-            total_searches=analytics_data.get("total_documents", 0),  # Placeholder
-            average_search_time_ms=analytics_data.get(
-                "avg_search_time", 150
-            ),  # Placeholder
-            most_common_queries=[],  # Placeholder - would need search logging
-            search_types_distribution={
-                "fulltext": analytics_data.get("total_documents", 0)
-            },
-            zero_result_queries=[],  # Placeholder
-            average_results_per_search=analytics_data.get("total_documents", 0)
-            / 10,  # Placeholder
-        )
+        return SearchAnalytics(**analytics_data)
 
     except Exception as e:
         logger.error(f"Error getting search analytics: {e}")
@@ -739,7 +731,7 @@ async def search_health_check(
         except Exception as e:
             health_status["services"]["fulltext"] = {
                 "status": "unhealthy",
-                "error": str(e),
+                "error": "full-text search unavailable",
             }
             logger.error(f"Full-text search health check failed: {e}")
 
@@ -784,7 +776,11 @@ async def search_health_check(
                 "indexes_available": index_count > 0,
             }
         except Exception as e:
-            health_status["indexes"] = {"status": "unhealthy", "error": str(e)}
+            health_status["indexes"] = {
+                "status": "unhealthy",
+                "error": "search index status unavailable",
+            }
+            logger.error(f"Search index health check failed: {e}")
 
         # Check external service availability (knowledge graph)
         # Qdrant probe removed — Qdrant is gone (Qdrant→DO KB migration). It
@@ -816,8 +812,9 @@ async def search_health_check(
         except Exception as e:
             health_status["external_services"]["neo4j"] = {
                 "status": "unhealthy",
-                "error": str(e),
+                "error": "knowledge graph unavailable",
             }
+            logger.error(f"Knowledge graph health check failed: {e}")
 
         # Determine overall status
         all_healthy = all(
@@ -966,7 +963,7 @@ async def authenticated_search_health_check(
         except Exception as e:
             health_status["services"]["hybrid_search"] = {
                 "status": "unhealthy",
-                "error": str(e),
+                "error": "hybrid search unavailable",
             }
 
         # Log API access
@@ -993,14 +990,75 @@ async def authenticated_search_health_check(
             status_code=503,
             content={
                 "status": "unhealthy",
-                "error": str(e),
+                "error": "search subsystem unavailable",
                 "timestamp": datetime.utcnow().isoformat(),
             },
         )
 
 
 # Background task functions
-async def log_search_query(
+def _load_search_analytics(organization_id: str, days: int) -> Dict[str, Any]:
+    """Aggregate persisted search events for one organization."""
+    from src.core.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        filters = (
+            SearchAnalyticsEvent.organization_id == organization_id,
+            SearchAnalyticsEvent.created_at >= datetime.utcnow() - timedelta(days=days),
+            SearchAnalyticsEvent.is_deleted == False,  # noqa: E712
+        )
+        total, average_time, average_results = (
+            db.query(
+                func.count(SearchAnalyticsEvent.id),
+                func.coalesce(func.avg(SearchAnalyticsEvent.search_time_ms), 0.0),
+                func.coalesce(func.avg(SearchAnalyticsEvent.result_count), 0.0),
+            )
+            .filter(*filters)
+            .one()
+        )
+        common_queries = (
+            db.query(SearchAnalyticsEvent.query, func.count(SearchAnalyticsEvent.id))
+            .filter(*filters)
+            .group_by(SearchAnalyticsEvent.query)
+            .order_by(func.count(SearchAnalyticsEvent.id).desc())
+            .limit(10)
+            .all()
+        )
+        search_types = (
+            db.query(
+                SearchAnalyticsEvent.search_type,
+                func.count(SearchAnalyticsEvent.id),
+            )
+            .filter(*filters)
+            .group_by(SearchAnalyticsEvent.search_type)
+            .all()
+        )
+        zero_results = (
+            db.query(SearchAnalyticsEvent.query)
+            .filter(*filters, SearchAnalyticsEvent.result_count == 0)
+            .distinct()
+            .limit(10)
+            .all()
+        )
+        return {
+            "total_searches": int(total),
+            "average_search_time_ms": float(average_time),
+            "most_common_queries": [
+                {"query": query, "count": count} for query, count in common_queries
+            ],
+            "search_types_distribution": {
+                search_type or "unknown": count for search_type, count in search_types
+            },
+            "zero_result_queries": [query for (query,) in zero_results],
+            "average_results_per_search": float(average_results),
+        }
+    finally:
+        db.close()
+
+
+def log_search_query(
+    search_id: str,
     user_id: str,
     organization_id: str,
     query: str,
@@ -1008,16 +1066,28 @@ async def log_search_query(
     search_time_ms: float,
     search_type: str = "unknown",
 ):
-    """
-    Log search query for analytics (placeholder for future implementation)
-    """
+    """Persist one search event for analytics."""
+    from src.core.database import SessionLocal
+
+    db = SessionLocal()
     try:
-        # This would log to a search_analytics table
-        logger.info(
-            f"Search logged: user={user_id}, query='{query}', results={result_count}, time={search_time_ms:.2f}ms, type={search_type}"
+        db.add(
+            SearchAnalyticsEvent(
+                search_id=search_id,
+                user_id=user_id,
+                organization_id=organization_id,
+                query=query,
+                result_count=result_count,
+                search_time_ms=search_time_ms,
+                search_type=search_type,
+            )
         )
+        db.commit()
     except Exception as e:
+        db.rollback()
         logger.error(f"Error logging search query: {e}")
+    finally:
+        db.close()
 
 
 async def persist_api_key_usage_log(

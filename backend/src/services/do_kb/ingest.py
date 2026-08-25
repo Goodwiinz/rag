@@ -143,7 +143,7 @@ async def sync_document_to_kb(
     client: Optional[DOKnowledgeBaseClient] = None,
     trigger_indexing: bool = True,
 ) -> Optional[str]:
-    """Add the document to its organization's DO KB and persist the data source UUID.
+    """Add the document to its organization's DO KB and stage the data source UUID.
 
     Returns the data source UUID on success, or None if skipped/failed.
     Always swallows exceptions — DO KB is best-effort by design (PostgreSQL
@@ -186,7 +186,12 @@ async def sync_document_to_kb(
     api = client or get_do_kb_client()
 
     try:
-        kb_uuid = await ensure_kb_for_org(session, document.organization_id, client=api)
+        # This helper is often called with a request/ingest session that also
+        # contains unrelated pending work. Do not commit that caller-owned
+        # transaction from the DO KB adapter; the caller decides when to commit.
+        kb_uuid = await ensure_kb_for_org(
+            session, document.organization_id, client=api, commit=False
+        )
     except DOKnowledgeBaseError as exc:
         logger.warning(
             "do_kb provisioning skipped",
@@ -256,16 +261,6 @@ async def sync_document_to_kb(
     # now; the honest "registered" is the smallest fix that stops the lie.
     document.do_kb_index_status = "registered"
 
-    try:
-        await session.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "do_kb persist failed",
-            extra={"document_id": str(document.id), "error": str(exc)},
-        )
-        _record_metric("persist_failed")
-        return None
-
     if trigger_indexing:
         try:
             await api.start_indexing(kb_uuid=kb_uuid)
@@ -308,7 +303,7 @@ async def sync_documents_to_kb(
 
     for org_id in synced_org_ids:
         try:
-            kb_uuid = await ensure_kb_for_org(session, org_id, client=api)
+            kb_uuid = await ensure_kb_for_org(session, org_id, client=api, commit=False)
             await api.start_indexing(kb_uuid=kb_uuid)
         except Exception as exc:  # noqa: BLE001
             logger.warning(

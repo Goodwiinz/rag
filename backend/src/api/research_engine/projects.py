@@ -5,9 +5,10 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config import settings
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
 from src.models.research_project import ResearchProject
@@ -33,6 +34,21 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
 ) -> ProjectResponse:
     """Create a new research project."""
+    project_count = (
+        await db.execute(
+            select(func.count(ResearchProject.id)).where(
+                ResearchProject.owner_id == current_user.id,
+                ResearchProject.is_deleted.is_(False),
+            )
+        )
+    ).scalar() or 0
+    cap = getattr(settings, "MAX_PROJECTS_PER_WORKSPACE", 200)
+    if project_count >= cap:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"Project limit reached ({cap})",
+        )
+
     project = ResearchProject(
         name=body.name,
         description=body.description,

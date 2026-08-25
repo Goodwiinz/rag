@@ -7795,49 +7795,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/threads/{thread_id}/stream": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Stream Thread Chat
-         * @deprecated
-         * @description [DEPRECATED] Stream an LLM response for a thread message via Server-Sent Events.
-         *
-         *     Deprecated (audit finding C3): this is the orphaned "v2 threads" SSE dialect
-         *     (``message_start`` -> ``rag_context`` -> ``token`` -> ``message_done``,
-         *     with ``citation_inline``). Its only client was the frontend
-         *     ``services/streamingService.ts``, which is itself deprecated and has no live
-         *     UI callers — the active chat page streams via ``agentChatService`` against
-         *     ``POST /api/v1/agent/stream`` (LangGraph agent). Do not add new callers.
-         *     The route is kept for a deprecation window (it is wire-visible); removal is a
-         *     follow-up once the deprecated frontend client is deleted.
-         *
-         *     See ``docs/decisions/api-deprecation-window.md`` for the deletion-eligible
-         *     date and criteria.
-         *
-         *     1. Persists the user message
-         *     2. Optionally performs RAG retrieval
-         *     3. Streams LLM tokens as SSE events
-         *     4. Persists the assistant response
-         *     5. Broadcasts ``message_created`` via WebSocket
-         *
-         *     NOTE: The database session is created inside the async generator rather than
-         *     via Depends(get_db). FastAPI's dependency cleanup can close the session while
-         *     the streaming generator is still running, causing MissingGreenlet errors.
-         */
-        post: operations["stream_thread_chat_api_v2_threads__thread_id__stream_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/threads/{thread_id}/summarize": {
         parameters: {
             query?: never;
@@ -9525,6 +9482,12 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /**
+         * CitationRelationshipType
+         * @description Citation relationship types for graph edges
+         * @enum {string}
+         */
+        CitationRelationshipType: "cites" | "cited_by" | "related_to";
         /**
          * CollectionCreate
          * @description Create collection request
@@ -13628,29 +13591,6 @@ export interface components {
             confirmed: boolean;
             /** Thread Id */
             thread_id: string;
-        };
-        /**
-         * StreamRequest
-         * @description Request body for the SSE streaming chat endpoint.
-         */
-        StreamRequest: {
-            /** Content */
-            content: string;
-            /**
-             * Max Tokens
-             * @default 2048
-             */
-            max_tokens: number | null;
-            /**
-             * Temperature
-             * @default 0.7
-             */
-            temperature: number;
-            /**
-             * Use Rag
-             * @default true
-             */
-            use_rag: boolean;
         };
         /**
          * StyleOption
@@ -18871,7 +18811,7 @@ export interface operations {
                 /** @description Filter by target citation ID */
                 target_id?: string | null;
                 /** @description Filter by relationship type */
-                relationship_type?: string | null;
+                relationship_type?: components["schemas"]["CitationRelationshipType"] | null;
             };
             header?: never;
             path?: never;
@@ -18904,7 +18844,7 @@ export interface operations {
             query: {
                 source_citation_id: string;
                 target_citation_id: string;
-                relationship_type?: string;
+                relationship_type?: components["schemas"]["CitationRelationshipType"];
                 citation_context?: string | null;
                 confidence?: number;
             };
@@ -28099,41 +28039,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ThreadResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    stream_thread_chat_api_v2_threads__thread_id__stream_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                thread_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StreamRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

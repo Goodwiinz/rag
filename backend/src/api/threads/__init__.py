@@ -7,7 +7,6 @@ because threads_router has /bulk/* routes that need higher priority.
 """
 
 from .conversations import router as conversations_router
-from .stream import router as stream_router
 from .thread_search import router as thread_search_router
 from .threads import (
     check_bulk_archive_rate_limit,
@@ -29,7 +28,6 @@ __all__ = [
     "threads_router",
     "thread_search_router",
     "conversations_router",
-    "stream_router",
     "check_bulk_rate_limit",
     "check_bulk_resolve_rate_limit",
     "check_bulk_archive_rate_limit",

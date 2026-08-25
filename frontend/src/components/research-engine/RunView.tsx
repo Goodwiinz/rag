@@ -223,7 +223,7 @@ export function RunView({ runId }: RunViewProps) {
       await pauseRun(runId);
       await fetchRun();
     } catch {
-      setActionError("Pause failed. The run may have already finished."); // R6-L21
+      setActionError('Pause failed. The run may have already finished.'); // R6-L21
     } finally {
       setActionLoading(false);
     }
@@ -236,7 +236,7 @@ export function RunView({ runId }: RunViewProps) {
       await resumeRun(runId);
       await fetchRun();
     } catch {
-      setActionError("Resume failed. Try again in a moment."); // R6-L21
+      setActionError('Resume failed. Try again in a moment.'); // R6-L21
       // ignore
     } finally {
       setActionLoading(false);
@@ -249,12 +249,6 @@ export function RunView({ runId }: RunViewProps) {
   if (isLoading && !activeRun) {
     return (
       <div className="space-y-6" role="status" aria-label="Loading run">
-
-      {actionError && (
-        <div role="alert" className="rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200">
-          {actionError}
-        </div>
-      )}
         <div className="flex items-center gap-4">
           <div className="h-8 w-8 rounded-lg bg-muted animate-pulse" />
           <div className="flex-1 space-y-2">
@@ -385,6 +379,15 @@ export function RunView({ runId }: RunViewProps) {
           </button>
         )}
       </div>
+
+      {actionError && (
+        <div
+          role="alert"
+          className="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200"
+        >
+          {actionError}
+        </div>
+      )}
 
       {/* Steps list */}
       {steps.length === 0 && !isLoading ? (

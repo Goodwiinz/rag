@@ -32,7 +32,7 @@ from datetime import datetime
 from typing import List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -128,14 +128,25 @@ async def list_collections(
     ).scalar() or 0
 
     stmt = (
-        select(Collection)
-        .options(selectinload(Collection.documents))
+        select(Collection, func.count(CollectionDocument.id))
+        .outerjoin(
+            CollectionDocument,
+            and_(
+                CollectionDocument.collection_id == Collection.id,
+                CollectionDocument.is_deleted == False,  # noqa: E712
+            ),
+        )
         .where(*base_conditions)
+        .group_by(Collection.id)
         .order_by(Collection.name)
         .offset(offset)
         .limit(limit)
     )
-    collections = list((await db.execute(stmt)).scalars().all())
+    rows = (await db.execute(stmt)).all()
+    collections = []
+    for collection, document_count in rows:
+        setattr(collection, "_document_count", document_count)
+        collections.append(collection)
     return collections, total
 
 

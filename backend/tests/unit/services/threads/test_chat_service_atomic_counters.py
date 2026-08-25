@@ -3,26 +3,27 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
-from src.models.chat_message import ChatMessage, MessageRole
+from src.models.chat_message import ChatMessage
 from src.models.conversation import Conversation
 from src.models.thread import Thread
 from src.models.workspace import Workspace
-from src.schemas.chat import ChatMessageCreate
+from src.schemas.chat import ChatMessageCreate, MessageRole
 from src.services.threads.chat_service import ChatService
 
 pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-async def db():
+async def db() -> AsyncGenerator[tuple[AsyncSession, uuid.UUID, uuid.UUID], None]:
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:
         await conn.run_sync(Thread.__table__.create)
@@ -67,7 +68,7 @@ async def db():
     await engine.dispose()
 
 
-async def _thread_row(session, thread_id):
+async def _thread_row(session: AsyncSession, thread_id: uuid.UUID) -> Thread:
     row = (
         await session.execute(select(Thread).where(Thread.id == thread_id))
     ).scalar_one()
@@ -76,7 +77,9 @@ async def _thread_row(session, thread_id):
 
 
 @pytest.mark.asyncio
-async def test_user_and_assistant_writers_increment_db_counters(db) -> None:
+async def test_user_and_assistant_writers_increment_db_counters(
+    db: tuple[AsyncSession, uuid.UUID, uuid.UUID],
+) -> None:
     session, user_id, thread_id = db
     service = ChatService(session)
     thread = (

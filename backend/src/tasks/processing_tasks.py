@@ -87,9 +87,11 @@ def _sync_document_to_kb_blocking(
 
         async with AsyncSessionLocal() as kb_db:
             merged = await kb_db.merge(document)
-            return await sync_document_to_kb(
+            data_source_uuid = await sync_document_to_kb(
                 kb_db, merged, trigger_indexing=trigger_indexing
             )
+            await kb_db.commit()
+            return data_source_uuid
 
     try:
         return run_async(_run())

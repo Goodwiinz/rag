@@ -6,7 +6,6 @@ Security: All endpoints require authentication. Project-scoped endpoints
 validate project ownership before granting access.
 """
 
-import asyncio
 import uuid
 from typing import List, Optional
 from uuid import UUID
@@ -30,6 +29,7 @@ from src.shared.scispace_schemas import (
     TriggerExtractionRequest,
     UpdateMatrixRequest,
 )
+from src.tasks.research_tasks import run_extraction_matrix
 
 logger = get_logger()
 
@@ -189,14 +189,15 @@ async def create_matrix(
 
     if document_ids:
         extraction_task_id = f"auto-create-{uuid.uuid4().hex[:12]}"
-        service = ExtractionMatrixService()
-        asyncio.create_task(
-            service.run_background_extraction(
-                matrix_id=matrix.id,
-                document_ids=document_ids,
-                columns=matrix.columns,
-                task_id=extraction_task_id,
-            )
+        run_extraction_matrix.apply_async(
+            kwargs={
+                "matrix_id": str(matrix.id),
+                "document_ids": [str(document_id) for document_id in document_ids],
+                "columns": matrix.columns,
+                "task_id": extraction_task_id,
+            },
+            task_id=extraction_task_id,
+            queue="low_priority",
         )
         logger.info(
             "auto_extraction_started",
@@ -402,34 +403,15 @@ async def trigger_extraction(
         user_id=str(current_user.id),
     )
 
-    # Fetch documents and run extraction inline
-    extraction_service = ExtractionMatrixService()
-
-    import openai
-
     from src.core.config import settings
 
     azure_key = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY
     azure_endpoint = (
         settings.AZURE_OPENAI_CHAT_ENDPOINT or settings.AZURE_OPENAI_ENDPOINT
     )
-    azure_deployment = getattr(settings, "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME", "gpt-4o")
-    azure_api_version = getattr(
-        settings, "AZURE_OPENAI_CHAT_API_VERSION", "2024-05-01-preview"
-    )
     openai_key = settings.OPENAI_API_KEY
 
-    if azure_key and azure_endpoint:
-        client = openai.AsyncAzureOpenAI(
-            api_key=azure_key,
-            azure_endpoint=azure_endpoint,
-            api_version=azure_api_version,
-        )
-        model = azure_deployment
-    elif openai_key:
-        client = openai.AsyncOpenAI(api_key=openai_key)
-        model = "gpt-4o-mini"
-    else:
+    if not ((azure_key and azure_endpoint) or openai_key):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="No OpenAI or Azure OpenAI API key configured.",
@@ -445,7 +427,7 @@ async def trigger_extraction(
         )
 
     task_id = str(uuid.uuid4())
-    ExtractionMatrixService.set_extraction_status(
+    await ExtractionMatrixService.set_extraction_status(
         task_id,
         {
             "matrix_id": str(matrix_id),
@@ -454,18 +436,16 @@ async def trigger_extraction(
             "total": len(request.document_ids),
         },
     )
-    task = asyncio.create_task(
-        _run_extraction_background(
-            task_id=task_id,
-            matrix=matrix,
-            document_ids=list(request.document_ids),
-            client=client,
-            model=model,
-        )
+    run_extraction_matrix.apply_async(
+        kwargs={
+            "matrix_id": str(matrix.id),
+            "document_ids": [str(document_id) for document_id in request.document_ids],
+            "columns": matrix.columns,
+            "task_id": task_id,
+        },
+        task_id=task_id,
+        queue="low_priority",
     )
-    # R5-L16: strong ref — an unreferenced task is GC-eligible mid-run.
-    _EXTRACTION_TASKS.add(task)
-    task.add_done_callback(_EXTRACTION_TASKS.discard)
 
     return {
         "task_id": task_id,
@@ -473,96 +453,6 @@ async def trigger_extraction(
         "status": "accepted",
         "message": f"Extraction started for {len(request.document_ids)} document(s)",
     }
-
-
-_EXTRACTION_TASKS: set = set()
-
-
-async def _run_extraction_background(
-    task_id: str,
-    matrix: ExtractionMatrix,
-    document_ids: list,
-    client,
-    model: str,
-) -> None:
-    """Background worker for trigger_extraction (R5-M23)."""
-    from src.core.database import AsyncSessionLocal
-
-    extraction_service = ExtractionMatrixService()
-    extracted_count = 0
-    try:
-        async with AsyncSessionLocal() as bg_db:
-            for doc_id in document_ids:
-                doc_result = await bg_db.execute(
-                    _scoped_document_query(doc_id, matrix.project_id)
-                )
-                document = doc_result.scalar_one_or_none()
-                if not document or not document.content_text:
-                    continue
-                prompt = extraction_service._build_extraction_prompt(
-                    matrix.columns, document.content_text[:12000]
-                )
-                try:
-                    response = await client.chat.completions.create(
-                        model=model,
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0.1,
-                        max_tokens=2000,
-                    )
-                    raw_json = response.choices[0].message.content or ""
-                    parsed = extraction_service._parse_extraction_result(
-                        raw_json, matrix.columns
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "extraction_llm_failed",
-                        document_id=str(doc_id),
-                        error=str(exc),
-                    )
-                    continue
-
-                for col_name, cell_data in parsed.items():
-                    existing = await bg_db.execute(
-                        select(ExtractionCell).where(
-                            and_(
-                                ExtractionCell.matrix_id == matrix.id,
-                                ExtractionCell.document_id == doc_id,
-                                ExtractionCell.column_name == col_name,
-                            )
-                        )
-                    )
-                    cell = existing.scalar_one_or_none()
-                    if cell:
-                        cell.value = cell_data.get("value")
-                        cell.citation_snippet = cell_data.get("citation")
-                        cell.confidence = 0.8
-                    else:
-                        bg_db.add(
-                            ExtractionCell(
-                                matrix_id=matrix.id,
-                                document_id=doc_id,
-                                column_name=col_name,
-                                value=cell_data.get("value"),
-                                citation_snippet=cell_data.get("citation"),
-                                confidence=0.8,
-                            )
-                        )
-                extracted_count += 1
-                # M10-review: durable per document — a later LLM failure
-                # must not discard already-extracted cells.
-                await bg_db.commit()
-                ExtractionMatrixService.set_extraction_status(
-                    task_id,
-                    {"status": "running", "extracted": extracted_count},
-                )
-        ExtractionMatrixService.set_extraction_status(
-            task_id, {"status": "completed", "extracted": extracted_count}
-        )
-    except Exception as exc:
-        logger.exception("background extraction failed")
-        ExtractionMatrixService.set_extraction_status(
-            task_id, {"status": "failed", "error": str(exc)}
-        )
 
 
 # ============================================================================
@@ -576,7 +466,7 @@ async def get_extraction_task_status(
     current_user: User = Depends(get_current_user),
 ):
     """Get the status of a background extraction task."""
-    task_status = ExtractionMatrixService.get_extraction_status(task_id)
+    task_status = await ExtractionMatrixService.get_extraction_status(task_id)
 
     if not task_status:
         raise HTTPException(

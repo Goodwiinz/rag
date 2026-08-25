@@ -140,7 +140,11 @@ class DOKnowledgeBaseClient:
                             "retry_after": retry_after,
                         },
                     )
-                    await asyncio.sleep(wait)
+                    # Do not delay the caller after the final attempt. The
+                    # previous loop paid one extra backoff even though no
+                    # request remained to retry.
+                    if attempt < _MAX_ATTEMPTS - 1:
+                        await asyncio.sleep(wait)
                     continue
                 if response.status_code >= 400:
                     raise DOKnowledgeBaseError(
@@ -149,7 +153,13 @@ class DOKnowledgeBaseClient:
                     )
                 if not response.content:
                     return {}
-                return response.json()
+                try:
+                    return response.json()
+                except (TypeError, ValueError) as exc:
+                    raise DOKnowledgeBaseError(
+                        "DO KB response was not valid JSON",
+                        status_code=response.status_code,
+                    ) from exc
             except httpx.TimeoutException as exc:
                 last_exc = exc
                 logger.warning(

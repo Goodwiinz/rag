@@ -2655,6 +2655,16 @@
         "title": "CitationLookupRequest",
         "type": "object"
       },
+      "CitationRelationshipType": {
+        "description": "Citation relationship types for graph edges",
+        "enum": [
+          "cites",
+          "cited_by",
+          "related_to"
+        ],
+        "title": "CitationRelationshipType",
+        "type": "string"
+      },
       "CollectionCreate": {
         "description": "Create collection request",
         "properties": {
@@ -11588,48 +11598,6 @@
           "confirmed"
         ],
         "title": "StreamConfirmRequest",
-        "type": "object"
-      },
-      "StreamRequest": {
-        "description": "Request body for the SSE streaming chat endpoint.",
-        "properties": {
-          "content": {
-            "maxLength": 32000,
-            "minLength": 1,
-            "title": "Content",
-            "type": "string"
-          },
-          "max_tokens": {
-            "anyOf": [
-              {
-                "maximum": 8192.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": 2048,
-            "title": "Max Tokens"
-          },
-          "temperature": {
-            "default": 0.7,
-            "maximum": 2.0,
-            "minimum": 0.0,
-            "title": "Temperature",
-            "type": "number"
-          },
-          "use_rag": {
-            "default": true,
-            "title": "Use Rag",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "content"
-        ],
-        "title": "StreamRequest",
         "type": "object"
       },
       "StyleOption": {
@@ -21405,7 +21373,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "$ref": "#/components/schemas/CitationRelationshipType"
                 },
                 {
                   "type": "null"
@@ -21475,9 +21443,8 @@
             "name": "relationship_type",
             "required": false,
             "schema": {
-              "default": "CITES",
-              "title": "Relationship Type",
-              "type": "string"
+              "$ref": "#/components/schemas/CitationRelationshipType",
+              "default": "cites"
             }
           },
           {
@@ -37622,64 +37589,6 @@
         "summary": "Resolve Thread",
         "tags": [
           "Threads"
-        ]
-      }
-    },
-    "/api/v2/threads/{thread_id}/stream": {
-      "post": {
-        "deprecated": true,
-        "description": "[DEPRECATED] Stream an LLM response for a thread message via Server-Sent Events.\n\nDeprecated (audit finding C3): this is the orphaned \"v2 threads\" SSE dialect\n(``message_start`` -> ``rag_context`` -> ``token`` -> ``message_done``,\nwith ``citation_inline``). Its only client was the frontend\n``services/streamingService.ts``, which is itself deprecated and has no live\nUI callers — the active chat page streams via ``agentChatService`` against\n``POST /api/v1/agent/stream`` (LangGraph agent). Do not add new callers.\nThe route is kept for a deprecation window (it is wire-visible); removal is a\nfollow-up once the deprecated frontend client is deleted.\n\nSee ``docs/decisions/api-deprecation-window.md`` for the deletion-eligible\ndate and criteria.\n\n1. Persists the user message\n2. Optionally performs RAG retrieval\n3. Streams LLM tokens as SSE events\n4. Persists the assistant response\n5. Broadcasts ``message_created`` via WebSocket\n\nNOTE: The database session is created inside the async generator rather than\nvia Depends(get_db). FastAPI's dependency cleanup can close the session while\nthe streaming generator is still running, causing MissingGreenlet errors.",
-        "operationId": "stream_thread_chat_api_v2_threads__thread_id__stream_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "thread_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Thread Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StreamRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Stream Thread Chat",
-        "tags": [
-          "Streaming"
         ]
       }
     },

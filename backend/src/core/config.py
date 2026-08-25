@@ -6,16 +6,13 @@ variables. Default values are only used for local development.
 """
 
 import re
-import secrets
 from typing import Dict, List, Optional
 
 from pydantic import ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
-
-def _generate_dev_secret() -> str:
-    """Generate a random secret for development only."""
-    return secrets.token_urlsafe(32)
+_LOCAL_SECRET_KEY = "local-development-secret-key-not-for-production"
+_LOCAL_JWT_SECRET_KEY = "local-development-jwt-secret-not-for-production"
 
 
 # ``ENVIRONMENT`` values that mark an explicit local/CI throwaway process.
@@ -364,7 +361,7 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "SECRET_KEY must be set to a strong value in production/staging"
                 )
-            return _generate_dev_secret()
+            return _LOCAL_SECRET_KEY
         if len(v) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters")
         return v
@@ -391,7 +388,7 @@ class Settings(BaseSettings):
                     "JWT_SECRET_KEY must be set to a strong value in production/staging. "
                     "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(48))'"
                 )
-            return _generate_dev_secret()
+            return _LOCAL_JWT_SECRET_KEY
         if len(v) < 32:
             raise ValueError("JWT_SECRET_KEY must be at least 32 characters")
         return v

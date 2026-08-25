@@ -822,7 +822,7 @@ async def run_scenario(
 
 
 async def _cleanup_documents(db: Any, user: Any, cutoff: datetime) -> int:
-    """Soft-delete stale Documents in the synthetic org (audit R5-M29).
+    """Delete stale synthetic documents through the normal file lifecycle.
 
     ``cleanup`` only soft-deleted Collections, so ingested Documents — and the
     content hashes behind ``uq_documents_org_checksum_live`` — accreted
@@ -832,10 +832,11 @@ async def _cleanup_documents(db: Any, user: Any, cutoff: datetime) -> int:
     soft delete frees the hash while preserving the "never hard DELETE,
     documents own storage objects" rule the migration set.
     """
-    from sqlalchemy import select, update
+    from sqlalchemy import select
 
     from src.models.document import Document
     from src.models.organization import Organization
+    from src.services.documents.file_service import FileService
 
     org_id = getattr(user, "organization_id", None)
     if org_id is None:
@@ -855,17 +856,41 @@ async def _cleanup_documents(db: Any, user: Any, cutoff: datetime) -> int:
         )
         return 0
 
-    result = await db.execute(
-        update(Document)
-        .where(
-            Document.organization_id == org_id,
-            Document.created_at < cutoff,
-            Document.is_deleted == False,  # noqa: E712
+    document_ids = (
+        (
+            await db.execute(
+                select(Document.id)
+                .where(
+                    Document.organization_id == org_id,
+                    Document.created_at < cutoff,
+                    Document.is_deleted == False,  # noqa: E712
+                )
+                .order_by(Document.created_at)
+            )
         )
-        .values(is_deleted=True, deleted_at=datetime.now(tz=timezone.utc))
+        .scalars()
+        .all()
     )
-    await db.commit()
-    return result.rowcount or 0
+
+    deleted = 0
+    file_service = FileService(db)
+    for document_id in document_ids:
+        document = await db.get(Document, document_id)
+        if document is None or document.is_deleted:
+            continue
+        try:
+            # This shared path removes the source object, canonical text,
+            # figure chunks, DO-KB data source, and graph satellites.
+            await file_service.delete_file(document, user)
+            deleted += 1
+        except Exception as exc:
+            log.warning(
+                "synthetic_traffic.cleanup",
+                warning="document cleanup failed",
+                document_id=str(document_id),
+                error=str(exc),
+            )
+    return deleted
 
 
 async def cleanup(db: Any, user: Any, older_than_hours: int = 6) -> None:
@@ -882,9 +907,10 @@ async def cleanup(db: Any, user: Any, older_than_hours: int = 6) -> None:
     cannot block a future run.
     """
     try:
-        from sqlalchemy import select
+        from sqlalchemy import delete, select
 
         from src.models.collection import Collection
+        from src.models.project_memory import ProjectMemory
         from src.models.workspace import Workspace
 
         cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=older_than_hours)
@@ -923,6 +949,13 @@ async def cleanup(db: Any, user: Any, older_than_hours: int = 6) -> None:
             return
 
         deleted = 0
+        collection_ids = [collection.id for collection in collections]
+        if collection_ids:
+            await db.execute(
+                delete(ProjectMemory).where(
+                    ProjectMemory.project_id.in_(collection_ids)
+                )
+            )
         for coll in collections:
             try:
                 coll.soft_delete()
