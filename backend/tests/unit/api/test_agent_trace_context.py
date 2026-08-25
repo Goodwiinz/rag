@@ -37,6 +37,7 @@ def test_configure_langsmith_accepts_langsmith_prefixed_env(monkeypatch) -> None
         monkeypatch.delenv(key, raising=False)
 
     monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2_test_key")
+    monkeypatch.setenv("ENVIRONMENT", "local")
     monkeypatch.setenv("LANGSMITH_PROJECT", "custom-project")
     monkeypatch.setenv("LANGSMITH_TRACING", "true")
 
@@ -104,3 +105,25 @@ def test_configure_langsmith_allows_explicit_perf_opt_in(monkeypatch) -> None:
 
     assert os.environ["LANGCHAIN_TRACING_V2"] == "true"
     assert os.environ["LANGSMITH_TRACING"] == "true"
+
+
+def test_configure_langsmith_clears_flags_it_added_before_testing(monkeypatch) -> None:
+    import os
+
+    from src.services.agent.observability import configure_langsmith
+
+    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2_test_key")
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    for key in ("LANGSMITH_TRACING", "LANGCHAIN_TRACING_V2", "RUN_PERF_HARNESS"):
+        monkeypatch.delenv(key, raising=False)
+
+    configure_langsmith()
+
+    assert os.environ["LANGCHAIN_TRACING_V2"] == "true"
+    assert os.environ["LANGSMITH_TRACING"] == "true"
+
+    monkeypatch.setenv("ENVIRONMENT", "testing")
+    configure_langsmith()
+
+    assert "LANGCHAIN_TRACING_V2" not in os.environ
+    assert "LANGSMITH_TRACING" not in os.environ

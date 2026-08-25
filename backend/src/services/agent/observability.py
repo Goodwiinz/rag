@@ -102,15 +102,19 @@ def configure_langsmith():
         return
 
     # A developer's shell often carries a real LangSmith key.  Ordinary
-    # pytest runs must still stay local; live perf/eval runs opt in with a
-    # tracing flag or the explicit perf harness gate.
+    # pytest runs must still stay local; live perf/eval runs opt in through
+    # the explicit perf harness gate.
     if (os.environ.get("ENVIRONMENT") or "").strip().lower() in {
         "test",
         "testing",
-    } and not any(
-        (os.environ.get(name) or "").strip().lower() in {"1", "true", "yes", "on"}
-        for name in ("LANGSMITH_TRACING", "LANGCHAIN_TRACING_V2", "RUN_PERF_HARNESS")
-    ):
+    } and (os.environ.get("RUN_PERF_HARNESS") or "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        for name in ("LANGSMITH_TRACING", "LANGCHAIN_TRACING_V2"):
+            os.environ.pop(name, None)
         logger.debug("LangSmith tracing disabled for ordinary pytest execution")
         return
 
