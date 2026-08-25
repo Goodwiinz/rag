@@ -1367,6 +1367,10 @@ async def stream_event_generator(
     # Set once an assistant row for this turn has been persisted/scheduled —
     # the error-path partial persist must never double-write the turn.
     assistant_persisted = False
+    # Set just before a terminal frame (DONE/CONFIRMATION) is yielded — the
+    # generic exception handler must never emit ERROR after a terminal
+    # (audit S2-M3).
+    terminal_frame_sent = False
     persist_partial_stop = None  # bound inside try once its inputs exist
     # Declared out here, not in the try: the CancelledError cleanup below reads
     # it to link the cancelled run to its stopped partial row, and that handler
@@ -2126,6 +2130,7 @@ async def stream_event_generator(
                     AgentStreamEvent.CONFIRMATION,
                     {"thread_id": thread_id, "confirmation": confirmation_details},
                 )
+                terminal_frame_sent = True
                 if not client_disconnected:
                     yield frame
                 await emitter.finish()
@@ -2133,13 +2138,23 @@ async def stream_event_generator(
                 # its ledger stays OPEN (no terminal event) and only the status
                 # moves. It keeps holding the thread's active-run slot until it
                 # resumes or the next submission supersedes it.
-                await _finalize_run(
-                    db,
-                    acceptance,
-                    current_user,
-                    status=JobStatus.AWAITING_CONFIRMATION,
-                    run_metadata={"progress_steps": emitter.progress_steps},
-                )
+                try:
+                    await _finalize_run(
+                        db,
+                        acceptance,
+                        current_user,
+                        status=JobStatus.AWAITING_CONFIRMATION,
+                        run_metadata={"progress_steps": emitter.progress_steps},
+                    )
+                except Exception:
+                    # Audit S2-M3: CONFIRMATION terminal already on the wire —
+                    # a failed park must not fall through to the generic
+                    # handler (ERROR after terminal + FAILED racing the park).
+                    logger.error(
+                        "Failed to park stream run AWAITING_CONFIRMATION",
+                        exc_info=True,
+                        extra={"thread_id": thread_id},
+                    )
                 return
 
             # Turn-scoped (computed above): "" when this turn produced no AI
@@ -2313,6 +2328,7 @@ async def stream_event_generator(
             ),
         )
         frame = await emitter.emit(AgentStreamEvent.DONE, done_payload)
+        terminal_frame_sent = True
         if not client_disconnected:
             yield frame
         await emitter.finish()
@@ -2398,32 +2414,38 @@ async def stream_event_generator(
                 AgentStreamEvent.CONFIRMATION,
                 {"thread_id": thread_id, "confirmation": confirmation_details},
             )
+            terminal_frame_sent = True
             if not client_disconnected:
                 yield frame
         await emitter.finish()
-        if checkpoint_ok:
-            # Parked on a confirmation — ledger stays open (see above).
-            await _finalize_run(
-                db,
-                acceptance,
-                current_user,
-                status=JobStatus.AWAITING_CONFIRMATION,
-                run_metadata={"progress_steps": emitter.progress_steps},
-            )
-        else:
-            await _finalize_run(
-                db,
-                acceptance,
-                current_user,
-                status=JobStatus.FAILED,
-                event_type=RunEventType.RUN_FAILED,
-                payload={
-                    "code": "interrupt_not_checkpointed",
-                    "message": "Interrupt state could not be saved.",
-                },
-                error_code="interrupt_not_checkpointed",
-                error="Interrupt state could not be saved. Please retry.",
-            )
+        try:
+            if checkpoint_ok:
+                # Parked on a confirmation — ledger stays open (see above).
+                await _finalize_run(
+                    db,
+                    acceptance,
+                    current_user,
+                    status=JobStatus.AWAITING_CONFIRMATION,
+                    run_metadata={"progress_steps": emitter.progress_steps},
+                )
+            else:
+                await _finalize_run(
+                    db,
+                    acceptance,
+                    current_user,
+                    status=JobStatus.FAILED,
+                    event_type=RunEventType.RUN_FAILED,
+                    payload={
+                        "code": "interrupt_not_checkpointed",
+                        "message": "Interrupt state could not be saved.",
+                    },
+                    error_code="interrupt_not_checkpointed",
+                    error="Interrupt state could not be saved. Please retry.",
+                )
+        except Exception:
+            # Audit S2-M3: the wire outcome above is final; bookkeeping
+            # failures must not cascade into a second terminal.
+            logger.error("Failed to finalize drained interrupt run", exc_info=True)
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
@@ -2442,28 +2464,39 @@ async def stream_event_generator(
             if isinstance(e, ActiveRunConflict)
             else e
         )
-        frame = await emitter.emit(
-            AgentStreamEvent.ERROR, error_frame_payload(wire_error, category)
-        )
-        if not client_disconnected:
-            yield frame
-        await emitter.finish()
-        # `acceptance is None` here covers the case that matters most: the
-        # accept transaction itself failed, so there is nothing to finalize —
-        # and, by construction, no `accepted` frame was ever emitted.
-        await _finalize_run(
-            db,
-            acceptance,
-            current_user,
-            status=JobStatus.FAILED,
-            event_type=RunEventType.RUN_FAILED,
-            payload={
-                "code": "stream_failed",
-                "message": client_safe_error(e),
-            },
-            error_code="stream_failed",
-            error=client_safe_error(e),
-        )
+        if terminal_frame_sent:
+            # Audit S2-M3: a terminal already went out — ERROR after it
+            # corrupts the client state machine, and an absorbing FAILED
+            # write would race/overwrite the real terminal state.
+            logger.error(
+                "Exception after terminal frame; suppressing wire ERROR "
+                "and FAILED finalize",
+                exc_info=e,
+                extra={"thread_id": stream_thread_id},
+            )
+        else:
+            frame = await emitter.emit(
+                AgentStreamEvent.ERROR, error_frame_payload(wire_error, category)
+            )
+            if not client_disconnected:
+                yield frame
+            await emitter.finish()
+            # `acceptance is None` here covers the case that matters most:
+            # the accept transaction itself failed, so there is nothing to
+            # finalize — and no `accepted` frame was ever emitted.
+            await _finalize_run(
+                db,
+                acceptance,
+                current_user,
+                status=JobStatus.FAILED,
+                event_type=RunEventType.RUN_FAILED,
+                payload={
+                    "code": "stream_failed",
+                    "message": client_safe_error(e),
+                },
+                error_code="stream_failed",
+                error=client_safe_error(e),
+            )
 
     finally:
         if disconnect_canceller is not None:
@@ -2541,6 +2574,8 @@ async def stream_confirm_event_generator(
     # the error-path partial persist must never double-write the turn.
     assistant_persisted = False
     persist_partial_stop = None  # bound inside try once its inputs exist
+    # Set before a terminal CONFIRMATION/DONE is yielded (audit S2-M3).
+    terminal_frame_sent = False
     # CX1 claim state — pre-declared so the except handler can reference
     # them even when an exception fires before the claim block runs.
     confirm_claim_key: Optional[str] = None
@@ -3155,18 +3190,28 @@ async def stream_confirm_event_generator(
                     "confirmation": confirmation_details,
                 },
             )
+            terminal_frame_sent = True
             if not client_disconnected:
                 yield frame
             # The run is parked awaiting confirmation — no longer producing,
             # so clear the active pointer; the buffered frames stay until TTL.
             await emitter.finish()
-            await _finalize_run_id(
-                db,
-                str(active_run.job_id) if active_run is not None else None,
-                current_user,
-                status=JobStatus.AWAITING_CONFIRMATION,
-                run_metadata={"progress_steps": emitter.progress_steps},
-            )
+            try:
+                await _finalize_run_id(
+                    db,
+                    str(active_run.job_id) if active_run is not None else None,
+                    current_user,
+                    status=JobStatus.AWAITING_CONFIRMATION,
+                    run_metadata={"progress_steps": emitter.progress_steps},
+                )
+            except Exception:
+                # Audit S2-M3: terminal already on the wire — never cascade
+                # into the generic handler's second terminal.
+                logger.error(
+                    "Failed to park resumed run AWAITING_CONFIRMATION",
+                    exc_info=True,
+                    extra={"thread_id": request_body.thread_id},
+                )
             return
 
         final_values = final_snapshot.values if final_snapshot else {}
@@ -3343,6 +3388,7 @@ async def stream_confirm_event_generator(
             ),
         )
         frame = await emitter.emit(AgentStreamEvent.DONE, done_payload)
+        terminal_frame_sent = True
         if not client_disconnected:
             yield frame
         await emitter.finish()
@@ -3439,10 +3485,20 @@ async def stream_confirm_event_generator(
                         "message": client_safe_error(e),
                     },
                 )
-        frame = await emitter.emit(AgentStreamEvent.ERROR, error_frame_payload(e))
-        if not client_disconnected:
-            yield frame
-        await emitter.finish()
+        if terminal_frame_sent:
+            # Audit S2-M3: never emit ERROR after CONFIRMATION/DONE — a
+            # same-chunk ERROR destroys the pending approval card.
+            logger.error(
+                "Confirm exception after terminal frame; suppressing "
+                "post-terminal ERROR frame",
+                exc_info=e,
+                extra={"thread_id": request_body.thread_id},
+            )
+        else:
+            frame = await emitter.emit(AgentStreamEvent.ERROR, error_frame_payload(e))
+            if not client_disconnected:
+                yield frame
+            await emitter.finish()
 
     finally:
         if disconnect_canceller is not None:
