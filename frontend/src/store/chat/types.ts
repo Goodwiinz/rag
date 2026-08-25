@@ -108,6 +108,8 @@ export interface ChatState {
   streamingPlan: PlanStep[];
   /** Display-safe server progress accumulated for the current turn. */
   streamingProgress: AgentProgressStep[];
+  /** Bounded provider-authored reasoning summary for the live turn. */
+  streamingReasoning: string;
   /** Elapsed time of the current turn as last reported by a `heartbeat`
    * frame (ms). null until the first heartbeat — a silent planner/LLM phase
    * is otherwise indistinguishable from a stalled run. */

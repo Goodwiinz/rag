@@ -85,6 +85,8 @@ async function getStreamAuthHeaders(
  */
 export interface AgentStreamCallbacks {
   onToken?: (content: string) => void;
+  /** Provider-authored reasoning summary only; raw reasoning is never sent. */
+  onReasoningDelta?: (content: string) => void;
   onToolStart?: (tool: string, args: Record<string, unknown>) => void;
   onToolEnd?: (tool: string, result: string, isError: boolean) => void;
   onRagContext?: (contexts: Array<Record<string, unknown>>) => void;
@@ -183,6 +185,7 @@ async function readErrorBody(response: Response): Promise<string> {
  */
 export const HANDLED_STREAM_EVENTS: ReadonlySet<AgentStreamEvent> = new Set([
   'token',
+  'reasoning_delta',
   'tool_start',
   'tool_end',
   'rag_context',
@@ -266,6 +269,9 @@ async function consumeSse(
       switch (ev) {
         case 'token':
           callbacks.onToken?.(data.content);
+          break;
+        case 'reasoning_delta':
+          callbacks.onReasoningDelta?.(data.content);
           break;
         case 'tool_start':
           callbacks.onToolStart?.(data.tool, data.args);

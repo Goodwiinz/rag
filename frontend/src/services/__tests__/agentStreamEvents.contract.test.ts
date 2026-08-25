@@ -33,6 +33,7 @@ import {
 // the backend's own pinned list). A rename on either side breaks a client.
 const EXPECTED_WIRE_VALUES = [
   'token',
+  'reasoning_delta',
   'tool_start',
   'tool_end',
   'rag_context',

@@ -175,10 +175,10 @@ export interface paths {
          * @description Stream agent responses via Server-Sent Events.
          *
          *     SSE event types are the ``AgentStreamEvent`` wire vocabulary
-         *     (``src/shared/enums.py`` — the single source of truth): token, tool_start,
-         *     tool_end, rag_context, plan, reflection, trace, usage, heartbeat, status,
-         *     confirmation, done, error. ``heartbeat`` is a payload-less keepalive; the
-         *     terminal frames are done, error, or confirmation.
+         *     (``src/shared/enums.py`` — the single source of truth): token,
+         *     reasoning_delta, tool_start, tool_end, rag_context, plan, reflection,
+         *     trace, usage, heartbeat, status, confirmation, done, error. The terminal
+         *     frames are done, error, or confirmation.
          */
         post: operations["stream_agent_api_v1_agent_stream_post"];
         delete?: never;

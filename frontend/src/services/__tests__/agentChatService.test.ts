@@ -73,6 +73,24 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     expect(done).toHaveBeenCalledTimes(1);
   });
 
+  it('routes summarized reasoning separately from answer tokens', async () => {
+    global.fetch = fetchWith([
+      'event: reasoning_delta\ndata: {"content":"Checking sources"}\n\n',
+      'event: token\ndata: {"content":"The answer"}\n\n',
+      'event: done\ndata: {"status":"complete"}\n\n',
+    ]);
+    const onReasoningDelta = vi.fn();
+    const onToken = vi.fn();
+
+    await agentChatService.streamMessage(request, {
+      onReasoningDelta,
+      onToken,
+    });
+
+    expect(onReasoningDelta).toHaveBeenCalledWith('Checking sources');
+    expect(onToken).toHaveBeenCalledWith('The answer');
+  });
+
   it('parses a frame split between event: and data: lines across chunks', async () => {
     // The event line arrives in chunk 1; the data line arrives in chunk 2.
     // Before Fix 1, eventType would reset to '' between chunks and the event
@@ -195,9 +213,7 @@ describe('agentChatService.streamMessage SSE parsing', () => {
   });
 
   it('reports EOF before a terminal frame as an error', async () => {
-    global.fetch = fetchWith([
-      'event: token\ndata: {"content":"partial"}\n\n',
-    ]);
+    global.fetch = fetchWith(['event: token\ndata: {"content":"partial"}\n\n']);
     const onError = vi.fn();
 
     await agentChatService.streamMessage(request, { onError });

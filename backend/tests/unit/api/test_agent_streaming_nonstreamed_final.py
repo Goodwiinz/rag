@@ -14,6 +14,37 @@ import pytest
 from tests.utils.agent_stream import frames_of_type, make_stream_request
 
 
+@pytest.mark.parametrize(
+    "node",
+    [
+        "force_synthesis_node",
+        "research_force_synthesis_node",
+        "writing_force_synthesis_node",
+        "data_force_synthesis_node",
+    ],
+)
+def test_force_synthesis_tokens_are_user_facing(node: str) -> None:
+    from src.api.agent.streaming import _is_user_facing_token_event
+
+    assert _is_user_facing_token_event({"metadata": {"langgraph_node": node}})
+
+
+def test_chunk_reasoning_summary_excludes_raw_reasoning() -> None:
+    from src.api.agent.streaming import _chunk_reasoning_summary
+
+    chunk = SimpleNamespace(
+        content=[
+            {
+                "type": "reasoning",
+                "summary": [{"type": "summary_text", "text": "Checking sources"}],
+                "content": [{"type": "reasoning_text", "text": "private"}],
+            }
+        ]
+    )
+
+    assert _chunk_reasoning_summary(chunk) == "Checking sources"
+
+
 class _FakeGraphNoStream:
     """Graph that emits NO on_chat_model_stream events (e.g. greeting fast-path)
     but whose final state carries an AI answer."""

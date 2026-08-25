@@ -312,7 +312,10 @@ def _build_llm(model_override: str | None = None):
         if temperature is not None:
             kwargs["temperature"] = temperature
         if is_gpt5_family and reasoning_effort:
-            kwargs["reasoning_effort"] = reasoning_effort
+            kwargs["reasoning"] = {
+                "effort": reasoning_effort,
+                "summary": "auto",
+            }
         llm = ChatOpenAI(**kwargs)
     else:
         from langchain_openai import AzureChatOpenAI
@@ -331,7 +334,10 @@ def _build_llm(model_override: str | None = None):
         if temperature is not None:
             kwargs["temperature"] = temperature
         if is_gpt5_family and reasoning_effort:
-            kwargs["reasoning_effort"] = reasoning_effort
+            kwargs["reasoning"] = {
+                "effort": reasoning_effort,
+                "summary": "auto",
+            }
         llm = AzureChatOpenAI(**kwargs)
 
     _LLM_CACHE[cache_key] = llm

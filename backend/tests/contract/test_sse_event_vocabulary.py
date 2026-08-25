@@ -33,6 +33,7 @@ _ENUM_MEMBER_NAMES = frozenset(AgentStreamEvent.__members__)
 # for every SSE client; this list is the deliberate tripwire.
 _EXPECTED_WIRE_VALUES = [
     "token",
+    "reasoning_delta",
     "tool_start",
     "tool_end",
     "rag_context",
