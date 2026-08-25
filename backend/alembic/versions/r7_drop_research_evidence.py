@@ -7,8 +7,7 @@ Create Date: 2026-08-25
 
 import sqlalchemy as sa
 from alembic import op
-
-from src.models.base import GUID
+from sqlalchemy.dialects import postgresql
 
 revision = "r7_drop_research_evidence"
 down_revision = "r6_run_integrity_uniques"
@@ -23,20 +22,20 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.create_table(
         "research_evidence",
-        sa.Column("id", GUID(), primary_key=True),
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("is_deleted", sa.Boolean(), nullable=False),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "step_id",
-            GUID(),
+            postgresql.UUID(as_uuid=True),
             sa.ForeignKey("research_steps.id"),
             nullable=False,
         ),
         sa.Column(
             "source_id",
-            GUID(),
+            postgresql.UUID(as_uuid=True),
             sa.ForeignKey("research_sources.id"),
             nullable=False,
         ),

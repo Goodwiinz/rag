@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncGenerator
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -73,7 +74,7 @@ async def _thread_row(session: AsyncSession, thread_id: uuid.UUID) -> Thread:
         await session.execute(select(Thread).where(Thread.id == thread_id))
     ).scalar_one()
     await session.refresh(row)
-    return row
+    return cast(Thread, row)
 
 
 @pytest.mark.asyncio
