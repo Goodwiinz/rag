@@ -152,3 +152,6 @@ def test_relationship_type_typed_confidence_bounded() -> None:
     blk = src[src.find("class CitationRelationshipCreate") :]
     assert "relationship_type: CitationRelationshipType" in blk[:700]
     assert "allow_inf_nan=False" in blk[:900]
+    api = _read("src/api/research/citations.py")
+    assert "_normalize_citation_relationship_type(relationship_type)" in api
+    assert 'relationship_type: str = "CITES"' in api

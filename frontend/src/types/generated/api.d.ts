@@ -9483,12 +9483,6 @@ export interface components {
             title?: string | null;
         };
         /**
-         * CitationRelationshipType
-         * @description Citation relationship types for graph edges
-         * @enum {string}
-         */
-        CitationRelationshipType: "cites" | "cited_by" | "related_to";
-        /**
          * CollectionCreate
          * @description Create collection request
          */
@@ -18811,7 +18805,7 @@ export interface operations {
                 /** @description Filter by target citation ID */
                 target_id?: string | null;
                 /** @description Filter by relationship type */
-                relationship_type?: components["schemas"]["CitationRelationshipType"] | null;
+                relationship_type?: string | null;
             };
             header?: never;
             path?: never;
@@ -18844,7 +18838,7 @@ export interface operations {
             query: {
                 source_citation_id: string;
                 target_citation_id: string;
-                relationship_type?: components["schemas"]["CitationRelationshipType"];
+                relationship_type?: string;
                 citation_context?: string | null;
                 confidence?: number;
             };

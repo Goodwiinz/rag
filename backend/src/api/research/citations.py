@@ -37,13 +37,24 @@ from src.services.research.citation_extraction_service import CitationExtraction
 from src.shared.research_schemas import (
     CitationCreate,
     CitationListResponse,
-    CitationRelationshipType,
     CitationResponse,
     CitationUpdate,
 )
 
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/citations", tags=["citations"])
+
+_CITATION_RELATIONSHIP_TYPES = frozenset({"CITES", "CITED_BY", "RELATED_TO"})
+
+
+def _normalize_citation_relationship_type(value: str) -> str:
+    normalized = value.upper()
+    if normalized not in _CITATION_RELATIONSHIP_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="relationship_type must be CITES, CITED_BY, or RELATED_TO",
+        )
+    return normalized
 
 
 def _document_is_accessible(document: object, current_user: User) -> bool:
@@ -844,7 +855,7 @@ async def export_bibliography(
 async def list_citation_relationships(
     source_id: Optional[UUID] = Query(None, description="Filter by source citation ID"),
     target_id: Optional[UUID] = Query(None, description="Filter by target citation ID"),
-    relationship_type: Optional[CitationRelationshipType] = Query(
+    relationship_type: Optional[str] = Query(
         None, description="Filter by relationship type"
     ),
     current_user: User = Depends(get_current_user),
@@ -863,6 +874,9 @@ async def list_citation_relationships(
         List of citation relationships
     """
     from src.models import CitationRelationship
+
+    if relationship_type:
+        relationship_type = _normalize_citation_relationship_type(relationship_type)
 
     # Require an anchor citation and verify the caller can access it — otherwise
     # this endpoint enumerated every tenant's citation relationships (including
@@ -921,7 +935,7 @@ async def list_citation_relationships(
 async def create_citation_relationship(
     source_citation_id: UUID,
     target_citation_id: UUID,
-    relationship_type: CitationRelationshipType = CitationRelationshipType.CITES,
+    relationship_type: str = "CITES",
     citation_context: Optional[str] = None,
     confidence: float = 1.0,
     current_user: User = Depends(get_current_user),
@@ -943,6 +957,8 @@ async def create_citation_relationship(
     """
     from src.models import CitationRelationship
     from src.services.research.citation_graph_service import get_citation_graph_service
+
+    relationship_type = _normalize_citation_relationship_type(relationship_type)
 
     if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
         raise HTTPException(

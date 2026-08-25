@@ -2655,16 +2655,6 @@
         "title": "CitationLookupRequest",
         "type": "object"
       },
-      "CitationRelationshipType": {
-        "description": "Citation relationship types for graph edges",
-        "enum": [
-          "cites",
-          "cited_by",
-          "related_to"
-        ],
-        "title": "CitationRelationshipType",
-        "type": "string"
-      },
       "CollectionCreate": {
         "description": "Create collection request",
         "properties": {
@@ -21373,7 +21363,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "$ref": "#/components/schemas/CitationRelationshipType"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -21443,8 +21433,9 @@
             "name": "relationship_type",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/CitationRelationshipType",
-              "default": "cites"
+              "default": "CITES",
+              "title": "Relationship Type",
+              "type": "string"
             }
           },
           {
