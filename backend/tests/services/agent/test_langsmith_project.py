@@ -11,10 +11,7 @@ import os
 
 import pytest
 
-from src.services.agent.observability import (
-    _normalize_deploy_env,
-    configure_langsmith,
-)
+from src.services.agent.observability import _normalize_deploy_env, configure_langsmith
 
 
 @pytest.mark.unit
@@ -62,11 +59,25 @@ def test_production_env_maps_to_prod_project(monkeypatch):
     monkeypatch.delenv("LANGSMITH_PROJECT_OVERRIDE", raising=False)
     monkeypatch.delenv("LANGSMITH_PROJECT", raising=False)
     monkeypatch.delenv("LANGCHAIN_PROJECT", raising=False)
+    for key in (
+        "LANGCHAIN_HIDE_INPUTS",
+        "LANGCHAIN_HIDE_OUTPUTS",
+        "LANGSMITH_HIDE_INPUTS",
+        "LANGSMITH_HIDE_OUTPUTS",
+    ):
+        monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("ENVIRONMENT", "production")
 
     configure_langsmith()
 
     assert os.environ["LANGSMITH_PROJECT"] == "rag-agent-prod"
+    for key in (
+        "LANGCHAIN_HIDE_INPUTS",
+        "LANGCHAIN_HIDE_OUTPUTS",
+        "LANGSMITH_HIDE_INPUTS",
+        "LANGSMITH_HIDE_OUTPUTS",
+    ):
+        assert os.environ[key] == "true"
 
 
 @pytest.mark.unit

@@ -101,6 +101,23 @@ def configure_langsmith():
         )
         return
 
+    # A developer's shell often carries a real LangSmith key.  Ordinary
+    # pytest runs must still stay local; live perf/eval runs opt in through
+    # the explicit perf harness gate.
+    if (os.environ.get("ENVIRONMENT") or "").strip().lower() in {
+        "test",
+        "testing",
+    } and (os.environ.get("RUN_PERF_HARNESS") or "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        for name in ("LANGSMITH_TRACING", "LANGCHAIN_TRACING_V2"):
+            os.environ.pop(name, None)
+        logger.debug("LangSmith tracing disabled for ordinary pytest execution")
+        return
+
     os.environ.setdefault("LANGSMITH_API_KEY", api_key)
     os.environ.setdefault("LANGCHAIN_API_KEY", api_key)
 
@@ -139,6 +156,8 @@ def configure_langsmith():
     if hide_io:
         os.environ.setdefault("LANGCHAIN_HIDE_INPUTS", "true")
         os.environ.setdefault("LANGCHAIN_HIDE_OUTPUTS", "true")
+        os.environ.setdefault("LANGSMITH_HIDE_INPUTS", "true")
+        os.environ.setdefault("LANGSMITH_HIDE_OUTPUTS", "true")
 
     endpoint = os.environ.get("LANGSMITH_ENDPOINT") or os.environ.get(
         "LANGCHAIN_ENDPOINT"
@@ -162,13 +181,7 @@ def get_langsmith_base_url() -> str:
 
 
 def tag_trace_intent(intent: str) -> None:
-    """Best-effort: tag the active run without PATCHing the live trace root.
-
-    LangSmith can treat a mid-run ``Client.update_run`` as the root's terminal
-    payload. That closes the root before later subgraph children finish,
-    corrupting root latency and outputs. The active preprocessing run is
-    instead tagged locally and will upload the tag with its natural end event.
-    """
+    """Best-effort: tag the actual trace root before it closes."""
     if not intent:
         return
     try:
@@ -181,7 +194,27 @@ def tag_trace_intent(intent: str) -> None:
             return
 
         tag = f"intent:{intent}"
-        rt.add_tags([tag])
+        root = rt
+        while getattr(root, "parent_run", None) is not None:
+            root = root.parent_run
+        if root is rt:
+            # langsmith 0.9 stores the parent id on RunTree children without
+            # retaining a Python back-reference. LangChain's active callback
+            # tracer still owns the live root in its run map.
+            try:
+                from langchain_core.runnables.config import var_child_runnable_config
+
+                config = var_child_runnable_config.get() or {}
+                callbacks = config.get("callbacks")
+                trace_id = str(rt.trace_id)
+                for handler in getattr(callbacks, "handlers", ()):
+                    candidate = getattr(handler, "run_map", {}).get(trace_id)
+                    if candidate is not None:
+                        root = candidate
+                        break
+            except Exception:
+                pass
+        root.add_tags([tag])
     except Exception:
         logger.debug("tag_trace_intent failed", exc_info=True)
 

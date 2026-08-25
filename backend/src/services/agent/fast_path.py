@@ -141,13 +141,9 @@ async def stream_fast_path_chunks(
     llm: Any,
     messages: list[Any],
     persist_user: Callable[[], Awaitable[Any]],
-    trace_metadata: dict[str, str] | None = None,
 ) -> AsyncGenerator[Any, None]:
     """Start Luna and user persistence together, releasing no token too early."""
-    iterator = llm.astream(
-        messages,
-        config={"metadata": dict(trace_metadata or {})},
-    ).__aiter__()
+    iterator = llm.astream(messages).__aiter__()
     persist_task = asyncio.create_task(persist_user())
     first_task = asyncio.create_task(anext(iterator))
     try:
@@ -178,8 +174,8 @@ async def stream_fast_path_chunks(
                     exc_info=True,
                 )
         # Never leave the model's astream suspended mid-response: closing
-        # this generator early (client disconnect) without closing `iterator`
-        # abandons its HTTP stream open until GC-driven asyncgen finalization
-        # picks it up, instead of releasing it now.
+        # this generator early (client disconnect) without closing
+        # ``iterator`` abandons its HTTP stream open until GC-driven
+        # asyncgen finalization picks it up, instead of releasing it now.
         with contextlib.suppress(Exception):
             await iterator.aclose()

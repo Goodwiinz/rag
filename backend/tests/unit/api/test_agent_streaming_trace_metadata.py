@@ -42,7 +42,9 @@ class _CapturingGraph:
         return SimpleNamespace(values={"messages": []}, tasks=())
 
 
-async def _capture_stream_metadata(*, durable: bool) -> dict[str, str]:
+async def _capture_stream_config(
+    *, durable: bool, accept: bool | None = None
+) -> dict[str, Any]:
     from src.api.agent import streaming as streaming_mod
 
     graph = _CapturingGraph()
@@ -81,6 +83,11 @@ async def _capture_stream_metadata(*, durable: bool) -> dict[str, str]:
         ),
         patch.object(
             streaming_mod,
+            "_accept_eligible",
+            return_value=durable if accept is None else accept,
+        ),
+        patch.object(
+            streaming_mod,
             "accept_submission",
             new=AsyncMock(return_value=accepted),
         ),
@@ -93,6 +100,11 @@ async def _capture_stream_metadata(*, durable: bool) -> dict[str, str]:
             streaming_mod,
             "_resolve_and_bind_project",
             new=AsyncMock(return_value=None),
+        ),
+        patch.object(
+            streaming_mod,
+            "_persist_user_message_guarded",
+            new=AsyncMock(return_value=True),
         ),
         patch.object(
             streaming_mod,
@@ -143,9 +155,7 @@ async def _capture_stream_metadata(*, durable: bool) -> dict[str, str]:
             pass
 
     assert graph.config is not None
-    metadata = graph.config["metadata"]
-    assert isinstance(metadata, dict)
-    return cast(dict[str, str], metadata)
+    return graph.config
 
 
 @asynccontextmanager
@@ -160,7 +170,8 @@ async def test_stream_graph_config_correlates_trace_to_release_and_submission(
     monkeypatch.setenv("GIT_SHA", "deployment-sha-123")
     monkeypatch.setenv("IMAGE_TAG", "backend-image-456")
 
-    metadata = await _capture_stream_metadata(durable=True)
+    config = await _capture_stream_config(durable=True)
+    metadata = config["metadata"]
 
     assert metadata == {
         "trace_source": "graph",
@@ -174,6 +185,7 @@ async def test_stream_graph_config_correlates_trace_to_release_and_submission(
         "deployment_sha": "deployment-sha-123",
         "image_tag": "backend-image-456",
     }
+    assert config["run_name"] == "agent:stream"
     assert PROMPT not in str(metadata)
 
 
@@ -184,7 +196,8 @@ async def test_stream_graph_config_degrades_without_durable_thread(
     monkeypatch.setenv("GIT_SHA", "deployment-sha-123")
     monkeypatch.setenv("IMAGE_TAG", "backend-image-456")
 
-    metadata = await _capture_stream_metadata(durable=False)
+    config = await _capture_stream_config(durable=False)
+    metadata = config["metadata"]
 
     assert metadata == {
         "trace_source": "graph",
@@ -195,6 +208,7 @@ async def test_stream_graph_config_degrades_without_durable_thread(
         "deployment_sha": "deployment-sha-123",
         "image_tag": "backend-image-456",
     }
+    assert config["run_name"] == "agent:stream"
     assert (
         not {
             "thread_id",
@@ -203,6 +217,20 @@ async def test_stream_graph_config_degrades_without_durable_thread(
         }
         & metadata.keys()
     )
+
+
+@pytest.mark.asyncio
+async def test_stream_graph_config_keeps_owned_thread_without_durable_acceptance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GIT_SHA", "deployment-sha-123")
+    monkeypatch.setenv("IMAGE_TAG", "backend-image-456")
+
+    config = await _capture_stream_config(durable=True, accept=False)
+
+    assert config["metadata"]["thread_id"] == str(THREAD_ID)
+    assert "agent_run_id" not in config["metadata"]
+    assert config["run_name"] == "agent:stream"
 
 
 @pytest.mark.asyncio
@@ -279,6 +307,7 @@ async def test_background_graph_config_uses_same_correlation_contract(
     assert graph.ainvoke.await_args is not None
     config = cast(dict[str, Any], graph.ainvoke.await_args.kwargs["config"])
     metadata = config["metadata"]
+    assert config["run_name"] == "agent:background"
     assert metadata == {
         "trace_source": "graph",
         "user_id": str(USER_ID),
@@ -294,7 +323,7 @@ async def test_background_graph_config_uses_same_correlation_contract(
 
 
 @pytest.mark.asyncio
-async def test_luna_producer_attaches_non_graph_metadata_to_chat_model_root(
+async def test_luna_producer_does_not_pass_trace_inputs_to_chat_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from src.api.agent import streaming as streaming_mod
@@ -306,10 +335,7 @@ async def test_luna_producer_attaches_non_graph_metadata_to_chat_model_root(
         def __init__(self) -> None:
             self.config: dict[str, Any] | None = None
 
-        async def astream(
-            self, _messages: Any, *, config: dict[str, Any]
-        ) -> AsyncIterator[Any]:
-            self.config = config
+        async def astream(self, _messages: Any) -> AsyncIterator[Any]:
             yield SimpleNamespace(content="ok")
 
     luna = _CapturingLuna()
@@ -411,21 +437,7 @@ async def test_luna_producer_attaches_non_graph_metadata_to_chat_model_root(
         ):
             pass
 
-    assert luna.config == {
-        "metadata": {
-            "trace_source": "non_graph",
-            "user_id": str(USER_ID),
-            "org_id": str(ORG_ID),
-            "thread_id": str(THREAD_ID),
-            "request_id": REQUEST_ID,
-            "agent_run_id": RUN_ID,
-            "user_message_id": USER_MESSAGE_ID,
-            "client_message_id": str(CLIENT_MESSAGE_ID),
-            "deployment_sha": "deployment-sha-123",
-            "image_tag": "backend-image-456",
-        }
-    }
-    assert PROMPT not in str(luna.config)
+    assert luna.config is None
 
 
 class _ResumeCapturingGraph:
@@ -545,6 +557,7 @@ async def test_streaming_confirmation_root_uses_owned_durable_run_metadata(
         "deployment_sha": "deployment-sha-123",
         "image_tag": "backend-image-456",
     }
+    assert graph.stream_config["run_name"] == "agent:stream:resume"
 
 
 @pytest.mark.asyncio
@@ -613,3 +626,4 @@ async def test_job_confirmation_root_uses_owned_durable_run_metadata(
         "deployment_sha": "deployment-sha-123",
         "image_tag": "backend-image-456",
     }
+    assert graph.invoke_config["run_name"] == "agent:background:resume"
