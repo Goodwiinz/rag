@@ -12,7 +12,7 @@ import threading
 import time
 import uuid as _uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, cast
 
 from anyio import CancelScope
 from langgraph.errors import GraphInterrupt
@@ -963,28 +963,36 @@ def _bound_frame_payload(event_type: str, data: Dict[str, Any]) -> Dict[str, Any
     clipped copy carrying ``payload_truncated: True``. Never raises and never
     mutates the input: an oversized producer degrades one frame instead of
     failing the stream."""
+    # Serialize once: the oversized path is exactly where the payload is
+    # multi-megabyte, so re-encoding it for a log field is the one cost worth
+    # avoiding here. Every length below reuses an encoding already computed.
     try:
-        if len(_json.dumps(data)) <= MAX_PAYLOAD_BYTES:
-            return data
-        original_bytes = len(_json.dumps(data))
+        encoded = _json.dumps(data)
     except (TypeError, ValueError):
         # Not JSON-serializable: the formatter downstream already surfaces
         # this exactly as it did before the byte budget existed.
         return data
+    original_bytes = len(encoded)
+    if original_bytes <= MAX_PAYLOAD_BYTES:
+        return data
     bounded = data
+    bounded_bytes = original_bytes
     for max_chars, max_items in _CLIP_LADDER:
-        candidate = _clip_payload_values(data, max_chars=max_chars, max_items=max_items)
-        assert isinstance(candidate, dict)
+        candidate = cast(
+            Dict[str, Any],
+            _clip_payload_values(data, max_chars=max_chars, max_items=max_items),
+        )
         candidate[_TRUNCATED_MARKER] = True
         bounded = candidate
-        if len(_json.dumps(candidate)) <= MAX_PAYLOAD_BYTES:
+        bounded_bytes = len(_json.dumps(candidate))
+        if bounded_bytes <= MAX_PAYLOAD_BYTES:
             break
     logger.warning(
         "stream frame payload exceeded byte budget; clipped",
         extra={
             "event_type": event_type,
             "original_bytes": original_bytes,
-            "clipped_bytes": len(_json.dumps(bounded)),
+            "clipped_bytes": bounded_bytes,
         },
     )
     return bounded
