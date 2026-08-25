@@ -1,0 +1,24 @@
+{
+  "scopes": [
+    {
+      "name": "sse-endpoint",
+      "own": ["backend/src/api/agent/streaming.py", "backend/src/services/agent/stream_buffer.py", "backend/src/api/threads/stream.py"],
+      "contract_files": ["backend/src/services/agent/run_event_types.py"]
+    },
+    {
+      "name": "agent-services",
+      "own": ["backend/src/services/agent/job_store.py", "backend/src/services/agent/observability.py", "backend/src/services/agent/_prompts.py", "backend/src/services/agent/run_event_types.py", "backend/src/tasks/agent_run_tasks.py"],
+      "contract_files": ["backend/src/api/agent/streaming.py"]
+    },
+    {
+      "name": "fe-pipeline",
+      "own": ["frontend/src/hooks/chat/useChatStreaming.ts", "frontend/src/store/agentChatStore.ts", "frontend/src/services/agentChatService.ts"],
+      "contract_files": ["backend/src/services/agent/run_event_types.py", "frontend/src/store/chat/slices/streamingSlice.ts"]
+    },
+    {
+      "name": "fe-consumers",
+      "own": ["frontend/src/components/chat/aui/AuiMessage.tsx", "frontend/src/components/chat/artifact-panel/*.tsx", "frontend/src/components/context-rail/ContextPanel.tsx", "frontend/src/lib/markdown-utils.ts"],
+      "contract_files": ["frontend/src/store/agentChatStore.ts"]
+    }
+  ]
+}
