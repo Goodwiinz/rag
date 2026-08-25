@@ -211,9 +211,8 @@ def tool_subset_match(
 ) -> dict[str, Any]:
     """Score 1 iff every expected tool call appears in order in actual calls.
 
-    A *legitimately empty* ``expected_tools=()`` (key present) passes — that is
-    a valid "no tools expected" case. A *missing* key (null/polluted reference)
-    FAILS, instead of the old vacuous pass that made the suite green-but-blind.
+    ``expected_tools=None`` explicitly skips tool scoring, while an empty list
+    requires zero calls. A missing key still fails as dataset-contract drift.
     """
     ref = reference_outputs or {}
     if "expected_tools" not in ref:
@@ -222,11 +221,21 @@ def tool_subset_match(
             "score": 0,
             "comment": "missing reference expected_tools (null/polluted dataset row)",
         }
-    expected = list(ref.get("expected_tools", ()))
+    expected_value = ref["expected_tools"]
+    if expected_value is None:
+        return {
+            "key": "tool_subset_match",
+            "score": 1,
+            "comment": "tool behavior not evaluated for this case",
+        }
+    expected = list(expected_value)
     actual = list((outputs or {}).get("tool_calls", ()))
-    # A legitimately empty expected set passes regardless of mode.
     if not expected:
-        return {"key": "tool_subset_match", "score": 1}
+        return {
+            "key": "tool_subset_match",
+            "score": int(not actual),
+            "comment": None if not actual else f"expected no tool calls, got {actual}",
+        }
     # ``tool_match`` selects the matching semantics:
     #   "any"  -> at least one expected tool was invoked (order-free); for
     #             cases where the agent may pick one of several valid tools.

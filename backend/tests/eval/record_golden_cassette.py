@@ -18,6 +18,7 @@ Usage (needs live creds + infra, run locally or on the creds-bearing runner):
     python -m tests.eval.record_golden_cassette            # all cases
     python -m tests.eval.record_golden_cassette greeting_hi writing_summarize
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -43,8 +44,12 @@ class _RecStructured:
     def _record(self, res: Any) -> Any:
         payload = res.model_dump() if hasattr(res, "model_dump") else dict(res)
         self._sink.append(
-            {"slot": len(self._sink), "kind": "structured",
-             "schema": self._schema, "payload": payload}
+            {
+                "slot": len(self._sink),
+                "kind": "structured",
+                "schema": self._schema,
+                "payload": payload,
+            }
         )
         return res
 
@@ -63,11 +68,19 @@ class _RecTools:
     def _record(self, msg: Any) -> Any:
         tcs = []
         for tc in getattr(msg, "tool_calls", None) or []:
-            tcs.append({"name": tc.get("name"), "args": tc.get("args", {}),
-                        "id": tc.get("id", "")})
+            tcs.append(
+                {
+                    "name": tc.get("name"),
+                    "args": tc.get("args", {}),
+                    "id": tc.get("id", ""),
+                }
+            )
         self._sink.append(
-            {"slot": len(self._sink), "kind": "tool",
-             "message": {"content": _content_str(msg.content), "tool_calls": tcs}}
+            {
+                "slot": len(self._sink),
+                "kind": "tool",
+                "message": {"content": _content_str(msg.content), "tool_calls": tcs},
+            }
         )
         return msg
 
@@ -86,15 +99,20 @@ class RecordingChatModel:
         self._sink = sink
 
     def with_structured_output(self, schema: Any, **kw: Any) -> _RecStructured:
-        return _RecStructured(self._real.with_structured_output(schema, **kw), self._sink, schema.__name__)
+        return _RecStructured(
+            self._real.with_structured_output(schema, **kw), self._sink, schema.__name__
+        )
 
     def bind_tools(self, tools: Any = None, **kw: Any) -> _RecTools:
         return _RecTools(self._real.bind_tools(tools, **kw), self._sink)
 
     def _record_text(self, msg: Any) -> Any:
         self._sink.append(
-            {"slot": len(self._sink), "kind": "text",
-             "message": {"content": _content_str(msg.content), "tool_calls": []}}
+            {
+                "slot": len(self._sink),
+                "kind": "text",
+                "message": {"content": _content_str(msg.content), "tool_calls": []},
+            }
         )
         return msg
 
@@ -111,7 +129,12 @@ class RecordingChatModel:
 def _install_recorder(sink: list):
     """Patch the six seams to wrap the real builders' output; return a restore fn."""
     from src.services.agent import (
-        classifier, compactor, graph, llm_factory, planner, reflection,
+        classifier,
+        compactor,
+        graph,
+        llm_factory,
+        planner,
+        reflection,
     )
 
     # Reset every build + result cache so the recorder is actually constructed.
@@ -134,6 +157,7 @@ def _install_recorder(sink: list):
     def make_wrapper(orig):
         def wrapper(*a: Any, **k: Any):
             return RecordingChatModel(orig(*a, **k), sink)
+
         return wrapper
 
     for module, name, orig in originals:
@@ -149,7 +173,9 @@ def _install_recorder(sink: list):
 async def record_case(case: Any) -> tuple[bool, str]:
     """Run one case live, validate against expectations, write cassette if OK."""
     from tests.eval.test_agent_regression import (
-        _run_agent, intent_match, tool_subset_match,
+        _run_agent,
+        intent_match,
+        tool_subset_match,
     )
 
     sink: list = []
@@ -171,17 +197,22 @@ async def record_case(case: Any) -> tuple[bool, str]:
         return False, (
             f"REFUSED {case.name}: live decision violates expectation "
             f"(intent={outputs.get('intent')!r} vs {case.expected_intent!r}, "
-            f"tools={outputs.get('tool_calls')} vs {list(case.expected_tools)})"
+            f"tools={outputs.get('tool_calls')} vs "
+            f"{list(case.expected_tools) if case.expected_tools is not None else None})"
         )
 
     CASSETTE_DIR.mkdir(exist_ok=True)
     data = {
         "case": case.name,
         "expected_intent": case.expected_intent,
-        "expected_tools": list(case.expected_tools),
+        "expected_tools": (
+            list(case.expected_tools) if case.expected_tools is not None else None
+        ),
         "calls": sink,
     }
-    (CASSETTE_DIR / f"{case.name}.json").write_text(json.dumps(data, indent=2, default=str) + "\n")
+    (CASSETTE_DIR / f"{case.name}.json").write_text(
+        json.dumps(data, indent=2, default=str) + "\n"
+    )
     return True, f"  + {case.name} ({len(sink)} call(s))"
 
 
