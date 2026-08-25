@@ -83,8 +83,18 @@ def test_collection_list_aggregates_document_count() -> None:
 def test_local_fallback_secrets_are_process_stable() -> None:
     from src.core.config import Settings
 
-    first = Settings(ENVIRONMENT="development", SECRET_KEY="", JWT_SECRET_KEY="")
-    second = Settings(ENVIRONMENT="development", SECRET_KEY="", JWT_SECRET_KEY="")
+    first = Settings(
+        ENVIRONMENT="development",
+        DATABASE_URL="postgresql+asyncpg://localhost/test",
+        SECRET_KEY="",
+        JWT_SECRET_KEY="",
+    )
+    second = Settings(
+        ENVIRONMENT="development",
+        DATABASE_URL="postgresql+asyncpg://localhost/test",
+        SECRET_KEY="",
+        JWT_SECRET_KEY="",
+    )
     assert first.SECRET_KEY == second.SECRET_KEY
     assert first.JWT_SECRET_KEY == second.JWT_SECRET_KEY
     assert first.SECRET_KEY != first.JWT_SECRET_KEY
