@@ -702,7 +702,6 @@ async def test_stream_confirmation_binds_buffer_to_durable_run_id(
 
     if not start_stream.await_count:
         raise AssertionError(
-            "start_stream not awaited; frames="
-            + repr([f[:200] for f in frames])
+            "start_stream not awaited; frames=" + repr([f[:200] for f in frames])
         )
     start_stream.assert_awaited_once_with(str(THREAD_ID), run_id=RUN_ID)
