@@ -63,6 +63,11 @@ def test_writing_tool_surface_unchanged_for_core_tools() -> None:
     assert expected_core.issubset(set(WRITING_TOOL_NAMES_LIST))
 
 
+def test_current_draft_lookup_is_read_only_and_available_to_writing() -> None:
+    assert "get_current_draft" in WRITING_TOOL_NAMES_LIST
+    assert "get_current_draft" not in WRITING_DESTRUCTIVE_TOOLS
+
+
 def test_project_crud_reachable_from_writing() -> None:
     """capability-14: writing must be able to complete the full flow."""
     from src.services.agent.subgraphs.writing_agent import (

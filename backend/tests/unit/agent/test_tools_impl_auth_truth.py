@@ -337,3 +337,40 @@ class TestListProjectDocumentsStatusMapping:
             "must mirror search_documents' ApiDocumentStatus.from_db mapping, "
             f"not the raw db string: {result['documents'][0]['status']!r}"
         )
+
+
+class TestGetCurrentDraftTruth:
+    async def test_returns_persisted_current_draft(self) -> None:
+        project = SimpleNamespace(id=uuid4(), name="Draft project")
+        current_user = cast(User, SimpleNamespace(id=uuid4(), organization_id=uuid4()))
+        draft = SimpleNamespace(
+            id=uuid4(),
+            version=2,
+            title="Literature Review",
+            word_count=1200,
+            citation_count=6,
+            created_at=None,
+            content="# Draft\n\nGrounded text.",
+        )
+
+        with (
+            patch.object(
+                tools_impl,
+                "_verify_project_ownership",
+                AsyncMock(return_value=project),
+            ),
+            patch(
+                "src.services.research.draft_generation_service."
+                "DraftGenerationService.get_draft",
+                AsyncMock(return_value=draft),
+            ),
+        ):
+            result = await tools_impl._tool_get_current_draft(
+                {"project_id": str(project.id), "include_content": True},
+                AsyncMock(),
+                current_user,
+            )
+
+        assert result["status"] == "draft_found"
+        assert result["draft"]["version"] == 2
+        assert result["draft"]["content"] == draft.content

@@ -770,6 +770,8 @@ async def _dispatch_tool(
         return await _tool_list_projects(args, db, current_user)
     if tool_name == "list_project_documents":
         return await _tool_list_project_documents(args, db, current_user)
+    if tool_name == "get_current_draft":
+        return await _tool_get_current_draft(args, db, current_user)
     if tool_name == "summarize_document":
         return await _tool_summarize_document(args, db, current_user)
     if tool_name == "compare_documents":
@@ -2093,6 +2095,64 @@ async def _tool_list_project_documents(
     except Exception as e:
         logger.error("list_project_documents tool failed", exc_info=e)
         return tool_error_payload("list_project_documents", e)
+
+
+async def _tool_get_current_draft(
+    args: Dict[str, Any],
+    db: Optional[AsyncSession],
+    current_user: Optional[User],
+) -> Dict[str, Any]:
+    """Return durable current-draft state instead of trusting chat history."""
+    if not db or not current_user:
+        return {"error": "Authentication required"}
+
+    project_id = args.get("project_id", "")
+    if not project_id:
+        return {"error": "project_id is required"}
+
+    try:
+        project = await _verify_project_ownership(project_id, db, current_user)
+        if not project:
+            return {"error": "Project not found or access denied"}
+
+        from src.services.research.draft_generation_service import (
+            DraftGenerationService,
+        )
+
+        draft = await DraftGenerationService(db).get_draft(
+            project_id=project.id,
+            current_only=True,
+        )
+        if not draft:
+            return {
+                "status": "not_found",
+                "project_id": str(project.id),
+                "project_name": project.name,
+                "draft": None,
+            }
+
+        draft_payload = {
+            "id": str(draft.id),
+            "version": draft.version,
+            "title": draft.title,
+            "word_count": draft.word_count,
+            "citation_count": draft.citation_count,
+            "created_at": draft.created_at.isoformat() if draft.created_at else None,
+        }
+        if args.get("include_content"):
+            draft_payload["content"] = draft.content
+
+        return {
+            # A project may have v1 persisted while a newer v2 task is still
+            # running. Artifact existence is not task-completion evidence.
+            "status": "draft_found",
+            "project_id": str(project.id),
+            "project_name": project.name,
+            "draft": draft_payload,
+        }
+    except Exception as e:
+        logger.error("get_current_draft tool failed", exc_info=e)
+        return tool_error_payload("get_current_draft", e)
 
 
 async def _tool_list_projects(

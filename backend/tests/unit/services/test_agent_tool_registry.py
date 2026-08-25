@@ -251,6 +251,7 @@ class TestProductionToolRegistryParity:
             },
             "writing": {
                 "create_draft",
+                "get_current_draft",
                 "create_project_note",
                 "export_bibliography",
                 "summarize_document",
@@ -300,6 +301,7 @@ class TestProductionToolRegistryParity:
             },
             "writing": {
                 "create_draft",
+                "get_current_draft",
                 "create_project_note",
                 "export_bibliography",
                 "summarize_document",
@@ -378,6 +380,7 @@ class TestProductionToolRegistryParity:
             # Appended at positions 11 and 12 so the existing order is untouched.
             "search_external_database",
             "list_external_databases",
+            "get_current_draft",
         ]
         assert [
             item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("data")
