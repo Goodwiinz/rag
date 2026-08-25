@@ -975,15 +975,15 @@ async def test_fast_path_binds_buffer_to_durable_run_id(monkeypatch):
             streaming_mod, "accept_submission", new=AsyncMock(return_value=acceptance)
         ),
         patch.object(streaming_mod, "mark_submission_dispatched", new=AsyncMock()),
-        patch.object(streaming_mod, "_finalize_run_id", new=AsyncMock(return_value=None)),
+        patch.object(
+            streaming_mod, "_finalize_run_id", new=AsyncMock(return_value=None)
+        ),
         patch.object(
             streaming_mod,
             "_resolve_thread",
             new=AsyncMock(return_value=(thread, str(thread.conversation_id))),
         ),
-        patch.object(
-            streaming_mod._stream_buffer, "start_stream", new=start_stream
-        ),
+        patch.object(streaming_mod._stream_buffer, "start_stream", new=start_stream),
         patch.object(
             streaming_mod._jobs_mod,
             "_persist_assistant_message_safe",

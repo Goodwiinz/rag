@@ -2861,9 +2861,9 @@ async def stream_confirm_event_generator(
         # reconnecting client can address this buffer via stream_id_for_run.
         await emitter.start(
             request_body.thread_id,
-            run_id=str(active_run.job_id)
-            if getattr(active_run, "job_id", None)
-            else None,
+            run_id=(
+                str(active_run.job_id) if getattr(active_run, "job_id", None) else None
+            ),
         )
 
         yield await emitter.emit(
