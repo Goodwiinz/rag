@@ -19,6 +19,7 @@ function buildCsp(nonce: string): string {
     "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
+    "frame-src 'self' blob:",
     "frame-ancestors 'none'",
     "form-action 'self'",
     // React dev mode needs eval() for debugging features (callstack
