@@ -41,8 +41,17 @@ import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
 
 type StreamCallbacks = {
   onToken: (t: string) => void;
-  onToolStart: (tool: string, args?: Record<string, unknown>) => void;
-  onToolEnd: (tool: string, result: string, isError: boolean) => void;
+  onToolStart: (
+    tool: string,
+    args: Record<string, unknown>,
+    callId?: string
+  ) => void;
+  onToolEnd: (
+    tool: string,
+    result: string,
+    isError: boolean,
+    callId?: string
+  ) => void;
   onDone: (p?: unknown) => void;
 };
 
@@ -111,7 +120,47 @@ describe('useChatStreaming main-stream done tool_executions', () => {
       toolExecutions: [
         { tool: 'search_documents', status: 'done', durationMs: 4321 },
       ],
-      metadata: { toolsUsed: ['Search Documents'] },
+      metadata: { toolsUsed: ['Search documents'] },
     });
+  });
+
+  it('correlates concurrent calls to the same tool when they finish out of order', async () => {
+    let afterFirstEnd: unknown[] = [];
+    streamMessageMock.mockImplementation(
+      (_req: unknown, cb: StreamCallbacks) => {
+        cb.onToolStart('search_documents', { query: 'first' }, 'call-a');
+        cb.onToolStart('search_documents', { query: 'second' }, 'call-b');
+        cb.onToolEnd('search_documents', 'first result', false, 'call-a');
+        afterFirstEnd = [...useChatStore.getState().streamingSteps];
+        cb.onToolEnd('search_documents', 'second result', false, 'call-b');
+        cb.onToken('both searches finished');
+        cb.onDone({});
+        return Promise.resolve();
+      }
+    );
+
+    const params = makeParams();
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+    await act(async () => {
+      await result.current.handleSubmit('compare two searches');
+    });
+
+    expect(afterFirstEnd).toMatchObject([
+      {
+        id: 'call-a',
+        args: { query: 'first' },
+        status: 'done',
+        resultSummary: 'first result',
+      },
+      { id: 'call-b', args: { query: 'second' }, status: 'running' },
+    ]);
+    const arrays = params.setMessages.mock.calls
+      .map((call) => call[0])
+      .filter((value): value is ChatPageMessage[] => Array.isArray(value));
+    const committed = arrays[arrays.length - 1].at(-1);
+    expect(committed?.toolExecutions).toMatchObject([
+      { id: 'call-a', args: { query: 'first' }, result: 'first result' },
+      { id: 'call-b', args: { query: 'second' }, result: 'second result' },
+    ]);
   });
 });

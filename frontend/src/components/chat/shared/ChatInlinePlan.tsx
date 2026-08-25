@@ -25,7 +25,9 @@ function toToolExecutions(steps: ActivityStep[]): ToolExecution[] {
         ? 'failed'
         : s.status === 'done'
           ? 'completed'
-          : 'running',
+          : s.status === 'cancelled'
+            ? 'cancelled'
+            : 'running',
   }));
 }
 

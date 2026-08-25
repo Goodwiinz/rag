@@ -51,6 +51,7 @@ type StreamCallbacks = {
     threadId: string,
     confirmation: Record<string, unknown>
   ) => void;
+  onError: (error: string, category?: string) => void;
   onDone: (p?: unknown) => void;
 };
 
@@ -202,7 +203,7 @@ describe('useChatStreaming HITL confirm tool steps', () => {
         { tool: 'ingest_arxiv_papers', status: 'done', durationMs: 5678 },
       ],
       metadata: {
-        toolsUsed: ['Summarize Document', 'Ingest Arxiv Papers'],
+        toolsUsed: ['Summarize document', 'Ingest arXiv papers'],
         responseTimeMs: expect.any(Number),
       },
     });
@@ -298,6 +299,7 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       await result.current.handleSubmit('ingest then note');
     });
     const userRuntimeId = result.current.pendingConfirmation?.userRuntimeId;
+    const firstApprovalId = result.current.pendingConfirmation?.approvalId;
     expect(userRuntimeId).toBeDefined();
     refreshSpy.mockClear();
     await act(async () => {
@@ -322,10 +324,65 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       confirmation: { tool: 'create_note' },
       steps: [{ tool: 'ingest_arxiv_papers', status: 'done' }],
     });
+    expect(result.current.pendingConfirmation?.approvalId).not.toBe(
+      firstApprovalId
+    );
     // Nothing was committed for the incomplete turn — the transient streaming
     // placeholder and P4 approval-mirror updaters are excluded by the helper.
     const committed = committedAssistantMessages(params.setMessages);
     expect(committed).toEqual([]);
+  });
+
+  it('keeps settled tools and provenance when a confirm stream fails', async () => {
+    streamMessageMock.mockImplementation(
+      (_req: unknown, cb: StreamCallbacks) => {
+        cb.onConfirmation('agent-thread-1', { tool: 'create_project_note' });
+        cb.onDone({});
+        return Promise.resolve();
+      }
+    );
+    streamConfirmMock.mockImplementation(
+      (_req: unknown, cb: StreamCallbacks) => {
+        cb.onToolStart('create_project_note', { title: 'Audit' });
+        cb.onToolEnd('create_project_note', 'saved', false);
+        cb.onPlan(
+          [
+            {
+              step: 1,
+              description: 'Save the audit note',
+              tool: 'create_project_note',
+            },
+          ],
+          'Save the verified findings.'
+        );
+        cb.onRagContext([{ document_id: 'doc-after-confirm', content: 'ctx' }]);
+        cb.onError('upstream failed', 'upstream_timeout');
+        return Promise.resolve();
+      }
+    );
+
+    const params = makeParams();
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    await act(async () => {
+      await result.current.handleSubmit('save the findings');
+    });
+    await act(async () => {
+      await result.current.handleConfirmation(true);
+    });
+
+    expect(result.current.pendingConfirmation).toMatchObject({
+      steps: [
+        {
+          tool: 'create_project_note',
+          status: 'done',
+          resultSummary: 'saved',
+        },
+      ],
+      plan: [{ description: 'Save the audit note' }],
+      planReasoning: 'Save the verified findings.',
+      citations: [{ document_id: 'doc-after-confirm' }],
+    });
   });
 
   it('commits the partial answer tagged stopped when the user aborts the confirm stream', async () => {

@@ -12,6 +12,9 @@ describe('mapDbToolExecutions result summary', () => {
       } as never,
     ]);
     expect(steps?.[0].resultSummary).toBe('Found 3 relevant documents');
+    expect(steps?.[0].result).toEqual({
+      message: 'Found 3 relevant documents',
+    });
   });
 
   it('still handles a string result (legacy rows / error field)', () => {

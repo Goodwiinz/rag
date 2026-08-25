@@ -581,6 +581,7 @@ describe('group 4b — HITL confirm thread-scope (confirmationBelongsToThread)',
   const pending = (workspaceThreadId: string): PendingConfirmation => ({
     threadId: 'agent-thread-1',
     workspaceThreadId,
+    approvalId: 'approval-1',
     confirmation: {},
   });
 

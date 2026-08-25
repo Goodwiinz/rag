@@ -106,7 +106,12 @@ describe('useChatStreaming in-band HITL approval', () => {
     // that HitlApprovalToolUI renders (its respondToApproval routes through the
     // runtime adapter's onRespondToToolApproval → onApproval=handleConfirmation).
     const approvalMsg = current.find((m) => m.pendingApproval);
-    expect(approvalMsg?.pendingApproval?.toolName).toBe('ingest_arxiv_papers');
+    expect(approvalMsg?.pendingApproval?.tools).toEqual([
+      {
+        name: 'ingest_arxiv_papers',
+        args: { paper_ids: ['2605.1'] },
+      },
+    ]);
 
     // handleConfirmation is exactly the onApproval target the adapter invokes;
     // approving must drive the hardened confirm flow (streamConfirm).
@@ -259,6 +264,7 @@ describe('a failed Approve keeps the gate', () => {
       await result.current.handleSubmit('start a project');
     });
     expect(result.current.pendingConfirmation).not.toBeNull();
+    const firstApprovalId = result.current.pendingConfirmation?.approvalId;
 
     await act(async () => {
       await result.current.handleConfirmation(true);
@@ -269,5 +275,8 @@ describe('a failed Approve keeps the gate', () => {
       'the graph is still interrupted — dropping the gate strands it with no ' +
         'way to answer, and retyping discards the interrupt server-side'
     ).not.toBeNull();
+    expect(result.current.pendingConfirmation?.approvalId).not.toBe(
+      firstApprovalId
+    );
   });
 });

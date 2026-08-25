@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toolLabel } from '../toolLabels';
+import { toolLabel, toolStatusLabel } from '../toolLabels';
 
 describe('toolLabel', () => {
   it.each([
@@ -14,6 +14,10 @@ describe('toolLabel', () => {
     ['project_create', 'Create project'],
     ['compare_documents', 'Compare documents'],
     ['reflect', 'Review progress'],
+    ['search_arxiv', 'Search arXiv'],
+    ['ingest_arxiv_papers', 'Ingest arXiv papers'],
+    ['do_kb_retrieve', 'Search knowledge base'],
+    ['get_current_draft', 'Load current draft'],
   ])('maps %s → %s', (tool, expected) => {
     expect(toolLabel(tool)).toBe(expected);
   });
@@ -24,5 +28,32 @@ describe('toolLabel', () => {
 
   it('leaves single-word tools as Title Case', () => {
     expect(toolLabel('ponder')).toBe('Ponder');
+  });
+
+  it('uses curated copy for generic generated server labels', () => {
+    expect(toolLabel('do_kb_retrieve', 'Do Kb Retrieve')).toBe(
+      'Search knowledge base'
+    );
+    expect(toolLabel('custom_tool', 'Run clinical lookup')).toBe(
+      'Run clinical lookup'
+    );
+    expect(toolLabel('custom_tool', '   ')).toBe('Custom Tool');
+  });
+
+  it('gives current tools truthful fallback status copy', () => {
+    expect(toolStatusLabel('search_arxiv', 'active')).toBe('Searching arXiv…');
+    expect(toolStatusLabel('search_arxiv', 'done')).toBe('Searched arXiv');
+    expect(toolStatusLabel('search_arxiv', 'error')).toBe(
+      'Search arXiv failed'
+    );
+    expect(toolStatusLabel('arxiv_search', 'error')).toBe(
+      'Search arXiv failed'
+    );
+    expect(toolStatusLabel('search_arxiv', 'cancelled')).toBe(
+      'Cancelled Search arXiv'
+    );
+    expect(toolStatusLabel('search_arxiv', 'incomplete')).toBe(
+      'Search arXiv status unavailable'
+    );
   });
 });

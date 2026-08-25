@@ -5,6 +5,7 @@ import type { ToolCallMessagePartStatus } from '@assistant-ui/react';
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback';
 import type { ActivityStep } from '@/components/chat/shared/cloudMessageView';
 import { toToolCallParts } from './convertMessage';
+import { SearchDocumentsToolRenderer } from './toolUIs';
 
 interface AuiToolPartsProps {
   messageId: string;
@@ -16,12 +17,21 @@ interface AuiToolPartsProps {
  * A 'running' step on a message that is no longer streaming never settled —
  * the turn was stopped or the stream dropped — so it reads as cancelled.
  */
-function toPartStatus(
-  status: ActivityStep['status'],
+export function toPartStatus(
+  step: ActivityStep,
   isStreaming: boolean
 ): ToolCallMessagePartStatus {
-  if (status === 'error') return { type: 'incomplete', reason: 'error' };
-  if (status === 'running') {
+  if (step.status === 'error') {
+    return {
+      type: 'incomplete',
+      reason: 'error',
+      ...(step.resultSummary ? { error: step.resultSummary } : {}),
+    };
+  }
+  if (step.status === 'cancelled') {
+    return { type: 'incomplete', reason: 'cancelled' };
+  }
+  if (step.status === 'running') {
     return isStreaming
       ? { type: 'running' }
       : { type: 'incomplete', reason: 'cancelled' };
@@ -47,19 +57,32 @@ export const AuiToolParts = memo(function AuiToolParts({
   const parts = toToolCallParts(messageId, steps);
   return (
     <div data-slot="aui-tool-parts" className="flex flex-col gap-1 mb-2">
-      {parts.map((part, i) => (
-        <ToolFallback
-          key={part.toolCallId}
-          type="tool-call"
-          toolCallId={part.toolCallId}
-          toolName={part.toolName}
-          args={part.args}
-          argsText={part.argsText}
-          result={part.result}
-          status={toPartStatus(steps[i].status, isStreaming)}
-          {...noopHandlers}
-        />
-      ))}
+      {parts.map((part, i) => {
+        const status = toPartStatus(steps[i], isStreaming);
+        const sharedProps = {
+          type: 'tool-call' as const,
+          toolCallId: part.toolCallId,
+          toolName: part.toolName,
+          args: part.args,
+          argsText: part.argsText,
+          status,
+          ...noopHandlers,
+        };
+        return part.toolName === 'search_documents' &&
+          status.type !== 'incomplete' ? (
+          <SearchDocumentsToolRenderer
+            key={part.toolCallId}
+            {...sharedProps}
+            result={steps[i].result ?? part.result}
+          />
+        ) : (
+          <ToolFallback
+            key={part.toolCallId}
+            {...sharedProps}
+            result={steps[i].resultSummary ?? part.result}
+          />
+        );
+      })}
     </div>
   );
 });

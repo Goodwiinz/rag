@@ -2,6 +2,7 @@
 
 import { NousAgentStatusCard, type AgentStep } from '@/nous';
 import { useAgentActivityStore, type Step } from '@/stores/agentActivityStore';
+import { toolStatusLabel } from './toolLabels';
 import { CollapsibleCard } from './CollapsibleCard';
 
 interface AgentActivityPanelProps {
@@ -10,13 +11,8 @@ interface AgentActivityPanelProps {
 
 function toAgentStep(step: Step): AgentStep {
   return {
-    label: step.label,
-    status:
-      step.status === 'done'
-        ? 'done'
-        : step.status === 'error'
-          ? 'done'
-          : 'active',
+    label: toolStatusLabel(step.tool, step.status),
+    status: step.status,
   };
 }
 
@@ -33,6 +29,7 @@ export function AgentActivityPanel({ threadId }: AgentActivityPanelProps) {
         name={run.name}
         task={run.task}
         steps={run.steps.map(toAgentStep)}
+        active={run.state === 'running'}
       />
     </CollapsibleCard>
   );

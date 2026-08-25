@@ -1,7 +1,8 @@
 // nous-agent-status-card.tsx — Shows an agent mid-task with step progress.
 import * as React from 'react';
 
-export type AgentStepStatus = 'done' | 'active' | 'pending';
+export type AgentStepStatus =
+  'done' | 'active' | 'pending' | 'error' | 'cancelled' | 'incomplete';
 
 export interface AgentStep {
   label: string;
@@ -12,6 +13,7 @@ export interface NousAgentStatusCardProps {
   name: string;
   task: string;
   steps: AgentStep[];
+  active?: boolean;
 }
 
 function dotStyle(status: AgentStepStatus): React.CSSProperties {
@@ -20,6 +22,10 @@ function dotStyle(status: AgentStepStatus): React.CSSProperties {
       return { background: 'oklch(60% 0.14 150)' };
     case 'active':
       return { background: 'var(--nous-sol)' };
+    case 'error':
+      return { background: 'var(--nous-mars)' };
+    case 'cancelled':
+    case 'incomplete':
     case 'pending':
       return { background: 'var(--nous-border-2)' };
   }
@@ -29,6 +35,7 @@ export function NousAgentStatusCard({
   name,
   task,
   steps,
+  active = true,
 }: NousAgentStatusCardProps) {
   return (
     <div
@@ -45,7 +52,7 @@ export function NousAgentStatusCard({
           aria-hidden
         >
           <span
-            className="nous-pulse h-2 w-2 rounded-full"
+            className={`${active ? 'nous-pulse ' : ''}h-2 w-2 rounded-full`}
             style={{ background: 'var(--nous-sol)' }}
           />
         </div>
@@ -77,6 +84,7 @@ export function NousAgentStatusCard({
         {steps.map((step, i) => (
           <li
             key={`${step.label}-${i}`}
+            data-status={step.status}
             className="flex items-center gap-2 text-sm"
             style={{
               fontFamily: 'var(--nous-font-body)',
@@ -92,7 +100,7 @@ export function NousAgentStatusCard({
             />
             <span
               style={
-                step.status === 'done'
+                step.status === 'done' || step.status === 'cancelled'
                   ? {
                       textDecoration: 'line-through',
                       color: 'var(--nous-fg-3)',

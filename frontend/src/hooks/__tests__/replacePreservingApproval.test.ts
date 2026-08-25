@@ -27,7 +27,12 @@ const msg = (id: string, extra: Partial<ChatPageMessage> = {}): ChatPageMessage 
   }) as ChatPageMessage;
 
 const approval = (id = 'approval:w1:t1'): ChatPageMessage =>
-  msg(id, { pendingApproval: { toolName: 'create_project', args: {} } });
+  msg(id, {
+    pendingApproval: {
+      id: 'gate-1',
+      tools: [{ name: 'create_project', args: {} }],
+    },
+  });
 
 describe('replacePreservingApproval', () => {
   it('carries a pending approval through a whole-array replace', () => {

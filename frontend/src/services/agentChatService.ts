@@ -87,8 +87,17 @@ export interface AgentStreamCallbacks {
   onToken?: (content: string) => void;
   /** Provider-authored reasoning summary only; raw reasoning is never sent. */
   onReasoningDelta?: (content: string) => void;
-  onToolStart?: (tool: string, args: Record<string, unknown>) => void;
-  onToolEnd?: (tool: string, result: string, isError: boolean) => void;
+  onToolStart?: (
+    tool: string,
+    args: Record<string, unknown>,
+    callId?: string
+  ) => void;
+  onToolEnd?: (
+    tool: string,
+    result: string,
+    isError: boolean,
+    callId?: string
+  ) => void;
   onRagContext?: (contexts: Array<Record<string, unknown>>) => void;
   onPlan?: (steps: Array<Record<string, unknown>>, reasoning: string) => void;
   onReflection?: (
@@ -274,10 +283,27 @@ async function consumeSse(
           callbacks.onReasoningDelta?.(data.content);
           break;
         case 'tool_start':
-          callbacks.onToolStart?.(data.tool, data.args);
+          if (typeof data.call_id === 'string' && data.call_id) {
+            callbacks.onToolStart?.(data.tool, data.args, data.call_id);
+          } else {
+            callbacks.onToolStart?.(data.tool, data.args);
+          }
           break;
         case 'tool_end':
-          callbacks.onToolEnd?.(data.tool, data.result, Boolean(data.is_error));
+          if (typeof data.call_id === 'string' && data.call_id) {
+            callbacks.onToolEnd?.(
+              data.tool,
+              data.result,
+              Boolean(data.is_error),
+              data.call_id
+            );
+          } else {
+            callbacks.onToolEnd?.(
+              data.tool,
+              data.result,
+              Boolean(data.is_error)
+            );
+          }
           break;
         case 'rag_context':
           callbacks.onRagContext?.(data.contexts);

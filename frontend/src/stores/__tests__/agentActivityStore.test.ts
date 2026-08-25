@@ -216,6 +216,20 @@ describe('agentActivityStore', () => {
     expect(getRun('t1').steps).toHaveLength(1);
   });
 
+  it('tracks concurrent calls to the same tool by invocation id', () => {
+    const { startRun, pushToolStart, pushToolEnd } =
+      useAgentActivityStore.getState();
+    startRun('t1', 'NOUS Agent', 'task');
+    pushToolStart('t1', 'search_documents', 'call-a');
+    pushToolStart('t1', 'search_documents', 'call-b');
+    pushToolEnd('t1', 'search_documents', true, 'call-a');
+
+    expect(getRun('t1').steps).toMatchObject([
+      { callId: 'call-a', status: 'done' },
+      { callId: 'call-b', status: 'active' },
+    ]);
+  });
+
   it('pushToolEnd flips matching active step to done', () => {
     const { startRun, pushToolStart, pushToolEnd } =
       useAgentActivityStore.getState();
@@ -254,6 +268,22 @@ describe('agentActivityStore', () => {
     finishRun('t1', 'error');
     expect(getRun('t1').state).toBe('error');
   });
+
+  it.each([
+    ['stopped', 'cancelled'],
+    ['error', 'error'],
+    ['done', 'incomplete'],
+  ] as const)(
+    'finishRun(%s) settles an unclosed tool as %s',
+    (state, status) => {
+      const { startRun, pushToolStart, finishRun } =
+        useAgentActivityStore.getState();
+      startRun('t1', 'NOUS Agent', 'task');
+      pushToolStart('t1', 'search_documents');
+      finishRun('t1', state);
+      expect(getRun('t1').steps[0].status).toBe(status);
+    }
+  );
 
   it('runs are isolated per thread', () => {
     const { startRun, pushToolStart } = useAgentActivityStore.getState();

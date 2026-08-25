@@ -31,8 +31,8 @@ describe('AgentActivityPanel', () => {
 
     expect(screen.getByText('Literature synth')).toBeInTheDocument();
     expect(screen.getByText('Reviewing Mamba-2')).toBeInTheDocument();
-    expect(screen.getByText('Search arXiv')).toBeInTheDocument();
-    expect(screen.getByText('Draft synthesis')).toBeInTheDocument();
+    expect(screen.getByText('Searched arXiv')).toBeInTheDocument();
+    expect(screen.getByText('Drafting synthesis…')).toBeInTheDocument();
   });
 
   it('renders frozen list when run has finished', () => {
@@ -44,10 +44,10 @@ describe('AgentActivityPanel', () => {
 
     render(<AgentActivityPanel threadId="t1" />);
 
-    expect(screen.getByText('Search arXiv')).toBeInTheDocument();
+    expect(screen.getByText('Searched arXiv')).toBeInTheDocument();
   });
 
-  it('renders errored steps (maps to done visually in v1)', () => {
+  it('renders errored steps as failures, not completed work', () => {
     const store = useAgentActivityStore.getState();
     store.startRun('t1', 'NOUS Agent', 'task');
     store.pushToolStart('t1', 'arxiv_search');
@@ -55,6 +55,10 @@ describe('AgentActivityPanel', () => {
 
     render(<AgentActivityPanel threadId="t1" />);
 
-    expect(screen.getByText('Search arXiv')).toBeInTheDocument();
+    const step = screen.getByText('Search arXiv failed').closest('li');
+    expect(step).toHaveAttribute('data-status', 'error');
+    expect(screen.getByText('Search arXiv failed')).not.toHaveStyle({
+      textDecoration: 'line-through',
+    });
   });
 });

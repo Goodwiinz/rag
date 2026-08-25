@@ -8,7 +8,6 @@ import {
   type RenderResult,
 } from '@testing-library/react';
 
-import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { makeChatPageMessage } from '@/test/chatMessageFactory';
 import { ChatRuntimeProvider } from '../ChatRuntimeProvider';
 import {
@@ -112,7 +111,7 @@ describe('AuiMessage', () => {
         toolExecutions: [
           {
             tool: 'search_arxiv',
-            label: 'Searching arXiv',
+            label: 'Search arXiv',
             status: 'done',
             argsSummary: 'query: rag',
             resultSummary: '2 papers',
@@ -128,7 +127,7 @@ describe('AuiMessage', () => {
     // assertion to the resting one.
     expect(
       document.querySelector('[data-slot="tool-fallback-trigger-label"]')
-    ).toHaveTextContent('search_arxiv');
+    ).toHaveTextContent('Search arXiv');
   });
 
   it('adds an autohiding action bar inside MessagePrimitive.Root for hover-driven controls', async () => {
@@ -238,6 +237,66 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
     expect(
       document.querySelectorAll('[data-slot="message-timing"]')
     ).toHaveLength(1);
+  });
+
+  it('keeps a committed failed tool failed even when it has a result payload', () => {
+    renderByIndex([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'I continued with the available evidence.',
+        timestamp: 2,
+        toolExecutions: [
+          {
+            tool: 'search_arxiv',
+            label: 'Search arXiv',
+            status: 'error',
+            resultSummary: 'arXiv timed out',
+          },
+        ],
+      },
+    ]);
+
+    expect(
+      document.querySelector('[data-slot="tool-fallback-trigger-label"]')
+    ).toHaveTextContent('Failed Search arXiv');
+    expect(
+      document.querySelector('[data-slot="tool-fallback-trigger-check"]')
+    ).toBeNull();
+  });
+
+  it('preserves a registered tool UI for a successful committed execution', async () => {
+    renderByIndex([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'I found two documents.',
+        timestamp: 2,
+        toolExecutions: [
+          {
+            id: 'call-1',
+            tool: 'search_documents',
+            label: 'Search documents',
+            status: 'done',
+            args: { query: 'retrieval' },
+            argsSummary: 'query: retrieval',
+            result: { total: 2, documents: [{ id: 'd1' }, { id: 'd2' }] },
+            resultSummary: '2 documents',
+          },
+        ],
+      },
+    ]);
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('[data-slot="search-documents-tool"]')
+      ).toBeTruthy();
+    });
+    expect(screen.getByText('retrieval')).toBeInTheDocument();
+    expect(screen.getByText('2 results')).toBeInTheDocument();
+    expect(
+      document.querySelector('[data-slot="tool-fallback-root"]')
+    ).toBeNull();
   });
 
   it('renders citation footer chips and forwards clicks', () => {

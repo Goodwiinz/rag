@@ -59,8 +59,16 @@ const MUTANTS = [
   {
     name: 'submit single-flight (useChatStreaming)',
     file: 'src/hooks/chat/useChatStreaming.ts',
-    find: 'if (submitLockRef.current) return;',
-    replace: 'if (false && submitLockRef.current) return;',
+    find:
+      'if (submitLockRef.current) {\n' +
+      "        console.warn('[Chat] Send ignored: submit already in flight');\n" +
+      '        return;\n' +
+      '      }',
+    replace:
+      'if (false && submitLockRef.current) {\n' +
+      "        console.warn('[Chat] Send ignored: submit already in flight');\n" +
+      '        return;\n' +
+      '      }',
     // group 5 asserts a synchronous double-submit fires streamMessage once;
     // neutering the lock fires it twice → these die.
     coveringTest: { file: INTERLEAVINGS, nameFilter: 'group 5' },

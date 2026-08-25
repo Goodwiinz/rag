@@ -88,17 +88,37 @@ export function parseCreatedNoteResult(
  * page-level banner's extractToolCall (P4). */
 function extractConfirmationPreview(
   confirmation: Record<string, unknown> | undefined
-): { name: string; args: Record<string, unknown> } {
-  if (!confirmation) return { name: 'this action', args: {} };
-  const flatName = confirmation.tool_name as string | undefined;
-  const flatArgs = (confirmation.tool_args ?? confirmation.args) as
-    Record<string, unknown> | undefined;
-  if (flatName) return { name: flatName, args: flatArgs ?? {} };
-  const tools = confirmation.tools as
-    Array<{ name?: string; args?: Record<string, unknown> }> | undefined;
-  const first = tools?.[0];
-  if (first?.name) return { name: first.name, args: first.args ?? {} };
-  return { name: 'this action', args: {} };
+): { tools: Array<{ name: string; args: Record<string, unknown> }> } {
+  if (!confirmation) return { tools: [{ name: 'this action', args: {} }] };
+  const rawTools = Array.isArray(confirmation.tools) ? confirmation.tools : [];
+  const tools = rawTools.flatMap((raw) => {
+    if (!raw || typeof raw !== 'object') return [];
+    const item = raw as Record<string, unknown>;
+    if (typeof item.name !== 'string' || !item.name.trim()) return [];
+    const args =
+      item.args && typeof item.args === 'object' && !Array.isArray(item.args)
+        ? (item.args as Record<string, unknown>)
+        : {};
+    return [{ name: item.name, args }];
+  });
+  if (tools.length > 0) return { tools };
+
+  const flatName = confirmation.tool_name;
+  const rawArgs = confirmation.tool_args ?? confirmation.args;
+  if (typeof flatName === 'string' && flatName.trim()) {
+    return {
+      tools: [
+        {
+          name: flatName,
+          args:
+            rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)
+              ? (rawArgs as Record<string, unknown>)
+              : {},
+        },
+      ],
+    };
+  }
+  return { tools: [{ name: 'this action', args: {} }] };
 }
 
 export function toCitationCreate(ctx: Record<string, unknown>): CitationCreate {
@@ -161,6 +181,8 @@ const PROJECT_MUTATING_TOOLS = new Set([
 export interface PendingConfirmation {
   threadId: string;
   workspaceThreadId: string;
+  /** Changes whenever a gate is re-armed so the approval UI resets safely. */
+  approvalId: string;
   confirmation: Record<string, unknown>;
   /** Settled tool steps recorded before the interrupt, carried into the
    * resumed turn so the confirmed answer keeps its full provenance. */
@@ -221,6 +243,29 @@ function toActivityPlanItems(
       return { text: '' };
     })
     .filter((item) => item.text.length > 0);
+}
+
+function toolInvocationKey(tool: string, callId?: string): string {
+  return callId || tool;
+}
+
+function findRunningToolStepIndex(
+  steps: ActivityStep[],
+  tool: string,
+  callId?: string
+): number | undefined {
+  if (callId) {
+    const exact = steps.findIndex(
+      (step) => step.id === callId && step.status === 'running'
+    );
+    return exact >= 0 ? exact : undefined;
+  }
+  for (let index = steps.length - 1; index >= 0; index -= 1) {
+    if (steps[index].tool === tool && steps[index].status === 'running') {
+      return index;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -814,19 +859,21 @@ export function useChatStreaming(
                 });
               }
             },
-            onToolStart: (tool, args) => {
+            onToolStart: (tool, args, callId) => {
               console.log('[Agent] Tool start:', tool, args);
               if (currentThreadId) {
                 useAgentActivityStore
                   .getState()
-                  .pushToolStart(currentThreadId, tool);
+                  .pushToolStart(currentThreadId, tool, callId);
               }
               // Per-turn tracking for inline activity strip
-              toolStartTimes.set(tool, [
-                ...(toolStartTimes.get(tool) ?? []),
+              const invocationKey = toolInvocationKey(tool, callId);
+              toolStartTimes.set(invocationKey, [
+                ...(toolStartTimes.get(invocationKey) ?? []),
                 Date.now(),
               ]);
               turnSteps.push({
+                ...(callId ? { id: callId } : {}),
                 tool,
                 label: toolLabel(tool),
                 status: 'running',
@@ -838,12 +885,12 @@ export function useChatStreaming(
                 streamingStatusDetail: toolStatusLabel(tool, 'active'),
               });
             },
-            onToolEnd: (tool, result, isError) => {
+            onToolEnd: (tool, result, isError, callId) => {
               console.log('[Agent] Tool end:', tool, result, { isError });
               if (currentThreadId) {
                 useAgentActivityStore
                   .getState()
-                  .pushToolEnd(currentThreadId, tool, !isError);
+                  .pushToolEnd(currentThreadId, tool, !isError, callId);
               }
               invalidateProjectDataForTool(tool, isError);
               maybeAutoFocusCreatedNote(
@@ -854,18 +901,17 @@ export function useChatStreaming(
               );
               // Update last matching running step for this tool
               // Newest-first, matching the newest running step settled below.
-              const startTime = toolStartTimes.get(tool)?.pop();
+              const invocationKey = toolInvocationKey(tool, callId);
+              const startTime = toolStartTimes.get(invocationKey)?.pop();
               const durationMs = startTime ? Date.now() - startTime : undefined;
-              const idx = [...turnSteps]
-                .map((s, i) => ({ s, i }))
-                .reverse()
-                .find(({ s }) => s.tool === tool && s.status === 'running')?.i;
+              const idx = findRunningToolStepIndex(turnSteps, tool, callId);
               if (idx !== undefined) {
                 turnSteps[idx] = {
                   ...turnSteps[idx],
                   status: isError ? 'error' : 'done',
                   durationMs,
                   resultSummary: summarizeToolResult(result),
+                  result,
                 };
               }
               useChatStore.setState({
@@ -922,6 +968,7 @@ export function useChatStreaming(
               setPendingConfirmation({
                 threadId,
                 workspaceThreadId: currentThreadId || '',
+                approvalId: crypto.randomUUID(),
                 confirmation,
                 // Only settled steps: the interrupted tool re-emits its own
                 // tool_start on resume, so a carried 'running' step would
@@ -1760,6 +1807,7 @@ export function useChatStreaming(
               // Must be the DISPLAYED thread id, or confirmationBelongsToThread
               // rejects the card and Approve refuses to act.
               workspaceThreadId: threadId,
+              approvalId: crypto.randomUUID(),
               confirmation,
               // No userRuntimeId/assistantRuntimeId here (unlike the live path):
               // the SSE confirmation frame carries only {thread_id, confirmation}
@@ -2062,15 +2110,21 @@ export function useChatStreaming(
                   });
                 }
               },
-              onToolStart: (tool, args) => {
+              onToolStart: (tool, args, callId) => {
                 useAgentActivityStore
                   .getState()
-                  .pushToolStart(pendingConfirmation.workspaceThreadId, tool);
-                confirmToolStartTimes.set(tool, [
-                  ...(confirmToolStartTimes.get(tool) ?? []),
+                  .pushToolStart(
+                    pendingConfirmation.workspaceThreadId,
+                    tool,
+                    callId
+                  );
+                const invocationKey = toolInvocationKey(tool, callId);
+                confirmToolStartTimes.set(invocationKey, [
+                  ...(confirmToolStartTimes.get(invocationKey) ?? []),
                   Date.now(),
                 ]);
                 confirmSteps.push({
+                  ...(callId ? { id: callId } : {}),
                   tool,
                   label: toolLabel(tool),
                   status: 'running',
@@ -2082,13 +2136,14 @@ export function useChatStreaming(
                   streamingStatusDetail: toolStatusLabel(tool, 'active'),
                 });
               },
-              onToolEnd: (tool, result, isError) => {
+              onToolEnd: (tool, result, isError, callId) => {
                 useAgentActivityStore
                   .getState()
                   .pushToolEnd(
                     pendingConfirmation.workspaceThreadId,
                     tool,
-                    !isError
+                    !isError,
+                    callId
                   );
                 // HITL-confirmed tools are exactly the mutating ones (ingest,
                 // create_note, create_draft) — refresh the rail here too.
@@ -2102,22 +2157,25 @@ export function useChatStreaming(
                   isError,
                   pendingConfirmation.workspaceThreadId
                 );
-                const startTime = confirmToolStartTimes.get(tool)?.pop();
+                const invocationKey = toolInvocationKey(tool, callId);
+                const startTime = confirmToolStartTimes
+                  .get(invocationKey)
+                  ?.pop();
                 const durationMs = startTime
                   ? Date.now() - startTime
                   : undefined;
-                const idx = [...confirmSteps]
-                  .map((s, i) => ({ s, i }))
-                  .reverse()
-                  .find(
-                    ({ s }) => s.tool === tool && s.status === 'running'
-                  )?.i;
+                const idx = findRunningToolStepIndex(
+                  confirmSteps,
+                  tool,
+                  callId
+                );
                 if (idx !== undefined) {
                   confirmSteps[idx] = {
                     ...confirmSteps[idx],
                     status: isError ? 'error' : 'done',
                     durationMs,
                     resultSummary: summarizeToolResult(result),
+                    result,
                   };
                 }
                 useChatStore.setState({
@@ -2156,6 +2214,7 @@ export function useChatStreaming(
                 nestedConfirmation = {
                   threadId,
                   workspaceThreadId: pendingConfirmation.workspaceThreadId,
+                  approvalId: crypto.randomUUID(),
                   confirmation,
                   steps: confirmSteps.filter((s) => s.status !== 'running'),
                   plan: [...confirmPlan],
@@ -2323,7 +2382,20 @@ export function useChatStreaming(
           // silently dropped"). Retaining it lets the user press Approve again,
           // and handleStop is the escape hatch if they'd rather abandon it.
           setPendingConfirmation(
-            nestedConfirmation ?? (confirmFailed ? pendingConfirmation : null),
+            nestedConfirmation ??
+              (confirmFailed
+                ? {
+                    ...pendingConfirmation,
+                    approvalId: crypto.randomUUID(),
+                    steps: confirmSteps.filter(
+                      (step) => step.status !== 'running'
+                    ),
+                    plan: [...confirmPlan],
+                    planReasoning: confirmPlanReasoning || undefined,
+                    citations: [...carriedCitations, ...resumeCitations],
+                    progress: [...confirmProgress],
+                  }
+                : null),
             pendingConfirmation.workspaceThreadId
           );
           setIsConfirming(false);
@@ -2405,7 +2477,7 @@ export function useChatStreaming(
           role: 'assistant' as const,
           content: '',
           timestamp: Date.now(),
-          pendingApproval: { toolName: preview.name, args: preview.args },
+          pendingApproval: { id: active.approvalId, tools: preview.tools },
         },
       ];
     });

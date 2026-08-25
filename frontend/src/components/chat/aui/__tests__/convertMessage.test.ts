@@ -106,8 +106,13 @@ describe('convertMessage', () => {
       content: '',
       timestamp: 1,
       pendingApproval: {
-        toolName: 'ingest_arxiv_papers',
-        args: { paper_ids: ['2605.1'] },
+        id: 'approval-1',
+        tools: [
+          {
+            name: 'ingest_arxiv_papers',
+            args: { paper_ids: ['2605.1'] },
+          },
+        ],
       },
     };
     const converted = convertMessage(msg);
@@ -123,8 +128,12 @@ describe('convertMessage', () => {
     };
     expect(approval?.toolName).toBe('__nous_approval__');
     expect(approval?.args).toEqual({
-      toolName: 'ingest_arxiv_papers',
-      toolArgs: { paper_ids: ['2605.1'] },
+      tools: [
+        {
+          name: 'ingest_arxiv_papers',
+          args: { paper_ids: ['2605.1'] },
+        },
+      ],
     });
     // Real approval gate (approved omitted = pending) so respondToApproval is
     // callable and routes to the adapter's onRespondToToolApproval.
@@ -166,5 +175,30 @@ describe('convertMessage', () => {
     ];
 
     expect(toToolCallParts('m1', steps)).toBe(toToolCallParts('m1', steps));
+  });
+
+  it('does not reuse cached tool ids across different messages', () => {
+    const steps: ActivityStep[] = [
+      { tool: 'search_documents', label: 'Searching', status: 'done' },
+    ];
+
+    expect(toToolCallParts('m1', steps)[0].toolCallId).toBe('m1-tool-0');
+    expect(toToolCallParts('m2', steps)[0].toolCallId).toBe('m2-tool-0');
+  });
+
+  it('passes invocation ids and structured results to registered tool UIs', () => {
+    const result = { total: 2, documents: [{ id: 'd1' }, { id: 'd2' }] };
+    const [part] = toToolCallParts('m1', [
+      {
+        id: 'call-7',
+        tool: 'search_documents',
+        label: 'Search documents',
+        status: 'done',
+        result,
+      },
+    ]);
+
+    expect(part.toolCallId).toBe('m1-tool-call-7');
+    expect(part.result).toBe(result);
   });
 });

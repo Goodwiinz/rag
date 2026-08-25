@@ -18,7 +18,7 @@ type ToolCallPart = {
   // JSON-compatible empty shape. `argsText` is the one-line fallback summary.
   args: Record<string, never>;
   argsText: string;
-  result?: string;
+  result?: unknown;
   isError?: true;
   // Real approval gate for the in-band HITL part (P4). `approved`
   // omitted = pending, so the renderer's respondToApproval is callable and
@@ -29,7 +29,7 @@ type ToolCallPart = {
 // Tool parts must be referentially stable across per-token re-conversions of
 // the in-flight message: streamingSteps only changes reference on
 // tool_start/tool_end, so a WeakMap keyed on the steps array is exact.
-const partsCache = new WeakMap<ActivityStep[], ToolCallPart[]>();
+const partsCache = new WeakMap<ActivityStep[], Map<string, ToolCallPart[]>>();
 
 function getAttachmentName(attachment: MessageAttachment): string {
   return (
@@ -84,23 +84,27 @@ export function toToolCallParts(
   messageId: string,
   steps: ActivityStep[]
 ): ToolCallPart[] {
-  const cached = partsCache.get(steps);
+  const cached = partsCache.get(steps)?.get(messageId);
   if (cached) return cached;
   const parts = steps.map((step, i): ToolCallPart => {
     const settled = step.status !== 'running';
     return {
       type: 'tool-call',
-      toolCallId: `${messageId}-tool-${i}`,
+      toolCallId: `${messageId}-tool-${step.id ?? i}`,
       toolName: step.tool,
       args: (step.args ?? {}) as Record<string, never>,
       argsText: step.argsSummary ?? '',
-      ...(settled && step.resultSummary !== undefined
-        ? { result: step.resultSummary }
-        : {}),
+      ...(settled && step.result !== undefined
+        ? { result: step.result }
+        : settled && step.resultSummary !== undefined
+          ? { result: step.resultSummary }
+          : {}),
       ...(step.status === 'error' ? { isError: true as const } : {}),
     };
   });
-  partsCache.set(steps, parts);
+  const byMessage = partsCache.get(steps) ?? new Map<string, ToolCallPart[]>();
+  byMessage.set(messageId, parts);
+  partsCache.set(steps, byMessage);
   return parts;
 }
 
@@ -118,14 +122,13 @@ export function convertMessage(message: ChatPageMessage): ThreadMessageLike {
     ? [
         {
           type: 'tool-call',
-          toolCallId: `${message.runtimeId}-approval`,
+          toolCallId: message.pendingApproval.id,
           toolName: HITL_APPROVAL_TOOL,
           args: {
-            toolName: message.pendingApproval.toolName,
-            toolArgs: message.pendingApproval.args,
+            tools: message.pendingApproval.tools,
           } as unknown as Record<string, never>,
           argsText: '',
-          approval: { id: `${message.runtimeId}-approval` },
+          approval: { id: message.pendingApproval.id },
         },
       ]
     : [];
