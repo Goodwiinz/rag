@@ -627,3 +627,75 @@ async def test_job_confirmation_root_uses_owned_durable_run_metadata(
         "image_tag": "backend-image-456",
     }
     assert graph.invoke_config["run_name"] == "agent:background:resume"
+
+
+@pytest.mark.asyncio
+async def test_stream_confirmation_binds_buffer_to_durable_run_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Audit S2-H1 regression: the confirm/resume emitter must start its
+    replay buffer bound to the durable run so reconnecting clients can
+    address it via stream_id_for_run."""
+    from src.api.agent import streaming as streaming_mod
+
+    graph = _ResumeCapturingGraph()
+    graph.snapshot.tasks = ()
+    db = SimpleNamespace(close=AsyncMock())
+    request = SimpleNamespace(
+        state=SimpleNamespace(request_id=REQUEST_ID),
+        is_disconnected=AsyncMock(return_value=False),
+    )
+    body = SimpleNamespace(thread_id=str(THREAD_ID), confirmed=True, model="")
+    current_user = cast(User, SimpleNamespace(id=USER_ID, organization_id=ORG_ID))
+    durable_run = SimpleNamespace(
+        job_id=RUN_ID,
+        thread_id=str(THREAD_ID),
+        user_message_id=USER_MESSAGE_ID,
+        client_message_id=str(CLIENT_MESSAGE_ID),
+    )
+    start_stream = AsyncMock(return_value="sid-resume")
+
+    with (
+        patch.object(streaming_mod, "AsyncSessionLocal", return_value=db),
+        patch.object(
+            streaming_mod,
+            "get_active_run_for_thread",
+            new=AsyncMock(return_value=durable_run),
+        ),
+        patch.object(
+            streaming_mod,
+            "claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch.object(
+            streaming_mod, "_finalize_run_id", new=AsyncMock(return_value=None)
+        ),
+        patch.object(
+            streaming_mod._jobs_mod,
+            "_persist_assistant_message_safe",
+            new=AsyncMock(return_value=None),
+        ),
+        patch.object(streaming_mod._stream_buffer, "start_stream", new=start_stream),
+        patch(
+            "src.services.agent.job_store.get_redis",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.services.agent.observability.configure_langsmith", return_value=None
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch("src.services.agent.graph.compile_agent_graph", return_value=graph),
+    ):
+        async for _ in streaming_mod.stream_confirm_event_generator(
+            body, request, current_user
+        ):
+            pass
+
+    start_stream.assert_awaited_once_with(str(THREAD_ID), run_id=RUN_ID)

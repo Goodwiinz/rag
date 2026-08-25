@@ -429,7 +429,13 @@ async def _stream_luna_fast_path(
             )
 
     try:
-        await emitter.start(stream_thread_id)
+        # Bind the buffer to the durable run so a client retry with the same
+        # cmid can reattach via stream_id_for_run instead of dying after the
+        # 5s poll (audit S2-H1). The degraded no-acceptance path has no run.
+        await emitter.start(
+            stream_thread_id,
+            run_id=acceptance.run_id if acceptance is not None else None,
+        )
         yield await emitter.emit(
             AgentStreamEvent.STATUS,
             {"phase": "routing", "detail": "Using the direct Luna path"},
@@ -992,7 +998,17 @@ class _SeqEmitter:
             try:
                 await _stream_buffer.append(self.sid, self.seq, frame)
             except Exception:
-                pass  # buffering is best-effort
+                # Best-effort, but never silent (audit S2-M1): a swallowed gap
+                # makes the resumable ledger diverge from what clients saw.
+                logger.warning(
+                    "stream_buffer.append failed",
+                    exc_info=True,
+                    extra={
+                        "stream_id": self.sid,
+                        "seq": self.seq,
+                        "event_type": event_type,
+                    },
+                )
         return frame
 
     async def finish(self) -> None:
@@ -2841,7 +2857,14 @@ async def stream_confirm_event_generator(
         resume_input = Command(resume={"confirmed": request_body.confirmed})
 
         emitter.set_context(route="graph")
-        await emitter.start(request_body.thread_id)
+        # Bind the resumed stream to the durable run (audit S2-H1) so a
+        # reconnecting client can address this buffer via stream_id_for_run.
+        await emitter.start(
+            request_body.thread_id,
+            run_id=str(active_run.job_id)
+            if getattr(active_run, "job_id", None)
+            else None,
+        )
 
         yield await emitter.emit(
             AgentStreamEvent.TRACE,

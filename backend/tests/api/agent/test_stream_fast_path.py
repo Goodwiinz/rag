@@ -919,3 +919,94 @@ async def test_fast_path_cancel_links_partial_and_keeps_prefix(monkeypatch):
     payload = cancelled[0]["payload"]
     assert payload.get("assistant_message_id") == "partial-row-id"
     validate_payload(RunEventType.RUN_CANCELLED.value, payload)
+
+
+@pytest.mark.asyncio
+async def test_fast_path_binds_buffer_to_durable_run_id(monkeypatch):
+    """Audit S2-H1 regression: with a committed acceptance, the fast-path
+    emitter must start its replay buffer bound to the durable run id so an
+    idempotent cmid retry can attach via stream_id_for_run."""
+    from src.api.agent import streaming as streaming_mod
+    from src.api.agent.execute import AgentExecuteRequest, AgentMessage
+    from src.core.config import get_settings
+    from src.services.agent import agent_execution_service as jobs_mod
+    from src.services.agent import llm_factory
+    from src.services.agent.agent_submission_service import AcceptedSubmission
+
+    user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
+    thread = SimpleNamespace(id=uuid4(), conversation_id=uuid4())
+    run_id = str(uuid4())
+
+    body = AgentExecuteRequest(
+        messages=[
+            AgentMessage(
+                role="user",
+                content="Explain why the sky appears blue",
+                client_message_id=uuid4(),
+            )
+        ],
+        page_context={"type": "chat"},
+        use_rag=False,
+        thread_id=str(thread.id),
+    )
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_ENABLED", True)
+    monkeypatch.setattr(settings, "AGENT_FAST_PATH_MAX_INPUT_CHARS", 8_000)
+    monkeypatch.setattr(llm_factory, "build_fast_path_llm", lambda: _FakeLuna())
+    monkeypatch.setenv("AGENT_CANONICAL_PERSISTENCE", "true")
+
+    acceptance = AcceptedSubmission(
+        run_id=run_id,
+        thread_id=str(thread.id),
+        user_message_id=None,
+        outbox_id=None,
+        idempotency_key=None,
+    )
+    fake_graph = _NoGraphExecution()
+    fake_session = SimpleNamespace(close=AsyncMock())
+    start_stream = AsyncMock(return_value="sid-fast")
+
+    with (
+        patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_session),
+        patch.object(streaming_mod, "_accept_eligible", return_value=True),
+        patch.object(
+            streaming_mod, "accept_submission", new=AsyncMock(return_value=acceptance)
+        ),
+        patch.object(streaming_mod, "mark_submission_dispatched", new=AsyncMock()),
+        patch.object(streaming_mod, "_finalize_run_id", new=AsyncMock(return_value=None)),
+        patch.object(
+            streaming_mod,
+            "_resolve_thread",
+            new=AsyncMock(return_value=(thread, str(thread.conversation_id))),
+        ),
+        patch.object(
+            streaming_mod._stream_buffer, "start_stream", new=start_stream
+        ),
+        patch.object(
+            streaming_mod._jobs_mod,
+            "_persist_assistant_message_safe",
+            new=AsyncMock(return_value="assistant-row-id"),
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            new=lambda **_kwargs: fake_graph,
+        ),
+    ):
+        events = [
+            event
+            async for event in streaming_mod.stream_event_generator(body, request, user)
+        ]
+
+    start_stream.assert_awaited_once_with(str(thread.id), run_id=run_id)
+    assert any("event: done" in event for event in events)
+    assert fake_graph.astream_called is False
