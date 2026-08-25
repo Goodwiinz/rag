@@ -4,6 +4,7 @@ absorbing FAILED write racing an AWAITING_CONFIRMATION park."""
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
@@ -52,7 +53,7 @@ async def test_graph_park_failure_keeps_confirmation_terminal_and_never_fails_ru
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     finalize_calls: list[Any] = []
 
-    async def exploding_finalize(*args, **kwargs):
+    async def exploding_finalize(*args: Any, **kwargs: Any) -> None:
         finalize_calls.append(kwargs.get("status"))
         raise RuntimeError("db gone")
 
@@ -70,7 +71,7 @@ async def test_graph_park_failure_keeps_confirmation_terminal_and_never_fails_ru
     settings = get_settings()
     monkeypatch.setattr(settings, "AGENT_FAST_PATH_ENABLED", False)
 
-    async def _no_stream(*_a, **_k):
+    async def _no_stream(*_a: Any, **_k: Any) -> AsyncIterator[dict[str, Any]]:
         return
         yield  # pragma: no cover
 
@@ -152,10 +153,12 @@ async def test_confirm_park_failure_after_nested_confirmation_stays_clean(monkey
     class _Graph:
         snapshot = _snapshot_with_interrupt(_CONFIRMATION)
 
-        async def aget_state(self, _config):
+        async def aget_state(self, _config: Any) -> Any:
             return self.snapshot
 
-        async def astream_events(self, *_a, **_k):
+        async def astream_events(
+            self, *_a: Any, **_k: Any
+        ) -> AsyncIterator[dict[str, Any]]:
             yield {
                 "event": "on_chat_model_stream",
                 "name": "llm_node",
@@ -168,7 +171,7 @@ async def test_confirm_park_failure_after_nested_confirmation_stays_clean(monkey
     graph = _Graph()
     finalize_statuses: list[Any] = []
 
-    async def exploding_finalize_id(*args, **kwargs):
+    async def exploding_finalize_id(*args: Any, **kwargs: Any) -> None:
         finalize_statuses.append(kwargs.get("status"))
         raise RuntimeError("db gone")
 
