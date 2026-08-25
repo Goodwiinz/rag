@@ -693,9 +693,16 @@ async def test_stream_confirmation_binds_buffer_to_durable_run_id(
         ),
         patch("src.services.agent.graph.compile_agent_graph", return_value=graph),
     ):
-        async for _ in streaming_mod.stream_confirm_event_generator(
-            body, request, current_user
-        ):
-            pass
+        frames = [
+            frame
+            async for frame in streaming_mod.stream_confirm_event_generator(
+                body, request, current_user
+            )
+        ]
 
+    if not start_stream.await_count:
+        raise AssertionError(
+            "start_stream not awaited; frames="
+            + repr([f[:200] for f in frames])
+        )
     start_stream.assert_awaited_once_with(str(THREAD_ID), run_id=RUN_ID)
