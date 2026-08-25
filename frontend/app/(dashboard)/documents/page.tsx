@@ -89,6 +89,9 @@ export default function DocumentsPage() {
       visible_processing: rawDocuments.filter(
         (d) => d.processing_status === 'processing'
       ).length,
+      visible_queued: rawDocuments.filter(
+        (d) => d.processing_status === 'queued'
+      ).length,
       visible_failed: rawDocuments.filter(
         (d) => d.processing_status === 'failed'
       ).length,
@@ -200,8 +203,14 @@ export default function DocumentsPage() {
           </div>
         </div>
 
-        {/* Stats */}
-        <DocumentStats stats={stats} />
+        {/* Status pills are page-scoped; Total is the filtered result count. */}
+        <div className="space-y-2">
+          <DocumentStats stats={stats} />
+          <p className="text-xs text-muted-foreground">
+            Status counts reflect the current page; total includes all matching
+            documents.
+          </p>
+        </div>
 
         {/* Filters */}
         <DocumentFilters
@@ -266,7 +275,8 @@ export default function DocumentsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete document?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this document. This action cannot be undone.
+              This will permanently delete this document. This action cannot be
+              undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -281,12 +291,18 @@ export default function DocumentsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+      <AlertDialog
+        open={bulkDeleteDialogOpen}
+        onOpenChange={setBulkDeleteDialogOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedDocuments.size} documents?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Delete {selectedDocuments.size} documents?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete {selectedDocuments.size} selected documents. This action cannot be undone.
+              This will permanently delete {selectedDocuments.size} selected
+              documents. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

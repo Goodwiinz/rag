@@ -323,6 +323,49 @@ async def test_retry_on_429_then_success(monkeypatch):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_retry_exhaustion_does_not_sleep_after_final_attempt(monkeypatch):
+    cfg = _make_settings()
+    client = DOKnowledgeBaseClient(cfg=cfg)
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr("asyncio.sleep", fake_sleep)
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        responses = [_mock_response(503), _mock_response(503), _mock_response(503)]
+        for response in responses:
+            response.headers = {}
+        request_mock = AsyncMock(side_effect=responses)
+        mock_async_client.return_value.request = request_mock
+
+        with pytest.raises(DOKnowledgeBaseError) as exc_info:
+            await client._request("GET", "https://example.test/retry")
+
+    assert exc_info.value.status_code == 503
+    assert request_mock.await_count == 3
+    assert sleeps == [1, 2]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_invalid_json_maps_to_do_kb_error():
+    cfg = _make_settings()
+    client = DOKnowledgeBaseClient(cfg=cfg)
+    response = _mock_response(200, {"ok": True})
+    response.json.side_effect = ValueError("malformed")
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        mock_async_client.return_value.request = AsyncMock(return_value=response)
+        with pytest.raises(DOKnowledgeBaseError) as exc_info:
+            await client._request("GET", "https://example.test/invalid")
+
+    assert exc_info.value.status_code == 200
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_start_indexing_uses_current_do_api_route():
     cfg = _make_settings()
     client = DOKnowledgeBaseClient(cfg=cfg)

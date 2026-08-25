@@ -50,24 +50,9 @@ class ExportService:
                 f"Research run {run_id} is not completed (status: {run.status})"
             )
 
-        # R5-L19: the evidence model has zero writers anywhere in the codebase
-        # — querying a permanently-empty table and presenting it as an
-        # evidence section was dishonest output. Emit none until writers
-        # exist.
-        evidence_list: list = []
-
-        # Build evidence lookup by step_id
+        # The retired evidence table had no writers. Keep the response
+        # shape stable while returning the only truthful value.
         evidence_by_step: Dict[UUID, List[Dict[str, Any]]] = {}
-        for ev in evidence_list:
-            entry = {
-                "id": str(ev.id),
-                "claim_text": ev.claim_text,
-                "confidence": ev.confidence,
-                "grounding_status": ev.grounding_status,
-                "page_reference": ev.page_reference,
-                "source_id": str(ev.source_id),
-            }
-            evidence_by_step.setdefault(ev.step_id, []).append(entry)
 
         # Build steps section
         steps_data = []
@@ -122,7 +107,7 @@ class ExportService:
             },
             "steps": steps_data,
             "sources": sources_data,
-            "evidence_count": len(evidence_list),
+            "evidence_count": 0,
         }
 
         return report

@@ -515,4 +515,4 @@ def search_health_check(
         }
     except Exception as e:
         logger.error(f"Search health check failed: {e}")
-        return {"status": "unhealthy", "error": str(e)}
+        return {"status": "unhealthy", "error": "thread search unavailable"}

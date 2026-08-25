@@ -24,7 +24,7 @@ from datetime import datetime
 from typing import List, Literal, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import desc, func, or_, select
+from sqlalchemy import desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -729,10 +729,19 @@ class ChatService:
                 )
                 self.db.add(citation)
 
-        # Update thread stats
-        thread.message_count += 1
-        thread.token_count += message_token_count
-        thread.last_message_at = datetime.utcnow()
+        # Update thread stats atomically so concurrent writers cannot lose an
+        # increment. The expression deliberately bypasses ORM synchronization;
+        # this path does not inspect the in-memory counter after the commit.
+        await self.db.execute(
+            update(Thread)
+            .where(Thread.id == data.thread_id)
+            .values(
+                message_count=func.coalesce(Thread.message_count, 0) + 1,
+                token_count=func.coalesce(Thread.token_count, 0) + message_token_count,
+                last_message_at=datetime.utcnow(),
+            )
+            .execution_options(synchronize_session=False)
+        )
 
         # Update conversation activity
         thread.conversation.update_activity()
@@ -819,13 +828,24 @@ class ChatService:
         result = await self.db.execute(stmt)
         thread = result.scalars().first()
         if thread:
-            thread.message_count += 1
-            thread.token_count += token_count
-            thread.last_message_at = datetime.utcnow()
             thread.conversation.update_activity()
+            await self.db.execute(
+                update(Thread)
+                .where(Thread.id == thread_id)
+                .values(
+                    message_count=func.coalesce(Thread.message_count, 0) + 1,
+                    token_count=func.coalesce(Thread.token_count, 0) + token_count,
+                    last_message_at=datetime.utcnow(),
+                )
+                .execution_options(synchronize_session=False)
+            )
 
         await self.db.commit()
         await self.db.refresh(message)
+        if thread:
+            # AsyncSession keeps objects live across commit; refresh the
+            # deliberately unsynchronized SQL expression before the threshold.
+            await self.db.refresh(thread)
 
         # Trigger async summarization if thread has enough messages
         if thread and thread.message_count >= 3:

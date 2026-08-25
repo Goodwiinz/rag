@@ -9,7 +9,7 @@ import functools
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Union
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
@@ -25,6 +25,10 @@ MIN_MESSAGES_FOR_SUMMARY = 3
 # Rate limit: minimum time between summary updates (seconds)
 SUMMARY_RATE_LIMIT_SECONDS = 300  # 5 minutes
 
+# A generation that loses its worker must not block a thread forever. The
+# cooldown is still the durable guard after a summary is persisted.
+SUMMARY_INFLIGHT_LEASE_SECONDS = 60
+
 # Maximum summary length
 MAX_SUMMARY_LENGTH = 150
 
@@ -36,6 +40,19 @@ def rate_limit_key(thread_id: Union[str, UUID]) -> str:
     never drift from the worker's rate limit — both must hash to this key.
     """
     return f"thread_summary:{thread_id}:last_generated"
+
+
+def inflight_key(thread_id: Union[str, UUID]) -> str:
+    """Redis key for the short-lived summary generation lease."""
+    return f"thread_summary:{thread_id}:inflight"
+
+
+_RELEASE_INFLIGHT_SCRIPT = """
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("DEL", KEYS[1])
+end
+return 0
+"""
 
 
 @functools.lru_cache(maxsize=1)
@@ -150,6 +167,50 @@ class ThreadSummarizationService:
             except Exception as e:
                 logger.warning(f"Failed to set rate limit: {e}")
 
+    def _acquire_inflight(self, thread_id: UUID) -> Optional[str]:
+        """Acquire a tokenized, bounded lease or fail open if Redis is down."""
+        token = uuid4().hex
+        client = self.redis_client
+        if not client:
+            return token
+        try:
+            acquired = client.set(
+                inflight_key(thread_id),
+                token,
+                nx=True,
+                ex=SUMMARY_INFLIGHT_LEASE_SECONDS,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to acquire summary in-flight lease: {e}")
+            return token
+        return token if acquired else None
+
+    def _release_inflight(self, thread_id: UUID, token: Optional[str]) -> None:
+        """Release only our own lease; an expired/reacquired lease survives."""
+        if not token or not self.redis_client:
+            return
+        try:
+            self.redis_client.eval(
+                _RELEASE_INFLIGHT_SCRIPT,
+                1,
+                inflight_key(thread_id),
+                token,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to release summary in-flight lease: {e}")
+
+    def _persist_summary(
+        self,
+        thread: Thread,
+        thread_id: UUID,
+        summary: str,
+        inflight_token: Optional[str],
+    ) -> None:
+        """Persist a summary, arm cooldown, and clear our completed lease."""
+        self._update_thread_summary(thread, summary)
+        self._set_rate_limit(thread_id)
+        self._release_inflight(thread_id, inflight_token)
+
     def _format_messages_for_prompt(
         self,
         messages: list[ChatMessage],
@@ -219,6 +280,11 @@ class ThreadSummarizationService:
             logger.debug(f"Thread {thread_id} does not need summarization")
             return thread.summary
 
+        inflight_token = self._acquire_inflight(thread_id)
+        if inflight_token is None:
+            logger.debug(f"Thread {thread_id} summary generation already in flight")
+            return thread.summary
+
         # Get messages
         messages = (
             self.db.query(ChatMessage)
@@ -231,6 +297,7 @@ class ThreadSummarizationService:
 
         if not messages:
             logger.warning(f"No messages found for thread {thread_id}")
+            self._release_inflight(thread_id, inflight_token)
             return None
 
         # Format messages for prompt
@@ -241,24 +308,21 @@ class ThreadSummarizationService:
             if settings.OPENAI_API_KEY:
                 summary = await self._generate_with_openai(messages_text, timeout)
                 if summary:
-                    self._update_thread_summary(thread, summary)
-                    self._set_rate_limit(thread_id)
+                    self._persist_summary(thread, thread_id, summary, inflight_token)
                     return summary
 
             # Fallback to Anthropic if available
             if settings.ANTHROPIC_API_KEY:
                 summary = await self._generate_with_anthropic(messages_text, timeout)
                 if summary:
-                    self._update_thread_summary(thread, summary)
-                    self._set_rate_limit(thread_id)
+                    self._persist_summary(thread, thread_id, summary, inflight_token)
                     return summary
 
             # No API keys configured, use fallback. Still set the rate limit:
             # without it every eligible turn regenerates + commits the summary
             # (the only-Azure-keys dev config always lands here).
             summary = self._generate_fallback_summary(messages)
-            self._update_thread_summary(thread, summary)
-            self._set_rate_limit(thread_id)
+            self._persist_summary(thread, thread_id, summary, inflight_token)
             return summary
 
         except asyncio.TimeoutError:
@@ -266,11 +330,11 @@ class ThreadSummarizationService:
             fallback = self._generate_fallback_summary(messages)
             # R2-L7: persist — callers previously got a string never stored,
             # so every following turn regenerated and re-paid.
-            self._update_thread_summary(thread, fallback)
-            self._set_rate_limit(thread_id)
+            self._persist_summary(thread, thread_id, fallback, inflight_token)
             return fallback
         except Exception as e:
             logger.error(f"Summary generation failed for thread {thread_id}: {e}")
+            self._release_inflight(thread_id, inflight_token)
             return None
 
     def _update_thread_summary(self, thread: Thread, summary: str) -> None:

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
+import { reportApi } from '@/services/analytics/analyticsApi';
 
 // Types
 export interface AnalyticsMetric {
@@ -167,22 +168,32 @@ interface AnalyticsActions {
   selectNodes: (nodeIds: string[]) => void;
   selectEdges: (edgeIds: string[]) => void;
   clearSelection: () => void;
-  updateGraphFilters: (filters: Partial<AnalyticsState['graphFilters']>) => void;
+  updateGraphFilters: (
+    filters: Partial<AnalyticsState['graphFilters']>
+  ) => void;
   resetGraphFilters: () => void;
 
   // Dashboard Management
   setDashboards: (dashboards: Dashboard[]) => void;
-  createDashboard: (dashboard: Omit<Dashboard, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  createDashboard: (
+    dashboard: Omit<Dashboard, 'id' | 'createdAt' | 'updatedAt'>
+  ) => void;
   updateDashboard: (dashboardId: string, updates: Partial<Dashboard>) => void;
   deleteDashboard: (dashboardId: string) => void;
   setActiveDashboard: (dashboardId: string | null) => void;
   duplicateDashboard: (dashboardId: string, newName: string) => void;
 
   // Widget Management
-  addWidget: (dashboardId: string, widget: Omit<Widget, 'id' | 'lastUpdated' | 'isRefreshing'>) => void;
+  addWidget: (
+    dashboardId: string,
+    widget: Omit<Widget, 'id' | 'lastUpdated' | 'isRefreshing'>
+  ) => void;
   updateWidget: (widgetId: string, updates: Partial<Widget>) => void;
   removeWidget: (widgetId: string) => void;
-  moveWidget: (widgetId: string, position: { x: number; y: number; width: number; height: number }) => void;
+  moveWidget: (
+    widgetId: string,
+    position: { x: number; y: number; width: number; height: number }
+  ) => void;
   refreshWidget: (widgetId: string) => void;
   setWidgetData: (widgetId: string, data: any) => void;
 
@@ -334,8 +345,10 @@ export const useAnalyticsStore = create<AnalyticsState & AnalyticsActions>()(
           false,
           'updateGraphEdge'
         ),
-      selectNodes: (nodeIds) => set({ selectedNodes: nodeIds }, false, 'selectNodes'),
-      selectEdges: (edgeIds) => set({ selectedEdges: edgeIds }, false, 'selectEdges'),
+      selectNodes: (nodeIds) =>
+        set({ selectedNodes: nodeIds }, false, 'selectNodes'),
+      selectEdges: (edgeIds) =>
+        set({ selectedEdges: edgeIds }, false, 'selectEdges'),
       clearSelection: () =>
         set({ selectedNodes: [], selectedEdges: [] }, false, 'clearSelection'),
       updateGraphFilters: (filters) =>
@@ -347,10 +360,15 @@ export const useAnalyticsStore = create<AnalyticsState & AnalyticsActions>()(
           'updateGraphFilters'
         ),
       resetGraphFilters: () =>
-        set({ graphFilters: initialState.graphFilters }, false, 'resetGraphFilters'),
+        set(
+          { graphFilters: initialState.graphFilters },
+          false,
+          'resetGraphFilters'
+        ),
 
       // Dashboard Management
-      setDashboards: (dashboards) => set({ dashboards }, false, 'setDashboards'),
+      setDashboards: (dashboards) =>
+        set({ dashboards }, false, 'setDashboards'),
       createDashboard: (dashboard) =>
         set(
           (state) => {
@@ -372,7 +390,11 @@ export const useAnalyticsStore = create<AnalyticsState & AnalyticsActions>()(
           (state) => ({
             dashboards: state.dashboards.map((dashboard) =>
               dashboard.id === dashboardId
-                ? { ...dashboard, ...updates, updatedAt: new Date().toISOString() }
+                ? {
+                    ...dashboard,
+                    ...updates,
+                    updatedAt: new Date().toISOString(),
+                  }
                 : dashboard
             ),
           }),
@@ -382,17 +404,25 @@ export const useAnalyticsStore = create<AnalyticsState & AnalyticsActions>()(
       deleteDashboard: (dashboardId) =>
         set(
           (state) => ({
-            dashboards: state.dashboards.filter((dashboard) => dashboard.id !== dashboardId),
-            activeDashboard: state.activeDashboard === dashboardId ? null : state.activeDashboard,
+            dashboards: state.dashboards.filter(
+              (dashboard) => dashboard.id !== dashboardId
+            ),
+            activeDashboard:
+              state.activeDashboard === dashboardId
+                ? null
+                : state.activeDashboard,
           }),
           false,
           'deleteDashboard'
         ),
-      setActiveDashboard: (dashboardId) => set({ activeDashboard: dashboardId }, false, 'setActiveDashboard'),
+      setActiveDashboard: (dashboardId) =>
+        set({ activeDashboard: dashboardId }, false, 'setActiveDashboard'),
       duplicateDashboard: (dashboardId, newName) =>
         set(
           (state) => {
-            const originalDashboard = state.dashboards.find((d) => d.id === dashboardId);
+            const originalDashboard = state.dashboards.find(
+              (d) => d.id === dashboardId
+            );
             if (!originalDashboard) return state;
 
             const duplicatedDashboard: Dashboard = {
@@ -428,11 +458,18 @@ export const useAnalyticsStore = create<AnalyticsState & AnalyticsActions>()(
 
             const updatedDashboards = state.dashboards.map((dashboard) =>
               dashboard.id === dashboardId
-                ? { ...dashboard, widgets: [...dashboard.widgets, newWidget], updatedAt: new Date().toISOString() }
+                ? {
+                    ...dashboard,
+                    widgets: [...dashboard.widgets, newWidget],
+                    updatedAt: new Date().toISOString(),
+                  }
                 : dashboard
             );
 
-            const updatedActiveWidgets = { ...state.activeWidgets, [newWidget.id]: newWidget };
+            const updatedActiveWidgets = {
+              ...state.activeWidgets,
+              [newWidget.id]: newWidget,
+            };
 
             return {
               dashboards: updatedDashboards,
@@ -454,7 +491,11 @@ export const useAnalyticsStore = create<AnalyticsState & AnalyticsActions>()(
               ...dashboard,
               widgets: dashboard.widgets.map((widget) =>
                 widget.id === widgetId
-                  ? { ...widget, ...updates, lastUpdated: new Date().toISOString() }
+                  ? {
+                      ...widget,
+                      ...updates,
+                      lastUpdated: new Date().toISOString(),
+                    }
                   : widget
               ),
             }));
@@ -475,7 +516,9 @@ export const useAnalyticsStore = create<AnalyticsState & AnalyticsActions>()(
 
             const updatedDashboards = state.dashboards.map((dashboard) => ({
               ...dashboard,
-              widgets: dashboard.widgets.filter((widget) => widget.id !== widgetId),
+              widgets: dashboard.widgets.filter(
+                (widget) => widget.id !== widgetId
+              ),
             }));
 
             return {
@@ -514,7 +557,10 @@ export const useAnalyticsStore = create<AnalyticsState & AnalyticsActions>()(
           (state) => {
             const updatedActiveWidgets = {
               ...state.activeWidgets,
-              [widgetId]: { ...state.activeWidgets[widgetId], isRefreshing: true },
+              [widgetId]: {
+                ...state.activeWidgets[widgetId],
+                isRefreshing: true,
+              },
             };
 
             return { activeWidgets: updatedActiveWidgets };
@@ -548,7 +594,10 @@ export const useAnalyticsStore = create<AnalyticsState & AnalyticsActions>()(
           (state) => ({
             reports: [
               ...state.reports,
-              { ...report, id: `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` },
+              {
+                ...report,
+                id: `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              },
             ],
           }),
           false,
@@ -576,22 +625,61 @@ export const useAnalyticsStore = create<AnalyticsState & AnalyticsActions>()(
         const { setGeneratingReport } = get();
         setGeneratingReport(true);
         try {
-          // Implementation would call API service
-          console.log('Generating report:', reportId);
+          const report = get().reports.find((item) => item.id === reportId);
+          const generated = await reportApi.generateReport(
+            reportId,
+            report?.format
+          );
+          set(
+            (state) => ({
+              reports: state.reports.map((item) =>
+                item.id === reportId
+                  ? { ...item, lastGenerated: new Date().toISOString() }
+                  : item
+              ),
+            }),
+            false,
+            'generateReport'
+          );
+
+          if (typeof window !== 'undefined' && generated.downloadUrl) {
+            const link = document.createElement('a');
+            link.href = generated.downloadUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.click();
+          }
+        } catch (error) {
+          set(
+            {
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Failed to generate report',
+            },
+            false,
+            'generateReportError'
+          );
+          throw error;
         } finally {
           setGeneratingReport(false);
         }
       },
-      setGeneratingReport: (generating) => set({ isGeneratingReport: generating }, false, 'setGeneratingReport'),
+      setGeneratingReport: (generating) =>
+        set({ isGeneratingReport: generating }, false, 'setGeneratingReport'),
 
       // Alert Management
-      setAlertRules: (rules) => set({ alertRules: rules }, false, 'setAlertRules'),
+      setAlertRules: (rules) =>
+        set({ alertRules: rules }, false, 'setAlertRules'),
       createAlertRule: (rule) =>
         set(
           (state) => ({
             alertRules: [
               ...state.alertRules,
-              { ...rule, id: `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` },
+              {
+                ...rule,
+                id: `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              },
             ],
           }),
           false,
@@ -625,7 +713,8 @@ export const useAnalyticsStore = create<AnalyticsState & AnalyticsActions>()(
           false,
           'toggleAlertRule'
         ),
-      setActiveAlerts: (alerts) => set({ activeAlerts: alerts }, false, 'setActiveAlerts'),
+      setActiveAlerts: (alerts) =>
+        set({ activeAlerts: alerts }, false, 'setActiveAlerts'),
 
       // UI Management
       toggleSidebar: () =>
@@ -635,7 +724,8 @@ export const useAnalyticsStore = create<AnalyticsState & AnalyticsActions>()(
           'toggleSidebar'
         ),
       setTheme: (theme) => set({ theme }, false, 'setTheme'),
-      setRefreshInterval: (interval) => set({ refreshInterval: interval }, false, 'setRefreshInterval'),
+      setRefreshInterval: (interval) =>
+        set({ refreshInterval: interval }, false, 'setRefreshInterval'),
       toggleAutoRefresh: () =>
         set(
           (state) => ({ autoRefresh: !state.autoRefresh }),
@@ -644,8 +734,10 @@ export const useAnalyticsStore = create<AnalyticsState & AnalyticsActions>()(
         ),
 
       // WebSocket Management
-      setConnected: (connected) => set({ isConnected: connected }, false, 'setConnected'),
-      setConnectionStatus: (status) => set({ connectionStatus: status }, false, 'setConnectionStatus'),
+      setConnected: (connected) =>
+        set({ isConnected: connected }, false, 'setConnected'),
+      setConnectionStatus: (status) =>
+        set({ connectionStatus: status }, false, 'setConnectionStatus'),
 
       // Data Refresh
       refreshAllData: async () => {

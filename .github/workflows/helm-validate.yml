@@ -58,3 +58,6 @@ jobs:
 
       - name: Immutable backend image render assertions
         run: bash "$CHART/tests/backend_image_digest_render_test.sh"
+
+      - name: Pod disruption budget render assertions
+        run: bash "$CHART/tests/pdb_render_test.sh"

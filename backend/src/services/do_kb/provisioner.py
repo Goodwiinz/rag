@@ -39,11 +39,13 @@ async def ensure_kb_for_org(
     org_id: str | uuid_pkg.UUID,
     *,
     client: Optional[DOKnowledgeBaseClient] = None,
+    commit: bool = True,
 ) -> str:
     """Return KB UUID for org, creating + persisting it if missing.
 
-    Caller owns the session/transaction. We commit on KB creation so a
-    crash mid-ingest does not orphan the KB on DO's side without a row.
+    ``commit`` defaults to the standalone-provisioning behavior. Larger ingest
+    transactions pass ``commit=False`` so provisioning does not commit
+    unrelated pending work on a caller-owned session.
     Raises DOKnowledgeBaseError on DO API failure.
     """
     if not settings.DO_KB_ENABLED:
@@ -88,7 +90,12 @@ async def ensure_kb_for_org(
 
     org.do_kb_uuid = kb.uuid
     org.do_kb_provisioned_at = datetime.now(timezone.utc)
-    await session.commit()
+    if commit:
+        await session.commit()
+    else:
+        # Keep the row visible to the caller and retain the advisory lock until
+        # that caller decides whether to commit or roll back.
+        await session.flush()
 
     logger.info(
         "do_kb provisioned",

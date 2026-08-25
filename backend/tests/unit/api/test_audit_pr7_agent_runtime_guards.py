@@ -55,7 +55,7 @@ def test_summary_prompt_uses_recent_window() -> None:
 def test_timeout_fallback_persisted() -> None:
     src = _read("src/services/threads/thread_summarization_service.py")
     blk = src[src.find("except asyncio.TimeoutError") :]
-    assert "_update_thread_summary(thread, fallback)" in blk[:500]
+    assert "_persist_summary(thread, thread_id, fallback, inflight_token)" in blk[:500]
 
 
 # R2-L14
@@ -129,8 +129,11 @@ def test_integrity_uniques_migration_exists() -> None:
 # R5-M23
 def test_extraction_offloaded_to_background_task() -> None:
     src = _read("src/api/research/extraction_matrix.py")
-    assert "asyncio.create_task(" in src
-    assert "_run_extraction_background" in src
+    tasks = _read("src/tasks/research_tasks.py")
+    assert "run_extraction_matrix.apply_async(" in src
+    assert 'name="src.tasks.research_tasks.run_extraction_matrix"' in tasks
+    assert "asyncio.run(" in tasks
+    assert "run_background_extraction" in tasks
     assert "Maximum 10 documents per extraction batch" in src
 
 

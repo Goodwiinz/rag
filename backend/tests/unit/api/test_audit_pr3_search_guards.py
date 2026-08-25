@@ -59,6 +59,24 @@ def test_feedback_is_persisted_not_mocked() -> None:
     )
 
 
+def test_search_analytics_uses_persisted_events() -> None:
+    src = _read("src/api/search/search.py")
+    analytics = src[
+        src.find("async def get_search_analytics") : src.find(
+            "async def rebuild_search_indexes"
+        )
+    ]
+    logger = src[
+        src.find("def log_search_query") : src.find(
+            "async def persist_api_key_usage_log"
+        )
+    ]
+    assert "_load_search_analytics" in analytics
+    assert "Placeholder" not in analytics
+    assert "SearchAnalyticsEvent(" in logger
+    assert "db.commit()" in logger
+
+
 def test_benchmark_admin_only_and_capped() -> None:
     src = _read("src/api/search/search_quality.py")
     bench = src[src.find("async def run_quality_benchmark") :]

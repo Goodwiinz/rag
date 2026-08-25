@@ -19,7 +19,6 @@
     "src/services/graphService.ts",
     "src/services/monitoringWebsocketService.ts",
     "src/services/searchService.ts",
-    "src/stores/analytics/**/*",
     "src/stores/graphStore.ts",
     "src/stores/monitoringStore.ts",
     "src/trigger/**/*",

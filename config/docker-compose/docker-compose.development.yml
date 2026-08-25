@@ -29,9 +29,7 @@ services:
       - LOG_LEVEL=DEBUG
       - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
       - UPLOAD_DIR=/app/uploads
-      - MAX_FILE_SIZE=100MB
-      - ENABLE_VIRUS_SCANNING=false
-      - ENABLE_AI_PROCESSING=true
+      - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-100}
 
       # AI Service Configuration
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
@@ -75,9 +73,8 @@ services:
 
       # Performance Configuration
       - MAX_CONCURRENT_JOBS=${MAX_CONCURRENT_JOBS:-5}
-      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-4}
-      - ENABLE_CACHING=${ENABLE_CACHING:-true}
-      - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-3600}
+      - LLM_CACHE_ENABLED=${LLM_CACHE_ENABLED:-true}
+      - LLM_CACHE_TTL_SECONDS=${LLM_CACHE_TTL_SECONDS:-3600}
 
       # Supabase Configuration
       - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}
@@ -273,8 +270,8 @@ services:
 
       # Performance Configuration
       - MAX_CONCURRENT_JOBS=${MAX_CONCURRENT_JOBS:-5}
-      - ENABLE_CACHING=${ENABLE_CACHING:-true}
-      - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-3600}
+      - LLM_CACHE_ENABLED=${LLM_CACHE_ENABLED:-true}
+      - LLM_CACHE_TTL_SECONDS=${LLM_CACHE_TTL_SECONDS:-3600}
 
       # Supabase Storage Configuration
       - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}

@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "es5",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "es6"
-    ],
+    "lib": ["dom", "dom.iterable", "es6"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -25,40 +21,17 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/nous": [
-        "./app/components/nous/index.ts"
-      ],
-      "@/nous/*": [
-        "./app/components/nous/*"
-      ],
-      "@/*": [
-        "./src/*",
-        "./app/*"
-      ],
-      "@/components/*": [
-        "./src/components/*"
-      ],
-      "@/lib/*": [
-        "./src/lib/*"
-      ],
-      "@/hooks/*": [
-        "./src/hooks/*"
-      ],
-      "@/types/*": [
-        "./src/types/*"
-      ],
-      "@/utils/*": [
-        "./src/utils/*"
-      ],
-      "@/stores/*": [
-        "./src/stores/*"
-      ],
-      "@/styles/*": [
-        "./src/styles/*"
-      ],
-      "@test/*": [
-        "./src/test/*"
-      ]
+      "@/nous": ["./app/components/nous/index.ts"],
+      "@/nous/*": ["./app/components/nous/*"],
+      "@/*": ["./src/*", "./app/*"],
+      "@/components/*": ["./src/components/*"],
+      "@/lib/*": ["./src/lib/*"],
+      "@/hooks/*": ["./src/hooks/*"],
+      "@/types/*": ["./src/types/*"],
+      "@/utils/*": ["./src/utils/*"],
+      "@/stores/*": ["./src/stores/*"],
+      "@/styles/*": ["./src/styles/*"],
+      "@test/*": ["./src/test/*"]
     }
   },
   "include": [
@@ -99,7 +72,6 @@
     "src/services/searchService.ts",
     "src/hooks/useAnalyticsTracking.ts",
     "src/components/analytics/AnalyticsProvider.tsx",
-    "src/stores/analytics/**/*",
     "src/utils/analytics/**/*",
     "app/components/AppNavbar.tsx",
     "src/stores/graphStore.ts",

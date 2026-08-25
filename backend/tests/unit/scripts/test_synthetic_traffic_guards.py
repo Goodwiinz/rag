@@ -48,7 +48,9 @@ class _FakeResult:
         return self._value
 
     def all(self) -> List[Any]:
-        return [] if self._value is None else [self._value]
+        if self._value is None:
+            return []
+        return self._value if isinstance(self._value, list) else [self._value]
 
 
 class _FakeDB:
@@ -73,6 +75,9 @@ class _FakeDB:
 
     async def rollback(self) -> None:
         pass
+
+    async def get(self, _model: Any, object_id: Any) -> Any:
+        return type("SyntheticDocument", (), {"id": object_id, "is_deleted": False})()
 
 
 def _sql(stmt: Any) -> str:
@@ -191,16 +196,26 @@ async def test_existing_workspace_is_reused() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stale_documents_are_soft_deleted() -> None:
+async def test_stale_documents_use_full_file_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.services.documents.file_service import FileService
+
     cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=6)
-    db = _FakeDB(_FakeResult(SYNTH_ORG_NAME), _FakeResult(rowcount=3))
+    db = _FakeDB(_FakeResult(SYNTH_ORG_NAME), _FakeResult(["doc-1", "doc-2", "doc-3"]))
+    deleted: list[str] = []
+
+    async def fake_delete_file(_service: Any, document: Any, _user: Any) -> None:
+        deleted.append(document.id)
+
+    monkeypatch.setattr(FileService, "delete_file", fake_delete_file)
 
     assert await _cleanup_documents(db, _User(), cutoff) == 3
 
     sql = _sql(db.statements[1]).upper()
-    assert sql.startswith("UPDATE DOCUMENTS")
+    assert sql.startswith("SELECT DOCUMENTS.ID")
     assert "IS_DELETED" in sql
-    assert db.commits == 1
+    assert deleted == ["doc-1", "doc-2", "doc-3"]
 
 
 @pytest.mark.asyncio

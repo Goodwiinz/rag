@@ -2,6 +2,7 @@
 ArXiv Paper Feature Extraction API endpoints
 """
 
+import asyncio
 import inspect
 import logging
 import uuid
@@ -591,7 +592,9 @@ async def _update_knowledge_graph_with_extractions(
                         metadata={"paper_id": paper_id, "source": "arxiv_extraction"},
                         organization_id=organization_id,
                     )
-                    doc_entity = kg.kg_service.create_entity(doc_entity_request)
+                    doc_entity = await asyncio.to_thread(
+                        kg.kg_service.create_entity, doc_entity_request
+                    )
 
                     if not doc_entity:
                         logger.error(f"Failed to create document entity for {paper_id}")
@@ -620,7 +623,9 @@ async def _update_knowledge_graph_with_extractions(
                                 metadata=entity.get("properties", {}),
                                 organization_id=organization_id,
                             )
-                            kg.kg_service.create_entity(entity_request)
+                            await asyncio.to_thread(
+                                kg.kg_service.create_entity, entity_request
+                            )
 
                     if isinstance(features.get("topics"), list):
                         for topic in features["topics"]:
@@ -639,7 +644,9 @@ async def _update_knowledge_graph_with_extractions(
                                 },
                                 organization_id=organization_id,
                             )
-                            kg.kg_service.create_entity(topic_request)
+                            await asyncio.to_thread(
+                                kg.kg_service.create_entity, topic_request
+                            )
 
                     if isinstance(features.get("keyphrases"), list):
                         for keyphrase in features["keyphrases"]:
@@ -654,7 +661,9 @@ async def _update_knowledge_graph_with_extractions(
                                 },
                                 organization_id=organization_id,
                             )
-                            kg.kg_service.create_entity(kp_request)
+                            await asyncio.to_thread(
+                                kg.kg_service.create_entity, kp_request
+                            )
 
                     relationships = []
                     if isinstance(entities_payload, dict):
@@ -671,11 +680,17 @@ async def _update_knowledge_graph_with_extractions(
                         if not source_name or not target_name:
                             continue
 
-                        source_entities = kg.kg_service.search_entities(
-                            query=source_name, limit=1, organization_id=organization_id
+                        source_entities = await asyncio.to_thread(
+                            kg.kg_service.search_entities,
+                            query=source_name,
+                            limit=1,
+                            organization_id=organization_id,
                         )
-                        target_entities = kg.kg_service.search_entities(
-                            query=target_name, limit=1, organization_id=organization_id
+                        target_entities = await asyncio.to_thread(
+                            kg.kg_service.search_entities,
+                            query=target_name,
+                            limit=1,
+                            organization_id=organization_id,
                         )
 
                         if source_entities and target_entities:
@@ -689,7 +704,9 @@ async def _update_knowledge_graph_with_extractions(
                                 metadata=rel.get("properties", {}),
                                 organization_id=organization_id,
                             )
-                            kg.kg_service.create_relationship(rel_request)
+                            await asyncio.to_thread(
+                                kg.kg_service.create_relationship, rel_request
+                            )
 
                     synced_count += 1
                 except Exception as paper_error:

@@ -43,9 +43,7 @@ def test_rerank_sync_sets_404_failure_reason_and_falls_back(
     response_mock.status_code = 404
     response_mock.text = '{"error":"not found"}'
 
-    client_cm = MagicMock()
-    client_cm.__enter__.return_value.post.return_value = response_mock
-    mock_http_client.return_value = client_cm
+    mock_http_client.return_value.post.return_value = response_mock
 
     results = service.rerank_sync(
         query="test query",
@@ -56,3 +54,30 @@ def test_rerank_sync_sets_404_failure_reason_and_falls_back(
     assert len(results) == 1
     assert service.last_failure["reason"] == "endpoint_not_found"
     assert service.last_failure["status_code"] == 404
+
+
+@patch("src.services.search.cohere_rerank_service.time.sleep")
+@patch("src.services.search.cohere_rerank_service.httpx.Client")
+def test_rerank_sync_reuses_client_and_honors_429_retry_after(
+    mock_http_client: MagicMock, mock_sleep: MagicMock
+) -> None:
+    service = CohereRerankService()
+    service._enabled = True
+    service.endpoint = "https://example.invalid/rerank"
+    service.api_key = "test-key"
+
+    request = httpx.Request("POST", service.endpoint)
+    limited = httpx.Response(429, request=request, headers={"Retry-After": "2"})
+    success = httpx.Response(
+        200,
+        request=request,
+        json={"results": [{"index": 0, "relevance_score": 0.9}]},
+    )
+    mock_http_client.return_value.post.side_effect = [limited, success, success]
+
+    documents = [{"id": "doc-1", "content": "content", "score": 0.5}]
+    assert service.rerank_sync("query", documents)[0].relevance_score == 0.9
+    assert service.rerank_sync("query", documents)[0].relevance_score == 0.9
+
+    mock_sleep.assert_called_once_with(2.0)
+    mock_http_client.assert_called_once_with(timeout=30.0)

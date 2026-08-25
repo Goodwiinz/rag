@@ -35,8 +35,11 @@ def _scoped_document_query(doc_id: UUID, project_id: Optional[UUID]) -> Select:
     )
 
 
-# In-memory store for background extraction status (same pattern as draft generation)
-_EXTRACTION_STATUS_MAX = 500  # R5-L16: bounded; cross-pod reads need Redis (future)
+# In-memory store is an L1 fallback; Redis is the shared status authority when
+# configured so a status request can land on any API pod (R5-L16).
+_EXTRACTION_STATUS_MAX = 500
+_EXTRACTION_STATUS_TTL_SECONDS = 24 * 60 * 60
+_EXTRACTION_STATUS_KEY_PREFIX = "research:extraction:"
 _extraction_status: Dict[str, Dict[str, Any]] = {}
 
 
@@ -44,7 +47,12 @@ class ExtractionMatrixService:
     """Service for building extraction prompts and parsing LLM extraction results."""
 
     @staticmethod
-    def set_extraction_status(task_id: str, payload: Dict[str, Any]) -> None:
+    async def set_extraction_status(
+        task_id: str, payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Merge and persist status in the bounded L1 cache and Redis L2."""
+        from src.services.agent.job_store import get_redis
+
         _extraction_status[task_id] = {
             **_extraction_status.get(task_id, {}),
             "updated_at": datetime.utcnow().isoformat(),
@@ -64,8 +72,47 @@ class ExtractionMatrixService:
             )
             _extraction_status.pop(oldest)
 
-    def get_extraction_status(task_id: str) -> Optional[Dict[str, Any]]:
-        """Get the current status of a background extraction task."""
+        status = dict(_extraction_status[task_id])
+        try:
+            redis_client = await get_redis()
+            if redis_client is not None:
+                key = f"{_EXTRACTION_STATUS_KEY_PREFIX}{task_id}"
+                raw = await redis_client.get(key)
+                shared = json.loads(raw) if raw else {}
+                # Carry forward fields from a status update written by a
+                # different pod, then apply this update as the newest write.
+                status = {
+                    **(shared if isinstance(shared, dict) else {}),
+                    **status,
+                }
+                _extraction_status[task_id] = status
+                await redis_client.setex(
+                    key,
+                    _EXTRACTION_STATUS_TTL_SECONDS,
+                    json.dumps(status, default=str),
+                )
+        except Exception as exc:  # pragma: no cover - Redis is optional
+            logger.debug("extraction status Redis mirror unavailable: %s", exc)
+        return status
+
+    @staticmethod
+    async def get_extraction_status(task_id: str) -> Optional[Dict[str, Any]]:
+        """Get status from Redis (shared) with the L1 fallback."""
+        try:
+            from src.services.agent.job_store import get_redis
+
+            redis_client = await get_redis()
+            if redis_client is not None:
+                raw = await redis_client.get(
+                    f"{_EXTRACTION_STATUS_KEY_PREFIX}{task_id}"
+                )
+                if raw:
+                    value = json.loads(raw)
+                    if isinstance(value, dict):
+                        _extraction_status[task_id] = value
+                        return value
+        except Exception as exc:  # pragma: no cover - Redis is optional
+            logger.debug("extraction status Redis read unavailable: %s", exc)
         return _extraction_status.get(task_id)
 
     @staticmethod
@@ -109,21 +156,24 @@ class ExtractionMatrixService:
 
         Updates _extraction_status as it progresses.
         """
-        _extraction_status[task_id] = {
-            "status": "running",
-            "matrix_id": str(matrix_id),
-            "total": len(document_ids),
-            "completed": 0,
-            "failed": 0,
-            "skipped": 0,
-            "error": None,
-        }
+        await self.set_extraction_status(
+            task_id,
+            {
+                "status": "running",
+                "matrix_id": str(matrix_id),
+                "total": len(document_ids),
+                "completed": 0,
+                "failed": 0,
+                "skipped": 0,
+                "error": None,
+            },
+        )
 
         try:
             client, model = self._get_openai_client()
         except RuntimeError as e:
-            self.set_extraction_status(task_id, {"status": "failed"})
-            self.set_extraction_status(task_id, {"error": str(e)})
+            await self.set_extraction_status(task_id, {"status": "failed"})
+            await self.set_extraction_status(task_id, {"error": str(e)})
             return
 
         async with AsyncSessionLocal() as db:
@@ -147,7 +197,8 @@ class ExtractionMatrixService:
                     )
                     document = doc_result.scalar_one_or_none()
                     if not document or not document.content_text:
-                        _extraction_status[task_id]["skipped"] += 1
+                        skipped = _extraction_status[task_id].get("skipped", 0) + 1
+                        await self.set_extraction_status(task_id, {"skipped": skipped})
                         logger.info(
                             "bg_extraction_skip",
                             task_id=task_id,
@@ -197,7 +248,8 @@ class ExtractionMatrixService:
                             )
 
                     await db.commit()
-                    _extraction_status[task_id]["completed"] += 1
+                    completed = _extraction_status[task_id].get("completed", 0) + 1
+                    await self.set_extraction_status(task_id, {"completed": completed})
 
                 except Exception as e:
                     logger.error(
@@ -206,9 +258,10 @@ class ExtractionMatrixService:
                         document_id=str(doc_id),
                         error=str(e),
                     )
-                    _extraction_status[task_id]["failed"] += 1
+                    failed = _extraction_status[task_id].get("failed", 0) + 1
+                    await self.set_extraction_status(task_id, {"failed": failed})
 
-        _extraction_status[task_id]["status"] = "completed"
+        await self.set_extraction_status(task_id, {"status": "completed"})
         logger.info(
             "bg_extraction_complete",
             task_id=task_id,

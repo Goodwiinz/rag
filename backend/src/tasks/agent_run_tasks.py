@@ -361,14 +361,22 @@ async def _sweep_stale_agent_runs(*, lease_owner: str) -> dict:
                 # fire-and-forget projection write must not fail a run that
                 # actually completed.
                 job = None
+                job_read_failed = False
                 try:
                     job = await job_store.get_job_fresh(job_id)
                 except Exception:
+                    job_read_failed = True
                     logger.warning(
                         "sweep_stale_agent_runs: job-store read failed for %s",
                         job_id,
                         exc_info=True,
                     )
+                if job_read_failed:
+                    # The live state is unknown. Keep the 300-second sweeper
+                    # lease until it self-expires so a delayed delivery cannot
+                    # reopen a run whose tools may already have executed.
+                    skipped += 1
+                    continue
                 live_status = _coerce_status(job.get("status")) if job else None
                 if live_status is not None and live_status.is_terminal:
                     await agent_run_service.upsert_run(

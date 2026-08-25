@@ -18,10 +18,10 @@ from fastapi.testclient import TestClient
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
 
-
 # ============================================================================
 # Helpers
 # ============================================================================
+
 
 def _make_mock_user():
     """Create a mock user for auth override."""
@@ -85,6 +85,7 @@ def _make_mock_run(**overrides):
 # Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def mock_current_user():
     return _make_mock_user()
@@ -129,7 +130,9 @@ class TestCreateProject:
     """Tests for POST /api/v1/research-engine/projects."""
 
     @patch("src.api.research_engine.projects.select")
-    def test_create_project_returns_201(self, mock_select, client, mock_db, mock_current_user):
+    def test_create_project_returns_201(
+        self, mock_select, client, mock_db, mock_current_user
+    ):
         """Creating a project should return 201 with project data."""
         project = _make_mock_project(owner_id=mock_current_user.id)
 
@@ -144,6 +147,9 @@ class TestCreateProject:
         mock_db.add = Mock()
         mock_db.commit = AsyncMock()
         mock_db.refresh = AsyncMock(side_effect=fake_refresh)
+        count_result = Mock()
+        count_result.scalar.return_value = 0
+        mock_db.execute = AsyncMock(return_value=count_result)
 
         response = client.post(
             "/api/v1/research-engine/projects",
@@ -174,7 +180,9 @@ class TestListProjects:
     """Tests for GET /api/v1/research-engine/projects."""
 
     @patch("src.api.research_engine.projects.select")
-    def test_list_projects_returns_200(self, mock_select, client, mock_db, mock_current_user):
+    def test_list_projects_returns_200(
+        self, mock_select, client, mock_db, mock_current_user
+    ):
         """Listing projects should return 200 with a list."""
         project = _make_mock_project(owner_id=mock_current_user.id)
 
@@ -230,7 +238,9 @@ class TestStartRun:
     """Tests for POST /api/v1/research-engine/blueprints/{blueprint_id}/runs."""
 
     @patch("src.api.research_engine.runs.select")
-    def test_start_run_returns_201(self, mock_select, client, mock_db, mock_current_user):
+    def test_start_run_returns_201(
+        self, mock_select, client, mock_db, mock_current_user
+    ):
         """Starting a run should return 201 Created."""
         blueprint_id = uuid.uuid4()
         blueprint = _make_mock_blueprint(id=blueprint_id, version=1)

@@ -1124,7 +1124,9 @@ Key takeaways include the importance of continued investigation and the potentia
         latex = re.sub(r"\[Doc (\d+)\]", r"\\cite{doc\1}", latex)
 
         # Extract title (avoid backslash in f-string)
-        title_text = markdown_content.split("\n")[0].replace("## ", "")
+        title_text = self._latex_escape(
+            markdown_content.split("\n")[0].replace("## ", "")
+        )
 
         # Wrap in document
         latex = f"""\\documentclass{{article}}
@@ -1152,9 +1154,11 @@ Key takeaways include the importance of continued investigation and the potentia
         """Generate BibTeX entries for citations"""
         entries = []
         for c in citations:
+            title = self._latex_escape(str(c.snippet or "")[:100])
+            note = self._latex_escape(str(c.context or ""))
             entry = f"""@misc{{doc{c.citation_index},
-  title = {{{c.snippet[:100]}}},
-  note = {{{c.context}}},
+  title = {{{title}}},
+  note = {{{note}}},
 }}
 """
             entries.append(entry)

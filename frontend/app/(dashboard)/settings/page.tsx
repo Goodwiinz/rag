@@ -8,6 +8,7 @@ import {
   BriefcaseBusiness,
   Clock3,
   KeyRound,
+  HardDrive,
   UserCog,
   UserCircle2,
 } from 'lucide-react';
@@ -18,9 +19,7 @@ import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 
 type PreferenceKey =
-  | 'compactMode'
-  | 'emailNotifications'
-  | 'desktopNotifications';
+  'compactMode' | 'emailNotifications' | 'desktopNotifications';
 
 type SettingsStatusItem = {
   label: string;
@@ -58,6 +57,19 @@ function formatLastSignIn(value: string | null | undefined): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
+}
+
+function formatBytes(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return 'Not available';
+  }
+  if (value === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const exponent = Math.min(
+    Math.floor(Math.log(value) / Math.log(1024)),
+    units.length - 1
+  );
+  return `${(value / 1024 ** exponent).toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`;
 }
 
 const PREFERENCE_ITEMS = [
@@ -100,6 +112,14 @@ export default function SettingsPage(): ReactElement {
   const workspaceName = organization?.name?.trim() ?? '';
   const planLabel = organization?.plan ? PLAN_LABELS[organization.plan] : '';
   const lastSignIn = formatLastSignIn(user?.last_login);
+  const storageUsed = user?.storage_quota_used;
+  const storageLimit = user?.storage_quota_limit;
+  const storagePercent =
+    typeof storageUsed === 'number' &&
+    typeof storageLimit === 'number' &&
+    storageLimit > 0
+      ? Math.min(100, (storageUsed / storageLimit) * 100)
+      : null;
 
   const statusItems: SettingsStatusItem[] = [
     {
@@ -133,6 +153,16 @@ export default function SettingsPage(): ReactElement {
       hint: 'Create a token in developer access',
       connected: false,
       icon: KeyRound,
+    },
+    {
+      label: 'Storage',
+      value: `${formatBytes(storageUsed)} / ${formatBytes(storageLimit)}`,
+      hint:
+        storagePercent === null
+          ? 'Quota details unavailable'
+          : `${storagePercent.toFixed(0)}% of workspace quota used`,
+      connected: storagePercent !== null,
+      icon: HardDrive,
     },
   ];
 
@@ -196,13 +226,9 @@ export default function SettingsPage(): ReactElement {
                   ) : null}
                 </div>
                 {showEmailLine ? (
-                  <p className="text-sm text-(--nous-fg-3)">
-                    {primaryEmail}
-                  </p>
+                  <p className="text-sm text-(--nous-fg-3)">{primaryEmail}</p>
                 ) : !primaryEmail ? (
-                  <p className="text-sm text-(--nous-fg-3)">
-                    No email on file
-                  </p>
+                  <p className="text-sm text-(--nous-fg-3)">No email on file</p>
                 ) : null}
               </div>
             </div>
@@ -354,10 +380,7 @@ export default function SettingsPage(): ReactElement {
         <Card className="rounded-2xl border-(--nous-border-1) bg-(--nous-bg-2) shadow-none">
           <CardHeader className="space-y-2 p-5 pb-2">
             <div className="flex items-center gap-2">
-              <Bell
-                className="h-4 w-4 text-(--nous-sol)"
-                aria-hidden="true"
-              />
+              <Bell className="h-4 w-4 text-(--nous-sol)" aria-hidden="true" />
               <CardTitle
                 id="personal-preferences-title"
                 className="text-2xl text-(--nous-fg-1)"
@@ -373,9 +396,7 @@ export default function SettingsPage(): ReactElement {
           <CardContent className="space-y-4 p-5 pt-0">
             {PREFERENCE_ITEMS.map((item, index) => (
               <div key={item.key} className="space-y-4">
-                {index > 0 && (
-                  <Separator className="bg-(--nous-border-1)" />
-                )}
+                {index > 0 && <Separator className="bg-(--nous-border-1)" />}
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-1">
                     <Label

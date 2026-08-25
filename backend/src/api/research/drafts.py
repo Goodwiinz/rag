@@ -116,6 +116,11 @@ async def generate_draft(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Maximum 10 themes allowed",
         )
+    if any(len(theme) > 500 for theme in themes):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Each theme must be 500 characters or fewer",
+        )
 
     # Validate project ownership
     await _validate_project_ownership(project_id, current_user, db)

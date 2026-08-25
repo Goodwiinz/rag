@@ -66,7 +66,9 @@ async def test_create_project_enforces_private_true(mock_db: AsyncMock) -> None:
 
     workspace_result = MagicMock()
     workspace_result.scalar_one_or_none.return_value = object()
-    mock_db.execute.return_value = workspace_result
+    count_result = MagicMock()
+    count_result.scalar.return_value = 0
+    mock_db.execute.side_effect = [workspace_result, count_result]
 
     payload = ProjectCreate(
         workspace_id=workspace_id,
@@ -83,6 +85,27 @@ async def test_create_project_enforces_private_true(mock_db: AsyncMock) -> None:
     assert created_project.research_status == "active"
     mock_db.commit.assert_awaited_once()
     mock_db.refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_create_project_rejects_workspace_quota(mock_db: AsyncMock) -> None:
+    service = ProjectService(mock_db)
+    workspace_id = uuid4()
+    workspace_result = MagicMock()
+    workspace_result.scalar_one_or_none.return_value = object()
+    count_result = MagicMock()
+    count_result.scalar.return_value = 200
+    mock_db.execute.side_effect = [workspace_result, count_result]
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.create_project(
+            user_id=uuid4(),
+            project_data=ProjectCreate(workspace_id=workspace_id, name="Too many"),
+        )
+
+    assert exc_info.value.status_code == 402
+    mock_db.add.assert_not_called()
+    mock_db.commit.assert_not_awaited()
 
 
 @pytest.mark.asyncio

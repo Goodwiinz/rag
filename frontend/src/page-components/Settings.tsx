@@ -4,19 +4,39 @@ import { Navigate } from 'react-router-dom';
 
 export const Settings: React.FC = () => {
   const { isAuthenticated, user } = useAuth();
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() =>
-    typeof window !== 'undefined' && localStorage.getItem('isDarkMode') === 'true'
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(
+    () =>
+      typeof window !== 'undefined' &&
+      localStorage.getItem('isDarkMode') === 'true'
   );
-  const [emailNotifications, setEmailNotifications] = useState<boolean>(() =>
-    typeof window !== 'undefined' && localStorage.getItem('emailNotifications') !== 'false'
+  const [emailNotifications, setEmailNotifications] = useState<boolean>(
+    () =>
+      typeof window !== 'undefined' &&
+      localStorage.getItem('emailNotifications') !== 'false'
   );
 
+  const formatBytes = (bytes: number): string => {
+    if (!Number.isFinite(bytes) || bytes < 0) return 'N/A';
+    if (bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const index = Math.min(
+      Math.floor(Math.log(bytes) / Math.log(1024)),
+      units.length - 1
+    );
+    return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+  };
+
+  const quotaUsed = user?.storage_quota_used ?? 0;
+  const quotaLimit = user?.storage_quota_limit ?? 0;
+
   useEffect(() => {
-    if (typeof window !== 'undefined') localStorage.setItem('isDarkMode', String(isDarkMode));
+    if (typeof window !== 'undefined')
+      localStorage.setItem('isDarkMode', String(isDarkMode));
   }, [isDarkMode]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') localStorage.setItem('emailNotifications', String(emailNotifications));
+    if (typeof window !== 'undefined')
+      localStorage.setItem('emailNotifications', String(emailNotifications));
   }, [emailNotifications]);
 
   if (!isAuthenticated) {
@@ -68,11 +88,15 @@ export const Settings: React.FC = () => {
                 </label>
                 <p className="mt-1 text-sm text-foreground">
                   {user
-                    ? user.storage_quota_used >= 1024 ** 3
-                      ? `${(user.storage_quota_used / 1024 ** 3).toFixed(2)} GB` // R6-L24
-                      : `${(user.storage_quota_used / 1024 / 1024).toFixed(1)} MB`
+                    ? `${formatBytes(quotaUsed)} / ${formatBytes(quotaLimit)}`
                     : 'N/A'}
                 </p>
+                {user && quotaLimit > 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {Math.min(100, (quotaUsed / quotaLimit) * 100).toFixed(0)}%
+                    of quota used
+                  </p>
+                )}
               </div>
             </div>
           </div>

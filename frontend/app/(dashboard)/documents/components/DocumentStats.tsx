@@ -5,6 +5,7 @@ interface DocumentStatsProps {
     total: number;
     visible_indexed: number;
     visible_processing: number;
+    visible_queued: number;
     visible_failed: number;
   };
 }
@@ -15,28 +16,35 @@ export function DocumentStats({ stats }: DocumentStatsProps) {
       <StatPill
         icon={FolderOpen}
         value={stats.total}
-        label="Total"
+        label="Total (all matches)"
         color="text-muted-foreground"
         bg="bg-muted"
       />
       <StatPill
         icon={CheckCircle2}
         value={stats.visible_indexed}
-        label="Indexed"
+        label="Indexed (page)"
         color="text-(--nous-terra)"
         bg="bg-(--nous-terra)/10"
       />
       <StatPill
         icon={Loader}
         value={stats.visible_processing}
-        label="Processing"
+        label="Processing (page)"
         color="text-(--nous-helios)"
         bg="bg-(--nous-helios)/10"
       />
       <StatPill
+        icon={Loader}
+        value={stats.visible_queued}
+        label="Queued (page)"
+        color="text-primary"
+        bg="bg-primary/10"
+      />
+      <StatPill
         icon={AlertTriangle}
         value={stats.visible_failed}
-        label="Failed"
+        label="Failed (page)"
         color="text-(--nous-mars)"
         bg="bg-(--nous-mars)/10"
       />
@@ -58,7 +66,9 @@ function StatPill({
   bg: string;
 }) {
   return (
-    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${bg} ${color}`}>
+    <div
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${bg} ${color}`}
+    >
       <Icon aria-hidden="true" className="w-3.5 h-3.5" />
       <span className="text-sm font-semibold tabular-nums">{value}</span>
       <span className="text-xs opacity-70">{label}</span>

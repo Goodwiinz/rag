@@ -5,6 +5,7 @@ Uses Azure AI Cohere rerank API to improve precision@K scores by reranking
 search results based on query-document relevance.
 """
 
+import asyncio
 import logging
 import time
 from contextvars import ContextVar
@@ -17,6 +18,15 @@ from src.core.circuit_breaker import ServiceUnavailableError, get_circuit_breake
 from src.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+_MAX_ATTEMPTS = 2
+
+
+def _retry_delay(response: httpx.Response, attempt: int) -> float:
+    try:
+        return min(30.0, max(0.0, float(response.headers.get("Retry-After", ""))))
+    except ValueError:
+        return 0.5 * (2**attempt)
 
 
 @dataclass
@@ -60,6 +70,8 @@ class CohereRerankService:
         self.model = settings.COHERE_RERANK_MODEL
         self.default_top_n = settings.COHERE_RERANK_TOP_N
         self._enabled = bool(self.endpoint and self.api_key)
+        self._async_client: Optional[httpx.AsyncClient] = None
+        self._sync_client: Optional[httpx.Client] = None
         self._last_failure: ContextVar[Optional[Dict[str, Any]]] = ContextVar(
             f"cohere_last_failure_{id(self)}", default=None
         )
@@ -87,6 +99,16 @@ class CohereRerankService:
     @last_failure.setter
     def last_failure(self, value: Optional[Dict[str, Any]]) -> None:
         self._last_failure.set(value)
+
+    def _get_async_client(self) -> httpx.AsyncClient:
+        if self._async_client is None:
+            self._async_client = httpx.AsyncClient(timeout=30.0)
+        return self._async_client
+
+    def _get_sync_client(self) -> httpx.Client:
+        if self._sync_client is None:
+            self._sync_client = httpx.Client(timeout=30.0)
+        return self._sync_client
 
     async def rerank(
         self,
@@ -149,9 +171,9 @@ class CohereRerankService:
                     doc.get("relevance_score", doc.get("score", 0.0))
                 )
 
-            # Call Cohere rerank API
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
+            # Reuse the connection pool and honor Cohere's 429 retry window.
+            for attempt in range(_MAX_ATTEMPTS):
+                response = await self._get_async_client().post(
                     self.endpoint,
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
@@ -165,8 +187,11 @@ class CohereRerankService:
                         "return_documents": return_documents,
                     },
                 )
-                response.raise_for_status()
-                result = response.json()
+                if response.status_code != 429 or attempt == _MAX_ATTEMPTS - 1:
+                    response.raise_for_status()
+                    break
+                await asyncio.sleep(_retry_delay(response, attempt))
+            result = response.json()
 
             elapsed_ms = (time.time() - start_time) * 1000
             logger.info(
@@ -325,9 +350,9 @@ class CohereRerankService:
                     doc.get("relevance_score", doc.get("score", 0.0))
                 )
 
-            # Call Cohere rerank API using sync client
-            with httpx.Client(timeout=30.0) as client:
-                response = client.post(
+            # Reuse the connection pool and honor Cohere's 429 retry window.
+            for attempt in range(_MAX_ATTEMPTS):
+                response = self._get_sync_client().post(
                     self.endpoint,
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
@@ -341,8 +366,11 @@ class CohereRerankService:
                         "return_documents": return_documents,
                     },
                 )
-                response.raise_for_status()
-                result = response.json()
+                if response.status_code != 429 or attempt == _MAX_ATTEMPTS - 1:
+                    response.raise_for_status()
+                    break
+                time.sleep(_retry_delay(response, attempt))
+            result = response.json()
 
             elapsed_ms = (time.time() - start_time) * 1000
             logger.info(

@@ -32,7 +32,11 @@ def test_revision_update_recomputes_checksum() -> None:
 def test_tracker_state_has_redis_mirror() -> None:
     src = _read("src/services/arxiv/arxiv_change_tracker.py")
     assert "arxiv:tracker:state" in src
-    assert "_redis_set_state()" in src.split("def save_state")[1][:1200]
+    save = src.split("def save_state", 1)[1].split("def compute_paper_hash", 1)[0]
+    persist = src.split("def _save_state_unlocked", 1)[1].split("def save_state", 1)[0]
+    assert "with self._state_update_lock()" in save
+    assert "self._save_state_unlocked()" in save
+    assert "self._redis_set_state()" in persist
 
 
 # R2-M7 — quota is claimed atomically, not incremented blindly

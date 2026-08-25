@@ -13,6 +13,7 @@ import logging
 import os
 import tempfile
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 # Serializes concurrent writes to the on-disk state file. Multiple category
 # scans can run at once (API + cron); a naive open("w") interleaves their
 # writes and corrupts the JSON.
-_STATE_LOCK = threading.Lock()
+_STATE_LOCK = threading.RLock()
 
 
 @dataclass
@@ -93,6 +94,42 @@ class ArXivChangeTracker:
         )
 
     _REDIS_KEY = "arxiv:tracker:state"
+    _REDIS_LOCK_KEY = "arxiv:tracker:state:lock"
+
+    @contextmanager
+    def _state_update_lock(self):
+        """Serialize tracker read/modify/write cycles across worker pods.
+
+        The file lock protects threads in one process; the Redis lock extends
+        that guarantee to the shared state mirror. If Redis is unavailable we
+        retain the local/file fallback rather than making tracking unavailable.
+        """
+        redis_lock = None
+        redis_locked = False
+        with _STATE_LOCK:
+            try:
+                import redis as _redis
+
+                from src.core.config import settings
+
+                client = _redis.from_url(settings.REDIS_URL, decode_responses=True)
+                redis_lock = client.lock(
+                    self._REDIS_LOCK_KEY,
+                    timeout=120,
+                    blocking_timeout=30,
+                )
+                redis_locked = bool(redis_lock.acquire(blocking=True))
+            except Exception as exc:
+                logger.debug("Redis tracker lock unavailable: %s", exc)
+
+            try:
+                yield redis_locked
+            finally:
+                if redis_locked and redis_lock is not None:
+                    try:
+                        redis_lock.release()
+                    except Exception as exc:
+                        logger.debug("Redis tracker lock release failed: %s", exc)
 
     def _redis_get_state(self) -> Optional[dict]:
         """Read shared tracker state from Redis (multi-pod truth, R2-L4)."""
@@ -148,33 +185,37 @@ class ArXivChangeTracker:
         else:
             logger.info("No previous state found, starting fresh")
 
-    def save_state(self):
-        """Save current tracking state to file atomically.
-
-        Writes to a temp file in the same directory then ``os.replace`` (atomic
-        on POSIX) under a module-level lock, so concurrent scans can never see a
-        half-written / corrupt state file.
-        """
+    def _save_state_unlocked(self):
+        """Write current tracking state while the caller owns update locks."""
         try:
-            with _STATE_LOCK:
-                self.state_file.parent.mkdir(parents=True, exist_ok=True)
-                fd, tmp_path = tempfile.mkstemp(
-                    dir=str(self.state_file.parent), suffix=".tmp"
-                )
+            self.state_file.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(self.state_file.parent), suffix=".tmp"
+            )
+            try:
+                with os.fdopen(fd, "w") as f:
+                    json.dump(self.state, f, indent=2, default=str)
+                os.replace(tmp_path, self.state_file)
+            except Exception:
                 try:
-                    with os.fdopen(fd, "w") as f:
-                        json.dump(self.state, f, indent=2, default=str)
-                    os.replace(tmp_path, self.state_file)
-                except Exception:
-                    try:
-                        os.unlink(tmp_path)
-                    except OSError:
-                        pass
-                    raise
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
             self._redis_set_state()
             logger.debug("Saved tracking state")
         except Exception as e:
             logger.error(f"Failed to save state: {e}")
+
+    def save_state(self):
+        """Save current tracking state to file and Redis atomically.
+
+        Writes to a temp file in the same directory then ``os.replace`` (atomic
+        on POSIX) under a module-level lock. The Redis lock additionally
+        serializes the shared read/modify/write cycle across pods.
+        """
+        with self._state_update_lock():
+            self._save_state_unlocked()
 
     def compute_paper_hash(self, paper: Dict[str, Any]) -> str:
         """Compute hash of paper metadata to detect changes"""
@@ -203,6 +244,42 @@ class ArXivChangeTracker:
         return hashlib.sha256(data_str.encode()).hexdigest()
 
     def detect_changes(
+        self,
+        papers: List[Dict[str, Any]],
+        organization_id: Any,
+        tracked_categories: Optional[Set[str]] = None,
+        commit: bool = True,
+        scan_truncated: bool = False,
+    ) -> List[ChangeRecord]:
+        """Detect changes under the shared tracker state lock."""
+        if not commit:
+            return self._detect_changes_unlocked(
+                papers,
+                organization_id,
+                tracked_categories=tracked_categories,
+                commit=False,
+                scan_truncated=scan_truncated,
+            )
+
+        with self._state_update_lock():
+            # Redis is the cross-pod source of truth. Reload it while holding
+            # the lock so this process never computes against a stale mirror.
+            shared = self._redis_get_state()
+            if isinstance(shared, dict):
+                self.state = shared
+            changes = self._detect_changes_unlocked(
+                papers,
+                organization_id,
+                tracked_categories=tracked_categories,
+                commit=True,
+                scan_truncated=scan_truncated,
+            )
+            # Persist the read/modify/write as one locked operation. apply_changes
+            # may later revert failed records and save the corrected state.
+            self._save_state_unlocked()
+            return changes
+
+    def _detect_changes_unlocked(
         self,
         papers: List[Dict[str, Any]],
         organization_id: Any,

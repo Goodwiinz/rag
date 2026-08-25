@@ -201,3 +201,28 @@ async def _run_engine(engine: WorkflowEngine, blueprint_dict: dict, run_id: UUID
     async for event in engine.run(blueprint_dict, run_id):
         events.append(event)
     return events
+
+
+@current_app.task(
+    name="src.tasks.research_tasks.run_extraction_matrix",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 2},
+)
+def run_extraction_matrix(
+    matrix_id: str,
+    document_ids: List[str],
+    columns: List[Dict[str, Any]],
+    task_id: str,
+) -> None:
+    """Run matrix extraction in a durable Celery worker."""
+    from src.services.research.extraction_matrix_service import ExtractionMatrixService
+
+    asyncio.run(
+        ExtractionMatrixService().run_background_extraction(
+            matrix_id=UUID(matrix_id),
+            document_ids=[UUID(document_id) for document_id in document_ids],
+            columns=columns,
+            task_id=task_id,
+        )
+    )

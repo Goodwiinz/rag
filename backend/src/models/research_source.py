@@ -26,8 +26,3 @@ class ResearchSource(BaseModel):
 
     # Relationships
     run = relationship("ResearchRun", back_populates="sources")
-    evidence = relationship(
-        "ResearchEvidence",
-        back_populates="source",
-        cascade="all, delete-orphan",
-    )

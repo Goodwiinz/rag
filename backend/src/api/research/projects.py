@@ -6,7 +6,6 @@ notes, and bibliography generation.
 User Story 4: Organize Documents into Research Projects
 """
 
-import asyncio
 import uuid
 from datetime import datetime
 from typing import List, Optional
@@ -45,6 +44,7 @@ from src.shared.research_schemas import (
     ProjectResponse,
     ProjectUpdate,
 )
+from src.tasks.research_tasks import run_extraction_matrix
 
 logger = get_logger()
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -440,19 +440,28 @@ async def add_document_to_project(
             )
         )
         existing_result = await db.execute(existing_query)
-        if existing_result.scalar_one_or_none():
+        existing = existing_result.scalar_one_or_none()
+        if existing and not getattr(existing, "is_deleted", False):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Document already in project",
             )
 
-        # Add document to project
-        collection_doc = CollectionDocument(
-            collection_id=project_id,
-            document_id=document_id,
-            sort_order=sort_order,
-        )
-        db.add(collection_doc)
+        # Reuse a soft-deleted junction row instead of inserting a duplicate
+        # against uq_collection_documents. This makes remove-then-re-add
+        # equivalent to a normal add while preserving the association history.
+        if existing:
+            collection_doc = existing
+            collection_doc.is_deleted = False
+            collection_doc.deleted_at = None
+            collection_doc.sort_order = sort_order
+        else:
+            collection_doc = CollectionDocument(
+                collection_id=project_id,
+                document_id=document_id,
+                sort_order=sort_order,
+            )
+            db.add(collection_doc)
         await db.commit()
         await db.refresh(collection_doc)
 
@@ -462,46 +471,11 @@ async def add_document_to_project(
             document_id=str(document_id),
         )
 
-        # Auto-extract: fire background extraction for all matrices in this project
-        extraction_task_ids = []
-        if document.content_text:
-            from src.models.extraction_matrix import ExtractionMatrix as EM
-            from src.services.research.extraction_matrix_service import (
-                ExtractionMatrixService,
-            )
-
-            matrix_query = select(EM).where(
-                and_(EM.project_id == project_id, EM.is_deleted == False)
-            )
-            matrix_result = await db.execute(matrix_query)
-            matrices = matrix_result.scalars().all()
-
-            service = ExtractionMatrixService()
-            for m in matrices:
-                task_id = f"auto-doc-{uuid.uuid4().hex[:12]}"
-                asyncio.create_task(
-                    service.run_background_extraction(
-                        matrix_id=m.id,
-                        document_ids=[document_id],
-                        columns=m.columns,
-                        task_id=task_id,
-                    )
-                )
-                extraction_task_ids.append(task_id)
-
-            if extraction_task_ids:
-                logger.info(
-                    "auto_extraction_on_doc_add",
-                    project_id=str(project_id),
-                    document_id=str(document_id),
-                    task_count=len(extraction_task_ids),
-                )
-
         # Capture the response payload from the ORM objects now, while they are
-        # fresh. The KG-queue block below rolls back on failure, which expires
-        # collection_doc/document; reading their attributes after that rollback
-        # would trigger an async lazy-load (MissingGreenlet) and falsely 500 a
-        # doc-add that already succeeded (committed above at db.commit()).
+        # fresh. Every queueing block below may raise or roll back; returning a
+        # response built from expired ORM state would trigger an async lazy-load
+        # (MissingGreenlet) and falsely 500 a doc-add that already succeeded.
+        extraction_task_ids = []
         response = {
             "id": str(collection_doc.id),
             "project_id": str(project_id),
@@ -523,6 +497,38 @@ async def add_document_to_project(
             },
             "extraction_task_ids": extraction_task_ids,
         }
+
+        # Auto-extract: fire background extraction for all matrices in this project
+        if document.content_text:
+            from src.models.extraction_matrix import ExtractionMatrix as EM
+
+            matrix_query = select(EM).where(
+                and_(EM.project_id == project_id, EM.is_deleted == False)
+            )
+            matrix_result = await db.execute(matrix_query)
+            matrices = matrix_result.scalars().all()
+
+            for m in matrices:
+                task_id = f"auto-doc-{uuid.uuid4().hex[:12]}"
+                run_extraction_matrix.apply_async(
+                    kwargs={
+                        "matrix_id": str(m.id),
+                        "document_ids": [str(document_id)],
+                        "columns": m.columns,
+                        "task_id": task_id,
+                    },
+                    task_id=task_id,
+                    queue="low_priority",
+                )
+                extraction_task_ids.append(task_id)
+
+            if extraction_task_ids:
+                logger.info(
+                    "auto_extraction_on_doc_add",
+                    project_id=str(project_id),
+                    document_id=str(document_id),
+                    task_count=len(extraction_task_ids),
+                )
 
         # Auto-populate the knowledge graph: queue an entity-extraction job so
         # the project's knowledge tree reflects this document.
@@ -765,6 +771,9 @@ async def create_note(
         # (see ProjectService.create_note docstring), so the shared service
         # method stays persistence-only.
         await _get_project_with_auth(project_id, current_user, db)
+        await _validate_note_document_links(
+            project_id, note_data.linked_document_ids, current_user, db
+        )
 
         note = await ProjectService(db).create_note(
             user_id=current_user.id,
@@ -859,6 +868,9 @@ async def update_note(
         if note_data.content is not None:
             note.content = note_data.content
         if note_data.linked_document_ids is not None:
+            await _validate_note_document_links(
+                project_id, note_data.linked_document_ids, current_user, db
+            )
             note.linked_document_ids = note_data.linked_document_ids
         if note_data.tags is not None:
             note.tags = note_data.tags
@@ -989,7 +1001,8 @@ async def get_project_bibliography(
 
         # Get all documents in project
         doc_query = select(CollectionDocument.document_id).where(
-            CollectionDocument.collection_id == project_id
+            CollectionDocument.collection_id == project_id,
+            CollectionDocument.is_deleted.is_(False),
         )
         doc_result = await db.execute(doc_query)
         document_ids = [row[0] for row in doc_result.all()]
@@ -1006,7 +1019,15 @@ async def get_project_bibliography(
             }
 
         # Get citations for these documents
-        citation_query = select(Citation).where(Citation.document_id.in_(document_ids))
+        citation_query = (
+            select(Citation)
+            .join(Document, Citation.document_id == Document.id)
+            .where(
+                Citation.document_id.in_(document_ids),
+                Citation.is_deleted.is_(False),
+                Document.is_deleted.is_(False),
+            )
+        )
         citation_result = await db.execute(citation_query)
         citations = citation_result.scalars().all()
 
@@ -1148,6 +1169,41 @@ async def _get_note(
         )
 
     return note
+
+
+async def _validate_note_document_links(
+    project_id: UUID,
+    document_ids: List[UUID],
+    current_user: User,
+    db: AsyncSession,
+) -> None:
+    """Ensure note links reference active documents in this user's project.
+
+    ``linked_document_ids`` is JSONB, so a database foreign key cannot enforce
+    these relationships. Validate the whole set before writing to prevent a
+    note from retaining a cross-tenant, deleted, or unrelated-project id.
+    """
+    requested = {str(document_id) for document_id in document_ids}
+    if not requested:
+        return
+
+    result = await db.execute(
+        select(Document.id)
+        .join(CollectionDocument, CollectionDocument.document_id == Document.id)
+        .where(
+            CollectionDocument.collection_id == project_id,
+            CollectionDocument.is_deleted.is_(False),
+            Document.id.in_(document_ids),
+            Document.organization_id == current_user.organization_id,
+            Document.is_deleted.is_(False),
+        )
+    )
+    visible = {str(document_id) for document_id in result.scalars().all()}
+    if visible != requested:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="One or more linked documents were not found in this project",
+        )
 
 
 def _to_project_response(project: Collection) -> ProjectResponse:
