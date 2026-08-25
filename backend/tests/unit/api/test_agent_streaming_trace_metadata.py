@@ -638,6 +638,9 @@ async def test_stream_confirmation_binds_buffer_to_durable_run_id(
     address it via stream_id_for_run."""
     from src.api.agent import streaming as streaming_mod
 
+    # A successful confirm deliberately HOLDS its local CX1 claim for the
+    # 330s TTL, so this test must use a thread id no earlier test claimed.
+    bind_thread_id = uuid.uuid4()
     graph = _ResumeCapturingGraph()
     graph.snapshot.tasks = ()
     db = SimpleNamespace(close=AsyncMock())
@@ -645,11 +648,11 @@ async def test_stream_confirmation_binds_buffer_to_durable_run_id(
         state=SimpleNamespace(request_id=REQUEST_ID),
         is_disconnected=AsyncMock(return_value=False),
     )
-    body = SimpleNamespace(thread_id=str(THREAD_ID), confirmed=True, model="")
+    body = SimpleNamespace(thread_id=str(bind_thread_id), confirmed=True, model="")
     current_user = cast(User, SimpleNamespace(id=USER_ID, organization_id=ORG_ID))
     durable_run = SimpleNamespace(
         job_id=RUN_ID,
-        thread_id=str(THREAD_ID),
+        thread_id=str(bind_thread_id),
         user_message_id=USER_MESSAGE_ID,
         client_message_id=str(CLIENT_MESSAGE_ID),
     )
@@ -704,4 +707,4 @@ async def test_stream_confirmation_binds_buffer_to_durable_run_id(
         raise AssertionError(
             "start_stream not awaited; frames=" + repr([f[:200] for f in frames])
         )
-    start_stream.assert_awaited_once_with(str(THREAD_ID), run_id=RUN_ID)
+    start_stream.assert_awaited_once_with(str(bind_thread_id), run_id=RUN_ID)
