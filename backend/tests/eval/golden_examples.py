@@ -3,6 +3,7 @@
 Each case captures user input + expected intent + expected tool sequence.
 Used by ``test_agent_regression.py`` and ``upload_golden.py``.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -16,7 +17,9 @@ class GoldenCase:
     name: str
     question: str
     expected_intent: str
-    expected_tools: tuple[str, ...] = ()
+    # None = do not score tool behavior; () = require zero tool calls;
+    # non-empty = require these calls in order.
+    expected_tools: tuple[str, ...] | None = None
     page_context: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
     # Optional multi-turn prior history. When set, the harness seeds the agent
@@ -34,7 +37,10 @@ DO_KB_CASES: tuple[GoldenCase, ...] = (
         question="What does our knowledge base say about transformer attention?",
         expected_intent="research",
         expected_tools=("do_kb_retrieve",),
-        page_context={"type": "project", "project_id": "42e805e9-7a8d-4117-86ff-b0f1169bc05a"},
+        page_context={
+            "type": "project",
+            "project_id": "42e805e9-7a8d-4117-86ff-b0f1169bc05a",
+        },
         metadata={"feature": "do_kb_activation"},
     ),
     GoldenCase(
@@ -75,17 +81,43 @@ PLANNER_SKIP_CASES: tuple[GoldenCase, ...] = (
 # bind ZERO tools, and (post-#619) get a templated zero-LLM reply. One per
 # greeting family so a regression of _is_greeting / _greeting_reply is caught.
 GREETING_CASES: tuple[GoldenCase, ...] = (
-    GoldenCase("greeting_hi", "Hi", "general", (), metadata={"feature": "greeting_fast_path"}),
-    GoldenCase("greeting_hey_there", "Hey there", "general", (), metadata={"feature": "greeting_fast_path"}),
-    GoldenCase("greeting_good_morning", "Good morning", "general", (), metadata={"feature": "greeting_fast_path"}),
-    GoldenCase("greeting_yo", "Yo", "general", (), metadata={"feature": "greeting_fast_path"}),
-    GoldenCase("greeting_greetings", "Greetings", "general", (), metadata={"feature": "greeting_fast_path"}),
+    GoldenCase(
+        "greeting_hi", "Hi", "general", (), metadata={"feature": "greeting_fast_path"}
+    ),
+    GoldenCase(
+        "greeting_hey_there",
+        "Hey there",
+        "general",
+        (),
+        metadata={"feature": "greeting_fast_path"},
+    ),
+    GoldenCase(
+        "greeting_good_morning",
+        "Good morning",
+        "general",
+        (),
+        metadata={"feature": "greeting_fast_path"},
+    ),
+    GoldenCase(
+        "greeting_yo", "Yo", "general", (), metadata={"feature": "greeting_fast_path"}
+    ),
+    GoldenCase(
+        "greeting_greetings",
+        "Greetings",
+        "general",
+        (),
+        metadata={"feature": "greeting_fast_path"},
+    ),
     GoldenCase(
         name="greeting_in_project",
         question="Hello!",
         expected_intent="general",
         expected_tools=(),
-        page_context={"type": "project", "project_id": "42e805e9-7a8d-4117-86ff-b0f1169bc05a", "project_name": "Transformer Papers"},
+        page_context={
+            "type": "project",
+            "project_id": "42e805e9-7a8d-4117-86ff-b0f1169bc05a",
+            "project_name": "Transformer Papers",
+        },
         metadata={"feature": "greeting_fast_path"},
     ),
 )
@@ -94,26 +126,64 @@ GREETING_CASES: tuple[GoldenCase, ...] = (
 # no tools, but must NOT be swallowed by the greeting template (they often
 # answer a prior question / HITL confirmation). Pins _is_greeting's exclusion.
 ACK_CASES: tuple[GoldenCase, ...] = (
-    GoldenCase("ack_yes", "Yes", "general", (), metadata={"feature": "ack_discriminator"}),
-    GoldenCase("ack_no", "No", "general", (), metadata={"feature": "ack_discriminator"}),
-    GoldenCase("ack_thanks", "Thanks", "general", (), metadata={"feature": "ack_discriminator"}),
-    GoldenCase("ack_ok", "Ok", "general", (), metadata={"feature": "ack_discriminator"}),
+    GoldenCase(
+        "ack_yes", "Yes", "general", (), metadata={"feature": "ack_discriminator"}
+    ),
+    GoldenCase(
+        "ack_no", "No", "general", (), metadata={"feature": "ack_discriminator"}
+    ),
+    GoldenCase(
+        "ack_thanks", "Thanks", "general", (), metadata={"feature": "ack_discriminator"}
+    ),
+    GoldenCase(
+        "ack_ok", "Ok", "general", (), metadata={"feature": "ack_discriminator"}
+    ),
 )
 
 # Intent-routing coverage for the two previously-untested subgraphs. These
-# assert INTENT only (expected_tools=()): the specific tool call is LLM-
+# assert INTENT only (expected_tools=None): the specific tool call is LLM-
 # dependent and would make the regression flaky, but the routing decision
 # (writing vs knowledge_graph vs research) is the high-value signal.
 WRITING_CASES: tuple[GoldenCase, ...] = (
-    GoldenCase("writing_summarize", "Summarize the latest paper in my library", "writing", (), metadata={"feature": "writing_intent"}),
-    GoldenCase("writing_draft", "Draft a related-work section on attention mechanisms", "writing", (), metadata={"feature": "writing_intent"}),
-    GoldenCase("writing_bibliography", "Export my project bibliography as BibTeX", "writing", (), metadata={"feature": "writing_intent"}),
+    GoldenCase(
+        "writing_summarize",
+        "Summarize the latest paper in my library",
+        "writing",
+        metadata={"feature": "writing_intent"},
+    ),
+    GoldenCase(
+        "writing_draft",
+        "Draft a related-work section on attention mechanisms",
+        "writing",
+        metadata={"feature": "writing_intent"},
+    ),
+    GoldenCase(
+        "writing_bibliography",
+        "Export my project bibliography as BibTeX",
+        "writing",
+        metadata={"feature": "writing_intent"},
+    ),
 )
 
 KG_CASES: tuple[GoldenCase, ...] = (
-    GoldenCase("kg_extract_entities", "Extract the key entities from this document", "knowledge_graph", (), metadata={"feature": "kg_intent"}),
-    GoldenCase("kg_search_graph", "What is connected to BERT in our knowledge graph?", "knowledge_graph", (), metadata={"feature": "kg_intent"}),
-    GoldenCase("kg_neighborhood", "Explore the entity neighborhood around transformers", "knowledge_graph", (), metadata={"feature": "kg_intent"}),
+    GoldenCase(
+        "kg_extract_entities",
+        "Extract the key entities from this document",
+        "knowledge_graph",
+        metadata={"feature": "kg_intent"},
+    ),
+    GoldenCase(
+        "kg_search_graph",
+        "What is connected to BERT in our knowledge graph?",
+        "knowledge_graph",
+        metadata={"feature": "kg_intent"},
+    ),
+    GoldenCase(
+        "kg_neighborhood",
+        "Explore the entity neighborhood around transformers",
+        "knowledge_graph",
+        metadata={"feature": "kg_intent"},
+    ),
 )
 
 # Project-scoped multi-step query — exists to make the planner emit a
@@ -125,8 +195,11 @@ PLAN_CASES: tuple[GoldenCase, ...] = (
         name="plan_multistep_research",
         question="Find recent transformer papers, add the top three to this project, and summarize them",
         expected_intent="research",
-        expected_tools=(),
-        page_context={"type": "project", "project_id": "42e805e9-7a8d-4117-86ff-b0f1169bc05a", "project_name": "Transformer Papers"},
+        page_context={
+            "type": "project",
+            "project_id": "42e805e9-7a8d-4117-86ff-b0f1169bc05a",
+            "project_name": "Transformer Papers",
+        },
         metadata={"feature": "plan_adherence_fixture"},
     ),
 )
@@ -162,12 +235,16 @@ RETRY_CASES: tuple[GoldenCase, ...] = (
         name="retry_after_failed_search",
         question="",
         expected_intent="research",
-        expected_tools=(),
         messages=(
             AIMessage(
                 content="",
                 tool_calls=[
-                    {"type": "tool_call", "id": "c1", "name": "search_arxiv", "args": {"query": "transformers"}}
+                    {
+                        "type": "tool_call",
+                        "id": "c1",
+                        "name": "search_arxiv",
+                        "args": {"query": "transformers"},
+                    }
                 ],
             ),
             ToolMessage(content="error: rate limited", tool_call_id="c1"),

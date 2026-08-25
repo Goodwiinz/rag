@@ -67,12 +67,22 @@ class TestEvaluatorGuards:
         # No expected_tools KEY → null reference → fail (not vacuous pass).
         assert tool_subset_match({"tool_calls": []}, {})["score"] == 0
 
-    def test_tool_subset_legit_empty_tuple_passes(self):
+    def test_tool_subset_empty_tuple_requires_no_calls(self):
         from tests.eval.test_agent_regression import tool_subset_match
 
-        # Key present, value () → legitimately "no tools expected" → pass.
+        assert (
+            tool_subset_match({"tool_calls": []}, {"expected_tools": ()})["score"] == 1
+        )
         assert (
             tool_subset_match({"tool_calls": ["x"]}, {"expected_tools": ()})["score"]
+            == 0
+        )
+
+    def test_tool_subset_none_explicitly_skips_tool_scoring(self):
+        from tests.eval.test_agent_regression import tool_subset_match
+
+        assert (
+            tool_subset_match({"tool_calls": ["x"]}, {"expected_tools": None})["score"]
             == 1
         )
 
@@ -507,6 +517,16 @@ class TestCurrentTurnBoundary:
 
 @pytest.mark.unit
 class TestGoldenCaseInvariants:
+    def test_tool_expectation_serialization_preserves_ignore_vs_none(self):
+        from tests.eval.golden_examples import GoldenCase
+        from tests.eval.upload_golden import _example_payload
+
+        ignored = GoldenCase("ignore", "q", "general")
+        no_tools = GoldenCase("none", "q", "general", ())
+
+        assert _example_payload(ignored)[1]["expected_tools"] is None
+        assert _example_payload(no_tools)[1]["expected_tools"] == []
+
     def test_all_case_names_unique(self):
         # A duplicate name would silently shadow a case in the dataset upsert
         # (keyed by golden_case name) and in pytest ids.

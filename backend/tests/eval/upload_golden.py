@@ -7,6 +7,7 @@ Usage:
     LANGCHAIN_API_KEY=... python -m tests.eval.upload_golden
     LANGCHAIN_API_KEY=... python -m tests.eval.upload_golden --dataset agent-accuracy-benchmark
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,14 +44,18 @@ def _partition_examples(
     return by_name, orphans
 
 
-def _example_payload(case: GoldenCase) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def _example_payload(
+    case: GoldenCase,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     inputs: dict[str, Any] = {"question": case.question}
     if case.page_context:
         inputs["page_context"] = case.page_context
 
     outputs: dict[str, Any] = {
         "intent": case.expected_intent,
-        "expected_tools": list(case.expected_tools),
+        "expected_tools": (
+            list(case.expected_tools) if case.expected_tools is not None else None
+        ),
     }
     metadata: dict[str, Any] = {"golden_case": case.name, **case.metadata}
     return inputs, outputs, metadata
