@@ -17,6 +17,9 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from src.services.agent.stream_buffer import BufferedFrame
+from tests.utils.agent_stream import frames_of_type, sse_seq
+
 
 @pytest.fixture(autouse=True)
 def _reset_compiled_graph_cache():
@@ -74,6 +77,47 @@ class _FakeGraph:
 
     async def aclose(self):
         self.aclosed = True
+
+
+class _NestedInterruptGraph:
+    """Resume once, then park on another approval gate."""
+
+    def __init__(self, thread_id):
+        values = {
+            "page_context": {"type": "general"},
+            "user_id": "user-1",
+            "messages": [],
+        }
+        self._snapshots = [
+            SimpleNamespace(
+                values=values,
+                tasks=(),
+                config={"configurable": {"checkpoint_id": "checkpoint-1"}},
+            ),
+            SimpleNamespace(
+                values=values,
+                tasks=(
+                    SimpleNamespace(
+                        interrupts=(
+                            SimpleNamespace(
+                                value={
+                                    "tool_name": "create_note",
+                                    "message": "Create this note?",
+                                }
+                            ),
+                        )
+                    ),
+                ),
+            ),
+        ]
+        self.thread_id = thread_id
+
+    async def astream_events(self, *args, **kwargs):
+        if False:  # pragma: no cover - keep this an async generator
+            yield {}
+
+    async def aget_state(self, config):
+        return self._snapshots.pop(0)
 
 
 @pytest.mark.asyncio
@@ -218,6 +262,113 @@ async def test_confirm_derives_idempotent_assistant_cmid_from_user_row():
 
     kwargs = persist_mock.await_args.kwargs
     assert kwargs["client_message_id"] == expected_assistant_cmid
+
+
+@pytest.mark.asyncio
+async def test_legacy_cursor_confirm_receives_nested_approval_gate():
+    """A no-``?stream=`` cursor from the pre-confirm stream must not skip the
+    resumed stream's early frames, especially a nested approval gate.
+    """
+    from src.api.agent import streaming as streaming_mod
+
+    thread_id = "11111111-1111-1111-1111-111111111111"
+    old_stream_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    old_cursor = 7
+    run_stream = {"run-1": old_stream_id}
+
+    async def stream_id_for_run(run_id):
+        return run_stream.get(run_id)
+
+    async def start_stream(_thread_id, *, run_id=None):
+        new_stream_id = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+        if run_id is not None:
+            run_stream[run_id] = new_stream_id
+        return new_stream_id
+
+    async def read_after(stream_id, after, *, start_index=None):
+        if stream_id != old_stream_id or after >= old_cursor:
+            return []
+        return [
+            BufferedFrame(
+                seq=old_cursor,
+                frame=(f"id: {old_cursor}\nevent: confirmation\n" "data: {}\n\n"),
+            )
+        ]
+
+    fake_db = AsyncMock()
+    fake_db.close = AsyncMock()
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    body = SimpleNamespace(thread_id=thread_id, confirmed=True, model="gpt-5")
+    current_user = Mock(id="user-1", organization_id="org-1")
+
+    with (
+        patch(
+            "src.services.agent.observability.configure_langsmith",
+            side_effect=lambda: None,
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.checkpointer.reset_checkpointer",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            return_value=_NestedInterruptGraph(thread_id),
+        ),
+        patch.object(streaming_mod, "AsyncSessionLocal", return_value=fake_db),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "stream_id_for_run",
+            new=AsyncMock(side_effect=stream_id_for_run),
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "read_after",
+            new=AsyncMock(side_effect=read_after),
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "start_stream",
+            new=AsyncMock(side_effect=start_stream),
+        ),
+        patch.object(
+            streaming_mod._stream_buffer, "append", new=AsyncMock(return_value=None)
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "finish_stream",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.services.agent.job_store.get_redis",
+            new=AsyncMock(return_value=None),
+        ),
+        patch.object(
+            streaming_mod,
+            "process_local_confirmation_coordination_allowed",
+            return_value=True,
+        ),
+        patch.object(streaming_mod, "_acquire_local_confirm_claim", return_value=True),
+    ):
+        events = [
+            event
+            async for event in streaming_mod.stream_confirm_event_generator(
+                body, request, current_user
+            )
+        ]
+
+    legacy_visible = [event for event in events if (sse_seq(event) or 0) > old_cursor]
+    assert frames_of_type(legacy_visible, "confirmation"), (
+        "the active confirm stream restarted below the legacy cursor and hid "
+        f"its approval gate: {events!r}"
+    )
 
 
 @pytest.mark.asyncio

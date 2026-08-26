@@ -672,11 +672,11 @@ async def _stream_luna_fast_path(
 
 def _canonical_persistence_enabled() -> bool:
     """Server-canonical persistence rollout flag (PR 1 of the
-    dual-persistence consolidation). When on, the assistant row is
-    persisted synchronously before `done` and the done payload carries
-    the persisted ids so the client can reconcile instead of writing its
-    own copy. Read per-call (not at import) so tests and the dev cluster
-    can flip it without a process restart."""
+    dual-persistence consolidation). When on, the done payload carries the
+    persisted ids so the client can reconcile instead of writing its own copy.
+    Graph routes always persist synchronously before `done`; this flag now
+    controls only that additive client contract. Read per-call (not at import)
+    so tests and the dev cluster can flip it without a process restart."""
     import os
 
     return os.getenv("AGENT_CANONICAL_PERSISTENCE", "").lower() in (
@@ -1096,10 +1096,50 @@ class _SeqEmitter:
             self.route = route if route in _STREAM_ROUTES else "unknown"
             self.slo_tracker.set_route(self.route)
 
-    async def start(self, thread_id: str, *, run_id: Optional[str] = None) -> None:
+    async def start(
+        self,
+        thread_id: str,
+        *,
+        run_id: Optional[str] = None,
+        continue_sequence: bool = False,
+    ) -> None:
         if self.sid is not None:
             return
         self.set_context(thread_id=thread_id)
+        if continue_sequence:
+            try:
+                previous_sid = (
+                    await _stream_buffer.stream_id_for_run(run_id) if run_id else None
+                )
+                previous_frames = (
+                    await _stream_buffer.read_after(previous_sid, 0)
+                    if previous_sid
+                    else []
+                )
+                if not previous_frames:
+                    # Without a durable cursor high-water mark, publishing a
+                    # fresh seq-1 active stream would hide its early frames from
+                    # legacy no-?stream clients carrying the prior cursor. Stay
+                    # live-only; a nested gate remains recoverable through the
+                    # checkpoint-backed pending-confirmation replay.
+                    logger.warning(
+                        "Confirm stream sequence continuity unavailable; "
+                        "continuing without a resumable buffer",
+                        extra={"thread_id": thread_id, "run_id": run_id},
+                    )
+                    return
+                # Continue the cursor only. Never copy old content into the new
+                # buffer, where it could be mistaken for this resume's durable
+                # output.
+                self.seq = max(frame.seq for frame in previous_frames)
+            except Exception:
+                logger.warning(
+                    "Failed to continue confirm stream sequence; continuing "
+                    "without a resumable buffer",
+                    exc_info=True,
+                    extra={"thread_id": thread_id, "run_id": run_id},
+                )
+                return
         try:
             self.sid = await _stream_buffer.start_stream(thread_id, run_id=run_id)
         except Exception:
@@ -2363,35 +2403,21 @@ async def stream_event_generator(
                         else None
                     ),
                 )
-                if _canonical_persistence_enabled():
-                    # Server-canonical mode: persist BEFORE `done` so the
-                    # event can carry the persisted ids and the client can
-                    # reconcile its optimistic message without a re-fetch.
-                    persisted_assistant_id = (
-                        await _jobs_mod._persist_assistant_message_safe(
-                            **persist_kwargs, required=True
-                        )
+                # A terminal ``done`` is a durability claim: complete the
+                # server-canonical row first in every rollout mode. This runs
+                # after all answer tokens, so it does not delay TTFT or token
+                # cadence; only the terminal acknowledgement waits for commit.
+                persisted_assistant_id = (
+                    await _jobs_mod._persist_assistant_message_safe(
+                        **persist_kwargs, required=True
                     )
-                    if persisted_assistant_id is None:
-                        raise RuntimeError(
-                            "Assistant message persistence returned no id"
-                        )
-                elif background_tasks is not None:
-                    background_tasks.add_task(
-                        _jobs_mod._persist_assistant_message_safe,
-                        **persist_kwargs,
-                    )
-                else:
-                    # No BackgroundTasks plumbing available (e.g. unit
-                    # tests that directly invoke the generator without
-                    # passing one). Run inline through the safe wrapper
-                    # so the failure-metric path is still exercised.
-                    await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
+                )
+                if persisted_assistant_id is None:
+                    raise RuntimeError("Assistant message persistence returned no id")
                 assistant_persisted = True
         except Exception as e:
             logger.warning("Failed to persist SSE thread messages", exc_info=e)
-            if _canonical_persistence_enabled():
-                raise
+            raise
 
         if turn_input_tokens > 0 or turn_output_tokens > 0:
             # Server-side token cost metric (was previously SSE-only, so cost
@@ -3029,6 +3055,7 @@ async def stream_confirm_event_generator(
             run_id=(
                 str(active_run.job_id) if getattr(active_run, "job_id", None) else None
             ),
+            continue_sequence=True,
         )
 
         yield await emitter.emit(
@@ -3407,34 +3434,20 @@ async def stream_confirm_event_generator(
                 latency_ms=int((time.monotonic() - stream_started_at) * 1000),
                 ttft_ms=_ttft_ms(emitter, stream_started_at),
             )
-            # _persist_assistant_message_safe opens its own session so this
-            # request session can be closed immediately after `done`. Run it
-            # inline (not as a background task) in canonical mode so the id
-            # is available for the done payload; otherwise fall back to a
-            # background task to release the SSE without waiting on the write.
-            if _canonical_persistence_enabled():
-                persisted_assistant_id = (
-                    await _jobs_mod._persist_assistant_message_safe(
-                        **persist_kwargs, required=True
-                    )
-                )
-                if persisted_assistant_id is None:
-                    raise RuntimeError("Assistant message persistence returned no id")
-            elif background_tasks is not None:
-                background_tasks.add_task(
-                    _jobs_mod._persist_assistant_message_safe,
-                    **persist_kwargs,
-                )
-            else:
-                await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
+            # ``done`` is emitted only after the server-canonical row exists;
+            # rollout mode controls reconciliation ids, not durability.
+            persisted_assistant_id = await _jobs_mod._persist_assistant_message_safe(
+                **persist_kwargs, required=True
+            )
+            if persisted_assistant_id is None:
+                raise RuntimeError("Assistant message persistence returned no id")
             assistant_persisted = True
         except Exception as e:
             logger.warning(
                 "Failed to persist SSE confirmation thread messages",
                 exc_info=e,
             )
-            if _canonical_persistence_enabled():
-                raise
+            raise
 
         if turn_input_tokens > 0 or turn_output_tokens > 0:
             # Server-side token cost metric (was previously SSE-only, so cost
