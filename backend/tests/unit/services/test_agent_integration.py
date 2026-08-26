@@ -30,15 +30,22 @@ from src.api.agent.execute import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+_TEST_ORG_ID = "11111111-1111-1111-1111-111111111111"
+_TEST_USER_A_ID = "22222222-2222-2222-2222-222222222222"
+_TEST_USER_B_ID = "33333333-3333-3333-3333-333333333333"
 
-def _make_mock_user(user_id: str = "user-111"):
+
+def _make_mock_user(
+    user_id: str = _TEST_USER_A_ID,
+    organization_id: str = _TEST_ORG_ID,
+):
     user = Mock()
     user.id = user_id
     user.email = "test@example.com"
     user.first_name = "Test"
     user.last_name = "User"
     user.role = Mock(value="user")
-    user.organization_id = "test-org"
+    user.organization_id = organization_id
     user.is_active = True
     return user
 
@@ -59,12 +66,12 @@ def _make_mock_db():
 
 @pytest.fixture
 def mock_user_a():
-    return _make_mock_user("user-aaa")
+    return _make_mock_user(_TEST_USER_A_ID)
 
 
 @pytest.fixture
 def mock_user_b():
-    return _make_mock_user("user-bbb")
+    return _make_mock_user(_TEST_USER_B_ID)
 
 
 @pytest.fixture
@@ -708,7 +715,7 @@ class TestSSEStreamPersistence:
         assert initial_state["page_context"] == expected_context
         assert config["configurable"]["page_context"] == expected_context
 
-    def test_stream_confirm_persists_resumed_messages(self, client):
+    def test_stream_confirm_persists_resumed_messages(self, client, mock_user_a):
         """SSE /stream/confirm should persist the resumed assistant turn.
 
         The confirm path persists ONLY the assistant row (the user row was
@@ -726,7 +733,7 @@ class TestSSEStreamPersistence:
 
         snapshot = SimpleNamespace(
             values={
-                "user_id": "user-aaa",
+                "user_id": str(mock_user_a.id),
                 "messages": [
                     HumanMessage(content="ingest this paper"),
                     AIMessage(content="The paper was ingested."),
@@ -807,14 +814,14 @@ class TestSSEStreamPersistence:
         active_run_call = mock_active_run.await_args
         assert active_run_call.args[1] == thread_id
         assert active_run_call.kwargs == {
-            "organization_id": "test-org",
-            "user_id": "user-aaa",
+            "organization_id": mock_user_a.organization_id,
+            "user_id": mock_user_a.id,
         }
         mock_claim.assert_awaited_once()
         assert mock_claim.await_args.args[1] == "run-1"
         assert mock_claim.await_args.kwargs == {
-            "organization_id": "test-org",
-            "user_id": "user-aaa",
+            "organization_id": mock_user_a.organization_id,
+            "user_id": mock_user_a.id,
         }
 
     def test_stream_confirm_rejects_snapshot_without_user_id(self, client):
