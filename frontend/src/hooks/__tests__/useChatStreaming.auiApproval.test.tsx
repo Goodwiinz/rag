@@ -43,6 +43,7 @@ vi.mock('@/services/workspaceService', () => ({
 type Cb = {
   onConfirmation: (t: string, c: Record<string, unknown>) => void;
   onDone: (p?: unknown) => void;
+  onError: (error: string, category?: string) => void;
 };
 
 function makeParams(setMessages: (m: unknown) => void) {
@@ -183,6 +184,57 @@ describe('the approval card survives the stream ending', () => {
       'the approval card must not be deleted by the stream unwind — without ' +
         'it the user has a locked composer and no way to answer'
     ).toBe(1);
+  });
+
+  it('keeps the approval message and error when one chunk has confirmation then error', async () => {
+    const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
+
+    let current: ChatPageMessage[] = [];
+    const setMessages = vi.fn((m: unknown) => {
+      current =
+        typeof m === 'function'
+          ? (m as (p: ChatPageMessage[]) => ChatPageMessage[])(current)
+          : (m as ChatPageMessage[]);
+    });
+
+    let callbacks!: Cb;
+    let releaseStream!: () => void;
+    streamMessageMock.mockImplementation(
+      (_r: unknown, cb: Cb) =>
+        new Promise<void>((resolve) => {
+          callbacks = cb;
+          releaseStream = resolve;
+        })
+    );
+
+    const params = makeParams(setMessages);
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    let submission!: Promise<void>;
+    act(() => {
+      submission = result.current.handleSubmit(
+        'start a project about rag testing'
+      );
+    });
+    await waitFor(() => expect(streamMessageMock).toHaveBeenCalledOnce());
+
+    await act(async () => {
+      callbacks.onConfirmation('agent-thread-1', {
+        tool_name: 'create_project',
+        tool_args: { name: 'rag testing' },
+      });
+    });
+    expect(result.current.pendingConfirmation).not.toBeNull();
+    expect(current.filter((m) => m.pendingApproval)).toHaveLength(1);
+
+    await act(async () => {
+      callbacks.onError('post-terminal failure', 'internal');
+      releaseStream();
+      await submission;
+    });
+
+    expect(current.filter((m) => m.pendingApproval)).toHaveLength(1);
+    expect(current.find((m) => m.error)?.error?.category).toBe('internal');
   });
 
   it('handleStop clears a pending confirmation so the composer unlocks', async () => {
