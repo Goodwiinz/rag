@@ -17,10 +17,12 @@ does (see nous-libpq-test-env).
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import types
 import uuid
 from collections.abc import AsyncIterator
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -67,10 +69,12 @@ class _FakeGraph:
 
     def __init__(self, error: BaseException | None = None) -> None:
         self._error = error
+        self.consumed = False
 
     async def astream_events(
         self, *_args: Any, **_kwargs: Any
     ) -> AsyncIterator[dict[str, Any]]:
+        self.consumed = True
         if self._error is not None:
             raise self._error
         yield {
@@ -91,8 +95,10 @@ class _FakeGraph:
 
 
 @pytest.fixture
-async def session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+async def session_factory(
+    tmp_path: Path,
+) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'agent.db'}")
 
     # SQLAlchemy's documented sqlite caveat: without this, SAVEPOINT usage
     # inside the accept transaction implicitly COMMITs it, and the rollback
@@ -100,6 +106,9 @@ async def session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     @event.listens_for(engine.sync_engine, "connect")
     def _disable_driver_transactions(dbapi_connection: Any, _record: Any) -> None:
         dbapi_connection.isolation_level = None
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
 
     @event.listens_for(engine.sync_engine, "begin")
     def _emit_begin(connection: Any) -> None:
@@ -144,6 +153,7 @@ async def _drive_stream(
     resolve_thread_error: BaseException | None = None,
     thread_id: uuid.UUID = THREAD_ID,
     client_message_id: uuid.UUID | None = None,
+    request: Any | None = None,
 ) -> list[str]:
     from src.api.agent import streaming as streaming_mod
 
@@ -157,7 +167,7 @@ async def _drive_stream(
         ],
         thread_id=str(thread_id),
     )
-    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    request = request or SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     current_user = SimpleNamespace(id=USER_ID, organization_id=ORG_ID)
     graph = graph or _FakeGraph()
     resolve_thread = (
@@ -551,6 +561,247 @@ async def test_retry_waits_for_original_stream_startup_before_terminalizing(
 
 
 @pytest.mark.asyncio
+async def test_retry_does_not_fail_run_that_started_during_grace(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The post-grace CAS must lose to a concurrent QUEUED-to-RUNNING update."""
+    from src.api.agent import streaming as streaming_mod
+
+    client_message_id = uuid.uuid4()
+    run_id = await _accept_without_dispatch(
+        session_factory,
+        thread_id=THREAD_ID,
+        client_message_id=client_message_id,
+    )
+    lookup_count = 0
+
+    async def missing_buffer_while_dispatch_starts(_run_id: str) -> None:
+        nonlocal lookup_count
+        lookup_count += 1
+        if lookup_count == 2:
+            async with session_factory() as dispatch_db:
+                run = await dispatch_db.get(AgentRun, run_id)
+                assert run is not None
+                run.status = JobStatus.RUNNING.value
+                await dispatch_db.commit()
+        return None
+
+    frames = await _drive_stream(
+        session_factory,
+        client_message_id=client_message_id,
+        extra_patches=(
+            patch.object(
+                streaming_mod._stream_buffer,
+                "stream_id_for_run",
+                new=missing_buffer_while_dispatch_starts,
+            ),
+            patch.object(streaming_mod.asyncio, "sleep", new=AsyncMock()),
+        ),
+    )
+
+    errors = frames_of_type(frames, "error")
+    assert len(errors) == 1
+    error = sse_data(errors[0])
+    assert error["category"] == AgentErrorCategory.CONFLICT.value
+    assert error["error"] == "The original response stream is unavailable."
+
+    async with session_factory() as verify:
+        run = await verify.get(AgentRun, run_id)
+        assert run is not None
+        assert run.status == JobStatus.RUNNING.value
+        failed_count = int(
+            (
+                await verify.execute(
+                    select(func.count())
+                    .select_from(AgentRunEvent)
+                    .where(
+                        AgentRunEvent.run_id == run_id,
+                        AgentRunEvent.event_type == "run.failed",
+                    )
+                )
+            ).scalar_one()
+        )
+        assert failed_count == 0
+
+
+@pytest.mark.asyncio
+async def test_retry_disconnect_never_cancels_original_run(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A replay is an observer, so its disconnect cannot own cancellation."""
+    from src.api.agent import streaming as streaming_mod
+
+    client_message_id = uuid.uuid4()
+    run_id = await _accept_without_dispatch(
+        session_factory,
+        thread_id=THREAD_ID,
+        client_message_id=client_message_id,
+    )
+    disconnect_signal = asyncio.Event()
+    request = SimpleNamespace(
+        state=SimpleNamespace(agent_disconnect_event=disconnect_signal),
+        is_disconnected=AsyncMock(return_value=False),
+    )
+
+    async def disconnect_during_lookup(_run_id: str) -> None:
+        disconnect_signal.set()
+        await asyncio.sleep(1)
+
+    with pytest.raises(asyncio.CancelledError):
+        await _drive_stream(
+            session_factory,
+            client_message_id=client_message_id,
+            request=request,
+            extra_patches=(
+                patch.object(
+                    streaming_mod._stream_buffer,
+                    "stream_id_for_run",
+                    new=disconnect_during_lookup,
+                ),
+            ),
+        )
+
+    async with session_factory() as verify:
+        run = await verify.get(AgentRun, run_id)
+        assert run is not None
+        assert run.status == JobStatus.QUEUED.value
+        terminal_count = int(
+            (
+                await verify.execute(
+                    select(func.count())
+                    .select_from(AgentRunEvent)
+                    .where(
+                        AgentRunEvent.run_id == run_id,
+                        AgentRunEvent.event_type.in_(
+                            ("run.failed", "run.cancelled", "run.completed")
+                        ),
+                    )
+                )
+            ).scalar_one()
+        )
+        assert terminal_count == 0
+
+
+@pytest.mark.asyncio
+async def test_retry_lookup_error_never_fails_original_run(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Replay infrastructure failure must not transfer run ownership."""
+    from src.api.agent import streaming as streaming_mod
+
+    client_message_id = uuid.uuid4()
+    run_id = await _accept_without_dispatch(
+        session_factory,
+        thread_id=THREAD_ID,
+        client_message_id=client_message_id,
+    )
+
+    frames = await _drive_stream(
+        session_factory,
+        client_message_id=client_message_id,
+        extra_patches=(
+            patch.object(
+                streaming_mod._stream_buffer,
+                "stream_id_for_run",
+                new=AsyncMock(side_effect=RuntimeError("redis unavailable")),
+            ),
+        ),
+    )
+
+    assert len(frames_of_type(frames, "error")) == 1
+    async with session_factory() as verify:
+        run = await verify.get(AgentRun, run_id)
+        assert run is not None
+        assert run.status == JobStatus.QUEUED.value
+        terminal_count = int(
+            (
+                await verify.execute(
+                    select(func.count())
+                    .select_from(AgentRunEvent)
+                    .where(
+                        AgentRunEvent.run_id == run_id,
+                        AgentRunEvent.event_type.in_(
+                            ("run.failed", "run.cancelled", "run.completed")
+                        ),
+                    )
+                )
+            ).scalar_one()
+        )
+        assert terminal_count == 0
+
+
+@pytest.mark.asyncio
+async def test_original_never_executes_after_abandonment_claim_wins(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A delayed original must stop when replay cleanup owns terminalization."""
+    from src.api.agent import streaming as streaming_mod
+    from src.services.agent.agent_submission_service import fail_queued_submission
+
+    graph = _FakeGraph()
+
+    async def abandon_instead_of_dispatch(
+        db: AsyncSession,
+        *,
+        run_id: str,
+        organization_id: Any,
+        user_id: Any,
+        **_kwargs: Any,
+    ) -> bool:
+        message = "The original response did not start. Please retry."
+        abandoned = await fail_queued_submission(
+            db,
+            run_id=run_id,
+            thread_id=THREAD_ID,
+            organization_id=organization_id,
+            user_id=user_id,
+            error_code="stream_not_dispatched",
+            error=message,
+            payload={"code": "stream_not_dispatched", "message": message},
+        )
+        assert abandoned
+        return False
+
+    frames = await _drive_stream(
+        session_factory,
+        graph=graph,
+        extra_patches=(
+            patch.object(
+                streaming_mod,
+                "mark_submission_dispatched",
+                new=abandon_instead_of_dispatch,
+            ),
+        ),
+    )
+
+    assert not graph.consumed
+    assert not frames_of_type(frames, "token")
+    assert not frames_of_type(frames, "done")
+    errors = frames_of_type(frames, "error")
+    assert len(errors) == 1
+    error = sse_data(errors[0])
+    assert error["category"] == AgentErrorCategory.CONFLICT.value
+    assert error["error"] == "This response is no longer active. Please retry."
+
+    async with session_factory() as verify:
+        run = (await verify.execute(select(AgentRun))).scalar_one()
+        assert run.status == JobStatus.FAILED.value
+        failed_count = int(
+            (
+                await verify.execute(
+                    select(func.count())
+                    .select_from(AgentRunEvent)
+                    .where(
+                        AgentRunEvent.run_id == run.job_id,
+                        AgentRunEvent.event_type == "run.failed",
+                    )
+                )
+            ).scalar_one()
+        )
+        assert failed_count == 1
+
+
+@pytest.mark.asyncio
 async def test_undispatched_retry_fails_after_grace_and_releases_the_thread_slot(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -600,6 +851,12 @@ async def test_undispatched_retry_fails_after_grace_and_releases_the_thread_slot
             )
         ).scalar_one()
         assert failed.payload["code"] == "stream_not_dispatched"
+        outbox = (
+            await verify.execute(
+                select(AgentOutbox).where(AgentOutbox.run_id == run_id)
+            )
+        ).scalar_one()
+        assert outbox.status == AgentOutboxStatus.FAILED.value
 
     next_run_id = await _accept_without_dispatch(
         session_factory,

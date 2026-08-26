@@ -55,6 +55,7 @@ from src.services.agent.agent_run_service import (
 from src.services.agent.agent_submission_service import (
     AcceptedSubmission,
     accept_submission,
+    fail_queued_submission,
     finalize_submission,
     mark_submission_dispatched,
 )
@@ -133,7 +134,7 @@ async def _finalize_run(
     is eventually reaped as "stale running". Terminal failures therefore
     propagate before a ``done`` frame; HITL parking remains best-effort.
     """
-    if acceptance is None:
+    if acceptance is None or acceptance.replayed:
         return
     await _finalize_run_id(
         db,
@@ -454,12 +455,24 @@ async def _stream_luna_fast_path(
             # The dispatch this outbox row recorded is about to happen
             # in-process. Stamping it keeps a future relay from re-dispatching
             # a run that already ran (best-effort; never raises).
-            await mark_submission_dispatched(
+            dispatch_claimed = await mark_submission_dispatched(
                 db,
                 run_id=acceptance.run_id,
                 outbox_id=acceptance.outbox_id,
                 organization_id=getattr(current_user, "organization_id", None),
+                user_id=current_user.id,
             )
+            if dispatch_claimed is False:
+                yield await emitter.emit(
+                    AgentStreamEvent.ERROR,
+                    error_frame_payload(
+                        "This response is no longer active. Please retry.",
+                        AgentErrorCategory.CONFLICT,
+                    ),
+                    buffer=False,
+                )
+                await emitter.finish()
+                return
         async with asyncio.timeout(settings.AGENT_FAST_PATH_REQUEST_TIMEOUT):
             writing_emitted = False
             fast_path_chunks = stream_fast_path_chunks(
@@ -1663,44 +1676,29 @@ async def stream_event_generator(
                     await asyncio.sleep(0.1)
 
             if replay_sid is None:
-                # Re-read after the grace period: the original request may have
-                # advanced the durable row while its buffer was unavailable.
-                replayed_run = await get_run(
+                abandoned_message = "The original response did not start. Please retry."
+                # Replay acceptance only read durable state. End that snapshot
+                # before the compare-and-set so it observes a dispatcher that
+                # committed during the bounded buffer grace period.
+                await db.rollback()
+                abandoned = await fail_queued_submission(
                     db,
-                    acceptance.run_id,
+                    run_id=acceptance.run_id,
+                    thread_id=resolved_thread_id,
                     organization_id=org_id,
                     user_id=current_user.id,
+                    error_code="stream_not_dispatched",
+                    error=abandoned_message,
+                    payload={
+                        "code": "stream_not_dispatched",
+                        "message": abandoned_message,
+                    },
                 )
-                if (
-                    replayed_run is None
-                    or str(replayed_run.thread_id) != resolved_thread_id
-                ):
-                    yield await emitter.emit(
-                        AgentStreamEvent.ERROR,
-                        error_frame_payload(
-                            "This retry does not belong to this thread.",
-                            AgentErrorCategory.CONFLICT,
-                        ),
-                        buffer=False,
-                    )
-                    return
-                if replayed_run.status == JobStatus.QUEUED.value:
-                    message = "The original response did not start. Please retry."
-                    await _finalize_run(
-                        db,
-                        acceptance,
-                        current_user,
-                        status=JobStatus.FAILED,
-                        event_type=RunEventType.RUN_FAILED,
-                        payload={
-                            "code": "stream_not_dispatched",
-                            "message": message,
-                        },
-                        error_code="stream_not_dispatched",
-                        error=message,
-                    )
-                else:
-                    message = "The original response stream is unavailable."
+                message = (
+                    abandoned_message
+                    if abandoned
+                    else "The original response stream is unavailable."
+                )
                 yield await emitter.emit(
                     AgentStreamEvent.ERROR,
                     error_frame_payload(
@@ -1978,6 +1976,30 @@ async def stream_event_generator(
             ),
         )
 
+        if acceptance is not None:
+            # This compare-and-set is the execution claim. A replay may have
+            # abandoned a still-queued run while this generator was paused at
+            # an earlier SSE yield; losing the claim means no graph work may
+            # start, even though this request originally accepted the turn.
+            dispatch_claimed = await mark_submission_dispatched(
+                db,
+                run_id=acceptance.run_id,
+                outbox_id=acceptance.outbox_id,
+                organization_id=org_id,
+                user_id=current_user.id,
+            )
+            if dispatch_claimed is False:
+                yield await emitter.emit(
+                    AgentStreamEvent.ERROR,
+                    error_frame_payload(
+                        "This response is no longer active. Please retry.",
+                        AgentErrorCategory.CONFLICT,
+                    ),
+                    buffer=False,
+                )
+                await emitter.finish()
+                return
+
         # Per-turn token accounting. Aggregated across every chat model call
         # in the graph (planner, intent classifier, llm_node, reflection…)
         # and emitted as a single `usage` SSE event right before `done`.
@@ -2002,17 +2024,6 @@ async def stream_event_generator(
             ).__aiter__()
 
         event_stream_iter = await _open_event_stream()
-        if acceptance is not None:
-            # The dispatch the outbox row recorded has now happened (in-process,
-            # exactly as before P0-C). Stamping it closes the record so a future
-            # relay cannot re-dispatch a run that already ran, and moves the run
-            # queued → running. Best-effort; never raises.
-            await mark_submission_dispatched(
-                db,
-                run_id=acceptance.run_id,
-                outbox_id=acceptance.outbox_id,
-                organization_id=org_id,
-            )
         first_event_yielded = False
         streamed_token = False
         # persisted_assistant_id is hoisted to the function top (see there).
