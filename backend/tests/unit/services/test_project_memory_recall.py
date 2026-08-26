@@ -1,10 +1,14 @@
 """Unit tests for project-memory recall (the agent read path).
 
 Recall is best-effort: it must never raise and must return a clean list of
-non-empty strings. These tests exercise the guard paths without a real DB.
+non-empty strings. These tests exercise guard paths with stubs and a throwaway
+SQLite database.
 """
 
+import uuid
+
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from src.services.research.project_memory_service import (
     MAX_AGENT_MEMORIES,
@@ -68,3 +72,72 @@ async def test_limit_is_capped():
     out = await load_project_memories(db, "proj-1", limit=10_000)
     assert out == ["a", "b"]
     assert MAX_AGENT_MEMORIES == 25
+
+
+@pytest.mark.asyncio
+async def test_scoped_recall_excludes_other_org_and_user_memories():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    org_a, org_b = uuid.uuid4(), uuid.uuid4()
+    user_a, user_a_peer, user_b = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    project_id = uuid.uuid4()
+
+    try:
+        async with engine.begin() as conn:
+            await conn.exec_driver_sql(
+                "CREATE TABLE users (id CHAR(36) PRIMARY KEY, organization_id CHAR(36))"
+            )
+            await conn.exec_driver_sql(
+                "CREATE TABLE project_memories ("
+                "id CHAR(36) PRIMARY KEY, "
+                "project_id CHAR(36) NOT NULL, "
+                "user_id CHAR(36) NOT NULL, "
+                "content TEXT NOT NULL, "
+                "created_at DATETIME NOT NULL"
+                ")"
+            )
+            await conn.exec_driver_sql(
+                "INSERT INTO users (id, organization_id) VALUES (?, ?)",
+                [
+                    (str(user_a), str(org_a)),
+                    (str(user_a_peer), str(org_a)),
+                    (str(user_b), str(org_b)),
+                ],
+            )
+            await conn.exec_driver_sql(
+                "INSERT INTO project_memories "
+                "(id, project_id, user_id, content, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                [
+                    (
+                        str(uuid.uuid4()),
+                        str(project_id),
+                        str(user_a),
+                        "org A memory",
+                        "2026-01-03 00:00:00",
+                    ),
+                    (
+                        str(uuid.uuid4()),
+                        str(project_id),
+                        str(user_a_peer),
+                        "org A peer memory",
+                        "2026-01-02 00:00:00",
+                    ),
+                    (
+                        str(uuid.uuid4()),
+                        str(project_id),
+                        str(user_b),
+                        "org B secret",
+                        "2026-01-01 00:00:00",
+                    ),
+                ],
+            )
+
+        async with AsyncSession(engine, expire_on_commit=False) as db:
+            assert await load_project_memories(
+                db, str(project_id), organization_id=org_a
+            ) == ["org A memory", "org A peer memory"]
+            assert await load_project_memories(
+                db, str(project_id), organization_id=org_a, user_id=user_a
+            ) == ["org A memory"]
+    finally:
+        await engine.dispose()

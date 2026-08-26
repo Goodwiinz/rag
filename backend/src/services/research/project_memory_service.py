@@ -9,7 +9,7 @@ no dependency on the API layer.
 from __future__ import annotations
 
 import logging
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,8 +24,10 @@ async def load_project_memories(
     db: AsyncSession,
     project_id: str,
     limit: int = MAX_AGENT_MEMORIES,
+    organization_id: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> List[str]:
-    """Return up to ``limit`` memory strings for a project (newest first).
+    """Return up to ``limit`` scoped memory strings (newest first).
 
     Best-effort: never raises. A failure here must not break a chat turn, so
     any error returns an empty list.
@@ -33,7 +35,7 @@ async def load_project_memories(
     if not db or not project_id:
         return []
     try:
-        from src.models import ProjectMemory
+        from src.models import ProjectMemory, User
 
         query = (
             select(ProjectMemory.content)
@@ -41,6 +43,12 @@ async def load_project_memories(
             .order_by(ProjectMemory.created_at.desc())
             .limit(max(1, min(limit, MAX_AGENT_MEMORIES)))
         )
+        if organization_id is not None:
+            query = query.join(User, ProjectMemory.user_id == User.id).where(
+                User.organization_id == organization_id
+            )
+        if user_id is not None:
+            query = query.where(ProjectMemory.user_id == user_id)
         result = await db.execute(query)
         rows = result.scalars().all()
         return [c.strip() for c in rows if c and c.strip()]
