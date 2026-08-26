@@ -8,6 +8,8 @@ uses two lines above); LANGSMITH_HIDE_IO stays the single decision knob.
 
 import os
 
+import pytest
+
 from src.services.agent.observability import configure_langsmith
 
 _LANGSMITH_ENV_VARS = (
@@ -28,7 +30,7 @@ _LANGSMITH_ENV_VARS = (
 )
 
 
-def _configure_env(monkeypatch, *, deploy_env: str) -> None:
+def _configure_env(monkeypatch: pytest.MonkeyPatch, *, deploy_env: str) -> None:
     # delenv tracks every key monkeypatch will restore, so the mutations
     # configure_langsmith() makes directly on os.environ are undone on teardown.
     for name in _LANGSMITH_ENV_VARS:
@@ -39,7 +41,9 @@ def _configure_env(monkeypatch, *, deploy_env: str) -> None:
     monkeypatch.setenv("LANGSMITH_API_KEY", "test-key")
 
 
-def test_injected_false_cannot_defeat_pii_guard(monkeypatch):
+def test_injected_false_cannot_defeat_pii_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _configure_env(monkeypatch, deploy_env="production")
     monkeypatch.setenv("LANGCHAIN_HIDE_INPUTS", "false")  # the stale injection
 
@@ -51,7 +55,9 @@ def test_injected_false_cannot_defeat_pii_guard(monkeypatch):
     assert os.environ["LANGSMITH_HIDE_OUTPUTS"] == "true"
 
 
-def test_explicit_langsmith_hide_io_false_opts_back_in(monkeypatch):
+def test_explicit_langsmith_hide_io_false_opts_back_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _configure_env(monkeypatch, deploy_env="production")
     monkeypatch.setenv("LANGSMITH_HIDE_IO", "false")
 
@@ -62,7 +68,7 @@ def test_explicit_langsmith_hide_io_false_opts_back_in(monkeypatch):
     assert "LANGSMITH_HIDE_INPUTS" not in os.environ
 
 
-def test_dev_keeps_io_visible_by_default(monkeypatch):
+def test_dev_keeps_io_visible_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     _configure_env(monkeypatch, deploy_env="development")
 
     configure_langsmith()
@@ -71,7 +77,7 @@ def test_dev_keeps_io_visible_by_default(monkeypatch):
     assert "LANGSMITH_HIDE_INPUTS" not in os.environ
 
 
-def test_non_dev_hides_io_by_default(monkeypatch):
+def test_non_dev_hides_io_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     _configure_env(monkeypatch, deploy_env="staging")
 
     configure_langsmith()

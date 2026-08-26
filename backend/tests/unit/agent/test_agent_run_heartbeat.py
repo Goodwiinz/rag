@@ -12,9 +12,10 @@ max(AGENT_RUN_STALE_AFTER_SECONDS, 4x heartbeat).
 import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Any, AsyncIterator, cast
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from src.models.agent_run import AgentRun
@@ -25,13 +26,17 @@ pytestmark = pytest.mark.unit
 NOW = datetime.now(timezone.utc)
 
 
-def _aware(dt: datetime) -> datetime:
-    """SQLite returns naive UTC datetimes; normalize before comparing."""
-    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+def _aware(dt: Any) -> datetime:
+    """SQLite returns naive UTC datetimes; normalize before comparing.
+
+    Takes ``Any``: AgentRun predates ``Mapped[...]`` annotations, so mypy sees
+    instance attributes as ``Column[datetime]`` rather than ``datetime``."""
+    aware: datetime = dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+    return aware
 
 
 @pytest.fixture
-async def session_factory():
+async def session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     # StaticPool: every session shares the single in-memory connection.
     # Without it the concurrent heartbeat beat checks out a second
     # connection — a fresh, table-less database.
@@ -47,7 +52,11 @@ async def session_factory():
     await engine.dispose()
 
 
-async def _seed_running(session_factory, *, updated_at=NOW) -> str:
+async def _seed_running(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    updated_at: datetime = NOW,
+) -> str:
     job_id = str(uuid.uuid4())
     async with session_factory() as db:
         db.add(
@@ -63,16 +72,20 @@ async def _seed_running(session_factory, *, updated_at=NOW) -> str:
     return job_id
 
 
-async def _row(session_factory, job_id) -> AgentRun:
+async def _row(
+    session_factory: async_sessionmaker[AsyncSession], job_id: str
+) -> AgentRun:
     async with session_factory() as db:
         run = await db.get(AgentRun, job_id)
         assert run is not None
         db.expunge(run)
-        return run
+        return cast(AgentRun, run)
 
 
 @pytest.mark.asyncio
-async def test_touch_bumps_updated_at_on_non_terminal_row(session_factory):
+async def test_touch_bumps_updated_at_on_non_terminal_row(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
     job_id = await _seed_running(
         session_factory, updated_at=NOW - timedelta(minutes=10)
     )
@@ -88,14 +101,16 @@ async def test_touch_bumps_updated_at_on_non_terminal_row(session_factory):
 
 
 @pytest.mark.asyncio
-async def test_touch_never_resurrects_terminal_row(session_factory):
+async def test_touch_never_resurrects_terminal_row(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
     job_id = await _seed_running(
         session_factory, updated_at=NOW - timedelta(minutes=10)
     )
     async with session_factory() as db:
         run = await db.get(AgentRun, job_id)
         assert run is not None
-        run.status = "completed"
+        setattr(run, "status", "completed")
         await db.commit()
 
     async with session_factory() as db:
@@ -107,8 +122,8 @@ async def test_touch_never_resurrects_terminal_row(session_factory):
 
 @pytest.mark.asyncio
 async def test_heartbeat_context_keeps_row_fresh_while_block_runs(
-    session_factory, monkeypatch
-):
+    session_factory: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
     job_id = await _seed_running(
         session_factory, updated_at=NOW - timedelta(minutes=10)
     )
@@ -127,7 +142,7 @@ async def test_heartbeat_context_keeps_row_fresh_while_block_runs(
     async with session_factory() as db:
         run = await db.get(AgentRun, job_id)
         assert run is not None
-        run.status = "failed"
+        setattr(run, "status", "failed")
         await db.commit()
     async with session_factory() as db:
         bumped = await agent_run_service.touch_run_updated_at(db, job_id)
