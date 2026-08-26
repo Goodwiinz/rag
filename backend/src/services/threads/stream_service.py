@@ -15,6 +15,7 @@ from typing import Any, AsyncGenerator, Callable, Coroutine, Dict, List, Optiona
 from uuid import UUID
 
 from src.schemas.chat import ChatMessageCreate, MessageRole
+from src.services.agent._errors import client_safe_error
 from src.services.infrastructure.azure_openai_service import AzureOpenAIService
 from src.services.threads.chat_service import ChatService
 
@@ -199,12 +200,16 @@ class StreamService:
                 },
             )
         except Exception as exc:
-            logger.error(f"Failed to create user message: {exc}", exc_info=True)
+            # S2-M10: detail stays in server logs (client_safe_error); the
+            # wire gets the generic fallback, never str(exc).
             yield SSEEvent(
                 event="error",
                 data={
                     "code": "message_create_failed",
-                    "message": str(exc),
+                    "message": client_safe_error(
+                        exc,
+                        fallback="We couldn't save your message. Please try again.",
+                    ),
                 },
             )
             return
@@ -287,12 +292,14 @@ class StreamService:
                 llm_messages.append({"role": msg["role"], "content": msg["content"]})
 
         except Exception as exc:
-            logger.error(f"Failed to build LLM context: {exc}", exc_info=True)
             yield SSEEvent(
                 event="error",
                 data={
                     "code": "context_build_failed",
-                    "message": str(exc),
+                    "message": client_safe_error(
+                        exc,
+                        fallback="We couldn't prepare this conversation. Please try again.",
+                    ),
                 },
             )
             return
@@ -312,7 +319,12 @@ class StreamService:
                     data={"content": token},
                 )
         except Exception as exc:
-            logger.error(f"LLM streaming error: {exc}", exc_info=True)
+            # S2-M10: log-and-sanitize in one hop; str(exc) never reaches the
+            # wire even when the failure carries connection strings/stacks.
+            error_message = client_safe_error(
+                exc,
+                fallback="The response failed mid-stream. Please retry.",
+            )
 
             # Persist partial content if we got any tokens
             full_content = "".join(collected_content)
@@ -335,7 +347,7 @@ class StreamService:
                 event="error",
                 data={
                     "code": "llm_error",
-                    "message": str(exc),
+                    "message": error_message,
                 },
             )
             return
@@ -366,11 +378,13 @@ class StreamService:
                 },
             )
         except Exception as exc:
-            logger.error(f"Failed to persist assistant message: {exc}", exc_info=True)
             yield SSEEvent(
                 event="error",
                 data={
                     "code": "persist_failed",
-                    "message": str(exc),
+                    "message": client_safe_error(
+                        exc,
+                        fallback="Your reply was generated but could not be saved. Please retry.",
+                    ),
                 },
             )
