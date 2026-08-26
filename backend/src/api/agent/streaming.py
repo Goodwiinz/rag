@@ -49,6 +49,7 @@ from src.services.agent.agent_run_service import (
     ActiveRunConflict,
     claim_awaiting_run_for_confirmation,
     get_active_run_for_thread,
+    get_run,
     release_confirmation_claim,
 )
 from src.services.agent.agent_submission_service import (
@@ -1456,18 +1457,50 @@ async def stream_event_generator(
             # Idempotency means execution-once, not merely row-once. Reattach
             # this retry to the immutable run-scoped buffer and return before
             # route selection, graph compilation, tools, or dispatch.
-            replay_sid = None
-            for _ in range(50):
-                replay_sid = await _stream_buffer.stream_id_for_run(acceptance.run_id)
-                if replay_sid is not None or await request.is_disconnected():
-                    break
-                await asyncio.sleep(0.1)
-            if replay_sid is None:
+            replayed_run = await get_run(
+                db,
+                acceptance.run_id,
+                organization_id=org_id,
+                user_id=current_user.id,
+            )
+            if (
+                replayed_run is None
+                or str(replayed_run.thread_id) != resolved_thread_id
+            ):
                 yield await emitter.emit(
                     AgentStreamEvent.ERROR,
                     error_frame_payload(
-                        RuntimeError("The original response stream is unavailable."),
-                        category=AgentErrorCategory.INTERNAL,
+                        "This retry does not belong to this thread.",
+                        AgentErrorCategory.CONFLICT,
+                    ),
+                    buffer=False,
+                )
+                return
+
+            replay_sid = await _stream_buffer.stream_id_for_run(acceptance.run_id)
+            if replay_sid is None:
+                if replayed_run.status == JobStatus.QUEUED.value:
+                    message = "The original response did not start. Please retry."
+                    await _finalize_run(
+                        db,
+                        acceptance,
+                        current_user,
+                        status=JobStatus.FAILED,
+                        event_type=RunEventType.RUN_FAILED,
+                        payload={
+                            "code": "stream_not_dispatched",
+                            "message": message,
+                        },
+                        error_code="stream_not_dispatched",
+                        error=message,
+                    )
+                else:
+                    message = "The original response stream is unavailable."
+                yield await emitter.emit(
+                    AgentStreamEvent.ERROR,
+                    error_frame_payload(
+                        message,
+                        category=AgentErrorCategory.CONFLICT,
                     ),
                     buffer=False,
                 )
