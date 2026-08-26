@@ -277,10 +277,14 @@ async function consumeSse(
       }
       switch (ev) {
         case 'token':
-          callbacks.onToken?.(data.content);
+          if (typeof data.content === 'string') {
+            callbacks.onToken?.(data.content);
+          }
           break;
         case 'reasoning_delta':
-          callbacks.onReasoningDelta?.(data.content);
+          if (typeof data.content === 'string') {
+            callbacks.onReasoningDelta?.(data.content);
+          }
           break;
         case 'tool_start':
           if (typeof data.call_id === 'string' && data.call_id) {
