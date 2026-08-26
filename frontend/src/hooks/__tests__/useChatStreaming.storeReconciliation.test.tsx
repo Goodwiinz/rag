@@ -196,6 +196,40 @@ describe('useChatStreaming terminal reconciliation', () => {
     refreshSpy.mockRestore();
   });
 
+  it('clears streaming timing and status after completion', async () => {
+    streamMessageMock.mockImplementation(
+      (
+        _request: unknown,
+        callbacks: {
+          onHeartbeat: (elapsedMs: number) => void;
+          onStatus: (phase: 'retrieving', detail?: string) => void;
+          onToken: (content: string) => void;
+          onDone: (payload?: unknown) => void;
+        }
+      ) => {
+        callbacks.onHeartbeat(4_200);
+        callbacks.onStatus('retrieving', 'Searching sources');
+        callbacks.onToken('Five recent papers');
+        callbacks.onDone({ assistant_message_id: 'new-assistant' });
+        return Promise.resolve();
+      }
+    );
+    const { result } = renderHook(() => useChatStreaming(makeParams()), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await result.current.handleSubmit(QUERY);
+    });
+
+    expect(useChatStore.getState()).toMatchObject({
+      streamingElapsedMs: null,
+      streamingPhase: null,
+      streamingStatusDetail: null,
+      isRetrievingRag: false,
+    });
+  });
+
   it('reconciles the durable user row after a stream error', async () => {
     let userRuntimeId = '';
     streamMessageMock.mockImplementation(
@@ -311,5 +345,53 @@ describe('useChatStreaming terminal reconciliation', () => {
       })
     );
     refreshSpy.mockRestore();
+  });
+
+  it('clears the full streaming status when stopped during RAG', async () => {
+    let release!: () => void;
+    let callbacks!: {
+      onHeartbeat: (elapsedMs: number) => void;
+      onStatus: (phase: 'retrieving', detail?: string) => void;
+    };
+    streamMessageMock.mockImplementation(
+      (_request: unknown, streamCallbacks: typeof callbacks) => {
+        callbacks = streamCallbacks;
+        return new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      }
+    );
+    const params = makeParams();
+    params.enableRAG = true;
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    let submission!: Promise<void>;
+    act(() => {
+      submission = result.current.handleSubmit('stop during retrieval');
+    });
+    await vi.waitFor(() => expect(streamMessageMock).toHaveBeenCalledOnce());
+    await act(async () => {
+      callbacks.onHeartbeat(4_200);
+      callbacks.onStatus('retrieving', 'Searching sources');
+    });
+    expect(useChatStore.getState()).toMatchObject({
+      streamingElapsedMs: 4_200,
+      streamingPhase: 'retrieving',
+      streamingStatusDetail: 'Searching sources',
+      isRetrievingRag: true,
+    });
+
+    await act(async () => {
+      result.current.handleStop();
+      release();
+      await submission;
+    });
+
+    expect(useChatStore.getState()).toMatchObject({
+      streamingElapsedMs: null,
+      streamingPhase: null,
+      streamingStatusDetail: null,
+      isRetrievingRag: false,
+    });
   });
 });

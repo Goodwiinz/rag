@@ -166,6 +166,23 @@ export function appendProgressStep(
   return [...steps, next].slice(-MAX_PROGRESS_STEPS);
 }
 
+function resetStreamingTurnState(): void {
+  useChatStore.setState({
+    isStreaming: false,
+    streamingContent: '',
+    streamingCitations: [],
+    streamingSteps: [],
+    streamingPlan: [],
+    streamingProgress: [],
+    streamingReasoning: '',
+    streamingElapsedMs: null,
+    streamingPhase: null,
+    streamingStatusDetail: null,
+    isRetrievingRag: false,
+    streamingThreadId: null,
+  });
+}
+
 const PROJECT_MUTATING_TOOLS = new Set([
   'ingest_arxiv',
   'add_document_to_project',
@@ -1049,16 +1066,7 @@ export function useChatStreaming(
               .getState()
               .finishRun(currentThreadId, 'stopped');
           }
-          useChatStore.setState({
-            isStreaming: false,
-            streamingContent: '',
-            streamingCitations: [],
-            streamingSteps: [],
-            streamingPlan: [],
-            streamingProgress: [],
-            streamingReasoning: '',
-            streamingThreadId: null,
-          });
+          resetStreamingTurnState();
           await reconcileUser(
             streamHadConfirmation ? 'confirmation-paused' : 'stream-error'
           );
@@ -1094,16 +1102,7 @@ export function useChatStreaming(
             // approval, which this path used to delete on every HITL pause.
             setMessages(replacePreservingApproval(newMessages));
           }
-          useChatStore.setState({
-            isStreaming: false,
-            streamingContent: '',
-            streamingCitations: [],
-            streamingSteps: [],
-            streamingPlan: [],
-            streamingProgress: [],
-            streamingReasoning: '',
-            streamingThreadId: null,
-          });
+          resetStreamingTurnState();
           if (isStoppedByUser()) {
             await reconcileAssistant(doneIds, 'stopped-before-token');
           } else {
@@ -1188,16 +1187,7 @@ export function useChatStreaming(
         if (isStoppedByUser()) stopTargetRef.current = null;
         activeRunThreadRef.current = null;
 
-        useChatStore.setState({
-          isStreaming: false,
-          streamingContent: '',
-          streamingCitations: [],
-          streamingSteps: [],
-          streamingPlan: [],
-          streamingProgress: [],
-          streamingReasoning: '',
-          streamingThreadId: null,
-        });
+        resetStreamingTurnState();
         lastStreamedContentRef.current = '';
 
         // The BACKEND is the sole message writer (server-canonical): it
@@ -1308,16 +1298,7 @@ export function useChatStreaming(
         // here orphaned it — streaming UI gone, carried citations lost,
         // composer unlocked into a second concurrent SSE writer.
         if (streamOwnerRef.current === streamOwner) {
-          useChatStore.setState({
-            isStreaming: false,
-            streamingContent: '',
-            streamingCitations: [],
-            streamingSteps: [],
-            streamingPlan: [],
-            streamingProgress: [],
-            streamingReasoning: '',
-            streamingThreadId: null,
-          });
+          resetStreamingTurnState();
         }
         if (streamOwnerRef.current === streamOwner) {
           // Same ownership rule: these refs are shared with the confirm
@@ -1955,6 +1936,7 @@ export function useChatStreaming(
           streamingElapsedMs: null,
           streamingPhase: 'accepted',
           streamingStatusDetail: null,
+          isRetrievingRag: false,
           streamingThreadId: pendingConfirmation.workspaceThreadId || null,
         });
 
@@ -2416,16 +2398,7 @@ export function useChatStreaming(
           // newer stream started while this one was reconciling) owns the
           // slice now, and must not be wiped by this turn's teardown.
           if (streamOwnerRef.current === confirmStreamOwner) {
-            useChatStore.setState({
-              isStreaming: false,
-              streamingContent: '',
-              streamingSteps: [],
-              streamingPlan: [],
-              streamingProgress: [],
-              streamingReasoning: '',
-              streamingCitations: [],
-              streamingThreadId: null,
-            });
+            resetStreamingTurnState();
           }
         }
       } catch (err) {

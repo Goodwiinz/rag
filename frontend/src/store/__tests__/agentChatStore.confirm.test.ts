@@ -124,4 +124,22 @@ describe('agentChatStore confirmAction dead-run handling (R4-M26)', () => {
       expect.objectContaining({ threadId: THREAD_ID, jobId: THREAD_ID })
     );
   });
+
+  it('settles a running tool when confirmation finishes without tool_end', async () => {
+    seedPendingConfirmation();
+    mockAgentChatService.streamConfirm.mockImplementation(
+      async (_request, callbacks) => {
+        callbacks.onToolStart?.('add_document_to_project', {});
+        callbacks.onDone?.();
+      }
+    );
+
+    await act(async () => {
+      await useAgentChatStore.getState().confirmAction(THREAD_ID, true);
+    });
+
+    expect(
+      useAgentChatStore.getState().messages[0].toolExecutions?.[0].status
+    ).toBe('failed');
+  });
 });
