@@ -1020,7 +1020,10 @@ export function useChatStreaming(
                   category: category ?? 'stream-error',
                 },
               };
-              if (isTurnDisplayed()) setMessages([...newMessages, errorMsg]);
+              if (isTurnDisplayed())
+                setMessages(
+                  replacePreservingApproval([...newMessages, errorMsg])
+                );
             },
           },
           streamAbort.signal
