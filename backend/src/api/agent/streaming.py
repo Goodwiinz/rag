@@ -1802,7 +1802,15 @@ async def stream_event_generator(
                     load_project_memories,
                 )
 
-                project_memories = await load_project_memories(db, str(_pm_project_id))
+                project_memories = await load_project_memories(
+                    db,
+                    str(_pm_project_id),
+                    # Tenancy hard-stop (S2-M12): scope by org so a raw-id
+                    # caller can never pull another tenant's memories, while
+                    # project-shared memories from peers in the same org
+                    # remain visible. Deliberately NOT user-filtered.
+                    organization_id=getattr(current_user, "organization_id", None),
+                )
             except Exception:
                 logger.warning("project memory load failed", exc_info=True)
 
