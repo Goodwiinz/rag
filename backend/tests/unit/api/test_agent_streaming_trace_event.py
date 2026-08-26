@@ -138,6 +138,10 @@ async def test_stream_confirm_event_generator_emits_trace_event_before_workflow_
             "src.api.agent.streaming._finalize_run_id",
             new=AsyncMock(return_value=True),
         ),
+        patch(
+            "src.api.agent.streaming._jobs_mod._persist_assistant_message_safe",
+            new=AsyncMock(return_value="assistant-row-1"),
+        ),
     ):
         events = []
         async for event in stream_confirm_event_generator(body, request, current_user):

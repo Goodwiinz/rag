@@ -49,6 +49,11 @@ def _parse_done(events):
     return sse_data(done_frames[0])
 
 
+class _BackgroundTasks:
+    def __init__(self):
+        self.add_task = Mock()
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("persisted_id", "terminal_event"),
@@ -135,3 +140,109 @@ async def test_main_canonical_completion_requires_persisted_assistant(
     assert done["assistant_message_id"] == "assistant-msg-1"
     # client_message_id is the deterministic uuid5 derived from the user cmid.
     assert done["client_message_id"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("persisted_id", "terminal_event"),
+    [("assistant-msg-1", "done"), (None, "error")],
+)
+async def test_main_completion_persists_before_terminal_with_flag_off(
+    persisted_id, terminal_event
+):
+    """The rollout flag may omit reconciliation ids, but it must not permit a
+    terminal ``done`` before the server-canonical assistant row is durable.
+    """
+    from src.api.agent.streaming import stream_event_generator
+
+    order = []
+
+    async def persist_assistant(**kwargs):
+        order.append(("persist", kwargs.get("required")))
+        return persisted_id
+
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
+    body = make_stream_request(
+        messages=[
+            {
+                "role": "user",
+                "content": "hi",
+                "client_message_id": "11111111-1111-1111-1111-111111111111",
+            }
+        ],
+        thread_id="11111111-1111-1111-1111-111111111112",
+    )
+    current_user = Mock(id="user-1", organization_id="org-1")
+    background_tasks = _BackgroundTasks()
+
+    with (
+        patch(
+            "src.services.agent.observability.configure_langsmith",
+            return_value=None,
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            return_value=_FakeGraph(),
+        ),
+        patch(
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=AsyncMock(),
+        ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(
+                return_value=(SimpleNamespace(id="thread-resolved-1"), "conv-1")
+            ),
+        ),
+        patch(
+            "src.api.agent.streaming._persist_user_message_guarded",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.api.agent.streaming._resolve_and_bind_project",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.api.agent.streaming._stream_buffer.start_stream",
+            new=AsyncMock(return_value="stream-1"),
+        ),
+        patch(
+            "src.api.agent.streaming._stream_buffer.append",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.api.agent.streaming._stream_buffer.finish_stream",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+            new=AsyncMock(side_effect=persist_assistant),
+        ),
+        patch(
+            "src.api.agent.streaming._canonical_persistence_enabled",
+            return_value=False,
+        ),
+    ):
+        events = []
+        async for event in stream_event_generator(
+            body,
+            request,
+            current_user,
+            background_tasks=background_tasks,
+        ):
+            events.append(event)
+            if frames_of_type([event], terminal_event):
+                order.append((terminal_event, None))
+
+    assert order[:2] == [("persist", True), (terminal_event, None)]
+    assert len(frames_of_type(events, terminal_event)) == 1
+    assert not frames_of_type(events, "done" if terminal_event == "error" else "error")
+    background_tasks.add_task.assert_not_called()
