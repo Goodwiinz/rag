@@ -270,6 +270,9 @@ class TestExecuteEndpointRouting:
         celery_dispatch = AsyncMock(
             return_value=dispatch_outcome or ("dispatched", "job-from-celery")
         )
+        db = MagicMock()
+        db.get = AsyncMock(return_value=None)
+        db.commit = AsyncMock()
         with (
             patch(
                 "src.api.agent.execute._resolve_dispatch_backend",
@@ -290,7 +293,7 @@ class TestExecuteEndpointRouting:
                 request or _request(uuid.uuid4()),
                 background_tasks,
                 current_user=user,
-                db=MagicMock(),
+                db=db,
             )
         return response, celery_dispatch, background_tasks, set_job_mock
 

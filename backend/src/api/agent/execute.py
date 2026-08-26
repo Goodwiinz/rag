@@ -430,10 +430,9 @@ async def execute_agent(
 
     Returns a job ID immediately.  Poll ``GET /jobs/{job_id}`` for the result.
 
-    Dispatch is flag-gated (AGENT_DISPATCH_BACKEND): "background" runs the
-    graph on this pod via FastAPI BackgroundTasks (default, today's behavior);
-    "celery" enqueues it to the dedicated agent_runs queue with a durable
-    agent_runs row committed before the publish (audit P1.3 / X1).
+    Both dispatch modes commit a durable ``agent_runs`` row before execution.
+    ``background`` runs the graph on this pod via FastAPI BackgroundTasks;
+    ``celery`` enqueues it to the dedicated agent_runs queue.
     """
     _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
         str(current_user.id), prefix="agent_execute"
@@ -491,44 +490,48 @@ async def execute_agent(
         # "fallback": nothing was enqueued and no job record written — safe
         # to run in-process below, exactly as if the flag were "background".
 
-    if request.thread_id:
-        from src.services.agent import agent_run_service
+    from src.services.agent import agent_run_service
 
-        idem_key = _client_idempotency_key(request, current_user)
-        try:
-            run = await agent_run_service.upsert_run(
-                db,
-                job_id=job_id,
-                status=JobStatus.QUEUED,
-                organization_id=getattr(current_user, "organization_id", None),
-                user_id=current_user.id,
-                thread_id=request.thread_id,
-                idempotency_key=idem_key,
-            )
-        except agent_run_service.ActiveRunConflict as exc:
-            raise HTTPException(
-                status_code=409,
-                detail="A response is already in progress for this thread.",
-            ) from exc
-        except Exception as exc:
-            raise HTTPException(
-                status_code=503,
-                detail="Unable to reserve this thread. Please retry.",
-            ) from exc
-        if run is None and idem_key is not None:
-            existing = await agent_run_service.get_run_by_idempotency_key(
-                db,
-                idem_key,
-                organization_id=getattr(current_user, "organization_id", None),
-                user_id=current_user.id,
-            )
-            if existing is not None:
-                return JobStartResponse(job_id=existing.job_id)
-        if run is None:
-            raise HTTPException(
-                status_code=503,
-                detail="Unable to reserve this thread. Please retry.",
-            )
+    idem_key = _client_idempotency_key(request, current_user)
+    persistence_error = (
+        "Unable to reserve this thread. Please retry."
+        if request.thread_id
+        else "Unable to persist this run. Please retry."
+    )
+    try:
+        run = await agent_run_service.upsert_run(
+            db,
+            job_id=job_id,
+            status=JobStatus.QUEUED,
+            organization_id=getattr(current_user, "organization_id", None),
+            user_id=current_user.id,
+            thread_id=request.thread_id,
+            idempotency_key=idem_key,
+        )
+    except agent_run_service.ActiveRunConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="A response is already in progress for this thread.",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=persistence_error,
+        ) from exc
+    if run is None and idem_key is not None:
+        existing = await agent_run_service.get_run_by_idempotency_key(
+            db,
+            idem_key,
+            organization_id=getattr(current_user, "organization_id", None),
+            user_id=current_user.id,
+        )
+        if existing is not None:
+            return JobStartResponse(job_id=existing.job_id)
+    if run is None:
+        raise HTTPException(
+            status_code=503,
+            detail=persistence_error,
+        )
 
     _set_job(job_id, job_payload)
 
@@ -641,8 +644,22 @@ async def confirm_agent_action(
     # dispatch record — trusting it would 409 every legitimate confirm.
     # (The authoritative claim is the guarded PostgreSQL transition below.)
     job = await _get_job_fresh(job_id)
+    job_from_projection = False
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        from src.services.agent import agent_run_service
+
+        run = await agent_run_service.get_run_fallback(
+            job_id,
+            organization_id=getattr(current_user, "organization_id", None),
+            user_id=current_user.id,
+        )
+        if run is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+        job_from_projection = True
+        job = {
+            "status": _normalized_job_status(run.status),
+            "user_id": str(run.user_id),
+        }
     _validate_confirmable_job(job, current_user)
 
     # PostgreSQL is the shared Stop/Confirm authority. Claim it before Redis so
@@ -689,6 +706,11 @@ async def confirm_agent_action(
         ) from exc
     if result == "missing":
         await release_durable_claim()
+        if job_from_projection:
+            raise HTTPException(
+                status_code=503,
+                detail="Confirmation is temporarily unavailable; please retry",
+            )
         raise HTTPException(status_code=404, detail="Job not found")
     if result == "conflict":
         # PostgreSQL was claimed first, so a Redis conflict is a stale mirror,

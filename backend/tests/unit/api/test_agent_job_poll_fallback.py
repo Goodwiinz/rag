@@ -11,13 +11,25 @@ same style as the other agent job unit tests.
 """
 
 import uuid
+from collections.abc import AsyncIterator
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from src.api.agent.execute import JobStatusResponse, get_job_status
+from src.api.agent.execute import (
+    AgentExecuteRequest,
+    AgentMessage,
+    ConfirmationRequest,
+    JobStatusResponse,
+    confirm_agent_action,
+    execute_agent,
+    get_job_status,
+)
+from src.models.agent_run import AgentRun
 from src.shared.enums import JobStatus
 
 pytestmark = pytest.mark.unit
@@ -42,6 +54,112 @@ def _patch_stores(l1_job=None, redis_job=None):
             new=AsyncMock(return_value=redis_job if redis_job is not None else l1_job),
         ),
     )
+
+
+@pytest.fixture
+async def session_factory() -> AsyncIterator[Any]:
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(AgentRun.__table__.create)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    yield factory
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_threadless_execute_survives_job_store_outage(
+    session_factory: Any,
+) -> None:
+    user = _user()
+    background_tasks = MagicMock()
+    request = AgentExecuteRequest(messages=[AgentMessage(role="user", content="hi")])
+
+    async with session_factory() as db:
+        with (
+            patch(
+                "src.api.agent.execute._resolve_dispatch_backend",
+                return_value="background",
+            ),
+            patch("src.api.agent.execute._set_job"),
+            patch(
+                "src.api.agent.execute._agent_rate_limiter.check_rate_limit",
+                new=AsyncMock(return_value=(True, 0)),
+            ),
+            patch(
+                "src.api.agent.execute._agent_rate_limiter.record_attempt",
+                new=AsyncMock(),
+            ),
+        ):
+            started = await execute_agent(
+                request,
+                background_tasks,
+                current_user=user,
+                db=db,
+            )
+
+    with (
+        patch("src.api.agent.execute._get_job", return_value=None),
+        patch(
+            "src.services.agent.job_store.get_job_fresh",
+            new=AsyncMock(return_value=None),
+        ),
+        patch("src.core.database.AsyncSessionLocal", session_factory),
+    ):
+        polled = await get_job_status(job_id=started.job_id, current_user=user)
+
+    assert polled.status is JobStatus.QUEUED
+
+
+@pytest.mark.asyncio
+async def test_confirm_store_outage_falls_back_to_agent_runs_projection() -> None:
+    user = _user()
+    job_id = str(uuid.uuid4())
+    run = SimpleNamespace(
+        status=JobStatus.AWAITING_CONFIRMATION,
+        error=None,
+        user_id=user.id,
+    )
+    db = AsyncMock()
+    release = AsyncMock(return_value=True)
+
+    with (
+        patch(
+            "src.services.agent.job_store.get_job_fresh",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.services.agent.agent_run_service.get_run_fallback",
+            new=AsyncMock(return_value=run),
+        ) as fallback,
+        patch(
+            "src.api.agent.execute.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.api.agent.execute.release_confirmation_claim",
+            new=release,
+        ),
+        patch(
+            "src.services.agent.job_store.compare_and_set_status",
+            new=AsyncMock(return_value="missing"),
+        ),
+        pytest.raises(HTTPException) as exc,
+    ):
+        await confirm_agent_action(
+            job_id,
+            ConfirmationRequest(confirmed=True),
+            MagicMock(),
+            current_user=user,
+            db=db,
+        )
+
+    assert exc.value.status_code == 503
+    fallback.assert_awaited_once_with(
+        job_id,
+        organization_id=user.organization_id,
+        user_id=user.id,
+    )
+    release.assert_awaited_once()
 
 
 @pytest.mark.asyncio
