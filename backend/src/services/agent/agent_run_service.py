@@ -459,6 +459,27 @@ async def release_lease(db: AsyncSession, job_id: str, *, lease_owner: str) -> b
     return bool(result.rowcount)
 
 
+async def touch_run_updated_at(db: AsyncSession, job_id: str) -> bool:
+    """Live-run heartbeat (audit S2-M15): bump ``updated_at`` so the staleness
+    sweeper sees progress. Guarded to non-terminal rows — a real terminal
+    write must never be resurrected by a heartbeat that raced it. Does not
+    commit; the caller owns the transaction. Returns True when a live row was
+    touched.
+    """
+    terminal = [status.value for status in JobStatus if status.is_terminal]
+    stmt = (
+        update(AgentRun)
+        .where(
+            AgentRun.job_id == job_id,
+            AgentRun.status.notin_(terminal),
+        )
+        .values(updated_at=_utcnow())
+        .execution_options(synchronize_session=False)
+    )
+    result = await db.execute(stmt)
+    return bool(result.rowcount)  # type: ignore[attr-defined]
+
+
 async def list_stale_runs(
     db: AsyncSession,
     *,

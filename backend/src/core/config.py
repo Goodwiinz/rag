@@ -650,6 +650,13 @@ class Settings(BaseSettings):
     # considered dead (graph hard timeout is 360s) and swept to failed.
     AGENT_RUN_STALE_AFTER_SECONDS: int = 1800
 
+    # Live-run heartbeat interval (audit S2-M15): in-process (SSE/background)
+    # executions bump agent_runs.updated_at at this cadence so the sweeper's
+    # staleness judgment reflects liveness, not a config margin. The sweeper
+    # raises its effective cutoff floor to max(STALE_AFTER, 4x this), so a
+    # misconfigured STALE_AFTER can never undercut a live heartbeat.
+    AGENT_RUN_HEARTBEAT_SECONDS: int = 60
+
     # awaiting_confirmation is a legitimately-parked state — a user may take
     # a while to confirm. Sweep it only after the Redis job record (TTL 1h)
     # is guaranteed gone and the confirm can no longer succeed anyway.

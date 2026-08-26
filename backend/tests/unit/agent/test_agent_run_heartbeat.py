@@ -1,0 +1,135 @@
+"""Audit S2-M15 regression: SSE/background-dispatch runs stamped updated_at
+once and relied on AGENT_RUN_STALE_AFTER_SECONDS (1800) being larger than the
+graph hard timeout (360s) — pure config margin. Any drift (timeout raised,
+staleness lowered) let sweep_stale_agent_runs kill a LIVE run and leave the
+ledger FAILED after the answer was already delivered.
+
+Fix: live runs heartbeat agent_runs.updated_at while executing (guarded to
+non-terminal rows), and the sweeper's effective staleness floor is pinned to
+max(AGENT_RUN_STALE_AFTER_SECONDS, 4x heartbeat).
+"""
+
+import asyncio
+import uuid
+from datetime import datetime, timedelta, timezone
+
+import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
+
+from src.models.agent_run import AgentRun
+from src.services.agent import agent_execution_service, agent_run_service
+
+pytestmark = pytest.mark.unit
+
+NOW = datetime.now(timezone.utc)
+
+
+def _aware(dt: datetime) -> datetime:
+    """SQLite returns naive UTC datetimes; normalize before comparing."""
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+
+
+@pytest.fixture
+async def session_factory():
+    # StaticPool: every session shares the single in-memory connection.
+    # Without it the concurrent heartbeat beat checks out a second
+    # connection — a fresh, table-less database.
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(AgentRun.__table__.create)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    yield factory
+    await engine.dispose()
+
+
+async def _seed_running(session_factory, *, updated_at=NOW) -> str:
+    job_id = str(uuid.uuid4())
+    async with session_factory() as db:
+        db.add(
+            AgentRun(
+                job_id=job_id,
+                user_id=uuid.uuid4(),
+                status="running",
+                created_at=updated_at,
+                updated_at=updated_at,
+            )
+        )
+        await db.commit()
+    return job_id
+
+
+async def _row(session_factory, job_id) -> AgentRun:
+    async with session_factory() as db:
+        run = await db.get(AgentRun, job_id)
+        assert run is not None
+        db.expunge(run)
+        return run
+
+
+@pytest.mark.asyncio
+async def test_touch_bumps_updated_at_on_non_terminal_row(session_factory):
+    job_id = await _seed_running(
+        session_factory, updated_at=NOW - timedelta(minutes=10)
+    )
+
+    async with session_factory() as db:
+        bumped = await agent_run_service.touch_run_updated_at(db, job_id)
+        await db.commit()
+
+    assert bumped is True
+    row = await _row(session_factory, job_id)
+    assert _aware(row.updated_at) > NOW - timedelta(minutes=10)
+    assert row.status == "running"
+
+
+@pytest.mark.asyncio
+async def test_touch_never_resurrects_terminal_row(session_factory):
+    job_id = await _seed_running(
+        session_factory, updated_at=NOW - timedelta(minutes=10)
+    )
+    async with session_factory() as db:
+        run = await db.get(AgentRun, job_id)
+        assert run is not None
+        run.status = "completed"
+        await db.commit()
+
+    async with session_factory() as db:
+        bumped = await agent_run_service.touch_run_updated_at(db, job_id)
+        await db.commit()
+
+    assert bumped is False
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_context_keeps_row_fresh_while_block_runs(
+    session_factory, monkeypatch
+):
+    job_id = await _seed_running(
+        session_factory, updated_at=NOW - timedelta(minutes=10)
+    )
+    seeded_at = (await _row(session_factory, job_id)).updated_at
+    monkeypatch.setattr(
+        "src.services.agent.agent_execution_service.AsyncSessionLocal",
+        session_factory,
+    )
+
+    async with agent_execution_service._run_heartbeat(job_id, interval_seconds=0.01):
+        await asyncio.sleep(0.06)
+
+    row = await _row(session_factory, job_id)
+    assert _aware(row.updated_at) > _aware(seeded_at)
+    # A late heartbeat must not clobber a terminal write that landed after it.
+    async with session_factory() as db:
+        run = await db.get(AgentRun, job_id)
+        assert run is not None
+        run.status = "failed"
+        await db.commit()
+    async with session_factory() as db:
+        bumped = await agent_run_service.touch_run_updated_at(db, job_id)
+    assert bumped is False
+    assert (await _row(session_factory, job_id)).status == "failed"

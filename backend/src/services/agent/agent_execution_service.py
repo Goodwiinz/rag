@@ -16,6 +16,7 @@ Postgres projection stays in ``agent_run_service`` (its single owner).
 """
 
 import asyncio
+import contextlib
 import logging
 import random
 import time
@@ -2082,6 +2083,59 @@ def _extract_pending_interrupt(snapshot: Any) -> Optional[Dict[str, Any]]:
     return None
 
 
+@contextlib.asynccontextmanager
+async def _run_heartbeat(job_id: str, *, interval_seconds: Optional[float] = None):
+    """Live-run heartbeat (audit S2-M15).
+
+    In-process (SSE / background-dispatch) executions stamp
+    ``agent_runs.updated_at`` once and then run silently for up to the graph's
+    hard timeout — their only sweeper protection was a config margin. While
+    the guarded block runs, this bumps ``updated_at`` every
+    ``AGENT_RUN_HEARTBEAT_SECONDS`` so ``sweep_stale_agent_runs`` sees real
+    liveness instead of hoping STALE_AFTER > timeout holds.
+
+    Each beat uses its own short-lived session (the runner's session must not
+    be pinned by the heartbeat); failures are logged, never raised — a broken
+    heartbeat degrades to the pre-fix margin, never kills the run. The touch
+    is guarded to non-terminal rows, so a beat that races the final write
+    cannot resurrect a finished run.
+    """
+    if interval_seconds is None:
+        from src.core.config import get_settings
+
+        interval_seconds = float(
+            getattr(get_settings(), "AGENT_RUN_HEARTBEAT_SECONDS", 60)
+        )
+    if interval_seconds <= 0:
+        # Disabled explicitly — behave exactly as before the heartbeat existed.
+        yield
+        return
+
+    from src.services.agent import agent_run_service
+
+    async def _beat() -> None:
+        while True:
+            await asyncio.sleep(interval_seconds)
+            try:
+                async with AsyncSessionLocal() as db:
+                    await agent_run_service.touch_run_updated_at(db, job_id)
+                    await db.commit()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.warning(
+                    "agent-run heartbeat failed for %s", job_id, exc_info=True
+                )
+
+    beat_task = asyncio.create_task(_beat())
+    try:
+        yield
+    finally:
+        beat_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await beat_task
+
+
 async def _run_agent_graph(
     job_id: str,
     request: Any,  # AgentExecuteRequest
@@ -2297,7 +2351,9 @@ async def _run_agent_graph(
                 # fresh round-trip.
                 await db.commit()
 
-                async with asyncio.timeout(360):
+                # S2-M15: heartbeat updated_at while the graph runs so the
+                # staleness sweeper can never mistake a live run for dead.
+                async with _run_heartbeat(job_id), asyncio.timeout(360):
                     final_state = await graph.ainvoke(initial_state, config=config)
 
                 # Primary interrupt detection — see _extract_pending_interrupt.
@@ -2653,7 +2709,9 @@ async def _resume_agent_graph(
             # holds its pooled connection through the whole confirm run.
             await db.commit()
 
-            async with asyncio.timeout(360):
+            # Same heartbeat as the fresh-run path (S2-M15): a confirm resume
+            # is equally live and equally silent between status writes.
+            async with _run_heartbeat(job_id), asyncio.timeout(360):
                 final_state = await graph.ainvoke(
                     Command(resume={"confirmed": confirmed}),
                     config=config,
