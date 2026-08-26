@@ -382,11 +382,14 @@ async def test_stale_after_below_heartbeat_margin_is_raised_to_floor(
     fresh — the effective cutoff is max(STALE_AFTER, 4x heartbeat)."""
     from types import SimpleNamespace
 
+    sweep_now = datetime.now(timezone.utc)
+    monkeypatch.setattr(agent_tasks, "_utcnow", lambda: sweep_now)
+
     # Updated 30s ago: past the (broken) 10s threshold, inside the 240s floor.
     recent_id = await _seed(
         session_factory,
         status="running",
-        updated_at=NOW - timedelta(seconds=30),
+        updated_at=sweep_now - timedelta(seconds=30),
     )
     monkeypatch.setattr(
         agent_tasks,
