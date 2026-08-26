@@ -66,16 +66,31 @@ function makeParams(setMessages: Setter): UseChatStreamingParams {
   };
 }
 
-/** Last assistant bubble that carries an `error` block. */
+/**
+ * Last assistant bubble that carries an `error` block.
+ *
+ * `setMessages` is a `React.Dispatch<React.SetStateAction<...>>`, so a caller
+ * may pass either the next array or a functional updater. Replay the calls in
+ * order the way React would — feeding each updater the state the previous call
+ * produced — otherwise an updater-form call is invisible here and the bubble
+ * it carries reads as `undefined`.
+ */
 function lastErrorBubble(
   calls: Array<[ChatPageMessage[] | unknown]>
 ): ChatPageMessage | undefined {
-  for (let i = calls.length - 1; i >= 0; i -= 1) {
-    const arg = calls[i][0];
-    if (!Array.isArray(arg)) continue;
-    const withError = [...(arg as ChatPageMessage[])]
-      .reverse()
-      .find((m) => m?.error);
+  const states: ChatPageMessage[][] = [];
+  let prev: ChatPageMessage[] = [];
+  for (const [arg] of calls) {
+    const next =
+      typeof arg === 'function'
+        ? (arg as (p: ChatPageMessage[]) => ChatPageMessage[])(prev)
+        : arg;
+    if (!Array.isArray(next)) continue;
+    prev = next as ChatPageMessage[];
+    states.push(prev);
+  }
+  for (let i = states.length - 1; i >= 0; i -= 1) {
+    const withError = [...states[i]].reverse().find((m) => m?.error);
     if (withError) return withError;
   }
   return undefined;
@@ -161,9 +176,9 @@ describe('useChatStreaming maps the server error category onto the bubble', () =
     });
     // No server frame exists for "stream ended with no tokens" — the client
     // detected it, so the client keeps authorship of the category.
-    expect(lastErrorBubble(setMessages.mock.calls as never)?.error?.category).toBe(
-      'empty-response'
-    );
+    expect(
+      lastErrorBubble(setMessages.mock.calls as never)?.error?.category
+    ).toBe('empty-response');
   });
 });
 
