@@ -59,7 +59,7 @@ async def _seed_user(session_factory, *, active=True):
     return user_id
 
 
-async def _seed_run(session_factory, job_id, user_id, status=JobStatus.RUNNING):
+async def _seed_run(session_factory, job_id, user_id, status=JobStatus.QUEUED):
     async with session_factory() as db:
         await svc.upsert_run(db, job_id=job_id, status=status, user_id=user_id)
 
@@ -81,6 +81,7 @@ async def test_first_delivery_claims_and_runs(session_factory):
     with (
         patch("src.core.database.AsyncSessionLocal", session_factory),
         patch("src.services.agent.agent_execution_service._run_agent_graph", runner),
+        patch.object(tasks_mod, "_mark_job_running", new=AsyncMock()) as mark_running,
     ):
         result = await tasks_mod._execute_agent_job(
             job_id, _payload(), str(user_id), lease_owner="celery:w1"
@@ -93,8 +94,11 @@ async def test_first_delivery_claims_and_runs(session_factory):
     assert args[0] == job_id
     assert args[1].messages[0].content == "hello"
     assert args[2].id == user_id
+    mark_running.assert_awaited_once()
     async with session_factory() as db:
         run = await db.get(AgentRun, job_id)
+        assert run.status == JobStatus.RUNNING.value
+        assert run.started_at is not None
         assert run.lease_owner == "celery:w1"  # claim stamped, never released
 
 
@@ -110,6 +114,7 @@ async def test_duplicate_delivery_noops(session_factory):
     with (
         patch("src.core.database.AsyncSessionLocal", session_factory),
         patch("src.services.agent.agent_execution_service._run_agent_graph", runner),
+        patch.object(tasks_mod, "_mark_job_running", new=AsyncMock()) as mark_running,
     ):
         first = await tasks_mod._execute_agent_job(
             job_id, _payload(), str(user_id), lease_owner="celery:w1"
@@ -121,6 +126,37 @@ async def test_duplicate_delivery_noops(session_factory):
     assert first["outcome"] == "ran"
     assert second["outcome"] == "duplicate-noop"
     runner.assert_awaited_once()
+    mark_running.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_legacy_running_row_is_claimed_during_rolling_upgrade(session_factory):
+    """New workers must drain jobs published by an older API pod."""
+    user_id = await _seed_user(session_factory)
+    job_id = str(uuid.uuid4())
+    await _seed_run(
+        session_factory,
+        job_id,
+        user_id,
+        status=JobStatus.RUNNING,
+    )
+
+    runner = AsyncMock()
+    with (
+        patch("src.core.database.AsyncSessionLocal", session_factory),
+        patch("src.services.agent.agent_execution_service._run_agent_graph", runner),
+        patch.object(tasks_mod, "_mark_job_running", new=AsyncMock()),
+    ):
+        result = await tasks_mod._execute_agent_job(
+            job_id, _payload(), str(user_id), lease_owner="celery:new-worker"
+        )
+
+    assert result["outcome"] == "ran"
+    runner.assert_awaited_once()
+    async with session_factory() as db:
+        run = await db.get(AgentRun, job_id)
+        assert run.status == JobStatus.RUNNING.value
+        assert run.lease_owner == "celery:new-worker"
 
 
 @pytest.mark.asyncio
@@ -238,6 +274,25 @@ async def test_fail_job_record_preserves_owner_and_projects(session_factory):
         run = await db.get(AgentRun, job_id)
         assert run.status == "failed"
         assert run.error == "boom"
+
+
+@pytest.mark.asyncio
+async def test_mark_job_running_updates_live_store_after_claim():
+    user = SimpleNamespace(id=uuid.uuid4(), organization_id=uuid.uuid4())
+    request_payload = _payload()
+    set_job = AsyncMock()
+
+    with patch("src.services.agent.job_store.set_job", set_job):
+        await tasks_mod._mark_job_running("job-1", request_payload, user)
+
+    written = set_job.await_args.args[1]
+    assert written == {
+        "status": JobStatus.RUNNING,
+        "tool_executions": [],
+        "user_id": str(user.id),
+        "organization_id": str(user.organization_id),
+        "request": request_payload,
+    }
 
 
 # ---------------------------------------------------------------------------

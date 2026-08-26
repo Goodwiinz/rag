@@ -365,8 +365,10 @@ async def claim_execution(
     Returns ``"claimed"`` | ``"duplicate"`` | ``"missing"``.
 
     Unlike ``claim_lease`` (the sweeper's renewable/expirable lease), this
-    claim succeeds at most ONCE per run: it requires ``status == running``
-    AND ``lease_owner IS NULL``. That single-statement condition is what makes
+    claim succeeds at most ONCE per run: it atomically moves ``queued`` to
+    ``running`` while requiring ``lease_owner IS NULL``. During the staged
+    rollout it also accepts an unleased legacy ``running`` row written by an
+    older API pod. That single-statement condition is what makes
     duplicate task deliveries safe:
 
     - acks_late redelivery after a worker crash *mid-run*: the first delivery
@@ -387,10 +389,12 @@ async def claim_execution(
         update(AgentRun)
         .where(
             AgentRun.job_id == job_id,
-            AgentRun.status == JobStatus.RUNNING.value,
+            AgentRun.status.in_((JobStatus.QUEUED.value, JobStatus.RUNNING.value)),
             AgentRun.lease_owner.is_(None),
         )
         .values(
+            status=JobStatus.RUNNING.value,
+            started_at=now,
             lease_owner=lease_owner,
             lease_expires_at=now + timedelta(seconds=lease_seconds),
             updated_at=now,

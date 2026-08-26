@@ -11,7 +11,8 @@ FastAPI BackgroundTasks path runs, so both backends share one runner and one
 status protocol.
 
 Idempotency: ``agent_run_service.claim_execution`` succeeds at most once per
-run (``status == running AND lease_owner IS NULL``), so a duplicate delivery
+run (atomic ``queued`` → ``running`` plus ``lease_owner IS NULL``; an unleased
+legacy ``running`` row is accepted during rollout), so a duplicate delivery
 (acks_late redelivery, broker retry, double publish) no-ops instead of
 double-running a turn whose tools may have side effects. A redelivery after a
 crash *before* the claim still finds the lease free and legitimately recovers
@@ -144,6 +145,39 @@ async def _fail_job_record(
     await agent_run_service.record_job_status(job_id, payload)
 
 
+async def _mark_job_running(
+    job_id: str,
+    request_payload: dict,
+    user: Any,
+) -> None:
+    """Expose RUNNING to live pollers after the durable worker claim wins."""
+    from src.services.agent import job_store
+
+    try:
+        await job_store.set_job(
+            job_id,
+            {
+                "status": JobStatus.RUNNING,
+                "tool_executions": [],
+                "user_id": str(user.id),
+                "organization_id": (
+                    str(user.organization_id)
+                    if getattr(user, "organization_id", None)
+                    else None
+                ),
+                "request": request_payload,
+            },
+        )
+    except Exception:
+        # The durable claim is authoritative and the graph can still run; the
+        # poll path falls back to agent_runs if the live-store write is lost.
+        logger.warning(
+            "run_agent_job: failed to expose running status for job %s",
+            job_id,
+            exc_info=True,
+        )
+
+
 # ---------------------------------------------------------------------------
 # run_agent_job — the Celery dispatch target (P1.3)
 # ---------------------------------------------------------------------------
@@ -222,6 +256,8 @@ async def _execute_agent_job(
             organization_id=str(getattr(user, "organization_id", "") or "") or None,
         )
         return {"job_id": job_id, "outcome": "bad-payload"}
+
+    await _mark_job_running(job_id, request_payload, user)
 
     # The shared runner — the same coroutine the background dispatch runs.
     # It updates the job record itself on every outcome (including its own

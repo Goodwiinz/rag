@@ -151,10 +151,13 @@ backend:
     # Celery `agent_runs` queue instead of request-local BackgroundTasks, so a
     # pod kill after the job_id response no longer loses the run. Idempotency
     # key + one-shot claim make redelivery safe; SSE streaming path unchanged.
-    # Rollback is instant: flip back to "background" (values-only, no rebuild).
+    # QUEUED-claim protocol rollout is deliberately two-phase because API and
+    # worker Deployments roll independently: ship workers that accept both the
+    # legacy RUNNING rows and new QUEUED rows while dispatch stays background,
+    # then flip this value back to "celery" after every worker is updated.
     # Requires the celery worker to consume the `agent_runs` queue (-Q).
     - name: AGENT_DISPATCH_BACKEND
-      value: "celery"
+      value: "background"
     # Project skills rollout: enable the descriptor enforcement, catalog API,
     # and progressive loader together in the shared dev environment only.
     # Each remains independently reversible with a values-only deploy; do not

@@ -119,7 +119,7 @@ def _maybe_cleanup_jobs():
     pass
 
 
-def _set_job(job_id: str, data: dict):
+def _set_job(job_id: str, data: dict, *, project: bool = True):
     """Persist a job — writes L1 immediately, then Redis via fire-and-forget.
 
     The fire-and-forget task uses ``_write_to_redis_only`` so it never
@@ -160,9 +160,12 @@ def _set_job(job_id: str, data: dict):
         if existing is None or _is_newer_or_equal(data, existing):
             _jobs[job_id] = data
 
-    # Durable projection (fire-and-forget; Redis stays authoritative). Has its
-    # own no-running-loop guard, so it is safe outside the try below.
-    _schedule_run_projection(job_id, data)
+    # Durable projection (fire-and-forget; Redis stays authoritative). The
+    # Celery dispatch path already committed its QUEUED row synchronously and
+    # disables this delayed copy so it cannot regress a worker's later atomic
+    # QUEUED -> RUNNING claim.
+    if project:
+        _schedule_run_projection(job_id, data)
 
     try:
         loop = _asyncio.get_running_loop()

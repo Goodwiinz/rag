@@ -142,7 +142,7 @@ async def test_dispatch_commits_row_before_enqueue(session_factory):
     assert run.status == "failed"  # record_job_status marked the orphan
     # The job store saw the initial write and then the failed overwrite.
     statuses = [c.args[1]["status"] for c in set_job_mock.call_args_list]
-    assert statuses == [JobStatus.RUNNING, JobStatus.FAILED]
+    assert statuses == [JobStatus.QUEUED, JobStatus.FAILED]
 
 
 @pytest.mark.asyncio
@@ -157,10 +157,12 @@ async def test_dispatch_success_row_then_job_then_delay(session_factory):
 
     assert (outcome, returned_id) == ("dispatched", job_id)
     run = await _get_run(session_factory, job_id)
-    assert run is not None and run.status == "running"
+    assert run is not None and run.status == "queued"
     assert run.user_id == user.id and run.organization_id == user.organization_id
     assert run.idempotency_key is not None
     set_job_mock.assert_called_once()
+    assert set_job_mock.call_args.args[1]["status"] == JobStatus.QUEUED
+    assert set_job_mock.call_args.kwargs == {"project": False}
     kwargs = task.delay.call_args.kwargs
     assert kwargs["job_id"] == job_id
     assert kwargs["user_id"] == str(user.id)
@@ -352,3 +354,45 @@ class TestExecuteEndpointRouting:
                 request=_request(uuid.uuid4(), thread_id=thread_id),
             )
         assert exc_info.value.status_code == 409
+
+    async def test_background_dedup_lookup_failure_is_safe_503(self):
+        from src.api.agent.execute import execute_agent
+
+        user = _user()
+        background_tasks = MagicMock()
+        db = MagicMock()
+        db.rollback = AsyncMock()
+        with (
+            patch(
+                "src.api.agent.execute._resolve_dispatch_backend",
+                return_value="background",
+            ),
+            patch(
+                "src.api.agent.execute._agent_rate_limiter.check_rate_limit",
+                new=AsyncMock(return_value=(True, 0)),
+            ),
+            patch(
+                "src.api.agent.execute._agent_rate_limiter.record_attempt",
+                new=AsyncMock(),
+            ),
+            patch(
+                "src.services.agent.agent_run_service.upsert_run",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "src.services.agent.agent_run_service.get_run_by_idempotency_key",
+                new=AsyncMock(side_effect=RuntimeError("database unavailable")),
+            ),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            await execute_agent(
+                _request(uuid.uuid4()),
+                background_tasks,
+                current_user=user,
+                db=db,
+            )
+
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == "Unable to persist this run. Please retry."
+        db.rollback.assert_awaited_once()
+        background_tasks.add_task.assert_not_called()

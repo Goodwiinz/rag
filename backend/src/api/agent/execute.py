@@ -341,7 +341,7 @@ async def _celery_dispatch(
             run = await agent_run_service.upsert_run(
                 run_db,
                 job_id=job_id,
-                status=JobStatus.RUNNING,
+                status=JobStatus.QUEUED,
                 organization_id=org,
                 user_id=current_user.id,
                 thread_id=request.thread_id,
@@ -381,7 +381,11 @@ async def _celery_dispatch(
         return ("unavailable" if request.thread_id else "fallback"), job_id
 
     # 2. Job record for pollers (L1 + Redis + projection).
-    _set_job(job_id, job_payload)
+    _set_job(
+        job_id,
+        {**job_payload, "status": JobStatus.QUEUED},
+        project=False,
+    )
 
     # 3. Enqueue LAST — the external call happens only after all state is
     #    durable, so the worker's execution claim always finds its row.
@@ -508,25 +512,29 @@ async def execute_agent(
             thread_id=request.thread_id,
             idempotency_key=idem_key,
         )
+        if run is None and idem_key is not None:
+            existing = await agent_run_service.get_run_by_idempotency_key(
+                db,
+                idem_key,
+                organization_id=getattr(current_user, "organization_id", None),
+                user_id=current_user.id,
+            )
+            if existing is not None:
+                return JobStartResponse(job_id=existing.job_id)
     except agent_run_service.ActiveRunConflict as exc:
         raise HTTPException(
             status_code=409,
             detail="A response is already in progress for this thread.",
         ) from exc
     except Exception as exc:
+        try:
+            await db.rollback()
+        except Exception:
+            logger.warning("Failed to roll back agent run reservation", exc_info=True)
         raise HTTPException(
             status_code=503,
             detail=persistence_error,
         ) from exc
-    if run is None and idem_key is not None:
-        existing = await agent_run_service.get_run_by_idempotency_key(
-            db,
-            idem_key,
-            organization_id=getattr(current_user, "organization_id", None),
-            user_id=current_user.id,
-        )
-        if existing is not None:
-            return JobStartResponse(job_id=existing.job_id)
     if run is None:
         raise HTTPException(
             status_code=503,
