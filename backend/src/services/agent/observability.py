@@ -154,10 +154,15 @@ def configure_langsmith():
     hide_io_default = "false" if norm_env == "dev" else "true"
     hide_io = os.environ.get("LANGSMITH_HIDE_IO", hide_io_default).lower() == "true"
     if hide_io:
-        os.environ.setdefault("LANGCHAIN_HIDE_INPUTS", "true")
-        os.environ.setdefault("LANGCHAIN_HIDE_OUTPUTS", "true")
-        os.environ.setdefault("LANGSMITH_HIDE_INPUTS", "true")
-        os.environ.setdefault("LANGSMITH_HIDE_OUTPUTS", "true")
+        # Force (not setdefault) — same discipline as LANGSMITH_PROJECT above:
+        # a stale injected LANGCHAIN_HIDE_INPUTS=false must not outvote the
+        # guard while the log line below claims hide_io=True (audit S2-M14).
+        # LANGSMITH_HIDE_IO is the single decision knob; explicit opt-out is
+        # LANGSMITH_HIDE_IO=false, not per-name env surgery.
+        os.environ["LANGCHAIN_HIDE_INPUTS"] = "true"
+        os.environ["LANGCHAIN_HIDE_OUTPUTS"] = "true"
+        os.environ["LANGSMITH_HIDE_INPUTS"] = "true"
+        os.environ["LANGSMITH_HIDE_OUTPUTS"] = "true"
 
     endpoint = os.environ.get("LANGSMITH_ENDPOINT") or os.environ.get(
         "LANGCHAIN_ENDPOINT"
