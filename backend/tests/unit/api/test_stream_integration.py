@@ -11,11 +11,12 @@ Event ordering contract:
 """
 
 import json
-import pytest
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
+
+import pytest
 
 from src.services.threads.stream_service import SSEEvent, StreamService
 
@@ -289,7 +290,7 @@ class TestSSEEventFormat:
 
         # The data line should be valid JSON
         data_line = formatted.split("\n")[1]
-        json_str = data_line[len("data: "):]
+        json_str = data_line[len("data: ") :]
         parsed = json.loads(json_str)
         assert parsed["content"] == "hi"
 
@@ -299,7 +300,7 @@ class TestSSEEventFormat:
         formatted = evt.format()
         assert "event: ping\n" in formatted
         data_line = formatted.split("\n")[1]
-        json_str = data_line[len("data: "):]
+        json_str = data_line[len("data: ") :]
         assert json.loads(json_str) == {}
 
 
@@ -735,8 +736,7 @@ class TestStreamEdgeCases:
     async def test_multiple_rag_contexts(self) -> None:
         """Multiple RAG context items should appear in a single rag_context event."""
         contexts = [
-            _make_rag_context(title=f"Doc {i}", score=0.9 - i * 0.1)
-            for i in range(3)
+            _make_rag_context(title=f"Doc {i}", score=0.9 - i * 0.1) for i in range(3)
         ]
         retrieve_fn = AsyncMock(return_value=contexts)
 
