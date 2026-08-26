@@ -16,7 +16,6 @@ from typing import Any, AsyncIterator, cast
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
 
 from src.models.agent_run import AgentRun
 from src.services.agent import agent_execution_service, agent_run_service
@@ -36,14 +35,21 @@ def _aware(dt: Any) -> datetime:
 
 
 @pytest.fixture
-async def session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
-    # StaticPool: every session shares the single in-memory connection.
-    # Without it the concurrent heartbeat beat checks out a second
-    # connection — a fresh, table-less database.
+async def session_factory(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    # A temp FILE, not ":memory:". The heartbeat beats on its own session
+    # concurrently with this test's sessions; with an in-memory database the
+    # only way to share it is StaticPool's single connection, and SQLite
+    # cannot take concurrent use of one connection. The resulting error
+    # invalidates it, the pool opens a fresh one — and a fresh ":memory:"
+    # connection is a new, table-less database ("no such table: agent_runs",
+    # intermittently). A file is opened independently by every connection,
+    # so the schema survives and the beats race nothing.
+    db_path = tmp_path_factory.mktemp("agent-run-heartbeat") / "heartbeat.db"
     engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
+        f"sqlite+aiosqlite:///{db_path}",
         connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
     )
     async with engine.begin() as conn:
         await conn.run_sync(AgentRun.__table__.create)
