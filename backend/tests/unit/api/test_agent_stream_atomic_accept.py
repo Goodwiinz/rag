@@ -480,10 +480,81 @@ async def test_cross_thread_retry_never_replays_the_original_threads_frames(
 
 
 @pytest.mark.asyncio
-async def test_undispatched_retry_fails_fast_and_releases_the_thread_slot(
+async def test_retry_waits_for_original_stream_startup_before_terminalizing(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """A committed run with no dispatch/buffer is terminalized on its retry."""
+    """A first empty buffer lookup must not kill a dispatch racing startup."""
+    from src.api.agent import streaming as streaming_mod
+
+    client_message_id = uuid.uuid4()
+    run_id = await _accept_without_dispatch(
+        session_factory,
+        thread_id=THREAD_ID,
+        client_message_id=client_message_id,
+    )
+    stream_lookup = AsyncMock(side_effect=[None, "started-stream"])
+    sleep = AsyncMock()
+    replay_calls: list[tuple[str, str, bool]] = []
+
+    async def replay_started_stream(
+        _request: Any,
+        *,
+        thread_id: str,
+        stream_id: str,
+        wait_for_start: bool,
+    ) -> AsyncIterator[str]:
+        replay_calls.append((thread_id, stream_id, wait_for_start))
+        yield 'id: 1\nevent: token\ndata: {"content": "started"}\n\n'
+        yield "id: 2\nevent: done\ndata: {}\n\n"
+
+    frames = await _drive_stream(
+        session_factory,
+        client_message_id=client_message_id,
+        extra_patches=(
+            patch.object(
+                streaming_mod._stream_buffer,
+                "stream_id_for_run",
+                new=stream_lookup,
+            ),
+            patch.object(streaming_mod.asyncio, "sleep", new=sleep),
+            patch.object(
+                streaming_mod,
+                "replay_buffered_stream",
+                new=replay_started_stream,
+            ),
+        ),
+    )
+
+    assert not frames_of_type(frames, "error")
+    assert len(frames_of_type(frames, "token")) == 1
+    assert len(frames_of_type(frames, "done")) == 1
+    assert replay_calls == [(str(THREAD_ID), "started-stream", True)]
+    sleep.assert_awaited_once_with(0.1)
+
+    async with session_factory() as verify:
+        run = await verify.get(AgentRun, run_id)
+        assert run is not None
+        assert run.status == JobStatus.QUEUED.value
+        failed_count = int(
+            (
+                await verify.execute(
+                    select(func.count())
+                    .select_from(AgentRunEvent)
+                    .where(
+                        AgentRunEvent.run_id == run_id,
+                        AgentRunEvent.event_type == "run.failed",
+                    )
+                )
+            ).scalar_one()
+        )
+        assert failed_count == 0
+
+
+@pytest.mark.asyncio
+async def test_undispatched_retry_fails_after_grace_and_releases_the_thread_slot(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A committed run still missing its buffer after grace is terminalized."""
     from src.api.agent import streaming as streaming_mod
 
     client_message_id = uuid.uuid4()
@@ -508,8 +579,8 @@ async def test_undispatched_retry_fails_fast_and_releases_the_thread_slot(
         ),
     )
 
-    assert stream_lookup.await_count == 1
-    sleep.assert_not_awaited()
+    assert stream_lookup.await_count == 50
+    assert sleep.await_count == 49
     errors = frames_of_type(frames, "error")
     assert len(errors) == 1
     error = sse_data(errors[0])

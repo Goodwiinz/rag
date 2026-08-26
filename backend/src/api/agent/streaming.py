@@ -1647,8 +1647,43 @@ async def stream_event_generator(
                 )
                 return
 
-            replay_sid = await _stream_buffer.stream_id_for_run(acceptance.run_id)
+            # The accepting request commits before it opens the Redis buffer.
+            # A duplicate can therefore observe a valid QUEUED row during that
+            # short startup window. Give the original request the same bounded
+            # five-second grace period used by the pre-audit replay path before
+            # deciding that its dispatch was abandoned.
+            replay_sid = None
+            for attempt in range(50):
+                replay_sid = await _stream_buffer.stream_id_for_run(acceptance.run_id)
+                if replay_sid is not None:
+                    break
+                if await request.is_disconnected():
+                    return
+                if attempt < 49:
+                    await asyncio.sleep(0.1)
+
             if replay_sid is None:
+                # Re-read after the grace period: the original request may have
+                # advanced the durable row while its buffer was unavailable.
+                replayed_run = await get_run(
+                    db,
+                    acceptance.run_id,
+                    organization_id=org_id,
+                    user_id=current_user.id,
+                )
+                if (
+                    replayed_run is None
+                    or str(replayed_run.thread_id) != resolved_thread_id
+                ):
+                    yield await emitter.emit(
+                        AgentStreamEvent.ERROR,
+                        error_frame_payload(
+                            "This retry does not belong to this thread.",
+                            AgentErrorCategory.CONFLICT,
+                        ),
+                        buffer=False,
+                    )
+                    return
                 if replayed_run.status == JobStatus.QUEUED.value:
                     message = "The original response did not start. Please retry."
                     await _finalize_run(

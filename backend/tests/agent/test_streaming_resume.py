@@ -129,6 +129,15 @@ async def test_replayed_submission_replays_original_stream_without_dispatch(
             new=AsyncMock(return_value=acceptance),
         ),
         patch(
+            "src.api.agent.streaming.get_run",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    thread_id=thread_id,
+                    status="running",
+                )
+            ),
+        ),
+        patch(
             "src.api.agent.streaming.mark_submission_dispatched",
             new=dispatched,
         ),
