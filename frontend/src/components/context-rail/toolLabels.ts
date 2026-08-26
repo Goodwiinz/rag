@@ -132,17 +132,22 @@ const TOOL_COPY: Record<string, ToolCopy> = {
   ),
 };
 
-function humanize(tool: string): string {
+export function humanize(tool?: string): string {
+  if (typeof tool !== 'string' || !tool) return 'Unknown tool';
   return tool.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function toolLabel(tool: string, serverLabel?: string): string {
+export function toolLabel(tool?: string, serverLabel?: string): string {
   const fallback = humanize(tool);
   const explicitServerLabel = serverLabel?.trim() || undefined;
   if (explicitServerLabel && explicitServerLabel !== fallback) {
     return explicitServerLabel;
   }
-  return TOOL_COPY[tool]?.label ?? explicitServerLabel ?? fallback;
+  return (
+    (tool ? TOOL_COPY[tool]?.label : undefined) ??
+    explicitServerLabel ??
+    fallback
+  );
 }
 
 /** Status-aware microcopy shared by the transcript and context rail. */

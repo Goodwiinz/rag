@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import { toolLabel } from '@/components/context-rail/toolLabels';
 import { getAppQueryClient } from '@/lib/query-client';
 import type {
   AgentErrorCategory,
@@ -269,9 +270,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                       existing.push({
                         id: `te-${Date.now()}-${(toolExecutionSeq += 1)}`,
                         toolName: tool,
-                        toolDisplayName: tool
-                          .replace(/_/g, ' ')
-                          .replace(/\b\w/g, (c) => c.toUpperCase()),
+                        toolDisplayName: toolLabel(tool),
                         args: {},
                         status: 'running',
                       });
@@ -433,7 +432,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                       (m) => m.id === placeholderId
                     );
                     if (idx !== -1) {
-                      state.messages[idx].isStreaming = false;
+                      settleStreamingMessage(state.messages[idx]);
                       if (didMutateProjectData) {
                         state.projectDataVersion += 1;
                       }
@@ -860,9 +859,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     existing.push({
                       id: `te-${Date.now()}-${(toolExecutionSeq += 1)}`,
                       toolName: tool,
-                      toolDisplayName: tool
-                        .replace(/_/g, ' ')
-                        .replace(/\b\w/g, (c) => c.toUpperCase()),
+                      toolDisplayName: toolLabel(tool),
                       args: {},
                       status: 'running',
                     });
@@ -1010,7 +1007,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     (m) => m.id === targetMessageId
                   );
                   if (idx !== -1) {
-                    state.messages[idx].isStreaming = false;
+                    settleStreamingMessage(state.messages[idx]);
                   }
                   state.isStreaming = false;
                   state.isConfirming = false;

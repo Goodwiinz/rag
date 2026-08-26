@@ -11,11 +11,12 @@ Event ordering contract:
 """
 
 import json
-import pytest
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
+
+import pytest
 
 from src.services.threads.stream_service import SSEEvent, StreamService
 
@@ -289,7 +290,7 @@ class TestSSEEventFormat:
 
         # The data line should be valid JSON
         data_line = formatted.split("\n")[1]
-        json_str = data_line[len("data: "):]
+        json_str = data_line[len("data: ") :]
         parsed = json.loads(json_str)
         assert parsed["content"] == "hi"
 
@@ -299,7 +300,7 @@ class TestSSEEventFormat:
         formatted = evt.format()
         assert "event: ping\n" in formatted
         data_line = formatted.split("\n")[1]
-        json_str = data_line[len("data: "):]
+        json_str = data_line[len("data: ") :]
         assert json.loads(json_str) == {}
 
 
@@ -379,7 +380,12 @@ class TestStreamPipelineErrorRecovery:
         # Verify error event data
         error_event = [e for e in events if e.event == "error"][0]
         assert error_event.data["code"] == "llm_error"
-        assert "LLM connection lost" in error_event.data["message"]
+        # The client-safe message stands in for the raw exception: the code
+        # carries the diagnosis, the message must not leak internals (S2-M10).
+        assert error_event.data["message"] == (
+            "The response failed mid-stream. Please retry."
+        )
+        assert "LLM connection lost" not in error_event.data["message"]
 
     async def test_llm_error_persists_partial_content(self) -> None:
         """On LLM error with partial tokens, partial content must be persisted."""
@@ -453,7 +459,10 @@ class TestStreamPipelineErrorRecovery:
         assert len(events) == 1
         assert events[0].event == "error"
         assert events[0].data["code"] == "message_create_failed"
-        assert "db down" in events[0].data["message"]
+        assert events[0].data["message"] == (
+            "We couldn't save your message. Please try again."
+        )
+        assert "db down" not in events[0].data["message"]
 
     async def test_context_build_failure(self) -> None:
         """If get_thread_context raises, emit error and stop after message_start."""
@@ -727,8 +736,7 @@ class TestStreamEdgeCases:
     async def test_multiple_rag_contexts(self) -> None:
         """Multiple RAG context items should appear in a single rag_context event."""
         contexts = [
-            _make_rag_context(title=f"Doc {i}", score=0.9 - i * 0.1)
-            for i in range(3)
+            _make_rag_context(title=f"Doc {i}", score=0.9 - i * 0.1) for i in range(3)
         ]
         retrieve_fn = AsyncMock(return_value=contexts)
 

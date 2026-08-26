@@ -501,8 +501,7 @@ function StreamingReasoningSection({ label }: { label: string }): ReactElement {
         open={open}
         onOpenChange={setOpen}
         restingLabel={label}
-        role="status"
-        aria-live="polite"
+        aria-live="off"
         className="mb-2 max-w-none"
       />
       {streamingPlan.length > 0 ? (
@@ -561,18 +560,22 @@ function AuiStreamingBody(): ReactElement {
   );
   const retrievalChunks = useMemo(
     () =>
-      normalizedStreamingCitations.map((citation, index) => {
+      normalizedStreamingCitations.flatMap((citation, index) => {
+        const score = streamingCitations[index]?.score;
+        if (typeof score !== 'number' || !Number.isFinite(score)) return [];
         const sourceId =
           citation.documentId ?? citation.externalReferenceId ?? 'passage';
-        return {
-          id: `${sourceId}-${index + 1}`,
-          source: citation.title,
-          locator: `passage ${index + 1}`,
-          score: citation.score,
-          text: citation.content ?? '',
-        };
+        return [
+          {
+            id: `${sourceId}-${index + 1}`,
+            source: citation.title,
+            locator: `passage ${index + 1}`,
+            score,
+            text: citation.content ?? '',
+          },
+        ];
       }),
-    [normalizedStreamingCitations]
+    [normalizedStreamingCitations, streamingCitations]
   );
   const threadId = useAgentActivityStore((s) => s.currentThreadId);
   const phaseLabel = streamingPhase
@@ -600,9 +603,7 @@ function AuiStreamingBody(): ReactElement {
           chunks={retrievalChunks}
           visibleCount={retrievalChunks.length}
           searching={isRetrievingRag}
-          role="status"
-          aria-live="polite"
-          aria-label="Retrieval status"
+          aria-live="off"
           className="mb-3"
         />
       )}

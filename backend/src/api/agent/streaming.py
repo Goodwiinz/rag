@@ -12,7 +12,7 @@ import threading
 import time
 import uuid as _uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, cast
 
 from anyio import CancelScope
 from langgraph.errors import GraphInterrupt
@@ -60,7 +60,7 @@ from src.services.agent.agent_submission_service import (
 )
 from src.services.agent.job_store import process_local_confirmation_coordination_allowed
 from src.services.agent.observability import AgentStreamSLOTracker, record_token_usage
-from src.services.agent.run_event_types import RunEventType
+from src.services.agent.run_event_types import MAX_PAYLOAD_BYTES, RunEventType
 from src.services.agent.trace_metadata import TraceSource, build_trace_metadata
 from src.shared.enums import (
     TERMINAL_STREAM_EVENTS,
@@ -673,11 +673,11 @@ async def _stream_luna_fast_path(
 
 def _canonical_persistence_enabled() -> bool:
     """Server-canonical persistence rollout flag (PR 1 of the
-    dual-persistence consolidation). When on, the assistant row is
-    persisted synchronously before `done` and the done payload carries
-    the persisted ids so the client can reconcile instead of writing its
-    own copy. Read per-call (not at import) so tests and the dev cluster
-    can flip it without a process restart."""
+    dual-persistence consolidation). When on, the done payload carries the
+    persisted ids so the client can reconcile instead of writing its own copy.
+    Graph routes always persist synchronously before `done`; this flag now
+    controls only that additive client contract. Read per-call (not at import)
+    so tests and the dev cluster can flip it without a process restart."""
     import os
 
     return os.getenv("AGENT_CANONICAL_PERSISTENCE", "").lower() in (
@@ -919,6 +919,133 @@ def format_stream_envelope_frame(
     )
 
 
+# Audit S2-M2: the durable ledger enforces MAX_PAYLOAD_BYTES per event, but
+# live/buffered SSE frames historically bounded item counts only
+# (contexts[:3], ltrim frame caps), so one oversized retrieval context / plan
+# step / reflection issue amplified onto the socket and into up to 5000 Redis
+# replay copies. emit() clamps any over-budget payload through this ladder
+# before formatting — wire and buffer share the single clamped frame.
+_TRUNCATED_MARKER = "payload_truncated"
+_STUB_MARKER = "payload_stub"
+_TRUNCATION_SUFFIX = "...[truncated]"
+# Longest string value the identity stub will carry per key. Identity fields
+# (ids, rounds, flags, short titles) sit well under this; prose does not.
+_STUB_SCALAR_MAX_CHARS = 128
+# Rungs of (max string chars, max list items); the first rung whose JSON
+# serialization fits the budget wins. The final rung fits any payload whose
+# key set is code-controlled.
+_CLIP_LADDER: tuple[tuple[int, int], ...] = (
+    (2000, 32),
+    (512, 8),
+    (128, 4),
+    (64, 1),
+)
+
+
+def _clip_payload_values(value: Any, *, max_chars: int, max_items: int) -> Any:
+    """Depth-preserving clip: strings keep their prefix (+ marker), lists keep
+    their head items, dicts/scalars pass through. Shapes stay valid for FE
+    consumers that index or iterate them."""
+    if isinstance(value, str):
+        if len(value) > max_chars:
+            return value[:max_chars] + _TRUNCATION_SUFFIX
+        return value
+    if isinstance(value, list):
+        return [
+            _clip_payload_values(item, max_chars=max_chars, max_items=max_items)
+            for item in value[:max_items]
+        ]
+    if isinstance(value, dict):
+        return {
+            key: _clip_payload_values(item, max_chars=max_chars, max_items=max_items)
+            for key, item in value.items()
+        }
+    return value
+
+
+def _stub_identity_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Floor of the clamp ladder: keep the frame's identity, drop its bulk.
+
+    The ladder's last rung is not a guaranteed fit — a payload with enough
+    top-level keys stays over budget even clipped to (64, 1). This builds the
+    replacement bottom-up under a running byte budget instead, so the result
+    fits by construction no matter how many keys the producer sent. Small
+    scalars survive in producer order (ids, counters, flags, short titles);
+    strings over ``_STUB_SCALAR_MAX_CHARS`` and every container are dropped.
+
+    Correlation fields the consumer needs (trace_id, thread_id, sequence,
+    event_id) are added by ``build_stream_envelope`` downstream and so are
+    never at risk here.
+    """
+    stub: Dict[str, Any] = {_TRUNCATED_MARKER: True, _STUB_MARKER: True}
+    budget = MAX_PAYLOAD_BYTES - len(_json.dumps(stub))
+    for key, value in data.items():
+        if key in stub:
+            continue
+        if isinstance(value, str):
+            if len(value) > _STUB_SCALAR_MAX_CHARS:
+                continue
+        elif not isinstance(value, (bool, int, float)) and value is not None:
+            continue
+        try:
+            # Overstates the real cost by one byte (the added comma replaces
+            # a brace) — deliberately conservative so the result cannot land
+            # a byte over budget.
+            cost = len(_json.dumps({key: value}))
+        except (TypeError, ValueError):
+            continue
+        if cost > budget:
+            continue
+        budget -= cost
+        stub[key] = value
+    return stub
+
+
+def _bound_frame_payload(event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Return ``data`` unchanged when it fits MAX_PAYLOAD_BYTES; otherwise a
+    clipped copy carrying ``payload_truncated: True``. Never raises and never
+    mutates the input: an oversized producer degrades one frame instead of
+    failing the stream."""
+    # Serialize once: the oversized path is exactly where the payload is
+    # multi-megabyte, so re-encoding it for a log field is the one cost worth
+    # avoiding here. Every length below reuses an encoding already computed.
+    try:
+        encoded = _json.dumps(data)
+    except (TypeError, ValueError):
+        # Not JSON-serializable: the formatter downstream already surfaces
+        # this exactly as it did before the byte budget existed.
+        return data
+    original_bytes = len(encoded)
+    if original_bytes <= MAX_PAYLOAD_BYTES:
+        return data
+    bounded = data
+    bounded_bytes = original_bytes
+    for max_chars, max_items in _CLIP_LADDER:
+        candidate = cast(
+            Dict[str, Any],
+            _clip_payload_values(data, max_chars=max_chars, max_items=max_items),
+        )
+        candidate[_TRUNCATED_MARKER] = True
+        bounded = candidate
+        bounded_bytes = len(_json.dumps(candidate))
+        if bounded_bytes <= MAX_PAYLOAD_BYTES:
+            break
+    if bounded_bytes > MAX_PAYLOAD_BYTES:
+        # Ladder exhausted and still over: too many top-level keys for any
+        # per-value clip to save. Degrade to identity only.
+        bounded = _stub_identity_payload(data)
+        bounded_bytes = len(_json.dumps(bounded))
+    logger.warning(
+        "stream frame payload exceeded byte budget; clipped",
+        extra={
+            "event_type": event_type,
+            "original_bytes": original_bytes,
+            "clipped_bytes": bounded_bytes,
+        },
+    )
+    return bounded
+
+
 class _SeqEmitter:
     """Sequence-numbered SSE frames, teed into the resumable-stream Redis
     buffer (``src.services.agent.stream_buffer``). Buffering is best-effort:
@@ -970,10 +1097,50 @@ class _SeqEmitter:
             self.route = route if route in _STREAM_ROUTES else "unknown"
             self.slo_tracker.set_route(self.route)
 
-    async def start(self, thread_id: str, *, run_id: Optional[str] = None) -> None:
+    async def start(
+        self,
+        thread_id: str,
+        *,
+        run_id: Optional[str] = None,
+        continue_sequence: bool = False,
+    ) -> None:
         if self.sid is not None:
             return
         self.set_context(thread_id=thread_id)
+        if continue_sequence:
+            try:
+                previous_sid = (
+                    await _stream_buffer.stream_id_for_run(run_id) if run_id else None
+                )
+                previous_frames = (
+                    await _stream_buffer.read_after(previous_sid, 0)
+                    if previous_sid
+                    else []
+                )
+                if not previous_frames:
+                    # Without a durable cursor high-water mark, publishing a
+                    # fresh seq-1 active stream would hide its early frames from
+                    # legacy no-?stream clients carrying the prior cursor. Stay
+                    # live-only; a nested gate remains recoverable through the
+                    # checkpoint-backed pending-confirmation replay.
+                    logger.warning(
+                        "Confirm stream sequence continuity unavailable; "
+                        "continuing without a resumable buffer",
+                        extra={"thread_id": thread_id, "run_id": run_id},
+                    )
+                    return
+                # Continue the cursor only. Never copy old content into the new
+                # buffer, where it could be mistaken for this resume's durable
+                # output.
+                self.seq = max(frame.seq for frame in previous_frames)
+            except Exception:
+                logger.warning(
+                    "Failed to continue confirm stream sequence; continuing "
+                    "without a resumable buffer",
+                    exc_info=True,
+                    extra={"thread_id": thread_id, "run_id": run_id},
+                )
+                return
         try:
             self.sid = await _stream_buffer.start_stream(thread_id, run_id=run_id)
         except Exception:
@@ -985,7 +1152,10 @@ class _SeqEmitter:
         self.seq += 1
         if event_type == AgentStreamEvent.STATUS:
             self._record_progress(data)
+        # Observability records the producer's truth; the byte budget applies
+        # to what goes on the wire and into the resumable buffer (S2-M2).
         self.slo_tracker.record(event_type, data)
+        data = _bound_frame_payload(str(event_type), data)
         frame = format_stream_envelope_frame(
             event_type,
             data,
@@ -1665,7 +1835,15 @@ async def stream_event_generator(
                     load_project_memories,
                 )
 
-                project_memories = await load_project_memories(db, str(_pm_project_id))
+                project_memories = await load_project_memories(
+                    db,
+                    str(_pm_project_id),
+                    # Tenancy hard-stop (S2-M12): scope by org so a raw-id
+                    # caller can never pull another tenant's memories, while
+                    # project-shared memories from peers in the same org
+                    # remain visible. Deliberately NOT user-filtered.
+                    organization_id=getattr(current_user, "organization_id", None),
+                )
             except Exception:
                 logger.warning("project memory load failed", exc_info=True)
 
@@ -2266,35 +2444,21 @@ async def stream_event_generator(
                         else None
                     ),
                 )
-                if _canonical_persistence_enabled():
-                    # Server-canonical mode: persist BEFORE `done` so the
-                    # event can carry the persisted ids and the client can
-                    # reconcile its optimistic message without a re-fetch.
-                    persisted_assistant_id = (
-                        await _jobs_mod._persist_assistant_message_safe(
-                            **persist_kwargs, required=True
-                        )
+                # A terminal ``done`` is a durability claim: complete the
+                # server-canonical row first in every rollout mode. This runs
+                # after all answer tokens, so it does not delay TTFT or token
+                # cadence; only the terminal acknowledgement waits for commit.
+                persisted_assistant_id = (
+                    await _jobs_mod._persist_assistant_message_safe(
+                        **persist_kwargs, required=True
                     )
-                    if persisted_assistant_id is None:
-                        raise RuntimeError(
-                            "Assistant message persistence returned no id"
-                        )
-                elif background_tasks is not None:
-                    background_tasks.add_task(
-                        _jobs_mod._persist_assistant_message_safe,
-                        **persist_kwargs,
-                    )
-                else:
-                    # No BackgroundTasks plumbing available (e.g. unit
-                    # tests that directly invoke the generator without
-                    # passing one). Run inline through the safe wrapper
-                    # so the failure-metric path is still exercised.
-                    await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
+                )
+                if persisted_assistant_id is None:
+                    raise RuntimeError("Assistant message persistence returned no id")
                 assistant_persisted = True
         except Exception as e:
             logger.warning("Failed to persist SSE thread messages", exc_info=e)
-            if _canonical_persistence_enabled():
-                raise
+            raise
 
         if turn_input_tokens > 0 or turn_output_tokens > 0:
             # Server-side token cost metric (was previously SSE-only, so cost
@@ -2932,6 +3096,7 @@ async def stream_confirm_event_generator(
             run_id=(
                 str(active_run.job_id) if getattr(active_run, "job_id", None) else None
             ),
+            continue_sequence=True,
         )
 
         yield await emitter.emit(
@@ -3310,34 +3475,20 @@ async def stream_confirm_event_generator(
                 latency_ms=int((time.monotonic() - stream_started_at) * 1000),
                 ttft_ms=_ttft_ms(emitter, stream_started_at),
             )
-            # _persist_assistant_message_safe opens its own session so this
-            # request session can be closed immediately after `done`. Run it
-            # inline (not as a background task) in canonical mode so the id
-            # is available for the done payload; otherwise fall back to a
-            # background task to release the SSE without waiting on the write.
-            if _canonical_persistence_enabled():
-                persisted_assistant_id = (
-                    await _jobs_mod._persist_assistant_message_safe(
-                        **persist_kwargs, required=True
-                    )
-                )
-                if persisted_assistant_id is None:
-                    raise RuntimeError("Assistant message persistence returned no id")
-            elif background_tasks is not None:
-                background_tasks.add_task(
-                    _jobs_mod._persist_assistant_message_safe,
-                    **persist_kwargs,
-                )
-            else:
-                await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
+            # ``done`` is emitted only after the server-canonical row exists;
+            # rollout mode controls reconciliation ids, not durability.
+            persisted_assistant_id = await _jobs_mod._persist_assistant_message_safe(
+                **persist_kwargs, required=True
+            )
+            if persisted_assistant_id is None:
+                raise RuntimeError("Assistant message persistence returned no id")
             assistant_persisted = True
         except Exception as e:
             logger.warning(
                 "Failed to persist SSE confirmation thread messages",
                 exc_info=e,
             )
-            if _canonical_persistence_enabled():
-                raise
+            raise
 
         if turn_input_tokens > 0 or turn_output_tokens > 0:
             # Server-side token cost metric (was previously SSE-only, so cost

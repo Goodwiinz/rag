@@ -207,6 +207,44 @@ describe('useChatStreaming stream ownership', () => {
     expect(result.current.pendingConfirmation).toBeNull();
   });
 
+  it('clears stale RAG retrieval state when a confirmation stream starts', async () => {
+    streamMessageMock.mockImplementation(
+      (_req: unknown, cb: StreamCallbacks) => {
+        cb.onConfirmation('agent-thread-1', { tool: 'ingest_arxiv_papers' });
+        cb.onDone({});
+        return Promise.resolve();
+      }
+    );
+    let retrievingAtConfirmStart: boolean | undefined;
+    streamConfirmMock.mockImplementation(
+      (_req: unknown, cb: StreamCallbacks) => {
+        retrievingAtConfirmStart = useChatStore.getState().isRetrievingRag;
+        cb.onToken('confirmed answer');
+        cb.onDone({});
+        return Promise.resolve();
+      }
+    );
+    const params = makeParams();
+    const { result } = renderHook(
+      () =>
+        useChatStreaming(
+          params as unknown as Parameters<typeof useChatStreaming>[0]
+        ),
+      { wrapper }
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit('ingest these');
+    });
+    useChatStore.setState({ isRetrievingRag: true });
+
+    await act(async () => {
+      await result.current.handleConfirmation(true);
+    });
+
+    expect(retrievingAtConfirmStart).toBe(false);
+  });
+
   it('reattaches once after a live turn dies on a transport error', async () => {
     // The backend run outlives a client-side transport failure, so the answer
     // is still coming; finishing the run as 'error' must not also cancel the
