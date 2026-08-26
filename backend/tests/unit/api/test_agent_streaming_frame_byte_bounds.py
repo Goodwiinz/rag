@@ -135,3 +135,56 @@ async def test_clamped_frames_stay_individually_valid_sse() -> None:
 
     assert frame.startswith("id: 1\nevent: rag_context\ndata: ")
     assert len(frame.encode("utf-8")) <= MAX_PAYLOAD_BYTES + _ENVELOPE_SLACK_BYTES
+
+
+async def test_many_keyed_payload_degrades_to_identity_stub() -> None:
+    """The clip ladder bottoms out at (64, 1) per *value* — a payload with
+    enough top-level keys is still over budget after every rung. Such a frame
+    must degrade to an identity stub rather than ship over the budget."""
+    emitter = _SeqEmitter()
+    emitter.set_context(thread_id="thread-1")
+
+    payload: dict = {
+        "call_id": "call-abc123",
+        "note_id": "note-42",
+        "round": 3,
+        "passed": False,
+        "revising": True,
+        "score": 0.87,
+        "cursor": None,
+    }
+    # 4000 bulk keys: even clipped to 64 chars each this far exceeds the budget.
+    for i in range(4000):
+        payload[f"chunk_{i}"] = "q" * 4000
+
+    frame = await emitter.emit(AgentStreamEvent.RAG_CONTEXT, payload, buffer=False)
+
+    data = _frame_data(frame)
+    assert len(frame.encode("utf-8")) <= MAX_PAYLOAD_BYTES + _ENVELOPE_SLACK_BYTES
+    assert data["payload_truncated"] is True
+    assert data["payload_stub"] is True
+    # Identity survives, with types intact — this is what the stub exists for.
+    assert data["call_id"] == "call-abc123"
+    assert data["note_id"] == "note-42"
+    assert data["round"] == 3
+    assert data["passed"] is False
+    assert data["revising"] is True
+    assert data["score"] == 0.87
+    assert data["cursor"] is None
+    # Bulk is gone entirely, not merely shortened.
+    assert not any(key.startswith("chunk_") for key in data)
+
+
+async def test_stub_floor_fits_budget_with_unbounded_identity_keys() -> None:
+    """The stub is built under a running budget, so it fits even when the
+    identity fields themselves are too numerous to all survive."""
+    payload = {f"id_{i}": f"value-{i}" for i in range(20_000)}
+
+    stub = streaming_mod._stub_identity_payload(payload)
+
+    assert len(json.dumps(stub)) <= MAX_PAYLOAD_BYTES
+    assert stub["payload_truncated"] is True and stub["payload_stub"] is True
+    # Kept in producer order, and every survivor is verbatim (never clipped).
+    kept = [key for key in stub if key.startswith("id_")]
+    assert kept == sorted(kept, key=lambda k: int(k.removeprefix("id_")))
+    assert all(stub[key] == payload[key] for key in kept)
