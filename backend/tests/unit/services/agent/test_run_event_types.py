@@ -198,6 +198,26 @@ def test_tool_args_are_redacted() -> None:
     assert "<email>" in validated["args"]["contact"]
 
 
+@pytest.mark.parametrize("field,cap", [("result_preview", 2000), ("error", 1000)])
+def test_tool_completion_text_is_redacted_before_truncation(
+    field: str, cap: int
+) -> None:
+    validated = validate_payload(
+        "tool.completed",
+        {
+            "tool_call_id": "call_9",
+            "name": "create_note",
+            "status": "success",
+            field: "alice@example.com " + ("x" * cap),
+        },
+    )
+
+    value = validated[field]
+    assert value.startswith("<email>")
+    assert "alice@example.com" not in value
+    assert len(value) == cap
+
+
 def test_failure_payload_is_code_plus_client_safe_message_only() -> None:
     with pytest.raises(ValidationError):
         validate_payload(

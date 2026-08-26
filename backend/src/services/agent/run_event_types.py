@@ -20,7 +20,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from src.services.agent._pii_redact import redact_tool_args
+from src.services.agent._pii_redact import redact_pii, redact_tool_args
 
 # Bounds. Delta text is capped per event (batching adjacent fragments is the
 # writer's job); the byte cap protects the event table and SSE frames from
@@ -128,11 +128,27 @@ class ToolStartedPayload(_Payload):
 
 
 class ToolCompletedPayload(_Payload):
+    """Redact preview and error text before applying their length caps."""
+
     tool_call_id: str = Field(max_length=200)
     name: str = Field(max_length=200)
     status: str = Field(max_length=32)
     result_preview: str | None = Field(default=None, max_length=2000)
     error: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("result_preview", mode="before")
+    @classmethod
+    def _redact_result_preview(cls, value: Any) -> Any:
+        if value is None or not isinstance(value, str):
+            return value
+        return redact_pii(value)[:2000]
+
+    @field_validator("error", mode="before")
+    @classmethod
+    def _redact_error(cls, value: Any) -> Any:
+        if value is None or not isinstance(value, str):
+            return value
+        return redact_pii(value)[:1000]
 
 
 class ApprovalRequiredPayload(_Payload):
