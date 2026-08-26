@@ -1,61 +1,79 @@
 const fs = require('fs');
 const path = require('path');
+const { chromium } = require('@playwright/test');
 
-let chromium;
-try {
-  chromium = require('playwright').chromium;
-} catch (e) {
-  try {
-    chromium = require('@playwright/test').chromium;
-  } catch (e2) {
-    console.error('Could not find playwright or @playwright/test');
-    process.exit(1);
-  }
+const baseUrl = process.env.CAPTURE_BASE_URL || 'http://localhost:3000';
+const email = process.env.CAPTURE_EMAIL;
+const password = process.env.CAPTURE_PASSWORD;
+const outputDir = path.resolve(
+  process.env.CAPTURE_OUTPUT_DIR || path.join('..', 'brand', 'screenshots')
+);
+
+const targets = [
+  ['01-dashboard', '/dashboard'],
+  ['02-chat', '/chat'],
+  ['03-search', '/search'],
+  ['04-documents', '/documents'],
+  ['05-upload', '/documents/upload'],
+  ['06-entities', '/entities'],
+  ['07-arxiv', '/arxiv'],
+  ['08-research', '/research'],
+  ['09-analytics', '/analytics'],
+  ['10-diagnostics', '/diagnostics'],
+  ['11-settings', '/settings'],
+];
+
+async function settle(page) {
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
+  await page.waitForTimeout(1_000);
+}
+
+async function login(page) {
+  if (!email || !password) return;
+
+  await page.goto(`${baseUrl}/login`);
+  await page.locator('input[name="email"]').fill(email);
+  await page.locator('input[name="password"]').fill(password);
+  await page.locator('button[type="submit"]').click();
+  await page.waitForURL((url) => url.pathname !== '/login', { timeout: 30_000 });
+  await settle(page);
 }
 
 (async () => {
-  const logFile = path.resolve('capture.log');
-  const log = (msg) => {
-    const text = `${new Date().toISOString()} - ${msg}\n`;
-    fs.appendFileSync(logFile, text);
-    console.log(msg);
-  };
-
-  log('Starting capture script...');
-  
-  const screenshotsDir = path.resolve('screenshots');
-  if (!fs.existsSync(screenshotsDir)) {
-    fs.mkdirSync(screenshotsDir);
-    log(`Created directory: ${screenshotsDir}`);
-  }
+  fs.mkdirSync(outputDir, { recursive: true });
 
   const browser = await chromium.launch();
-  const page = await browser.newPage();
-  
-  // Set viewport to a reasonable desktop size
-  await page.setViewportSize({ width: 1280, height: 720 });
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    deviceScaleFactor: 1,
+  });
+  await context.addInitScript(() => localStorage.setItem('theme', 'dark'));
+  const page = await context.newPage();
 
-  const targets = [
-    { name: 'dashboard', url: 'http://localhost:3000/dashboard' },
-    { name: 'chat', url: 'http://localhost:3000/chat' },
-    { name: 'documents', url: 'http://localhost:3000/documents' },
-    { name: 'settings', url: 'http://localhost:3000/settings' }
-  ];
+  try {
+    await login(page);
 
-  for (const t of targets) {
-    try {
-      log(`Navigating to ${t.url}`);
-      await page.goto(t.url, { waitUntil: 'networkidle', timeout: 30000 });
-      await page.waitForTimeout(1000); // Wait for animations
-      
-      const file = path.join(screenshotsDir, `${t.name}.png`);
+    for (const [name, route] of targets) {
+      await page.goto(`${baseUrl}${route}`);
+      await settle(page);
+
+      const pathname = new URL(page.url()).pathname;
+      if (pathname === '/login' || !pathname.startsWith(route)) {
+        throw new Error(`${route} resolved to ${pathname}; refusing stale screenshot`);
+      }
+
+      await page.addStyleTag({
+        content: '*,*::before,*::after{animation:none!important;transition:none!important}',
+      });
+      const file = path.join(outputDir, `${name}.png`);
       await page.screenshot({ path: file, fullPage: true });
-      log(`Captured ${file}`);
-    } catch (e) {
-      log(`Error capturing ${t.name}: ${e.message}`);
+      console.log(`${route} -> ${file}`);
     }
+  } finally {
+    await browser.close();
   }
-
-  await browser.close();
-  log('Done.');
-})();
+})().catch((error) => {
+  console.error(error.message);
+  process.exitCode = 1;
+});
