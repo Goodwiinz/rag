@@ -91,6 +91,28 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     expect(onToken).toHaveBeenCalledWith('The answer');
   });
 
+  it('ignores non-string answer and reasoning deltas', async () => {
+    global.fetch = fetchWith([
+      'event: token\ndata: {"content":"ok"}\n\n',
+      'event: token\ndata: {"content":5}\n\n',
+      'event: token\ndata: {"content":"!"}\n\n',
+      'event: reasoning_delta\ndata: {"content":"step"}\n\n',
+      'event: reasoning_delta\ndata: {"content":{"bad":true}}\n\n',
+      'event: reasoning_delta\ndata: {"content":" done"}\n\n',
+      'event: done\ndata: {"status":"complete"}\n\n',
+    ]);
+    let answer = 'answer:';
+    let reasoning = 'reasoning:';
+
+    await agentChatService.streamMessage(request, {
+      onToken: (content) => (answer += content),
+      onReasoningDelta: (content) => (reasoning += content),
+    });
+
+    expect(answer).toBe('answer:ok!');
+    expect(reasoning).toBe('reasoning:step done');
+  });
+
   it('parses a frame split between event: and data: lines across chunks', async () => {
     // The event line arrives in chunk 1; the data line arrives in chunk 2.
     // Before Fix 1, eventType would reset to '' between chunks and the event

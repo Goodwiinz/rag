@@ -303,7 +303,14 @@ async def _sweep_stale_agent_runs(*, lease_owner: str) -> dict:
 
     settings = get_settings()
     now = _utcnow()
-    cutoff = now - timedelta(seconds=settings.AGENT_RUN_STALE_AFTER_SECONDS)
+    # S2-M15: the effective staleness floor is pinned to the live-run
+    # heartbeat margin — a misconfigured STALE_AFTER below 4x heartbeat must
+    # not let the sweeper kill runs that are being kept fresh right now.
+    stale_after = max(
+        settings.AGENT_RUN_STALE_AFTER_SECONDS,
+        4 * getattr(settings, "AGENT_RUN_HEARTBEAT_SECONDS", 60),
+    )
+    cutoff = now - timedelta(seconds=stale_after)
     awaiting_cutoff = now - timedelta(
         seconds=settings.AGENT_RUN_STALE_AWAITING_AFTER_SECONDS
     )

@@ -676,7 +676,17 @@ async def test_stream_confirmation_binds_buffer_to_durable_run_id(
         patch.object(
             streaming_mod._jobs_mod,
             "_persist_assistant_message_safe",
-            new=AsyncMock(return_value=None),
+            new=AsyncMock(return_value="assistant-row-1"),
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "stream_id_for_run",
+            new=AsyncMock(return_value="sid-original"),
+        ),
+        patch.object(
+            streaming_mod._stream_buffer,
+            "read_after",
+            new=AsyncMock(return_value=[SimpleNamespace(seq=7)]),
         ),
         patch.object(streaming_mod._stream_buffer, "start_stream", new=start_stream),
         patch(

@@ -73,6 +73,43 @@ describe('agentChatStore tool_end error handling', () => {
     expect(execs[0].error).toBeUndefined();
   });
 
+  it('settles a running tool when the stream finishes without tool_end', async () => {
+    mockAgentChatService.streamMessage.mockImplementation(
+      async (_request, callbacks) => {
+        callbacks.onToolStart?.('search_documents', {});
+        callbacks.onDone?.();
+      }
+    );
+
+    await act(async () => {
+      useAgentChatStore.getState().setInputValue('search');
+      await useAgentChatStore.getState().sendMessage();
+    });
+
+    expect(toolExecutions()[0].status).toBe('failed');
+  });
+
+  it('keeps a missing SSE tool name from dropping the step', async () => {
+    mockAgentChatService.streamMessage.mockImplementation(
+      async (_request, callbacks) => {
+        callbacks.onToolStart?.(undefined as unknown as string, {});
+        callbacks.onDone?.();
+      }
+    );
+
+    await act(async () => {
+      useAgentChatStore.getState().setInputValue('search');
+      await useAgentChatStore.getState().sendMessage();
+    });
+
+    expect(toolExecutions()[0]).toEqual(
+      expect.objectContaining({
+        toolDisplayName: 'Unknown tool',
+        status: 'failed',
+      })
+    );
+  });
+
   it('settles each same-tool execution separately and gives them unique ids', async () => {
     mockAgentChatService.streamMessage.mockImplementation(
       async (_request, callbacks) => {

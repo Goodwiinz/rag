@@ -9,7 +9,6 @@ import pytest
 
 from src.services.threads.stream_service import SSEEvent, StreamService
 
-
 # ============================================================================
 # SSEEvent Tests
 # ============================================================================
@@ -324,7 +323,9 @@ class TestStreamServiceRAGFlow:
         user_id = uuid4()
         chat_service = _make_mock_chat_service()
         # Mocking an answer that includes an inline citation so it passes _filter_citations_by_content
-        openai_service = _make_mock_openai_service(["Answer ", "with citation ", "[Doc 1]"])
+        openai_service = _make_mock_openai_service(
+            ["Answer ", "with citation ", "[Doc 1]"]
+        )
 
         mock_contexts = [
             MagicMock(
@@ -606,9 +607,7 @@ class TestStreamServiceErrorHandling:
             yield " content"
             raise RuntimeError("Connection lost")
 
-        openai_service.stream_chat_completion = MagicMock(
-            side_effect=partial_then_fail
-        )
+        openai_service.stream_chat_completion = MagicMock(side_effect=partial_then_fail)
 
         service = StreamService(
             chat_service=chat_service,
@@ -646,9 +645,7 @@ class TestStreamServiceErrorHandling:
             raise RuntimeError("Connection refused")
             yield  # noqa: unreachable
 
-        openai_service.stream_chat_completion = MagicMock(
-            side_effect=immediate_fail
-        )
+        openai_service.stream_chat_completion = MagicMock(side_effect=immediate_fail)
 
         service = StreamService(
             chat_service=chat_service,
@@ -699,3 +696,86 @@ class TestStreamServiceErrorHandling:
         assert "error" in event_types
         # Should not proceed to LLM
         assert "token" not in event_types
+
+
+# ============================================================================
+# S2-M10 — error events must never leak raw str(exc) internals
+# ============================================================================
+
+
+class TestClientSafeErrors:
+    """Audit S2-M10: the legacy v1 pipeline yielded ``str(exc)`` to clients at
+    four sites. Every error event must carry a client-safe message instead;
+    full detail stays in server logs (client_safe_error discipline)."""
+
+    SECRET = "postgres://admin:hunter2@db.internal:5432/prod"
+
+    def _service(self, chat_service, openai_service) -> StreamService:
+        return StreamService(
+            chat_service=chat_service,
+            openai_service=openai_service,
+        )
+
+    async def _error_events(self, service, **kwargs):
+        events = await _collect_events(
+            service.stream_response(
+                thread_id=uuid4(),
+                user_id=uuid4(),
+                content="hello",
+                use_rag=False,
+                **kwargs,
+            )
+        )
+        return [e for e in events if e.event == "error"]
+
+    @pytest.mark.asyncio
+    async def test_message_create_failure_is_client_safe(self) -> None:
+        chat = _make_mock_chat_service()
+        chat.create_message.side_effect = RuntimeError(self.SECRET)
+        events = await self._error_events(
+            self._service(chat, _make_mock_openai_service([]))
+        )
+
+        assert len(events) == 1
+        assert events[0].data["code"] == "message_create_failed"
+        assert self.SECRET not in json.dumps(events[0].data)
+
+    @pytest.mark.asyncio
+    async def test_context_build_failure_is_client_safe(self) -> None:
+        chat = _make_mock_chat_service()
+        chat.get_thread_context.side_effect = RuntimeError(self.SECRET)
+        events = await self._error_events(
+            self._service(chat, _make_mock_openai_service([]))
+        )
+
+        assert len(events) == 1
+        assert events[0].data["code"] == "context_build_failed"
+        assert self.SECRET not in json.dumps(events[0].data)
+
+    @pytest.mark.asyncio
+    async def test_llm_stream_failure_is_client_safe(self) -> None:
+        chat = _make_mock_chat_service()
+
+        async def exploding_stream(*args, **kwargs):
+            raise RuntimeError(self.SECRET)
+            yield ""  # pragma: no cover - makes this an async generator
+
+        openai_service = AsyncMock()
+        openai_service.stream_chat_completion = exploding_stream
+        events = await self._error_events(self._service(chat, openai_service))
+
+        assert len(events) == 1
+        assert events[0].data["code"] == "llm_error"
+        assert self.SECRET not in json.dumps(events[0].data)
+
+    @pytest.mark.asyncio
+    async def test_persist_failure_is_client_safe(self) -> None:
+        chat = _make_mock_chat_service()
+        chat.create_assistant_message.side_effect = RuntimeError(self.SECRET)
+        events = await self._error_events(
+            self._service(chat, _make_mock_openai_service(["ok"]))
+        )
+
+        assert len(events) == 1
+        assert events[0].data["code"] == "persist_failed"
+        assert self.SECRET not in json.dumps(events[0].data)

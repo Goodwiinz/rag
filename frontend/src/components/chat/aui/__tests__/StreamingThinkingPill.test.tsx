@@ -164,6 +164,79 @@ describe('streaming reasoning panel and elapsed time', () => {
     expect(retrieval?.querySelector('[style]')).toHaveStyle({ width: '91%' });
   });
 
+  it('only displays retrieval scores that are finite numbers', () => {
+    useChatStore.setState({
+      streamingCitations: [
+        {
+          document_id: 'doc-valid',
+          title: 'Valid score',
+          content: 'A valid passage.',
+          score: 0.91,
+        },
+        {
+          document_id: 'doc-string',
+          title: 'String score',
+          content: 'An injected string score.',
+          score: '0.87',
+        },
+        {
+          document_id: 'doc-null',
+          title: 'Null score',
+          content: 'A null score.',
+          score: null,
+        },
+        {
+          document_id: 'doc-nan',
+          title: 'NaN score',
+          content: 'A non-finite score.',
+          score: Number.NaN,
+        },
+        {
+          document_id: 'doc-infinity',
+          title: 'Infinite score',
+          content: 'Another non-finite score.',
+          score: Number.POSITIVE_INFINITY,
+        },
+      ],
+    });
+
+    renderStreamingTurn();
+
+    const retrieval = document.querySelector('[data-slot="retrieval-chunks"]');
+    expect(retrieval).toHaveTextContent('1 passage above threshold');
+    expect(retrieval).toHaveTextContent('0.91');
+    expect(retrieval).not.toHaveTextContent('0.87');
+    expect(retrieval).not.toHaveTextContent('0.00');
+    expect(retrieval).not.toHaveTextContent('NaN');
+    expect(retrieval).not.toHaveTextContent('Infinity');
+  });
+
+  it('keeps per-tick step and retrieval lists out of live regions', () => {
+    useChatStore.setState({
+      streamingProgress: [
+        { phase: 'accepted', detail: 'Request accepted' },
+        { phase: 'retrieving', detail: 'Reading relevant sources' },
+      ],
+      streamingCitations: [
+        {
+          document_id: 'doc-1',
+          title: 'Live source',
+          content: 'A growing passage.',
+          score: 0.91,
+        },
+      ],
+    });
+
+    renderStreamingTurn();
+
+    const reasoning = document.querySelector('[data-slot="reasoning-panel"]');
+    const retrieval = document.querySelector('[data-slot="retrieval-chunks"]');
+    expect(reasoning).not.toHaveAttribute('role', 'status');
+    expect(reasoning).toHaveAttribute('aria-live', 'off');
+    expect(retrieval).not.toHaveAttribute('role', 'status');
+    expect(retrieval).toHaveAttribute('aria-live', 'off');
+  });
+
   it('formats elapsed readings', () => {
     expect(formatStreamingElapsed(null)).toBeNull();
     expect(formatStreamingElapsed(400)).toBeNull();

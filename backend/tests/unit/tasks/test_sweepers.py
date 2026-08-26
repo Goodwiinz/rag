@@ -366,3 +366,40 @@ def test_processing_sweeper_gated_by_flag(sync_session_factory):
     assert result == {"skipped": "sweepers-disabled"}
     with sync_session_factory() as db:
         assert db.get(ProcessingJob, stuck_id).status is PJStatus.RUNNING
+
+
+# ---------------------------------------------------------------------------
+# S2-M15: staleness floor must never undercut the live-run heartbeat margin
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_stale_after_below_heartbeat_margin_is_raised_to_floor(
+    session_factory, monkeypatch
+):
+    """A misconfigured AGENT_RUN_STALE_AFTER_SECONDS smaller than the live-run
+    heartbeat margin must not let the sweeper kill runs a live heartbeat keeps
+    fresh — the effective cutoff is max(STALE_AFTER, 4x heartbeat)."""
+    from types import SimpleNamespace
+
+    # Updated 30s ago: past the (broken) 10s threshold, inside the 240s floor.
+    recent_id = await _seed(
+        session_factory,
+        status="running",
+        updated_at=NOW - timedelta(seconds=30),
+    )
+    monkeypatch.setattr(
+        agent_tasks,
+        "get_settings",
+        lambda: SimpleNamespace(
+            AGENT_RUN_STALE_AFTER_SECONDS=10,
+            AGENT_RUN_STALE_AWAITING_AFTER_SECONDS=20,
+            AGENT_RUN_HEARTBEAT_SECONDS=60,
+        ),
+    )
+    p1, p2, p3 = _sweep(session_factory)
+    with p1, p2, p3:
+        result = await agent_tasks._sweep_stale_agent_runs(lease_owner="sweeper:t")
+
+    assert result["failed"] == 0
+    assert (await _status(session_factory, recent_id))[0] == "running"

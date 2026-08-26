@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toolLabel, toolStatusLabel } from '../toolLabels';
+import { humanize, toolLabel, toolStatusLabel } from '../toolLabels';
 
 describe('toolLabel', () => {
   it.each([
@@ -38,6 +38,11 @@ describe('toolLabel', () => {
       'Run clinical lookup'
     );
     expect(toolLabel('custom_tool', '   ')).toBe('Custom Tool');
+  });
+
+  it('falls back safely when the tool name is missing', () => {
+    expect(humanize(undefined)).toBe('Unknown tool');
+    expect(toolLabel(undefined)).toBe('Unknown tool');
   });
 
   it('gives current tools truthful fallback status copy', () => {
