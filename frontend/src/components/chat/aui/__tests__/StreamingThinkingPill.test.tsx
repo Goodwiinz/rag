@@ -164,6 +164,25 @@ describe('streaming reasoning panel and elapsed time', () => {
     expect(retrieval?.querySelector('[style]')).toHaveStyle({ width: '91%' });
   });
 
+  it('renders a safe score when an injected context provides a string', () => {
+    useChatStore.setState({
+      streamingCitations: [
+        {
+          document_id: 'doc-1',
+          title: 'Injected context',
+          content: 'A context with an invalid score.',
+          score: 'not-a-number' as unknown as number,
+        },
+      ],
+      isRetrievingRag: false,
+    });
+
+    expect(() => renderStreamingTurn()).not.toThrow();
+    const retrieval = document.querySelector('[data-slot="retrieval-chunks"]');
+    expect(retrieval).toHaveTextContent('0.00');
+    expect(retrieval?.querySelector('[style]')).toHaveStyle({ width: '0%' });
+  });
+
   it('formats elapsed readings', () => {
     expect(formatStreamingElapsed(null)).toBeNull();
     expect(formatStreamingElapsed(400)).toBeNull();
