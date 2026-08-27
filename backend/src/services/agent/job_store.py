@@ -456,9 +456,13 @@ async def _cas_in_memory(
         current = _l1.get(job_id) or job
         if current.get("status") != expected:
             return "conflict"
-        current["status"] = new_status
-        _l1[job_id] = current
-        claimed = current
+        # Copy before mutating: `current` may be the same object other readers
+        # already hold, and re-assigning an existing OrderedDict key does not
+        # refresh LRU recency (audit S-L11).
+        claimed = dict(current)
+        claimed["status"] = new_status
+        _l1[job_id] = claimed
+        _l1.move_to_end(job_id)
     await set_job(job_id, claimed, project=project)
     return "claimed"
 
@@ -559,11 +563,17 @@ async def compare_and_set_status(
         else:
             return await _cas_in_memory(job_id, expected, new_status, project=project)
 
-    # Mirror the winning transition into L1 so this worker's polls are consistent.
+    # Mirror the winning transition into L1 so this worker's polls are
+    # consistent. Copy-on-write + move_to_end, same as _cas_in_memory (audit
+    # S-L11): `cached` may be the object other readers already hold, and
+    # re-assigning an existing OrderedDict key does not refresh LRU recency.
     with _l1_lock:
         cached = _l1.get(job_id)
         if cached is not None:
-            cached["status"] = new_status
+            updated = dict(cached)
+            updated["status"] = new_status
+            _l1[job_id] = updated
+            _l1.move_to_end(job_id)
     # Project the claimed transition (the in-memory fallback path projects via
     # set_job inside _cas_in_memory; this covers the Redis WATCH/MULTI path).
     if project:

@@ -165,7 +165,10 @@ async def test_resume_short_circuits_when_interrupt_already_consumed():
             "src.services.agent.checkpointer.get_checkpointer",
             new=AsyncMock(return_value=None),
         ),
-        patch("src.services.agent.agent_execution_service.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch(
+            "src.services.agent.agent_execution_service.AsyncSessionLocal",
+            return_value=_async_session_cm(),
+        ),
     ):
         await _resume_agent_graph(job_id, confirmed=True, current_user=user)
 
@@ -201,7 +204,10 @@ async def test_resume_proceeds_when_interrupt_present():
             "src.services.agent.checkpointer.get_checkpointer",
             new=AsyncMock(return_value=None),
         ),
-        patch("src.services.agent.agent_execution_service.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch(
+            "src.services.agent.agent_execution_service.AsyncSessionLocal",
+            return_value=_async_session_cm(),
+        ),
     ):
         await _resume_agent_graph(job_id, confirmed=True, current_user=user)
 
@@ -232,7 +238,10 @@ async def test_resume_rejects_ownerless_checkpoint():
             "src.services.agent.checkpointer.get_checkpointer",
             new=AsyncMock(return_value=None),
         ),
-        patch("src.services.agent.agent_execution_service.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch(
+            "src.services.agent.agent_execution_service.AsyncSessionLocal",
+            return_value=_async_session_cm(),
+        ),
     ):
         await _resume_agent_graph(job_id, confirmed=True, current_user=user)
 
@@ -361,5 +370,9 @@ def test_confirm_falls_back_to_redis_after_l1_eviction(confirm_client):
 
     assert response.status_code == 200
     assert response.json()["status"] == "running"
-    assert redis_job["status"] == "running"
+    # The CAS copies before mutating (audit S-L11) — the transition is
+    # observable through the write-through, not by in-place mutation of the
+    # record other readers may hold.
+    assert redis_job["status"] == "awaiting_confirmation"
     mock_set_job.assert_awaited_once()
+    assert mock_set_job.await_args.args[1]["status"] == "running"

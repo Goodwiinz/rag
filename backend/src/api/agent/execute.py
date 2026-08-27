@@ -839,7 +839,10 @@ async def stream_agent(
 @router.post(
     "/stream/confirm",
     response_class=StreamingResponse,
-    responses=_SSE_RESPONSE,
+    responses={
+        **_SSE_RESPONSE,
+        429: {"model": HTTPErrorResponse, "description": "Rate limit exceeded"},
+    },
 )
 async def stream_confirm_agent(
     request_body: StreamConfirmRequest,
@@ -848,6 +851,17 @@ async def stream_confirm_agent(
     current_user: User = Depends(get_current_user),
 ):
     """Resume a graph interrupted by HITL via SSE streaming."""
+    _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
+        str(current_user.id), prefix="agent_stream_confirm"
+    )
+    if not _allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Retry after {_retry_after}s.",
+        )
+    await _agent_rate_limiter.record_attempt(
+        str(current_user.id), prefix="agent_stream_confirm"
+    )
     return StreamingResponse(
         stream_confirm_event_generator(
             request_body,
