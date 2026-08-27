@@ -11,10 +11,13 @@ matters.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from dataclasses import dataclass
 
 from src.services.agent.job_store import get_redis
+
+logger = logging.getLogger(__name__)
 
 _TTL_SECONDS = 3600
 
@@ -23,6 +26,23 @@ _TTL_SECONDS = 3600
 class BufferedFrame:
     seq: int
     frame: str
+
+
+def _parse_frame(item: str | bytes, key: str) -> BufferedFrame | None:
+    """Parse one buffer entry, skipping (and logging) corrupt ones.
+
+    A single corrupt list entry must not brick replay for the rest of the
+    buffer's TTL — the reader drops it and keeps the surrounding frames
+    (audit S-L10); the seq gap stays visible in the warning.
+    """
+    try:
+        return BufferedFrame(**json.loads(item))
+    except (ValueError, TypeError) as exc:
+        logger.warning(
+            "Dropping corrupt stream-buffer entry",
+            extra={"buffer_key": key, "error": str(exc)},
+        )
+        return None
 
 
 def _buffer_key(stream_id: str) -> str:
@@ -98,11 +118,16 @@ async def read_after(
     key = _buffer_key(stream_id)
     if start_index:
         probe_raw = await redis.lrange(key, start_index - 1, -1)
-        if probe_raw and BufferedFrame(**json.loads(probe_raw[0])).seq == after_seq:
-            frames = [BufferedFrame(**json.loads(item)) for item in probe_raw[1:]]
+        probe = _parse_frame(probe_raw[0], key) if probe_raw else None
+        if probe is not None and probe.seq == after_seq:
+            frames = [
+                frame
+                for item in probe_raw[1:]
+                if (frame := _parse_frame(item, key)) is not None
+            ]
             return [f for f in frames if f.seq > after_seq]
     raw = await redis.lrange(key, 0, -1)
-    frames = [BufferedFrame(**json.loads(item)) for item in raw]
+    frames = [frame for item in raw if (frame := _parse_frame(item, key)) is not None]
     return [f for f in frames if f.seq > after_seq]
 
 

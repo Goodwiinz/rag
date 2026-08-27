@@ -8,6 +8,7 @@ import asyncio
 import contextlib
 import json as _json
 import logging
+import re
 import threading
 import time
 import uuid as _uuid
@@ -218,8 +219,12 @@ def _request_trace_id(request: Any) -> str:
     if not request_id:
         headers = getattr(request, "headers", {})
         request_id = headers.get("x-request-id") if headers else None
-    value = str(request_id or _uuid.uuid4())
-    return value[:128]
+    value = str(request_id or _uuid.uuid4())[:128]
+    # The header is caller-controlled: anything outside a plain token charset
+    # gets replaced rather than echoed into envelopes/ledger/LangSmith metadata.
+    if not re.fullmatch(r"[A-Za-z0-9._:-]+", value):
+        return str(_uuid.uuid4())
+    return value
 
 
 def _assistant_client_message_id(request_body: Any) -> Optional[str]:
@@ -337,7 +342,9 @@ async def _stream_luna_fast_path(
         None,
     )
     if last_user is None:
-        raise ValueError("Fast path requires a user message")
+        # Reuse the shared sentinel so _stream_failure_category maps this to
+        # invalid_request instead of internal.
+        raise ValueError(_NO_USER_MESSAGE_SENTINEL)
     user_message_id = str(
         getattr(last_user, "client_message_id", None)
         or _uuid.uuid5(
@@ -659,7 +666,7 @@ async def _stream_luna_fast_path(
         await persist_partial()
         yield await emitter.emit(
             AgentStreamEvent.ERROR,
-            error_frame_payload(exc),
+            error_frame_payload(exc, category=_stream_failure_category(exc)),
         )
         await emitter.finish()
         await _finalize_run(
@@ -1448,7 +1455,8 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
     """
     pending: asyncio.Task | None = None
     pending_cancel_requested = False
-    next_keepalive_at = time.monotonic() + _SSE_KEEPALIVE_SECONDS
+    started_at = time.monotonic()
+    next_keepalive_at = started_at + _SSE_KEEPALIVE_SECONDS
     try:
         while True:
             if await _request_disconnected(request):
@@ -1487,7 +1495,10 @@ async def _graph_events_with_keepalive(event_stream_iter, request: Any):
                 return
             now = time.monotonic()
             if now >= next_keepalive_at:
-                yield {"type": "keepalive", "elapsed_ms": int(time.time() * 1000)}
+                yield {
+                    "type": "keepalive",
+                    "elapsed_ms": int((now - started_at) * 1000),
+                }
                 next_keepalive_at = now + _SSE_KEEPALIVE_SECONDS
     finally:
         # Never leak the in-flight __anext__ task — on disconnect or error it
@@ -2833,7 +2844,6 @@ async def stream_confirm_event_generator(
     events_started = False
     confirm_event_iter = None
     active_run = None
-    persist_partial_stop = None
     # Declared out here, not in the try: the CancelledError cleanup below reads
     # it to link the cancelled run to its stopped partial row, and that handler
     # can fire before the try body has run.

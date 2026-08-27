@@ -456,9 +456,13 @@ async def _cas_in_memory(
         current = _l1.get(job_id) or job
         if current.get("status") != expected:
             return "conflict"
-        current["status"] = new_status
-        _l1[job_id] = current
-        claimed = current
+        # Copy before mutating: `current` may be the same object other readers
+        # already hold, and re-assigning an existing OrderedDict key does not
+        # refresh LRU recency (audit S-L11).
+        claimed = dict(current)
+        claimed["status"] = new_status
+        _l1[job_id] = claimed
+        _l1.move_to_end(job_id)
     await set_job(job_id, claimed, project=project)
     return "claimed"
 

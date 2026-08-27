@@ -200,3 +200,30 @@ async def test_append_caps_buffer_at_5000(fake_redis):
 @pytest.mark.asyncio
 async def test_read_after_unknown_sid_returns_empty(fake_redis):
     assert await stream_buffer.read_after("nope", 0) == []
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_read_after_skips_corrupt_entries(fake_redis):
+    """One corrupt list entry must not brick replay for the whole buffer (S-L10)."""
+    sid = await stream_buffer.start_stream("thread-1")
+    await stream_buffer.append(sid, 1, "frame-a")
+    fake_redis.store[stream_buffer._buffer_key(sid)].append("{not-json")
+    await stream_buffer.append(sid, 2, "frame-b")
+
+    frames = await stream_buffer.read_after(sid, 0)
+    assert [(f.seq, f.frame) for f in frames] == [(1, "frame-a"), (2, "frame-b")]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_read_after_corrupt_probe_falls_back_to_full_scan(fake_redis):
+    """A corrupt probe entry degrades to the full scan, not an exception (S-L10)."""
+    sid = await stream_buffer.start_stream("thread-1")
+    await stream_buffer.append(sid, 1, "frame-a")
+    key = stream_buffer._buffer_key(sid)
+    fake_redis.store[key][0] = "corrupt"
+    await stream_buffer.append(sid, 2, "frame-b")
+
+    frames = await stream_buffer.read_after(sid, 1, start_index=1)
+    assert [(f.seq, f.frame) for f in frames] == [(2, "frame-b")]
