@@ -14,6 +14,10 @@ export interface RetrievalChunk {
   text: string;
 }
 
+function finiteScore(value: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
 export function RetrievalChunks({
   query,
   chunks,
@@ -79,12 +83,12 @@ export function RetrievalChunks({
                 className={cn(
                   mono,
                   'shrink-0 tabular-nums',
-                  chunk.score >= 0.8
+                  finiteScore(chunk.score) >= 0.8
                     ? 'text-emerald-600 dark:text-emerald-400'
                     : 'text-foreground/35'
                 )}
               >
-                {chunk.score.toFixed(2)}
+                {finiteScore(chunk.score).toFixed(2)}
               </span>
             </div>
             <p className="text-foreground/55 line-clamp-2 text-xs leading-relaxed">
@@ -93,7 +97,7 @@ export function RetrievalChunks({
             <span className="bg-foreground/[0.06] h-[2px] w-full overflow-hidden rounded-full">
               <span
                 className="block h-full rounded-full bg-blue-500/70 transition-[width] duration-500 dark:bg-blue-400/70"
-                style={{ width: `${pct(chunk.score, 1)}%` }}
+                style={{ width: `${pct(finiteScore(chunk.score), 1)}%` }}
               />
             </span>
           </div>
