@@ -376,6 +376,11 @@ else
 fi
 
 if [ "$SKIP_TESTS" -eq 0 ]; then
+  step "NOUS workflow contract tests (blocking)"
+  pytest tests/unit/scripts/ --confcutdir=tests/unit/scripts \
+    -q -p no:cacheprovider --no-cov
+  check $? "NOUS workflow contract tests"
+
   step "Unit tests (blocking)"
   pytest backend/tests/ -c backend/pytest.ini \
     -m "unit or not (integration or e2e or slow)" \

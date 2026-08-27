@@ -109,6 +109,30 @@ def test_list_does_not_create_missing_bridge_storage(tmp_path, monkeypatch):
     assert not bridge_dir.exists()
 
 
+def test_unconfigured_bridge_without_established_default_fails_closed(
+    tmp_path, monkeypatch
+):
+    """A runtime must not mistake a host-specific missing default for no claims."""
+    monkeypatch.delenv("LOOP_BRIDGE_DIR", raising=False)
+    mod = _load()
+    default_dir = tmp_path / "host-specific-default-is-absent"
+    monkeypatch.setattr(mod, "DEFAULT_BRIDGE_DIR", default_dir, raising=False)
+
+    assert _run(mod, "list") == 1
+    assert not default_dir.exists()
+
+
+def test_unconfigured_bridge_accepts_an_established_default(tmp_path, monkeypatch):
+    """Existing deployments may keep using their already-shared legacy board."""
+    monkeypatch.delenv("LOOP_BRIDGE_DIR", raising=False)
+    default_dir = tmp_path / "established-shared-board"
+    default_dir.mkdir()
+    mod = _load()
+    monkeypatch.setattr(mod, "DEFAULT_BRIDGE_DIR", default_dir, raising=False)
+
+    assert _run(mod, "list") == 0
+
+
 @pytest.mark.parametrize(
     "raw_state",
     [
@@ -163,3 +187,31 @@ def test_list_reports_read_failure_without_mutating_storage(tmp_path, monkeypatc
 
     assert _run(mod, "list") == 1
     assert {path.name for path in bridge_dir.iterdir()} == {"claims.json"}
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ("claim", "--branch", "b1", "--area", "x"),
+        ("check", "--area", "x"),
+        ("heartbeat", "--branch", "b1"),
+        ("release", "--branch", "b1"),
+    ],
+)
+def test_mutating_commands_fail_closed_without_repairing_malformed_state(
+    tmp_path, monkeypatch, argv
+):
+    bridge_dir = tmp_path / "bridge"
+    bridge_dir.mkdir()
+    claims = bridge_dir / "claims.json"
+    raw_state = '{"claims": [{"area": "live-but-malformed"}]}'
+    claims.write_text(raw_state)
+    monkeypatch.setenv("LOOP_BRIDGE_DIR", str(bridge_dir))
+    mod = _load()
+
+    assert _run(mod, *argv) == 1
+    assert claims.read_text() == raw_state
+    assert {path.name for path in bridge_dir.iterdir()} == {
+        ".lock",
+        "claims.json",
+    }

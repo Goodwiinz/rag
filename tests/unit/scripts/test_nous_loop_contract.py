@@ -93,7 +93,23 @@ def test_canonical_workflow_enforces_core_evidence_gates() -> None:
         "Capture its expected failure before changing production code",
         "repeat independent review whenever the diff changes",
         "repeat security review when applicable",
+        "LOOP_BRIDGE_DIR",
+        "shared and writable",
     ]
 
     for clause in required_clauses:
         assert clause in normalized
+
+
+def test_workflow_contract_tests_run_in_blocking_local_and_hosted_gates() -> None:
+    local_ci = (REPO_ROOT / "scripts" / "ci" / "run_local_ci.sh").read_text(
+        encoding="utf-8"
+    )
+    hosted_ci = (REPO_ROOT / ".github" / "workflows" / "test-pipeline.yml").read_text(
+        encoding="utf-8"
+    )
+
+    for ci_config in (local_ci, hosted_ci):
+        command_start = ci_config.index("pytest tests/unit/scripts/")
+        command = ci_config[command_start : command_start + 200]
+        assert "--no-cov" in command

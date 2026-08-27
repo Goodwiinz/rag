@@ -8,7 +8,7 @@ claims board, guarded by an exclusive file lock, that each loop writes BEFORE
 touching code and reads BEFORE picking a bug.
 
 Storage (outside the git repo, on the shared filesystem both agents see):
-  $LOOP_BRIDGE_DIR (default /home/clawdbot/.loop-bridge)
+  $LOOP_BRIDGE_DIR (required unless an established legacy board exists)
     claims.json   current state {"claims": [ ... ]}
     log.jsonl     append-only audit of every action
     .lock         flock target for atomic read-modify-write
@@ -43,10 +43,23 @@ from contextlib import contextmanager
 from pathlib import Path
 
 DEFAULT_TTL_SECONDS = 45 * 60
+DEFAULT_BRIDGE_DIR = Path("/home/clawdbot/.loop-bridge")
+
+
+class BridgeError(Exception):
+    """Expected configuration or state failure reported without a traceback."""
 
 
 def _bridge_dir() -> Path:
-    return Path(os.environ.get("LOOP_BRIDGE_DIR", "/home/clawdbot/.loop-bridge"))
+    configured = os.environ.get("LOOP_BRIDGE_DIR")
+    if configured:
+        return Path(configured)
+    if DEFAULT_BRIDGE_DIR.exists():
+        return DEFAULT_BRIDGE_DIR
+    raise BridgeError(
+        "LOOP_BRIDGE_DIR is not configured and no established legacy bridge "
+        "directory exists; select a shared writable directory first"
+    )
 
 
 def _now() -> _dt.datetime:
@@ -89,10 +102,11 @@ def _read(d: Path) -> dict:
         return {"claims": []}
     try:
         return _decode_state(p.read_text())
-    except ValueError:
-        # Corrupt board must not wedge every loop — start clean but keep a copy.
-        p.rename(d / "claims.corrupt.json")
-        return {"claims": []}
+    except (OSError, ValueError) as exc:
+        # Mutating commands must not discard reservations or repair the board.
+        # Leave the original file in place for diagnosis and fail closed until
+        # an operator restores a valid state.
+        raise BridgeError(f"invalid claims state in {p}: {exc}") from exc
 
 
 def _decode_state(raw: str) -> dict:
@@ -352,7 +366,11 @@ def main(argv: list[str]) -> int:
     ck.set_defaults(fn=cmd_check)
 
     args = p.parse_args(argv)
-    return args.fn(args)
+    try:
+        return args.fn(args)
+    except (BridgeError, OSError) as exc:
+        print(f"loop bridge error: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
