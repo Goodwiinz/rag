@@ -22,6 +22,7 @@ import uuid
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import event, func, select
@@ -277,6 +278,49 @@ async def test_accept_writes_all_four_rows_atomically(db: AsyncSession) -> None:
 
     thread = await db.get(Thread, THREAD_ID)
     assert thread is not None and thread.message_count == 1
+
+
+async def test_dispatch_storage_failure_raises_and_rolls_back_claim(
+    db: AsyncSession,
+) -> None:
+    """Only a lost compare-and-set may look like a lost execution claim."""
+    accepted = await accept_submission(
+        db,
+        current_user=_user(),
+        request=_request(uuid.uuid4()),
+        thread=_thread(),
+    )
+
+    with patch.object(
+        submission_mod,
+        "append_event",
+        new=AsyncMock(side_effect=RuntimeError("ledger unavailable")),
+    ):
+        with pytest.raises(RuntimeError, match="ledger unavailable"):
+            await submission_mod.mark_submission_dispatched(
+                db,
+                run_id=accepted.run_id,
+                outbox_id=accepted.outbox_id,
+                organization_id=ORG_A,
+                user_id=USER_A,
+            )
+
+    run = await db.get(AgentRun, accepted.run_id)
+    outbox = await db.get(AgentOutbox, uuid.UUID(str(accepted.outbox_id)))
+    events = (
+        (
+            await db.execute(
+                select(AgentRunEvent)
+                .where(AgentRunEvent.run_id == accepted.run_id)
+                .order_by(AgentRunEvent.seq)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert run is not None and run.status == JobStatus.QUEUED.value
+    assert outbox is not None and outbox.status == AgentOutboxStatus.PENDING.value
+    assert [event.event_type for event in events] == [RunEventType.RUN_CREATED.value]
 
 
 async def test_org_less_user_is_not_stringified(db: AsyncSession) -> None:
