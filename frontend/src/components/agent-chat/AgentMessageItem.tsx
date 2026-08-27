@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { ToolExecutionCard } from './ToolExecutionCard';
 import { AgentMarkdownRenderer } from './AgentMarkdownRenderer';
+import { completeStreamingMarkdown } from '@/lib/markdown-utils';
 import Plan, { type Task } from '@/components/ui/agent-plan';
 import { mapPlanToTasks } from './planMapping';
 import type { AgentMessage, ToolExecution } from '@/types/agent-chat';
@@ -118,7 +119,11 @@ export const AgentMessageItem = React.memo(function AgentMessageItem({
             ) : (
               <div className="relative">
                 <AgentMarkdownRenderer
-                  content={message.content}
+                  content={
+                    message.isStreaming
+                      ? completeStreamingMarkdown(message.content)
+                      : message.content
+                  }
                   citations={message.citations}
                 />
                 {message.isStreaming && (

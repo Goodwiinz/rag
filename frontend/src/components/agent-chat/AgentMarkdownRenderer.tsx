@@ -84,12 +84,13 @@ function CodeBlockCopyButton({ code }: { code: string }) {
 }
 
 const markdownComponents = {
+  // react-markdown ^10 no longer passes the `inline` prop, so block-ness is
+  // derived from the content: a language-tagged fence or multi-line code is a
+  // block, everything else renders inline (audit S-L28).
   code({
-    inline,
     className,
     children,
   }: {
-    inline?: boolean;
     className?: string;
     children?: React.ReactNode;
   }) {
@@ -97,7 +98,7 @@ const markdownComponents = {
     const language = match ? match[1] : '';
     const codeStr = String(children).replace(/\n$/, '');
 
-    if (!inline && language) {
+    if (language) {
       return (
         <div className="relative group/code my-3 rounded-lg overflow-hidden">
           <div className="flex items-center justify-between px-3 py-1.5 bg-muted/60 border-b border-border text-[10px] text-muted-foreground font-mono">
@@ -121,7 +122,7 @@ const markdownComponents = {
     }
 
     // Fenced code block without language
-    if (!inline && codeStr.includes('\n')) {
+    if (codeStr.includes('\n')) {
       return (
         <div className="relative group/code my-3 rounded-lg overflow-hidden">
           <SyntaxHighlighter

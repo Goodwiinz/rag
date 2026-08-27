@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
@@ -75,6 +75,30 @@ export function useChatComposerActions({
   storeIsStreaming,
   displayedMessages,
 }: UseChatComposerActionsParams): UseChatComposerActionsReturn {
+  // Deferred submits (audit S-L20): the timer is tracked so unmount clears a
+  // still-pending one (it would otherwise call a dead hook's handleSubmit),
+  // and the async handleSubmit's rejection is caught instead of floating.
+  const deferredSubmitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (deferredSubmitRef.current !== null) {
+        clearTimeout(deferredSubmitRef.current);
+      }
+    },
+    []
+  );
+  const deferSubmit = useCallback(
+    (...args: Parameters<UseChatComposerActionsParams['handleSubmit']>) => {
+      deferredSubmitRef.current = setTimeout(() => {
+        deferredSubmitRef.current = null;
+        Promise.resolve(handleSubmit(...args)).catch((err) => {
+          console.error('[Chat] Deferred submit failed', err);
+        });
+      }, 0);
+    },
+    [handleSubmit]
+  );
+
   // Upload files selected via the Paperclip attach control.
   // Uses enhancedDocumentService (v1 /files/upload) since no workspace-scoped
   // attach endpoint exists yet. Each upload is isolated via .catch so one
@@ -152,12 +176,9 @@ export function useChatComposerActions({
       // renders both answers after reconcile/reload. Omitted for legacy rows
       // with no persisted client_message_id (FE-only truncation, as before).
       const supersedes = priorUser.clientMessageId;
-      setTimeout(
-        () => handleSubmit(contentToSend, regenerationHistory, supersedes),
-        0
-      );
+      deferSubmit(contentToSend, regenerationHistory, supersedes);
     },
-    [displayedMessages, handleSubmit, isLoading, storeIsStreaming, setInput]
+    [displayedMessages, deferSubmit, isLoading, storeIsStreaming, setInput]
   );
 
   // Edit a prior user message in place and re-send it. The history is
@@ -181,12 +202,9 @@ export function useChatComposerActions({
       const supersedes = edited.clientMessageId;
       // Pass content explicitly — setInput only schedules an update, and the
       // deferred handleSubmit would otherwise read the stale input value.
-      setTimeout(
-        () => handleSubmit(content, editedHistory, supersedes),
-        0
-      );
+      deferSubmit(content, editedHistory, supersedes);
     },
-    [displayedMessages, handleSubmit, isLoading, storeIsStreaming, setInput]
+    [displayedMessages, deferSubmit, isLoading, storeIsStreaming, setInput]
   );
 
   // Regenerate the most recent assistant response (the /retry command).
@@ -200,7 +218,13 @@ export function useChatComposerActions({
 
   const submit = useCallback(
     (attachmentIds?: string[]) => {
-      handleSubmit(undefined, undefined, undefined, attachmentIds);
+      Promise.resolve(
+        handleSubmit(undefined, undefined, undefined, attachmentIds)
+      ).catch(
+        (err) => {
+          console.error('[Chat] Submit failed', err);
+        }
+      );
     },
     [handleSubmit]
   );

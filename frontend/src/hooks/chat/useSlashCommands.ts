@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -88,6 +88,17 @@ export function useSlashCommands({
 }: UseSlashCommandsParams): UseSlashCommandsReturn {
   const router = useRouter();
   const [commandOutputs, setCommandOutputs] = useState<CommandOutput[]>([]);
+  // Deferred template submit (audit S-L20): tracked so unmount clears the
+  // timer, and the rejection is caught instead of floating.
+  const deferredSubmitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (deferredSubmitRef.current !== null) {
+        clearTimeout(deferredSubmitRef.current);
+      }
+    },
+    []
+  );
   const fetchProjects = useProjectStore((s) => s.fetchProjects);
 
   // Clear ephemeral command output on thread change. Reset during render
@@ -316,7 +327,12 @@ export function useSlashCommands({
           const template = SYNTHESIS_TEMPLATES[id];
           setCommandOutputs([]);
           setInput(template);
-          setTimeout(() => handleSubmit(template), 0);
+          deferredSubmitRef.current = setTimeout(() => {
+            deferredSubmitRef.current = null;
+            Promise.resolve(handleSubmit(template)).catch((err) => {
+              console.error('[Chat] Deferred template submit failed', err);
+            });
+          }, 0);
           return;
         }
         case 'help':

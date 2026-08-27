@@ -151,6 +151,10 @@ export function toCitationCreate(ctx: Record<string, unknown>): CitationCreate {
  * proxy-killed resume is usually transient; the run itself keeps going. */
 const RESUME_MAX_ATTEMPTS = 3;
 const RESUME_BACKOFF_MS = [1_000, 4_000];
+// After every attempt fails, the resume guard is released on this cooldown so
+// a later effect pass can reattach to the still-live run (audit S-L23) —
+// consuming the guard permanently stranded the run until navigation.
+const RESUME_EXHAUSTED_COOLDOWN_MS = 15_000;
 const MAX_PROGRESS_STEPS = 16;
 const MAX_REASONING_SUMMARY_CHARS = 8_000;
 
@@ -423,8 +427,14 @@ export function useChatStreaming(
   // authoritative: a failed durable cancel no longer un-stops the turn, and a
   // stale stop can never leak into the next turn (its claim won't match).
   const stopTargetRef = useRef<number | null>(null);
+  // Stop pressed during the pre-stream window (thread create / acceptance
+  // awaits): no live AbortController exists yet and stopTargetRef would stamp
+  // the PREVIOUS turn's claim, so the stop was silently swallowed (audit
+  // S-M18). Recorded here and consumed by the next owner claim, which turns
+  // it into a regular stopped-by-user turn before the network call opens.
+  const preStreamStopRef = useRef(false);
   // Citations snapshot taken by handleStop the instant the user aborts —
-  // storeStopStreaming() clears streamingCitations synchronously, but the
+  // the stop-path state wipe clears streamingCitations synchronously, but the
   // completion path still needs them to commit + persist the stopped answer's
   // sources. Cleared once the turn is finalized.
   const stopCitationsRef = useRef<Array<Record<string, unknown>>>([]);
@@ -485,6 +495,11 @@ export function useChatStreaming(
   // Threads a resume was already attempted for this mount — guards against
   // double-resume from effect re-runs (StrictMode, dep changes).
   const resumeTriedRef = useRef<Set<string>>(new Set());
+  // Cooldown timer that releases the resume guard after exhausted retries
+  // (audit S-L23); tracked so unmount clears it.
+  const resumeGuardReleaseRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   // Threads whose LIVE turn died on a transport error. The backend run may
   // still be going, so the resume effect is allowed one reattach for these
   // even though the run has been finished as 'error' (server-authored error
@@ -498,7 +513,6 @@ export function useChatStreaming(
   const hadPendingApprovalRef = useRef(false);
 
   // ---- Store bindings ----
-  const storeStopStreaming = useChatStore((state) => state.stopStreaming);
   const storeIsStreaming = useChatStore((state) => state.isStreaming);
   const storeStreamingContent = useChatStore((state) => state.streamingContent);
   const storeIsRetrievingRag = useChatStore((state) => state.isRetrievingRag);
@@ -630,6 +644,10 @@ export function useChatStreaming(
         }
       }
       pendingSeqRef.current = null;
+      if (resumeGuardReleaseRef.current !== null) {
+        clearTimeout(resumeGuardReleaseRef.current);
+        resumeGuardReleaseRef.current = null;
+      }
       // Abort this instance's in-flight SSE fetch. The backend run survives a
       // client disconnect (buffered stream) and the mount-time resume effect
       // reattaches. Leaving the fetch orphaned instead kept the stream owned
@@ -685,6 +703,12 @@ export function useChatStreaming(
 
       // Claim the store's streaming slice for this turn (see streamOwnerRef).
       const streamOwner = (streamOwnerRef.current += 1);
+      if (preStreamStopRef.current) {
+        // A Stop aimed at this turn landed before the claim existed — honor
+        // it now (audit S-M18).
+        preStreamStopRef.current = false;
+        stopTargetRef.current = streamOwner;
+      }
       const isStoppedByUser = (): boolean =>
         stopTargetRef.current === streamOwner;
 
@@ -827,6 +851,12 @@ export function useChatStreaming(
 
         const streamAbort = new AbortController();
         abortControllerRef.current = streamAbort;
+        if (isStoppedByUser()) {
+          // Pre-stream Stop (audit S-M18): abort before the fetch opens so
+          // the turn routes through the normal stopped-by-user completion
+          // path instead of streaming a turn the user already cancelled.
+          streamAbort.abort();
+        }
 
         await start(
           {
@@ -1160,7 +1190,7 @@ export function useChatStreaming(
         // cleared below — they are attached to the committed message (so
         // inline [Doc N] refs keep resolving after the stream ends) and
         // persisted with the assistant row (so they survive reload).
-        // On a user Stop, storeStopStreaming() has ALREADY wiped
+        // On a user Stop, the stop-path state wipe has ALREADY wiped
         // streamingCitations out-of-band — handleStop snapshots them into
         // stopCitationsRef first, so a stopped RAG answer keeps its sources.
         const liveCitations = useChatStore.getState().streamingCitations;
@@ -1373,6 +1403,9 @@ export function useChatStreaming(
         return;
       }
       submitLockRef.current = true;
+      // A stop recorded before this submit began was aimed at some earlier
+      // state, not at this turn — a fresh send always runs.
+      preStreamStopRef.current = false;
       // A cold-load confirmation probe still in flight is now stale: whatever
       // interrupt it might replay predates this turn, and the server abandons
       // it when the new send arrives. Left running, its late confirmation
@@ -1605,11 +1638,19 @@ export function useChatStreaming(
     // it `stopped`, rather than wiping it here and racing the commit. The stop
     // targets whichever stream owns the slice right now.
     stopTargetRef.current = streamOwnerRef.current;
-    // Snapshot the turn's citations BEFORE storeStopStreaming() wipes
+    // Snapshot the turn's citations BEFORE the stop-path state wipe clears
     // streamingCitations — the completion path reads the store after the
     // wipe and would otherwise commit + persist a stopped RAG answer with
     // zero sources.
     stopCitationsRef.current = useChatStore.getState().streamingCitations;
+    if (abortControllerRef.current === null && !pendingConfirmation) {
+      // No live stream to abort: the Stop landed in a submit's pre-stream
+      // window, where the owner stamp above targets the PREVIOUS turn. Record
+      // it for the upcoming owner claim (audit S-M18). A parked confirmation
+      // is excluded — its Stop routes through the durable cancel below, and
+      // a later explicit Approve must not inherit this stop (M2).
+      preStreamStopRef.current = true;
+    }
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
 
@@ -1648,16 +1689,28 @@ export function useChatStreaming(
     // Keep a parked confirmation visible until the durable cancellation wins.
     // A failed request remains retryable instead of reporting a false Stop.
 
-    // The store-driven streaming path (used by the non-cloud chat) finalizes
-    // through its own action; keep that contract intact.
+    // Direct state wipe (audit S-L17): this hot path previously routed
+    // through the deprecated streamingSlice.stopStreaming(), a load-bearing
+    // call into code marked for removal. The cloud path owns its own
+    // AbortController (aborted above); these are the same field resets the
+    // slice action performed, written directly like every other streaming
+    // state write in this hook.
     if (storeIsStreaming) {
-      storeStopStreaming();
+      useChatStore.setState({
+        isStreaming: false,
+        streamingContent: '',
+        streamingMessageId: null,
+        streamingCitations: [],
+        streamingDiagnosticsTraceId: null,
+        isRetrievingRag: false,
+        streamingThreadId: null,
+      });
     }
   }, [
     pendingConfirmation,
     setPendingConfirmation,
     storeIsStreaming,
-    storeStopStreaming,
+
   ]);
 
   // ---- Resume an in-flight stream on mount / thread switch ----
@@ -1754,6 +1807,14 @@ export function useChatStreaming(
             lastError
           );
         }
+        // Exhausted: release the once-per-mount guard after a cooldown so the
+        // effect can reattach on a later pass (audit S-L23). The run record
+        // stays 'running' (keepRunOnFailure), which is what re-arms the
+        // effect's guard chain.
+        resumeGuardReleaseRef.current = setTimeout(() => {
+          resumeGuardReleaseRef.current = null;
+          resumeTriedRef.current.delete(threadId);
+        }, RESUME_EXHAUSTED_COOLDOWN_MS);
         throw new Error(lastError);
       },
     });
@@ -1949,6 +2010,11 @@ export function useChatStreaming(
         // workspace thread, which may differ from whatever thread is
         // currently displayed) — stamp it the same way.
         const confirmStreamOwner = (streamOwnerRef.current += 1);
+        if (preStreamStopRef.current) {
+          // Stop pressed between Approve and this claim (audit S-M18).
+          preStreamStopRef.current = false;
+          stopTargetRef.current = confirmStreamOwner;
+        }
         const isConfirmStopped = (): boolean =>
           stopTargetRef.current === confirmStreamOwner;
         useChatStore.setState({

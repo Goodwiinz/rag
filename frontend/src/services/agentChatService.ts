@@ -158,9 +158,6 @@ export type AgentResumeResult =
 
 const INCOMPLETE_STREAM_ERROR = 'Stream ended before completion. Please retry.';
 
-/** Read the backend's error body so the user sees the real cause, not just
- * an HTTP number. The backend returns the structured envelope
- * `{ error: { message, ... } }`; older paths may return `{detail: "..."}`. */
 /** A 200 that isn't actually SSE (auth portal, proxy error page) would
  * otherwise parse to zero frames and surface as a generic incomplete-stream
  * error — name the real cause instead (audit S-L13). A missing header is
@@ -174,6 +171,9 @@ function nonSseContentType(response: Response): string | null {
   return contentType;
 }
 
+/** Read the backend's error body so the user sees the real cause, not just
+ * an HTTP number. The backend returns the structured envelope
+ * `{ error: { message, ... } }`; older paths may return `{detail: "..."}`. */
 async function readErrorBody(response: Response): Promise<string> {
   let backendMessage = '';
   try {
@@ -275,11 +275,14 @@ async function consumeSse(
   const decoder = new TextDecoder();
   let buffer = '';
   let eventType = '';
+  // Data lines of the in-progress SSE event, dispatched at the blank line
+  // that terminates the event (audit S-L14).
+  let pendingData: string[] = [];
   let terminalSeen = false;
 
-  const dispatchData = (ev: string, dataLine: string): void => {
+  const dispatchData = (ev: string, payload: string): void => {
     try {
-      const data = JSON.parse(dataLine.slice(6));
+      const data = JSON.parse(payload);
       if (TERMINAL_STREAM_EVENTS.has(ev as AgentStreamEvent)) {
         terminalSeen = true;
       }
@@ -379,7 +382,7 @@ async function consumeSse(
           break;
       }
     } catch (err) {
-      console.warn('[Chat] Malformed SSE data line, skipping:', dataLine, err);
+      console.warn('[Chat] Malformed SSE data line, skipping:', payload, err);
     }
   };
 
@@ -421,16 +424,25 @@ async function consumeSse(
       for (const rawLine of lines) {
         const line = rawLine.trim();
         if (!line) {
+          // Blank line ends one SSE event (spec): dispatch the accumulated
+          // data lines joined with \n, then reset the event state
+          // (audit S-L14).
+          if (pendingData.length && eventType) {
+            dispatchData(eventType, pendingData.join('\n'));
+          }
+          pendingData = [];
           eventType = '';
           continue;
         }
-        if (line.startsWith('id: ')) {
-          const seq = parseInt(line.slice(4), 10);
+        if (line.startsWith('id:')) {
+          const seq = parseInt(line.slice(3), 10);
           if (!Number.isNaN(seq)) callbacks.onSeq?.(seq);
-        } else if (line.startsWith('event: ')) {
-          eventType = line.slice(7).trim();
-        } else if (line.startsWith('data: ') && eventType) {
-          dispatchData(eventType, line);
+        } else if (line.startsWith('event:')) {
+          eventType = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
+          // The colon may be followed by at most one optional space (spec);
+          // accept both forms instead of only `data: ` (audit S-L14).
+          pendingData.push(line.slice(5).replace(/^ /, ''));
         }
       }
 
@@ -443,14 +455,15 @@ async function consumeSse(
     // network chunk is otherwise dropped (audit S-L15).
     buffer += decoder.decode();
     // Defensive flush: if the server's final chunk ended without a
-    // trailing \n (the backend always \n\n-terminates, so this is
-    // rare), buffer holds an unprocessed data: line — process it so
-    // the last event isn't silently dropped.
-    if (buffer.trim() && eventType) {
-      const tail = buffer.trim();
-      if (tail.startsWith('data: ')) {
-        dispatchData(eventType, tail);
-      }
+    // trailing \n\n (the backend always \n\n-terminates, so this is
+    // rare), an unprocessed data line or an un-dispatched event remains —
+    // process it so the last event isn't silently dropped.
+    const tail = buffer.trim();
+    if (tail.startsWith('data:')) {
+      pendingData.push(tail.slice(5).replace(/^ /, ''));
+    }
+    if (pendingData.length && eventType) {
+      dispatchData(eventType, pendingData.join('\n'));
     }
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') return false;

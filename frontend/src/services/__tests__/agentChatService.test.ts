@@ -229,6 +229,32 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     expect(tokens).toEqual(['after']);
   });
 
+  it('accepts data: without a space after the colon (S-L14)', async () => {
+    global.fetch = fetchWith([
+      'event: token\ndata:{"content":"tight"}\n\n',
+      'event: done\ndata: {"status":"complete"}\n\n',
+    ]);
+    const tokens: string[] = [];
+    await agentChatService.streamMessage(request, {
+      onToken: (c) => tokens.push(c),
+    });
+    expect(tokens).toEqual(['tight']);
+  });
+
+  it('joins multi-line data of one event with newlines (S-L14)', async () => {
+    // JSON split across two data: lines — spec says join with \n, which is
+    // insignificant whitespace inside the object literal.
+    global.fetch = fetchWith([
+      'event: token\ndata: {"content":\ndata:  "joined"}\n\n',
+      'event: done\ndata: {"status":"complete"}\n\n',
+    ]);
+    const tokens: string[] = [];
+    await agentChatService.streamMessage(request, {
+      onToken: (c) => tokens.push(c),
+    });
+    expect(tokens).toEqual(['joined']);
+  });
+
   it('flushes a trailing frame that ended without a final newline', async () => {
     // The server's last chunk ends mid-frame (no trailing \n). Without
     // the defensive buffer flush, the final done event is silently dropped.
