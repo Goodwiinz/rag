@@ -456,7 +456,8 @@ async def _stream_luna_fast_path(
         if acceptance is not None:
             # The dispatch this outbox row recorded is about to happen
             # in-process. Stamping it keeps a future relay from re-dispatching
-            # a run that already ran (best-effort; never raises).
+            # a run that already ran; storage failures enter the terminal error
+            # path below rather than masquerading as a lost execution claim.
             dispatch_claimed = await mark_submission_dispatched(
                 db,
                 run_id=acceptance.run_id,
