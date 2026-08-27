@@ -115,8 +115,8 @@ under `scripts/nous/`.
 | --- | --- |
 | `scripts/nous/__init__.py` | Package marker; version constant. |
 | `scripts/nous/schema.py` | All schema definitions, field whitelists, length/charset limits, run-id/ref/path validators, secret-pattern rejection. Single place limits live. |
-| `scripts/nous/coordination.py` | Coordination model: `Claim`, `RunProjection`, `Candidate` dataclasses; `CoordinationBackend` protocol (claim, renew, release, list, check, put_run, get_run, finalize); typed errors (`Conflict`, `ClaimLost`, `BackendUnavailable`, `ValidationError`); claim-id fencing; the acquire-remote-then-local compensation sequence. |
-| `scripts/nous/backend_local.py` | Local backend: wraps the exact flock/claims.json semantics of today's `scripts/loop_bridge.py` (same file format, same overlap rules, same fail-closed corrupt-state behavior). |
+| `scripts/nous/coordination.py` | Coordination model: `Claim`, `RunProjection`, `Candidate` dataclasses; remote-capable `CoordinationBackend` and branch-keyed `LocalMutex` protocols; typed errors (`Conflict`, `ClaimLost`, `BackendUnavailable`, `ValidationError`); claim-id fencing; the acquire-remote-then-local compensation sequence. |
+| `scripts/nous/backend_local.py` | Local mutex backend: wraps the exact flock/claims.json semantics of today's `scripts/loop_bridge.py` (same file format, same overlap rules, same fail-closed corrupt-state behavior). It is keyed by branch and does not pretend to implement remote run projections or claim-id fencing. |
 | `scripts/nous/backend_git.py` | Git backend: bootstrap, shallow fetch, CAS commit/push protocol, expiry/skew handling, retention GC, mode enforcement. |
 | `scripts/nous/gitio.py` | The only place that spawns `git`/`gh`. Argument-list subprocess execution (never `shell=True`), no-force runtime guard, dedicated committer identity, injectable runner for tests. |
 | `scripts/nous/receipt.py` | Local receipt: append-only `events.jsonl`, atomic `current.json`, the run state machine, head-drift invalidation, resume-state computation. |
@@ -167,8 +167,12 @@ silent local-only claims.
 nous_run.py preflight  --agent A [--json]
 nous_run.py claim      --agent A --branch B --area TEXT [--files a,b]
                        [--candidate-summary TEXT --candidate-source SRC]
+nous_run.py bootstrap  --mode remote-required
+nous_run.py cutover    --write-sentinel
 nous_run.py renew      --run-id R
 nous_run.py advance    --run-id R --to STATE --evidence-head SHA [--pr N]
+nous_run.py review     --run-id R --head-sha SHA --reviewer NAME
+                       --outcome approved|changes-requested|blocked
 nous_run.py publish    --run-id R --pr N
 nous_run.py verify-merge --run-id R
 nous_run.py close      --run-id R --outcome merged|ready-for-human|dry|cancelled
@@ -179,6 +183,14 @@ nous_run.py list       [--json]
 nous_run.py reconcile  [--json]
 nous_run.py gc
 ```
+
+Every invocation accepts repeatable `--authorize ACTION` values for the
+actions explicitly authorized by the current request. Library callers pass
+the equivalent `Authorization` value directly. Stored receipts and prior
+conversation text are never used as authority. `bootstrap`, `cutover`, and
+coordination metadata mutations require `coordinate`; publishing requires
+`comment`; code pushes, PR creation, merge, and ruleset changes each require
+their corresponding independent action.
 
 Exit codes: `0` ok, `2` conflict or claim refused, `1` usage or internal
 error, `3` backend unavailable (transport failure — retryable, distinct from
@@ -199,6 +211,8 @@ injection). `2/3/4` are stable machine contracts; loop prompts key off them.
   - `LOOP_BRIDGE_DIR` — unchanged; locates the local board.
   - `NOUS_RECEIPT_DIR` — local receipt root; default
     `~/.nous-runs/<repo-basename>/`.
+  - `NOUS_MACHINE_ID` — required stable machine identifier; validated
+    explicitly and never inferred from a hostname.
 - Selection rules:
   - `local` mode: only `backend_local` is used. This is the Plan 0/1 world
     and the rollback world.
@@ -221,13 +235,19 @@ injection). `2/3/4` are stable machine contracts; loop prompts key off them.
 
 `preflight` preserves the authorization boundary in
 `docs/engineering/nous-loop.md`. It fetches the current base, verifies a
-clean isolated workspace, inventories available gates, reconciles prior
-runs, and records an allowlist of remote actions authorized by the current
+clean isolated workspace, inventories available gates, detects prior runs
+that need the separate reconciliation command, and returns an allowlist of
+remote actions authorized by the current
 user request: `coordinate`, `push`, `create-pr`, `comment`, `merge`, and
 `change-ruleset`. These permissions are independent; authorization to write
 coordination metadata is not authorization to publish or merge code. A
 missing permission stops before that action with `ready-for-human`, and no
 runtime infers permission from an earlier conversation or stored receipt.
+Standalone preflight is read-only apart from fetches and reconciliation of
+already-existing runs: it creates neither a run ID nor a receipt. `claim`
+executes/consumes the same preflight result, then allocates exactly one run
+ID and receipt before acquiring the claim; that receipt records the
+authorization action names for audit but does not grant future authority.
 The receipt records only the action names and decision, never credentials.
 
 ## Remote schema (branch `nous-coordination`)
@@ -330,6 +350,11 @@ Field notes:
   the same `run_id`, `claim_id`, `agent`, `machine_id`, and branch. Reuse of
   only an agent name or branch from another machine is a conflict, not a
   self-update.
+- A brand-new claim presents no token. Retrying an active claim presents its
+  exact token. Re-acquiring an expired nonterminal run presents the prior
+  token stored in its run projection; the winning CAS writes a new token to
+  both claim and projection, fencing every stale presentation of the old
+  token.
 - Only `status: "active"` exists in `claims.json`; released or expired claims
   are removed from the snapshot (history preserves them).
 
@@ -350,6 +375,12 @@ days after reaching a terminal state.
   "outcome": null,
   "branch": "fix/streaming-null-guard",
   "area": "agent streaming null finalization",
+  "files": ["backend/src/api/agent/streaming.py"],
+  "candidate": {
+    "source": "audit-ledger",
+    "summary": "S-M4 stream buffer drops final chunk",
+    "lead_ref": "docs/audits/examples/streaming-audit.md#S-M4"
+  },
   "base_sha": "23c3551a30ac5d230f68a01b76650c27144571f5",
   "evidence_head_sha": "8c1d2e3f4a5b6c7d8e9f00112233445566778899",
   "pr": 1601,
@@ -366,13 +397,16 @@ days after reaching a terminal state.
     {"state": "reviewed", "at": "2026-08-27T05:30:00+00:00",
      "evidence_head_sha": "8c1d2e3f4a5b6c7d8e9f00112233445566778899", "tier": "local"}
   ],
+  "milestones_truncated": false,
   "updated_at": "2026-08-27T05:30:00+00:00"
 }
 ```
 
 - `milestones` — append-only within the projection (invalidation appends a
-  reversal, it does not delete history); ≤ 40 entries, older entries beyond
-  the cap are dropped oldest-first with a `"truncated": true` marker entry.
+  reversal, it does not delete history); ≤ 40 entries. Older entries beyond
+  the cap are dropped oldest-first and the separate top-level
+  `milestones_truncated` boolean becomes true. The local events.jsonl keeps
+  the complete history.
 - `tier` — `local` (backed by local receipt evidence, not remotely
   re-verifiable) or `remote` (re-derivable from GitHub/Git: `published`,
   `hosted_verified`, `merged_verified`).
@@ -381,10 +415,18 @@ days after reaching a terminal state.
   `human-decision`, `publication-unavailable`, `other`) plus ≤ 300 chars of
   detail.
 - No stdout, tracebacks, diffs, prompts, or credentials, ever.
+- `files` and `candidate` preserve the validated conflict inputs required
+  for fenced re-claim/resume after the active claim has expired and been
+  pruned. They use exactly the same limits as their `claims.json` forms.
 - `claim_id` is a fencing token. Every renew, state update, publish binding,
   and terminal operation must present the active claim's exact token. After
   expiry/re-claim, the new token makes every stale process fail with
   `ClaimLost` even if it still has the same run, agent, machine, or branch.
+- Reconciliation may terminalize an orphan projection after its claim has
+  expired and been pruned. That narrow path requires both the projection's
+  last `claim_id` and exact `updated_at`, verifies no active claim for the
+  run exists in the freshly fetched snapshot, and may set only a terminal
+  outcome. It cannot update active work or delete another claim.
 
 ## Local receipt schema
 
@@ -430,7 +472,7 @@ matching docs/engineering/nous-loop.md.
 
 | From | To | Guard |
 | --- | --- | --- |
-| (none) | `started` | Local preflight passed; receipt created. Local-only — no remote run exists yet. |
+| (none) | `started` | The `claim` command's local preflight passed and its single receipt was created. Standalone `preflight` creates no receipt. Local-only — no remote run exists yet. |
 | `started` | `claimed` | Remote claim acquired, then local mutex acquired (see Authority). Remote `runs/<run-id>.json` created in the same metadata commit as the claim. |
 | `claimed` | `reproduced` | Reproduction evidence event recorded; binds `base_sha` and current `evidence_head_sha`. |
 | `reproduced` | `fixed` | Causal red/green proof recorded at head `H` (`evidence_head_sha = H`). |
@@ -439,10 +481,10 @@ matching docs/engineering/nous-loop.md.
 | `locally_verified` | `published` | PR exists with head `H`; `pr` bound on claim and run. |
 | `published` | `hosted_verified` | Hosted required checks green at `H`; PR head still `H`; review comments addressed. |
 | `hosted_verified` | `merged_verified` | Merge verification passed (see GitHub reconciliation). |
-| `merged_verified` | terminal `merged` | `close --outcome merged`: terminal state + claim release in one metadata commit. |
-| `started`, `claimed` | terminal `dry` | No safe verified candidate; claim (if any) released in the same commit. |
-| any non-terminal | terminal `ready-for-human` | Blocker recorded. Claim **retained**, expiry reported (see below). |
-| any non-terminal | terminal `cancelled` | Explicit user cancellation; claim released in the same commit. |
+| `merged_verified` | outcome `merged` | `close --outcome merged`: outcome + claim release in one metadata commit; `state` remains `merged_verified`. |
+| `started`, `claimed` | outcome `dry` | No safe verified candidate; claim (if any) released in the same commit; `state` remains the last stage. |
+| any non-terminal | outcome `ready-for-human` | Blocker recorded. Claim **retained**, expiry reported (see below); `state` remains the blocked stage. |
+| any non-terminal | outcome `cancelled` | Explicit user cancellation; claim released in the same commit; `state` remains the last stage. |
 
 ### Invalidation (repeat loop)
 
@@ -460,6 +502,12 @@ Milestone validity is bound to `evidence_head_sha`:
   docs/engineering/nous-loop.md, now machine-enforced: `advance --to
   hosted_verified` and `verify-merge` fail with exit `4` if the recorded
   reviewed head differs from the current PR head.
+- `hosted_verified` is never accepted as caller-authored evidence. The
+  Plan 2b service rereads the PR head, selects the latest GitHub check run
+  named `Release Gate` (the repository contract frozen against
+  `test-pipeline.yml`), requires completed/success, and requires zero
+  unresolved review threads. Missing, pending, red, or stale-head evidence
+  fails closed without advancing the receipt.
 - `reproduced` binds `base_sha` and is not auto-invalidated by head motion on
   the fix branch. A base advance (`origin/develop` moved) does not invalidate
   milestones by itself; preflight-on-resume re-checks that the symptom is
@@ -472,9 +520,11 @@ Milestone validity is bound to `evidence_head_sha`:
 - **ready-for-human** — the only terminal outcome that retains the claim,
   because the protected work must stay protected until a human acts. The
   close report states the claim's `expires_at`; the claim then ages out by
-  normal TTL expiry if nobody follows up. A follow-up run on any machine
-  links `parent_run_id` to this run and re-claims (idempotent re-claim if
-  within TTL and same agent; fresh claim after expiry).
+  normal TTL expiry if nobody follows up. A human either continues on the
+  owning machine before expiry, explicitly releases the retained claim, or
+  waits for expiry; a follow-up run on either machine then links
+  `parent_run_id` and performs a fresh overlap-checked claim. There is no
+  implicit cross-machine claim transfer.
 - **dry** — from `started`/`claimed` only; claim released; the close event
   records which candidate sources were checked.
 - **cancelled** — any non-terminal state; claim released with reason
@@ -488,7 +538,10 @@ Milestone validity is bound to `evidence_head_sha`:
    input).
 2. Recompute the trustworthy state floor from remotely re-verifiable facts
    only:
-   - claim still live (or retained via `ready-for-human`) → `claimed`;
+   - active nonterminal claim still live → `claimed`;
+   - `ready-for-human` outcome → retain that terminal outcome for display
+     and require an explicit human release/follow-up decision; do not reopen
+     it as `claimed` automatically;
    - branch exists at the recorded `evidence_head_sha` (fetched) → retain
      only the branch/head binding, not a `fixed` milestone;
    - PR exists (re-read from GitHub, head compared to record) → retain the
@@ -523,8 +576,9 @@ Milestone validity is bound to `evidence_head_sha`:
    it can only name an object GitHub already has, which would require a
    separate temporary-ref upload and add another race. Git receive-pack
    creates the absent ref and receives its objects in one transaction.
-3. On a bootstrap race (push rejected because the ref now exists): discard
-   the losing local commit outright, fetch the winning state, and re-derive
+3. On a bootstrap race (push rejected because the ref now exists): leave
+   the losing local commit unreachable (ordinary local Git GC may later
+   remove the object), fetch the winning state, and re-derive
    the intended logical operation (e.g. "claim area X") against it. Never
    merge coordination histories, never retry the same commit object.
 
@@ -547,6 +601,9 @@ Milestone validity is bound to `evidence_head_sha`:
    `commit-tree -p refs/nous/tmp/<run-id>-<nonce>`, committer identity
    `NOUS Coordination <nous-coordination@invalid>` set via
    `GIT_AUTHOR_*`/`GIT_COMMITTER_*` env for that call only.
+   `runs/<run-id>.json` is built as a real nested tree: validated path
+   segments are assembled bottom-up with one `mktree` call per directory;
+   slash-containing entries are never passed directly to `mktree`.
 5. Push fast-forward: `git push origin <new>:refs/heads/nous-coordination` —
    a plain push, fast-forward by construction because the parent is the
    fetched tip. **No force flag exists anywhere in routine tooling.**
@@ -623,8 +680,8 @@ state with GitHub reality and repairs divergence with ordinary CAS commits:
 
 1. GitHub reports the PR merged (`merged == true`,
    `merge_commit_sha` present) via `gh api repos/{owner}/{repo}/pulls/{n}`.
-2. `merge_commit_sha` is an ancestor of freshly fetched `origin/develop`
-   (`git fetch origin develop` then
+2. `merge_commit_sha` is an ancestor of freshly fetched
+   `<NOUS_COORD_GIT_REMOTE>/develop` (`git fetch <configured-remote> develop` then
    `git merge-base --is-ancestor <sha> FETCH_HEAD`). This holds for merge
    commits, squash commits, and the final commit of a rebase-merge alike.
 3. The PR head at merge equals the last independently reviewed head:
