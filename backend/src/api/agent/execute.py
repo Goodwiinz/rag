@@ -653,14 +653,14 @@ async def confirm_agent_action(
     # (The authoritative claim is the guarded PostgreSQL transition below.)
     job = await _get_job_fresh(job_id)
     job_from_projection = False
-    if job:
+    if job is not None:
         # Fail closed before consulting another store: a live record owned by
         # someone else must never become a tenancy oracle through fallback.
         job_user_id = job.get("user_id")
         if not job_user_id or job_user_id != str(current_user.id):
             raise HTTPException(status_code=404, detail="Job not found")
 
-    live_status = _normalized_job_status(job.get("status")) if job else None
+    live_status = _normalized_job_status(job.get("status")) if job is not None else None
     if job is None or live_status != JobStatus.AWAITING_CONFIRMATION:
         from src.services.agent import agent_run_service
 
@@ -672,7 +672,13 @@ async def confirm_agent_action(
                 user_id=current_user.id,
             )
         except Exception as exc:
-            await db.rollback()
+            try:
+                await db.rollback()
+            except Exception:
+                logger.warning(
+                    "Failed to roll back confirmation projection read",
+                    exc_info=True,
+                )
             raise HTTPException(
                 status_code=503,
                 detail="Confirmation is temporarily unavailable; please retry",

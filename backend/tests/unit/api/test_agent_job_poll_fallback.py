@@ -220,6 +220,7 @@ async def test_confirm_projection_read_failure_is_retryable_503() -> None:
     user = _user()
     job_id = str(uuid.uuid4())
     db = AsyncMock()
+    db.rollback.side_effect = RuntimeError("rollback also unavailable")
 
     with (
         patch(
@@ -247,6 +248,35 @@ async def test_confirm_projection_read_failure_is_retryable_503() -> None:
     assert exc.value.status_code == 503
     assert exc.value.detail == "Confirmation is temporarily unavailable; please retry"
     db.rollback.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_confirm_empty_live_record_fails_closed_before_projection() -> None:
+    """Any present live record must prove ownership before durable fallback."""
+    user = _user()
+    projection_read = AsyncMock(return_value=None)
+
+    with (
+        patch(
+            "src.services.agent.job_store.get_job_fresh",
+            new=AsyncMock(return_value={}),
+        ),
+        patch(
+            "src.services.agent.agent_run_service.get_run",
+            new=projection_read,
+        ),
+        pytest.raises(HTTPException) as exc,
+    ):
+        await confirm_agent_action(
+            str(uuid.uuid4()),
+            ConfirmationRequest(confirmed=True),
+            MagicMock(),
+            current_user=user,
+            db=AsyncMock(),
+        )
+
+    assert exc.value.status_code == 404
+    projection_read.assert_not_awaited()
 
 
 @pytest.mark.asyncio
