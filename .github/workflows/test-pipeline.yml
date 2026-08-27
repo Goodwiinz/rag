@@ -391,6 +391,11 @@ jobs:
           AZURE_OPENAI_CHAT_API_VERSION: "2024-02-01"
           AZURE_OPENAI_ENDPOINT: "https://example.invalid"
           AZURE_OPENAI_API_KEY: "test-key-not-real"
+      - name: Run NOUS workflow contract tests
+        run: |
+          pytest tests/unit/scripts/ \
+            --confcutdir=tests/unit/scripts \
+            -q --no-cov
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
         with:

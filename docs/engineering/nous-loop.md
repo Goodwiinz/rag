@@ -47,9 +47,14 @@ not current operational state.
    `origin/develop` with no pre-existing commits or diff; only reconciliation
    of prior loop work may start from an existing branch.
 3. Inspect active loop claims through the selected coordination backend and
-   inspect open loop-owned PRs. The repository bridge command is
-   `python3 scripts/loop_bridge.py list`. Reconcile an existing tick before
-   opening another one.
+   inspect open loop-owned PRs. Before using the repository bridge, select a
+   directory visible to every concurrent runtime, verify it is shared and
+   writable, and export it as `LOOP_BRIDGE_DIR`. An established legacy default
+   may be used only after the same checks. Then run
+   `python3 scripts/loop_bridge.py list`. If no shared coordination location is
+   available, use the capability-contract fallback instead of treating an
+   empty local directory as proof that there are no claims. Reconcile an
+   existing tick before opening another one.
 4. Check the current branch-protection and hosted-CI state. Do not reuse a
    historical outage, CLI workaround, filesystem path, or tool availability
    claim as present evidence.
