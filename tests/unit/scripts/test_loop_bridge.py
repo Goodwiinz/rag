@@ -98,3 +98,68 @@ def test_heartbeat_extends_a_live_claim(bridge, monkeypatch):
 
 def test_heartbeat_unknown_branch_refused(bridge):
     assert _run(bridge, "heartbeat", "--branch", "nope") == 1
+
+
+def test_list_does_not_create_missing_bridge_storage(tmp_path, monkeypatch):
+    bridge_dir = tmp_path / "missing-bridge"
+    monkeypatch.setenv("LOOP_BRIDGE_DIR", str(bridge_dir))
+    mod = _load()
+
+    assert _run(mod, "list") == 0
+    assert not bridge_dir.exists()
+
+
+@pytest.mark.parametrize(
+    "raw_state",
+    [
+        "",
+        "not-json",
+        "[]",
+        '{"claims": null}',
+        '{"claims": [null]}',
+        (
+            '{"claims": [{"agent": "a", "branch": "b", "area": "x", '
+            '"files": [], "pr": null, "status": "active", '
+            '"claimed_at": "2026-01-01T00:00:00+00:00"}]}'
+        ),
+        (
+            '{"claims": [{"agent": "a", "branch": "b", "area": "x", '
+            '"files": [], "pr": null, "status": "active", '
+            '"claimed_at": "2026-01-01T00:00:00+00:00", '
+            '"expires_at": "not-a-time"}]}'
+        ),
+    ],
+)
+def test_list_reports_corrupt_state_without_mutating_it(
+    tmp_path, monkeypatch, raw_state
+):
+    bridge_dir = tmp_path / "bridge"
+    bridge_dir.mkdir()
+    claims = bridge_dir / "claims.json"
+    claims.write_text(raw_state)
+    monkeypatch.setenv("LOOP_BRIDGE_DIR", str(bridge_dir))
+    mod = _load()
+
+    assert _run(mod, "list") == 1
+    assert claims.read_text() == raw_state
+    assert {path.name for path in bridge_dir.iterdir()} == {"claims.json"}
+
+
+def test_list_reports_read_failure_without_mutating_storage(tmp_path, monkeypatch):
+    bridge_dir = tmp_path / "bridge"
+    bridge_dir.mkdir()
+    claims = bridge_dir / "claims.json"
+    claims.write_text('{"claims": []}')
+    monkeypatch.setenv("LOOP_BRIDGE_DIR", str(bridge_dir))
+    mod = _load()
+    original_read_text = mod.Path.read_text
+
+    def fail_claim_read(path, *args, **kwargs):
+        if path == claims:
+            raise OSError("simulated read race")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(mod.Path, "read_text", fail_claim_read)
+
+    assert _run(mod, "list") == 1
+    assert {path.name for path in bridge_dir.iterdir()} == {"claims.json"}

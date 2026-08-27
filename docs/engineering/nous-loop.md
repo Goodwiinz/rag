@@ -1,0 +1,186 @@
+# NOUS self-improvement loop
+
+Use this workflow for one autonomous improvement tick: find one real, live bug,
+ship the smallest tested fix, review it, and close the tick honestly. This file
+is the canonical workflow for every agent runtime. Runtime adapters may explain
+how to invoke equivalent capabilities, but they may not weaken these gates.
+
+A completed tick has exactly one terminal outcome. An explicit user
+cancellation stops the workflow outside this outcome protocol:
+
+- `merged` — the fix is present on `develop` after all required gates and an
+  authorized merge.
+- `ready-for-human` — safe progress exists, but a required permission, review,
+  external gate, publication capability, or human decision remains. Report the
+  exact stage reached; a fix or PR need not exist yet.
+- `dry` — no safe, verified, in-scope bug was available to ship.
+
+Never report a stronger outcome than the evidence supports. A branch, commit,
+green targeted test, or open PR is not `merged`.
+
+## Capability contract
+
+The workflow names capabilities, not products or model tiers:
+
+| Need | Required behavior |
+| --- | --- |
+| Investigation | Inspect current code and runtime evidence. Parallel scouts are optional; serial investigation is valid. |
+| Coordination | Use `scripts/loop_bridge.py` when its shared-filesystem locking is supported. Otherwise use an equivalent atomic shared claim board; if none is available, stop at `ready-for-human` before editing. |
+| Independent review | A separate review context that did not implement the change must inspect the final diff. Another agent from the same runtime qualifies; self-review alone does not. If unavailable, stop at `ready-for-human`. |
+| Security review | Add a separate security-focused pass for tenancy, authorization, secrets, injection, or other security-class changes. |
+| External evidence | Use traces, hosted CI, and review services only when access is already authorized. Never obtain credentials through secret dumps. |
+| Repetition | Run one tick unless the user explicitly requested recurrence. A scheduler must have a bounded interval and stop condition. |
+
+Substitute equivalent capabilities truthfully. Never claim that an unavailable
+named tool, reviewer, test suite, or hosted service ran.
+
+## Live preflight
+
+Complete this before selecting work. Repository prose records durable rules,
+not current operational state.
+
+1. Read this file, root `AGENTS.md`, and the relevant files under
+   `docs/engineering/` completely.
+2. Fetch `origin/develop`; verify the candidate workspace is clean, isolated,
+   and contains the fetched base. Create a fresh worktree or clone when the
+   shared checkout is stale or occupied. A new tick starts at the fetched
+   `origin/develop` with no pre-existing commits or diff; only reconciliation
+   of prior loop work may start from an existing branch.
+3. Inspect active loop claims through the selected coordination backend and
+   inspect open loop-owned PRs. The repository bridge command is
+   `python3 scripts/loop_bridge.py list`. Reconcile an existing tick before
+   opening another one.
+4. Check the current branch-protection and hosted-CI state. Do not reuse a
+   historical outage, CLI workaround, filesystem path, or tool availability
+   claim as present evidence.
+5. Inventory available test, trace, review, and publication capabilities.
+   Record unavailable required gates before implementation.
+6. Confirm the current task authorizes each remote mutation you may need:
+   push, PR creation, merge, deployment, or external messaging. Lack of
+   authority produces `ready-for-human`; it is not permission to infer.
+
+## One-tick workflow
+
+### 1. Reconcile prior work
+
+Inspect only PRs created by this loop. Verify their current head, diff, tests,
+reviews, comments, and merge state. Merge only when the current task authorizes
+it and every current gate passes. Otherwise report or repair the prior tick and
+do not start a second one.
+
+### 2. Pick one candidate
+
+Use the first source available and authorized:
+
+1. A reproducible failure from real or synthetic runtime traces.
+2. A repository-backed audit or bug backlog whose status is still open.
+3. A focused fresh hunt in one unclaimed subsystem.
+
+Prefer fake-success bugs: work did not happen, but an API response, job state,
+flag, UI, or test says it did. Verify the artifact itself rather than trusting a
+status field. Reject style-only cleanup, speculative hardening, and unrelated
+refactors.
+
+### 3. Prove it is real and live
+
+Re-read the current base and reproduce the symptom. Confirm the code path is
+mounted or called, the user-visible impact exists, and the issue is not already
+fixed. For backend routes, verify registration through `backend/src/main.py` or
+OpenAPI; for other paths, verify the equivalent composition boundary.
+
+Choose the likely files, then claim before editing:
+
+```bash
+python3 scripts/loop_bridge.py claim \
+  --agent "<runtime-agent-name>" \
+  --branch "<branch>" \
+  --area "<bug/subsystem>" \
+  --files "<comma-separated-paths>"
+```
+
+Exit code 2 means another loop owns overlapping work: choose a different bug.
+Heartbeat before the claim expires and after any long test or review phase.
+
+### 4. Establish root cause and scope
+
+Trace the failure from symptom to cause. Check sibling entry points that share
+the faulty invariant. Reports from delegated investigators are leads; the
+primary agent re-verifies the highest-impact claim before it enters the fix or
+PR description.
+
+### 5. Fix test-first
+
+Add the smallest regression test that exercises real behavior. Capture its
+expected failure before changing production code, implement the minimal fix,
+and run the same test green. Prove the test is causal by temporarily removing
+only the production fix, observing the expected failure, restoring it, and
+observing green again. If a test passes both ways, label it a contract lock;
+do not present it as regression proof.
+
+Follow [testing.md](testing.md), [backend.md](backend.md),
+[frontend.md](frontend.md), and [api-contracts.md](api-contracts.md) for the
+affected surface. Keep tenant identity derived from the authenticated actor,
+not client input.
+
+### 6. Review the final diff
+
+Run an independent code review after the implementation and tests stabilize.
+For a security-class change, run an additional security review. Verify each
+finding against the code, address real issues, and rerun affected tests. Review
+is evidence, not ceremony; an unavailable mandatory review ends as
+`ready-for-human`.
+
+### 7. Run local gates
+
+Run targeted tests plus every applicable repository gate. Use
+`scripts/ci/run_local_ci.sh --base origin/develop` as local evidence, while
+preserving every skipped or unverified item in the report. Local success never
+implies that omitted integration, end-to-end, security, or hosted checks passed.
+
+### 8. Publish, recheck, and close
+
+Use truthful authorship. Push and open a PR only when authorized. Include the
+reproduction, root cause, focused diff, red/green evidence, review result, and
+exact gate output—including skips—in the PR description.
+
+Attach the PR number to the active claim, then inspect hosted checks and all
+available automated or human PR comments against the published head. Diagnose
+whether a red result is caused by the change or infrastructure, but do not
+describe red checks as green. Verify review findings against the code and
+address real issues.
+
+Whenever the published diff changes, return to the causal test proof and local
+gates, repeat independent review whenever the diff changes, and repeat security
+review when applicable. Re-publish the reviewed commit and re-check hosted
+evidence. Never merge past a required red check unless a current repository
+rule explicitly provides an alternative gate and the current task authorizes
+that action.
+
+Merge only the final reviewed head after every current required gate passes.
+After an authorized merge, fetch `develop` and verify the fix is present before
+reporting `merged`. Release the claim with `--reason merged`.
+
+For `ready-for-human`, report the exact blocker and stage reached. If a live
+claim exists, heartbeat it once and report its expiry; if preflight stopped
+before a claim, state that explicitly. If a PR exists, attach it by repeating
+the same idempotent claim command with the same agent, branch, area, and files
+plus `--pr <number>`. If publication was unavailable, state that no PR exists.
+Never label or release the claim as merged.
+
+Do not call a human handoff abandonment. If the user cancels, release any live
+claim with `--reason abandoned`, stop immediately, and report cancellation
+without inventing one of the completed-tick outcomes. If only the candidate
+proves invalid, release its claim, choose another candidate when one remains,
+otherwise close as `dry`. For `dry`, release any remaining exploratory claim
+and state which sources were checked.
+
+## Guardrails
+
+- One bug and one coherent PR per tick.
+- Never inspect or print production secrets, or run heavy analysis inside a
+  live application pod.
+- Never ship a fix for dead or unmounted code as a live bug fix.
+- Never merge unrelated human or automated PRs under loop authority.
+- Never expand from a bug fix into product behavior that needs a human choice.
+- Record facts and commands, not confidence language. If a gate is missing,
+  skipped, stale, or unavailable, say so.

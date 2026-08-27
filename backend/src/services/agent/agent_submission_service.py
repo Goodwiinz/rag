@@ -432,6 +432,75 @@ async def abandon_awaiting_submission(
     return run_id
 
 
+async def fail_queued_submission(
+    db: AsyncSession,
+    *,
+    run_id: str,
+    thread_id: Any,
+    organization_id: Any,
+    user_id: Any,
+    error_code: str,
+    error: str,
+    payload: dict[str, Any],
+) -> bool:
+    """Atomically fail one caller-owned run only while it is still queued.
+
+    The guarded update is the ownership claim between replay cleanup and the
+    original dispatcher. If dispatch already moved the run to ``running``,
+    this function leaves both the run and its ledger untouched and returns
+    ``False``. A winning failure also retires the pending outbox intent in the
+    same transaction so a future relay cannot dispatch an abandoned run.
+    """
+    now = _utcnow()
+    try:
+        claimed = (
+            await db.execute(
+                update(AgentRun)
+                .where(
+                    AgentRun.job_id == run_id,
+                    AgentRun.thread_id == _coerce_uuid(thread_id),
+                    AgentRun.organization_id == _coerce_uuid(organization_id),
+                    AgentRun.user_id == _coerce_uuid(user_id),
+                    AgentRun.status == JobStatus.QUEUED.value,
+                )
+                .values(
+                    status=JobStatus.FAILED.value,
+                    error_code=error_code,
+                    error=error,
+                    completed_at=now,
+                    updated_at=now,
+                )
+                .returning(AgentRun.job_id)
+                .execution_options(synchronize_session=False)
+            )
+        ).first()
+        if claimed is None:
+            await db.rollback()
+            return False
+        await db.execute(
+            update(AgentOutbox)
+            .where(
+                AgentOutbox.run_id == run_id,
+                AgentOutbox.organization_id == _coerce_uuid(organization_id),
+                AgentOutbox.status == AgentOutboxStatus.PENDING.value,
+            )
+            .values(status=AgentOutboxStatus.FAILED.value, updated_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        await append_event(
+            db,
+            run_id=run_id,
+            event_type=RunEventType.RUN_FAILED,
+            payload=payload,
+            organization_id=organization_id,
+        )
+        await db.commit()
+        return True
+    except Exception:
+        await db.rollback()
+        raise
+
+
 async def _insert_run(
     db: AsyncSession,
     *,
@@ -686,22 +755,47 @@ async def mark_submission_dispatched(
     run_id: str,
     outbox_id: Optional[str],
     organization_id: Any,
-) -> None:
-    """Record that the accepted run actually started. Commits; never raises.
+    user_id: Any,
+) -> bool:
+    """Atomically claim an accepted run for execution and commit.
 
-    Closes the outbox record (``pending`` → ``dispatched``) and moves the run
-    ``queued`` → ``running`` with a ``run.started`` event. Best-effort by
-    design: dispatch already happened, and a bookkeeping failure must not kill
-    a live turn. Without the stamp every row would sit ``pending`` forever and
-    a future relay would re-dispatch finished runs.
+    The ``queued`` → ``running`` update is the execution claim. ``False`` means
+    a replay already abandoned the run, so the caller must not enter the
+    graph/LLM. Durable-state failures raise so the stream's error path can
+    terminalize the accepted run. The run is locked before its outbox row,
+    matching :func:`fail_queued_submission` and avoiding a deadlock when those
+    two claims race.
     """
     now = _utcnow()
     try:
+        claimed = (
+            await db.execute(
+                update(AgentRun)
+                .where(
+                    AgentRun.job_id == run_id,
+                    AgentRun.organization_id == _coerce_uuid(organization_id),
+                    AgentRun.user_id == _coerce_uuid(user_id),
+                    AgentRun.status == JobStatus.QUEUED.value,
+                )
+                .values(
+                    status=JobStatus.RUNNING.value,
+                    started_at=now,
+                    updated_at=now,
+                )
+                .returning(AgentRun.job_id)
+                .execution_options(synchronize_session=False)
+            )
+        ).first()
+        if claimed is None:
+            await db.rollback()
+            return False
         if outbox_id is not None:
             await db.execute(
                 update(AgentOutbox)
                 .where(
                     AgentOutbox.id == _coerce_uuid(outbox_id),
+                    AgentOutbox.run_id == run_id,
+                    AgentOutbox.organization_id == _coerce_uuid(organization_id),
                     AgentOutbox.status == AgentOutboxStatus.PENDING.value,
                 )
                 .values(
@@ -711,28 +805,15 @@ async def mark_submission_dispatched(
                 )
                 .execution_options(synchronize_session=False)
             )
-        await db.execute(
-            update(AgentRun)
-            .where(AgentRun.job_id == run_id, AgentRun.status == JobStatus.QUEUED.value)
-            .values(status=JobStatus.RUNNING.value, started_at=now, updated_at=now)
-            .execution_options(synchronize_session=False)
+        await append_event(
+            db,
+            run_id=run_id,
+            event_type=RunEventType.RUN_STARTED,
+            payload={},
+            organization_id=organization_id,
         )
-        try:
-            await append_event(
-                db,
-                run_id=run_id,
-                event_type=RunEventType.RUN_STARTED,
-                payload={},
-                organization_id=organization_id,
-            )
-        except RunAlreadyTerminalError:
-            # Terminal cleanup closed the ledger before this best-effort
-            # dispatch stamp arrived; the status/outbox updates still stand.
-            logger.debug(
-                "mark_submission_dispatched: ledger already terminal for run %s",
-                run_id,
-            )
         await db.commit()
+        return True
     except Exception:
         logger.warning(
             "mark_submission_dispatched failed for run %s", run_id, exc_info=True
@@ -741,6 +822,7 @@ async def mark_submission_dispatched(
             await db.rollback()
         except Exception:
             logger.debug("rollback after dispatch stamp failure failed", exc_info=True)
+        raise
 
 
 # One retry only: a second consecutive disconnect means the database is
@@ -871,6 +953,7 @@ __all__ = [
     "DISPATCH_KIND_STREAM",
     "AcceptedSubmission",
     "accept_submission",
+    "fail_queued_submission",
     "finalize_submission",
     "mark_submission_dispatched",
     "stream_idempotency_key",
