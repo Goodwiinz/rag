@@ -36,7 +36,13 @@ def _parse_frame(item: str | bytes, key: str) -> BufferedFrame | None:
     (audit S-L10); the seq gap stays visible in the warning.
     """
     try:
-        return BufferedFrame(**json.loads(item))
+        frame = BufferedFrame(**json.loads(item))
+        # Dataclass annotations are not runtime validation: valid JSON with
+        # the wrong field types would pass construction and blow up later in
+        # `f.seq > after_seq` — the exact replay-bricking S-L10 closes.
+        if not isinstance(frame.seq, int) or not isinstance(frame.frame, str):
+            raise TypeError("frame fields have invalid types")
+        return frame
     except (ValueError, TypeError) as exc:
         logger.warning(
             "Dropping corrupt stream-buffer entry",

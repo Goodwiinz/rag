@@ -31,6 +31,9 @@ def test_missing_header_gets_uuid() -> None:
     assert len(_request_trace_id(_request())) == 36
 
 
-def test_oversized_header_replaced_not_echoed() -> None:
+def test_oversized_header_replaced_not_truncated() -> None:
+    # Truncation would collapse distinct oversized ids sharing a prefix into
+    # one trace id — replace with a fresh UUID instead.
     value = _request_trace_id(_request("a" * 129))
-    assert value == "a" * 128
+    assert len(value) == 36
+    assert value != "a" * 128

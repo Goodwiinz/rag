@@ -227,3 +227,17 @@ async def test_read_after_corrupt_probe_falls_back_to_full_scan(fake_redis):
 
     frames = await stream_buffer.read_after(sid, 1, start_index=1)
     assert [(f.seq, f.frame) for f in frames] == [(2, "frame-b")]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_read_after_skips_wrong_schema_entries(fake_redis):
+    """Valid JSON with wrong field types is dropped, not compared later (S-L10)."""
+    sid = await stream_buffer.start_stream("thread-1")
+    await stream_buffer.append(sid, 1, "frame-a")
+    fake_redis.store[stream_buffer._buffer_key(sid)].append(
+        json.dumps({"seq": "bad", "frame": "x"})
+    )
+
+    frames = await stream_buffer.read_after(sid, 0)
+    assert [(f.seq, f.frame) for f in frames] == [(1, "frame-a")]

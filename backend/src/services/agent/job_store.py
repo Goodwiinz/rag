@@ -563,11 +563,17 @@ async def compare_and_set_status(
         else:
             return await _cas_in_memory(job_id, expected, new_status, project=project)
 
-    # Mirror the winning transition into L1 so this worker's polls are consistent.
+    # Mirror the winning transition into L1 so this worker's polls are
+    # consistent. Copy-on-write + move_to_end, same as _cas_in_memory (audit
+    # S-L11): `cached` may be the object other readers already hold, and
+    # re-assigning an existing OrderedDict key does not refresh LRU recency.
     with _l1_lock:
         cached = _l1.get(job_id)
         if cached is not None:
-            cached["status"] = new_status
+            updated = dict(cached)
+            updated["status"] = new_status
+            _l1[job_id] = updated
+            _l1.move_to_end(job_id)
     # Project the claimed transition (the in-memory fallback path projects via
     # set_job inside _cas_in_memory; this covers the Redis WATCH/MULTI path).
     if project:

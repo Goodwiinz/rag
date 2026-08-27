@@ -839,7 +839,10 @@ async def stream_agent(
 @router.post(
     "/stream/confirm",
     response_class=StreamingResponse,
-    responses=_SSE_RESPONSE,
+    responses={
+        **_SSE_RESPONSE,
+        429: {"model": HTTPErrorResponse, "description": "Rate limit exceeded"},
+    },
 )
 async def stream_confirm_agent(
     request_body: StreamConfirmRequest,

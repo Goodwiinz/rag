@@ -219,10 +219,12 @@ def _request_trace_id(request: Any) -> str:
     if not request_id:
         headers = getattr(request, "headers", {})
         request_id = headers.get("x-request-id") if headers else None
-    value = str(request_id or _uuid.uuid4())[:128]
+    value = str(request_id or _uuid.uuid4())
     # The header is caller-controlled: anything outside a plain token charset
-    # gets replaced rather than echoed into envelopes/ledger/LangSmith metadata.
-    if not re.fullmatch(r"[A-Za-z0-9._:-]+", value):
+    # or over 128 chars gets replaced rather than echoed into envelopes /
+    # ledger / LangSmith metadata. No truncation — two distinct oversized ids
+    # sharing a 128-char prefix must not collapse into one trace id.
+    if not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", value):
         return str(_uuid.uuid4())
     return value
 
