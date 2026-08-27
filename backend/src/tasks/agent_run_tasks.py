@@ -167,6 +167,7 @@ async def _mark_job_running(
                 ),
                 "request": request_payload,
             },
+            project=False,
         )
     except Exception:
         # The durable claim is authoritative and the graph can still run; the

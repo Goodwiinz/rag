@@ -168,8 +168,11 @@ async def test_confirm_store_outage_falls_back_to_agent_runs_projection() -> Non
 
 
 @pytest.mark.asyncio
-async def test_confirm_stale_live_running_state_is_reconciled() -> None:
-    """A stale live RUNNING mirror must not permanently 409 confirmation."""
+@pytest.mark.parametrize(
+    "stale_status", [JobStatus.RUNNING, JobStatus.QUEUED], ids=["running", "queued"]
+)
+async def test_confirm_stale_live_state_is_reconciled(stale_status: JobStatus) -> None:
+    """A stale live non-terminal mirror must not permanently 409 confirm."""
     user = _user()
     job_id = str(uuid.uuid4())
     run = SimpleNamespace(
@@ -182,19 +185,24 @@ async def test_confirm_stale_live_running_state_is_reconciled() -> None:
     release = AsyncMock(return_value=True)
 
     async def claim_live_mirror(
-        _job_id: str, expected: JobStatus, _new_status: JobStatus
+        _job_id: str,
+        expected: JobStatus,
+        _new_status: JobStatus,
+        *,
+        project: bool = True,
     ) -> str:
         # Reproduce the real Redis CAS: the stale record conflicts with the
-        # normal awaiting -> running claim, but an idempotent running -> running
-        # reconciliation can atomically establish this caller's mirror claim.
-        return "claimed" if expected is JobStatus.RUNNING else "conflict"
+        # normal awaiting -> running claim, but an exact-state reconciliation
+        # can atomically establish this caller's mirror claim.
+        assert project is False
+        return "claimed" if expected is stale_status else "conflict"
 
     with (
         patch(
             "src.services.agent.job_store.get_job_fresh",
             new=AsyncMock(
                 return_value={
-                    "status": JobStatus.RUNNING.value,
+                    "status": stale_status.value,
                     "user_id": str(user.id),
                 }
             ),
@@ -226,8 +234,13 @@ async def test_confirm_stale_live_running_state_is_reconciled() -> None:
 
     assert response == {"status": JobStatus.RUNNING, "job_id": job_id}
     assert mirror_claim.await_args_list == [
-        call(job_id, JobStatus.AWAITING_CONFIRMATION, JobStatus.RUNNING),
-        call(job_id, JobStatus.RUNNING, JobStatus.RUNNING),
+        call(
+            job_id,
+            JobStatus.AWAITING_CONFIRMATION,
+            JobStatus.RUNNING,
+            project=False,
+        ),
+        call(job_id, stale_status, JobStatus.RUNNING, project=False),
     ]
     release.assert_not_awaited()
 

@@ -76,6 +76,32 @@ async def test_set_job_schedules_projection_with_snapshot():
 
 
 @pytest.mark.asyncio
+async def test_live_only_nonterminal_write_skips_durable_projection():
+    """A mirror of an already-committed durable claim must stay live-only."""
+    recorded = AsyncMock()
+    redis_write = AsyncMock()
+
+    with (
+        patch.object(js, "set_job_redis_only", redis_write),
+        patch("src.services.agent.agent_run_service.record_job_status", new=recorded),
+    ):
+        await js.set_job(
+            "job-live-only",
+            {
+                "status": JobStatus.RUNNING,
+                "user_id": "u-1",
+                "organization_id": "org-1",
+            },
+            project=False,
+        )
+        await _drain_projection_tasks()
+
+    assert js._l1["job-live-only"]["status"] is JobStatus.RUNNING
+    redis_write.assert_awaited_once()
+    recorded.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_thread_terminal_projection_lands_before_job_publication():
     order = []
 
@@ -165,6 +191,32 @@ async def test_cas_in_memory_projects_the_claimed_transition():
     assert outcome == "claimed"
     statuses = [call.args[1]["status"] for call in recorded.await_args_list]
     assert JobStatus.RUNNING in statuses
+
+
+@pytest.mark.asyncio
+async def test_cas_live_only_skips_projection_after_durable_claim():
+    """A CAS mirroring an awaited Postgres claim must not race a re-park."""
+    recorded = AsyncMock()
+    js._l1["job-cas-live-only"] = {
+        "status": JobStatus.AWAITING_CONFIRMATION,
+        "user_id": "u-2",
+        "created_at": time.time(),
+    }
+    with (
+        patch.object(js, "_get_redis", AsyncMock(return_value=None)),
+        patch("src.services.agent.agent_run_service.record_job_status", new=recorded),
+    ):
+        outcome = await js.compare_and_set_status(
+            "job-cas-live-only",
+            JobStatus.AWAITING_CONFIRMATION,
+            JobStatus.RUNNING,
+            project=False,
+        )
+        await _drain_projection_tasks()
+
+    assert outcome == "claimed"
+    assert js._l1["job-cas-live-only"]["status"] is JobStatus.RUNNING
+    recorded.assert_not_awaited()
 
 
 @pytest.mark.asyncio

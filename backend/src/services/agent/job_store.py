@@ -313,11 +313,15 @@ async def _write_to_redis_only(job_id: str, data: dict) -> None:
         await _redis_write_if_newer(redis_client, job_id, data)
 
 
-async def set_job(job_id: str, data: dict) -> None:
+async def set_job(job_id: str, data: dict, *, project: bool = True) -> None:
     """Persist a job to Redis (L2) + in-memory L1 cache (write-through).
 
     L1 overwrite is guarded by ``created_at`` so a delayed fire-and-forget
     write cannot stomp a newer authoritative state written after it.
+
+    ``project=False`` is for live-store mirrors of a durable transition that
+    already committed synchronously. Scheduling a duplicate projection there
+    could land after a later state transition and regress the durable row.
     """
     global _seq
     data["created_at"] = time.time()
@@ -349,7 +353,8 @@ async def set_job(job_id: str, data: dict) -> None:
     except (TypeError, ValueError):
         status = None
     strict_terminal_projection = bool(
-        status is not None
+        project
+        and status is not None
         and status.is_terminal
         and projection_payload.get("thread_id")
     )
@@ -399,7 +404,7 @@ async def set_job(job_id: str, data: dict) -> None:
     # Non-terminal and threadless writes retain the rollout's best-effort
     # projection behavior. Thread-scoped terminal writes landed above, unless
     # the strict projection failed — that case falls back here too.
-    if not strict_terminal_projection or projection_failed:
+    if project and (not strict_terminal_projection or projection_failed):
         schedule_run_projection(job_id, data)
 
     # L2: Redis
@@ -430,7 +435,11 @@ async def set_job_redis_only(job_id: str, data: dict) -> None:
 
 
 async def _cas_in_memory(
-    job_id: str, expected: JobStatus | str, new_status: JobStatus | str
+    job_id: str,
+    expected: JobStatus | str,
+    new_status: JobStatus | str,
+    *,
+    project: bool = True,
 ) -> str:
     """Compare-and-set the status using the store API (L1 + write-through).
 
@@ -450,12 +459,16 @@ async def _cas_in_memory(
         current["status"] = new_status
         _l1[job_id] = current
         claimed = current
-    await set_job(job_id, claimed)
+    await set_job(job_id, claimed, project=project)
     return "claimed"
 
 
 async def compare_and_set_status(
-    job_id: str, expected: JobStatus | str, new_status: JobStatus | str
+    job_id: str,
+    expected: JobStatus | str,
+    new_status: JobStatus | str,
+    *,
+    project: bool = True,
 ) -> str:
     """Atomically flip a job's status from *expected* to *new_status*.
 
@@ -471,6 +484,10 @@ async def compare_and_set_status(
     twice. Uses a Redis WATCH/MULTI optimistic transaction (JSON parsed in
     Python to avoid cjson's empty-dict ambiguity). Disposable local/CI processes
     may fall back to memory; shared deployments fail closed without Redis.
+
+    ``project=False`` mirrors a durable transition that the caller already
+    committed synchronously; it prevents a redundant fire-and-forget write
+    from racing a later durable state.
     """
     redis_client = await _get_redis()
     if redis_client is None:
@@ -478,7 +495,7 @@ async def compare_and_set_status(
             raise ConfirmationCoordinationUnavailable(
                 "Distributed confirmation coordination is unavailable"
             )
-        return await _cas_in_memory(job_id, expected, new_status)
+        return await _cas_in_memory(job_id, expected, new_status, project=project)
 
     key = f"{_JOB_KEY_PREFIX}{job_id}"
     from redis.exceptions import RedisError, WatchError
@@ -540,7 +557,7 @@ async def compare_and_set_status(
                 )
             job = committed
         else:
-            return await _cas_in_memory(job_id, expected, new_status)
+            return await _cas_in_memory(job_id, expected, new_status, project=project)
 
     # Mirror the winning transition into L1 so this worker's polls are consistent.
     with _l1_lock:
@@ -549,7 +566,8 @@ async def compare_and_set_status(
             cached["status"] = new_status
     # Project the claimed transition (the in-memory fallback path projects via
     # set_job inside _cas_in_memory; this covers the Redis WATCH/MULTI path).
-    schedule_run_projection(job_id, job)
+    if project:
+        schedule_run_projection(job_id, job)
     return "claimed"
 
 

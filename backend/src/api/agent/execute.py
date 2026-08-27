@@ -731,20 +731,23 @@ async def confirm_agent_action(
     # payload coordinator, while PostgreSQL above decides Stop versus Confirm.
     try:
         result = await compare_and_set_status(
-            job_id, JobStatus.AWAITING_CONFIRMATION, JobStatus.RUNNING
+            job_id,
+            JobStatus.AWAITING_CONFIRMATION,
+            JobStatus.RUNNING,
+            project=False,
         )
         if (
             result == "conflict"
             and job_from_projection
-            and live_status == JobStatus.RUNNING
+            and live_status in {JobStatus.QUEUED, JobStatus.RUNNING}
         ):
             # The worker may have parked the durable run successfully while
-            # its Redis awaiting-confirmation write failed. PostgreSQL is now
-            # the authoritative winner, and the live mirror is already at the
-            # desired status; claim that exact stale state atomically so a
-            # delayed awaiting write or terminal transition still conflicts.
+            # its Redis running and/or awaiting-confirmation writes failed.
+            # PostgreSQL is now the authoritative winner; claim the exact
+            # known-stale live state atomically so a delayed awaiting write or
+            # terminal transition still conflicts.
             result = await compare_and_set_status(
-                job_id, JobStatus.RUNNING, JobStatus.RUNNING
+                job_id, live_status, JobStatus.RUNNING, project=False
             )
     except ConfirmationCoordinationUnavailable as exc:
         await release_durable_claim()
@@ -941,6 +944,7 @@ async def cancel_stream_confirmation(
             abandoned,
             JobStatus.AWAITING_CONFIRMATION,
             JobStatus.CANCELLED,
+            project=False,
         )
     except Exception:
         logger.warning(

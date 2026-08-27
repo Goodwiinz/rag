@@ -277,7 +277,7 @@ async def test_fail_job_record_preserves_owner_and_projects(session_factory):
 
 
 @pytest.mark.asyncio
-async def test_mark_job_running_updates_live_store_after_claim():
+async def test_mark_job_running_updates_live_store_without_reprojection():
     user = SimpleNamespace(id=uuid.uuid4(), organization_id=uuid.uuid4())
     request_payload = _payload()
     set_job = AsyncMock()
@@ -285,14 +285,17 @@ async def test_mark_job_running_updates_live_store_after_claim():
     with patch("src.services.agent.job_store.set_job", set_job):
         await tasks_mod._mark_job_running("job-1", request_payload, user)
 
-    written = set_job.await_args.args[1]
-    assert written == {
-        "status": JobStatus.RUNNING,
-        "tool_executions": [],
-        "user_id": str(user.id),
-        "organization_id": str(user.organization_id),
-        "request": request_payload,
-    }
+    set_job.assert_awaited_once_with(
+        "job-1",
+        {
+            "status": JobStatus.RUNNING,
+            "tool_executions": [],
+            "user_id": str(user.id),
+            "organization_id": str(user.organization_id),
+            "request": request_payload,
+        },
+        project=False,
+    )
 
 
 # ---------------------------------------------------------------------------
