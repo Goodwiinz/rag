@@ -161,6 +161,19 @@ const INCOMPLETE_STREAM_ERROR = 'Stream ended before completion. Please retry.';
 /** Read the backend's error body so the user sees the real cause, not just
  * an HTTP number. The backend returns the structured envelope
  * `{ error: { message, ... } }`; older paths may return `{detail: "..."}`. */
+/** A 200 that isn't actually SSE (auth portal, proxy error page) would
+ * otherwise parse to zero frames and surface as a generic incomplete-stream
+ * error — name the real cause instead (audit S-L13). A missing header is
+ * tolerated: real interlopers (portals, proxies) always declare text/html
+ * or application/json. */
+function nonSseContentType(response: Response): string | null {
+  const contentType = response.headers?.get?.('content-type');
+  if (!contentType || contentType.toLowerCase().includes('text/event-stream')) {
+    return null;
+  }
+  return contentType;
+}
+
 async function readErrorBody(response: Response): Promise<string> {
   let backendMessage = '';
   try {
@@ -426,6 +439,9 @@ async function consumeSse(
       // into the silence watchdog and reported a completed turn as stalled.
       if (terminalSeen) break;
     }
+    // Flush the decoder: a multibyte character split across the final
+    // network chunk is otherwise dropped (audit S-L15).
+    buffer += decoder.decode();
     // Defensive flush: if the server's final chunk ended without a
     // trailing \n (the backend always \n\n-terminates, so this is
     // rare), buffer holds an unprocessed data: line — process it so
@@ -653,6 +669,13 @@ class AgentChatService {
       );
       return;
     }
+    const badContentType = nonSseContentType(response);
+    if (badContentType) {
+      callbacks.onError?.(
+        `Stream failed: expected an event stream but got "${badContentType}"`
+      );
+      return;
+    }
 
     const terminalSeen = await consumeSse(response, callbacks);
     if (!terminalSeen && !signal?.aborted) {
@@ -710,6 +733,13 @@ class AgentChatService {
         error: backendMessage
           ? `Stream resume failed (${response.status}): ${backendMessage}`
           : `Stream resume failed: ${response.status}`,
+      };
+    }
+    const badContentType = nonSseContentType(response);
+    if (badContentType) {
+      return {
+        status: 'failed',
+        error: `Stream resume failed: expected an event stream but got "${badContentType}"`,
       };
     }
 
@@ -774,6 +804,13 @@ class AgentChatService {
           ? `Stream confirm failed (${response.status}): ${backendMessage}`
           : `Stream confirm failed: ${response.status}`,
         httpFailureCategory(response.status)
+      );
+      return;
+    }
+    const confirmBadContentType = nonSseContentType(response);
+    if (confirmBadContentType) {
+      callbacks.onError?.(
+        `Stream confirm failed: expected an event stream but got "${confirmBadContentType}"`
       );
       return;
     }

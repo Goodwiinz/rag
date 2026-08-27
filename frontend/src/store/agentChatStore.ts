@@ -376,6 +376,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     );
                     if (idx !== -1) {
                       state.messages[idx].content = '';
+                      // The revision replaces the whole attempt, not just the
+                      // text — keeping the failed attempt's citations/plan/
+                      // tools showed the new answer with the old sources
+                      // (same policy as the durable fallback).
+                      state.messages[idx].citations = undefined;
+                      state.messages[idx].plan = undefined;
+                      state.messages[idx].toolExecutions = undefined;
                     }
                   });
                 },
@@ -957,6 +964,12 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   );
                   if (idx !== -1) {
                     state.messages[idx].content = '';
+                    // Same policy as the durable fallback: the revision
+                    // replaces the whole attempt, so drop its citations/plan/
+                    // tools rather than pairing them with the new answer.
+                    state.messages[idx].citations = undefined;
+                    state.messages[idx].plan = undefined;
+                    state.messages[idx].toolExecutions = undefined;
                   }
                 });
               },

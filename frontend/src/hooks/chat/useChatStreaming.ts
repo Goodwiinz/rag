@@ -462,6 +462,26 @@ export function useChatStreaming(
   // Run-correlation id per thread (envelope stream_id) — persisted with the
   // seq cursor so resume pins to the run the cursor came from.
   const streamIdByThreadRef = useRef<Record<string, string>>({});
+  // Flush-then-cancel for the seq rAF at terminals: the last streamed seq is
+  // the resume cursor, so a pending value must be committed synchronously —
+  // cancelling the frame alone would drop it.
+  const flushPendingSeq = useCallback(() => {
+    if (seqRafRef.current !== null) {
+      cancelAnimationFrame(seqRafRef.current);
+      seqRafRef.current = null;
+    }
+    const p = pendingSeqRef.current;
+    pendingSeqRef.current = null;
+    if (p) {
+      useAgentActivityStore
+        .getState()
+        .setStreamSeq(
+          p.threadId,
+          p.seq,
+          streamIdByThreadRef.current[p.threadId] ?? p.streamId
+        );
+    }
+  }, []);
   // Threads a resume was already attempted for this mount — guards against
   // double-resume from effect re-runs (StrictMode, dep changes).
   const resumeTriedRef = useRef<Set<string>>(new Set());
@@ -1051,6 +1071,7 @@ export function useChatStreaming(
           cancelAnimationFrame(streamingRafRef.current);
           streamingRafRef.current = null;
         }
+        flushPendingSeq();
         pendingStreamContentRef.current = null;
 
         // Don't append a normal message if stream errored or needs confirmation
@@ -1291,6 +1312,9 @@ export function useChatStreaming(
         ) {
           cancelAnimationFrame(streamingRafRef.current);
           streamingRafRef.current = null;
+        }
+        if (streamOwnerRef.current === streamOwner) {
+          flushPendingSeq();
         }
         if (streamOwnerRef.current === streamOwner) {
           pendingStreamContentRef.current = null;
@@ -2392,11 +2416,16 @@ export function useChatStreaming(
           // with handleSubmit's onToken throttle. A token that lands just
           // before completion schedules a rAF that would otherwise fire AFTER
           // this reset and resurrect stale streamingContent into the store.
-          if (streamingRafRef.current !== null) {
-            cancelAnimationFrame(streamingRafRef.current);
-            streamingRafRef.current = null;
+          // Owner-guarded like runStreamTurn's teardown: a newer stream that
+          // claimed the shared slot must not lose its first scheduled flush.
+          if (streamOwnerRef.current === confirmStreamOwner) {
+            if (streamingRafRef.current !== null) {
+              cancelAnimationFrame(streamingRafRef.current);
+              streamingRafRef.current = null;
+            }
+            flushPendingSeq();
+            pendingStreamContentRef.current = null;
           }
-          pendingStreamContentRef.current = null;
           // Same ownership rule as runStreamTurn: a nested interrupt (or any
           // newer stream started while this one was reconciling) owns the
           // slice now, and must not be wiped by this turn's teardown.
