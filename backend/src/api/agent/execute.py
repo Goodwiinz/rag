@@ -646,6 +646,16 @@ async def confirm_agent_action(
     )
     from src.services.agent.job_store import get_job_fresh as _get_job_fresh
 
+    async def rollback_confirmation_session(context: str) -> None:
+        try:
+            await db.rollback()
+        except Exception:
+            logger.warning(
+                "Failed to roll back confirmation %s",
+                context,
+                exc_info=True,
+            )
+
     # Read the job Redis-first for the friendly 404 + ownership/status check.
     # In Celery dispatch mode the awaiting_confirmation write came from the
     # worker process, so this pod's L1 may still hold the stale "running"
@@ -672,13 +682,7 @@ async def confirm_agent_action(
                 user_id=current_user.id,
             )
         except Exception as exc:
-            try:
-                await db.rollback()
-            except Exception:
-                logger.warning(
-                    "Failed to roll back confirmation projection read",
-                    exc_info=True,
-                )
+            await rollback_confirmation_session("projection read")
             raise HTTPException(
                 status_code=503,
                 detail="Confirmation is temporarily unavailable; please retry",
@@ -703,7 +707,7 @@ async def confirm_agent_action(
             user_id=current_user.id,
         )
     except Exception as exc:
-        await db.rollback()
+        await rollback_confirmation_session("claim")
         raise HTTPException(
             status_code=503,
             detail="Confirmation is temporarily unavailable; please retry",
@@ -720,7 +724,7 @@ async def confirm_agent_action(
                 user_id=current_user.id,
             )
         except Exception:
-            await db.rollback()
+            await rollback_confirmation_session("claim release")
             logger.exception("Failed to release confirmation claim for %s", job_id)
 
     # Mirror the durable claim into Redis. This remains the cross-worker job

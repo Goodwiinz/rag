@@ -280,6 +280,42 @@ async def test_confirm_empty_live_record_fails_closed_before_projection() -> Non
 
 
 @pytest.mark.asyncio
+async def test_confirm_claim_failure_is_503_even_if_rollback_fails() -> None:
+    """The retryable API contract survives a broken transaction cleanup."""
+    user = _user()
+    db = AsyncMock()
+    db.rollback.side_effect = RuntimeError("rollback also unavailable")
+
+    with (
+        patch(
+            "src.services.agent.job_store.get_job_fresh",
+            new=AsyncMock(
+                return_value={
+                    "status": JobStatus.AWAITING_CONFIRMATION,
+                    "user_id": str(user.id),
+                }
+            ),
+        ),
+        patch(
+            "src.api.agent.execute.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(side_effect=RuntimeError("postgres unavailable")),
+        ),
+        pytest.raises(HTTPException) as exc,
+    ):
+        await confirm_agent_action(
+            str(uuid.uuid4()),
+            ConfirmationRequest(confirmed=True),
+            MagicMock(),
+            current_user=user,
+            db=db,
+        )
+
+    assert exc.value.status_code == 503
+    assert exc.value.detail == "Confirmation is temporarily unavailable; please retry"
+    db.rollback.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_redis_miss_falls_back_to_agent_runs_projection():
     user = _user()
     run = SimpleNamespace(status="completed", error=None)
