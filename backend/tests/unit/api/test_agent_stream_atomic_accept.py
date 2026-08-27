@@ -94,6 +94,19 @@ class _FakeGraph:
         return None
 
 
+class _AdvancingClock:
+    """Deterministic monotonic clock advanced by the patched replay sleep."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+    async def sleep(self, delay: float) -> None:
+        self.now = round(self.now + delay, 10)
+
+
 @pytest.fixture
 async def session_factory(
     tmp_path: Path,
@@ -503,7 +516,8 @@ async def test_retry_waits_for_original_stream_startup_before_terminalizing(
         client_message_id=client_message_id,
     )
     stream_lookup = AsyncMock(side_effect=[None, "started-stream"])
-    sleep = AsyncMock()
+    clock = _AdvancingClock()
+    sleep = AsyncMock(side_effect=clock.sleep)
     replay_calls: list[tuple[str, str, bool]] = []
 
     async def replay_started_stream(
@@ -527,6 +541,7 @@ async def test_retry_waits_for_original_stream_startup_before_terminalizing(
                 new=stream_lookup,
             ),
             patch.object(streaming_mod.asyncio, "sleep", new=sleep),
+            patch.object(streaming_mod.time, "monotonic", new=clock.monotonic),
             patch.object(
                 streaming_mod,
                 "replay_buffered_stream",
@@ -574,6 +589,7 @@ async def test_retry_does_not_fail_run_that_started_during_grace(
         client_message_id=client_message_id,
     )
     lookup_count = 0
+    clock = _AdvancingClock()
 
     async def missing_buffer_while_dispatch_starts(_run_id: str) -> None:
         nonlocal lookup_count
@@ -595,7 +611,12 @@ async def test_retry_does_not_fail_run_that_started_during_grace(
                 "stream_id_for_run",
                 new=missing_buffer_while_dispatch_starts,
             ),
-            patch.object(streaming_mod.asyncio, "sleep", new=AsyncMock()),
+            patch.object(
+                streaming_mod.asyncio,
+                "sleep",
+                new=AsyncMock(side_effect=clock.sleep),
+            ),
+            patch.object(streaming_mod.time, "monotonic", new=clock.monotonic),
         ),
     )
 
@@ -739,6 +760,12 @@ async def test_original_never_executes_after_abandonment_claim_wins(
     from src.services.agent.agent_submission_service import fail_queued_submission
 
     graph = _FakeGraph()
+    client_message_id = uuid.uuid4()
+    stream_id = "lost-claim-stream"
+    buffered_frames: list[str] = []
+
+    async def record_frame(_stream_id: str, _seq: int, frame: str) -> None:
+        buffered_frames.append(frame)
 
     async def abandon_instead_of_dispatch(
         db: AsyncSession,
@@ -765,7 +792,23 @@ async def test_original_never_executes_after_abandonment_claim_wins(
     frames = await _drive_stream(
         session_factory,
         graph=graph,
+        client_message_id=client_message_id,
         extra_patches=(
+            patch.object(
+                streaming_mod._stream_buffer,
+                "start_stream",
+                new=AsyncMock(return_value=stream_id),
+            ),
+            patch.object(
+                streaming_mod._stream_buffer,
+                "append",
+                new=record_frame,
+            ),
+            patch.object(
+                streaming_mod._stream_buffer,
+                "finish_stream",
+                new=AsyncMock(),
+            ),
             patch.object(
                 streaming_mod,
                 "mark_submission_dispatched",
@@ -800,6 +843,42 @@ async def test_original_never_executes_after_abandonment_claim_wins(
         )
         assert failed_count == 1
 
+    async def replay_recorded_frames(
+        _request: Any,
+        *,
+        thread_id: str,
+        stream_id: str,
+        wait_for_start: bool,
+    ) -> AsyncIterator[str]:
+        assert thread_id == str(THREAD_ID)
+        assert stream_id == "lost-claim-stream"
+        assert wait_for_start is True
+        for frame in buffered_frames:
+            yield frame
+
+    replayed_frames = await _drive_stream(
+        session_factory,
+        client_message_id=client_message_id,
+        extra_patches=(
+            patch.object(
+                streaming_mod._stream_buffer,
+                "stream_id_for_run",
+                new=AsyncMock(return_value=stream_id),
+            ),
+            patch.object(
+                streaming_mod,
+                "replay_buffered_stream",
+                new=replay_recorded_frames,
+            ),
+        ),
+    )
+    replayed_errors = frames_of_type(replayed_frames, "error")
+    assert len(replayed_errors) == 1
+    assert (
+        sse_data(replayed_errors[0])["error"]
+        == "This response is no longer active. Please retry."
+    )
+
 
 @pytest.mark.asyncio
 async def test_undispatched_retry_fails_after_grace_and_releases_the_thread_slot(
@@ -815,7 +894,8 @@ async def test_undispatched_retry_fails_after_grace_and_releases_the_thread_slot
         client_message_id=client_message_id,
     )
     stream_lookup = AsyncMock(return_value=None)
-    sleep = AsyncMock()
+    clock = _AdvancingClock()
+    sleep = AsyncMock(side_effect=clock.sleep)
 
     frames = await _drive_stream(
         session_factory,
@@ -827,11 +907,12 @@ async def test_undispatched_retry_fails_after_grace_and_releases_the_thread_slot
                 new=stream_lookup,
             ),
             patch.object(streaming_mod.asyncio, "sleep", new=sleep),
+            patch.object(streaming_mod.time, "monotonic", new=clock.monotonic),
         ),
     )
 
-    assert stream_lookup.await_count == 50
-    assert sleep.await_count == 49
+    assert stream_lookup.await_count == 51
+    assert sleep.await_count == 50
     errors = frames_of_type(frames, "error")
     assert len(errors) == 1
     error = sse_data(errors[0])

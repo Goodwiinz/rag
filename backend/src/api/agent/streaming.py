@@ -80,6 +80,8 @@ _PROGRESS_PHASES = frozenset(
     {"accepted", "routing", "retrieving", "planning", "writing", "finalizing"}
 )
 _MAX_PROGRESS_STEPS = 16
+_REPLAY_STREAM_START_GRACE_S = 5.0
+_REPLAY_STREAM_POLL_INTERVAL_S = 0.1
 
 
 def _ttft_ms(emitter: Any, stream_started_at: float) -> Optional[int]:
@@ -469,7 +471,6 @@ async def _stream_luna_fast_path(
                         "This response is no longer active. Please retry.",
                         AgentErrorCategory.CONFLICT,
                     ),
-                    buffer=False,
                 )
                 await emitter.finish()
                 return
@@ -1666,14 +1667,17 @@ async def stream_event_generator(
             # five-second grace period used by the pre-audit replay path before
             # deciding that its dispatch was abandoned.
             replay_sid = None
-            for attempt in range(50):
+            replay_deadline = time.monotonic() + _REPLAY_STREAM_START_GRACE_S
+            while True:
                 replay_sid = await _stream_buffer.stream_id_for_run(acceptance.run_id)
                 if replay_sid is not None:
                     break
                 if await request.is_disconnected():
                     return
-                if attempt < 49:
-                    await asyncio.sleep(0.1)
+                remaining = replay_deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                await asyncio.sleep(min(_REPLAY_STREAM_POLL_INTERVAL_S, remaining))
 
             if replay_sid is None:
                 abandoned_message = "The original response did not start. Please retry."
@@ -1995,7 +1999,6 @@ async def stream_event_generator(
                         "This response is no longer active. Please retry.",
                         AgentErrorCategory.CONFLICT,
                     ),
-                    buffer=False,
                 )
                 await emitter.finish()
                 return

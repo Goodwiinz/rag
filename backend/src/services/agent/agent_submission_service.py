@@ -760,10 +760,11 @@ async def mark_submission_dispatched(
     """Atomically claim an accepted run for execution and commit.
 
     The ``queued`` → ``running`` update is the execution claim. ``False`` means
-    a replay already abandoned the run (or durable state was unavailable), so
-    the caller must not enter the graph/LLM. The run is locked before its
-    outbox row, matching :func:`fail_queued_submission` and avoiding a deadlock
-    when those two claims race.
+    a replay already abandoned the run, so the caller must not enter the
+    graph/LLM. Durable-state failures raise so the stream's error path can
+    terminalize the accepted run. The run is locked before its outbox row,
+    matching :func:`fail_queued_submission` and avoiding a deadlock when those
+    two claims race.
     """
     now = _utcnow()
     try:
@@ -821,7 +822,7 @@ async def mark_submission_dispatched(
             await db.rollback()
         except Exception:
             logger.debug("rollback after dispatch stamp failure failed", exc_info=True)
-        return False
+        raise
 
 
 # One retry only: a second consecutive disconnect means the database is

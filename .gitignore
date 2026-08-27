@@ -25,6 +25,8 @@ MANIFEST
 
 # Virtual Environments
 .venv/
+# A trailing slash does not match a virtualenv symlink.
+.venv
 .ven/
 venv/
 env/
