@@ -128,9 +128,13 @@ async def test_confirm_store_outage_falls_back_to_agent_runs_projection() -> Non
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "src.services.agent.agent_run_service.get_run_fallback",
+            "src.services.agent.agent_run_service.get_run",
             new=AsyncMock(return_value=run),
-        ) as fallback,
+        ) as projection_read,
+        patch(
+            "src.services.agent.agent_run_service.get_run_fallback",
+            new=AsyncMock(return_value=None),
+        ),
         patch(
             "src.api.agent.execute.claim_awaiting_run_for_confirmation",
             new=AsyncMock(return_value=True),
@@ -154,12 +158,95 @@ async def test_confirm_store_outage_falls_back_to_agent_runs_projection() -> Non
         )
 
     assert exc.value.status_code == 503
-    fallback.assert_awaited_once_with(
+    projection_read.assert_awaited_once_with(
+        db,
         job_id,
         organization_id=user.organization_id,
         user_id=user.id,
     )
     release.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_confirm_stale_live_state_uses_awaiting_projection() -> None:
+    """A stale L1 record must not 409 a durable confirmation gate."""
+    user = _user()
+    job_id = str(uuid.uuid4())
+    run = SimpleNamespace(
+        status=JobStatus.AWAITING_CONFIRMATION,
+        error=None,
+        user_id=user.id,
+    )
+    db = AsyncMock()
+    background_tasks = MagicMock()
+
+    with (
+        patch(
+            "src.services.agent.job_store.get_job_fresh",
+            new=AsyncMock(
+                return_value={
+                    "status": JobStatus.RUNNING.value,
+                    "user_id": str(user.id),
+                }
+            ),
+        ),
+        patch(
+            "src.services.agent.agent_run_service.get_run",
+            new=AsyncMock(return_value=run),
+        ),
+        patch(
+            "src.api.agent.execute.claim_awaiting_run_for_confirmation",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.services.agent.job_store.compare_and_set_status",
+            new=AsyncMock(return_value="updated"),
+        ),
+    ):
+        response = await confirm_agent_action(
+            job_id,
+            ConfirmationRequest(confirmed=True),
+            background_tasks,
+            current_user=user,
+            db=db,
+        )
+
+    assert response == {"status": JobStatus.RUNNING, "job_id": job_id}
+
+
+@pytest.mark.asyncio
+async def test_confirm_projection_read_failure_is_retryable_503() -> None:
+    """An unavailable durable store is not evidence that a run is absent."""
+    user = _user()
+    job_id = str(uuid.uuid4())
+    db = AsyncMock()
+
+    with (
+        patch(
+            "src.services.agent.job_store.get_job_fresh",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.services.agent.agent_run_service.get_run",
+            new=AsyncMock(side_effect=RuntimeError("postgres unavailable")),
+        ),
+        patch(
+            "src.services.agent.agent_run_service.get_run_fallback",
+            new=AsyncMock(return_value=None),
+        ),
+        pytest.raises(HTTPException) as exc,
+    ):
+        await confirm_agent_action(
+            job_id,
+            ConfirmationRequest(confirmed=True),
+            MagicMock(),
+            current_user=user,
+            db=db,
+        )
+
+    assert exc.value.status_code == 503
+    assert exc.value.detail == "Confirmation is temporarily unavailable; please retry"
+    db.rollback.assert_awaited_once()
 
 
 @pytest.mark.asyncio

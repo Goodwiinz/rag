@@ -653,21 +653,38 @@ async def confirm_agent_action(
     # (The authoritative claim is the guarded PostgreSQL transition below.)
     job = await _get_job_fresh(job_id)
     job_from_projection = False
-    if not job:
+    if job:
+        # Fail closed before consulting another store: a live record owned by
+        # someone else must never become a tenancy oracle through fallback.
+        job_user_id = job.get("user_id")
+        if not job_user_id or job_user_id != str(current_user.id):
+            raise HTTPException(status_code=404, detail="Job not found")
+
+    live_status = _normalized_job_status(job.get("status")) if job else None
+    if job is None or live_status != JobStatus.AWAITING_CONFIRMATION:
         from src.services.agent import agent_run_service
 
-        run = await agent_run_service.get_run_fallback(
-            job_id,
-            organization_id=getattr(current_user, "organization_id", None),
-            user_id=current_user.id,
-        )
-        if run is None:
+        try:
+            run = await agent_run_service.get_run(
+                db,
+                job_id,
+                organization_id=getattr(current_user, "organization_id", None),
+                user_id=current_user.id,
+            )
+        except Exception as exc:
+            await db.rollback()
+            raise HTTPException(
+                status_code=503,
+                detail="Confirmation is temporarily unavailable; please retry",
+            ) from exc
+        if run is not None:
+            job_from_projection = True
+            job = {
+                "status": _normalized_job_status(run.status),
+                "user_id": str(run.user_id),
+            }
+        elif job is None:
             raise HTTPException(status_code=404, detail="Job not found")
-        job_from_projection = True
-        job = {
-            "status": _normalized_job_status(run.status),
-            "user_id": str(run.user_id),
-        }
     _validate_confirmable_job(job, current_user)
 
     # PostgreSQL is the shared Stop/Confirm authority. Claim it before Redis so
