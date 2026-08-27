@@ -64,6 +64,74 @@ not current operational state.
    push, PR creation, merge, deployment, or external messaging. Lack of
    authority produces `ready-for-human`; it is not permission to infer.
 
+## Cross-machine coordination
+
+`local` is the compatibility and rollback mode. It uses only the existing
+`scripts/loop_bridge.py` board and must never be described as cross-machine
+unless every runtime has independently verified the same shared filesystem.
+
+`remote-required` uses the orphan `nous-coordination` branch on the configured
+Git remote as the authoritative board, with `$LOOP_BRIDGE_DIR` retained only as
+that machine's same-host mutex. Configure both machines at the same tooling
+revision:
+
+```bash
+export NOUS_COORD_MODE=remote-required
+export NOUS_COORD_GIT_REMOTE=origin
+export NOUS_GITHUB_REPOSITORY=Goodwiinz/rag
+export NOUS_COORD_BRANCH=nous-coordination
+export NOUS_MACHINE_ID=<stable-machine-id>
+export LOOP_BRIDGE_DIR=<machine-local-mutex-dir>
+export NOUS_RECEIPT_DIR=<machine-local-receipt-dir>
+```
+
+The Git board contains only `claims.json` and `runs/<run-id>.json`. Bootstrap
+creates one orphan root with a normal absent-ref push. Updates shallow-fetch a
+unique `refs/nous/tmp/...` ref, validate the complete schema and dedicated
+committer identity, build one full-snapshot child commit, and use a plain
+fast-forward push. A push race refetches and re-derives the operation, with
+at most five attempts. Routine tooling rejects force pushes and remote deletion.
+
+Claims are fenced by `run_id` plus `claim_id`, use a three-hour TTL, and are
+acquired remote-first then local. A local conflict compensating-releases the
+remote claim. Renewal and release must present the exact fencing values printed
+by `claim`; expiry is final. `list` and `check` label remote and local results
+separately, and a remote transport failure never falls back to local-only.
+An expired nonterminal run may be re-acquired only by presenting its last
+`claim_id`; the winning claim rotates that token and fences every stale holder.
+
+```bash
+python3 scripts/nous_run.py list --json
+python3 scripts/nous_run.py check --area "smoke" --files scripts/loop_bridge.py --json
+python3 scripts/nous_run.py claim --agent <agent> --branch <branch> \
+  --area "<area>" --files <comma-separated-paths> --authorize coordinate
+python3 scripts/nous_run.py renew --run-id <run-id> --claim-id <claim-id> \
+  --authorize coordinate
+python3 scripts/nous_run.py release --run-id <run-id> --claim-id <claim-id> \
+  --reason <reason> --authorize coordinate
+```
+
+The current coordination milestone does not yet implement cross-machine
+receipt resume, publication, or GitHub reconciliation. Do not run a real tick
+in `remote-required` until those later milestones are present and the rollout
+smoke test below has passed from both machines.
+
+Cutover is a maintenance window, in this order: stop both loops; reconcile or
+expire both local boards; update both clients to the same revision; bootstrap
+`nous-coordination`; configure both machines and run
+`cutover --write-sentinel --authorize coordinate`; apply a branch ruleset that blocks force-push and
+deletion while allowing ordinary fast-forward pushes; perform the two-machine
+claim/conflict/disjoint/release smoke test; then restart loops. Bootstrap and
+cutover are separate operations. The local `.remote-required` sentinel makes
+direct legacy mutation commands refuse while leaving legacy `list`
+observational.
+
+To roll back, stop both loops first, release or expire remote claims while both
+clients are still in `remote-required`, set `NOUS_COORD_MODE=local` on both,
+then run `python3 scripts/nous_run.py rollback --remove-sentinel --authorize
+coordinate` on each machine before resuming the local bridge workflow. Leave
+the coordination branch in place and inert; never rewrite its history.
+
 ## One-tick workflow
 
 ### 1. Reconcile prior work

@@ -8,8 +8,9 @@ small compensation sequence used when both leases are acquired together.
 
 from __future__ import annotations
 
+import builtins
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
@@ -541,6 +542,101 @@ def acquire_remote_then_local(
     return remote_claim
 
 
+@dataclass(frozen=True)
+class BoardView:
+    remote: tuple[Claim, ...]
+    local: tuple[Mapping[str, object], ...]
+
+
+class CombinedBackend(CoordinationBackend):
+    """Remote authority plus the existing same-host mutex."""
+
+    def __init__(
+        self,
+        remote: CoordinationBackend,
+        local: LocalMutex,
+        *,
+        on_compensation_pending: Callable[[Claim], None] | None = None,
+    ) -> None:
+        self.remote = remote
+        self.local = local
+        self.on_compensation_pending = on_compensation_pending
+
+    def claim(self, **kwargs) -> Claim:
+        request = ClaimRequest(**kwargs)
+        return acquire_remote_then_local(
+            remote=self.remote,
+            local=self.local,
+            request=request,
+            on_compensation_pending=self.on_compensation_pending,
+        )
+
+    def assert_claim(self, *, run_id: str, claim_id: str) -> Claim:
+        return self.remote.assert_claim(run_id=run_id, claim_id=claim_id)
+
+    def renew(self, *, run_id: str, claim_id: str, ttl_seconds: int) -> Claim:
+        claim = self.remote.renew(
+            run_id=run_id, claim_id=claim_id, ttl_seconds=ttl_seconds
+        )
+        self.local.heartbeat_legacy(claim.branch, ttl_seconds)
+        return claim
+
+    def release(
+        self, *, run_id: str, claim_id: str, reason: str, remove_run: bool = False
+    ) -> None:
+        claim = self.remote.assert_claim(run_id=run_id, claim_id=claim_id)
+        self.local.release_legacy(claim.branch, reason)
+        self.remote.release(
+            run_id=run_id,
+            claim_id=claim_id,
+            reason=reason,
+            remove_run=remove_run,
+        )
+
+    def list(self) -> list[Claim]:
+        return self.remote.list()
+
+    def list_runs(self) -> tuple[RunProjection, ...]:
+        return self.remote.list_runs()
+
+    def check(self, *, area: str, files: Sequence[str]) -> builtins.list[Claim]:
+        return self.remote.check(area=area, files=files)
+
+    def put_run(self, projection: RunProjection, *, claim_id: str) -> None:
+        self.remote.put_run(projection, claim_id=claim_id)
+
+    def get_run(self, run_id: str) -> RunProjection:
+        return self.remote.get_run(run_id)
+
+    def finalize(
+        self, projection: RunProjection, *, claim_id: str, release_claim: bool
+    ) -> None:
+        if release_claim:
+            claim = self.remote.assert_claim(
+                run_id=projection.run_id, claim_id=claim_id
+            )
+            if projection.branch != claim.branch:
+                raise ClaimLost("run projection ownership changed")
+            self.local.release_legacy(claim.branch, projection.outcome or "done")
+        self.remote.finalize(projection, claim_id=claim_id, release_claim=release_claim)
+
+    def finalize_orphan(
+        self,
+        projection: RunProjection,
+        *,
+        expected_claim_id: str,
+        expected_updated_at: str,
+    ) -> None:
+        self.remote.finalize_orphan(
+            projection,
+            expected_claim_id=expected_claim_id,
+            expected_updated_at=expected_updated_at,
+        )
+
+    def view(self) -> BoardView:
+        return BoardView(tuple(self.remote.list()), tuple(self.local.list_legacy()))
+
+
 __all__ = [
     "ACTIVE",
     "BACKEND_STATES",
@@ -578,7 +674,9 @@ __all__ = [
     "STAGE_STATES",
     "ValidationError",
     "BackendUnavailable",
+    "BoardView",
     "Blocker",
     "Candidate",
+    "CombinedBackend",
     "acquire_remote_then_local",
 ]

@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime as _dt
 import fcntl
 import json
+import os
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -25,6 +26,7 @@ from .coordination import (
 from .schema import SchemaError, decode_legacy_claims
 
 DEFAULT_TTL_SECONDS = 45 * 60
+REMOTE_REQUIRED_SENTINEL = ".remote-required"
 
 
 def _now() -> datetime:
@@ -309,16 +311,49 @@ class LocalBackend(LocalMutex):
             return conflicts
 
 
+def has_remote_required_sentinel(bridge_dir: Path) -> bool:
+    return (bridge_dir / REMOTE_REQUIRED_SENTINEL).is_file()
+
+
+def legacy_mutations_allowed(bridge_dir: Path, *, mode: str) -> bool:
+    return mode != "remote-required" and not has_remote_required_sentinel(bridge_dir)
+
+
+def write_remote_required_sentinel(bridge_dir: Path) -> Path:
+    bridge_dir.mkdir(parents=True, exist_ok=True)
+    sentinel = bridge_dir / REMOTE_REQUIRED_SENTINEL
+    descriptor = os.open(sentinel, os.O_CREAT | os.O_WRONLY, 0o600)
+    os.close(descriptor)
+    sentinel.chmod(0o600)
+    return sentinel
+
+
+def remove_remote_required_sentinel(bridge_dir: Path) -> bool:
+    sentinel = bridge_dir / REMOTE_REQUIRED_SENTINEL
+    try:
+        sentinel.unlink()
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        raise BackendUnavailable(f"unable to remove cutover sentinel: {exc}") from None
+    return True
+
+
 __all__ = [
     "DEFAULT_TTL_SECONDS",
     "LocalBackend",
+    "REMOTE_REQUIRED_SENTINEL",
     "audit",
     "decode_state",
     "live_claims",
+    "has_remote_required_sentinel",
+    "legacy_mutations_allowed",
     "locked",
+    "remove_remote_required_sentinel",
     "overlap",
     "read_mutating",
     "read_observational",
     "resolve_bridge_dir",
     "write_state",
+    "write_remote_required_sentinel",
 ]
