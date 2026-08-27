@@ -170,7 +170,11 @@ def _wrap_schema_error(function: Callable[[], object]) -> object:
     try:
         return function()
     except SchemaError as exc:
-        raise ValidationError(exc) from exc
+        # Validators may have chained parser exceptions whose repr/traceback
+        # includes the rejected input. Keep only the safe public message in a
+        # fresh SchemaError and suppress the original chain at this boundary.
+        sanitized = SchemaError(str(exc))
+        raise ValidationError(sanitized) from None
 
 
 @dataclass(frozen=True)
@@ -522,7 +526,12 @@ def acquire_remote_then_local(
             )
         except BackendUnavailable:
             if on_compensation_pending is not None:
-                on_compensation_pending(remote_claim)
+                try:
+                    on_compensation_pending(remote_claim)
+                except Exception:
+                    # The backend failure is the actionable coordination
+                    # result; a reporting callback must not replace it.
+                    pass
             raise
         raise
     return remote_claim

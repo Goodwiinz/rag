@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import fields
+import traceback
 from typing import Any
 
 import pytest
@@ -76,6 +77,33 @@ def make_request() -> ClaimRequest:
         ttl_seconds=10800,
         claim_id=None,
     )
+
+
+def make_projection(**overrides: Any) -> RunProjection:
+    values: dict[str, Any] = {
+        "schema": 1,
+        "run_id": RUN_ID,
+        "agent": "agent",
+        "machine_id": "linux",
+        "claim_id": "c-a1b2c3d4e5f6",
+        "state": "claimed",
+        "outcome": None,
+        "branch": "fix/bug",
+        "area": "bug",
+        "files": ("x.py",),
+        "candidate": None,
+        "base_sha": SHA,
+        "evidence_head_sha": SHA,
+        "pr": None,
+        "parent_run_id": None,
+        "blocker": None,
+        "claim_expires_at": LATER,
+        "milestones": (),
+        "milestones_truncated": False,
+        "updated_at": STAMP,
+    }
+    values.update(overrides)
+    return RunProjection(**values)
 
 
 class FakeCoordinationBackend:
@@ -304,7 +332,46 @@ def test_models_validate_schema_values_and_hide_secret_input():
     with pytest.raises(ValidationError) as caught:
         Candidate("trace", secret, None)
     assert secret not in str(caught.value)
-    assert caught.value.__cause__ is not None
+    assert caught.value.__cause__ is None
+
+
+def test_validation_error_hides_secret_from_the_complete_exception_chain():
+    secret = "ghp_" + "a" * 32
+    with pytest.raises(ValidationError) as caught:
+        Claim(
+            claim_id="c-a1b2c3d4e5f6",
+            run_id=RUN_ID,
+            agent="agent",
+            machine_id="linux",
+            branch="fix/bug",
+            area="bug",
+            files=("x.py",),
+            pr=None,
+            status="active",
+            claimed_at=secret,
+            expires_at=LATER,
+            renewed_at=None,
+            candidate=None,
+        )
+    formatted = "".join(traceback.format_exception(caught.value))
+    assert secret not in formatted
+    assert caught.value.__cause__ is None
+    assert caught.value.schema_error.__cause__ is None
+
+
+def test_projection_blocker_requires_ready_for_human_outcome():
+    blocker = Blocker("permission", "needs approval")
+    with pytest.raises(ValidationError):
+        make_projection(blocker=blocker)
+    assert (
+        make_projection(outcome="ready-for-human", blocker=blocker).blocker == blocker
+    )
+
+
+def test_projection_milestones_are_capped_at_forty_entries():
+    milestone = Milestone("claimed", STAMP, SHA, None)
+    with pytest.raises(ValidationError):
+        make_projection(milestones=(milestone,) * 41)
 
 
 def test_claim_request_separates_remote_fencing_from_legacy_mutex():
@@ -384,6 +451,25 @@ def test_failed_compensation_is_reported_as_pending():
             on_compensation_pending=pending.append,
         )
     assert pending and pending[0].claim_id == "c-a1b2c3d4e5f6"
+
+
+def test_callback_failure_does_not_mask_compensating_backend_failure():
+    remote = FakeCoordinationBackend(
+        claim_result=make_claim(),
+        release_error=BackendUnavailable("offline"),
+    )
+    local = FakeLocalMutex(claim_error=Conflict("same file"))
+
+    def callback(_: Claim) -> None:
+        raise RuntimeError("callback-failed")
+
+    with pytest.raises(BackendUnavailable, match="offline"):
+        acquire_remote_then_local(
+            remote=remote,
+            local=local,
+            request=make_request(),
+            on_compensation_pending=callback,
+        )
 
 
 def test_claim_mismatch_is_claim_lost_and_not_conflict():
