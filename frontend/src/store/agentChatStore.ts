@@ -376,6 +376,11 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     );
                     if (idx !== -1) {
                       state.messages[idx].content = '';
+                      // Citations/plan/toolExecutions are deliberately KEPT:
+                      // reflection routes straight back to the LLM without
+                      // re-running retrieval or tools, so those frames are
+                      // never re-emitted and the same provenance backs the
+                      // revised answer (matches the persisted row on reload).
                     }
                   });
                 },
@@ -957,6 +962,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   );
                   if (idx !== -1) {
                     state.messages[idx].content = '';
+                    // Citations/plan/toolExecutions deliberately KEPT — see
+                    // the cloud handler above: revision never re-emits them.
                   }
                 });
               },
