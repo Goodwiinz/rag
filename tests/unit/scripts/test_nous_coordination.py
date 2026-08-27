@@ -178,10 +178,11 @@ class FakeLocalMutex:
             raise self.claim_error
         return {"branch": branch}
 
-    def release_legacy(self, branch: str, reason: str) -> None:
+    def release_legacy(self, branch: str, reason: str) -> bool:
         self.calls.append("local.release_legacy")
         self.timeline.append("local.release_legacy")
         self.releases.append((branch, reason))
+        return True
 
 
 def test_dataclasses_have_exact_frozen_fields_and_keep_conflict_inputs():

@@ -179,8 +179,8 @@ def test_heartbeat_refuses_expired_or_unknown_branch_and_release_always_audits(
     with pytest.raises(BackendUnavailable):
         backend.heartbeat_legacy("unknown", 60)
 
-    backend.release_legacy("branch", "done")
-    backend.release_legacy("branch", "done-again")
+    assert backend.release_legacy("branch", "done") is True
+    assert backend.release_legacy("branch", "done-again") is False
     assert backend.list_legacy() == []
     assert len((bridge / "log.jsonl").read_text(encoding="utf-8").splitlines()) == 3
 

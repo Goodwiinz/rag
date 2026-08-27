@@ -175,22 +175,13 @@ def cmd_heartbeat(args) -> int:
 
 
 def cmd_release(args) -> int:
-    bridge_dir = _bridge_dir()
-    state, read_error = _read_observational(bridge_dir)
-    before = (
-        None
-        if read_error is not None
-        else any(
-            claim.get("branch") == args.branch for claim in state.get("claims", [])
-        )
-    )
     try:
-        LocalBackend(bridge_dir).release_legacy(args.branch, args.reason)
+        released = _backend().release_legacy(args.branch, args.reason)
     except (BackendUnavailable, ValidationError) as exc:
         raise _bridge_failure(exc) from exc
     print(
         f"RELEASED {args.branch} ({args.reason})"
-        if before is not False
+        if released
         else f"no claim {args.branch}"
     )
     return 0

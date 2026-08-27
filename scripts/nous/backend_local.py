@@ -266,9 +266,13 @@ class LocalBackend(LocalMutex):
             write_state(bridge_dir, state)
             audit(bridge_dir, "heartbeat", {"branch": branch})
 
-    def release_legacy(self, branch: str, reason: str) -> None:
+    def release_legacy(self, branch: str, reason: str) -> bool:
         with locked(self.bridge_dir) as bridge_dir:
             state = read_mutating(bridge_dir)
+            released = any(
+                claim.get("branch") == branch
+                for claim in state.get("claims", [])  # type: ignore[union-attr]
+            )
             state["claims"] = [
                 claim
                 for claim in state.get("claims", [])  # type: ignore[union-attr]
@@ -276,6 +280,7 @@ class LocalBackend(LocalMutex):
             ]
             write_state(bridge_dir, state)
             audit(bridge_dir, "release", {"branch": branch, "reason": reason})
+        return released
 
     def list_legacy(self) -> list[dict[str, object]]:
         state, error = read_observational(self.bridge_dir)

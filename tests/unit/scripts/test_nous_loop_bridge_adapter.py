@@ -74,3 +74,25 @@ def test_adapter_keeps_patchable_path_for_observational_list(tmp_path, monkeypat
     monkeypatch.setattr(module.Path, "read_text", fail_only_claims)
     assert module.main(["list"]) == 1
     assert {p.name for p in bridge_dir.iterdir()} == {"claims.json"}
+
+
+def test_adapter_uses_atomic_release_result_for_legacy_message(
+    tmp_path, monkeypatch, capsys
+):
+    calls = []
+
+    class SpyBackend:
+        def __init__(self, bridge_dir):
+            self.bridge_dir = bridge_dir
+
+        def release_legacy(self, branch, reason):
+            calls.append((branch, reason))
+            return True
+
+    monkeypatch.setenv("LOOP_BRIDGE_DIR", str(tmp_path / "bridge"))
+    module = _load_loop_bridge()
+    monkeypatch.setattr(module, "LocalBackend", SpyBackend, raising=False)
+
+    assert module.main(["release", "--branch", "branch"]) == 0
+    assert calls == [("branch", "done")]
+    assert capsys.readouterr().out == "RELEASED branch (done)\n"
