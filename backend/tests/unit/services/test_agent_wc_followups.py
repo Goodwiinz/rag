@@ -165,7 +165,10 @@ async def test_resume_short_circuits_when_interrupt_already_consumed():
             "src.services.agent.checkpointer.get_checkpointer",
             new=AsyncMock(return_value=None),
         ),
-        patch("src.services.agent.agent_execution_service.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch(
+            "src.services.agent.agent_execution_service.AsyncSessionLocal",
+            return_value=_async_session_cm(),
+        ),
     ):
         await _resume_agent_graph(job_id, confirmed=True, current_user=user)
 
@@ -201,7 +204,10 @@ async def test_resume_proceeds_when_interrupt_present():
             "src.services.agent.checkpointer.get_checkpointer",
             new=AsyncMock(return_value=None),
         ),
-        patch("src.services.agent.agent_execution_service.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch(
+            "src.services.agent.agent_execution_service.AsyncSessionLocal",
+            return_value=_async_session_cm(),
+        ),
     ):
         await _resume_agent_graph(job_id, confirmed=True, current_user=user)
 
@@ -232,7 +238,10 @@ async def test_resume_rejects_ownerless_checkpoint():
             "src.services.agent.checkpointer.get_checkpointer",
             new=AsyncMock(return_value=None),
         ),
-        patch("src.services.agent.agent_execution_service.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch(
+            "src.services.agent.agent_execution_service.AsyncSessionLocal",
+            return_value=_async_session_cm(),
+        ),
     ):
         await _resume_agent_graph(job_id, confirmed=True, current_user=user)
 
