@@ -1,11 +1,18 @@
 # mypy: disable-error-code=no-untyped-def
 
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from scripts.nous.coordination import ValidationError
-from scripts.nous.gitio import CommandResult, GitIO, NonFastForward, TransportFailure
+from scripts.nous.coordination import BackendUnavailable, ValidationError
+from scripts.nous.gitio import (
+    CommandResult,
+    GitIO,
+    NonFastForward,
+    SubprocessRunner,
+    TransportFailure,
+)
 
 
 class RecordingRunner:
@@ -77,7 +84,7 @@ def test_push_classifies_only_actual_cas_races_as_non_fast_forward(stderr, error
         )
 
 
-def test_only_private_coordination_fetch_may_use_plus_refspec():
+def test_only_private_coordination_fetch_may_use_plus_refspec_without_shallowing_repo():
     runner = RecordingRunner()
     io = GitIO(Path("/repo"), runner=runner)
     temp_ref = "refs/nous/tmp/20260827T040000Z-agent-9f3a1c-abcdef123456"
@@ -87,11 +94,32 @@ def test_only_private_coordination_fetch_may_use_plus_refspec():
     assert runner.calls[0][0] == [
         "git",
         "fetch",
-        "--depth",
-        "1",
+        "--no-write-fetch-head",
         "origin",
         f"+refs/heads/nous-coordination:{temp_ref}",
     ]
+
+
+def test_git_commands_disable_terminal_prompts():
+    runner = RecordingRunner()
+    io = GitIO(Path("/repo"), runner=runner)
+
+    io.run_git(("status", "--porcelain"))
+
+    env = runner.calls[0][2]
+    assert env is not None
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+
+
+def test_subprocess_runner_maps_timeout_to_retryable_transport_failure(monkeypatch):
+    def stall(*_args, **kwargs):
+        assert kwargs["timeout"] == 60
+        raise subprocess.TimeoutExpired(cmd="git fetch", timeout=60)
+
+    monkeypatch.setattr(subprocess, "run", stall)
+
+    with pytest.raises(TransportFailure, match="git transport timed out"):
+        SubprocessRunner().run(["git", "fetch"], cwd=Path("/repo"))
 
 
 def test_commit_snapshot_uses_dedicated_identity():

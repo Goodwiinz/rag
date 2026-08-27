@@ -8,6 +8,8 @@ import secrets
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
+from functools import wraps
+from typing import TypeVar, cast
 
 from .coordination import (
     ACTIVE,
@@ -51,6 +53,22 @@ from .schema import (
 
 def _validation(message: str) -> ValidationError:
     return ValidationError(SchemaError(message), message=message)
+
+
+_F = TypeVar("_F", bound=Callable[..., object])
+
+
+def _schema_boundary(method: _F) -> _F:
+    """Translate schema rejections at every public backend boundary."""
+
+    @wraps(method)
+    def wrapped(*args: object, **kwargs: object) -> object:
+        try:
+            return method(*args, **kwargs)
+        except SchemaError as exc:
+            raise ValidationError(exc) from None
+
+    return cast(_F, wrapped)
 
 
 def _utc_now() -> datetime:
@@ -483,6 +501,7 @@ class GitBackend(CoordinationBackend):
         finally:
             self.io.delete_local_ref(temp_ref)
 
+    @_schema_boundary
     def bootstrap(self, *, mode: str | None = None) -> str:
         selected_mode = mode or self.config.mode
         if selected_mode not in {"local", "remote-required"}:
@@ -570,6 +589,7 @@ class GitBackend(CoordinationBackend):
             claim for claim in snapshot.claims if _parse(claim.expires_at) >= cutoff
         )
 
+    @_schema_boundary
     def claim(
         self,
         *,
@@ -727,11 +747,13 @@ class GitBackend(CoordinationBackend):
             raise ClaimLost("claim is missing, expired, or fenced")
         return claim
 
+    @_schema_boundary
     def assert_claim(self, *, run_id: str, claim_id: str) -> Claim:
         snapshot = self._read()
         assert snapshot is not None
         return self._owned(snapshot, validate_run_id(run_id), claim_id)
 
+    @_schema_boundary
     def renew(self, *, run_id: str, claim_id: str, ttl_seconds: int) -> Claim:
         run_id = validate_run_id(run_id)
         if ttl_seconds <= 0:
@@ -758,6 +780,7 @@ class GitBackend(CoordinationBackend):
 
         return self._cas(run_id, apply)  # type: ignore[return-value]
 
+    @_schema_boundary
     def release(
         self, *, run_id: str, claim_id: str, reason: str, remove_run: bool = False
     ) -> None:
@@ -804,11 +827,13 @@ class GitBackend(CoordinationBackend):
 
         self._cas(run_id, apply)
 
+    @_schema_boundary
     def list(self) -> list[Claim]:
         snapshot = self._read()
         assert snapshot is not None
         return list(self._live(snapshot, self.clock()))
 
+    @_schema_boundary
     def check(self, *, area: str, files: Sequence[str]) -> builtins.list[Claim]:
         area = validate_area(area)
         paths = validate_files(files)
@@ -819,6 +844,7 @@ class GitBackend(CoordinationBackend):
             or bool(set(claim.files) & set(paths))
         ]
 
+    @_schema_boundary
     def get_run(self, run_id: str) -> RunProjection:
         snapshot = self._read()
         assert snapshot is not None
@@ -827,11 +853,13 @@ class GitBackend(CoordinationBackend):
         except KeyError:
             raise ClaimLost("remote run projection is absent") from None
 
+    @_schema_boundary
     def list_runs(self) -> tuple[RunProjection, ...]:
         snapshot = self._read()
         assert snapshot is not None
         return tuple(snapshot.runs[key] for key in sorted(snapshot.runs))
 
+    @_schema_boundary
     def put_run(self, projection: RunProjection, *, claim_id: str) -> None:
         def apply(snapshot: CoordinationSnapshot) -> tuple[CoordinationSnapshot, None]:
             self._owned(snapshot, projection.run_id, claim_id)
@@ -847,6 +875,7 @@ class GitBackend(CoordinationBackend):
 
         self._cas(projection.run_id, apply)
 
+    @_schema_boundary
     def finalize(
         self, projection: RunProjection, *, claim_id: str, release_claim: bool
     ) -> None:
@@ -886,6 +915,7 @@ class GitBackend(CoordinationBackend):
 
         self._cas(projection.run_id, apply)
 
+    @_schema_boundary
     def finalize_orphan(
         self,
         projection: RunProjection,
@@ -922,6 +952,7 @@ class GitBackend(CoordinationBackend):
 
         self._cas(projection.run_id, apply)
 
+    @_schema_boundary
     def prune_expired(self, *, now: datetime | None = None) -> tuple[str, ...]:
         instant = now or self.clock()
         run_hint = "20260827T000000Z-prune-000000"

@@ -97,6 +97,62 @@ def _remote(config: RuntimeConfig, repo_root: Path) -> GitBackend:
     )
 
 
+def _record_held_in_error(receipt_root: Path, claim: Claim) -> None:
+    """Persist and report the fencing values needed to release a stranded claim."""
+
+    run_dir = receipt_root / claim.run_id
+    receipt = run_dir / "held-in-error.json"
+    recovery: dict[str, object] = {
+        "state": "held-in-error",
+        "run_id": claim.run_id,
+        "claim_id": claim.claim_id,
+        "receipt": str(receipt),
+    }
+    record = recovery | {
+        "schema": 1,
+        "agent": claim.agent,
+        "machine_id": claim.machine_id,
+        "branch": claim.branch,
+        "area": claim.area,
+        "expires_at": claim.expires_at,
+    }
+    temp = run_dir / f"held-in-error.{secrets.token_hex(6)}.tmp"
+    try:
+        missing = []
+        directory = run_dir
+        while not directory.exists():
+            missing.append(directory)
+            directory = directory.parent
+        for directory in reversed(missing):
+            try:
+                directory.mkdir(mode=0o700)
+            except FileExistsError:
+                pass
+            parent = os.open(directory.parent, os.O_RDONLY)
+            try:
+                os.fsync(parent)
+            finally:
+                os.close(parent)
+        descriptor = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, indent=2, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp, receipt)
+        directory_descriptor = os.open(run_dir, os.O_RDONLY)
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
+    except OSError:
+        recovery["receipt"] = None
+        try:
+            temp.unlink(missing_ok=True)
+        except OSError:
+            pass
+    print(json.dumps(recovery, sort_keys=True), file=sys.stderr)
+
+
 def _combined(config: RuntimeConfig, repo_root: Path) -> CombinedBackend:
     if config.coord_mode != "remote-required":
         raise ValidationError(
@@ -109,14 +165,23 @@ def _combined(config: RuntimeConfig, repo_root: Path) -> CombinedBackend:
             message="LOOP_BRIDGE_DIR is required for the same-host mutex",
         )
     return CombinedBackend(
-        _remote(config, repo_root), LocalBackend(config.loop_bridge_dir)
+        _remote(config, repo_root),
+        LocalBackend(config.loop_bridge_dir),
+        on_compensation_pending=lambda claim: _record_held_in_error(
+            config.receipt_dir, claim
+        ),
     )
 
 
 def _base_sha(config: RuntimeConfig, repo_root: Path) -> str:
     io = GitIO(repo_root)
-    io.run_git(("fetch", config.git_remote, "develop"))
-    return io.run_git(("rev-parse", "FETCH_HEAD")).stdout.strip()
+    temp_ref = f"refs/nous/tmp/develop-{secrets.token_hex(6)}"
+    try:
+        base = io.fetch_branch(config.git_remote, "develop", temp_ref)
+        assert base is not None
+        return base
+    finally:
+        io.delete_local_ref(temp_ref)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -143,6 +208,7 @@ def build_parser() -> argparse.ArgumentParser:
     claim.add_argument("--area", required=True)
     claim.add_argument("--files")
     claim.add_argument("--run-id")
+    claim.add_argument("--claim-id")
     claim.add_argument("--ttl", type=int, default=DEFAULT_TTL_SECONDS)
     claim.add_argument("--authorize", action="append")
 
@@ -216,6 +282,7 @@ def _dispatch(args: argparse.Namespace, repo_root: Path) -> int:
             candidate=None,
             pr=None,
             ttl_seconds=args.ttl,
+            claim_id=args.claim_id,
             base_sha=base,
             evidence_head_sha=base,
         )
@@ -272,6 +339,9 @@ def main(argv: list[str] | None = None) -> int:
         return 3
     except ValidationError as exc:
         print(str(exc), file=sys.stderr)
+        return 4
+    except SchemaError:
+        print("coordination validation failed", file=sys.stderr)
         return 4
     except Exception:
         print("NOUS coordination command failed", file=sys.stderr)

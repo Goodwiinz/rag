@@ -15,6 +15,7 @@ from .schema import SchemaError, validate_branch, validate_files, validate_sha
 
 COORDINATION_NAME = "NOUS Coordination"
 COORDINATION_EMAIL = "nous-coordination@invalid"
+GIT_COMMAND_TIMEOUT_SECONDS = 60
 
 
 def _validation(message: str) -> ValidationError:
@@ -59,7 +60,10 @@ class SubprocessRunner:
                 text=True,
                 errors="surrogateescape",
                 check=False,
+                timeout=GIT_COMMAND_TIMEOUT_SECONDS,
             )
+        except subprocess.TimeoutExpired:
+            raise TransportFailure("git transport timed out") from None
         except OSError:
             raise BackendUnavailable("git transport unavailable") from None
         return CommandResult(result.returncode, result.stdout, result.stderr)
@@ -127,10 +131,14 @@ class GitIO:
         input_text: str | None = None,
     ) -> CommandResult:
         validate_git_args(args)
+        git_env = dict(os.environ)
+        if env is not None:
+            git_env.update(env)
+        git_env["GIT_TERMINAL_PROMPT"] = "0"
         result = self.runner.run(
             ["git", *args],
             cwd=self.repo_root,
-            env=env,
+            env=git_env,
             input_text=input_text,
         )
         if check and result.returncode:
@@ -157,8 +165,7 @@ class GitIO:
         result = self.run_git(
             (
                 "fetch",
-                "--depth",
-                "1",
+                "--no-write-fetch-head",
                 remote,
                 f"+refs/heads/{branch}:{temp_ref}",
             ),

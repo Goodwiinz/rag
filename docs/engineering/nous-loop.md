@@ -86,11 +86,12 @@ export NOUS_RECEIPT_DIR=<machine-local-receipt-dir>
 ```
 
 The Git board contains only `claims.json` and `runs/<run-id>.json`. Bootstrap
-creates one orphan root with a normal absent-ref push. Updates shallow-fetch a
-unique `refs/nous/tmp/...` ref, validate the complete schema and dedicated
-committer identity, build one full-snapshot child commit, and use a plain
-fast-forward push. A push race refetches and re-derives the operation, with
-at most five attempts. Routine tooling rejects force pushes and remote deletion.
+creates one orphan root with a normal absent-ref push. Updates fetch into a
+unique `refs/nous/tmp/...` ref without making the caller repository shallow or
+writing `FETCH_HEAD`, validate the complete schema and dedicated committer
+identity, build one full-snapshot child commit, and use a plain fast-forward
+push. A push race refetches and re-derives the operation, with at most five attempts.
+Routine tooling rejects force pushes and remote deletion.
 
 Claims are fenced by `run_id` plus `claim_id`, use a three-hour TTL, and are
 acquired remote-first then local. A local conflict compensating-releases the
@@ -99,6 +100,11 @@ by `claim`; expiry is final. `list` and `check` label remote and local results
 separately, and a remote transport failure never falls back to local-only.
 An expired nonterminal run may be re-acquired only by presenting its last
 `claim_id`; the winning claim rotates that token and fences every stale holder.
+If local acquisition and its compensating release both fail, the CLI reports
+`held-in-error` and attempts to atomically store the recovery fencing values at
+`$NOUS_RECEIPT_DIR/<run-id>/held-in-error.json`; release that claim before any
+other remote mutation. If the receipt write fails, stderr still contains the
+fencing values with `"receipt": null`; retain that payload for recovery.
 
 ```bash
 python3 scripts/nous_run.py list --json

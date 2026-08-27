@@ -521,12 +521,16 @@ def acquire_remote_then_local(
     remote_claim = remote.claim(**request.as_kwargs())
     try:
         local.claim_legacy(**request.as_local_kwargs())
-    except Conflict:
+    except (Conflict, BackendUnavailable, ValidationError) as local_error:
         try:
             remote.release(
                 run_id=request.run_id,
                 claim_id=remote_claim.claim_id,
-                reason="local-conflict",
+                reason=(
+                    "local-conflict"
+                    if isinstance(local_error, Conflict)
+                    else "local-acquisition-failed"
+                ),
                 remove_run=True,
             )
         except BackendUnavailable:

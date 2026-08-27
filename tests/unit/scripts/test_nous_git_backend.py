@@ -100,6 +100,7 @@ def test_bootstrap_is_orphan_and_claim_writes_one_atomic_snapshot(two_backends):
     run = json.loads(git(probe, "show", f"{tip}:runs/{RUN_A}.json"))
     assert claims["claims"][0]["claim_id"] == claim.claim_id
     assert run["claim_id"] == claim.claim_id
+    assert git(left.io.repo_root, "rev-parse", "--is-shallow-repository") == "false"
 
 
 def test_concurrent_bootstrap_has_one_winning_orphan_root(two_backends):
@@ -455,3 +456,31 @@ def test_remote_schema_rejects_unknown_fields_and_mode_mismatch():
     )
     with pytest.raises(ValidationError):
         GitBackend.assert_snapshot_mode(snapshot, "remote-required")
+
+
+def test_public_backend_methods_translate_schema_errors(two_backends):
+    _, (left, _) = two_backends
+    left.bootstrap()
+
+    with pytest.raises(ValidationError):
+        left.renew(
+            run_id="not-a-run-id",
+            claim_id="c-a1b2c3d4e5f6",
+            ttl_seconds=10_800,
+        )
+
+    repo = left.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    corrupt = left.io.commit_snapshot(
+        {
+            "claims.json": git(repo, "show", f"{tip}:claims.json").encode(),
+            "runs/not-a-run-id.json": b"{}\n",
+        },
+        parent=tip,
+        message="invalid run filename",
+    )
+    left.io.push_fast_forward("origin", corrupt, "nous-coordination")
+
+    with pytest.raises(ValidationError):
+        left.list()
