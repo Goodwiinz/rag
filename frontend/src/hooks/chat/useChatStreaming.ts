@@ -1339,6 +1339,7 @@ export function useChatStreaming(
       }
     },
     [
+      flushPendingSeq,
       setMessages,
       setConversations,
       enableRAG,
@@ -2444,6 +2445,7 @@ export function useChatStreaming(
       }
     },
     [
+      flushPendingSeq,
       pendingConfirmation,
       messages,
       setMessages,
