@@ -302,7 +302,10 @@ async def test_streaming_response_abort_finalizes_cancelled_without_completion(
         finish_stream.assert_awaited_once_with(str(thread_id), "stream-buffer-1")
     else:
         finish_stream.assert_not_awaited()
-    db.close.assert_awaited_once()
+    # The stream releases the pooled connection before the event loop (audit
+    # S-M11) and the finally closes the session again — awaited at least once,
+    # never leaked open.
+    db.close.assert_awaited()
 
 
 @pytest.mark.asyncio
@@ -441,7 +444,10 @@ async def test_repeated_cancellation_waits_for_graph_cleanup() -> None:
     finish_stream.assert_awaited_once_with(str(thread_id), "stream-buffer-1")
     assert len(finalize_calls) == 1
     assert finalize_calls[0]["status"] is JobStatus.CANCELLED
-    db.close.assert_awaited_once()
+    # The stream releases the pooled connection before the event loop (audit
+    # S-M11) and the finally closes the session again — awaited at least once,
+    # never leaked open.
+    db.close.assert_awaited()
 
 
 @pytest.mark.asyncio

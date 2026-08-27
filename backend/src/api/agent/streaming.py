@@ -553,70 +553,82 @@ async def _stream_luna_fast_path(
             {"phase": "finalizing", "detail": "Saving the response"},
         )
 
-        persisted_assistant_id = await _jobs_mod._persist_assistant_message_safe(
-            thread_id=resolved_thread_id,
-            content=assistant_content,
-            model_name=deployment,
-            tool_executions_out=None,
-            retrieved_contexts=None,
-            latency_ms=int((time.monotonic() - stream_started_at) * 1000),
-            ttft_ms=_ttft_ms(emitter, stream_started_at),
-            stopped=False,
-            client_message_id=assistant_cmid,
-            progress_steps=emitter.progress_steps or None,
-            token_usage=(
-                {"input_tokens": input_tokens, "output_tokens": output_tokens}
-                if input_tokens or output_tokens
-                else None
-            ),
-        )
-        assistant_saved = persisted_assistant_id is not None
-
-        # Keep the graph checkpoint authoritative for a later grounded/tool turn.
-        checkpointer, store = await asyncio.gather(
-            get_checkpointer(),
-            get_memory_store(),
-        )
-        graph = compile_agent_graph(checkpointer=checkpointer, store=store)
-        checkpoint_config = {
-            "configurable": {
-                "thread_id": stream_thread_id,
-                "user_id": str(current_user.id),
-                "organization_id": str(
-                    getattr(current_user, "organization_id", "") or ""
+        # Finalize under its own deadline (audit S-M12): persist, checkpointer
+        # acquisition, graph compile, resync and the state append previously
+        # ran OUTSIDE the request timeout, so a hung Postgres/checkpointer
+        # stalled the stream indefinitely after the LLM had already finished.
+        # No frames are yielded inside this scope, so the timeout can only
+        # fire while awaiting.
+        async with asyncio.timeout(settings.AGENT_FAST_PATH_REQUEST_TIMEOUT):
+            persisted_assistant_id = await _jobs_mod._persist_assistant_message_safe(
+                thread_id=resolved_thread_id,
+                content=assistant_content,
+                model_name=deployment,
+                tool_executions_out=None,
+                retrieved_contexts=None,
+                latency_ms=int((time.monotonic() - stream_started_at) * 1000),
+                ttft_ms=_ttft_ms(emitter, stream_started_at),
+                stopped=False,
+                client_message_id=assistant_cmid,
+                progress_steps=emitter.progress_steps or None,
+                token_usage=(
+                    {
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                    }
+                    if input_tokens or output_tokens
+                    else None
                 ),
-            }
-        }
-        # Edit-and-resend: rebuild HEAD from the post-edit DB first, so the
-        # replaced turn stops feeding the model.
-        if tombstones.any:
-            await resync_thread_checkpoint(
-                graph,
-                thread_id=stream_thread_id,
-                user=current_user,
             )
-        # The append ALWAYS runs, including right after a resync. It is
-        # idempotent by id: ``add_messages`` (the reducer behind
-        # ``aupdate_state``) replaces a same-id message in place rather than
-        # appending a duplicate (pinned by
-        # test_agent_edit_resend_checkpoint.py::
-        # test_langgraph_replaces_a_same_id_message_in_place), so the write is
-        # at worst a no-op. It is also the REPAIR for a partial-row dedup: a
-        # cancelled attempt can persist a stopped partial answer under this
-        # same deterministic assistant cmid, the retry's insert dedups onto that
-        # row WITHOUT updating its content, and the resync then seeds the
-        # PARTIAL text. Skipping the append there would leave the model's
-        # context holding a truncated answer the client never saw.
-        await graph.aupdate_state(
-            checkpoint_config,
-            {
-                "messages": [
-                    HumanMessage(content=last_user.content, id=user_message_id),
-                    AIMessage(content=assistant_content, id=assistant_message_id),
-                ]
-            },
-            as_node="memory_save_node",
-        )
+            assistant_saved = persisted_assistant_id is not None
+
+            # Keep the graph checkpoint authoritative for a later grounded/tool
+            # turn.
+            checkpointer, store = await asyncio.gather(
+                get_checkpointer(),
+                get_memory_store(),
+            )
+            graph = compile_agent_graph(checkpointer=checkpointer, store=store)
+            checkpoint_config = {
+                "configurable": {
+                    "thread_id": stream_thread_id,
+                    "user_id": str(current_user.id),
+                    "organization_id": str(
+                        getattr(current_user, "organization_id", "") or ""
+                    ),
+                }
+            }
+            # Edit-and-resend: rebuild HEAD from the post-edit DB first, so the
+            # replaced turn stops feeding the model.
+            if tombstones.any:
+                await resync_thread_checkpoint(
+                    graph,
+                    thread_id=stream_thread_id,
+                    user=current_user,
+                )
+            # The append ALWAYS runs, including right after a resync. It is
+            # idempotent by id: ``add_messages`` (the reducer behind
+            # ``aupdate_state``) replaces a same-id message in place rather than
+            # appending a duplicate (pinned by
+            # test_agent_edit_resend_checkpoint.py::
+            # test_langgraph_replaces_a_same_id_message_in_place), so the write
+            # is at worst a no-op. It is also the REPAIR for a partial-row
+            # dedup: a cancelled attempt can persist a stopped partial answer
+            # under this same deterministic assistant cmid, the retry's insert
+            # dedups onto that row WITHOUT updating its content, and the resync
+            # then seeds the PARTIAL text. Skipping the append there would
+            # leave the model's context holding a truncated answer the client
+            # never saw.
+            await graph.aupdate_state(
+                checkpoint_config,
+                {
+                    "messages": [
+                        HumanMessage(content=last_user.content, id=user_message_id),
+                        AIMessage(content=assistant_content, id=assistant_message_id),
+                    ]
+                },
+                as_node="memory_save_node",
+            )
 
         if persisted_assistant_id is None:
             raise RuntimeError("Assistant message persistence returned no id")
@@ -765,6 +777,43 @@ def _bootstrap_langsmith() -> None:
             "Failed to configure LangSmith tracing; continuing without tracing",
             exc_info=True,
         )
+
+
+def _interrupt_confirmation_details(pending_tasks: Any) -> Dict[str, Any]:
+    """Confirmation payload from a snapshot's pending interrupts.
+
+    The first interrupt stays the card's primary payload (wire contract);
+    any further pending interrupts ride along under ``additional_interrupts``
+    instead of being dropped (audit S-L8).
+    """
+    values: List[Any] = []
+    for task in pending_tasks:
+        for intr in getattr(task, "interrupts", []) or []:
+            value = getattr(intr, "value", None)
+            if value:
+                values.append(value)
+    if not values:
+        return {}
+    primary = values[0]
+    if not isinstance(primary, dict):
+        return {"value": primary}
+    details = dict(primary)
+    if len(values) > 1:
+        details["additional_interrupts"] = values[1:]
+    return details
+
+
+def _usage_model_label(event: Dict[str, Any], fallback: str) -> str:
+    """Cost-attribution label for one ``on_chat_model_end`` event.
+
+    Uses the model that actually produced the call (``metadata.ls_model_name``)
+    rather than the request's user-facing model: internal helper calls (intent
+    classifier, summarizer) run on different, cheaper models and must not be
+    booked under the user-facing model's spend (audit S-M3).
+    """
+    metadata = event.get("metadata") or {}
+    model = metadata.get("ls_model_name")
+    return str(model) if model else fallback
 
 
 def _extract_usage_tokens(event: Dict[str, Any]) -> tuple[int, int]:
@@ -945,7 +994,7 @@ def format_stream_envelope_frame(
 
 # Audit S2-M2: the durable ledger enforces MAX_PAYLOAD_BYTES per event, but
 # live/buffered SSE frames historically bounded item counts only
-# (contexts[:3], ltrim frame caps), so one oversized retrieval context / plan
+# (contexts[:5], ltrim frame caps), so one oversized retrieval context / plan
 # step / reflection issue amplified onto the socket and into up to 5000 Redis
 # replay copies. emit() clamps any over-budget payload through this ladder
 # before formatting — wire and buffer share the single clamped frame.
@@ -1726,6 +1775,10 @@ async def stream_event_generator(
                     buffer=False,
                 )
                 return
+            # Release the pooled DB connection before the replay poll loop
+            # (audit S-M11): replay reads Redis only, can poll for up to 600s,
+            # and never touches this session again.
+            await db.close()
             async for frame in replay_buffered_stream(
                 request,
                 thread_id=acceptance.thread_id,
@@ -2020,8 +2073,11 @@ async def stream_event_generator(
         # Per-turn token accounting. Aggregated across every chat model call
         # in the graph (planner, intent classifier, llm_node, reflection…)
         # and emitted as a single `usage` SSE event right before `done`.
+        # The Prometheus spend metric is additionally split by the model that
+        # actually produced each call (audit S-M3).
         turn_input_tokens = 0
         turn_output_tokens = 0
+        turn_usage_by_model: Dict[str, list] = {}
 
         # Drop any stale HITL interrupt left over from a previous turn the
         # user abandoned (e.g. /new in the CLI). A fresh HumanMessage cannot
@@ -2135,6 +2191,13 @@ async def stream_event_generator(
                     payload=cancelled_payload,
                 )
 
+        # Release the pooled DB connection for the streaming phase (audit
+        # S-M11): every prior write is committed, nothing in the event loop
+        # touches the session, and holding a checked-out connection across a
+        # 300s graph run exhausts the pool under concurrency. The session
+        # lazily re-acquires a connection at the first finalize/persist call;
+        # loaded attributes stay readable (expire_on_commit=False).
+        await db.close()
         async with asyncio.timeout(300):  # 5 minutes
             while True:
                 try:
@@ -2231,6 +2294,14 @@ async def stream_event_generator(
                             inp, out = _extract_usage_tokens(event)
                             turn_input_tokens += inp
                             turn_output_tokens += out
+                            if inp or out:
+                                label = _usage_model_label(
+                                    event,
+                                    getattr(request_body, "model", None) or "unknown",
+                                )
+                                bucket = turn_usage_by_model.setdefault(label, [0, 0])
+                                bucket[0] += inp
+                                bucket[1] += out
 
                         elif kind == "on_tool_start":
                             tool_input = event.get("data", {}).get("input", {})
@@ -2268,9 +2339,13 @@ async def stream_event_generator(
                             if isinstance(output, dict):
                                 contexts = output.get("retrieved_contexts", [])
                                 if contexts:
+                                    # [:5] matches the rag node's own cap and
+                                    # the persisted Citation rows, so the live
+                                    # stream shows the same sources a reload
+                                    # does (audit S-L9).
                                     frame = await emitter.emit(
                                         AgentStreamEvent.RAG_CONTEXT,
-                                        {"contexts": contexts[:3]},
+                                        {"contexts": contexts[:5]},
                                     )
                                     if not client_disconnected:
                                         yield frame
@@ -2390,14 +2465,9 @@ async def stream_event_generator(
             has_interrupt = any(getattr(t, "interrupts", None) for t in pending_tasks)
 
             if has_interrupt:
-                # Extract confirmation details from the interrupt
-                confirmation_details = {}
-                for task in pending_tasks:
-                    for intr in getattr(task, "interrupts", []):
-                        confirmation_details = getattr(intr, "value", {})
-                        break
-                    if confirmation_details:
-                        break
+                # Extract confirmation details from the pending interrupts
+                # (all of them — audit S-L8).
+                confirmation_details = _interrupt_confirmation_details(pending_tasks)
 
                 thread_id = config["configurable"]["thread_id"]
                 frame = await emitter.emit(
@@ -2525,13 +2595,12 @@ async def stream_event_generator(
 
         if turn_input_tokens > 0 or turn_output_tokens > 0:
             # Server-side token cost metric (was previously SSE-only, so cost
-            # never reached Prometheus). Model label drives per-model spend.
+            # never reached Prometheus). Split by the model that actually
+            # produced each call so internal helper models are not booked
+            # under the user-facing model's spend (audit S-M3).
             try:
-                record_token_usage(
-                    getattr(request_body, "model", None) or "unknown",
-                    turn_input_tokens,
-                    turn_output_tokens,
-                )
+                for label, (m_inp, m_out) in turn_usage_by_model.items():
+                    record_token_usage(label, m_inp, m_out)
             except Exception:  # never let metrics break the stream
                 logger.debug("record_token_usage failed", exc_info=True)
             frame = await emitter.emit(
@@ -3170,9 +3239,11 @@ async def stream_confirm_event_generator(
             ),
         )
 
-        # Per-turn token accounting for the confirm/resume stream.
+        # Per-turn token accounting for the confirm/resume stream. Spend is
+        # split by producing model for Prometheus (audit S-M3).
         turn_input_tokens = 0
         turn_output_tokens = 0
+        turn_usage_by_model: Dict[str, list] = {}
         tokens_emitted = False
 
         # Accumulate user-facing tokens so a mid-resume disconnect can persist
@@ -3271,6 +3342,10 @@ async def stream_confirm_event_generator(
         # quiet until a proxy idle-timeout cuts the connection with no
         # done/error. The helper also owns the disconnect check + sentinel.
         stream_started_at = time.monotonic()
+        # Same connection-release as the main stream loop (audit S-M11): the
+        # session is idle for the whole resumed run and re-acquires lazily at
+        # finalize.
+        await db.close()
         async with asyncio.timeout(300):
             async for item in _graph_events_with_keepalive(confirm_event_iter, request):
                 # CX1: the resumed graph is now making real progress — a
@@ -3345,6 +3420,14 @@ async def stream_confirm_event_generator(
                     inp, out = _extract_usage_tokens(event)
                     turn_input_tokens += inp
                     turn_output_tokens += out
+                    if inp or out:
+                        label = _usage_model_label(
+                            event,
+                            getattr(request_body, "model", None) or "unknown",
+                        )
+                        bucket = turn_usage_by_model.setdefault(label, [0, 0])
+                        bucket[0] += inp
+                        bucket[1] += out
 
                 elif kind == "on_tool_start":
                     tool_input = event.get("data", {}).get("input", {})
@@ -3436,13 +3519,7 @@ async def stream_confirm_event_generator(
         has_interrupt = any(getattr(t, "interrupts", None) for t in pending_tasks)
 
         if has_interrupt:
-            confirmation_details = {}
-            for task in pending_tasks:
-                for intr in getattr(task, "interrupts", []):
-                    confirmation_details = getattr(intr, "value", {})
-                    break
-                if confirmation_details:
-                    break
+            confirmation_details = _interrupt_confirmation_details(pending_tasks)
             frame = await emitter.emit(
                 AgentStreamEvent.CONFIRMATION,
                 {
@@ -3554,13 +3631,12 @@ async def stream_confirm_event_generator(
 
         if turn_input_tokens > 0 or turn_output_tokens > 0:
             # Server-side token cost metric (was previously SSE-only, so cost
-            # never reached Prometheus). Model label drives per-model spend.
+            # never reached Prometheus). Split by the model that actually
+            # produced each call so internal helper models are not booked
+            # under the user-facing model's spend (audit S-M3).
             try:
-                record_token_usage(
-                    getattr(request_body, "model", None) or "unknown",
-                    turn_input_tokens,
-                    turn_output_tokens,
-                )
+                for label, (m_inp, m_out) in turn_usage_by_model.items():
+                    record_token_usage(label, m_inp, m_out)
             except Exception:  # never let metrics break the stream
                 logger.debug("record_token_usage failed", exc_info=True)
             frame = await emitter.emit(
