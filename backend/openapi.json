@@ -15351,7 +15351,7 @@
     },
     "/api/v1/agent/execute": {
       "post": {
-        "description": "Execute an agent chat completion via LangGraph.\n\nReturns a job ID immediately.  Poll ``GET /jobs/{job_id}`` for the result.\n\nDispatch is flag-gated (AGENT_DISPATCH_BACKEND): \"background\" runs the\ngraph on this pod via FastAPI BackgroundTasks (default, today's behavior);\n\"celery\" enqueues it to the dedicated agent_runs queue with a durable\nagent_runs row committed before the publish (audit P1.3 / X1).",
+        "description": "Execute an agent chat completion via LangGraph.\n\nReturns a job ID immediately.  Poll ``GET /jobs/{job_id}`` for the result.\n\nBoth dispatch modes commit a durable ``agent_runs`` row before execution.\n``background`` runs the graph on this pod via FastAPI BackgroundTasks;\n``celery`` enqueues it to the dedicated agent_runs queue.",
         "operationId": "execute_agent_api_v1_agent_execute_post",
         "requestBody": {
           "content": {

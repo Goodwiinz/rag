@@ -8,9 +8,12 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.api.agent.execute import router, _set_job, _get_job
+from src.api.agent.execute import _get_job, _set_job, router
 
 pytestmark = pytest.mark.integration  # NOT asyncio -- TestClient is sync
+
+USER_ID = "33333333-3333-3333-3333-333333333333"
+ORG_ID = "11111111-1111-1111-1111-111111111111"
 
 
 # ---------------------------------------------------------------------------
@@ -18,14 +21,14 @@ pytestmark = pytest.mark.integration  # NOT asyncio -- TestClient is sync
 # ---------------------------------------------------------------------------
 
 
-def _make_mock_user(user_id: str = "user-integ-111"):
+def _make_mock_user(user_id: str = USER_ID):
     user = Mock()
     user.id = user_id
     user.email = "integration@example.com"
     user.first_name = "Integ"
     user.last_name = "Test"
     user.role = Mock(value="user")
-    user.organization_id = "integ-org"
+    user.organization_id = ORG_ID
     user.is_active = True
     return user
 

@@ -341,7 +341,7 @@ async def _celery_dispatch(
             run = await agent_run_service.upsert_run(
                 run_db,
                 job_id=job_id,
-                status=JobStatus.RUNNING,
+                status=JobStatus.QUEUED,
                 organization_id=org,
                 user_id=current_user.id,
                 thread_id=request.thread_id,
@@ -381,7 +381,11 @@ async def _celery_dispatch(
         return ("unavailable" if request.thread_id else "fallback"), job_id
 
     # 2. Job record for pollers (L1 + Redis + projection).
-    _set_job(job_id, job_payload)
+    _set_job(
+        job_id,
+        {**job_payload, "status": JobStatus.QUEUED},
+        project=False,
+    )
 
     # 3. Enqueue LAST — the external call happens only after all state is
     #    durable, so the worker's execution claim always finds its row.
@@ -430,10 +434,9 @@ async def execute_agent(
 
     Returns a job ID immediately.  Poll ``GET /jobs/{job_id}`` for the result.
 
-    Dispatch is flag-gated (AGENT_DISPATCH_BACKEND): "background" runs the
-    graph on this pod via FastAPI BackgroundTasks (default, today's behavior);
-    "celery" enqueues it to the dedicated agent_runs queue with a durable
-    agent_runs row committed before the publish (audit P1.3 / X1).
+    Both dispatch modes commit a durable ``agent_runs`` row before execution.
+    ``background`` runs the graph on this pod via FastAPI BackgroundTasks;
+    ``celery`` enqueues it to the dedicated agent_runs queue.
     """
     _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
         str(current_user.id), prefix="agent_execute"
@@ -491,30 +494,24 @@ async def execute_agent(
         # "fallback": nothing was enqueued and no job record written — safe
         # to run in-process below, exactly as if the flag were "background".
 
-    if request.thread_id:
-        from src.services.agent import agent_run_service
+    from src.services.agent import agent_run_service
 
-        idem_key = _client_idempotency_key(request, current_user)
-        try:
-            run = await agent_run_service.upsert_run(
-                db,
-                job_id=job_id,
-                status=JobStatus.QUEUED,
-                organization_id=getattr(current_user, "organization_id", None),
-                user_id=current_user.id,
-                thread_id=request.thread_id,
-                idempotency_key=idem_key,
-            )
-        except agent_run_service.ActiveRunConflict as exc:
-            raise HTTPException(
-                status_code=409,
-                detail="A response is already in progress for this thread.",
-            ) from exc
-        except Exception as exc:
-            raise HTTPException(
-                status_code=503,
-                detail="Unable to reserve this thread. Please retry.",
-            ) from exc
+    idem_key = _client_idempotency_key(request, current_user)
+    persistence_error = (
+        "Unable to reserve this thread. Please retry."
+        if request.thread_id
+        else "Unable to persist this run. Please retry."
+    )
+    try:
+        run = await agent_run_service.upsert_run(
+            db,
+            job_id=job_id,
+            status=JobStatus.QUEUED,
+            organization_id=getattr(current_user, "organization_id", None),
+            user_id=current_user.id,
+            thread_id=request.thread_id,
+            idempotency_key=idem_key,
+        )
         if run is None and idem_key is not None:
             existing = await agent_run_service.get_run_by_idempotency_key(
                 db,
@@ -524,11 +521,25 @@ async def execute_agent(
             )
             if existing is not None:
                 return JobStartResponse(job_id=existing.job_id)
-        if run is None:
-            raise HTTPException(
-                status_code=503,
-                detail="Unable to reserve this thread. Please retry.",
-            )
+    except agent_run_service.ActiveRunConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="A response is already in progress for this thread.",
+        ) from exc
+    except Exception as exc:
+        try:
+            await db.rollback()
+        except Exception:
+            logger.warning("Failed to roll back agent run reservation", exc_info=True)
+        raise HTTPException(
+            status_code=503,
+            detail=persistence_error,
+        ) from exc
+    if run is None:
+        raise HTTPException(
+            status_code=503,
+            detail=persistence_error,
+        )
 
     _set_job(job_id, job_payload)
 
@@ -635,14 +646,55 @@ async def confirm_agent_action(
     )
     from src.services.agent.job_store import get_job_fresh as _get_job_fresh
 
+    async def rollback_confirmation_session(context: str) -> None:
+        try:
+            await db.rollback()
+        except Exception:
+            logger.warning(
+                "Failed to roll back confirmation %s",
+                context,
+                exc_info=True,
+            )
+
     # Read the job Redis-first for the friendly 404 + ownership/status check.
     # In Celery dispatch mode the awaiting_confirmation write came from the
     # worker process, so this pod's L1 may still hold the stale "running"
     # dispatch record — trusting it would 409 every legitimate confirm.
     # (The authoritative claim is the guarded PostgreSQL transition below.)
     job = await _get_job_fresh(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+    job_from_projection = False
+    if job is not None:
+        # Fail closed before consulting another store: a live record owned by
+        # someone else must never become a tenancy oracle through fallback.
+        job_user_id = job.get("user_id")
+        if not job_user_id or job_user_id != str(current_user.id):
+            raise HTTPException(status_code=404, detail="Job not found")
+
+    live_status = _normalized_job_status(job.get("status")) if job is not None else None
+    if job is None or live_status != JobStatus.AWAITING_CONFIRMATION:
+        from src.services.agent import agent_run_service
+
+        try:
+            run = await agent_run_service.get_run(
+                db,
+                job_id,
+                organization_id=getattr(current_user, "organization_id", None),
+                user_id=current_user.id,
+            )
+        except Exception as exc:
+            await rollback_confirmation_session("projection read")
+            raise HTTPException(
+                status_code=503,
+                detail="Confirmation is temporarily unavailable; please retry",
+            ) from exc
+        if run is not None:
+            job_from_projection = True
+            job = {
+                "status": _normalized_job_status(run.status),
+                "user_id": str(run.user_id),
+            }
+        elif job is None:
+            raise HTTPException(status_code=404, detail="Job not found")
     _validate_confirmable_job(job, current_user)
 
     # PostgreSQL is the shared Stop/Confirm authority. Claim it before Redis so
@@ -655,7 +707,7 @@ async def confirm_agent_action(
             user_id=current_user.id,
         )
     except Exception as exc:
-        await db.rollback()
+        await rollback_confirmation_session("claim")
         raise HTTPException(
             status_code=503,
             detail="Confirmation is temporarily unavailable; please retry",
@@ -672,15 +724,31 @@ async def confirm_agent_action(
                 user_id=current_user.id,
             )
         except Exception:
-            await db.rollback()
+            await rollback_confirmation_session("claim release")
             logger.exception("Failed to release confirmation claim for %s", job_id)
 
     # Mirror the durable claim into Redis. This remains the cross-worker job
     # payload coordinator, while PostgreSQL above decides Stop versus Confirm.
     try:
         result = await compare_and_set_status(
-            job_id, JobStatus.AWAITING_CONFIRMATION, JobStatus.RUNNING
+            job_id,
+            JobStatus.AWAITING_CONFIRMATION,
+            JobStatus.RUNNING,
+            project=False,
         )
+        if (
+            result == "conflict"
+            and job_from_projection
+            and live_status in {JobStatus.QUEUED, JobStatus.RUNNING}
+        ):
+            # The worker may have parked the durable run successfully while
+            # its Redis running and/or awaiting-confirmation writes failed.
+            # PostgreSQL is now the authoritative winner; claim the exact
+            # known-stale live state atomically so a delayed awaiting write or
+            # terminal transition still conflicts.
+            result = await compare_and_set_status(
+                job_id, live_status, JobStatus.RUNNING, project=False
+            )
     except ConfirmationCoordinationUnavailable as exc:
         await release_durable_claim()
         raise HTTPException(
@@ -689,6 +757,11 @@ async def confirm_agent_action(
         ) from exc
     if result == "missing":
         await release_durable_claim()
+        if job_from_projection:
+            raise HTTPException(
+                status_code=503,
+                detail="Confirmation is temporarily unavailable; please retry",
+            )
         raise HTTPException(status_code=404, detail="Job not found")
     if result == "conflict":
         # PostgreSQL was claimed first, so a Redis conflict is a stale mirror,
@@ -871,6 +944,7 @@ async def cancel_stream_confirmation(
             abandoned,
             JobStatus.AWAITING_CONFIRMATION,
             JobStatus.CANCELLED,
+            project=False,
         )
     except Exception:
         logger.warning(

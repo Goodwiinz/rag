@@ -83,6 +83,7 @@ def test_cancel_awaiting_confirmation_is_durable_and_clears_checkpoint() -> None
         "run-1",
         JobStatus.AWAITING_CONFIRMATION,
         JobStatus.CANCELLED,
+        project=False,
     )
 
 

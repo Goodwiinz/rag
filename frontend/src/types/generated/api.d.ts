@@ -64,10 +64,9 @@ export interface paths {
          *
          *     Returns a job ID immediately.  Poll ``GET /jobs/{job_id}`` for the result.
          *
-         *     Dispatch is flag-gated (AGENT_DISPATCH_BACKEND): "background" runs the
-         *     graph on this pod via FastAPI BackgroundTasks (default, today's behavior);
-         *     "celery" enqueues it to the dedicated agent_runs queue with a durable
-         *     agent_runs row committed before the publish (audit P1.3 / X1).
+         *     Both dispatch modes commit a durable ``agent_runs`` row before execution.
+         *     ``background`` runs the graph on this pod via FastAPI BackgroundTasks;
+         *     ``celery`` enqueues it to the dedicated agent_runs queue.
          */
         post: operations["execute_agent_api_v1_agent_execute_post"];
         delete?: never;
