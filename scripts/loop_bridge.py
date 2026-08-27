@@ -88,11 +88,70 @@ def _read(d: Path) -> dict:
     if not p.exists():
         return {"claims": []}
     try:
-        return json.loads(p.read_text() or '{"claims": []}')
-    except json.JSONDecodeError:
+        return _decode_state(p.read_text())
+    except ValueError:
         # Corrupt board must not wedge every loop — start clean but keep a copy.
         p.rename(d / "claims.corrupt.json")
         return {"claims": []}
+
+
+def _decode_state(raw: str) -> dict:
+    """Decode and validate the complete on-disk claims-board schema."""
+    if not raw.strip():
+        raise ValueError("claims state is empty")
+    try:
+        state = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"claims state is not valid JSON: {exc}") from exc
+    if not isinstance(state, dict):
+        raise ValueError("claims state root must be an object")
+
+    claims = state.get("claims")
+    if not isinstance(claims, list):
+        raise ValueError("claims state must contain a claims list")
+
+    for index, claim in enumerate(claims):
+        prefix = f"claims[{index}]"
+        if not isinstance(claim, dict):
+            raise ValueError(f"{prefix} must be an object")
+        for field in ("agent", "branch", "area", "status", "claimed_at", "expires_at"):
+            value = claim.get(field)
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"{prefix}.{field} must be a non-empty string")
+        if claim["status"] != "active":
+            raise ValueError(f"{prefix}.status must be active")
+        files = claim.get("files")
+        if not isinstance(files, list) or not all(
+            isinstance(path, str) and path for path in files
+        ):
+            raise ValueError(f"{prefix}.files must be a list of non-empty strings")
+        pr = claim.get("pr")
+        if pr is not None and (isinstance(pr, bool) or not isinstance(pr, (str, int))):
+            raise ValueError(f"{prefix}.pr must be a string, integer, or null")
+        for field in ("claimed_at", "expires_at"):
+            try:
+                parsed = _parse(claim[field])
+            except ValueError as exc:
+                raise ValueError(f"{prefix}.{field} must be an ISO timestamp") from exc
+            if parsed.tzinfo is None:
+                raise ValueError(f"{prefix}.{field} must include a timezone")
+    return state
+
+
+def _read_observational(d: Path) -> tuple[dict, str | None]:
+    """Read claims without creating, locking, renaming, or repairing storage.
+
+    Writers publish ``claims.json`` with an atomic rename, so an observational
+    reader does not need the mutation lock. Corruption is reported instead of
+    repaired because ``list`` is used during read-only preflight and audits.
+    """
+    p = d / "claims.json"
+    if not p.exists():
+        return {"claims": []}, None
+    try:
+        return _decode_state(p.read_text()), None
+    except (OSError, ValueError) as exc:
+        return {"claims": []}, f"invalid claims state in {p}: {exc}"
 
 
 def _write(d: Path, state: dict) -> None:
@@ -220,9 +279,11 @@ def cmd_release(args) -> int:
 
 
 def cmd_list(args) -> int:
-    with _locked() as d:
-        state = _read(d)
-        live = _live(state)
+    state, error = _read_observational(_bridge_dir())
+    if error is not None:
+        print(error, file=sys.stderr)
+        return 1
+    live = _live(state)
     if args.json:
         print(json.dumps(live, indent=2, sort_keys=True))
         return 0
