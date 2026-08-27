@@ -17,7 +17,12 @@ from scripts.nous.backend_local import (
     resolve_bridge_dir,
     write_state,
 )
-from scripts.nous.coordination import BackendUnavailable, Conflict, ValidationError
+from scripts.nous.coordination import (
+    BackendUnavailable,
+    ClaimLost,
+    Conflict,
+    ValidationError,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -161,6 +166,108 @@ def test_claim_raises_conflict_for_other_agent_but_allows_same_branch_agent(
     assert updated["area"] == "updated area"
 
 
+def test_release_legacy_returns_pre_release_board_nonempty_for_missing_branch(
+    tmp_path, monkeypatch
+):
+    bridge = tmp_path / "bridge"
+    backend = LocalBackend(bridge)
+    fixed = datetime(2026, 8, 27, 4, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr("scripts.nous.backend_local._now", lambda: fixed)
+    backend.claim_legacy("agent-a", "branch-a", "area-a", (), None, 60)
+
+    assert backend.release_legacy("missing", "done") is True
+    assert [claim["branch"] for claim in backend.list_legacy()] == ["branch-a"]
+
+
+def test_heartbeat_lost_claim_uses_claim_lost_not_backend_unavailable(tmp_path):
+    with pytest.raises(ClaimLost, match="no live claim for branch missing"):
+        LocalBackend(tmp_path / "bridge").heartbeat_legacy("missing", 60)
+
+
+def test_mutating_schema_error_has_no_reachable_parser_exception_chain(tmp_path):
+    bridge = tmp_path / "bridge"
+    bridge.mkdir()
+    (bridge / "claims.json").write_text("not-json", encoding="utf-8")
+
+    with pytest.raises(ValidationError) as caught:
+        LocalBackend(bridge).check_legacy(area="x", files=())
+
+    graph = []
+    pending = [caught.value]
+    seen = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        graph.append(current)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+    assert graph == [caught.value]
+
+
+def test_legacy_claim_heartbeat_release_bytes_match_pre_adapter_format(
+    tmp_path, monkeypatch
+):
+    bridge = tmp_path / "bridge"
+    backend = LocalBackend(bridge)
+    fixed = datetime(2026, 8, 27, 4, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr("scripts.nous.backend_local._now", lambda: fixed)
+
+    backend.claim_legacy("agent", "branch", "area", ("a.py",), "7", 60)
+    expected_claims = (
+        "{\n"
+        '  "claims": [\n'
+        "    {\n"
+        '      "agent": "agent",\n'
+        '      "area": "area",\n'
+        '      "branch": "branch",\n'
+        '      "claimed_at": "2026-08-27T04:00:00+00:00",\n'
+        '      "expires_at": "2026-08-27T04:01:00+00:00",\n'
+        '      "files": [\n'
+        '        "a.py"\n'
+        "      ],\n"
+        '      "pr": "7",\n'
+        '      "status": "active"\n'
+        "    }\n"
+        "  ]\n"
+        "}"
+    )
+    expected_log = (
+        '{"action": "claim", "agent": "agent", "area": "area", '
+        '"branch": "branch", "claimed_at": "2026-08-27T04:00:00+00:00", '
+        '"expires_at": "2026-08-27T04:01:00+00:00", "files": ["a.py"], '
+        '"pr": "7", "status": "active", '
+        '"ts": "2026-08-27T04:00:00+00:00"}\n'
+    )
+    assert (bridge / "claims.json").read_text(encoding="utf-8") == expected_claims
+    assert (bridge / "log.jsonl").read_text(encoding="utf-8") == expected_log
+
+    backend.heartbeat_legacy("branch", 120)
+    expected_claims = expected_claims.replace(
+        '"expires_at": "2026-08-27T04:01:00+00:00"',
+        '"expires_at": "2026-08-27T04:02:00+00:00"',
+    )
+    expected_log += (
+        '{"action": "heartbeat", "branch": "branch", '
+        '"ts": "2026-08-27T04:00:00+00:00"}\n'
+    )
+    assert (bridge / "claims.json").read_text(encoding="utf-8") == expected_claims
+    assert (bridge / "log.jsonl").read_text(encoding="utf-8") == expected_log
+
+    backend.release_legacy("branch", "done")
+    assert (bridge / "claims.json").read_text(encoding="utf-8") == (
+        '{\n  "claims": []\n}'
+    )
+    expected_log += (
+        '{"action": "release", "branch": "branch", "reason": "done", '
+        '"ts": "2026-08-27T04:00:00+00:00"}\n'
+    )
+    assert (bridge / "log.jsonl").read_text(encoding="utf-8") == expected_log
+
+
 def test_heartbeat_refuses_expired_or_unknown_branch_and_release_always_audits(
     tmp_path, monkeypatch
 ):
@@ -174,9 +281,9 @@ def test_heartbeat_refuses_expired_or_unknown_branch_and_release_always_audits(
         lambda: datetime(2026, 8, 27, 5, 0, tzinfo=timezone.utc),
     )
 
-    with pytest.raises(BackendUnavailable):
+    with pytest.raises(ClaimLost):
         backend.heartbeat_legacy("branch", 60)
-    with pytest.raises(BackendUnavailable):
+    with pytest.raises(ClaimLost):
         backend.heartbeat_legacy("unknown", 60)
 
     assert backend.release_legacy("branch", "done") is True

@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable, Mapping, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Final
 
 CLAIMS_MAX_BYTES: Final = 64 * 1024
@@ -72,15 +72,21 @@ _SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
 
 
 def _ensure_text(value: object, field: str) -> str:
-    """Validate UTF-8 representability and the schema's control-byte rule."""
+    """Validate a remote string's UTF-8 and Unicode printability."""
 
     if not isinstance(value, str):
         raise SchemaError(f"{field} must be text")
     try:
         value.encode("utf-8")
-    except UnicodeEncodeError as exc:
-        raise SchemaError(f"{field} contains invalid text") from exc
-    if _CONTROL.search(value) is not None:
+    except UnicodeEncodeError:
+        invalid_encoding = True
+    else:
+        invalid_encoding = False
+    if (
+        invalid_encoding
+        or _CONTROL.search(value) is not None
+        or not value.isprintable()
+    ):
         raise SchemaError(f"{field} contains invalid text")
     return value
 
@@ -169,8 +175,12 @@ def validate_branch_syntax(
             raise SchemaError("branch checker must be callable")
         try:
             valid = checker(value)
-        except Exception as exc:
-            raise SchemaError("branch could not be checked by Git") from exc
+        except Exception:
+            checker_failed = True
+        else:
+            checker_failed = False
+        if checker_failed:
+            raise SchemaError("branch could not be checked by Git")
         if not valid:
             raise SchemaError("branch does not satisfy Git branch syntax")
     return value
@@ -226,10 +236,12 @@ def validate_sha(value: str) -> str:
         raise SchemaError("sha must be exactly 40 lowercase hexadecimal characters")
     try:
         value.encode("utf-8")
-    except UnicodeEncodeError as exc:
-        raise SchemaError(
-            "sha must be exactly 40 lowercase hexadecimal characters"
-        ) from exc
+    except UnicodeEncodeError:
+        invalid_encoding = True
+    else:
+        invalid_encoding = False
+    if invalid_encoding:
+        raise SchemaError("sha must be exactly 40 lowercase hexadecimal characters")
     if _SHA.fullmatch(value) is None:
         raise SchemaError("sha must be exactly 40 lowercase hexadecimal characters")
     return value
@@ -248,29 +260,27 @@ def validate_pr(value: int | None) -> int | None:
 
 
 def validate_timestamp(value: str) -> str:
-    """Validate an ISO timestamp carrying an explicit timezone."""
+    """Validate an ISO-8601 timestamp carrying an explicit UTC offset."""
 
     value = _ensure_text(value, "timestamp")
     try:
         parsed = datetime.fromisoformat(value)
-    except (TypeError, ValueError, OverflowError) as exc:
-        raise SchemaError("timestamp must be an ISO-8601 timestamp") from exc
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
+    except (TypeError, ValueError, OverflowError):
+        parsed = None
+    if parsed is None:
+        raise SchemaError("timestamp must be an ISO-8601 timestamp")
+    offset = parsed.utcoffset()
+    if parsed.tzinfo is None or offset is None:
         raise SchemaError("timestamp must include a timezone")
+    if offset != timedelta(0):
+        raise SchemaError("timestamp must be in UTC")
     return value
 
 
 def reject_secret_text(value: str, *, field: str) -> str:
     """Reject control characters and known credential-shaped free text."""
 
-    if not isinstance(value, str):
-        raise SchemaError(f"{field} contains invalid text")
-    try:
-        value.encode("utf-8")
-    except UnicodeEncodeError as exc:
-        raise SchemaError(f"{field} contains invalid text") from exc
-    if _CONTROL.search(value) is not None:
-        raise SchemaError(f"{field} contains invalid text")
+    value = _ensure_text(value, field)
     if any(pattern.search(value) is not None for pattern in _SECRET_PATTERNS):
         raise SchemaError(f"{field} matches a prohibited secret pattern")
     return value
@@ -313,8 +323,10 @@ def validate_legacy_claim(claim: Mapping[str, object], *, index: int) -> None:
         timestamp = claim[field]
         try:
             parsed = datetime.fromisoformat(timestamp)
-        except (TypeError, ValueError, OverflowError) as exc:
-            raise _legacy_error(index, field, "must be an ISO timestamp") from exc
+        except (TypeError, ValueError, OverflowError):
+            parsed = None
+        if parsed is None:
+            raise _legacy_error(index, field, "must be an ISO timestamp")
         if parsed.tzinfo is None:
             raise _legacy_error(index, field, "must include a timezone")
 
@@ -324,10 +336,16 @@ def decode_legacy_claims(raw: str) -> dict[str, object]:
 
     if not isinstance(raw, str):
         raise SchemaError("claims state must be JSON text")
+    if not raw.strip():
+        raise SchemaError("claims state is empty")
+    parser_detail: str | None = None
     try:
         state = json.loads(raw)
-    except (TypeError, ValueError, json.JSONDecodeError) as exc:
-        raise SchemaError("claims state is not valid JSON") from exc
+    except (TypeError, ValueError) as exc:
+        parser_detail = str(exc)
+        state = None
+    if parser_detail is not None:
+        raise SchemaError(f"claims state is not valid JSON: {parser_detail}")
     if not isinstance(state, dict):
         raise SchemaError("claims state root must be an object")
 

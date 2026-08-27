@@ -96,3 +96,49 @@ def test_adapter_uses_atomic_release_result_for_legacy_message(
     assert module.main(["release", "--branch", "branch"]) == 0
     assert calls == [("branch", "done")]
     assert capsys.readouterr().out == "RELEASED branch (done)\n"
+
+
+def test_adapter_preserves_exact_legacy_heartbeat_error_without_prefix(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setenv("LOOP_BRIDGE_DIR", str(tmp_path / "bridge"))
+    module = _load_loop_bridge()
+
+    assert module.main(["heartbeat", "--branch", "nope"]) == 1
+    assert capsys.readouterr().err == (
+        "no live claim for branch nope (expired or released — re-run `claim`)\n"
+    )
+
+
+def test_adapter_list_preserves_detailed_legacy_error_without_prefix(
+    tmp_path, monkeypatch, capsys
+):
+    bridge_dir = tmp_path / "bridge"
+    bridge_dir.mkdir()
+    claims = bridge_dir / "claims.json"
+    claims.write_text("not-json", encoding="utf-8")
+    monkeypatch.setenv("LOOP_BRIDGE_DIR", str(bridge_dir))
+    module = _load_loop_bridge()
+
+    assert module.main(["list"]) == 1
+    assert capsys.readouterr().err == (
+        f"invalid claims state in {claims}: claims state is not valid JSON: "
+        "Expecting value: line 1 column 1 (char 0)\n"
+    )
+
+
+def test_adapter_mutating_corruption_preserves_detailed_legacy_error_prefix(
+    tmp_path, monkeypatch, capsys
+):
+    bridge_dir = tmp_path / "bridge"
+    bridge_dir.mkdir()
+    claims = bridge_dir / "claims.json"
+    claims.write_text('{"claims": [{"area": "live-but-malformed"}]}')
+    monkeypatch.setenv("LOOP_BRIDGE_DIR", str(bridge_dir))
+    module = _load_loop_bridge()
+
+    assert module.main(["check", "--area", "x"]) == 1
+    assert capsys.readouterr().err == (
+        f"loop bridge error: invalid claims state in {claims}: "
+        "claims[0].agent must be a non-empty string\n"
+    )

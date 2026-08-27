@@ -29,7 +29,6 @@ from .schema import (
     validate_timestamp,
 )
 
-
 STARTED = "started"
 CLAIMED = "claimed"
 REPRODUCED = "reproduced"
@@ -90,19 +89,24 @@ class BackendUnavailable(CoordinationError):
 class ValidationError(CoordinationError):
     """A model value failed a schema check.
 
-    ``schema_error`` retains the structured cause for callers that need to
-    classify it.  The public exception text is deliberately generic: rejected
-    free text (including credential-shaped values) must never be echoed.
+    ``schema_error`` retains a detached structured error for callers that need
+    to classify it.  The public exception text is generic by default; callers
+    may provide a separately sanitized detail for compatibility diagnostics.
     """
 
-    def __init__(self, schema_error: SchemaError):
+    def __init__(self, schema_error: SchemaError, *, message: str | None = None):
         if not isinstance(schema_error, SchemaError):
             schema_error = SchemaError("invalid coordination value")
-        self.schema_error = schema_error
+        # Store a detached copy so parser exceptions reachable from the input
+        # error cannot cross this public coordination boundary.
+        sanitized = SchemaError(str(schema_error))
+        self.schema_error = sanitized
         # ``error`` is a convenient compatibility alias for callers that use
         # the shorter name while ``schema_error`` documents the contract.
-        self.error = schema_error
-        super().__init__("coordination validation failed")
+        self.error = sanitized
+        super().__init__(
+            "coordination validation failed" if message is None else message
+        )
 
 
 def _enum(value: object, field: str, allowed: Sequence[str]) -> str:
@@ -170,11 +174,11 @@ def _wrap_schema_error(function: Callable[[], object]) -> object:
     try:
         return function()
     except SchemaError as exc:
-        # Validators may have chained parser exceptions whose repr/traceback
-        # includes the rejected input. Keep only the safe public message in a
-        # fresh SchemaError and suppress the original chain at this boundary.
-        sanitized = SchemaError(str(exc))
-        raise ValidationError(sanitized) from None
+        # Capture only the safe public message.  The new exception is raised
+        # after this handler so Python cannot retain the rejected parser error
+        # through ``__context__`` even when traceback display is suppressed.
+        message = str(exc)
+    raise ValidationError(SchemaError(message)) from None
 
 
 @dataclass(frozen=True)

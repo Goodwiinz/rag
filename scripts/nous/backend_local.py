@@ -15,9 +15,14 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .coordination import BackendUnavailable, Conflict, LocalMutex, ValidationError
+from .coordination import (
+    BackendUnavailable,
+    ClaimLost,
+    Conflict,
+    LocalMutex,
+    ValidationError,
+)
 from .schema import SchemaError, decode_legacy_claims
-
 
 DEFAULT_TTL_SECONDS = 45 * 60
 
@@ -41,12 +46,13 @@ def resolve_bridge_dir(configured: str | None, default_dir: Path) -> Path:
 
     if configured:
         return Path(configured)
+    error: str | None = None
     try:
         established = default_dir.exists()
     except OSError as exc:
-        raise BackendUnavailable(
-            f"unable to inspect the default bridge directory {default_dir}: {exc}"
-        ) from exc
+        error = f"unable to inspect the default bridge directory {default_dir}: {exc}"
+    if error is not None:
+        raise BackendUnavailable(error)
     if established:
         return default_dir
     raise BackendUnavailable(
@@ -59,35 +65,30 @@ def resolve_bridge_dir(configured: str | None, default_dir: Path) -> Path:
 def locked(bridge_dir: Path) -> Iterator[Path]:
     """Create and exclusively lock a board directory for mutation."""
 
+    error: str | None = None
     try:
         bridge_dir.mkdir(parents=True, exist_ok=True)
         lock_path = bridge_dir / ".lock"
         lock_fh = open(lock_path, "w")
     except OSError as exc:
-        raise BackendUnavailable(
-            f"unable to lock bridge directory {bridge_dir}: {exc}"
-        ) from exc
+        error = f"unable to lock bridge directory {bridge_dir}: {exc}"
+    if error is not None:
+        raise BackendUnavailable(error)
 
     try:
+        fcntl.flock(lock_fh, fcntl.LOCK_EX)
+    except OSError as exc:
+        error = f"unable to lock bridge directory {bridge_dir}: {exc}"
+    if error is not None:
+        lock_fh.close()
+        raise BackendUnavailable(error)
+    try:
+        yield bridge_dir
+    finally:
         try:
-            fcntl.flock(lock_fh, fcntl.LOCK_EX)
-        except OSError as exc:
-            raise BackendUnavailable(
-                f"unable to lock bridge directory {bridge_dir}: {exc}"
-            ) from exc
-        try:
-            yield bridge_dir
+            fcntl.flock(lock_fh, fcntl.LOCK_UN)
         finally:
-            try:
-                fcntl.flock(lock_fh, fcntl.LOCK_UN)
-            finally:
-                lock_fh.close()
-    except Exception:
-        # ``lock_fh`` is closed by the inner ``finally`` once acquisition has
-        # succeeded.  If flock acquisition itself failed, close it here.
-        if not lock_fh.closed:
             lock_fh.close()
-        raise
 
 
 def decode_state(raw: str) -> dict[str, object]:
@@ -100,21 +101,30 @@ def read_mutating(bridge_dir: Path) -> dict[str, object]:
     """Read state for a mutation, failing closed on corrupt or unreadable data."""
 
     claims_path = bridge_dir / "claims.json"
+    read_error: str | None = None
     try:
         if not claims_path.exists():
             return {"claims": []}
         raw = claims_path.read_text()
     except (OSError, ValueError) as exc:
-        raise BackendUnavailable(
-            f"unable to read claims state in {claims_path}: {exc}"
-        ) from exc
+        read_error = f"unable to read claims state in {claims_path}: {exc}"
+    if read_error is not None:
+        raise BackendUnavailable(read_error)
 
+    schema_reason: str | None = None
     try:
-        return decode_state(raw)
+        state = decode_state(raw)
     except SchemaError as exc:
         # The original bytes remain untouched; a caller must repair the board
-        # explicitly before mutations can proceed.
-        raise ValidationError(exc) from None
+        # explicitly before mutations can proceed.  Keep only the safe
+        # validation message and raise after leaving the parser's handler.
+        schema_reason = str(exc)
+        state = None
+    if schema_reason is not None:
+        detail = f"invalid claims state in {claims_path}: {schema_reason}"
+        raise ValidationError(SchemaError(detail), message=detail)
+    assert state is not None
+    return state
 
 
 def read_observational(bridge_dir: Path) -> tuple[dict[str, object], str | None]:
@@ -139,13 +149,14 @@ def write_state(bridge_dir: Path, state: Mapping[str, object]) -> None:
 
     claims_path = bridge_dir / "claims.json"
     tmp_path = bridge_dir / "claims.json.tmp"
+    write_error: str | None = None
     try:
         tmp_path.write_text(json.dumps(state, indent=2, sort_keys=True))
         tmp_path.replace(claims_path)
     except OSError as exc:
-        raise BackendUnavailable(
-            f"unable to write claims state in {claims_path}: {exc}"
-        ) from exc
+        write_error = f"unable to write claims state in {claims_path}: {exc}"
+    if write_error is not None:
+        raise BackendUnavailable(write_error)
 
 
 def audit(
@@ -159,13 +170,16 @@ def audit(
 
     clock = _now if now is None else now
     record = {"ts": _iso(clock()), "action": action, **entry}
+    audit_error: str | None = None
     try:
         with open(bridge_dir / "log.jsonl", "a") as log_fh:
             log_fh.write(json.dumps(record, sort_keys=True) + "\n")
     except OSError as exc:
-        raise BackendUnavailable(
+        audit_error = (
             f"unable to append bridge audit in {bridge_dir / 'log.jsonl'}: {exc}"
-        ) from exc
+        )
+    if audit_error is not None:
+        raise BackendUnavailable(audit_error)
 
 
 def live_claims(
@@ -254,7 +268,7 @@ class LocalBackend(LocalMutex):
                 claim.get("branch") for claim in live_claims(state, now=_now())
             }
             if branch not in live_branches:
-                raise BackendUnavailable(
+                raise ClaimLost(
                     f"no live claim for branch {branch} "
                     "(expired or released — re-run `claim`)"
                 )
@@ -269,10 +283,7 @@ class LocalBackend(LocalMutex):
     def release_legacy(self, branch: str, reason: str) -> bool:
         with locked(self.bridge_dir) as bridge_dir:
             state = read_mutating(bridge_dir)
-            released = any(
-                claim.get("branch") == branch
-                for claim in state.get("claims", [])  # type: ignore[union-attr]
-            )
+            before = len(state.get("claims", []))  # type: ignore[arg-type]
             state["claims"] = [
                 claim
                 for claim in state.get("claims", [])  # type: ignore[union-attr]
@@ -280,12 +291,12 @@ class LocalBackend(LocalMutex):
             ]
             write_state(bridge_dir, state)
             audit(bridge_dir, "release", {"branch": branch, "reason": reason})
-        return released
+        return bool(before)
 
     def list_legacy(self) -> list[dict[str, object]]:
         state, error = read_observational(self.bridge_dir)
         if error is not None:
-            raise ValidationError(SchemaError(error)) from None
+            raise ValidationError(SchemaError(error), message=error)
         return live_claims(state, now=_now())
 
     def check_legacy(self, area: str, files: Sequence[str]) -> list[dict[str, object]]:

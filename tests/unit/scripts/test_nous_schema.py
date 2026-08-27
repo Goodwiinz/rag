@@ -5,10 +5,30 @@ from __future__ import annotations
 import pytest
 
 
+def _exception_graph(root: BaseException) -> list[BaseException]:
+    """Return every exception reachable through Python's public chain links."""
+
+    seen: set[int] = set()
+    pending = [root]
+    graph: list[BaseException] = []
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        graph.append(current)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+    return graph
+
+
 def test_run_id_and_remote_scalars_reject_traversal_and_secrets():
+    import pytest
+
     from scripts.nous import schema
     from scripts.nous.schema import SchemaError
-    import pytest
 
     assert schema.validate_run_id("20260827T040000Z-agent-9f3a1c")
     with pytest.raises(SchemaError):
@@ -32,11 +52,44 @@ def test_legacy_decoder_keeps_old_claim_shape():
 
 
 def test_legacy_decoder_rejects_missing_expiry():
-    from scripts.nous.schema import SchemaError, decode_legacy_claims
     import pytest
+
+    from scripts.nous.schema import SchemaError, decode_legacy_claims
 
     with pytest.raises(SchemaError):
         decode_legacy_claims('{"claims": [{"agent": "a"}]}')
+
+
+def test_legacy_parser_error_does_not_retain_parser_exception_chain():
+    from scripts.nous.schema import SchemaError, decode_legacy_claims
+
+    with pytest.raises(SchemaError) as caught:
+        decode_legacy_claims("not-json")
+
+    assert _exception_graph(caught.value) == [caught.value]
+
+
+def test_remote_strings_reject_c1_and_bidi_controls():
+    from scripts.nous import schema
+    from scripts.nous.schema import SchemaError
+
+    with pytest.raises(SchemaError):
+        schema.validate_area("area\x80")
+    with pytest.raises(SchemaError):
+        schema.validate_branch("feature/bug\u202e")
+    with pytest.raises(SchemaError):
+        schema.validate_files(["scripts\u2066/bridge.py"])
+
+
+def test_remote_timestamps_must_be_explicit_utc():
+    from scripts.nous.schema import SchemaError, validate_timestamp
+
+    assert validate_timestamp("2026-01-01T00:00:00Z") == ("2026-01-01T00:00:00Z")
+    assert validate_timestamp("2026-01-01T00:00:00+00:00") == (
+        "2026-01-01T00:00:00+00:00"
+    )
+    with pytest.raises(SchemaError):
+        validate_timestamp("2026-01-01T01:00:00+01:00")
 
 
 def test_scalar_validators_enforce_declared_shapes_and_limits():

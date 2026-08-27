@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import fields
+import inspect
 import traceback
-from typing import Any
+from dataclasses import fields
+from typing import Any, get_type_hints
 
 import pytest
 
@@ -30,12 +31,28 @@ from scripts.nous.coordination import (
     acquire_remote_then_local,
 )
 
-
 RUN_ID = "20260827T040000Z-agent-9f3a1c"
 SHA = "a" * 40
 OTHER_SHA = "b" * 40
 STAMP = "2026-08-27T04:00:00+00:00"
 LATER = "2026-08-27T07:00:00+00:00"
+
+
+def _exception_graph(root: BaseException) -> list[BaseException]:
+    seen: set[int] = set()
+    pending = [root]
+    graph: list[BaseException] = []
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        graph.append(current)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+    return graph
 
 
 def make_candidate() -> Candidate:
@@ -360,6 +377,27 @@ def test_validation_error_hides_secret_from_the_complete_exception_chain():
     assert caught.value.schema_error.__cause__ is None
 
 
+def test_validation_error_has_no_reachable_parser_exception_chain():
+    with pytest.raises(ValidationError) as caught:
+        Claim(
+            claim_id="c-a1b2c3d4e5f6",
+            run_id=RUN_ID,
+            agent="agent",
+            machine_id="linux",
+            branch="fix/bug",
+            area="bug",
+            files=("x.py",),
+            pr=None,
+            status="active",
+            claimed_at="\ud800",
+            expires_at=LATER,
+            renewed_at=None,
+            candidate=None,
+        )
+
+    assert _exception_graph(caught.value) == [caught.value]
+
+
 def test_projection_blocker_requires_ready_for_human_outcome():
     blocker = Blocker("permission", "needs approval")
     with pytest.raises(ValidationError):
@@ -500,3 +538,162 @@ def test_protocols_describe_separate_remote_and_legacy_surfaces():
         "finalize_orphan",
     ):
         assert remote_only not in LocalMutex.__dict__
+
+
+def test_protocol_signatures_are_frozen_with_exact_parameters_and_returns():
+    expected = {
+        CoordinationBackend: {
+            "claim": (
+                [
+                    ("run_id", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("agent", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("machine_id", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("branch", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("area", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("files", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("candidate", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("pr", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("ttl_seconds", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("claim_id", inspect.Parameter.KEYWORD_ONLY, None),
+                    ("base_sha", inspect.Parameter.KEYWORD_ONLY, None),
+                    ("evidence_head_sha", inspect.Parameter.KEYWORD_ONLY, None),
+                ],
+                Claim,
+            ),
+            "assert_claim": (
+                [
+                    ("run_id", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("claim_id", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                ],
+                Claim,
+            ),
+            "renew": (
+                [
+                    ("run_id", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("claim_id", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("ttl_seconds", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                ],
+                Claim,
+            ),
+            "release": (
+                [
+                    ("run_id", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("claim_id", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("reason", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("remove_run", inspect.Parameter.KEYWORD_ONLY, False),
+                ],
+                type(None),
+            ),
+            "list": ([], list[Claim]),
+            "list_runs": ([], tuple[RunProjection, ...]),
+            "check": (
+                [
+                    ("area", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("files", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                ],
+                list[Claim],
+            ),
+            "put_run": (
+                [
+                    (
+                        "projection",
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                        inspect._empty,
+                    ),
+                    ("claim_id", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                ],
+                type(None),
+            ),
+            "get_run": (
+                [("run_id", inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect._empty)],
+                RunProjection,
+            ),
+            "finalize": (
+                [
+                    (
+                        "projection",
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                        inspect._empty,
+                    ),
+                    ("claim_id", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                    ("release_claim", inspect.Parameter.KEYWORD_ONLY, inspect._empty),
+                ],
+                type(None),
+            ),
+            "finalize_orphan": (
+                [
+                    (
+                        "projection",
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                        inspect._empty,
+                    ),
+                    (
+                        "expected_claim_id",
+                        inspect.Parameter.KEYWORD_ONLY,
+                        inspect._empty,
+                    ),
+                    (
+                        "expected_updated_at",
+                        inspect.Parameter.KEYWORD_ONLY,
+                        inspect._empty,
+                    ),
+                ],
+                type(None),
+            ),
+        },
+        LocalMutex: {
+            "claim_legacy": (
+                [
+                    ("agent", inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect._empty),
+                    ("branch", inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect._empty),
+                    ("area", inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect._empty),
+                    ("files", inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect._empty),
+                    ("pr", inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect._empty),
+                    (
+                        "ttl_seconds",
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                        inspect._empty,
+                    ),
+                ],
+                dict[str, object],
+            ),
+            "heartbeat_legacy": (
+                [
+                    ("branch", inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect._empty),
+                    (
+                        "ttl_seconds",
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                        inspect._empty,
+                    ),
+                ],
+                type(None),
+            ),
+            "release_legacy": (
+                [
+                    ("branch", inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect._empty),
+                    ("reason", inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect._empty),
+                ],
+                bool,
+            ),
+            "list_legacy": ([], list[dict[str, object]]),
+            "check_legacy": (
+                [
+                    ("area", inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect._empty),
+                    ("files", inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect._empty),
+                ],
+                list[dict[str, object]],
+            ),
+        },
+    }
+
+    for protocol, methods in expected.items():
+        for name, (parameters, return_annotation) in methods.items():
+            signature = inspect.signature(getattr(protocol, name))
+            actual = list(signature.parameters.values())[1:]
+            assert [
+                (parameter.name, parameter.kind, parameter.default)
+                for parameter in actual
+            ] == parameters
+            assert get_type_hints(getattr(protocol, name))["return"] == (
+                return_annotation
+            )

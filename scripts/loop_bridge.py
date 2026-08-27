@@ -51,6 +51,7 @@ except ModuleNotFoundError:
 
 LocalBackend = backend_local.LocalBackend
 BackendUnavailable = backend_local.BackendUnavailable
+ClaimLost = backend_local.ClaimLost
 Conflict = backend_local.Conflict
 ValidationError = backend_local.ValidationError
 
@@ -63,12 +64,16 @@ class BridgeError(Exception):
 
 
 def _bridge_dir() -> Path:
+    message: str | None = None
     try:
-        return backend_local.resolve_bridge_dir(
+        resolved = backend_local.resolve_bridge_dir(
             os.environ.get("LOOP_BRIDGE_DIR"), DEFAULT_BRIDGE_DIR
         )
     except (BackendUnavailable, ValidationError) as exc:
-        raise BridgeError(str(exc)) from exc
+        message = str(exc)
+    if message is not None:
+        raise BridgeError(message)
+    return resolved
 
 
 def _now() -> _dt.datetime:
@@ -92,18 +97,25 @@ def _default_agent() -> str:
 
 @contextmanager
 def _locked():
+    message: str | None = None
     try:
         with backend_local.locked(_bridge_dir()) as bridge_dir:
             yield bridge_dir
     except (BackendUnavailable, ValidationError) as exc:
-        raise BridgeError(str(exc)) from exc
+        message = str(exc)
+    if message is not None:
+        raise BridgeError(message)
 
 
 def _read(d: Path) -> dict:
+    message: str | None = None
     try:
-        return backend_local.read_mutating(d)
+        state = backend_local.read_mutating(d)
     except (BackendUnavailable, ValidationError) as exc:
-        raise BridgeError(str(exc)) from exc
+        message = str(exc)
+    if message is not None:
+        raise BridgeError(message)
+    return state
 
 
 def _decode_state(raw: str) -> dict:
@@ -115,17 +127,23 @@ def _read_observational(d: Path) -> tuple[dict, str | None]:
 
 
 def _write(d: Path, state: dict) -> None:
+    message: str | None = None
     try:
         backend_local.write_state(d, state)
     except (BackendUnavailable, ValidationError) as exc:
-        raise BridgeError(str(exc)) from exc
+        message = str(exc)
+    if message is not None:
+        raise BridgeError(message)
 
 
 def _audit(d: Path, action: str, entry: dict) -> None:
+    message: str | None = None
     try:
         backend_local.audit(d, action, entry, now=_now)
     except (BackendUnavailable, ValidationError) as exc:
-        raise BridgeError(str(exc)) from exc
+        message = str(exc)
+    if message is not None:
+        raise BridgeError(message)
 
 
 def _live(state: dict) -> list[dict]:
@@ -154,31 +172,43 @@ def cmd_claim(args) -> int:
     agent = args.agent or _default_agent()
     area = args.area
     files = _files(args.files)
+    failure: BridgeError | None = None
     try:
         _backend().claim_legacy(agent, args.branch, area, files, args.pr, args.ttl)
     except Conflict as exc:
         print(str(exc), file=sys.stderr)
         return 2
     except (BackendUnavailable, ValidationError) as exc:
-        raise _bridge_failure(exc) from exc
+        failure = _bridge_failure(exc)
+    if failure is not None:
+        raise failure
     print(f"CLAIMED '{area}' as {agent} on {args.branch} (ttl {args.ttl}s)")
     return 0
 
 
 def cmd_heartbeat(args) -> int:
+    failure: BridgeError | None = None
     try:
         _backend().heartbeat_legacy(args.branch, args.ttl)
+    except ClaimLost as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     except (BackendUnavailable, ValidationError) as exc:
-        raise _bridge_failure(exc) from exc
+        failure = _bridge_failure(exc)
+    if failure is not None:
+        raise failure
     print(f"HEARTBEAT {args.branch} (+{args.ttl}s)")
     return 0
 
 
 def cmd_release(args) -> int:
+    failure: BridgeError | None = None
     try:
         released = _backend().release_legacy(args.branch, args.reason)
     except (BackendUnavailable, ValidationError) as exc:
-        raise _bridge_failure(exc) from exc
+        failure = _bridge_failure(exc)
+    if failure is not None:
+        raise failure
     print(
         f"RELEASED {args.branch} ({args.reason})"
         if released
@@ -188,10 +218,19 @@ def cmd_release(args) -> int:
 
 
 def cmd_list(args) -> int:
+    failure: BridgeError | None = None
+    error: str | None = None
     try:
         live = _backend().list_legacy()
-    except (BackendUnavailable, ValidationError) as exc:
-        raise _bridge_failure(exc) from exc
+    except ValidationError as exc:
+        error = str(exc)
+    except BackendUnavailable as exc:
+        failure = _bridge_failure(exc)
+    if error is not None:
+        print(error, file=sys.stderr)
+        return 1
+    if failure is not None:
+        raise failure
     if args.json:
         print(_json_dumps(live, indent=2, sort_keys=True))
         return 0
@@ -212,13 +251,16 @@ def cmd_list(args) -> int:
 def cmd_check(args) -> int:
     area = args.area
     files = _files(args.files)
+    failure: BridgeError | None = None
     try:
         conflicts = _backend().check_legacy(area, files)
     except Conflict as exc:
         print(str(exc), file=sys.stderr)
         return 2
     except (BackendUnavailable, ValidationError) as exc:
-        raise _bridge_failure(exc) from exc
+        failure = _bridge_failure(exc)
+    if failure is not None:
+        raise failure
     for c in conflicts:
         why = _overlap(c, area, files)
         if why:
