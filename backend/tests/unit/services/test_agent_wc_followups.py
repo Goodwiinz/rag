@@ -361,5 +361,9 @@ def test_confirm_falls_back_to_redis_after_l1_eviction(confirm_client):
 
     assert response.status_code == 200
     assert response.json()["status"] == "running"
-    assert redis_job["status"] == "running"
+    # The CAS copies before mutating (audit S-L11) — the transition is
+    # observable through the write-through, not by in-place mutation of the
+    # record other readers may hold.
+    assert redis_job["status"] == "awaiting_confirmation"
     mock_set_job.assert_awaited_once()
+    assert mock_set_job.await_args.args[1]["status"] == "running"
