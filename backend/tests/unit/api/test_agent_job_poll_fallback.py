@@ -14,7 +14,7 @@ import uuid
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 from fastapi import HTTPException
@@ -168,8 +168,8 @@ async def test_confirm_store_outage_falls_back_to_agent_runs_projection() -> Non
 
 
 @pytest.mark.asyncio
-async def test_confirm_stale_live_state_uses_awaiting_projection() -> None:
-    """A stale L1 record must not 409 a durable confirmation gate."""
+async def test_confirm_stale_live_running_state_is_reconciled() -> None:
+    """A stale live RUNNING mirror must not permanently 409 confirmation."""
     user = _user()
     job_id = str(uuid.uuid4())
     run = SimpleNamespace(
@@ -179,6 +179,15 @@ async def test_confirm_stale_live_state_uses_awaiting_projection() -> None:
     )
     db = AsyncMock()
     background_tasks = MagicMock()
+    release = AsyncMock(return_value=True)
+
+    async def claim_live_mirror(
+        _job_id: str, expected: JobStatus, _new_status: JobStatus
+    ) -> str:
+        # Reproduce the real Redis CAS: the stale record conflicts with the
+        # normal awaiting -> running claim, but an idempotent running -> running
+        # reconciliation can atomically establish this caller's mirror claim.
+        return "claimed" if expected is JobStatus.RUNNING else "conflict"
 
     with (
         patch(
@@ -199,9 +208,13 @@ async def test_confirm_stale_live_state_uses_awaiting_projection() -> None:
             new=AsyncMock(return_value=True),
         ),
         patch(
-            "src.services.agent.job_store.compare_and_set_status",
-            new=AsyncMock(return_value="updated"),
+            "src.api.agent.execute.release_confirmation_claim",
+            new=release,
         ),
+        patch(
+            "src.services.agent.job_store.compare_and_set_status",
+            new=AsyncMock(side_effect=claim_live_mirror),
+        ) as mirror_claim,
     ):
         response = await confirm_agent_action(
             job_id,
@@ -212,6 +225,11 @@ async def test_confirm_stale_live_state_uses_awaiting_projection() -> None:
         )
 
     assert response == {"status": JobStatus.RUNNING, "job_id": job_id}
+    assert mirror_claim.await_args_list == [
+        call(job_id, JobStatus.AWAITING_CONFIRMATION, JobStatus.RUNNING),
+        call(job_id, JobStatus.RUNNING, JobStatus.RUNNING),
+    ]
+    release.assert_not_awaited()
 
 
 @pytest.mark.asyncio

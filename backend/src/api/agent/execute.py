@@ -733,6 +733,19 @@ async def confirm_agent_action(
         result = await compare_and_set_status(
             job_id, JobStatus.AWAITING_CONFIRMATION, JobStatus.RUNNING
         )
+        if (
+            result == "conflict"
+            and job_from_projection
+            and live_status == JobStatus.RUNNING
+        ):
+            # The worker may have parked the durable run successfully while
+            # its Redis awaiting-confirmation write failed. PostgreSQL is now
+            # the authoritative winner, and the live mirror is already at the
+            # desired status; claim that exact stale state atomically so a
+            # delayed awaiting write or terminal transition still conflicts.
+            result = await compare_and_set_status(
+                job_id, JobStatus.RUNNING, JobStatus.RUNNING
+            )
     except ConfirmationCoordinationUnavailable as exc:
         await release_durable_claim()
         raise HTTPException(
