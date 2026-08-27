@@ -42,13 +42,12 @@ vi.mock('@/services/workspaceService', () => ({
   workspaceService: {
     createThread: vi.fn(),
     createMessage: vi.fn().mockResolvedValue({ id: 'db-msg-1' }),
-    listMessages: vi
-      .fn()
-      .mockResolvedValue({ messages: [], has_more: false }),
+    listMessages: vi.fn().mockResolvedValue({ messages: [], has_more: false }),
   },
 }));
 
 import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
+import { workspaceService } from '@/services/workspaceService';
 
 function makeParams(): UseChatStreamingParams {
   useChatStore.setState({ currentThreadId: 'thread-A' });
@@ -112,5 +111,41 @@ describe('useChatStreaming submit single-flight (submitLockRef)', () => {
       await result.current.handleSubmit('later message');
     });
     expect(streamMessageMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not start streaming when Stop lands during first-thread creation', async () => {
+    let finishThreadCreation!: (thread: unknown) => void;
+    vi.mocked(workspaceService.createThread).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishThreadCreation = resolve;
+        }) as never
+    );
+    const originalMessages: ChatPageMessage[] = [];
+    const params = {
+      ...makeParams(),
+      messages: originalMessages,
+      displayedMessages: originalMessages,
+      dbConversation: { id: 'conversation-A' } as never,
+    };
+    useChatStore.setState({ currentThreadId: null });
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    let submission!: Promise<void>;
+    act(() => {
+      submission = result.current.handleSubmit('cancel this turn');
+    });
+    expect(workspaceService.createThread).toHaveBeenCalledOnce();
+
+    act(() => result.current.handleStop());
+    await act(async () => {
+      finishThreadCreation({ id: 'thread-new', title: 'cancel this turn' });
+      await submission;
+    });
+
+    expect(streamMessageMock).not.toHaveBeenCalled();
+    expect(params.setMessages).toHaveBeenLastCalledWith(originalMessages);
+    expect(result.current.input).toBe('cancel this turn');
+    expect(result.current.isLoading).toBe(false);
   });
 });

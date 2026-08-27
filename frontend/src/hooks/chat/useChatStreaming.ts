@@ -1373,6 +1373,10 @@ export function useChatStreaming(
         return;
       }
       submitLockRef.current = true;
+      // Stop must also cover the first-send setup awaits before runStreamTurn
+      // installs the live stream controller.
+      const preflightAbort = new AbortController();
+      abortControllerRef.current = preflightAbort;
       // A cold-load confirmation probe still in flight is now stale: whatever
       // interrupt it might replay predates this turn, and the server abandons
       // it when the new send arrives. Left running, its late confirmation
@@ -1499,6 +1503,15 @@ export function useChatStreaming(
           }
         }
 
+        if (preflightAbort.signal.aborted) {
+          setMessages(messages);
+          setInput(content);
+          setIsLoading(false);
+          submitLockRef.current = false;
+          stopTargetRef.current = null;
+          return;
+        }
+
         // Stream via Agent (LangGraph) backend.
         // The workspace thread IS the agent thread (server-canonical).
         const existingAgentThreadId = currentThreadId || undefined;
@@ -1580,6 +1593,10 @@ export function useChatStreaming(
         submitLockRef.current = false;
         setIsLoading(false);
         throw err;
+      } finally {
+        if (abortControllerRef.current === preflightAbort) {
+          abortControllerRef.current = null;
+        }
       }
     },
     [
