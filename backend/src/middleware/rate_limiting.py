@@ -211,11 +211,12 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
         """
         Generate rate limit key based on request context
         """
-        # Try to get user context from request state (set by auth middleware)
-        user_context = getattr(request.state, "user_context", None)
+        # MultiTenancyMiddleware stores authenticated identity as scalar state
+        # attributes before this middleware runs.
+        user_id = getattr(request.state, "user_id", None)
 
-        if user_context and user_context.get("user_id"):
-            base_key = f"analytics:{user_context['user_id']}"
+        if user_id:
+            base_key = f"analytics:{user_id}"
         else:
             # Fallback to IP-based limiting
             client_ip = request.client.host if request.client else "unknown"
@@ -267,13 +268,13 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
         ):
             return await call_next(request)
 
-        # Get user role from request state (should be set by auth middleware)
-        user_context = getattr(request.state, "user_context", {})
-        user_role_str = user_context.get("user_role", "USER")
+        # MultiTenancyMiddleware stores the DB-backed role on request.state.
+        user_id = getattr(request.state, "user_id", None)
+        user_role_value = getattr(request.state, "user_role", UserRole.USER.value)
 
         try:
-            user_role = UserRole(user_role_str)
-        except ValueError:
+            user_role = UserRole(user_role_value)
+        except (TypeError, ValueError):
             user_role = UserRole.USER
 
         # Determine rate limit type and get appropriate limits
@@ -309,8 +310,8 @@ class AnalyticsRateLimitMiddleware(BaseHTTPMiddleware):
             "allowed": allowed,
         }
 
-        if user_context.get("user_id"):
-            log_data["user_id"] = user_context["user_id"]
+        if user_id:
+            log_data["user_id"] = user_id
         else:
             log_data["client_ip"] = request.client.host if request.client else "unknown"
 
