@@ -47,7 +47,14 @@ async def test_rag_node_skips_retrieval_when_request_disables_rag():
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_rag_node_retrieves_when_request_enables_rag():
-    contexts = [{"document_id": "doc-1", "content": "evidence"}]
+    contexts = [
+        {
+            "document_id": "doc-1",
+            "title": "Document 1",
+            "content": "evidence",
+            "score": 0.0,
+        }
+    ]
     search_fn = AsyncMock(return_value=contexts)
     state = {
         "messages": [

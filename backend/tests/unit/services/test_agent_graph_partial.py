@@ -322,6 +322,55 @@ class TestIndividualNodes:
             "find papers about test query" in result["retrieved_contexts"][0]["content"]
         )
 
+    async def test_rag_node_sanitizes_injected_contexts_for_sse(self):
+        """Injected contexts must match the normal retrieval boundary."""
+        from src.services.agent.graph import rag_node
+
+        async def mock_search(query: str, user_id: str):
+            return [
+                {
+                    "document_id": "doc-1",
+                    "title": "Numeric score",
+                    "content": "x" * 4000,
+                    "score": "0.95",
+                },
+                {
+                    "document_id": "doc-2",
+                    "title": "Invalid score",
+                    "content": "safe",
+                    "score": "not-a-score",
+                },
+                {
+                    "document_id": "doc-3",
+                    "title": "Non-finite score",
+                    "content": "safe",
+                    "score": float("nan"),
+                },
+                {"document_id": "doc-4", "title": "Missing content", "score": 0.5},
+                "not a context item",
+            ]
+
+        config = {
+            "configurable": {
+                "thread_id": str(uuid4()),
+                "user_id": str(uuid4()),
+                "organization_id": str(uuid4()),
+                "search_fn": mock_search,
+            }
+        }
+
+        result = await rag_node(
+            _make_initial_state("find papers about test query"),
+            config,
+        )
+
+        contexts = result["retrieved_contexts"]
+        assert len(contexts) == 3
+        assert contexts[0]["score"] == 0.95
+        assert len(contexts[0]["content"]) == 3000
+        assert contexts[1]["score"] == 0.0
+        assert contexts[2]["score"] == 0.0
+
     async def test_memory_retrieval_node_without_user(self):
         """memory_retrieval_node should return empty when no user in config."""
         from src.services.agent.graph import memory_retrieval_node

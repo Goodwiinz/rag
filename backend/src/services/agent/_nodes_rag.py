@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import re
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -689,6 +690,34 @@ def _coerce_text(content: Any) -> str:
     return str(content or "")
 
 
+def _normalize_injected_contexts(contexts: Any) -> List[dict]:
+    """Keep test/custom retrieval results on the normal context contract."""
+    if not isinstance(contexts, list):
+        return []
+
+    normalized: List[dict] = []
+    for item in contexts:
+        if not isinstance(item, dict):
+            continue
+        title = item.get("title")
+        content = item.get("content")
+        document_id = item.get("document_id")
+        if (
+            not isinstance(title, str)
+            or not isinstance(content, str)
+            or (document_id is not None and not isinstance(document_id, str))
+        ):
+            continue
+        try:
+            score = float(item.get("score", 0.0))
+        except (TypeError, ValueError, OverflowError):
+            score = 0.0
+        if not math.isfinite(score):
+            score = 0.0
+        normalized.append({**item, "content": content[:3000], "score": score})
+    return normalized
+
+
 def _build_search_query(raw: str) -> str:
     """Derive a focused retrieval query from a raw user message.
 
@@ -828,7 +857,9 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     search_fn = configurable.get("search_fn")
     if search_fn:
         try:
-            contexts = await search_fn(last_user_msg, user_id)
+            contexts = _normalize_injected_contexts(
+                await search_fn(last_user_msg, user_id)
+            )
             return {"retrieved_contexts": contexts, **state_update}
         except Exception as e:
             logger.warning("injected search_fn failed", exc_info=e)
