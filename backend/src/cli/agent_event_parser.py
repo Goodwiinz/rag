@@ -13,7 +13,12 @@ def parse_sse_lines(lines: Iterable[str]) -> Iterator[CLIEvent]:
     def flush() -> Iterator[CLIEvent]:
         nonlocal event_type, payload_parts
         if event_type and payload_parts:
-            yield CLIEvent(type=event_type, data=json.loads("\n".join(payload_parts)))
+            try:
+                data = json.loads("\n".join(payload_parts))
+            except json.JSONDecodeError:
+                pass
+            else:
+                yield CLIEvent(type=event_type, data=data)
         event_type = ""
         payload_parts = []
 
