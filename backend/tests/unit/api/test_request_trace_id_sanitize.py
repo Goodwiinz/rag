@@ -5,7 +5,9 @@ from types import SimpleNamespace
 from src.api.agent.streaming import _request_trace_id
 
 
-def _request(header_value=None, state_request_id=None):
+def _request(
+    header_value: str | None = None, state_request_id: str | None = None
+) -> SimpleNamespace:
     headers = {}
     if header_value is not None:
         headers["x-request-id"] = header_value
@@ -14,21 +16,21 @@ def _request(header_value=None, state_request_id=None):
     )
 
 
-def test_clean_header_is_preserved():
+def test_clean_header_is_preserved() -> None:
     assert _request_trace_id(_request("req-abc.123:x_y")) == "req-abc.123:x_y"
 
 
-def test_header_with_unsafe_chars_is_replaced():
+def test_header_with_unsafe_chars_is_replaced() -> None:
     value = _request_trace_id(_request("evil\nheader injection<script>"))
     assert "\n" not in value
     assert "<" not in value
     assert len(value) == 36  # uuid4 fallback
 
 
-def test_missing_header_gets_uuid():
+def test_missing_header_gets_uuid() -> None:
     assert len(_request_trace_id(_request())) == 36
 
 
-def test_oversized_header_replaced_not_echoed():
+def test_oversized_header_replaced_not_echoed() -> None:
     value = _request_trace_id(_request("a" * 129))
     assert value == "a" * 128
