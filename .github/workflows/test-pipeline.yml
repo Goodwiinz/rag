@@ -393,7 +393,7 @@ jobs:
           AZURE_OPENAI_API_KEY: "test-key-not-real"
       - name: Run NOUS workflow contract tests
         run: |
-          pytest tests/unit/scripts/ \
+          python3 -m pytest tests/unit/scripts/ \
             --confcutdir=tests/unit/scripts \
             -q --no-cov
       - name: Upload coverage to Codecov

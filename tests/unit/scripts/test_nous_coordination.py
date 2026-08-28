@@ -30,6 +30,7 @@ from scripts.nous.coordination import (
     ValidationError,
     acquire_remote_then_local,
 )
+from scripts.nous.schema import SchemaError
 
 RUN_ID = "20260827T040000Z-agent-9f3a1c"
 SHA = "a" * 40
@@ -473,6 +474,27 @@ def test_acquire_remote_then_local_compensates_remote_claim():
         acquire_remote_then_local(remote=remote, local=local, request=request)
     assert remote.releases == [(RUN_ID, "c-a1b2c3d4e5f6", "local-conflict", True)]
     assert timeline == ["remote.claim", "local.claim_legacy", "remote.release"]
+
+
+@pytest.mark.parametrize(
+    "local_error",
+    (
+        BackendUnavailable("local board unavailable"),
+        ValidationError(SchemaError("local board is invalid")),
+    ),
+)
+def test_acquire_remote_then_local_compensates_every_expected_local_failure(
+    local_error,
+):
+    remote = FakeCoordinationBackend(claim_result=make_claim())
+    local = FakeLocalMutex(claim_error=local_error)
+
+    with pytest.raises(type(local_error)):
+        acquire_remote_then_local(remote=remote, local=local, request=make_request())
+
+    assert remote.releases == [
+        (RUN_ID, "c-a1b2c3d4e5f6", "local-acquisition-failed", True)
+    ]
 
 
 def test_failed_compensation_is_reported_as_pending():

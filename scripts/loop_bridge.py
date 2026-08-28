@@ -164,11 +164,26 @@ def _backend() -> LocalBackend:
     return LocalBackend(_bridge_dir())
 
 
+def _legacy_mutation_blocked() -> bool:
+    bridge_dir = _bridge_dir()
+    mode = os.environ.get("NOUS_COORD_MODE", "local")
+    if backend_local.legacy_mutations_allowed(bridge_dir, mode=mode):
+        return False
+    print(
+        "loop bridge error: remote-required coordination is active; "
+        "use scripts/nous_run.py",
+        file=sys.stderr,
+    )
+    return True
+
+
 def _bridge_failure(exc: Exception) -> BridgeError:
     return BridgeError(str(exc))
 
 
 def cmd_claim(args) -> int:
+    if _legacy_mutation_blocked():
+        return 1
     agent = args.agent or _default_agent()
     area = args.area
     files = _files(args.files)
@@ -187,6 +202,8 @@ def cmd_claim(args) -> int:
 
 
 def cmd_heartbeat(args) -> int:
+    if _legacy_mutation_blocked():
+        return 1
     failure: BridgeError | None = None
     try:
         _backend().heartbeat_legacy(args.branch, args.ttl)
@@ -202,6 +219,8 @@ def cmd_heartbeat(args) -> int:
 
 
 def cmd_release(args) -> int:
+    if _legacy_mutation_blocked():
+        return 1
     failure: BridgeError | None = None
     try:
         released = _backend().release_legacy(args.branch, args.reason)
@@ -231,9 +250,15 @@ def cmd_list(args) -> int:
         return 1
     if failure is not None:
         raise failure
+    local_only = not backend_local.legacy_mutations_allowed(
+        _bridge_dir(), mode=os.environ.get("NOUS_COORD_MODE", "local")
+    )
     if args.json:
-        print(_json_dumps(live, indent=2, sort_keys=True))
+        payload = {"board": "local-only", "claims": live} if local_only else live
+        print(_json_dumps(payload, indent=2, sort_keys=True))
         return 0
+    if local_only:
+        print("[local-only board; remote-required is authoritative]")
     if not live:
         print("(no active claims)")
         return 0
@@ -249,6 +274,8 @@ def cmd_list(args) -> int:
 
 
 def cmd_check(args) -> int:
+    if _legacy_mutation_blocked():
+        return 1
     area = args.area
     files = _files(args.files)
     failure: BridgeError | None = None
