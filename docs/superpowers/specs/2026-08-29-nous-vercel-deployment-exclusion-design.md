@@ -135,7 +135,10 @@ callers cannot supply or override it.
 - A missing, modified, oversized, duplicated, or differently encoded guard is
   invalid metadata. Reads report validation failure and mutations stop.
 - Unknown files continue to fail closed.
-- A schema-2 snapshot can never be downgraded to schema 1.
+- No supported schema-2 writer emits schema 1. Old clients reject schema 2
+  before constructing a child, so they cannot accidentally remove the guard.
+  As with every other metadata invariant, Git authentication and the branch
+  ruleset remain the controls against a deliberately hand-crafted commit.
 - The dedicated committer check runs before tree decoding exactly as it does
   today.
 
@@ -191,7 +194,7 @@ Migration is a maintenance-window operation:
 2. Merge the implementation and verify the exact merged `develop` SHA.
 3. Update Mac and Linux to that same SHA and run the focused coordination
    tests on both.
-4. Verify the remote board is schema 1, has no live claims, and still points
+4. Verify the remote board is schema 1, has an empty stored claims array, and still points
    at the expected root/descendant.
 5. Run `migrate --to-schema 2 --authorize coordinate` once from one machine.
 6. Verify an ordinary fast-forward child, exact schema-2 tree, immutable
@@ -230,7 +233,7 @@ Unit and local integration tests must prove:
 - schema-2 snapshots with missing or modified guard bytes are rejected;
 - claim, renew, run update, release, finalize, prune, and migration children
   all retain schema 2 and the exact guard;
-- migration preserves all claims and runs, refuses when a live claim exists,
+- migration requires the stored claims array to be empty, preserves every run,
   creates one ordinary fast-forward child, and is idempotent;
 - old schema-1 clients fail closed on schema 2 by their existing validation;
 - the CLI requires `coordinate`, remote-required mode, and target schema 2;
@@ -245,11 +248,14 @@ rollout step 7. A local test cannot prove Vercel's webhook ordering.
 - The Vercel config is code-owned constant data, not remote/operator input.
 - Exact-byte validation prevents a peer from enabling deployments or adding
   unrelated Vercel behavior while retaining a valid-looking schema.
-- Schema 2 prevents silent removal of the guard after migration.
+- Supported schema-2 writers prevent accidental guard removal; Git
+  authentication and the exact branch ruleset remain authoritative against
+  deliberately hand-crafted metadata commits.
 - The dedicated identity and foreign-commit check are unchanged.
 - Existing secret, path, control-character, size, force-push, deletion, and
   branch-ruleset protections remain unchanged.
-- Migration requires explicit coordination authority and refuses live claims.
+- Migration requires explicit coordination authority and an empty stored
+  claims array.
 
 ## Settled decisions
 
