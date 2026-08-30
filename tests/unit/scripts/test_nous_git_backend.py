@@ -10,6 +10,9 @@ from pathlib import Path
 import pytest
 
 from scripts.nous.backend_git import (
+    CURRENT_COORDINATION_SCHEMA,
+    LEGACY_COORDINATION_SCHEMA,
+    VERCEL_DEPLOYMENT_GUARD,
     CoordinationSnapshot,
     GitBackend,
     GitBackendConfig,
@@ -35,6 +38,12 @@ def git(repo: Path, *args: str) -> str:
         ["git", *args], cwd=repo, text=True, capture_output=True, check=True
     )
     return result.stdout.strip()
+
+
+def git_bytes(repo: Path, *args: str) -> bytes:
+    return subprocess.run(
+        ["git", *args], cwd=repo, capture_output=True, check=True
+    ).stdout
 
 
 @pytest.fixture
@@ -95,12 +104,99 @@ def test_bootstrap_is_orphan_and_claim_writes_one_atomic_snapshot(two_backends):
     assert git(probe, "ls-tree", "-r", "--name-only", tip).splitlines() == [
         "claims.json",
         f"runs/{RUN_A}.json",
+        "vercel.json",
     ]
     claims = json.loads(git(probe, "show", f"{tip}:claims.json"))
     run = json.loads(git(probe, "show", f"{tip}:runs/{RUN_A}.json"))
     assert claims["claims"][0]["claim_id"] == claim.claim_id
     assert run["claim_id"] == claim.claim_id
     assert git(left.io.repo_root, "rev-parse", "--is-shallow-repository") == "false"
+
+
+def test_bootstrap_writes_schema2_and_exact_vercel_guard(two_backends):
+    _, (left, _) = two_backends
+    root = left.bootstrap()
+    assert git(left.io.repo_root, "rev-list", "--max-parents=0", root) == root
+    assert git(
+        left.io.repo_root, "ls-tree", "-r", "--name-only", root
+    ).splitlines() == ["claims.json", "vercel.json"]
+    claims = json.loads(git(left.io.repo_root, "show", f"{root}:claims.json"))
+    assert claims["schema"] == CURRENT_COORDINATION_SCHEMA
+    assert git_bytes(left.io.repo_root, "show", f"{root}:vercel.json") == (
+        VERCEL_DEPLOYMENT_GUARD
+    )
+
+
+def test_schema1_without_guard_remains_readable(two_backends):
+    _, (left, _) = two_backends
+    raw = (
+        json.dumps(
+            {
+                "schema": LEGACY_COORDINATION_SCHEMA,
+                "mode": "remote-required",
+                "updated_at": "2026-08-27T04:00:00+00:00",
+                "claims": [],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode()
+    root = left.io.commit_snapshot(
+        {"claims.json": raw}, parent=None, message="legacy bootstrap"
+    )
+    left.io.push_fast_forward("origin", root, "nous-coordination")
+    assert left.list() == []
+
+
+@pytest.mark.parametrize("guard", (None, b"{}\n"))
+def test_schema2_requires_exact_vercel_guard(two_backends, guard):
+    _, (left, _) = two_backends
+    claims = (
+        json.dumps(
+            {
+                "schema": CURRENT_COORDINATION_SCHEMA,
+                "mode": "remote-required",
+                "updated_at": "2026-08-27T04:00:00+00:00",
+                "claims": [],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode()
+    files = {"claims.json": claims}
+    if guard is not None:
+        files["vercel.json"] = guard
+    root = left.io.commit_snapshot(files, parent=None, message="invalid schema2")
+    left.io.push_fast_forward("origin", root, "nous-coordination")
+    with pytest.raises(ValidationError):
+        left.list()
+
+
+def test_schema1_rejects_partial_guard_migration(two_backends):
+    _, (left, _) = two_backends
+    claims = (
+        json.dumps(
+            {
+                "schema": LEGACY_COORDINATION_SCHEMA,
+                "mode": "remote-required",
+                "updated_at": "2026-08-27T04:00:00+00:00",
+                "claims": [],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode()
+    root = left.io.commit_snapshot(
+        {"claims.json": claims, "vercel.json": VERCEL_DEPLOYMENT_GUARD},
+        parent=None,
+        message="partial migration",
+    )
+    left.io.push_fast_forward("origin", root, "nous-coordination")
+    with pytest.raises(ValidationError):
+        left.list()
 
 
 def test_concurrent_bootstrap_has_one_winning_orphan_root(two_backends):

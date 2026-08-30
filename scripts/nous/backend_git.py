@@ -50,6 +50,17 @@ from .schema import (
     validate_timestamp,
 )
 
+LEGACY_COORDINATION_SCHEMA = 1
+CURRENT_COORDINATION_SCHEMA = 2
+VERCEL_DEPLOYMENT_GUARD = (
+    b'{\n'
+    b'  "$schema": "https://openapi.vercel.sh/vercel.json",\n'
+    b'  "git": {\n'
+    b'    "deploymentEnabled": false\n'
+    b'  }\n'
+    b'}\n'
+)
+
 
 def _validation(message: str) -> ValidationError:
     return ValidationError(SchemaError(message), message=message)
@@ -286,11 +297,14 @@ def _load_json(raw: bytes, maximum: int, label: str) -> object:
         raise _validation(f"{label} is not valid UTF-8 JSON") from None
 
 
-def decode_claims_document(raw: bytes) -> tuple[str, str, tuple[Claim, ...]]:
+def decode_claims_document(raw: bytes) -> tuple[int, str, str, tuple[Claim, ...]]:
     value = _load_json(raw, CLAIMS_MAX_BYTES, "claims.json")
     item = _object(value, {"schema", "mode", "updated_at", "claims"}, "claims.json")
-    if item["schema"] != 1 or item["mode"] not in {"local", "remote-required"}:
-        raise _validation("claims.json schema or mode is incompatible")
+    schema = item["schema"]
+    if schema not in {LEGACY_COORDINATION_SCHEMA, CURRENT_COORDINATION_SCHEMA}:
+        raise _validation("claims.json schema is incompatible")
+    if item["mode"] not in {"local", "remote-required"}:
+        raise _validation("claims.json mode is incompatible")
     try:
         updated_at = validate_timestamp(item["updated_at"])  # type: ignore[arg-type]
     except SchemaError as exc:
@@ -299,12 +313,12 @@ def decode_claims_document(raw: bytes) -> tuple[str, str, tuple[Claim, ...]]:
     if not isinstance(raw_claims, list):
         raise _validation("claims must be a list")
     claims = tuple(_claim_from_json(value) for value in raw_claims)
-    return item["mode"], updated_at, claims  # type: ignore[return-value]
+    return schema, item["mode"], updated_at, claims  # type: ignore[return-value]
 
 
 def serialize_claims(snapshot: "CoordinationSnapshot") -> bytes:
     value = {
-        "schema": 1,
+        "schema": snapshot.schema,
         "mode": snapshot.mode,
         "updated_at": snapshot.updated_at,
         "claims": [_claim_to_json(item) for item in snapshot.claims],
@@ -351,6 +365,7 @@ class CoordinationSnapshot:
     updated_at: str
     claims: tuple[Claim, ...]
     runs: Mapping[str, RunProjection]
+    schema: int = CURRENT_COORDINATION_SCHEMA
 
 
 def _assert_snapshot_invariants(snapshot: CoordinationSnapshot) -> None:
@@ -443,6 +458,8 @@ class GitBackend(CoordinationBackend):
     def _files(self, snapshot: CoordinationSnapshot) -> dict[str, bytes]:
         _assert_snapshot_invariants(snapshot)
         files = {"claims.json": serialize_claims(snapshot)}
+        if snapshot.schema == CURRENT_COORDINATION_SCHEMA:
+            files["vercel.json"] = VERCEL_DEPLOYMENT_GUARD
         for run_id, projection in sorted(snapshot.runs.items()):
             validate_run_id(run_id)
             if projection.run_id != run_id:
@@ -463,12 +480,20 @@ class GitBackend(CoordinationBackend):
         paths = self.io.list_tree(commit)
         if "claims.json" not in paths:
             raise _validation("coordination snapshot is missing claims.json")
-        mode, updated_at, claims = decode_claims_document(
+        schema, mode, updated_at, claims = decode_claims_document(
             self.io.cat_file(commit, "claims.json")
         )
+        if schema == LEGACY_COORDINATION_SCHEMA:
+            if "vercel.json" in paths:
+                raise _validation("schema 1 snapshot contains a partial deployment guard")
+        else:
+            if "vercel.json" not in paths:
+                raise _validation("schema 2 snapshot is missing the deployment guard")
+            if self.io.cat_file(commit, "vercel.json") != VERCEL_DEPLOYMENT_GUARD:
+                raise _validation("schema 2 deployment guard is invalid")
         runs: dict[str, RunProjection] = {}
         for path in paths:
-            if path == "claims.json":
+            if path in {"claims.json", "vercel.json"}:
                 continue
             if not path.startswith("runs/") or not path.endswith(".json"):
                 raise _validation("coordination snapshot contains an unknown file")
@@ -480,7 +505,7 @@ class GitBackend(CoordinationBackend):
             if projection.run_id != run_id:
                 raise _validation("run filename and embedded run_id differ")
             runs[run_id] = projection
-        snapshot = CoordinationSnapshot(mode, updated_at, claims, runs)
+        snapshot = CoordinationSnapshot(mode, updated_at, claims, runs, schema)
         _assert_snapshot_invariants(snapshot)
         return snapshot
 
@@ -556,6 +581,8 @@ class GitBackend(CoordinationBackend):
                 before = self._decode_snapshot(parent)
                 self.assert_snapshot_mode(before, self.config.mode)
                 after, result = operation(before)
+                if after.schema != CURRENT_COORDINATION_SCHEMA:
+                    after = replace(after, schema=CURRENT_COORDINATION_SCHEMA)
                 if after == before:
                     return result
                 commit = self.io.commit_snapshot(
@@ -975,6 +1002,9 @@ class GitBackend(CoordinationBackend):
 
 
 __all__ = [
+    "CURRENT_COORDINATION_SCHEMA",
+    "LEGACY_COORDINATION_SCHEMA",
+    "VERCEL_DEPLOYMENT_GUARD",
     "CoordinationSnapshot",
     "ForeignMetadata",
     "GitBackend",
