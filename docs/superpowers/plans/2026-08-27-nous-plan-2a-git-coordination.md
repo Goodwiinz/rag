@@ -543,8 +543,9 @@ Do not use the preceding Plan 2a-era rollout wording as current operator
 instruction. Follow the [2026-08-29 deployment-exclusion plan](2026-08-29-nous-vercel-deployment-exclusion.md)
 and the canonical [NOUS workflow](../../engineering/nous-loop.md): complete
 the claim-free schema migration, observe its migration SHA for 120 seconds,
-apply the GitHub ruleset that blocks force-push and deletion while allowing
-ordinary fast-forward pushes, then run the two-machine smoke test to a
+apply and verify the GitHub ruleset on `nous-coordination` that blocks
+deletion and non-fast-forward pushes while allowing ordinary direct
+fast-forward pushes, then run the two-machine smoke test to a
 claim-free end state. Only after that smoke test passes may operators write
 both cutover sentinels with `cutover --write-sentinel --authorize coordinate`
 and restart the loops. Both local `.remote-required` sentinels remain absent
