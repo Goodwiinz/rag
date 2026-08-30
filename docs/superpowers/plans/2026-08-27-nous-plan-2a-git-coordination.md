@@ -10,11 +10,21 @@
 
 **Spec:** docs/superpowers/specs/2026-08-27-nous-cross-machine-coordination-design.md
 
+> **Protocol addendum (2026-08-29):** The schema-2 Vercel deployment guard in
+> `docs/superpowers/specs/2026-08-29-nous-vercel-deployment-exclusion-design.md`
+> supersedes this plan's claims/runs-only tree assertions. The original steps
+> remain historical implementation evidence for schema 1.
+
 ## Global Constraints
 
 - Depends on Plan 1 and consumes its ReceiptStore, PreflightResult, and CLI error mapping without changing their meanings.
 - All new code under scripts/nous/ remains stdlib-only. Git and gh subprocesses go through GitIO; no shell=True, shell strings, force flags, deletion flags, or remote-derived values interpolated into commands.
-- The remote branch is the orphan nous-coordination branch and contains only claims.json and runs/<run-id>.json; every update is a complete snapshot child commit.
+- During the compatibility window, the orphan `nous-coordination` branch may
+  remain schema 1 (`claims.json` and `runs/<run-id>.json`) for legacy read
+  compatibility; supported mutations normalize their child to schema 2.
+  Current schema-2 writes contain `claims.json`, the repository-owned
+  `vercel.json` deployment guard, and `runs/<run-id>.json`; every update is a
+  complete snapshot child commit.
 - Bootstrap uses one ordinary push of the orphan root to an absent ref; it does not call GitHub REST createRef, upload to a temporary remote ref, merge histories, or retry the losing commit object.
 - Normal fetches use depth 1 and unique refs/nous/tmp/<run-id>-<nonce>; the plus refspec is permitted only for that private local tracking ref and never for push.
 - CAS retries at most five attempts with min(30, 1.5**attempt) * uniform(0.5, 1.5) jitter; transport exhaustion is exit 3, visible logical conflict exhaustion is exit 2.

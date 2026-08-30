@@ -85,13 +85,23 @@ export LOOP_BRIDGE_DIR=<machine-local-mutex-dir>
 export NOUS_RECEIPT_DIR=<machine-local-receipt-dir>
 ```
 
-The Git board contains only `claims.json` and `runs/<run-id>.json`. Bootstrap
-creates one orphan root with a normal absent-ref push. Updates fetch into a
-unique `refs/nous/tmp/...` ref without making the caller repository shallow or
-writing `FETCH_HEAD`, validate the complete schema and dedicated committer
-identity, build one full-snapshot child commit, and use a plain fast-forward
-push. A push race refetches and re-derives the operation, with at most five attempts.
-Routine tooling rejects force pushes and remote deletion.
+Claims schema 1 is the legacy, read-compatible tree and contains only
+`claims.json` and `runs/<run-id>.json`. Claims schema 2 is the current write
+format and additionally requires the repository-owned root `vercel.json`
+whose exact `git.deploymentEnabled: false` value prevents the orphan data ref
+from triggering Vercel. Unknown files, a schema-1 partial guard, or a missing
+or modified schema-2 guard fail closed.
+
+New bootstrap roots and every schema-2 child emit the exact guard. A valid
+schema-1 board remains readable during the one-way maintenance compatibility
+window; every supported write normalizes it to schema 2. Run projections
+retain schema 1, while the claims document changes to schema 2. Updates fetch
+into a unique `refs/nous/tmp/...` ref without making the
+caller repository shallow or writing `FETCH_HEAD`, validate the complete
+schema and dedicated committer identity, build one full-snapshot child commit,
+and use a plain fast-forward push. A push race refetches and re-derives the
+operation, with at most five attempts. Routine tooling rejects force pushes
+and remote deletion.
 
 Claims are fenced by `run_id` plus `claim_id`, use a three-hour TTL, and are
 acquired remote-first then local. A local conflict compensating-releases the
@@ -117,20 +127,45 @@ python3 scripts/nous_run.py release --run-id <run-id> --claim-id <claim-id> \
   --reason <reason> --authorize coordinate
 ```
 
+Schema migration is a separate, explicit, claim-free maintenance operation:
+
+```bash
+python3 scripts/nous_run.py migrate --to-schema 2 --authorize coordinate
+```
+
+Keep both loops stopped and leave the `.remote-required` sentinel absent while
+preparing migration. Both clients must be updated to the same exact merged
+SHA and must pass the focused coordination tests at that SHA before migration.
+Verify that the remote schema-1 board has an empty stored claims array, then
+run migration once. It creates no claim, receipt, local mutex, sentinel, or
+tick; it preserves every run projection and upgrades the complete snapshot by
+an ordinary fast-forward child. Migration is idempotent when the already
+schema-2 board is valid and claim-free. Afterward, verify the exact schema-2
+tree and observe
+GitHub deployments and commit statuses for 120 seconds on the migration SHA.
+Any Vercel deployment of any state on that SHA stops rollout and invokes the
+dedicated-repository fallback; do not remove the guard or rewrite the branch.
+
 The current coordination milestone does not yet implement cross-machine
 receipt resume, publication, or GitHub reconciliation. Do not run a real tick
-in `remote-required` until those later milestones are present and the rollout
-smoke test below has passed from both machines.
+in `remote-required`, and do not write the `.remote-required` sentinel, until
+the migration observation is clean, the board is claim-free, those later
+milestones are present, and the rollout smoke test below has passed from both
+machines.
 
-Cutover is a maintenance window, in this order: stop both loops; reconcile or
-expire both local boards; update both clients to the same revision; bootstrap
-`nous-coordination`; configure both machines and run
-`cutover --write-sentinel --authorize coordinate`; apply a branch ruleset that blocks force-push and
-deletion while allowing ordinary fast-forward pushes; perform the two-machine
-claim/conflict/disjoint/release smoke test; then restart loops. Bootstrap and
-cutover are separate operations. The local `.remote-required` sentinel makes
-direct legacy mutation commands refuse while leaving legacy `list`
-observational.
+Cutover is a maintenance window after migration, in this order: stop both
+loops; reconcile or expire both local boards; update both clients to the same
+merged revision and focused-test result; bootstrap `nous-coordination` only
+when the remote ref is absent (new roots are schema 2), otherwise verify the
+existing schema-1 empty board (or the already valid schema-2 guard) and
+complete the migration/observation sequence above as required; configure both
+machines; run
+`cutover --write-sentinel --authorize coordinate`; apply a branch ruleset that
+blocks force-push and deletion while allowing ordinary fast-forward pushes;
+perform the two-machine claim/conflict/disjoint/release smoke test; then
+restart loops. Bootstrap, migration, and cutover are separate operations. The
+local `.remote-required` sentinel makes direct legacy mutation commands refuse
+while leaving legacy `list` observational.
 
 To roll back, stop both loops first, release or expire remote claims while both
 clients are still in `remote-required`, set `NOUS_COORD_MODE=local` on both,
