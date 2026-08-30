@@ -7,7 +7,9 @@ adapters, portable language, and explicit terminal outcomes.
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -22,6 +24,12 @@ AGENT_ADAPTER_PATH = REPO_ROOT / "AGENTS.md"
 
 def _canonical_text() -> str:
     return CANONICAL_PATH.read_text(encoding="utf-8")
+
+
+def _local_ci_text() -> str:
+    return (REPO_ROOT / "scripts" / "ci" / "run_local_ci.sh").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_repository_native_workflow_is_canonical_and_discoverable() -> None:
@@ -102,9 +110,7 @@ def test_canonical_workflow_enforces_core_evidence_gates() -> None:
 
 
 def test_workflow_contract_tests_run_in_blocking_local_and_hosted_gates() -> None:
-    local_ci = (REPO_ROOT / "scripts" / "ci" / "run_local_ci.sh").read_text(
-        encoding="utf-8"
-    )
+    local_ci = _local_ci_text()
     hosted_ci = (REPO_ROOT / ".github" / "workflows" / "test-pipeline.yml").read_text(
         encoding="utf-8"
     )
@@ -122,6 +128,61 @@ def test_workflow_contract_tests_run_in_blocking_local_and_hosted_gates() -> Non
     assert '"$PY" -m pytest tests/unit/scripts/' in nous_gate
     assert "cd backend" not in nous_gate
     assert re.search(
-        r'\(\s*cd backend\s*&&\s*"\$PY"\s+-m\s+pytest\s+tests/\s+-c\s+pytest\.ini\b',
+        r'\(\s*cd backend\s*&&\s*"\$PY"\s+-m\s+pytest\s+tests/\s+-c\s+pytest\.ini\s+\\\s*'
+        r'-m\s+"unit or not \(integration or e2e or slow\)"\s+\\\s*'
+        r"-q\s+-p\s+no:cacheprovider\s+--no-cov\s*\)\s*"
+        r'check\s+\$\?\s+"pytest"',
         backend_gate,
     )
+
+
+def test_local_ci_normalizes_python_before_any_directory_change() -> None:
+    local_ci = _local_ci_text()
+    python_assignment = local_ci.index('PY="${PYTHON:-python3}"')
+    root_change = local_ci.index('cd "$ROOT"')
+    normalization = local_ci[python_assignment:root_change]
+
+    assert python_assignment < root_change
+    assert re.search(
+        r'case\s+"\$PY"\s+in\s+\*/\*\)\s+'
+        r'case\s+"\$PY"\s+in\s+/\*\)\s*;;\s*\*\)\s*'
+        r'PY="\$ROOT/\$PY"\s*;;\s*esac\s*;;\s*esac',
+        normalization,
+    )
+
+
+@pytest.mark.parametrize(
+    ("configured_python", "expected_python"),
+    [
+        (".venv/bin/python", str(REPO_ROOT / ".venv" / "bin" / "python")),
+        (
+            str(REPO_ROOT / ".venv" / "bin" / "python"),
+            str(REPO_ROOT / ".venv" / "bin" / "python"),
+        ),
+        ("python3", "python3"),
+    ],
+)
+def test_configured_python_resolution_is_stable_across_local_ci_gates(
+    configured_python: str, expected_python: str
+) -> None:
+    bootstrap_end = _local_ci_text().index("FAILED=()")
+    bootstrap = _local_ci_text()[:bootstrap_end]
+    probe = (
+        f"{bootstrap}\n"
+        "printf 'root=%s\\n' \"$PY\"\n"
+        "cd backend\n"
+        "printf 'backend=%s\\n' \"$PY\"\n"
+    )
+    result = subprocess.run(
+        ["bash", "-c", probe],
+        cwd=REPO_ROOT,
+        env={**os.environ, "PYTHON": configured_python},
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    assert result.stdout.splitlines()[-2:] == [
+        f"root={expected_python}",
+        f"backend={expected_python}",
+    ]

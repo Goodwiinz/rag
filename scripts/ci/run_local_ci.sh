@@ -47,8 +47,16 @@ while [ $# -gt 0 ]; do
 done
 
 ROOT="$(git rev-parse --show-toplevel)"
-cd "$ROOT"
 PY="${PYTHON:-python3}"
+case "$PY" in
+  */*)
+    case "$PY" in
+      /*) ;;
+      *) PY="$ROOT/$PY" ;;
+    esac
+    ;;
+esac
+cd "$ROOT"
 FAILED=()
 SKIPPED=()
 MERGE_BASE=""
