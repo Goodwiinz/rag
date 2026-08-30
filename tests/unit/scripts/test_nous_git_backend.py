@@ -80,16 +80,18 @@ def empty_tree(repo: Path) -> str:
     return git_with_input(repo, "mktree", input_bytes=b"").decode().strip()
 
 
-def downgrade_tip_to_schema1(backend: GitBackend) -> str:
+def downgrade_tip_to_schema1(
+    backend: GitBackend, *, claims_bytes: bytes | None = None
+) -> str:
     repo = backend.io.repo_root
     git(repo, "fetch", "origin", "nous-coordination")
     tip = git(repo, "rev-parse", "FETCH_HEAD")
     paths = git(repo, "ls-tree", "-r", "--name-only", tip).splitlines()
-    claims = json.loads(git(repo, "show", f"{tip}:claims.json"))
-    claims["schema"] = LEGACY_COORDINATION_SCHEMA
-    files = {
-        "claims.json": (json.dumps(claims, indent=2, sort_keys=True) + "\n").encode()
-    }
+    if claims_bytes is None:
+        claims = json.loads(git(repo, "show", f"{tip}:claims.json"))
+        claims["schema"] = LEGACY_COORDINATION_SCHEMA
+        claims_bytes = (json.dumps(claims, indent=2, sort_keys=True) + "\n").encode()
+    files = {"claims.json": claims_bytes}
     for path in paths:
         if path.startswith("runs/"):
             files[path] = git_bytes(repo, "show", f"{tip}:{path}")
@@ -224,6 +226,8 @@ def test_schema1_without_guard_remains_readable(two_backends):
 
 def test_migration_preserves_runs_and_creates_one_fast_forward_child(two_backends):
     _, (left, _) = two_backends
+    migrated_at = datetime(2026, 8, 30, 18, 0, tzinfo=timezone.utc)
+    left.clock = lambda: migrated_at
     left.bootstrap()
     claim = left.claim(**claim_kwargs(RUN_A, "mac", "fix/a", "streaming"))
     left.release(run_id=RUN_A, claim_id=claim.claim_id, reason="fixture")
@@ -234,8 +238,13 @@ def test_migration_preserves_runs_and_creates_one_fast_forward_child(two_backend
     assert noncanonical_run != git_bytes(repo, "show", f"{tip}:runs/{RUN_A}.json")
     assert b"\r\n" in noncanonical_run
     replace_tip_run_blob(left, RUN_A, noncanonical_run)
-    legacy = downgrade_tip_to_schema1(left)
+    legacy_claims = (
+        b'{"updated_at":"2026-08-27T04:00:00+00:00","claims" : [ ],'
+        b'"schema":1,"mode":"remote-required"}\n'
+    )
+    legacy = downgrade_tip_to_schema1(left, claims_bytes=legacy_claims)
     before_run = git_bytes(left.io.repo_root, "show", f"{legacy}:runs/{RUN_A}.json")
+    before_run_blob = git(left.io.repo_root, "rev-parse", f"{legacy}:runs/{RUN_A}.json")
     assert before_run == noncanonical_run
 
     result = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
@@ -246,6 +255,31 @@ def test_migration_preserves_runs_and_creates_one_fast_forward_child(two_backend
         True,
     )
     assert git(left.io.repo_root, "rev-parse", f"{result.tip}^") == legacy
+    expected_claims = (
+        json.dumps(
+            {
+                "claims": [],
+                "mode": "remote-required",
+                "schema": CURRENT_COORDINATION_SCHEMA,
+                "updated_at": migrated_at.isoformat(),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode()
+    migrated_claims = git_bytes(left.io.repo_root, "show", f"{result.tip}:claims.json")
+    assert migrated_claims == expected_claims
+    assert json.loads(migrated_claims) == {
+        "claims": [],
+        "mode": "remote-required",
+        "schema": CURRENT_COORDINATION_SCHEMA,
+        "updated_at": migrated_at.isoformat(),
+    }
+    assert (
+        git(left.io.repo_root, "rev-parse", f"{result.tip}:runs/{RUN_A}.json")
+        == before_run_blob
+    )
     assert (
         git_bytes(left.io.repo_root, "show", f"{result.tip}:runs/{RUN_A}.json")
         == before_run
@@ -255,7 +289,9 @@ def test_migration_preserves_runs_and_creates_one_fast_forward_child(two_backend
     assert repeated.tip == result.tip
 
 
-def test_migration_preserves_crlf_run_blob_after_nonfastforward_retry(two_backends):
+def test_migration_refetches_winning_schema1_child_after_nonfastforward(
+    two_backends,
+):
     _, (left, _) = two_backends
     left.bootstrap()
     claim = left.claim(**claim_kwargs(RUN_A, "mac", "fix/a", "streaming"))
@@ -266,24 +302,93 @@ def test_migration_preserves_crlf_run_blob_after_nonfastforward_retry(two_backen
     crlf_run = crlf_json(git_bytes(repo, "show", f"{tip}:runs/{RUN_A}.json"))
     replace_tip_run_blob(left, RUN_A, crlf_run)
     legacy = downgrade_tip_to_schema1(left)
+    legacy_blob = git(repo, "rev-parse", f"{legacy}:runs/{RUN_A}.json")
+    competing_run = json.dumps(json.loads(crlf_run), separators=(",", ":")).encode()
+    competing_claims = json.loads(git(repo, "show", f"{legacy}:claims.json"))
+    competing_claims["updated_at"] = "2026-08-30T18:00:00+00:00"
+    competing = left.io.commit_snapshot(
+        {
+            "claims.json": (
+                json.dumps(competing_claims, indent=2, sort_keys=True) + "\n"
+            ).encode(),
+            f"runs/{RUN_A}.json": competing_run,
+        },
+        parent=legacy,
+        message="winning schema1 child",
+    )
     original = left.io.push_fast_forward
     calls = 0
 
-    def reject_once(*args, **kwargs):
+    def publish_winner_then_race(*args, **kwargs):
         nonlocal calls
         calls += 1
         if calls == 1:
-            raise NonFastForward("race")
+            original("origin", competing, "nous-coordination")
         return original(*args, **kwargs)
 
-    left.io.push_fast_forward = reject_once
+    left.io.push_fast_forward = publish_winner_then_race
     result = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
 
     assert calls == 2
-    assert git(left.io.repo_root, "rev-parse", f"{result.tip}^") == legacy
-    assert git_bytes(left.io.repo_root, "show", f"{result.tip}:runs/{RUN_A}.json") == (
-        crlf_run
+    assert git(left.io.repo_root, "rev-parse", f"{result.tip}^") == competing
+    assert git(
+        left.io.repo_root, "rev-parse", f"{result.tip}:runs/{RUN_A}.json"
+    ) == git(left.io.repo_root, "rev-parse", f"{competing}:runs/{RUN_A}.json")
+    assert git(left.io.repo_root, "rev-parse", f"{result.tip}:runs/{RUN_A}.json") != (
+        legacy_blob
     )
+    assert git_bytes(left.io.repo_root, "show", f"{result.tip}:runs/{RUN_A}.json") == (
+        competing_run
+    )
+
+
+def test_migration_retry_refuses_claim_from_winning_peer_without_writing(
+    two_backends,
+):
+    _, (left, right) = two_backends
+    left.bootstrap()
+    legacy = downgrade_tip_to_schema1(left)
+    original = left.io.push_fast_forward
+    calls = 0
+    winning: str | None = None
+
+    def publish_claim_then_race(*args, **kwargs):
+        nonlocal calls, winning
+        calls += 1
+        if calls == 1:
+            right.claim(**claim_kwargs(RUN_B, "linux", "fix/b", "retrieval"))
+            git(right.io.repo_root, "fetch", "origin", "nous-coordination")
+            winning = git(right.io.repo_root, "rev-parse", "FETCH_HEAD")
+        return original(*args, **kwargs)
+
+    left.io.push_fast_forward = publish_claim_then_race
+
+    with pytest.raises(Conflict, match="empty claim board"):
+        left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+
+    assert calls == 1
+    assert winning is not None
+    git(left.io.repo_root, "fetch", "origin", "nous-coordination")
+    assert git(left.io.repo_root, "rev-parse", "FETCH_HEAD") == winning
+    assert git(left.io.repo_root, "rev-parse", f"{winning}^") == legacy
+    assert json.loads(git(left.io.repo_root, "show", f"{winning}:claims.json"))[
+        "claims"
+    ]
+
+
+# Mutation-verification record (2026-08-30):
+# - Retry guard: scripts/nous/backend_git.py:678, `except (NonFastForward, ...)`.
+#   Command: PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. .venv/bin/pytest
+#   tests/unit/scripts/test_nous_git_backend.py::test_migration_refetches_winning_schema1_child_after_nonfastforward
+#   -q -p no:cacheprovider --no-cov --confcutdir=tests/unit/scripts. Temporarily
+#   dropping NonFastForward failed with `coordination push lost a race`; restoring
+#   the handler left the production source diff empty and the test passed.
+# - Idempotency guard: scripts/nous/backend_git.py:697, `if snapshot.schema == target`.
+#   Command: PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. .venv/bin/pytest
+#   tests/unit/scripts/test_nous_git_backend.py::test_migration_preserves_runs_and_creates_one_fast_forward_child
+#   -q -p no:cacheprovider --no-cov --confcutdir=tests/unit/scripts. Temporarily
+#   replacing the condition with False failed with `coordination schema cannot be
+#   migrated`; restoring it left the production source diff empty and the test passed.
 
 
 def test_migration_refuses_nonempty_claim_board_without_writing(two_backends):
