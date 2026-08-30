@@ -12,8 +12,11 @@
 
 > **Protocol addendum (2026-08-29):** The schema-2 Vercel deployment guard in
 > `docs/superpowers/specs/2026-08-29-nous-vercel-deployment-exclusion-design.md`
-> supersedes this plan's claims/runs-only tree assertions. The original steps
-> remain historical implementation evidence for schema 1.
+> supersedes this plan's claims/runs-only tree assertions and its
+> implementation-era rollout summary. The original steps remain historical
+> implementation evidence for schema 1; current operators follow the
+> [2026-08-29 deployment-exclusion plan](2026-08-29-nous-vercel-deployment-exclusion.md)
+> and the canonical [NOUS workflow](../../engineering/nous-loop.md).
 
 ## Global Constraints
 
@@ -532,4 +535,23 @@ PY
 git diff --check
 ~~~
 
-Expected: all isolated tests PASS, compileall and diff check are silent, and Plan 2a static acceptance ok prints. A reviewer must retain evidence of a two-clone bare-repository bootstrap race with exactly one root, a full-snapshot CAS history, the 3-hour/45-minute renewal policy, claim-id loss fencing, compensation-pending retry, remote/local board labels, mode mismatch refusal, 30-day GC without history rewrite, and workflow/no-force guards. Before enabling production remote-required, an operator must stop both loops, reconcile/release local claims, update both clients, bootstrap the orphan branch in remote-required mode, configure both machines and sentinels, apply a GitHub ruleset blocking force-push/deletion while allowing ordinary fast-forward pushes, run the two-machine smoke test, then restart loops. Rollback evidence is both loops stopped, both clients set to local, remote claims released or allowed to expire, and the inert coordination branch retained.
+Expected: all isolated tests PASS, compileall and diff check are silent, and Plan 2a static acceptance ok prints. A reviewer must retain evidence of a two-clone bare-repository bootstrap race with exactly one root, a full-snapshot CAS history, the 3-hour/45-minute renewal policy, claim-id loss fencing, compensation-pending retry, remote/local board labels, mode mismatch refusal, 30-day GC without history rewrite, and workflow/no-force guards.
+
+### Superseded historical rollout summary
+
+Do not use the preceding Plan 2a-era rollout wording as current operator
+instruction. Follow the [2026-08-29 deployment-exclusion plan](2026-08-29-nous-vercel-deployment-exclusion.md)
+and the canonical [NOUS workflow](../../engineering/nous-loop.md): complete
+the claim-free schema migration, observe its migration SHA for 120 seconds,
+apply the GitHub ruleset that blocks force-push and deletion while allowing
+ordinary fast-forward pushes, then run the two-machine smoke test to a
+claim-free end state. Only after that smoke test passes may operators write
+both cutover sentinels with `cutover --write-sentinel --authorize coordinate`
+and restart the loops. Both local `.remote-required` sentinels remain absent
+through migration, the 120-second observation, and the smoke test; they are
+written only after the smoke passes. The smoke test may use temporary
+coordination claims, but it must release them before cutover.
+
+Rollback evidence is both loops stopped, both clients set to local, remote
+claims released or allowed to expire, and the inert coordination branch
+retained.
