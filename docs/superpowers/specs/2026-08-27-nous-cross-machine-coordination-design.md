@@ -619,8 +619,10 @@ Milestone validity is bound to `evidence_head_sha`:
    (`{"schema": 2, "mode": ..., "claims": [], "updated_at": ...}`) and the
    exact repository-owned `vercel.json` guard, then `git mktree` and
    `git commit-tree` with **no parent** (orphan root) and the dedicated
-   committer identity. An existing schema-1 board is not re-bootstrapped; it
-   is upgraded only by the explicit claim-free migration in Rollout.
+   committer identity. An existing schema-1 board is not re-bootstrapped; the
+   explicit migration in Rollout is the only claim-free, run-byte-preserving
+   upgrade, while ordinary mutations may normalize a valid schema-1 child to
+   schema 2.
 2. Atomically publish the object and create the absent ref with one normal
    Git push: `git push --porcelain origin
    <root>:refs/heads/nous-coordination`. A REST `createRef` call is not used:
@@ -849,8 +851,8 @@ by path) into one status model:
 ## Rollout and rollback
 
 Rollout is a maintenance window, in order. No real tick runs and neither
-machine writes its `.remote-required` sentinel until the migration and its
-post-migration observation are complete:
+machine writes its `.remote-required` sentinel until migration, its
+post-migration observation, and the two-machine smoke test are complete:
 
 1. Stop the loop on both machines (Linux box and Mac); confirm no tick is
    mid-flight.
@@ -860,9 +862,11 @@ post-migration observation are complete:
    both clients to that same SHA and run the focused coordination tests on
    both machines; do not proceed if either result differs or fails.
 4. If `nous-coordination` is absent, bootstrap a schema-2 root with the exact
-   guard. If it already exists, verify either a legacy schema-1 tree with no
-   guard or unknown files, or a valid schema-2 tree with the exact guard; in
-   both cases require an empty stored claims array. Keep the sentinel absent.
+   guard. If it already exists, verify either a valid legacy schema-1 tree with
+   no guard and no unknown files, or a valid schema-2 tree with the exact
+   guard; in both cases require an empty stored claims array. Reject and stop
+   rollout on any unknown file or missing, modified, or partial guard. Keep the
+   sentinel absent.
 5. From one stopped machine, run the explicit, authorized, claim-free
    migration once:
 
@@ -882,14 +886,15 @@ post-migration observation are complete:
    fallback. Do not remove the guard or rewrite the coordination history.
 7. Configure the Git backend on both machines (`NOUS_COORD_MODE`,
    `NOUS_COORD_GIT_REMOTE`, `NOUS_GITHUB_REPOSITORY`,
-   `NOUS_COORD_BRANCH`, receipt dir), then write the local
-   `.remote-required` sentinel on both machines.
-8. Apply the branch ruleset (block force-push/deletion, allow fast-forward)
-   — operator action in GitHub settings. Perform the two-machine smoke test:
+   `NOUS_COORD_BRANCH`, receipt dir), keeping the local `.remote-required`
+   sentinel absent. Apply the branch ruleset (block force-push/deletion, allow
+   fast-forward) — operator action in GitHub settings. Perform the two-machine
+   smoke test:
    machine A claims; machine B observes the claim and gets exit `2` on an
    overlapping `check`/`claim`; B claims a disjoint area; A observes it; both
-   release; both `reconcile` clean. Only then restart loops for normal
-   remote-required operation.
+   release; both `reconcile` clean. Only after every observation and smoke
+   gate passes, run `cutover --write-sentinel --authorize coordinate` on both
+   machines, then restart loops for normal remote-required operation.
 
 Before migration, rollback is simply leaving the schema-1 board unchanged; no
 remote write is needed. After migration, never downgrade, remove the guard, or
@@ -1001,12 +1006,14 @@ not gate cutover).
   claims/runs-only tree; schema 2 is the current write format and includes
   the exact repository-owned `vercel.json` guard. That guard is protocol
   metadata, not foreign metadata.
-- New bootstrap and every supported CAS write use schema 2. The only schema-1
-  upgrade is the explicit `python3 scripts/nous_run.py migrate --to-schema 2
-  --authorize coordinate` operation; it is claim-free, requires an empty
-  stored claims array, preserves run projections, and is idempotent on schema
-  2. Both machines must pass focused tests at the same exact merged SHA before
-  migration.
+- New bootstrap and every supported CAS write use schema 2. The explicit
+  `python3 scripts/nous_run.py migrate --to-schema 2 --authorize coordinate`
+  operation is the only claim-free, run-byte-preserving schema-1 upgrade; it
+  requires an empty stored claims array, preserves run projections, and is
+  idempotent on schema 2. Supported ordinary mutations also normalize a valid
+  schema-1 snapshot's resulting child to schema 2, but may change claim/run
+  state. Both machines must pass focused tests at the same exact merged SHA
+  before migration.
 - Observe GitHub deployments and commit statuses for 120 seconds after
   migration. Any Vercel deployment on the migration SHA, regardless of state,
   stops rollout and selects the dedicated-repository fallback; the schema-2

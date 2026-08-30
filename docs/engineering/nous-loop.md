@@ -157,15 +157,18 @@ Cutover is a maintenance window after migration, in this order: stop both
 loops; reconcile or expire both local boards; update both clients to the same
 merged revision and focused-test result; bootstrap `nous-coordination` only
 when the remote ref is absent (new roots are schema 2), otherwise verify the
-existing schema-1 empty board (or the already valid schema-2 guard) and
-complete the migration/observation sequence above as required; configure both
-machines; run
-`cutover --write-sentinel --authorize coordinate`; apply a branch ruleset that
+existing schema-1 tree with no guard and no unknown files (or the already
+valid schema-2 tree with its exact guard) and complete the
+migration/observation sequence above as required; reject and stop rollout on
+any unknown file or missing, modified, or partial guard. Configure both
+machines while keeping the sentinel absent; apply a branch ruleset that
 blocks force-push and deletion while allowing ordinary fast-forward pushes;
-perform the two-machine claim/conflict/disjoint/release smoke test; then
-restart loops. Bootstrap, migration, and cutover are separate operations. The
-local `.remote-required` sentinel makes direct legacy mutation commands refuse
-while leaving legacy `list` observational.
+perform the two-machine claim/conflict/disjoint/release smoke test; only after
+every observation and smoke gate passes, run
+`cutover --write-sentinel --authorize coordinate`; then restart loops.
+Bootstrap, migration, and cutover are separate operations. The local
+`.remote-required` sentinel makes direct legacy mutation commands refuse while
+leaving legacy `list` observational.
 
 To roll back, stop both loops first, release or expire remote claims while both
 clients are still in `remote-required`, set `NOUS_COORD_MODE=local` on both,
