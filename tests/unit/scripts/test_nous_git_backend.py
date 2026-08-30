@@ -64,6 +64,27 @@ def downgrade_tip_to_schema1(backend: GitBackend) -> str:
     return legacy
 
 
+def replace_tip_run_blob(backend: GitBackend, run_id: str, content: bytes) -> str:
+    repo = backend.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    replacement = backend.io.commit_snapshot(
+        {
+            "claims.json": git_bytes(repo, "show", f"{tip}:claims.json"),
+            f"runs/{run_id}.json": content,
+            "vercel.json": git_bytes(repo, "show", f"{tip}:vercel.json"),
+        },
+        parent=tip,
+        message="noncanonical run fixture",
+    )
+    backend.io.push_fast_forward("origin", replacement, "nous-coordination")
+    return replacement
+
+
+def crlf_json(raw: bytes) -> bytes:
+    return (json.dumps(json.loads(raw), indent=2) + "\n").replace("\n", "\r\n").encode()
+
+
 @pytest.fixture
 def two_backends(tmp_path):
     remote = tmp_path / "origin.git"
@@ -175,21 +196,10 @@ def test_migration_preserves_runs_and_creates_one_fast_forward_child(two_backend
     repo = left.io.repo_root
     git(repo, "fetch", "origin", "nous-coordination")
     tip = git(repo, "rev-parse", "FETCH_HEAD")
-    noncanonical_run = json.dumps(
-        json.loads(git(repo, "show", f"{tip}:runs/{RUN_A}.json")),
-        separators=(",", ":"),
-    ).encode()
+    noncanonical_run = crlf_json(git_bytes(repo, "show", f"{tip}:runs/{RUN_A}.json"))
     assert noncanonical_run != git_bytes(repo, "show", f"{tip}:runs/{RUN_A}.json")
-    noncanonical = left.io.commit_snapshot(
-        {
-            "claims.json": git_bytes(repo, "show", f"{tip}:claims.json"),
-            f"runs/{RUN_A}.json": noncanonical_run,
-            "vercel.json": git_bytes(repo, "show", f"{tip}:vercel.json"),
-        },
-        parent=tip,
-        message="noncanonical run fixture",
-    )
-    left.io.push_fast_forward("origin", noncanonical, "nous-coordination")
+    assert b"\r\n" in noncanonical_run
+    replace_tip_run_blob(left, RUN_A, noncanonical_run)
     legacy = downgrade_tip_to_schema1(left)
     before_run = git_bytes(left.io.repo_root, "show", f"{legacy}:runs/{RUN_A}.json")
     assert before_run == noncanonical_run
@@ -209,6 +219,37 @@ def test_migration_preserves_runs_and_creates_one_fast_forward_child(two_backend
     repeated = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
     assert repeated.changed is False
     assert repeated.tip == result.tip
+
+
+def test_migration_preserves_crlf_run_blob_after_nonfastforward_retry(two_backends):
+    _, (left, _) = two_backends
+    left.bootstrap()
+    claim = left.claim(**claim_kwargs(RUN_A, "mac", "fix/a", "streaming"))
+    left.release(run_id=RUN_A, claim_id=claim.claim_id, reason="fixture")
+    repo = left.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    crlf_run = crlf_json(git_bytes(repo, "show", f"{tip}:runs/{RUN_A}.json"))
+    replace_tip_run_blob(left, RUN_A, crlf_run)
+    legacy = downgrade_tip_to_schema1(left)
+    original = left.io.push_fast_forward
+    calls = 0
+
+    def reject_once(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise NonFastForward("race")
+        return original(*args, **kwargs)
+
+    left.io.push_fast_forward = reject_once
+    result = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+
+    assert calls == 2
+    assert git(left.io.repo_root, "rev-parse", f"{result.tip}^") == legacy
+    assert git_bytes(left.io.repo_root, "show", f"{result.tip}:runs/{RUN_A}.json") == (
+        crlf_run
+    )
 
 
 def test_migration_refuses_nonempty_claim_board_without_writing(two_backends):

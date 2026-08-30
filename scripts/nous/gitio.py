@@ -37,7 +37,8 @@ class Runner(Protocol):
         cwd: Path,
         env: Mapping[str, str] | None = None,
         input_text: str | None = None,
-    ) -> CommandResult: ...
+    ) -> CommandResult:
+        ...
 
 
 class SubprocessRunner:
@@ -85,6 +86,11 @@ class TransportFailure(BackendUnavailable):
 class CommitIdentity:
     committer_name: str
     committer_email: str
+
+
+@dataclass(frozen=True)
+class BlobReference:
+    object_id: str
 
 
 def validate_git_args(args: Sequence[str]) -> None:
@@ -221,9 +227,15 @@ class GitIO:
         except UnicodeError:
             raise _validation("coordination metadata is not valid UTF-8") from None
 
+    def blob_reference(self, commit: str, path: str) -> BlobReference:
+        commit = validate_sha(commit)
+        validate_files((path,))
+        object_id = self.run_git(("rev-parse", f"{commit}:{path}")).stdout.strip()
+        return BlobReference(validate_sha(object_id))
+
     def commit_snapshot(
         self,
-        files: Mapping[str, bytes],
+        files: Mapping[str, bytes | BlobReference],
         *,
         parent: str | None,
         message: str,
@@ -253,11 +265,14 @@ class GitIO:
             parts = path.split("/")
             for part in parts[:-1]:
                 cursor = cursor.setdefault(part, {})  # type: ignore[assignment]
-            blob = self.run_git(
-                ("hash-object", "-w", "--stdin"),
-                env=identity_env,
-                input_text=content.decode("utf-8"),
-            ).stdout.strip()
+            if isinstance(content, BlobReference):
+                blob = content.object_id
+            else:
+                blob = self.run_git(
+                    ("hash-object", "-w", "--stdin"),
+                    env=identity_env,
+                    input_text=content.decode("utf-8"),
+                ).stdout.strip()
             cursor[parts[-1]] = ("blob", validate_sha(blob))
 
         def build_tree(node: Mapping[str, object]) -> str:
@@ -310,6 +325,7 @@ class GitIO:
 __all__ = [
     "COORDINATION_EMAIL",
     "COORDINATION_NAME",
+    "BlobReference",
     "CommandResult",
     "CommitIdentity",
     "GitIO",

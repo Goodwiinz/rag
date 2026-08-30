@@ -29,6 +29,7 @@ from .coordination import (
 from .gitio import (
     COORDINATION_EMAIL,
     COORDINATION_NAME,
+    BlobReference,
     GitIO,
     NonFastForward,
     RemoteRefMissing,
@@ -481,14 +482,14 @@ class GitBackend(CoordinationBackend):
 
     def _migration_files(
         self, parent: str, snapshot: CoordinationSnapshot
-    ) -> dict[str, bytes]:
+    ) -> dict[str, bytes | BlobReference]:
         _assert_snapshot_invariants(snapshot)
-        files = {
+        files: dict[str, bytes | BlobReference] = {
             "claims.json": serialize_claims(snapshot),
             "vercel.json": VERCEL_DEPLOYMENT_GUARD,
         }
         for run_id in sorted(snapshot.runs):
-            files[f"runs/{run_id}.json"] = self.io.cat_file(
+            files[f"runs/{run_id}.json"] = self.io.blob_reference(
                 parent, f"runs/{run_id}.json"
             )
         return files
@@ -607,7 +608,10 @@ class GitBackend(CoordinationBackend):
             [CoordinationSnapshot], tuple[CoordinationSnapshot, object]
         ],
         *,
-        files: Callable[[str, CoordinationSnapshot], dict[str, bytes]] | None = None,
+        files: (
+            Callable[[str, CoordinationSnapshot], dict[str, bytes | BlobReference]]
+            | None
+        ) = None,
     ) -> object:
         last_error: Exception | None = None
         for attempt in range(self.config.max_attempts):
