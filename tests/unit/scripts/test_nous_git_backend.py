@@ -46,6 +46,24 @@ def git_bytes(repo: Path, *args: str) -> bytes:
     ).stdout
 
 
+def downgrade_tip_to_schema1(backend: GitBackend) -> str:
+    repo = backend.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    paths = git(repo, "ls-tree", "-r", "--name-only", tip).splitlines()
+    claims = json.loads(git(repo, "show", f"{tip}:claims.json"))
+    claims["schema"] = LEGACY_COORDINATION_SCHEMA
+    files = {
+        "claims.json": (json.dumps(claims, indent=2, sort_keys=True) + "\n").encode()
+    }
+    for path in paths:
+        if path.startswith("runs/"):
+            files[path] = git_bytes(repo, "show", f"{tip}:{path}")
+    legacy = backend.io.commit_snapshot(files, parent=tip, message="legacy fixture")
+    backend.io.push_fast_forward("origin", legacy, "nous-coordination")
+    return legacy
+
+
 @pytest.fixture
 def two_backends(tmp_path):
     remote = tmp_path / "origin.git"
@@ -149,6 +167,44 @@ def test_schema1_without_guard_remains_readable(two_backends):
     assert left.list() == []
 
 
+def test_migration_preserves_runs_and_creates_one_fast_forward_child(two_backends):
+    _, (left, _) = two_backends
+    left.bootstrap()
+    claim = left.claim(**claim_kwargs(RUN_A, "mac", "fix/a", "streaming"))
+    left.release(run_id=RUN_A, claim_id=claim.claim_id, reason="fixture")
+    legacy = downgrade_tip_to_schema1(left)
+    before_run = git_bytes(left.io.repo_root, "show", f"{legacy}:runs/{RUN_A}.json")
+
+    result = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+
+    assert (result.previous_schema, result.current_schema, result.changed) == (
+        1,
+        2,
+        True,
+    )
+    assert git(left.io.repo_root, "rev-parse", f"{result.tip}^") == legacy
+    assert (
+        git_bytes(left.io.repo_root, "show", f"{result.tip}:runs/{RUN_A}.json")
+        == before_run
+    )
+    repeated = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+    assert repeated.changed is False
+    assert repeated.tip == result.tip
+
+
+def test_migration_refuses_nonempty_claim_board_without_writing(two_backends):
+    _, (left, _) = two_backends
+    left.bootstrap()
+    left.claim(**claim_kwargs(RUN_A, "mac", "fix/a", "streaming"))
+    legacy = downgrade_tip_to_schema1(left)
+
+    with pytest.raises(Conflict, match="empty claim board"):
+        left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+
+    git(left.io.repo_root, "fetch", "origin", "nous-coordination")
+    assert git(left.io.repo_root, "rev-parse", "FETCH_HEAD") == legacy
+
+
 def test_noop_cas_upgrades_legacy_snapshot_to_schema2(two_backends):
     _, (left, _) = two_backends
     raw = (
@@ -193,9 +249,7 @@ def test_replace_cas_path_upgrades_legacy_snapshot_to_schema2(two_backends):
     legacy = left.io.commit_snapshot(
         {
             "claims.json": (json.dumps(claims) + "\n").encode(),
-            f"runs/{RUN_A}.json": git_bytes(
-                repo, "show", f"{tip}:runs/{RUN_A}.json"
-            ),
+            f"runs/{RUN_A}.json": git_bytes(repo, "show", f"{tip}:runs/{RUN_A}.json"),
         },
         parent=tip,
         message="legacy snapshot",
@@ -214,10 +268,7 @@ def test_replace_cas_path_upgrades_legacy_snapshot_to_schema2(two_backends):
     assert json.loads(git(repo, "show", f"{upgraded}:claims.json"))["schema"] == (
         CURRENT_COORDINATION_SCHEMA
     )
-    assert (
-        git_bytes(repo, "show", f"{upgraded}:vercel.json")
-        == VERCEL_DEPLOYMENT_GUARD
-    )
+    assert git_bytes(repo, "show", f"{upgraded}:vercel.json") == VERCEL_DEPLOYMENT_GUARD
 
 
 @pytest.mark.parametrize("guard", (None, b"{}\n"))

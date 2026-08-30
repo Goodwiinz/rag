@@ -53,12 +53,12 @@ from .schema import (
 LEGACY_COORDINATION_SCHEMA = 1
 CURRENT_COORDINATION_SCHEMA = 2
 VERCEL_DEPLOYMENT_GUARD = (
-    b'{\n'
+    b"{\n"
     b'  "$schema": "https://openapi.vercel.sh/vercel.json",\n'
     b'  "git": {\n'
     b'    "deploymentEnabled": false\n'
-    b'  }\n'
-    b'}\n'
+    b"  }\n"
+    b"}\n"
 )
 
 
@@ -372,6 +372,14 @@ class CoordinationSnapshot:
     schema: int = CURRENT_COORDINATION_SCHEMA
 
 
+@dataclass(frozen=True)
+class SchemaMigration:
+    previous_schema: int
+    current_schema: int
+    tip: str
+    changed: bool
+
+
 def _assert_snapshot_invariants(snapshot: CoordinationSnapshot) -> None:
     try:
         validate_timestamp(snapshot.updated_at)
@@ -489,7 +497,9 @@ class GitBackend(CoordinationBackend):
         )
         if schema == LEGACY_COORDINATION_SCHEMA:
             if "vercel.json" in paths:
-                raise _validation("schema 1 snapshot contains a partial deployment guard")
+                raise _validation(
+                    "schema 1 snapshot contains a partial deployment guard"
+                )
         else:
             if "vercel.json" not in paths:
                 raise _validation("schema 2 snapshot is missing the deployment guard")
@@ -513,7 +523,9 @@ class GitBackend(CoordinationBackend):
         _assert_snapshot_invariants(snapshot)
         return snapshot
 
-    def _read(self, *, allow_missing: bool = False) -> CoordinationSnapshot | None:
+    def _read_with_tip(
+        self, *, allow_missing: bool = False
+    ) -> tuple[str, CoordinationSnapshot] | None:
         temp_ref = self._temp_ref("bootstrap")
         try:
             commit = self.io.fetch_branch(
@@ -526,9 +538,16 @@ class GitBackend(CoordinationBackend):
                 return None
             snapshot = self._decode_snapshot(commit)
             self.assert_snapshot_mode(snapshot, self.config.mode)
-            return snapshot
+            return commit, snapshot
         finally:
             self.io.delete_local_ref(temp_ref)
+
+    def _read(self, *, allow_missing: bool = False) -> CoordinationSnapshot | None:
+        current = self._read_with_tip(allow_missing=allow_missing)
+        if current is None:
+            return None
+        _, snapshot = current
+        return snapshot
 
     @_schema_boundary
     def bootstrap(self, *, mode: str | None = None) -> str:
@@ -606,6 +625,33 @@ class GitBackend(CoordinationBackend):
             finally:
                 self.io.delete_local_ref(temp_ref)
         raise TransportFailure("coordination CAS retry limit reached") from last_error
+
+    @_schema_boundary
+    def migrate_schema(self, *, target: int) -> SchemaMigration:
+        if target != CURRENT_COORDINATION_SCHEMA:
+            raise _validation("only coordination schema 2 is supported")
+
+        def apply(snapshot: CoordinationSnapshot):
+            if snapshot.claims:
+                raise Conflict(
+                    "coordination schema migration requires an empty claim board"
+                )
+            if snapshot.schema == target:
+                return snapshot, (snapshot.schema, False)
+            if snapshot.schema != LEGACY_COORDINATION_SCHEMA:
+                raise _validation("coordination schema cannot be migrated")
+            return replace(snapshot, schema=target, updated_at=_iso(self.clock())), (
+                snapshot.schema,
+                True,
+            )
+
+        previous_schema, changed = self._cas("bootstrap", apply)
+        current = self._read_with_tip()
+        assert current is not None
+        tip, snapshot = current
+        if snapshot.schema != target:
+            raise TransportFailure("coordination schema migration was not observable")
+        return SchemaMigration(previous_schema, snapshot.schema, tip, changed)
 
     def _live(self, snapshot: CoordinationSnapshot, now: datetime) -> tuple[Claim, ...]:
         return tuple(
@@ -1010,6 +1056,7 @@ __all__ = [
     "LEGACY_COORDINATION_SCHEMA",
     "VERCEL_DEPLOYMENT_GUARD",
     "CoordinationSnapshot",
+    "SchemaMigration",
     "ForeignMetadata",
     "GitBackend",
     "GitBackendConfig",
