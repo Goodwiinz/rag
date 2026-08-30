@@ -29,6 +29,13 @@ class CommandResult:
     stderr: str
 
 
+@dataclass(frozen=True)
+class BytesCommandResult:
+    returncode: int
+    stdout: bytes
+    stderr: bytes
+
+
 class Runner(Protocol):
     def run(
         self,
@@ -38,6 +45,16 @@ class Runner(Protocol):
         env: Mapping[str, str] | None = None,
         input_text: str | None = None,
     ) -> CommandResult:
+        ...
+
+    def run_bytes(
+        self,
+        argv: Sequence[str],
+        *,
+        cwd: Path,
+        env: Mapping[str, str] | None = None,
+        input_bytes: bytes | None = None,
+    ) -> BytesCommandResult:
         ...
 
 
@@ -69,6 +86,31 @@ class SubprocessRunner:
             raise BackendUnavailable("git transport unavailable") from None
         return CommandResult(result.returncode, result.stdout, result.stderr)
 
+    def run_bytes(
+        self,
+        argv: Sequence[str],
+        *,
+        cwd: Path,
+        env: Mapping[str, str] | None = None,
+        input_bytes: bytes | None = None,
+    ) -> BytesCommandResult:
+        try:
+            result = subprocess.run(
+                list(argv),
+                cwd=cwd,
+                env=None if env is None else dict(env),
+                input=input_bytes,
+                shell=False,
+                capture_output=True,
+                check=False,
+                timeout=GIT_COMMAND_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            raise TransportFailure("git transport timed out") from None
+        except OSError:
+            raise BackendUnavailable("git transport unavailable") from None
+        return BytesCommandResult(result.returncode, result.stdout, result.stderr)
+
 
 class NonFastForward(Conflict):
     """A peer updated the remote coordination ref first."""
@@ -91,6 +133,14 @@ class CommitIdentity:
 @dataclass(frozen=True)
 class BlobReference:
     object_id: str
+
+
+@dataclass(frozen=True)
+class TreeEntry:
+    mode: str
+    object_type: str
+    object_id: str
+    path: str
 
 
 def validate_git_args(args: Sequence[str]) -> None:
@@ -151,6 +201,29 @@ class GitIO:
             raise TransportFailure("git operation failed")
         return result
 
+    def run_git_bytes(
+        self,
+        args: Sequence[str],
+        *,
+        check: bool = True,
+        env: Mapping[str, str] | None = None,
+        input_bytes: bytes | None = None,
+    ) -> BytesCommandResult:
+        validate_git_args(args)
+        git_env = dict(os.environ)
+        if env is not None:
+            git_env.update(env)
+        git_env["GIT_TERMINAL_PROMPT"] = "0"
+        result = self.runner.run_bytes(
+            ["git", *args],
+            cwd=self.repo_root,
+            env=git_env,
+            input_bytes=input_bytes,
+        )
+        if check and result.returncode:
+            raise TransportFailure("git operation failed")
+        return result
+
     def check_branch_format(self, branch: str) -> bool:
         branch = validate_branch(branch)
         return not self.run_git(
@@ -206,32 +279,58 @@ class GitIO:
         return CommitIdentity(*parts)
 
     def list_tree(self, commit: str) -> tuple[str, ...]:
+        return tuple(
+            entry.path
+            for entry in self.list_tree_entries(commit)
+            if entry.object_type != "tree"
+        )
+
+    def list_tree_entries(self, commit: str) -> tuple[TreeEntry, ...]:
         commit = validate_sha(commit)
-        raw = self.run_git(("ls-tree", "-r", "--name-only", "-z", commit)).stdout
-        paths = tuple(item for item in raw.split("\x00") if item)
-        if len(paths) > 10_000:
+        raw = self.run_git_bytes(("ls-tree", "-r", "-t", "-z", commit)).stdout
+        records = tuple(item for item in raw.split(b"\x00") if item)
+        if len(records) > 10_000:
             raise _validation("coordination snapshot contains too many files")
+        entries: list[TreeEntry] = []
         try:
-            for path in paths:
+            for record in records:
+                header, separator, raw_path = record.partition(b"\t")
+                mode, object_type, raw_object_id = header.split(b" ")
+                if not separator:
+                    raise ValueError
+                path = raw_path.decode("utf-8")
                 validate_files((path,))
-        except SchemaError as exc:
-            raise ValidationError(exc) from None
-        return paths
+                entries.append(
+                    TreeEntry(
+                        mode=mode.decode("ascii"),
+                        object_type=object_type.decode("ascii"),
+                        object_id=validate_sha(raw_object_id.decode("ascii")),
+                        path=path,
+                    )
+                )
+        except (UnicodeError, ValueError, SchemaError) as exc:
+            raise _validation("coordination tree entry is invalid") from exc
+        if len({entry.path for entry in entries}) != len(entries):
+            raise _validation("coordination tree contains duplicate paths")
+        return tuple(entries)
 
     def cat_file(self, commit: str, path: str) -> bytes:
         commit = validate_sha(commit)
         validate_files((path,))
-        result = self.run_git(("show", f"{commit}:{path}"))
-        try:
-            return result.stdout.encode("utf-8")
-        except UnicodeError:
-            raise _validation("coordination metadata is not valid UTF-8") from None
+        return self.run_git_bytes(("cat-file", "blob", f"{commit}:{path}")).stdout
 
     def blob_reference(self, commit: str, path: str) -> BlobReference:
         commit = validate_sha(commit)
         validate_files((path,))
-        object_id = self.run_git(("rev-parse", f"{commit}:{path}")).stdout.strip()
-        return BlobReference(validate_sha(object_id))
+        entry = next(
+            (entry for entry in self.list_tree_entries(commit) if entry.path == path),
+            None,
+        )
+        if entry is None:
+            raise _validation("coordination blob reference is absent")
+        if entry.mode != "100644" or entry.object_type != "blob":
+            raise _validation("coordination blob reference is not a regular blob")
+        return BlobReference(entry.object_id)
 
     def commit_snapshot(
         self,
@@ -326,6 +425,7 @@ __all__ = [
     "COORDINATION_EMAIL",
     "COORDINATION_NAME",
     "BlobReference",
+    "BytesCommandResult",
     "CommandResult",
     "CommitIdentity",
     "GitIO",
@@ -334,5 +434,6 @@ __all__ = [
     "Runner",
     "SubprocessRunner",
     "TransportFailure",
+    "TreeEntry",
     "validate_git_args",
 ]

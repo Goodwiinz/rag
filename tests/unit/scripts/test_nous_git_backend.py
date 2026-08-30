@@ -46,6 +46,40 @@ def git_bytes(repo: Path, *args: str) -> bytes:
     ).stdout
 
 
+def git_with_input(repo: Path, *args: str, input_bytes: bytes) -> bytes:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        input=input_bytes,
+        capture_output=True,
+        check=True,
+    ).stdout
+
+
+def commit_adversarial_tree(repo: Path, parent: str, entries: bytes) -> str:
+    tree = git_with_input(repo, "mktree", input_bytes=entries).decode().strip()
+    return (
+        git_with_input(
+            repo,
+            "-c",
+            "user.name=NOUS Coordination",
+            "-c",
+            "user.email=nous-coordination@invalid",
+            "commit-tree",
+            tree,
+            "-p",
+            parent,
+            input_bytes=b"adversarial tree\n",
+        )
+        .decode()
+        .strip()
+    )
+
+
+def empty_tree(repo: Path) -> str:
+    return git_with_input(repo, "mktree", input_bytes=b"").decode().strip()
+
+
 def downgrade_tip_to_schema1(backend: GitBackend) -> str:
     repo = backend.io.repo_root
     git(repo, "fetch", "origin", "nous-coordination")
@@ -392,6 +426,68 @@ def test_schema1_rejects_partial_guard_migration(two_backends):
     left.io.push_fast_forward("origin", root, "nous-coordination")
     with pytest.raises(ValidationError):
         left.list()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    (
+        ("crlf-guard", "deployment guard is invalid"),
+        ("unknown-empty-tree", "invalid tree entry"),
+        ("wrong-claims-mode", "invalid tree entry"),
+        ("wrong-vercel-type", "invalid tree entry"),
+    ),
+)
+def test_invalid_schema2_git_objects_fail_closed_without_writing(
+    two_backends, mutation, error
+):
+    _, (left, _) = two_backends
+    left.bootstrap()
+    repo = left.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    root_entries = git_bytes(repo, "ls-tree", tip)
+    if mutation == "crlf-guard":
+        corrupt = left.io.commit_snapshot(
+            {
+                "claims.json": git_bytes(repo, "show", f"{tip}:claims.json"),
+                "vercel.json": VERCEL_DEPLOYMENT_GUARD.replace(b"\n", b"\r\n"),
+            },
+            parent=tip,
+            message="crlf guard",
+        )
+        assert b"\r\n" in git_bytes(repo, "show", f"{corrupt}:vercel.json")
+    elif mutation == "unknown-empty-tree":
+        corrupt = commit_adversarial_tree(
+            repo,
+            tip,
+            root_entries + f"040000 tree {empty_tree(repo)}\tunknown\n".encode(),
+        )
+    elif mutation == "wrong-claims-mode":
+        corrupt = commit_adversarial_tree(
+            repo,
+            tip,
+            root_entries.replace(b"100644 blob ", b"100755 blob ", 1),
+        )
+    else:
+        corrupt = commit_adversarial_tree(
+            repo,
+            tip,
+            b"".join(
+                entry
+                for entry in root_entries.splitlines(keepends=True)
+                if not entry.endswith(b"\tvercel.json\n")
+            )
+            + f"040000 tree {empty_tree(repo)}\tvercel.json\n".encode(),
+        )
+    left.io.push_fast_forward("origin", corrupt, "nous-coordination")
+
+    with pytest.raises(ValidationError, match=error):
+        left.list()
+    with pytest.raises(ValidationError, match=error):
+        left.prune_expired(now=datetime(2026, 8, 27, 4, tzinfo=timezone.utc))
+
+    git(repo, "fetch", "origin", "nous-coordination")
+    assert git(repo, "rev-parse", "FETCH_HEAD") == corrupt
 
 
 def test_concurrent_bootstrap_has_one_winning_orphan_root(two_backends):

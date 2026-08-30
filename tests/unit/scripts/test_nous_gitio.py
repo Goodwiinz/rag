@@ -132,3 +132,48 @@ def test_commit_snapshot_uses_dedicated_identity():
     assert env is not None
     assert env["GIT_COMMITTER_NAME"] == "NOUS Coordination"
     assert env["GIT_COMMITTER_EMAIL"] == "nous-coordination@invalid"
+
+
+def test_blob_reference_rejects_a_tree_object(tmp_path):
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", str(repo)], check=True, capture_output=True)
+    empty_tree = (
+        subprocess.run(
+            ["git", "mktree"], cwd=repo, input=b"", capture_output=True, check=True
+        )
+        .stdout.decode()
+        .strip()
+    )
+    root_tree = (
+        subprocess.run(
+            ["git", "mktree"],
+            cwd=repo,
+            input=f"040000 tree {empty_tree}\truns\n".encode(),
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+    commit = (
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=NOUS Coordination",
+                "-c",
+                "user.email=nous-coordination@invalid",
+                "commit-tree",
+                root_tree,
+            ],
+            cwd=repo,
+            input=b"tree fixture\n",
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+
+    with pytest.raises(ValidationError, match="regular blob"):
+        GitIO(repo).blob_reference(commit, "runs")

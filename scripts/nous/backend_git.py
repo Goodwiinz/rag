@@ -34,6 +34,7 @@ from .gitio import (
     NonFastForward,
     RemoteRefMissing,
     TransportFailure,
+    TreeEntry,
 )
 from .schema import (
     CLAIMS_MAX_BYTES,
@@ -494,6 +495,43 @@ class GitBackend(CoordinationBackend):
             )
         return files
 
+    @staticmethod
+    def _validate_snapshot_tree(entries: Sequence[TreeEntry]) -> tuple[str, ...]:
+        paths: list[str] = []
+        run_paths: list[str] = []
+        has_runs_tree = False
+        for entry in entries:
+            paths.append(entry.path)
+            if entry.path in {"claims.json", "vercel.json"}:
+                if entry.mode != "100644" or entry.object_type != "blob":
+                    raise _validation("coordination snapshot has an invalid tree entry")
+                continue
+            if entry.path == "runs":
+                if entry.mode != "040000" or entry.object_type != "tree":
+                    raise _validation("coordination snapshot has an invalid tree entry")
+                has_runs_tree = True
+                continue
+            if not entry.path.startswith("runs/"):
+                raise _validation("coordination snapshot has an invalid tree entry")
+            run_id = entry.path.removeprefix("runs/").removesuffix(".json")
+            if (
+                not entry.path.endswith(".json")
+                or "/" in run_id
+                or entry.mode != "100644"
+                or entry.object_type != "blob"
+            ):
+                raise _validation("coordination snapshot has an invalid tree entry")
+            try:
+                validate_run_id(run_id)
+            except SchemaError as exc:
+                raise _validation(
+                    "coordination snapshot has an invalid tree entry"
+                ) from exc
+            run_paths.append(entry.path)
+        if has_runs_tree != bool(run_paths):
+            raise _validation("coordination snapshot has an invalid tree entry")
+        return tuple(paths)
+
     def _decode_snapshot(self, commit: str) -> CoordinationSnapshot:
         identity = self.io.commit_identity(commit)
         if (
@@ -504,7 +542,7 @@ class GitBackend(CoordinationBackend):
                 SchemaError("foreign coordination commit"),
                 message="coordination branch contains foreign metadata",
             )
-        paths = self.io.list_tree(commit)
+        paths = self._validate_snapshot_tree(self.io.list_tree_entries(commit))
         if "claims.json" not in paths:
             raise _validation("coordination snapshot is missing claims.json")
         schema, mode, updated_at, claims = decode_claims_document(
@@ -522,7 +560,7 @@ class GitBackend(CoordinationBackend):
                 raise _validation("schema 2 deployment guard is invalid")
         runs: dict[str, RunProjection] = {}
         for path in paths:
-            if path in {"claims.json", "vercel.json"}:
+            if path in {"claims.json", "vercel.json", "runs"}:
                 continue
             if not path.startswith("runs/") or not path.endswith(".json"):
                 raise _validation("coordination snapshot contains an unknown file")
