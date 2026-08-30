@@ -1,8 +1,8 @@
 # Chat store/hook guard mutation checks
 
 Task 5.5 mutation-verifies the critical async-reconciliation and
-single-flight guards identified in recon (`chatfe.guards`) — **7 guard groups**
-(1, 2, 3, 4a, 4b, 5, 6) below, each with its own covering test. For each guard
+single-flight guards identified in recon (`chatfe.guards`) — **8 guard groups**
+(1, 2, 3, 4a, 4b, 5, 6, 7) below, each with its own covering test. For each guard
 below the check was: temporarily disable the guard on disk (comment it out),
 run the named focused command and confirm it fails with the assertion shown,
 restore the guard by editing back to the original text, confirm `git diff`
@@ -150,3 +150,17 @@ Run from `frontend/`.
   `pnpm exec vitest run --project unit src/hooks/__tests__/useChatSession.threadSwitchBleed.test.tsx -t "clears thread A and waits for the single paginated store load on a cache miss"`
 - **Mutation kills it with:** `AssertionError: expected false to be true` on
   `expect(result.current.isLoadingMessages).toBe(true)`.
+
+## 7. First-send preflight cancellation (preflightAbort)
+
+- **Guard:** `src/hooks/chat/useChatStreaming.ts:1436-1438` — the abort listener
+  rolls back the optimistic turn immediately; signal checks at `:1455`,
+  `:1460`, `:1463`, and `:1476` stop later requests and thread publication.
+- **Covering test:** `src/hooks/__tests__/useChatStreaming.submitLock.test.tsx`
+  → `does not start streaming when Stop lands during first-thread creation`.
+- **Command:**
+  `pnpm exec vitest run --project unit src/hooks/__tests__/useChatStreaming.submitLock.test.tsx -t "does not start streaming when Stop lands during first-thread creation"`
+- **Mutation kills it with:** without the abort listener, the immediate
+  rollback assertion receives the optimistic user message instead of the
+  original empty list; without the post-`createThread` signal check,
+  `setConversations` is called once and publishes the canceled thread.
