@@ -175,7 +175,9 @@ callers cannot supply or override it.
 - Decode schema 1 and schema 2 with the exact file-set rules above.
 - Serialize claims using the snapshot schema.
 - Normalize every changed snapshot to schema 2 before commit construction.
-- Add an idempotent `migrate_schema(target=2) -> str` CAS operation.
+- Add an idempotent `migrate_schema(*, target=2) -> SchemaMigration` CAS
+  operation returning `previous_schema`, `current_schema`, `tip`, and
+  `changed`.
 
 ### `scripts/nous_run.py`
 
