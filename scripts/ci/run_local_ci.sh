@@ -382,9 +382,9 @@ if [ "$SKIP_TESTS" -eq 0 ]; then
   check $? "NOUS workflow contract tests"
 
   step "Unit tests (blocking)"
-  "$PY" -m pytest backend/tests/ -c backend/pytest.ini \
+  ( cd backend && "$PY" -m pytest tests/ -c pytest.ini \
     -m "unit or not (integration or e2e or slow)" \
-    -q -p no:cacheprovider --no-cov
+    -q -p no:cacheprovider --no-cov )
   check $? "pytest"
 fi
 

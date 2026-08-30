@@ -114,5 +114,14 @@ def test_workflow_contract_tests_run_in_blocking_local_and_hosted_gates() -> Non
         command = ci_config[command_start : command_start + 200]
         assert "--no-cov" in command
 
-    assert '"$PY" -m pytest tests/unit/scripts/' in local_ci
-    assert '"$PY" -m pytest backend/tests/' in local_ci
+    nous_gate_start = local_ci.index('  step "NOUS workflow contract tests (blocking)"')
+    backend_gate_start = local_ci.index('  step "Unit tests (blocking)"')
+    nous_gate = local_ci[nous_gate_start:backend_gate_start]
+    backend_gate = local_ci[backend_gate_start:]
+
+    assert '"$PY" -m pytest tests/unit/scripts/' in nous_gate
+    assert "cd backend" not in nous_gate
+    assert re.search(
+        r'\(\s*cd backend\s*&&\s*"\$PY"\s+-m\s+pytest\s+tests/\s+-c\s+pytest\.ini\b',
+        backend_gate,
+    )
