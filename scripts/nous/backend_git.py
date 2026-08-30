@@ -301,7 +301,11 @@ def decode_claims_document(raw: bytes) -> tuple[int, str, str, tuple[Claim, ...]
     value = _load_json(raw, CLAIMS_MAX_BYTES, "claims.json")
     item = _object(value, {"schema", "mode", "updated_at", "claims"}, "claims.json")
     schema = item["schema"]
-    if schema not in {LEGACY_COORDINATION_SCHEMA, CURRENT_COORDINATION_SCHEMA}:
+    if (
+        isinstance(schema, bool)
+        or not isinstance(schema, int)
+        or schema not in {LEGACY_COORDINATION_SCHEMA, CURRENT_COORDINATION_SCHEMA}
+    ):
         raise _validation("claims.json schema is incompatible")
     if item["mode"] not in {"local", "remote-required"}:
         raise _validation("claims.json mode is incompatible")

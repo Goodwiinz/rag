@@ -149,6 +149,77 @@ def test_schema1_without_guard_remains_readable(two_backends):
     assert left.list() == []
 
 
+def test_noop_cas_upgrades_legacy_snapshot_to_schema2(two_backends):
+    _, (left, _) = two_backends
+    raw = (
+        json.dumps(
+            {
+                "schema": LEGACY_COORDINATION_SCHEMA,
+                "mode": "remote-required",
+                "updated_at": "2026-08-27T04:00:00+00:00",
+                "claims": [],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode()
+    root = left.io.commit_snapshot(
+        {"claims.json": raw}, parent=None, message="legacy bootstrap"
+    )
+    left.io.push_fast_forward("origin", root, "nous-coordination")
+
+    assert left.prune_expired(now=datetime(2026, 8, 27, 4, tzinfo=timezone.utc)) == ()
+
+    repo = left.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    assert git(repo, "rev-parse", f"{tip}^") == root
+    assert json.loads(git(repo, "show", f"{tip}:claims.json"))["schema"] == (
+        CURRENT_COORDINATION_SCHEMA
+    )
+    assert git_bytes(repo, "show", f"{tip}:vercel.json") == VERCEL_DEPLOYMENT_GUARD
+
+
+def test_replace_cas_path_upgrades_legacy_snapshot_to_schema2(two_backends):
+    _, (left, _) = two_backends
+    left.bootstrap()
+    claim = left.claim(**claim_kwargs(RUN_A, "mac", "fix/a", "streaming"))
+    repo = left.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    claims = json.loads(git(repo, "show", f"{tip}:claims.json"))
+    claims["schema"] = LEGACY_COORDINATION_SCHEMA
+    legacy = left.io.commit_snapshot(
+        {
+            "claims.json": (json.dumps(claims) + "\n").encode(),
+            f"runs/{RUN_A}.json": git_bytes(
+                repo, "show", f"{tip}:runs/{RUN_A}.json"
+            ),
+        },
+        parent=tip,
+        message="legacy snapshot",
+    )
+    left.io.push_fast_forward("origin", legacy, "nous-coordination")
+
+    current = left.get_run(RUN_A)
+    left.put_run(
+        replace(current, updated_at="2026-08-27T04:00:01+00:00"),
+        claim_id=claim.claim_id,
+    )
+
+    git(repo, "fetch", "origin", "nous-coordination")
+    upgraded = git(repo, "rev-parse", "FETCH_HEAD")
+    assert git(repo, "rev-parse", f"{upgraded}^") == legacy
+    assert json.loads(git(repo, "show", f"{upgraded}:claims.json"))["schema"] == (
+        CURRENT_COORDINATION_SCHEMA
+    )
+    assert (
+        git_bytes(repo, "show", f"{upgraded}:vercel.json")
+        == VERCEL_DEPLOYMENT_GUARD
+    )
+
+
 @pytest.mark.parametrize("guard", (None, b"{}\n"))
 def test_schema2_requires_exact_vercel_guard(two_backends, guard):
     _, (left, _) = two_backends
@@ -523,6 +594,7 @@ def test_snapshot_decode_rejects_ambiguous_claim_fences(two_backends, mutation):
     files = {
         "claims.json": (json.dumps(claims) + "\n").encode(),
         f"runs/{RUN_A}.json": git(repo, "show", f"{tip}:runs/{RUN_A}.json").encode(),
+        "vercel.json": git_bytes(repo, "show", f"{tip}:vercel.json"),
     }
     corrupt = left.io.commit_snapshot(files, parent=tip, message="corrupt peer")
     left.io.push_fast_forward("origin", corrupt, "nous-coordination")
@@ -554,6 +626,21 @@ def test_remote_schema_rejects_unknown_fields_and_mode_mismatch():
         GitBackend.assert_snapshot_mode(snapshot, "remote-required")
 
 
+@pytest.mark.parametrize("schema", (True, 1.0, 2.0))
+def test_claims_document_rejects_non_integer_schema(schema):
+    raw = json.dumps(
+        {
+            "schema": schema,
+            "mode": "remote-required",
+            "updated_at": "2026-08-27T04:00:00+00:00",
+            "claims": [],
+        }
+    ).encode()
+
+    with pytest.raises(ValidationError):
+        decode_claims_document(raw)
+
+
 def test_public_backend_methods_translate_schema_errors(two_backends):
     _, (left, _) = two_backends
     left.bootstrap()
@@ -572,6 +659,7 @@ def test_public_backend_methods_translate_schema_errors(two_backends):
         {
             "claims.json": git(repo, "show", f"{tip}:claims.json").encode(),
             "runs/not-a-run-id.json": b"{}\n",
+            "vercel.json": git_bytes(repo, "show", f"{tip}:vercel.json"),
         },
         parent=tip,
         message="invalid run filename",
