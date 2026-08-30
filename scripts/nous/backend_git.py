@@ -479,6 +479,20 @@ class GitBackend(CoordinationBackend):
             files[f"runs/{run_id}.json"] = serialize_run(projection)
         return files
 
+    def _migration_files(
+        self, parent: str, snapshot: CoordinationSnapshot
+    ) -> dict[str, bytes]:
+        _assert_snapshot_invariants(snapshot)
+        files = {
+            "claims.json": serialize_claims(snapshot),
+            "vercel.json": VERCEL_DEPLOYMENT_GUARD,
+        }
+        for run_id in sorted(snapshot.runs):
+            files[f"runs/{run_id}.json"] = self.io.cat_file(
+                parent, f"runs/{run_id}.json"
+            )
+        return files
+
     def _decode_snapshot(self, commit: str) -> CoordinationSnapshot:
         identity = self.io.commit_identity(commit)
         if (
@@ -592,6 +606,8 @@ class GitBackend(CoordinationBackend):
         operation: Callable[
             [CoordinationSnapshot], tuple[CoordinationSnapshot, object]
         ],
+        *,
+        files: Callable[[str, CoordinationSnapshot], dict[str, bytes]] | None = None,
     ) -> object:
         last_error: Exception | None = None
         for attempt in range(self.config.max_attempts):
@@ -609,7 +625,7 @@ class GitBackend(CoordinationBackend):
                 if after == before:
                     return result
                 commit = self.io.commit_snapshot(
-                    self._files(after),
+                    self._files(after) if files is None else files(parent, after),
                     parent=parent,
                     message="nous coordination update",
                 )
@@ -628,7 +644,7 @@ class GitBackend(CoordinationBackend):
 
     @_schema_boundary
     def migrate_schema(self, *, target: int) -> SchemaMigration:
-        if target != CURRENT_COORDINATION_SCHEMA:
+        if type(target) is not int or target != CURRENT_COORDINATION_SCHEMA:
             raise _validation("only coordination schema 2 is supported")
 
         def apply(snapshot: CoordinationSnapshot):
@@ -645,7 +661,9 @@ class GitBackend(CoordinationBackend):
                 True,
             )
 
-        previous_schema, changed = self._cas("bootstrap", apply)
+        previous_schema, changed = self._cas(
+            "bootstrap", apply, files=self._migration_files
+        )
         current = self._read_with_tip()
         assert current is not None
         tip, snapshot = current

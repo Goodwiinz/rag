@@ -172,8 +172,27 @@ def test_migration_preserves_runs_and_creates_one_fast_forward_child(two_backend
     left.bootstrap()
     claim = left.claim(**claim_kwargs(RUN_A, "mac", "fix/a", "streaming"))
     left.release(run_id=RUN_A, claim_id=claim.claim_id, reason="fixture")
+    repo = left.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    noncanonical_run = json.dumps(
+        json.loads(git(repo, "show", f"{tip}:runs/{RUN_A}.json")),
+        separators=(",", ":"),
+    ).encode()
+    assert noncanonical_run != git_bytes(repo, "show", f"{tip}:runs/{RUN_A}.json")
+    noncanonical = left.io.commit_snapshot(
+        {
+            "claims.json": git_bytes(repo, "show", f"{tip}:claims.json"),
+            f"runs/{RUN_A}.json": noncanonical_run,
+            "vercel.json": git_bytes(repo, "show", f"{tip}:vercel.json"),
+        },
+        parent=tip,
+        message="noncanonical run fixture",
+    )
+    left.io.push_fast_forward("origin", noncanonical, "nous-coordination")
     legacy = downgrade_tip_to_schema1(left)
     before_run = git_bytes(left.io.repo_root, "show", f"{legacy}:runs/{RUN_A}.json")
+    assert before_run == noncanonical_run
 
     result = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
 
@@ -200,6 +219,19 @@ def test_migration_refuses_nonempty_claim_board_without_writing(two_backends):
 
     with pytest.raises(Conflict, match="empty claim board"):
         left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+
+    git(left.io.repo_root, "fetch", "origin", "nous-coordination")
+    assert git(left.io.repo_root, "rev-parse", "FETCH_HEAD") == legacy
+
+
+@pytest.mark.parametrize("target", (2.0, True, 1, 3))
+def test_migration_rejects_noncanonical_targets_without_writing(two_backends, target):
+    _, (left, _) = two_backends
+    left.bootstrap()
+    legacy = downgrade_tip_to_schema1(left)
+
+    with pytest.raises(ValidationError, match="only coordination schema 2"):
+        left.migrate_schema(target=target)
 
     git(left.io.repo_root, "fetch", "origin", "nous-coordination")
     assert git(left.io.repo_root, "rev-parse", "FETCH_HEAD") == legacy
