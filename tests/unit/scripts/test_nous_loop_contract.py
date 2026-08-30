@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -186,3 +187,95 @@ def test_configured_python_resolution_is_stable_across_local_ci_gates(
         f"root={expected_python}",
         f"backend={expected_python}",
     ]
+
+
+def test_local_ci_executes_configured_python_from_space_containing_root(
+    tmp_path: Path,
+) -> None:
+    """A root-relative interpreter remains executable after normalization."""
+
+    fake_root = tmp_path / "repository root with spaces"
+    command_dir = tmp_path / "commands"
+    interpreter = fake_root / ".venv" / "bin" / "python"
+    log_path = tmp_path / "python-invocations.log"
+    (fake_root / "backend").mkdir(parents=True)
+    (fake_root / "frontend").mkdir()
+    interpreter.parent.mkdir(parents=True)
+    (fake_root / "node_modules" / ".bin").mkdir(parents=True)
+    command_dir.mkdir()
+    for command in ("bash", "mktemp", "rm", "sort", "tail"):
+        executable = shutil.which(command)
+        assert executable is not None
+        (command_dir / command).symlink_to(executable)
+
+    def write_executable(path: Path, contents: str) -> None:
+        path.write_text(contents, encoding="utf-8")
+        path.chmod(0o755)
+
+    write_executable(
+        interpreter,
+        '#!/usr/bin/env bash\nprintf \'%s|%s\\n\' "$PWD" "$*" >> "$CI_PY_LOG"\n',
+    )
+    write_executable(
+        fake_root / "node_modules" / ".bin" / "openapi-typescript",
+        "#!/usr/bin/env bash\nexit 0\n",
+    )
+    write_executable(
+        command_dir / "git",
+        """#!/usr/bin/env bash
+case "$1" in
+  rev-parse) printf '%s\\n' "$FAKE_ROOT" ;;
+  merge-base) printf 'base\\n' ;;
+  diff) printf 'backend/alembic/versions/fixture.py\\n' ;;
+esac
+""",
+    )
+    for command in ("ruff", "black", "isort", "mypy", "node", "pnpm"):
+        write_executable(command_dir / command, "#!/usr/bin/env bash\nexit 0\n")
+    write_executable(
+        command_dir / "docker",
+        """#!/usr/bin/env bash
+case "$1" in
+  info) exit 0 ;;
+  run) exit 0 ;;
+esac
+exit 1
+""",
+    )
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(REPO_ROOT / "scripts" / "ci" / "run_local_ci.sh"),
+            "--base",
+            "origin/develop",
+            "--frontend",
+        ],
+        cwd=fake_root,
+        env={
+            **os.environ,
+            "CI_PY_LOG": str(log_path),
+            "FAKE_ROOT": str(fake_root),
+            "PATH": str(command_dir),
+            "PYTHON": ".venv/bin/python",
+        },
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    invocations = log_path.read_text(encoding="utf-8").splitlines()
+    assert all(str(fake_root) in invocation for invocation in invocations)
+    for argument in (
+        "scripts/docs/check_dir_docs.py",
+        "scripts/ci/changed_source_files.py --base origin/develop --kind python",
+        "scripts/ci/changed_source_files.py --base origin/develop --kind python-added",
+        "scripts/ci/generate_openapi.py --check",
+        "../scripts/ci/check_alembic.py",
+        "import socket,sys;",
+        "import socket; s=socket.socket();",
+        "tests/unit/scripts/ --confcutdir=tests/unit/scripts",
+        "tests/ -c pytest.ini",
+        "scripts/ci/check_tsconfig_exclusions.py --base origin/develop",
+    ):
+        assert any(argument in invocation for invocation in invocations), invocations
