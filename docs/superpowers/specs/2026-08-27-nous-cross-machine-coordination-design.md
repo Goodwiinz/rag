@@ -282,11 +282,14 @@ vercel.json
 runs/<run-id>.json
 ```
 
-Schema-2 `claims.json` uses top-level `schema` value `2`; migration preserves
-its mode and claims array and every run blob byte-for-byte while changing only
-`claims.json.schema` and `claims.json.updated_at` metadata. Run projection JSON
-remains schema 1. `vercel.json` is repository-owned protocol metadata with these
-exact bytes (including the trailing newline):
+Schema-2 `claims.json` uses top-level `schema` value `2`; migration requires an
+empty stored claims array and preserves its mode and empty value semantically,
+but canonically reserializes `claims.json`, so its representation, whitespace,
+and key order are not byte-preserved. It changes `claims.json.schema` from `1`
+to `2` and refreshes `claims.json.updated_at`; every run blob remains
+byte-for-byte unchanged. Run projection JSON remains schema 1.
+`vercel.json` is repository-owned protocol metadata with these exact bytes
+(including the trailing newline):
 
 ```json
 {
@@ -301,9 +304,11 @@ New bootstrap roots and every schema-2 child emit that guard. A valid schema-1
 board remains readable during the one-way compatibility window; supported
 mutations normalize their child to schema 2, while the explicit migration is
 claim-free. The migration requires an empty stored claims array and preserves
-the claims array and every run blob byte-for-byte while changing only
-`claims.json.schema` and `claims.json.updated_at` metadata. Missing, modified,
-oversized, or differently encoded schema-2
+its mode and empty value semantically, but canonically reserializes
+`claims.json`; its representation, whitespace, and key order are not
+byte-preserved. It changes `claims.json.schema` from `1` to `2`, refreshes
+`claims.json.updated_at`, and preserves every run blob byte-for-byte. Missing,
+modified, oversized, or differently encoded schema-2
 guard bytes, unknown files, and schema-1 partial guards are invalid metadata.
 Every commit is a full snapshot of the applicable tree, committed as a child
 of the fetched tip. Histories are never merged.
@@ -357,8 +362,10 @@ untrusted input):
 
 The following is the legacy schema-1 compatibility shape. Schema 2 uses the
 same `mode` and `claims` fields, requires its sibling `vercel.json`, and
-migration preserves the claims array and every run blob byte-for-byte while
-changing only `claims.json.schema` and `claims.json.updated_at` metadata.
+migration preserves the mode and empty claims-array value semantically while
+canonically reserializing `claims.json`; its representation, whitespace, and
+key order are not byte-preserved. It changes `claims.json.schema` and
+`claims.json.updated_at` and preserves every run blob byte-for-byte.
 
 ```json
 {
@@ -880,16 +887,20 @@ post-migration observation, and the two-machine smoke test are complete:
    ```
 
    Migration creates no claim, receipt, local mutex, sentinel, or tick. It
-   preserves the claims array and every run projection blob byte-for-byte while
-   changing only `claims.json.schema` and `claims.json.updated_at` metadata, and
-   creates one ordinary fast-forward child; an already valid, claim-free
-   schema-2 board is an idempotent no-op.
-6. Verify the migration SHA has the exact schema-2 tree, the unchanged stored
-   claims array and every run projection blob byte-for-byte, and the exact
-   guard. The claims document's `schema` and `updated_at` metadata are expected
-   to change. Observe GitHub deployments and commit statuses for 120 seconds on
-   that SHA. Any Vercel deployment of any state fails acceptance, stops rollout,
-   and triggers the dedicated-repository fallback. Do not remove the guard or
+   preserves the mode and empty claims-array value semantically, canonically
+   reserializes `claims.json` (its representation, whitespace, and key order
+   are not byte-preserved), changes `claims.json.schema` and
+   `claims.json.updated_at`, and preserves every run projection blob
+   byte-for-byte. It creates one ordinary fast-forward child; an already valid,
+   claim-free schema-2 board is an idempotent no-op.
+6. Verify the migration SHA has the exact schema-2 tree, the semantically empty
+   claims array and mode, canonical `claims.json` serialization with its
+   expected schema transition and refreshed `updated_at`, every run projection
+   blob byte-for-byte unchanged, and the exact guard. Do not compare the
+   original claims-document bytes: its whitespace and key order may change.
+   Observe GitHub deployments and commit statuses for 120 seconds on that SHA.
+   Any Vercel deployment of any state fails acceptance, stops rollout, and
+   triggers the dedicated-repository fallback. Do not remove the guard or
    rewrite the coordination history.
 7. Configure the Git backend on both machines (`NOUS_COORD_MODE`,
    `NOUS_COORD_GIT_REMOTE`, `NOUS_GITHUB_REPOSITORY`,
@@ -934,10 +945,11 @@ GitHub:
   writes never remove the guard, and old schema-1 clients stop safely on
   schema 2.
 - **Claim-free migration.** `migrate --to-schema 2 --authorize coordinate`
-  requires an empty stored claims array, preserves the claims array and every
-  run projection blob byte-for-byte while changing only `claims.json.schema` and
-  `claims.json.updated_at` metadata, creates one ordinary fast-forward child,
-  and is idempotent on a valid, claim-free schema-2 board. Before it
+  requires an empty stored claims array, preserves its mode and empty value
+  semantically, canonically reserializes `claims.json`, changes
+  `claims.json.schema` and `claims.json.updated_at`, preserves every run
+  projection blob byte-for-byte, creates one ordinary fast-forward child, and
+  is idempotent on a valid, claim-free schema-2 board. Before it
   runs, both machines must use the same exact merged SHA and pass the focused
   coordination tests at that SHA. Migration creates no claim, sentinel, or
   tick.
@@ -1017,9 +1029,10 @@ not gate cutover).
 - New bootstrap and every supported CAS write use schema 2. The explicit
   `python3 scripts/nous_run.py migrate --to-schema 2 --authorize coordinate`
   operation is the only claim-free, run-byte-preserving schema-1 upgrade; it
-  requires an empty stored claims array, preserves the claims array and every
-  run projection blob byte-for-byte while changing only `claims.json.schema`
-  and `claims.json.updated_at` metadata, and is idempotent on schema 2.
+  requires an empty stored claims array, preserves its mode and empty value
+  semantically, canonically reserializes `claims.json`, changes
+  `claims.json.schema` and `claims.json.updated_at`, preserves every run
+  projection blob byte-for-byte, and is idempotent on schema 2.
   Supported ordinary mutations also normalize a valid schema-1 snapshot's
   resulting child to schema 2, but may change claim/run state. Both machines
   must pass focused tests at the same exact merged SHA before migration.

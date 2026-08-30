@@ -39,9 +39,10 @@ revision rather than an unvalidated manual file on the board.
   ordinary fast-forward pushes.
 - Validate the deployment guard as strictly as the coordination data.
 - Support a fail-closed, one-way migration from the existing schema-1 root.
-- Preserve the claims array and every existing run blob byte-for-byte during
-  migration; only `claims.json.schema` and `claims.json.updated_at` metadata
-  change.
+- Preserve the mode and empty claims-array value semantically during migration;
+  canonically reserialize `claims.json` as schema 2, changing its
+  representation as needed, while preserving every existing run blob
+  byte-for-byte.
 - Verify the real Vercel/GitHub side effect before any claim or NOUS tick.
 
 ## Non-goals
@@ -111,11 +112,13 @@ vercel.json
 runs/<run-id>.json
 ```
 
-Migration preserves the `claims.json` mode and claims array and every existing
-run blob byte-for-byte. It changes the top-level `claims.json.schema` value from
-`1` to `2` and refreshes `claims.json.updated_at`; those are the only
-claims-document metadata changes. Run projection schema remains `1` because its
-JSON shape does not change.
+Migration requires the stored claims array to be empty. It preserves the
+`claims.json` mode and that empty claims-array value semantically, but
+canonically reserializes `claims.json`, so its representation, whitespace, and
+key order are not byte-preserved. It changes the top-level
+`claims.json.schema` value from `1` to `2` and refreshes
+`claims.json.updated_at`. Every existing run blob is preserved byte-for-byte;
+run projection schema remains `1` because its JSON shape does not change.
 
 The exact guard bytes are:
 
@@ -156,9 +159,10 @@ callers cannot supply or override it.
   installed.
 - A dedicated `migrate --to-schema 2 --authorize coordinate` command performs
   the same CAS upgrade without creating, renewing, or releasing a claim and
-  without changing any run projection; it preserves the claims array and every
-  run blob byte-for-byte while updating only `claims.json.schema` and
-  `claims.json.updated_at` metadata.
+  without changing any run projection; it preserves the mode and empty
+  claims-array value semantically, canonically reserializes `claims.json`,
+  changes `claims.json.schema` from `1` to `2`, refreshes
+  `claims.json.updated_at`, and preserves every run blob byte-for-byte.
 - Migration is idempotent: running it against schema 2 returns the current tip
   without creating a commit.
 
@@ -204,8 +208,10 @@ Migration is a maintenance-window operation:
    at the expected root/descendant.
 5. Run `migrate --to-schema 2 --authorize coordinate` once from one machine.
 6. Verify an ordinary fast-forward child, exact schema-2 tree, immutable
-   guard, the unchanged claims array and every run blob byte-for-byte, the
-   expected `claims.json.schema`/`claims.json.updated_at` metadata changes, and
+   guard, the semantically unchanged empty claims array and mode, canonical
+   `claims.json` reserialization (its representation, whitespace, and key order
+   may change), the expected `claims.json.schema` transition and
+   `claims.json.updated_at` refresh, every run blob byte-for-byte unchanged, and
    no sentinel.
 7. For 120 seconds, poll GitHub deployments and commit statuses for the new
    SHA. Success means no Vercel deployment record or failed Vercel status is
@@ -241,10 +247,11 @@ Unit and local integration tests must prove:
 - schema-2 snapshots with missing or modified guard bytes are rejected;
 - claim, renew, run update, release, finalize, prune, and migration children
   all retain schema 2 and the exact guard;
-- migration requires the stored claims array to be empty, preserves the claims
-  array and every run blob byte-for-byte while changing only
-  `claims.json.schema` and `claims.json.updated_at` metadata, creates one
-  ordinary fast-forward child, and is idempotent;
+- migration requires the stored claims array to be empty, preserves its empty
+  value and mode semantically, canonically reserializes `claims.json`, changes
+  `claims.json.schema` from `1` to `2`, refreshes `claims.json.updated_at`,
+  preserves every run blob byte-for-byte, creates one ordinary fast-forward
+  child, and is idempotent;
 - old schema-1 clients fail closed on schema 2 by their existing validation;
 - the CLI requires `coordinate`, remote-required mode, and target schema 2;
 - all existing no-force, dedicated-identity, CAS-race, and bridge compatibility
