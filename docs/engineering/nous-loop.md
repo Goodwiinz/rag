@@ -138,10 +138,11 @@ preparing migration. Both clients must be updated to the same exact merged
 SHA and must pass the focused coordination tests at that SHA before migration.
 Verify that the remote schema-1 board has an empty stored claims array, then
 run migration once. It creates no claim, receipt, local mutex, sentinel, or
-tick; it preserves every run projection and upgrades the complete snapshot by
-an ordinary fast-forward child. Migration is idempotent when the already
-schema-2 board is valid and claim-free. Afterward, verify the exact schema-2
-tree and observe
+tick; it preserves the claims array and every run projection blob byte-for-byte
+and changes only `claims.json.schema` and `claims.json.updated_at` metadata while
+upgrading the complete snapshot by an ordinary fast-forward child. Migration is
+idempotent when the already schema-2 board is valid and claim-free. Afterward,
+verify the exact schema-2 tree and observe
 GitHub deployments and commit statuses for 120 seconds on the migration SHA.
 Any Vercel deployment of any state on that SHA stops rollout and invokes the
 dedicated-repository fallback; do not remove the guard or rewrite the branch.

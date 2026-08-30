@@ -39,7 +39,9 @@ revision rather than an unvalidated manual file on the board.
   ordinary fast-forward pushes.
 - Validate the deployment guard as strictly as the coordination data.
 - Support a fail-closed, one-way migration from the existing schema-1 root.
-- Keep all claims and run projections unchanged during migration.
+- Preserve the claims array and every existing run blob byte-for-byte during
+  migration; only `claims.json.schema` and `claims.json.updated_at` metadata
+  change.
 - Verify the real Vercel/GitHub side effect before any claim or NOUS tick.
 
 ## Non-goals
@@ -109,9 +111,11 @@ vercel.json
 runs/<run-id>.json
 ```
 
-`claims.json` changes only its top-level `schema` value from `1` to `2`; its
-mode, timestamp, and claims shape are unchanged. Run projection schema remains
-`1` because its JSON shape does not change.
+Migration preserves the `claims.json` mode and claims array and every existing
+run blob byte-for-byte. It changes the top-level `claims.json.schema` value from
+`1` to `2` and refreshes `claims.json.updated_at`; those are the only
+claims-document metadata changes. Run projection schema remains `1` because its
+JSON shape does not change.
 
 The exact guard bytes are:
 
@@ -152,7 +156,9 @@ callers cannot supply or override it.
   installed.
 - A dedicated `migrate --to-schema 2 --authorize coordinate` command performs
   the same CAS upgrade without creating, renewing, or releasing a claim and
-  without changing any run projection.
+  without changing any run projection; it preserves the claims array and every
+  run blob byte-for-byte while updating only `claims.json.schema` and
+  `claims.json.updated_at` metadata.
 - Migration is idempotent: running it against schema 2 returns the current tip
   without creating a commit.
 
@@ -198,10 +204,12 @@ Migration is a maintenance-window operation:
    at the expected root/descendant.
 5. Run `migrate --to-schema 2 --authorize coordinate` once from one machine.
 6. Verify an ordinary fast-forward child, exact schema-2 tree, immutable
-   guard, unchanged claims/runs, and no sentinel.
-7. Poll GitHub deployments and commit statuses for the new SHA. Success means
-   no Vercel deployment record or failed Vercel status is created. A Vercel
-   deployment of any state fails acceptance and stops rollout.
+   guard, the unchanged claims array and every run blob byte-for-byte, the
+   expected `claims.json.schema`/`claims.json.updated_at` metadata changes, and
+   no sentinel.
+7. For 120 seconds, poll GitHub deployments and commit statuses for the new
+   SHA. Success means no Vercel deployment record or failed Vercel status is
+   created. A Vercel deployment of any state fails acceptance and stops rollout.
 8. Leave the board claim-free. The later coordinated Mac/Linux smoke test and
    cutover remain separate operations.
 
@@ -233,8 +241,10 @@ Unit and local integration tests must prove:
 - schema-2 snapshots with missing or modified guard bytes are rejected;
 - claim, renew, run update, release, finalize, prune, and migration children
   all retain schema 2 and the exact guard;
-- migration requires the stored claims array to be empty, preserves every run,
-  creates one ordinary fast-forward child, and is idempotent;
+- migration requires the stored claims array to be empty, preserves the claims
+  array and every run blob byte-for-byte while changing only
+  `claims.json.schema` and `claims.json.updated_at` metadata, creates one
+  ordinary fast-forward child, and is idempotent;
 - old schema-1 clients fail closed on schema 2 by their existing validation;
 - the CLI requires `coordinate`, remote-required mode, and target schema 2;
 - all existing no-force, dedicated-identity, CAS-race, and bridge compatibility
