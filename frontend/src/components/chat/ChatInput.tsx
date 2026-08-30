@@ -136,6 +136,8 @@ export function ChatInput({
     documentId?: string;
   };
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [submittedDraft, setSubmittedDraft] = useState<string | null>(null);
+  const submittedDraftBecameBusyRef = useRef(false);
   // Monotonic counter behind each chip's id — see addFiles.
   const attachSeq = useRef(0);
   // Keep a live ref so the unmount cleanup revokes the current object URLs
@@ -230,6 +232,25 @@ export function ChatInput({
       return [];
     });
   };
+
+  // Keep sent chips until the turn has actually settled. A canceled preflight
+  // restores the draft text, so its chips become editable again; a completed
+  // turn discards them only after loading ends.
+  useEffect(() => {
+    if (submittedDraft === null) return;
+    if (isLoading) {
+      submittedDraftBecameBusyRef.current = true;
+      return;
+    }
+    if (!submittedDraftBecameBusyRef.current) return;
+
+    const settle = window.setTimeout(() => {
+      if (value !== submittedDraft) clearAttachments();
+      submittedDraftBecameBusyRef.current = false;
+      setSubmittedDraft(null);
+    }, 0);
+    return () => window.clearTimeout(settle);
+  }, [isLoading, submittedDraft, value]);
 
   useEffect(() => {
     return () => {
@@ -356,8 +377,8 @@ export function ChatInput({
     }
 
     aui.composer().setRunConfig({ custom: { attachmentIds } });
+    if (attachments.length > 0) setSubmittedDraft(value.trim());
     onChange('');
-    clearAttachments();
     return true;
   };
 
@@ -515,7 +536,7 @@ export function ChatInput({
             className="px-4 pt-3.5 pb-3"
             style={{ background: 'var(--nous-bg-2)' }}
           >
-            {attachments.length > 0 && (
+            {attachments.length > 0 && submittedDraft === null && (
               <ul
                 className="flex flex-wrap items-center gap-2 mb-3 list-none p-0 m-0"
                 aria-label="Attached files"

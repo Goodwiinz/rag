@@ -6,7 +6,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent } from '@testing-library/react';
+import { act, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithChatRuntime } from './renderWithChatRuntime';
 
 // Mock framer-motion to avoid animation issues in tests
@@ -155,7 +155,7 @@ describe('ChatInput file attach', () => {
     expect(input.value).toBe('');
   });
 
-  it('clears attachment chips and revokes blob URLs on send', () => {
+  it('clears attachment chips and revokes blob URLs after a sent turn settles', async () => {
     const revokeObjectURL = vi.fn();
     vi.stubGlobal('URL', {
       ...URL,
@@ -165,7 +165,7 @@ describe('ChatInput file attach', () => {
 
     // A non-empty value is required for the submit guard to fire onSubmit.
     const onSubmit = vi.fn();
-    const { container } = renderWithChatRuntime(
+    const { container, rerender } = renderWithChatRuntime(
       <ChatInput {...baseProps} value="hi" onSubmit={onSubmit} />
     );
     const imageInput = container.querySelector(
@@ -187,13 +187,78 @@ describe('ChatInput file attach', () => {
     fireEvent.submit(form);
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock');
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    rerender(
+      <ChatInput {...baseProps} value="" onSubmit={onSubmit} isLoading />
+    );
+    rerender(
+      <ChatInput
+        {...baseProps}
+        value=""
+        onSubmit={onSubmit}
+        isLoading={false}
+      />
+    );
+    await waitFor(() =>
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock')
+    );
     // Chips list is gone (attachments emptied).
     expect(
       container.querySelector('ul[aria-label="Attached files"]')
     ).toBeNull();
 
     vi.unstubAllGlobals();
+  });
+
+  it('restores attachment chips when a canceled turn restores its draft', async () => {
+    const onSubmit = vi.fn();
+    const onAttach = vi.fn(async () => [{ ok: true, documentId: 'doc-1' }]);
+    const { container, rerender } = renderWithChatRuntime(
+      <ChatInput
+        {...baseProps}
+        value="cancel this turn"
+        onSubmit={onSubmit}
+        onAttach={onAttach}
+      />
+    );
+    const input = container.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
+    Object.defineProperty(input, 'files', {
+      value: [
+        new File(['x'], 'paper.pdf', { type: 'application/pdf' }),
+      ] as unknown as FileList,
+      configurable: true,
+    });
+    await act(async () => fireEvent.change(input));
+
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    rerender(
+      <ChatInput
+        {...baseProps}
+        value=""
+        onSubmit={onSubmit}
+        onAttach={onAttach}
+        isLoading
+      />
+    );
+    rerender(
+      <ChatInput
+        {...baseProps}
+        value="cancel this turn"
+        onSubmit={onSubmit}
+        onAttach={onAttach}
+        isLoading={false}
+      />
+    );
+
+    await waitFor(() =>
+      expect(
+        container.querySelector('ul[aria-label="Attached files"]')
+      ).not.toBeNull()
+    );
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    expect(onSubmit).toHaveBeenLastCalledWith(['doc-1']);
   });
 
   describe('attachment ids handed to the send', () => {

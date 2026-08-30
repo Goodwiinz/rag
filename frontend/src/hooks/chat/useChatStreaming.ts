@@ -1377,6 +1377,13 @@ export function useChatStreaming(
       // installs the live stream controller.
       const preflightAbort = new AbortController();
       abortControllerRef.current = preflightAbort;
+      const rollbackPreflight = (): void => {
+        setMessages(messages);
+        setInput(content);
+        setIsLoading(false);
+        submitLockRef.current = false;
+        stopTargetRef.current = null;
+      };
       // A cold-load confirmation probe still in flight is now stale: whatever
       // interrupt it might replay predates this turn, and the server abandons
       // it when the new send arrives. Left running, its late confirmation
@@ -1426,6 +1433,9 @@ export function useChatStreaming(
         setMessages(newMessages);
         setInput('');
         setIsLoading(true);
+        preflightAbort.signal.addEventListener('abort', rollbackPreflight, {
+          once: true,
+        });
 
         // Create new thread if needed (when no active conversation).
         // Read from ref first (synchronous, immune to React batching), then
@@ -1442,12 +1452,15 @@ export function useChatStreaming(
             if (!threadConversation) {
               const defaultWorkspace =
                 await workspaceService.getOrCreateDefaultWorkspace();
+              if (preflightAbort.signal.aborted) return;
               threadConversation =
                 await workspaceService.getOrCreateDefaultConversation(
                   defaultWorkspace.id
                 );
+              if (preflightAbort.signal.aborted) return;
             }
 
+            if (preflightAbort.signal.aborted) return;
             const dynamicTitle = generateConversationTitle(content);
             console.log(
               '[Chat] Creating new thread in database with title:',
@@ -1460,6 +1473,7 @@ export function useChatStreaming(
                 projectId: boundProjectId,
               })
             );
+            if (preflightAbort.signal.aborted) return;
 
             // Register in the chat store: the binding selectors and
             // setThreadProjectBinding read store.threads, and without this the
@@ -1489,6 +1503,7 @@ export function useChatStreaming(
             );
             console.log('[Chat] Created new thread:', newThread.id);
           } catch (error) {
+            if (preflightAbort.signal.aborted) return;
             console.error('[Chat] Failed to create thread:', error);
             // Roll back the optimistic turn: the user message was appended and
             // the composer cleared before this call. Without this the bubble
@@ -1503,14 +1518,7 @@ export function useChatStreaming(
           }
         }
 
-        if (preflightAbort.signal.aborted) {
-          setMessages(messages);
-          setInput(content);
-          setIsLoading(false);
-          submitLockRef.current = false;
-          stopTargetRef.current = null;
-          return;
-        }
+        if (preflightAbort.signal.aborted) return;
 
         // Stream via Agent (LangGraph) backend.
         // The workspace thread IS the agent thread (server-canonical).
@@ -1594,6 +1602,7 @@ export function useChatStreaming(
         setIsLoading(false);
         throw err;
       } finally {
+        preflightAbort.signal.removeEventListener('abort', rollbackPreflight);
         if (abortControllerRef.current === preflightAbort) {
           abortControllerRef.current = null;
         }

@@ -40,6 +40,10 @@ vi.mock('@/services/agentChatService', () => ({
 
 vi.mock('@/services/workspaceService', () => ({
   workspaceService: {
+    getOrCreateDefaultWorkspace: vi.fn().mockResolvedValue({ id: 'ws-A' }),
+    getOrCreateDefaultConversation: vi
+      .fn()
+      .mockResolvedValue({ id: 'conversation-A' }),
     createThread: vi.fn(),
     createMessage: vi.fn().mockResolvedValue({ id: 'db-msg-1' }),
     listMessages: vi.fn().mockResolvedValue({ messages: [], has_more: false }),
@@ -64,7 +68,14 @@ function makeParams(): UseChatStreamingParams {
 
 describe('useChatStreaming submit single-flight (submitLockRef)', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     streamMessageMock.mockReset();
+    vi.mocked(workspaceService.getOrCreateDefaultWorkspace).mockResolvedValue({
+      id: 'ws-A',
+    } as never);
+    vi.mocked(
+      workspaceService.getOrCreateDefaultConversation
+    ).mockResolvedValue({ id: 'conversation-A' } as never);
     useChatStore.getState().reset();
   });
 
@@ -138,14 +149,53 @@ describe('useChatStreaming submit single-flight (submitLockRef)', () => {
     expect(workspaceService.createThread).toHaveBeenCalledOnce();
 
     act(() => result.current.handleStop());
+    expect(params.setMessages).toHaveBeenLastCalledWith(originalMessages);
+    expect(result.current.input).toBe('cancel this turn');
+    expect(result.current.isLoading).toBe(false);
+    expect(streamMessageMock).not.toHaveBeenCalled();
+
     await act(async () => {
       finishThreadCreation({ id: 'thread-new', title: 'cancel this turn' });
       await submission;
     });
 
     expect(streamMessageMock).not.toHaveBeenCalled();
-    expect(params.setMessages).toHaveBeenLastCalledWith(originalMessages);
-    expect(result.current.input).toBe('cancel this turn');
+    expect(params.setConversations).not.toHaveBeenCalled();
+    expect(useChatStore.getState().currentThreadId).toBeNull();
+  });
+
+  it('does not continue setup when Stop lands during conversation lookup', async () => {
+    let finishConversationLookup!: (conversation: unknown) => void;
+    vi.mocked(
+      workspaceService.getOrCreateDefaultConversation
+    ).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishConversationLookup = resolve;
+        }) as never
+    );
+    const params = makeParams();
+    useChatStore.setState({ currentThreadId: null });
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    let submission!: Promise<void>;
+    act(() => {
+      submission = result.current.handleSubmit('cancel setup');
+    });
+    await act(async () => Promise.resolve());
+    expect(
+      workspaceService.getOrCreateDefaultConversation
+    ).toHaveBeenCalledOnce();
+
+    act(() => result.current.handleStop());
+    await act(async () => {
+      finishConversationLookup({ id: 'conversation-A' });
+      await submission;
+    });
+
+    expect(workspaceService.createThread).not.toHaveBeenCalled();
+    expect(streamMessageMock).not.toHaveBeenCalled();
+    expect(result.current.input).toBe('cancel setup');
     expect(result.current.isLoading).toBe(false);
   });
 });
