@@ -113,3 +113,6 @@ def test_workflow_contract_tests_run_in_blocking_local_and_hosted_gates() -> Non
         command_start = ci_config.index("pytest tests/unit/scripts/")
         command = ci_config[command_start : command_start + 200]
         assert "--no-cov" in command
+
+    assert '"$PY" -m pytest tests/unit/scripts/' in local_ci
+    assert '"$PY" -m pytest backend/tests/' in local_ci
