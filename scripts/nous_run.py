@@ -202,6 +202,10 @@ def build_parser() -> argparse.ArgumentParser:
     rollback.add_argument("--remove-sentinel", action="store_true", required=True)
     rollback.add_argument("--authorize", action="append")
 
+    migrate = commands.add_parser("migrate")
+    migrate.add_argument("--to-schema", type=int, choices=(2,), required=True)
+    migrate.add_argument("--authorize", action="append")
+
     claim = commands.add_parser("claim")
     claim.add_argument("--agent", required=True)
     claim.add_argument("--branch", required=True)
@@ -265,6 +269,27 @@ def _dispatch(args: argparse.Namespace, repo_root: Path) -> int:
             raise BackendUnavailable("LOOP_BRIDGE_DIR is required for rollback")
         removed = remove_remote_required_sentinel(config.loop_bridge_dir)
         print(json.dumps({"sentinel_removed": removed}, sort_keys=True))
+        return 0
+    if args.command == "migrate":
+        _require_coordinate(args)
+        if config.coord_mode != "remote-required":
+            raise ValidationError(
+                SchemaError("migration requires remote-required mode"),
+                message="set NOUS_COORD_MODE=remote-required before migration",
+            )
+        result = _remote(config, repo_root).migrate_schema(target=args.to_schema)
+        print(
+            json.dumps(
+                {
+                    "branch": config.coordination_branch,
+                    "changed": result.changed,
+                    "from_schema": result.previous_schema,
+                    "tip": result.tip,
+                    "to_schema": result.current_schema,
+                },
+                sort_keys=True,
+            )
+        )
         return 0
 
     backend = _combined(config, repo_root)
