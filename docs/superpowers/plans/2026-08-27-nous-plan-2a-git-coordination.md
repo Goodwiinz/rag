@@ -10,11 +10,24 @@
 
 **Spec:** docs/superpowers/specs/2026-08-27-nous-cross-machine-coordination-design.md
 
+> **Protocol addendum (2026-08-29):** The schema-2 Vercel deployment guard in
+> `docs/superpowers/specs/2026-08-29-nous-vercel-deployment-exclusion-design.md`
+> supersedes this plan's claims/runs-only tree assertions and its
+> implementation-era rollout summary. The original steps remain historical
+> implementation evidence for schema 1; current operators follow the
+> [2026-08-29 deployment-exclusion plan](2026-08-29-nous-vercel-deployment-exclusion.md)
+> and the canonical [NOUS workflow](../../engineering/nous-loop.md).
+
 ## Global Constraints
 
 - Depends on Plan 1 and consumes its ReceiptStore, PreflightResult, and CLI error mapping without changing their meanings.
 - All new code under scripts/nous/ remains stdlib-only. Git and gh subprocesses go through GitIO; no shell=True, shell strings, force flags, deletion flags, or remote-derived values interpolated into commands.
-- The remote branch is the orphan nous-coordination branch and contains only claims.json and runs/<run-id>.json; every update is a complete snapshot child commit.
+- During the compatibility window, the orphan `nous-coordination` branch may
+  remain schema 1 (`claims.json` and `runs/<run-id>.json`) for legacy read
+  compatibility; supported mutations normalize their child to schema 2.
+  Current schema-2 writes contain `claims.json`, the repository-owned
+  `vercel.json` deployment guard, and `runs/<run-id>.json`; every update is a
+  complete snapshot child commit.
 - Bootstrap uses one ordinary push of the orphan root to an absent ref; it does not call GitHub REST createRef, upload to a temporary remote ref, merge histories, or retry the losing commit object.
 - Normal fetches use depth 1 and unique refs/nous/tmp/<run-id>-<nonce>; the plus refspec is permitted only for that private local tracking ref and never for push.
 - CAS retries at most five attempts with min(30, 1.5**attempt) * uniform(0.5, 1.5) jitter; transport exhaustion is exit 3, visible logical conflict exhaustion is exit 2.
@@ -522,4 +535,24 @@ PY
 git diff --check
 ~~~
 
-Expected: all isolated tests PASS, compileall and diff check are silent, and Plan 2a static acceptance ok prints. A reviewer must retain evidence of a two-clone bare-repository bootstrap race with exactly one root, a full-snapshot CAS history, the 3-hour/45-minute renewal policy, claim-id loss fencing, compensation-pending retry, remote/local board labels, mode mismatch refusal, 30-day GC without history rewrite, and workflow/no-force guards. Before enabling production remote-required, an operator must stop both loops, reconcile/release local claims, update both clients, bootstrap the orphan branch in remote-required mode, configure both machines and sentinels, apply a GitHub ruleset blocking force-push/deletion while allowing ordinary fast-forward pushes, run the two-machine smoke test, then restart loops. Rollback evidence is both loops stopped, both clients set to local, remote claims released or allowed to expire, and the inert coordination branch retained.
+Expected: all isolated tests PASS, compileall and diff check are silent, and Plan 2a static acceptance ok prints. A reviewer must retain evidence of a two-clone bare-repository bootstrap race with exactly one root, a full-snapshot CAS history, the 3-hour/45-minute renewal policy, claim-id loss fencing, compensation-pending retry, remote/local board labels, mode mismatch refusal, 30-day GC without history rewrite, and workflow/no-force guards.
+
+### Superseded historical rollout summary
+
+Do not use the preceding Plan 2a-era rollout wording as current operator
+instruction. Follow the [2026-08-29 deployment-exclusion plan](2026-08-29-nous-vercel-deployment-exclusion.md)
+and the canonical [NOUS workflow](../../engineering/nous-loop.md): complete
+the claim-free schema migration, observe its migration SHA for 120 seconds,
+apply and verify the GitHub ruleset on `nous-coordination` that blocks
+deletion and non-fast-forward pushes while allowing ordinary direct
+fast-forward pushes, then run the two-machine smoke test to a
+claim-free end state. Only after that smoke test passes may operators write
+both cutover sentinels with `cutover --write-sentinel --authorize coordinate`
+and restart the loops. Both local `.remote-required` sentinels remain absent
+through migration, the 120-second observation, and the smoke test; they are
+written only after the smoke passes. The smoke test may use temporary
+coordination claims, but it must release them before cutover.
+
+Rollback evidence is both loops stopped, both clients set to local, remote
+claims released or allowed to expire, and the inert coordination branch
+retained.

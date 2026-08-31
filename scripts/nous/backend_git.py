@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from typing import TypeVar, cast
+from typing import Generic, TypeVar, cast
 
 from .coordination import (
     ACTIVE,
@@ -29,10 +29,12 @@ from .coordination import (
 from .gitio import (
     COORDINATION_EMAIL,
     COORDINATION_NAME,
+    BlobReference,
     GitIO,
     NonFastForward,
     RemoteRefMissing,
     TransportFailure,
+    TreeEntry,
 )
 from .schema import (
     CLAIMS_MAX_BYTES,
@@ -50,12 +52,24 @@ from .schema import (
     validate_timestamp,
 )
 
+LEGACY_COORDINATION_SCHEMA = 1
+CURRENT_COORDINATION_SCHEMA = 2
+VERCEL_DEPLOYMENT_GUARD = (
+    b"{\n"
+    b'  "$schema": "https://openapi.vercel.sh/vercel.json",\n'
+    b'  "git": {\n'
+    b'    "deploymentEnabled": false\n'
+    b"  }\n"
+    b"}\n"
+)
+
 
 def _validation(message: str) -> ValidationError:
     return ValidationError(SchemaError(message), message=message)
 
 
 _F = TypeVar("_F", bound=Callable[..., object])
+_R = TypeVar("_R")
 
 
 def _schema_boundary(method: _F) -> _F:
@@ -286,11 +300,18 @@ def _load_json(raw: bytes, maximum: int, label: str) -> object:
         raise _validation(f"{label} is not valid UTF-8 JSON") from None
 
 
-def decode_claims_document(raw: bytes) -> tuple[str, str, tuple[Claim, ...]]:
+def decode_claims_document(raw: bytes) -> tuple[int, str, str, tuple[Claim, ...]]:
     value = _load_json(raw, CLAIMS_MAX_BYTES, "claims.json")
     item = _object(value, {"schema", "mode", "updated_at", "claims"}, "claims.json")
-    if item["schema"] != 1 or item["mode"] not in {"local", "remote-required"}:
-        raise _validation("claims.json schema or mode is incompatible")
+    schema = item["schema"]
+    if (
+        isinstance(schema, bool)
+        or not isinstance(schema, int)
+        or schema not in {LEGACY_COORDINATION_SCHEMA, CURRENT_COORDINATION_SCHEMA}
+    ):
+        raise _validation("claims.json schema is incompatible")
+    if item["mode"] not in {"local", "remote-required"}:
+        raise _validation("claims.json mode is incompatible")
     try:
         updated_at = validate_timestamp(item["updated_at"])  # type: ignore[arg-type]
     except SchemaError as exc:
@@ -299,12 +320,12 @@ def decode_claims_document(raw: bytes) -> tuple[str, str, tuple[Claim, ...]]:
     if not isinstance(raw_claims, list):
         raise _validation("claims must be a list")
     claims = tuple(_claim_from_json(value) for value in raw_claims)
-    return item["mode"], updated_at, claims  # type: ignore[return-value]
+    return schema, item["mode"], updated_at, claims  # type: ignore[return-value]
 
 
 def serialize_claims(snapshot: "CoordinationSnapshot") -> bytes:
     value = {
-        "schema": 1,
+        "schema": snapshot.schema,
         "mode": snapshot.mode,
         "updated_at": snapshot.updated_at,
         "claims": [_claim_to_json(item) for item in snapshot.claims],
@@ -351,6 +372,21 @@ class CoordinationSnapshot:
     updated_at: str
     claims: tuple[Claim, ...]
     runs: Mapping[str, RunProjection]
+    schema: int = CURRENT_COORDINATION_SCHEMA
+
+
+@dataclass(frozen=True)
+class SchemaMigration:
+    previous_schema: int
+    current_schema: int
+    tip: str
+    changed: bool
+
+
+@dataclass(frozen=True)
+class _CasOutcome(Generic[_R]):
+    value: _R
+    tip: str
 
 
 def _assert_snapshot_invariants(snapshot: CoordinationSnapshot) -> None:
@@ -443,12 +479,63 @@ class GitBackend(CoordinationBackend):
     def _files(self, snapshot: CoordinationSnapshot) -> dict[str, bytes]:
         _assert_snapshot_invariants(snapshot)
         files = {"claims.json": serialize_claims(snapshot)}
+        if snapshot.schema == CURRENT_COORDINATION_SCHEMA:
+            files["vercel.json"] = VERCEL_DEPLOYMENT_GUARD
         for run_id, projection in sorted(snapshot.runs.items()):
             validate_run_id(run_id)
             if projection.run_id != run_id:
                 raise _validation("run filename and embedded run_id differ")
             files[f"runs/{run_id}.json"] = serialize_run(projection)
         return files
+
+    def _migration_files(
+        self, parent: str, snapshot: CoordinationSnapshot
+    ) -> dict[str, bytes | BlobReference]:
+        _assert_snapshot_invariants(snapshot)
+        files: dict[str, bytes | BlobReference] = {
+            "claims.json": serialize_claims(snapshot),
+            "vercel.json": VERCEL_DEPLOYMENT_GUARD,
+        }
+        run_paths = tuple(f"runs/{run_id}.json" for run_id in sorted(snapshot.runs))
+        files.update(self.io.blob_references(parent, run_paths))
+        return files
+
+    @staticmethod
+    def _validate_snapshot_tree(entries: Sequence[TreeEntry]) -> tuple[str, ...]:
+        paths: list[str] = []
+        run_paths: list[str] = []
+        has_runs_tree = False
+        for entry in entries:
+            paths.append(entry.path)
+            if entry.path in {"claims.json", "vercel.json"}:
+                if entry.mode != "100644" or entry.object_type != "blob":
+                    raise _validation("coordination snapshot has an invalid tree entry")
+                continue
+            if entry.path == "runs":
+                if entry.mode != "040000" or entry.object_type != "tree":
+                    raise _validation("coordination snapshot has an invalid tree entry")
+                has_runs_tree = True
+                continue
+            if not entry.path.startswith("runs/"):
+                raise _validation("coordination snapshot has an invalid tree entry")
+            run_id = entry.path.removeprefix("runs/").removesuffix(".json")
+            if (
+                not entry.path.endswith(".json")
+                or "/" in run_id
+                or entry.mode != "100644"
+                or entry.object_type != "blob"
+            ):
+                raise _validation("coordination snapshot has an invalid tree entry")
+            try:
+                validate_run_id(run_id)
+            except SchemaError as exc:
+                raise _validation(
+                    "coordination snapshot has an invalid tree entry"
+                ) from exc
+            run_paths.append(entry.path)
+        if has_runs_tree != bool(run_paths):
+            raise _validation("coordination snapshot has an invalid tree entry")
+        return tuple(paths)
 
     def _decode_snapshot(self, commit: str) -> CoordinationSnapshot:
         identity = self.io.commit_identity(commit)
@@ -460,15 +547,25 @@ class GitBackend(CoordinationBackend):
                 SchemaError("foreign coordination commit"),
                 message="coordination branch contains foreign metadata",
             )
-        paths = self.io.list_tree(commit)
+        paths = self._validate_snapshot_tree(self.io.list_tree_entries(commit))
         if "claims.json" not in paths:
             raise _validation("coordination snapshot is missing claims.json")
-        mode, updated_at, claims = decode_claims_document(
+        schema, mode, updated_at, claims = decode_claims_document(
             self.io.cat_file(commit, "claims.json")
         )
+        if schema == LEGACY_COORDINATION_SCHEMA:
+            if "vercel.json" in paths:
+                raise _validation(
+                    "schema 1 snapshot contains a partial deployment guard"
+                )
+        else:
+            if "vercel.json" not in paths:
+                raise _validation("schema 2 snapshot is missing the deployment guard")
+            if self.io.cat_file(commit, "vercel.json") != VERCEL_DEPLOYMENT_GUARD:
+                raise _validation("schema 2 deployment guard is invalid")
         runs: dict[str, RunProjection] = {}
         for path in paths:
-            if path == "claims.json":
+            if path in {"claims.json", "vercel.json", "runs"}:
                 continue
             if not path.startswith("runs/") or not path.endswith(".json"):
                 raise _validation("coordination snapshot contains an unknown file")
@@ -480,11 +577,13 @@ class GitBackend(CoordinationBackend):
             if projection.run_id != run_id:
                 raise _validation("run filename and embedded run_id differ")
             runs[run_id] = projection
-        snapshot = CoordinationSnapshot(mode, updated_at, claims, runs)
+        snapshot = CoordinationSnapshot(mode, updated_at, claims, runs, schema)
         _assert_snapshot_invariants(snapshot)
         return snapshot
 
-    def _read(self, *, allow_missing: bool = False) -> CoordinationSnapshot | None:
+    def _read_with_tip(
+        self, *, allow_missing: bool = False
+    ) -> tuple[str, CoordinationSnapshot] | None:
         temp_ref = self._temp_ref("bootstrap")
         try:
             commit = self.io.fetch_branch(
@@ -497,9 +596,16 @@ class GitBackend(CoordinationBackend):
                 return None
             snapshot = self._decode_snapshot(commit)
             self.assert_snapshot_mode(snapshot, self.config.mode)
-            return snapshot
+            return commit, snapshot
         finally:
             self.io.delete_local_ref(temp_ref)
+
+    def _read(self, *, allow_missing: bool = False) -> CoordinationSnapshot | None:
+        current = self._read_with_tip(allow_missing=allow_missing)
+        if current is None:
+            return None
+        _, snapshot = current
+        return snapshot
 
     @_schema_boundary
     def bootstrap(self, *, mode: str | None = None) -> str:
@@ -541,10 +647,13 @@ class GitBackend(CoordinationBackend):
     def _cas(
         self,
         run_id: str,
-        operation: Callable[
-            [CoordinationSnapshot], tuple[CoordinationSnapshot, object]
-        ],
-    ) -> object:
+        operation: Callable[[CoordinationSnapshot], tuple[CoordinationSnapshot, _R]],
+        *,
+        files: (
+            Callable[[str, CoordinationSnapshot], dict[str, bytes | BlobReference]]
+            | None
+        ) = None,
+    ) -> _CasOutcome[_R]:
         last_error: Exception | None = None
         for attempt in range(self.config.max_attempts):
             temp_ref = self._temp_ref(run_id)
@@ -556,17 +665,19 @@ class GitBackend(CoordinationBackend):
                 before = self._decode_snapshot(parent)
                 self.assert_snapshot_mode(before, self.config.mode)
                 after, result = operation(before)
+                if after.schema != CURRENT_COORDINATION_SCHEMA:
+                    after = replace(after, schema=CURRENT_COORDINATION_SCHEMA)
                 if after == before:
-                    return result
+                    return _CasOutcome(result, parent)
                 commit = self.io.commit_snapshot(
-                    self._files(after),
+                    self._files(after) if files is None else files(parent, after),
                     parent=parent,
                     message="nous coordination update",
                 )
                 self.io.push_fast_forward(
                     self.config.remote, commit, self.config.branch
                 )
-                return result
+                return _CasOutcome(result, commit)
             except (NonFastForward, TransportFailure, RemoteRefMissing) as exc:
                 last_error = exc
                 if attempt + 1 < self.config.max_attempts:
@@ -575,6 +686,34 @@ class GitBackend(CoordinationBackend):
             finally:
                 self.io.delete_local_ref(temp_ref)
         raise TransportFailure("coordination CAS retry limit reached") from last_error
+
+    @_schema_boundary
+    def migrate_schema(self, *, target: int) -> SchemaMigration:
+        if type(target) is not int or target != CURRENT_COORDINATION_SCHEMA:
+            raise _validation("only coordination schema 2 is supported")
+
+        def apply(snapshot: CoordinationSnapshot):
+            if snapshot.claims:
+                raise Conflict(
+                    "coordination schema migration requires an empty claim board"
+                )
+            if snapshot.schema == target:
+                return snapshot, (snapshot.schema, False)
+            if snapshot.schema != LEGACY_COORDINATION_SCHEMA:
+                raise _validation("coordination schema cannot be migrated")
+            return replace(snapshot, schema=target, updated_at=_iso(self.clock())), (
+                snapshot.schema,
+                True,
+            )
+
+        outcome = self._cas("bootstrap", apply, files=self._migration_files)
+        previous_schema, changed = outcome.value
+        current = self._read_with_tip()
+        assert current is not None
+        _, snapshot = current
+        if snapshot.schema != target:
+            raise TransportFailure("coordination schema migration was not observable")
+        return SchemaMigration(previous_schema, snapshot.schema, outcome.tip, changed)
 
     def _live(self, snapshot: CoordinationSnapshot, now: datetime) -> tuple[Claim, ...]:
         return tuple(
@@ -723,7 +862,7 @@ class GitBackend(CoordinationBackend):
             )
 
         try:
-            return self._cas(run_id, apply)  # type: ignore[return-value]
+            return self._cas(run_id, apply).value
         except TransportFailure as exc:
             detail = (
                 f"claim outcome indeterminate for run_id={run_id}; "
@@ -778,7 +917,7 @@ class GitBackend(CoordinationBackend):
             )
             return CoordinationSnapshot(snapshot.mode, _iso(now), claims, runs), renewed
 
-        return self._cas(run_id, apply)  # type: ignore[return-value]
+        return self._cas(run_id, apply).value
 
     @_schema_boundary
     def release(
@@ -971,11 +1110,15 @@ class GitBackend(CoordinationBackend):
                 return snapshot, removed
             return replace(snapshot, updated_at=_iso(instant), claims=kept), removed
 
-        return self._cas(run_hint, apply)  # type: ignore[return-value]
+        return self._cas(run_hint, apply).value
 
 
 __all__ = [
+    "CURRENT_COORDINATION_SCHEMA",
+    "LEGACY_COORDINATION_SCHEMA",
+    "VERCEL_DEPLOYMENT_GUARD",
     "CoordinationSnapshot",
+    "SchemaMigration",
     "ForeignMetadata",
     "GitBackend",
     "GitBackendConfig",

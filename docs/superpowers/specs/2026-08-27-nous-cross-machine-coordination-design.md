@@ -3,6 +3,11 @@
 Date: 2026-08-27
 Status: proposed design; awaiting owner review before implementation plans
 
+> **Protocol addendum (2026-08-29):** Schema 2 makes the repository-owned
+> Vercel deployment guard part of the coordination tree and supersedes this
+> design's claims/runs-only assertions. Schema-1 wording below is retained as
+> historical, read-compatible implementation evidence.
+
 ## Problem statement
 
 The NOUS self-improvement loop (docs/engineering/nous-loop.md) currently
@@ -26,7 +31,10 @@ three structural limits:
 
 This spec defines repository-owned tooling that makes the loop durable,
 resumable, evidence-backed, and safely coordinated across machines, using the
-GitHub repository itself as the cross-machine transport.
+GitHub repository itself as the cross-machine transport. Its original
+claims/runs-only tree is the legacy schema-1 compatibility format; the
+schema-2 protocol addendum makes the exact repository-owned Vercel guard part
+of the current remote tree.
 
 ## Goals
 
@@ -88,9 +96,12 @@ or leads, never authority.
    `merge_commit_sha`.
 2. **Fetched Git history of `origin/develop`** — authoritative for what code
    actually landed (ancestry checks, fix presence).
-3. **Remote coordination branch** (`nous-coordination`: `claims.json`,
-   `runs/<run-id>.json`) — authoritative for claims and for the resumable
-   run projection, after cutover.
+3. **Remote coordination branch** (`nous-coordination`) — authoritative after
+   cutover for claims and the resumable run projection. During the compatibility
+   window, schema 1 contains `claims.json` and `runs/<run-id>.json`; schema 2
+   additionally contains the repository-owned `vercel.json` deployment guard.
+   The guard is protocol metadata, not foreign metadata, and must match the
+   exact schema-2 bytes.
 4. **Local receipt** (`events.jsonl` + `current.json`) — authoritative for
    detailed evidence on the machine that produced it; not visible to peers.
 5. **Local flock board** (`$LOOP_BRIDGE_DIR`) — same-host mutex only. After
@@ -253,15 +264,54 @@ The receipt records only the action names and decision, never credentials.
 ## Remote schema (branch `nous-coordination`)
 
 The branch is an orphan: its root commit has no parent and shares no history
-with any code branch. It contains exactly:
+with any code branch. During the compatibility window it may contain the
+legacy schema-1 tree, which has exactly:
 
 ```
 claims.json
 runs/<run-id>.json
 ```
 
-Every commit is a full snapshot (the complete intended state of both files),
-committed as a child of the fetched tip. Histories are never merged.
+Schema 1 must not contain `vercel.json`; a schema-1 tree with that file is a
+partial or foreign migration and fails closed. The current schema-2 tree has
+exactly:
+
+```
+claims.json
+vercel.json
+runs/<run-id>.json
+```
+
+Schema-2 `claims.json` uses top-level `schema` value `2`; migration requires an
+empty stored claims array and preserves its mode and empty value semantically,
+but canonically reserializes `claims.json`, so its representation, whitespace,
+and key order are not byte-preserved. It changes `claims.json.schema` from `1`
+to `2` and refreshes `claims.json.updated_at`; every run blob remains
+byte-for-byte unchanged. Run projection JSON remains schema 1.
+`vercel.json` is repository-owned protocol metadata with these exact bytes
+(including the trailing newline):
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": false
+  }
+}
+```
+
+New bootstrap roots and every schema-2 child emit that guard. A valid schema-1
+board remains readable during the one-way compatibility window; supported
+mutations normalize their child to schema 2, while the explicit migration is
+claim-free. The migration requires an empty stored claims array and preserves
+its mode and empty value semantically, but canonically reserializes
+`claims.json`; its representation, whitespace, and key order are not
+byte-preserved. It changes `claims.json.schema` from `1` to `2`, refreshes
+`claims.json.updated_at`, and preserves every run blob byte-for-byte. Missing,
+modified, oversized, or differently encoded schema-2
+guard bytes, unknown files, and schema-1 partial guards are invalid metadata.
+Every commit is a full snapshot of the applicable tree, committed as a child
+of the fetched tip. Histories are never merged.
 
 ### Common validation limits
 
@@ -272,6 +322,10 @@ untrusted input):
 - Total size: `claims.json` ≤ 64 KiB; each `runs/<run-id>.json` ≤ 16 KiB.
   Oversized files fail validation (exit `4` on write; treated as corrupt on
   read, reported, never repaired silently).
+- Schema-2 `vercel.json` is accepted only when its bytes exactly equal the
+  repository-owned guard above; missing, oversized, modified, or differently
+  encoded guard data fails closed. The guard is expected protocol metadata,
+  not a foreign file.
 - Strings: UTF-8, no control characters other than none (no newlines/tabs in
   any field), printable only.
 - `run_id`: `^[0-9]{8}T[0-9]{6}Z-[a-z0-9-]{1,32}-[a-f0-9]{6}$`
@@ -305,6 +359,13 @@ untrusted input):
   the secret patterns above are a backstop, not the primary defense.
 
 ### `claims.json`
+
+The following is the legacy schema-1 compatibility shape. Schema 2 uses the
+same `mode` and `claims` fields, requires its sibling `vercel.json`, and
+migration preserves the mode and empty claims-array value semantically while
+canonically reserializing `claims.json`; its representation, whitespace, and
+key order are not byte-preserved. It changes `claims.json.schema` and
+`claims.json.updated_at` and preserves every run blob byte-for-byte.
 
 ```json
 {
@@ -565,11 +626,15 @@ Milestone validity is bound to `evidence_head_sha`:
 
 ### Bootstrap
 
-1. Build the initial state locally with plumbing (no working-tree checkout):
-   `git hash-object -w` the initial `claims.json`
-   (`{"schema": 1, "mode": ..., "claims": [], "updated_at": ...}`),
-   `git mktree`, then `git commit-tree` with **no parent** (orphan root) and
-   the dedicated committer identity.
+1. Build a new schema-2 initial state locally with plumbing (no working-tree
+   checkout): `git hash-object -w` the initial `claims.json`
+   (`{"schema": 2, "mode": ..., "claims": [], "updated_at": ...}`) and the
+   exact repository-owned `vercel.json` guard, then `git mktree` and
+   `git commit-tree` with **no parent** (orphan root) and the dedicated
+   committer identity. An existing schema-1 board is not re-bootstrapped; the
+   explicit migration in Rollout is the only claim-free, run-byte-preserving
+   upgrade, while ordinary mutations may normalize a valid schema-1 child to
+   schema 2.
 2. Atomically publish the object and create the absent ref with one normal
    Git push: `git push --porcelain origin
    <root>:refs/heads/nous-coordination`. A REST `createRef` call is not used:
@@ -591,8 +656,11 @@ Milestone validity is bound to `evidence_head_sha`:
    before either has acquired the local claim. The `+` here only permits
    that private local tracking ref to move; it is not a force-push and
    touches nothing remote. Delete the temporary local ref in `finally`.
-2. Read and validate `claims.json` and the affected `runs/*.json` from the
-   fetched tree (`git cat-file`). All content is untrusted input.
+2. Read and validate the applicable tree from the fetched commit
+   (`git cat-file`): schema 1 permits only `claims.json` and `runs/*.json`;
+   schema 2 additionally requires the exact repository-owned `vercel.json`
+   guard. All content is untrusted input, except that the schema-2 guard is
+   expected protocol metadata rather than foreign metadata.
 3. Re-derive the operation against that state (conflict check, expiry check,
    lost-claim check). Every operation on an existing run compares its
    presented `claim_id` fencing token to the live claim before constructing
@@ -603,7 +671,9 @@ Milestone validity is bound to `evidence_head_sha`:
    `GIT_AUTHOR_*`/`GIT_COMMITTER_*` env for that call only.
    `runs/<run-id>.json` is built as a real nested tree: validated path
    segments are assembled bottom-up with one `mktree` call per directory;
-   slash-containing entries are never passed directly to `mktree`.
+   slash-containing entries are never passed directly to `mktree`. Every
+   changed snapshot is normalized to schema 2 and re-emits the exact guard;
+   no supported writer creates a schema-1 child.
 5. Push fast-forward: `git push origin <new>:refs/heads/nous-coordination` —
    a plain push, fast-forward by construction because the parent is the
    fetched tip. **No force flag exists anywhere in routine tooling.**
@@ -741,10 +811,10 @@ evidence.
 | Command injection via metadata | `gitio.py` is the only subprocess site; argument lists only, `shell=True` banned, remote-derived values passed solely as validated arguments after `--` where git supports it. |
 | Secrets leaking into the remote board | Secret-pattern rejection on write; no raw stdout/tracebacks/prompts/user text in any remote field; detailed evidence never leaves `$NOUS_RECEIPT_DIR`. |
 | Force-push destroying coordination history | No force flags in routine tools; runtime guard in `gitio.py` rejects any `git push` invocation containing `--force`, `--force-with-lease`, `-f`, `--delete`, or a refspec beginning with `+` (the `+` fetch refspec in the CAS protocol only moves a local tracking ref and is explicitly exempt); a static contract test greps `scripts/nous/` for the same; the branch ruleset blocks force-push and deletion server-side (operator prerequisite). |
-| Coordination branch triggering CI/deploy workflows | Survey (2026-08-27, SHA 23c3551a3): no workflow triggers on pushes to arbitrary branches — `test-pipeline.yml` and `secret-scan.yml` push-trigger only `main`/`develop`; `workflow-lint.yml` and `helm-validate.yml` are path-gated on `develop`/`main`; `trigger-deploy.yml` is `main`-only; the rest are `workflow_dispatch`/`workflow_call`/`workflow_run`/comment/schedule. A contract test freezes this: it parses every workflow's `on:` block and fails if any push/pull_request trigger could match `nous-coordination`. |
+| Coordination branch triggering CI/deploy workflows or Vercel | GitHub workflow evidence remains frozen by the contract scanner: no push/pull_request trigger may match `nous-coordination` (the surveyed `test-pipeline.yml`, `secret-scan.yml`, `workflow-lint.yml`, `helm-validate.yml`, and `trigger-deploy.yml` are limited to product refs or path-gated). For Vercel, every schema-2 snapshot carries the repository-owned exact `vercel.json` guard with `git.deploymentEnabled: false`; schema 1 is only the read-compatible pre-migration state. Observe the migration SHA for 120 seconds; any Vercel deployment of any state fails acceptance, stops rollout, and triggers the dedicated-repository fallback. The coordination identity is not added to Vercel. |
 | Prompt injection through PR/review text | Treated as data only (see Publication); the loop never derives instructions from it. |
 | Slash-command self-trigger | Renderer bans trigger phrases; contract test pins the ban list to the workflows (see Publication). |
-| Unexpected manual metadata commits confusing audit | Dedicated committer identity `NOUS Coordination <nous-coordination@invalid>` identifies tool-produced commits but is not an authentication mechanism. Anything else on the branch is flagged by `reconcile` as foreign and reported, never auto-repaired; GitHub authentication and the branch ruleset control who may push. |
+| Unexpected manual metadata commits confusing audit | Dedicated committer identity `NOUS Coordination <nous-coordination@invalid>` identifies tool-produced commits but is not an authentication mechanism. Files outside the valid schema-1 tree or schema-2 tree (where the exact `vercel.json` guard is expected protocol metadata) are flagged as foreign and reported, never auto-repaired; GitHub authentication and the branch ruleset control who may push. |
 | Clock skew causing false expiry/pruning | 120-second skew allowance on pruning; expiry never resurrectable; holder re-verifies its claim at every mutation boundary. |
 
 Operator prerequisite (rollout step, not code): a GitHub ruleset on
@@ -792,31 +862,68 @@ by path) into one status model:
 
 ## Rollout and rollback
 
-Rollout is a maintenance window, in order:
+Rollout is a maintenance window, in order. No real tick runs and neither
+machine writes its `.remote-required` sentinel until migration, its
+post-migration observation, and the two-machine smoke test are complete:
 
 1. Stop the loop on both machines (Linux box and Mac); confirm no tick is
    mid-flight.
 2. Reconcile and release all local claims on both machines
    (`loop_bridge.py list` → release or let expire).
-3. Update both clients to the same repository revision containing the new
-   tooling; confirm their legacy bridge guards are present.
-4. Bootstrap `nous-coordination` (atomic absent-ref push above) with
-   `mode: "remote-required"`.
-5. Configure the Git backend on both machines (`NOUS_COORD_MODE`,
-   `NOUS_COORD_GIT_REMOTE`, `NOUS_GITHUB_REPOSITORY`,
-   `NOUS_COORD_BRANCH`, receipt dir) and write the local
-   `.remote-required` sentinel on both machines.
-6. Apply the branch ruleset (block force-push/deletion, allow fast-forward)
-   — operator action in GitHub settings.
-7. Two-machine smoke test: machine A claims; machine B observes the claim
-   and gets exit `2` on an overlapping `check`/`claim`; B claims a disjoint
-   area; A observes it; both release; both `reconcile` clean.
-8. Enable remote-required mode for normal operation (loops restarted).
+3. Merge the implementation and record the exact merged `develop` SHA. Update
+   both clients to that same SHA and run the focused coordination tests on
+   both machines; do not proceed if either result differs or fails.
+4. If `nous-coordination` is absent, bootstrap a schema-2 root with the exact
+   guard. If it already exists, verify either a valid legacy schema-1 tree with
+   no guard and no unknown files, or a valid schema-2 tree with the exact
+   guard; in both cases require an empty stored claims array. Reject and stop
+   rollout on any unknown file or missing, modified, or partial guard. Keep the
+   sentinel absent.
+5. From one stopped machine, run the explicit, authorized, claim-free
+   migration once:
 
-Rollback (any failure after step 4): stop both machines first, set
-`NOUS_COORD_MODE=local` on both, release any remote claims with a final CAS
-commit (or let them expire), and resume on the legacy local-board workflow.
-The coordination branch is left in place, inert; nothing else depends on it.
+   ```bash
+   python3 scripts/nous_run.py migrate --to-schema 2 --authorize coordinate
+   ```
+
+   Migration creates no claim, receipt, local mutex, sentinel, or tick. It
+   preserves the mode and empty claims-array value semantically, canonically
+   reserializes `claims.json` (its representation, whitespace, and key order
+   are not byte-preserved), changes `claims.json.schema` and
+   `claims.json.updated_at`, and preserves every run projection blob
+   byte-for-byte. It creates one ordinary fast-forward child; an already valid,
+   claim-free schema-2 board is an idempotent no-op.
+6. Verify the migration SHA has the exact schema-2 tree, the semantically empty
+   claims array and mode, canonical `claims.json` serialization with its
+   expected schema transition and refreshed `updated_at`, every run projection
+   blob byte-for-byte unchanged, and the exact guard. Do not compare the
+   original claims-document bytes: its whitespace and key order may change.
+   Observe GitHub deployments and commit statuses for 120 seconds on that SHA.
+   Any Vercel deployment of any state fails acceptance, stops rollout, and
+   triggers the dedicated-repository fallback. Do not remove the guard or
+   rewrite the coordination history.
+7. Configure the Git backend on both machines (`NOUS_COORD_MODE`,
+   `NOUS_COORD_GIT_REMOTE`, `NOUS_GITHUB_REPOSITORY`,
+   `NOUS_COORD_BRANCH`, receipt dir), keeping the local `.remote-required`
+   sentinel absent. Apply the branch ruleset (block force-push/deletion, allow
+   fast-forward) — operator action in GitHub settings. Perform the two-machine
+   smoke test:
+   machine A claims; machine B observes the claim and gets exit `2` on an
+   overlapping `check`/`claim`; B claims a disjoint area; A observes it; both
+   release; both `reconcile` clean. Only after every observation and smoke
+   gate passes, run `cutover --write-sentinel --authorize coordinate` on both
+   machines, then restart loops for normal remote-required operation.
+
+Before migration, rollback is simply leaving the schema-1 board unchanged; no
+remote write is needed. After migration, never downgrade, remove the guard, or
+rewrite history: stop rollout, leave the schema-2 branch inert, and use the
+dedicated-repository fallback if Vercel deployed the migration SHA. After
+cutover, rollback still requires stopping both machines, releasing or expiring
+remote claims while both clients remain in `remote-required`, setting
+`NOUS_COORD_MODE=local` on both, and running
+`python3 scripts/nous_run.py rollback --remove-sentinel --authorize coordinate`
+on each before resuming the legacy local-board workflow. The coordination
+branch remains in place and inert; nothing else depends on it.
 
 ## Testing and acceptance criteria
 
@@ -829,6 +936,23 @@ GitHub:
 - **Harness.** Temporary bare repository as `origin`; two temporary clones
   simulating the two machines; `gh` replaced by an injectable runner in
   `gitio.py` returning recorded responses. No real GitHub mutation anywhere.
+- **Versioned tree and guard.** Schema-1 snapshots without `vercel.json`
+  remain readable; schema-1 snapshots with a partial guard are rejected;
+  schema-2 bootstrap and CAS snapshots contain exactly `claims.json`, the
+  validated `runs/<run-id>.json` projections, and byte-exact repository-owned
+  `vercel.json` with `git.deploymentEnabled: false`; missing, modified,
+  oversized, differently encoded, or unknown files fail closed. Schema-2
+  writes never remove the guard, and old schema-1 clients stop safely on
+  schema 2.
+- **Claim-free migration.** `migrate --to-schema 2 --authorize coordinate`
+  requires an empty stored claims array, preserves its mode and empty value
+  semantically, canonically reserializes `claims.json`, changes
+  `claims.json.schema` and `claims.json.updated_at`, preserves every run
+  projection blob byte-for-byte, creates one ordinary fast-forward child, and
+  is idempotent on a valid, claim-free schema-2 board. Before it
+  runs, both machines must use the same exact merged SHA and pass the focused
+  coordination tests at that SHA. Migration creates no claim, sentinel, or
+  tick.
 - **CAS and bootstrap races.** Both clones bootstrap concurrently → exactly
   one root wins, loser re-derives; interleaved claim CAS updates → loser
   refetches and either succeeds or exits `2`; 5-attempt exhaustion paths for
@@ -863,11 +987,20 @@ GitHub:
   classify; it does not depend on PyYAML in the isolated script-test gate.
 - **Pure stdlib.** A test imports every module under `scripts/nous/` in a
   process with third-party site-packages hidden and asserts success.
+- **External deployment observation.** After migration, observe GitHub
+  deployments and commit statuses for 120 seconds on the migration SHA. No
+  Vercel deployment of any state is accepted; one stops rollout and selects
+  the dedicated-repository fallback. The local sentinel remains absent until
+  this observation and the two-machine smoke test pass.
 
 Acceptance for the program as a whole: the two-machine smoke test in the
 rollout section passes; a full simulated tick (claim → … → merged) leaves a
 correct remote history of full-snapshot commits, a complete local receipt,
-one marker comment, and a released claim in a single terminal commit.
+one marker comment, and a released claim in a single terminal commit. The
+schema-2 migration must first satisfy the claim-free, same-merged-SHA,
+exact-guard checks and the 120-second Vercel observation; any deployment on
+the migration SHA fails acceptance and leaves the branch inert for the
+dedicated-repository fallback.
 
 ## Phased delivery
 
@@ -889,7 +1022,24 @@ not gate cutover).
   database is introduced.
 - The coordination branch is an orphan named `nous-coordination`; metadata is
   full-snapshot child commits; histories are never merged and never
-  force-pushed by tooling.
+  force-pushed by tooling. Schema 1 is the legacy, read-compatible
+  claims/runs-only tree; schema 2 is the current write format and includes
+  the exact repository-owned `vercel.json` guard. That guard is protocol
+  metadata, not foreign metadata.
+- New bootstrap and every supported CAS write use schema 2. The explicit
+  `python3 scripts/nous_run.py migrate --to-schema 2 --authorize coordinate`
+  operation is the only claim-free, run-byte-preserving schema-1 upgrade; it
+  requires an empty stored claims array, preserves its mode and empty value
+  semantically, canonically reserializes `claims.json`, changes
+  `claims.json.schema` and `claims.json.updated_at`, preserves every run
+  projection blob byte-for-byte, and is idempotent on schema 2.
+  Supported ordinary mutations also normalize a valid schema-1 snapshot's
+  resulting child to schema 2, but may change claim/run state. Both machines
+  must pass focused tests at the same exact merged SHA before migration.
+- Observe GitHub deployments and commit statuses for 120 seconds after
+  migration. Any Vercel deployment on the migration SHA, regardless of state,
+  stops rollout and selects the dedicated-repository fallback; the schema-2
+  branch is left inert and its guard is never removed or bypassed.
 - Remote board authoritative after cutover; local flock board demoted to
   same-host mutex; no silent mode mixing (board-declared mode, client
   refusal on mismatch).

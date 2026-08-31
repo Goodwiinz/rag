@@ -47,8 +47,16 @@ while [ $# -gt 0 ]; do
 done
 
 ROOT="$(git rev-parse --show-toplevel)"
-cd "$ROOT"
 PY="${PYTHON:-python3}"
+case "$PY" in
+  */*)
+    case "$PY" in
+      /*) ;;
+      *) PY="$ROOT/$PY" ;;
+    esac
+    ;;
+esac
+cd "$ROOT"
 FAILED=()
 SKIPPED=()
 MERGE_BASE=""
@@ -77,7 +85,7 @@ step "Ruff (full tree, blocking)"
 ruff check backend/src; check $? "ruff backend/src"
 
 step "Directory docs lint (blocking)"
-$PY scripts/docs/check_dir_docs.py; check $? "check_dir_docs"
+"$PY" scripts/docs/check_dir_docs.py; check $? "check_dir_docs"
 
 step "Changed-file quality ratchet (blocking) — base=$BASE"
 if ! MERGE_BASE="$(git merge-base "$BASE" HEAD 2>/dev/null)"; then
@@ -85,7 +93,7 @@ if ! MERGE_BASE="$(git merge-base "$BASE" HEAD 2>/dev/null)"; then
   printf '\033[31m  ✗ cannot resolve merge-base(%s, HEAD) — conditional gates below will run unconditionally\033[0m\n' "$BASE"
   FAILED+=("merge-base $BASE")
 fi
-mapfile -t FILES < <($PY scripts/ci/changed_source_files.py --base "$BASE" --kind python)
+mapfile -t FILES < <("$PY" scripts/ci/changed_source_files.py --base "$BASE" --kind python)
 if [ "${#FILES[@]}" -eq 0 ]; then
   echo "  no changed Python files"
 else
@@ -94,7 +102,7 @@ else
   black --check "${FILES[@]}";     check $? "black (changed)"
   isort --check-only "${FILES[@]}"; check $? "isort (changed)"
 fi
-mapfile -t ADDED < <($PY scripts/ci/changed_source_files.py --base "$BASE" --kind python-added)
+mapfile -t ADDED < <("$PY" scripts/ci/changed_source_files.py --base "$BASE" --kind python-added)
 if [ "${#ADDED[@]}" -gt 0 ]; then
   printf '  %d added file(s) — mypy\n' "${#ADDED[@]}"
   mypy --ignore-missing-imports --follow-imports=silent "${ADDED[@]}"; check $? "mypy (added)"
@@ -110,7 +118,7 @@ step "OpenAPI snapshot drift (blocking)"
 # Always run: generate_openapi.py rebuilds app.openapi() offline (it setdefaults
 # ENVIRONMENT=testing + an in-memory SQLite URL + placeholder Azure creds), so
 # there is no service to be unavailable and nothing to condition on.
-$PY scripts/ci/generate_openapi.py --check; check $? "openapi drift"
+"$PY" scripts/ci/generate_openapi.py --check; check $? "openapi drift"
 
 step "Generated TypeScript types (blocking when the contract moves) — base=$BASE"
 mapfile -t CONTRACT_FILES < <(changed_paths backend/openapi.json frontend/src/types/generated)
@@ -148,7 +156,7 @@ else
 fi
 
 step "Alembic single head + revision-id length (blocking)"
-( cd backend && $PY ../scripts/ci/check_alembic.py ); check $? "check_alembic"
+( cd backend && "$PY" ../scripts/ci/check_alembic.py ); check $? "check_alembic"
 
 # --------------------------------------------------------------------------
 # Alembic execution probes. check_alembic.py above is a STATIC read of the
@@ -169,12 +177,12 @@ _pg_port_ready() {
   if command -v pg_isready >/dev/null 2>&1; then
     pg_isready -h 127.0.0.1 -p "$1" -q >/dev/null 2>&1
   else
-    $PY -c 'import socket,sys; socket.create_connection(("127.0.0.1", int(sys.argv[1])), 1).close()' "$1" >/dev/null 2>&1
+    "$PY" -c 'import socket,sys; socket.create_connection(("127.0.0.1", int(sys.argv[1])), 1).close()' "$1" >/dev/null 2>&1
   fi
 }
 
 _free_port() {
-  $PY -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()'
+  "$PY" -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()'
 }
 
 # env.py resolves SUPABASE_DB_URL first, so it must be cleared or the probe
@@ -377,14 +385,14 @@ fi
 
 if [ "$SKIP_TESTS" -eq 0 ]; then
   step "NOUS workflow contract tests (blocking)"
-  pytest tests/unit/scripts/ --confcutdir=tests/unit/scripts \
+  "$PY" -m pytest tests/unit/scripts/ --confcutdir=tests/unit/scripts \
     -q -p no:cacheprovider --no-cov
   check $? "NOUS workflow contract tests"
 
   step "Unit tests (blocking)"
-  pytest backend/tests/ -c backend/pytest.ini \
+  ( cd backend && "$PY" -m pytest tests/ -c pytest.ini \
     -m "unit or not (integration or e2e or slow)" \
-    -q -p no:cacheprovider --no-cov
+    -q -p no:cacheprovider --no-cov )
   check $? "pytest"
 fi
 
@@ -408,7 +416,7 @@ if [ "$DO_FRONTEND" -eq 1 ]; then
     fi
     node scripts/ci/check_frontend_quality.mjs --report "$ESLINT_REPORT" --base "$BASE"
     check $? "frontend quality ratchet"
-    $PY scripts/ci/check_tsconfig_exclusions.py --base "$BASE"
+    "$PY" scripts/ci/check_tsconfig_exclusions.py --base "$BASE"
     check $? "tsconfig exclusion ratchet"
     rm -f -- "$ESLINT_REPORT"
   fi

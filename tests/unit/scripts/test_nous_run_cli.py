@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from scripts import nous_run
+from scripts.nous.backend_git import SchemaMigration
 from scripts.nous.coordination import Claim, ValidationError
 from scripts.nous.gitio import TransportFailure
 from scripts.nous.preflight import load_runtime_config
@@ -47,6 +48,46 @@ def test_cli_exposes_only_coordination_milestone_commands():
         "rollback",
         "list",
         "check",
+        "migrate",
+    }
+
+
+def test_migrate_cli_requires_coordinate_and_remote_required(monkeypatch, tmp_path):
+    config = SimpleNamespace(coord_mode="local")
+    monkeypatch.setattr(nous_run, "_config", lambda _repo: config)
+    missing_auth = build_parser().parse_args(["migrate", "--to-schema", "2"])
+    with pytest.raises(ValidationError, match="authorization"):
+        nous_run._dispatch(missing_auth, tmp_path)
+    authorized = build_parser().parse_args(
+        ["migrate", "--to-schema", "2", "--authorize", "coordinate"]
+    )
+    with pytest.raises(ValidationError, match="remote-required"):
+        nous_run._dispatch(authorized, tmp_path)
+
+
+def test_migrate_cli_reports_only_schema_and_tip(monkeypatch, tmp_path, capsys):
+    tip = "23c3551a30ac5d230f68a01b76650c27144571f5"
+    config = SimpleNamespace(
+        coord_mode="remote-required", coordination_branch="nous-coordination"
+    )
+
+    class Remote:
+        def migrate_schema(self, *, target):
+            assert target == 2
+            return SchemaMigration(1, 2, tip, True)
+
+    monkeypatch.setattr(nous_run, "_config", lambda _repo: config)
+    monkeypatch.setattr(nous_run, "_remote", lambda *_args: Remote())
+    args = build_parser().parse_args(
+        ["migrate", "--to-schema", "2", "--authorize", "coordinate"]
+    )
+    assert nous_run._dispatch(args, tmp_path) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "branch": "nous-coordination",
+        "changed": True,
+        "from_schema": 1,
+        "tip": tip,
+        "to_schema": 2,
     }
 
 

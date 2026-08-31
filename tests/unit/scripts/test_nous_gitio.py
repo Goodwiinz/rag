@@ -7,6 +7,7 @@ import pytest
 
 from scripts.nous.coordination import BackendUnavailable, ValidationError
 from scripts.nous.gitio import (
+    BlobReference,
     CommandResult,
     GitIO,
     NonFastForward,
@@ -132,3 +133,143 @@ def test_commit_snapshot_uses_dedicated_identity():
     assert env is not None
     assert env["GIT_COMMITTER_NAME"] == "NOUS Coordination"
     assert env["GIT_COMMITTER_EMAIL"] == "nous-coordination@invalid"
+
+
+def test_blob_reference_rejects_a_tree_object(tmp_path):
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", str(repo)], check=True, capture_output=True)
+    empty_tree = (
+        subprocess.run(
+            ["git", "mktree"], cwd=repo, input=b"", capture_output=True, check=True
+        )
+        .stdout.decode()
+        .strip()
+    )
+    root_tree = (
+        subprocess.run(
+            ["git", "mktree"],
+            cwd=repo,
+            input=f"040000 tree {empty_tree}\truns\n".encode(),
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+    commit = (
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=NOUS Coordination",
+                "-c",
+                "user.email=nous-coordination@invalid",
+                "commit-tree",
+                root_tree,
+            ],
+            cwd=repo,
+            input=b"tree fixture\n",
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+
+    with pytest.raises(ValidationError, match="regular blob"):
+        GitIO(repo).blob_reference(commit, "runs")
+
+
+def test_maximum_file_snapshot_written_by_gitio_is_readable(tmp_path):
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", str(repo)], check=True, capture_output=True)
+    blob = (
+        subprocess.run(
+            ["git", "hash-object", "-w", "--stdin"],
+            cwd=repo,
+            input=b"{}\n",
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+    reference = BlobReference(blob)
+    files = {
+        "claims.json": reference,
+        "vercel.json": reference,
+        **{
+            f"runs/20260827T040000Z-r-{index:06x}.json": reference
+            for index in range(9_998)
+        },
+    }
+    io = GitIO(repo)
+
+    commit = io.commit_snapshot(files, parent=None, message="maximum snapshot")
+
+    paths = io.list_tree(commit)
+    assert len(paths) == 10_000
+    assert paths[0] == "claims.json"
+    assert paths[-1] == "vercel.json"
+
+
+def test_tree_with_more_than_maximum_files_is_rejected(tmp_path):
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", str(repo)], check=True, capture_output=True)
+    blob = (
+        subprocess.run(
+            ["git", "hash-object", "-w", "--stdin"],
+            cwd=repo,
+            input=b"{}\n",
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+    entries = b"".join(
+        f"100644 blob {blob}\tfile-{index:05d}.json\n".encode()
+        for index in range(10_001)
+    )
+    tree = (
+        subprocess.run(
+            ["git", "mktree"],
+            cwd=repo,
+            input=entries,
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+    commit = (
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=NOUS Coordination",
+                "-c",
+                "user.email=nous-coordination@invalid",
+                "commit-tree",
+                tree,
+            ],
+            cwd=repo,
+            input=b"oversized snapshot\n",
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+
+    with pytest.raises(ValidationError, match="too many files"):
+        GitIO(repo).list_tree(commit)
+
+
+# Mutation-verification record (2026-08-31):
+# - File-count guard: scripts/nous/gitio.py:315, the non-tree count check.
+#   Command: PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. .venv/bin/python -m pytest
+#   tests/unit/scripts/test_nous_gitio.py::test_tree_with_more_than_maximum_files_is_rejected
+#   --confcutdir=tests/unit/scripts -q -p no:cacheprovider --no-cov. Temporarily
+#   removing the check admitted 10,001 blobs; restoring it reproduced the source
+#   hash and the test passed.

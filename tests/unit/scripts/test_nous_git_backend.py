@@ -10,6 +10,9 @@ from pathlib import Path
 import pytest
 
 from scripts.nous.backend_git import (
+    CURRENT_COORDINATION_SCHEMA,
+    LEGACY_COORDINATION_SCHEMA,
+    VERCEL_DEPLOYMENT_GUARD,
     CoordinationSnapshot,
     GitBackend,
     GitBackendConfig,
@@ -35,6 +38,87 @@ def git(repo: Path, *args: str) -> str:
         ["git", *args], cwd=repo, text=True, capture_output=True, check=True
     )
     return result.stdout.strip()
+
+
+def git_bytes(repo: Path, *args: str) -> bytes:
+    return subprocess.run(
+        ["git", *args], cwd=repo, capture_output=True, check=True
+    ).stdout
+
+
+def git_with_input(repo: Path, *args: str, input_bytes: bytes) -> bytes:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        input=input_bytes,
+        capture_output=True,
+        check=True,
+    ).stdout
+
+
+def commit_adversarial_tree(repo: Path, parent: str, entries: bytes) -> str:
+    tree = git_with_input(repo, "mktree", input_bytes=entries).decode().strip()
+    return (
+        git_with_input(
+            repo,
+            "-c",
+            "user.name=NOUS Coordination",
+            "-c",
+            "user.email=nous-coordination@invalid",
+            "commit-tree",
+            tree,
+            "-p",
+            parent,
+            input_bytes=b"adversarial tree\n",
+        )
+        .decode()
+        .strip()
+    )
+
+
+def empty_tree(repo: Path) -> str:
+    return git_with_input(repo, "mktree", input_bytes=b"").decode().strip()
+
+
+def downgrade_tip_to_schema1(
+    backend: GitBackend, *, claims_bytes: bytes | None = None
+) -> str:
+    repo = backend.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    paths = git(repo, "ls-tree", "-r", "--name-only", tip).splitlines()
+    if claims_bytes is None:
+        claims = json.loads(git(repo, "show", f"{tip}:claims.json"))
+        claims["schema"] = LEGACY_COORDINATION_SCHEMA
+        claims_bytes = (json.dumps(claims, indent=2, sort_keys=True) + "\n").encode()
+    files = {"claims.json": claims_bytes}
+    for path in paths:
+        if path.startswith("runs/"):
+            files[path] = git_bytes(repo, "show", f"{tip}:{path}")
+    legacy = backend.io.commit_snapshot(files, parent=tip, message="legacy fixture")
+    backend.io.push_fast_forward("origin", legacy, "nous-coordination")
+    return legacy
+
+
+def replace_tip_run_blob(backend: GitBackend, run_id: str, content: bytes) -> str:
+    repo = backend.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    replacement = backend.io.commit_snapshot(
+        {
+            "claims.json": git_bytes(repo, "show", f"{tip}:claims.json"),
+            f"runs/{run_id}.json": content,
+            "vercel.json": git_bytes(repo, "show", f"{tip}:vercel.json"),
+        },
+        parent=tip,
+        message="noncanonical run fixture",
+    )
+    backend.io.push_fast_forward("origin", replacement, "nous-coordination")
+    return replacement
+
+
+def crlf_json(raw: bytes) -> bytes:
+    return (json.dumps(json.loads(raw), indent=2) + "\n").replace("\n", "\r\n").encode()
 
 
 @pytest.fixture
@@ -95,12 +179,488 @@ def test_bootstrap_is_orphan_and_claim_writes_one_atomic_snapshot(two_backends):
     assert git(probe, "ls-tree", "-r", "--name-only", tip).splitlines() == [
         "claims.json",
         f"runs/{RUN_A}.json",
+        "vercel.json",
     ]
     claims = json.loads(git(probe, "show", f"{tip}:claims.json"))
     run = json.loads(git(probe, "show", f"{tip}:runs/{RUN_A}.json"))
     assert claims["claims"][0]["claim_id"] == claim.claim_id
     assert run["claim_id"] == claim.claim_id
     assert git(left.io.repo_root, "rev-parse", "--is-shallow-repository") == "false"
+
+
+def test_bootstrap_writes_schema2_and_exact_vercel_guard(two_backends):
+    _, (left, _) = two_backends
+    root = left.bootstrap()
+    assert git(left.io.repo_root, "rev-list", "--max-parents=0", root) == root
+    assert git(
+        left.io.repo_root, "ls-tree", "-r", "--name-only", root
+    ).splitlines() == ["claims.json", "vercel.json"]
+    claims = json.loads(git(left.io.repo_root, "show", f"{root}:claims.json"))
+    assert claims["schema"] == CURRENT_COORDINATION_SCHEMA
+    assert git_bytes(left.io.repo_root, "show", f"{root}:vercel.json") == (
+        VERCEL_DEPLOYMENT_GUARD
+    )
+
+
+def test_schema1_without_guard_remains_readable(two_backends):
+    _, (left, _) = two_backends
+    raw = (
+        json.dumps(
+            {
+                "schema": LEGACY_COORDINATION_SCHEMA,
+                "mode": "remote-required",
+                "updated_at": "2026-08-27T04:00:00+00:00",
+                "claims": [],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode()
+    root = left.io.commit_snapshot(
+        {"claims.json": raw}, parent=None, message="legacy bootstrap"
+    )
+    left.io.push_fast_forward("origin", root, "nous-coordination")
+    assert left.list() == []
+
+
+def test_migration_preserves_runs_and_creates_one_fast_forward_child(two_backends):
+    _, (left, _) = two_backends
+    migrated_at = datetime(2026, 8, 30, 18, 0, tzinfo=timezone.utc)
+    left.clock = lambda: migrated_at
+    left.bootstrap()
+    claim = left.claim(**claim_kwargs(RUN_A, "mac", "fix/a", "streaming"))
+    left.release(run_id=RUN_A, claim_id=claim.claim_id, reason="fixture")
+    repo = left.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    noncanonical_run = crlf_json(git_bytes(repo, "show", f"{tip}:runs/{RUN_A}.json"))
+    assert noncanonical_run != git_bytes(repo, "show", f"{tip}:runs/{RUN_A}.json")
+    assert b"\r\n" in noncanonical_run
+    replace_tip_run_blob(left, RUN_A, noncanonical_run)
+    legacy_claims = (
+        b'{"updated_at":"2026-08-27T04:00:00+00:00","claims" : [ ],'
+        b'"schema":1,"mode":"remote-required"}\n'
+    )
+    legacy = downgrade_tip_to_schema1(left, claims_bytes=legacy_claims)
+    before_run = git_bytes(left.io.repo_root, "show", f"{legacy}:runs/{RUN_A}.json")
+    before_run_blob = git(left.io.repo_root, "rev-parse", f"{legacy}:runs/{RUN_A}.json")
+    assert before_run == noncanonical_run
+
+    result = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+
+    assert (result.previous_schema, result.current_schema, result.changed) == (
+        1,
+        2,
+        True,
+    )
+    assert git(left.io.repo_root, "rev-parse", f"{result.tip}^") == legacy
+    expected_claims = (
+        json.dumps(
+            {
+                "claims": [],
+                "mode": "remote-required",
+                "schema": CURRENT_COORDINATION_SCHEMA,
+                "updated_at": migrated_at.isoformat(),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode()
+    migrated_claims = git_bytes(left.io.repo_root, "show", f"{result.tip}:claims.json")
+    assert migrated_claims == expected_claims
+    assert json.loads(migrated_claims) == {
+        "claims": [],
+        "mode": "remote-required",
+        "schema": CURRENT_COORDINATION_SCHEMA,
+        "updated_at": migrated_at.isoformat(),
+    }
+    assert (
+        git(left.io.repo_root, "rev-parse", f"{result.tip}:runs/{RUN_A}.json")
+        == before_run_blob
+    )
+    assert (
+        git_bytes(left.io.repo_root, "show", f"{result.tip}:runs/{RUN_A}.json")
+        == before_run
+    )
+    repeated = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+    assert repeated.changed is False
+    assert repeated.tip == result.tip
+
+
+def test_migration_refetches_winning_schema1_child_after_nonfastforward(
+    two_backends,
+):
+    _, (left, _) = two_backends
+    left.bootstrap()
+    claim = left.claim(**claim_kwargs(RUN_A, "mac", "fix/a", "streaming"))
+    left.release(run_id=RUN_A, claim_id=claim.claim_id, reason="fixture")
+    repo = left.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    crlf_run = crlf_json(git_bytes(repo, "show", f"{tip}:runs/{RUN_A}.json"))
+    replace_tip_run_blob(left, RUN_A, crlf_run)
+    legacy = downgrade_tip_to_schema1(left)
+    legacy_blob = git(repo, "rev-parse", f"{legacy}:runs/{RUN_A}.json")
+    competing_run = json.dumps(json.loads(crlf_run), separators=(",", ":")).encode()
+    competing_claims = json.loads(git(repo, "show", f"{legacy}:claims.json"))
+    competing_claims["updated_at"] = "2026-08-30T18:00:00+00:00"
+    competing = left.io.commit_snapshot(
+        {
+            "claims.json": (
+                json.dumps(competing_claims, indent=2, sort_keys=True) + "\n"
+            ).encode(),
+            f"runs/{RUN_A}.json": competing_run,
+        },
+        parent=legacy,
+        message="winning schema1 child",
+    )
+    original = left.io.push_fast_forward
+    calls = 0
+
+    def publish_winner_then_race(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            original("origin", competing, "nous-coordination")
+        return original(*args, **kwargs)
+
+    left.io.push_fast_forward = publish_winner_then_race
+    result = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+
+    assert calls == 2
+    assert git(left.io.repo_root, "rev-parse", f"{result.tip}^") == competing
+    assert git(
+        left.io.repo_root, "rev-parse", f"{result.tip}:runs/{RUN_A}.json"
+    ) == git(left.io.repo_root, "rev-parse", f"{competing}:runs/{RUN_A}.json")
+    assert git(left.io.repo_root, "rev-parse", f"{result.tip}:runs/{RUN_A}.json") != (
+        legacy_blob
+    )
+    assert git_bytes(left.io.repo_root, "show", f"{result.tip}:runs/{RUN_A}.json") == (
+        competing_run
+    )
+
+
+def test_migration_reports_its_exact_commit_when_peer_writes_after_push(
+    two_backends,
+):
+    _, (left, right) = two_backends
+    left.bootstrap()
+    legacy = downgrade_tip_to_schema1(left)
+    original = left.io.push_fast_forward
+    migration_tip: str | None = None
+    later_tip: str | None = None
+
+    def push_migration_then_publish_peer_child(remote, commit, branch):
+        nonlocal migration_tip, later_tip
+        original(remote, commit, branch)
+        migration_tip = commit
+        right.claim(**claim_kwargs(RUN_B, "linux", "fix/b", "retrieval"))
+        git(right.io.repo_root, "fetch", "origin", "nous-coordination")
+        later_tip = git(right.io.repo_root, "rev-parse", "FETCH_HEAD")
+
+    left.io.push_fast_forward = push_migration_then_publish_peer_child
+
+    result = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+
+    assert migration_tip is not None
+    assert later_tip is not None
+    assert result.tip == migration_tip
+    assert later_tip != result.tip
+    assert git(left.io.repo_root, "rev-parse", f"{later_tip}^") == result.tip
+    assert git(left.io.repo_root, "rev-parse", f"{result.tip}^") == legacy
+    assert (
+        json.loads(git(left.io.repo_root, "show", f"{result.tip}:claims.json"))[
+            "claims"
+        ]
+        == []
+    )
+
+
+def test_migration_lists_winning_tree_once_for_all_preserved_runs(two_backends):
+    _, (left, _) = two_backends
+    left.bootstrap()
+    for run_id, branch, area in (
+        (RUN_A, "fix/a", "streaming"),
+        (RUN_B, "fix/b", "retrieval"),
+    ):
+        claim = left.claim(**claim_kwargs(run_id, "mac", branch, area))
+        left.release(run_id=run_id, claim_id=claim.claim_id, reason="fixture")
+    legacy = downgrade_tip_to_schema1(left)
+    listed_commits: list[str] = []
+    original = left.io.list_tree_entries
+
+    def record_tree_listing(commit):
+        listed_commits.append(commit)
+        return original(commit)
+
+    left.io.list_tree_entries = record_tree_listing
+
+    result = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+
+    assert result.changed is True
+    assert listed_commits.count(legacy) == 2
+
+
+def test_migration_retry_refuses_claim_from_winning_peer_without_writing(
+    two_backends,
+):
+    _, (left, right) = two_backends
+    left.bootstrap()
+    legacy = downgrade_tip_to_schema1(left)
+    original = left.io.push_fast_forward
+    calls = 0
+    winning: str | None = None
+
+    def publish_claim_then_race(*args, **kwargs):
+        nonlocal calls, winning
+        calls += 1
+        if calls == 1:
+            right.claim(**claim_kwargs(RUN_B, "linux", "fix/b", "retrieval"))
+            git(right.io.repo_root, "fetch", "origin", "nous-coordination")
+            winning = git(right.io.repo_root, "rev-parse", "FETCH_HEAD")
+        return original(*args, **kwargs)
+
+    left.io.push_fast_forward = publish_claim_then_race
+
+    with pytest.raises(Conflict, match="empty claim board"):
+        left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+
+    assert calls == 1
+    assert winning is not None
+    git(left.io.repo_root, "fetch", "origin", "nous-coordination")
+    assert git(left.io.repo_root, "rev-parse", "FETCH_HEAD") == winning
+    assert git(left.io.repo_root, "rev-parse", f"{winning}^") == legacy
+    assert json.loads(git(left.io.repo_root, "show", f"{winning}:claims.json"))[
+        "claims"
+    ]
+
+
+# Mutation-verification record (2026-08-30):
+# - Published-tip guard: scripts/nous/backend_git.py:716, `outcome.tip`.
+#   Command: PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. .venv/bin/python -m pytest
+#   tests/unit/scripts/test_nous_git_backend.py::test_migration_reports_its_exact_commit_when_peer_writes_after_push
+#   --confcutdir=tests/unit/scripts -q -p no:cacheprovider --no-cov. Temporarily
+#   returning the freshly fetched remote tip failed because a peer's child commit
+#   replaced the migration commit in `SchemaMigration.tip`; restoring the guard
+#   reproduced the source hash and the test passed.
+# - Retry guard: scripts/nous/backend_git.py:678, `except (NonFastForward, ...)`.
+#   Command: PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. .venv/bin/pytest
+#   tests/unit/scripts/test_nous_git_backend.py::test_migration_refetches_winning_schema1_child_after_nonfastforward
+#   -q -p no:cacheprovider --no-cov --confcutdir=tests/unit/scripts. Temporarily
+#   dropping NonFastForward failed with `coordination push lost a race`; restoring
+#   the handler left the production source diff empty and the test passed.
+# - Idempotency guard: scripts/nous/backend_git.py:697, `if snapshot.schema == target`.
+#   Command: PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. .venv/bin/pytest
+#   tests/unit/scripts/test_nous_git_backend.py::test_migration_preserves_runs_and_creates_one_fast_forward_child
+#   -q -p no:cacheprovider --no-cov --confcutdir=tests/unit/scripts. Temporarily
+#   replacing the condition with False failed with `coordination schema cannot be
+#   migrated`; restoring it left the production source diff empty and the test passed.
+
+
+def test_migration_refuses_nonempty_claim_board_without_writing(two_backends):
+    _, (left, _) = two_backends
+    left.bootstrap()
+    left.claim(**claim_kwargs(RUN_A, "mac", "fix/a", "streaming"))
+    legacy = downgrade_tip_to_schema1(left)
+
+    with pytest.raises(Conflict, match="empty claim board"):
+        left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+
+    git(left.io.repo_root, "fetch", "origin", "nous-coordination")
+    assert git(left.io.repo_root, "rev-parse", "FETCH_HEAD") == legacy
+
+
+@pytest.mark.parametrize("target", (2.0, True, 1, 3))
+def test_migration_rejects_noncanonical_targets_without_writing(two_backends, target):
+    _, (left, _) = two_backends
+    left.bootstrap()
+    legacy = downgrade_tip_to_schema1(left)
+
+    with pytest.raises(ValidationError, match="only coordination schema 2"):
+        left.migrate_schema(target=target)
+
+    git(left.io.repo_root, "fetch", "origin", "nous-coordination")
+    assert git(left.io.repo_root, "rev-parse", "FETCH_HEAD") == legacy
+
+
+def test_noop_cas_upgrades_legacy_snapshot_to_schema2(two_backends):
+    _, (left, _) = two_backends
+    raw = (
+        json.dumps(
+            {
+                "schema": LEGACY_COORDINATION_SCHEMA,
+                "mode": "remote-required",
+                "updated_at": "2026-08-27T04:00:00+00:00",
+                "claims": [],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode()
+    root = left.io.commit_snapshot(
+        {"claims.json": raw}, parent=None, message="legacy bootstrap"
+    )
+    left.io.push_fast_forward("origin", root, "nous-coordination")
+
+    assert left.prune_expired(now=datetime(2026, 8, 27, 4, tzinfo=timezone.utc)) == ()
+
+    repo = left.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    assert git(repo, "rev-parse", f"{tip}^") == root
+    assert json.loads(git(repo, "show", f"{tip}:claims.json"))["schema"] == (
+        CURRENT_COORDINATION_SCHEMA
+    )
+    assert git_bytes(repo, "show", f"{tip}:vercel.json") == VERCEL_DEPLOYMENT_GUARD
+
+
+def test_replace_cas_path_upgrades_legacy_snapshot_to_schema2(two_backends):
+    _, (left, _) = two_backends
+    left.bootstrap()
+    claim = left.claim(**claim_kwargs(RUN_A, "mac", "fix/a", "streaming"))
+    repo = left.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    claims = json.loads(git(repo, "show", f"{tip}:claims.json"))
+    claims["schema"] = LEGACY_COORDINATION_SCHEMA
+    legacy = left.io.commit_snapshot(
+        {
+            "claims.json": (json.dumps(claims) + "\n").encode(),
+            f"runs/{RUN_A}.json": git_bytes(repo, "show", f"{tip}:runs/{RUN_A}.json"),
+        },
+        parent=tip,
+        message="legacy snapshot",
+    )
+    left.io.push_fast_forward("origin", legacy, "nous-coordination")
+
+    current = left.get_run(RUN_A)
+    left.put_run(
+        replace(current, updated_at="2026-08-27T04:00:01+00:00"),
+        claim_id=claim.claim_id,
+    )
+
+    git(repo, "fetch", "origin", "nous-coordination")
+    upgraded = git(repo, "rev-parse", "FETCH_HEAD")
+    assert git(repo, "rev-parse", f"{upgraded}^") == legacy
+    assert json.loads(git(repo, "show", f"{upgraded}:claims.json"))["schema"] == (
+        CURRENT_COORDINATION_SCHEMA
+    )
+    assert git_bytes(repo, "show", f"{upgraded}:vercel.json") == VERCEL_DEPLOYMENT_GUARD
+
+
+@pytest.mark.parametrize("guard", (None, b"{}\n"))
+def test_schema2_requires_exact_vercel_guard(two_backends, guard):
+    _, (left, _) = two_backends
+    claims = (
+        json.dumps(
+            {
+                "schema": CURRENT_COORDINATION_SCHEMA,
+                "mode": "remote-required",
+                "updated_at": "2026-08-27T04:00:00+00:00",
+                "claims": [],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode()
+    files = {"claims.json": claims}
+    if guard is not None:
+        files["vercel.json"] = guard
+    root = left.io.commit_snapshot(files, parent=None, message="invalid schema2")
+    left.io.push_fast_forward("origin", root, "nous-coordination")
+    with pytest.raises(ValidationError):
+        left.list()
+
+
+def test_schema1_rejects_partial_guard_migration(two_backends):
+    _, (left, _) = two_backends
+    claims = (
+        json.dumps(
+            {
+                "schema": LEGACY_COORDINATION_SCHEMA,
+                "mode": "remote-required",
+                "updated_at": "2026-08-27T04:00:00+00:00",
+                "claims": [],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode()
+    root = left.io.commit_snapshot(
+        {"claims.json": claims, "vercel.json": VERCEL_DEPLOYMENT_GUARD},
+        parent=None,
+        message="partial migration",
+    )
+    left.io.push_fast_forward("origin", root, "nous-coordination")
+    with pytest.raises(ValidationError):
+        left.list()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    (
+        ("crlf-guard", "deployment guard is invalid"),
+        ("unknown-empty-tree", "invalid tree entry"),
+        ("wrong-claims-mode", "invalid tree entry"),
+        ("wrong-vercel-type", "invalid tree entry"),
+    ),
+)
+def test_invalid_schema2_git_objects_fail_closed_without_writing(
+    two_backends, mutation, error
+):
+    _, (left, _) = two_backends
+    left.bootstrap()
+    repo = left.io.repo_root
+    git(repo, "fetch", "origin", "nous-coordination")
+    tip = git(repo, "rev-parse", "FETCH_HEAD")
+    root_entries = git_bytes(repo, "ls-tree", tip)
+    if mutation == "crlf-guard":
+        corrupt = left.io.commit_snapshot(
+            {
+                "claims.json": git_bytes(repo, "show", f"{tip}:claims.json"),
+                "vercel.json": VERCEL_DEPLOYMENT_GUARD.replace(b"\n", b"\r\n"),
+            },
+            parent=tip,
+            message="crlf guard",
+        )
+        assert b"\r\n" in git_bytes(repo, "show", f"{corrupt}:vercel.json")
+    elif mutation == "unknown-empty-tree":
+        corrupt = commit_adversarial_tree(
+            repo,
+            tip,
+            root_entries + f"040000 tree {empty_tree(repo)}\tunknown\n".encode(),
+        )
+    elif mutation == "wrong-claims-mode":
+        corrupt = commit_adversarial_tree(
+            repo,
+            tip,
+            root_entries.replace(b"100644 blob ", b"100755 blob ", 1),
+        )
+    else:
+        corrupt = commit_adversarial_tree(
+            repo,
+            tip,
+            b"".join(
+                entry
+                for entry in root_entries.splitlines(keepends=True)
+                if not entry.endswith(b"\tvercel.json\n")
+            )
+            + f"040000 tree {empty_tree(repo)}\tvercel.json\n".encode(),
+        )
+    left.io.push_fast_forward("origin", corrupt, "nous-coordination")
+
+    with pytest.raises(ValidationError, match=error):
+        left.list()
+    with pytest.raises(ValidationError, match=error):
+        left.prune_expired(now=datetime(2026, 8, 27, 4, tzinfo=timezone.utc))
+
+    git(repo, "fetch", "origin", "nous-coordination")
+    assert git(repo, "rev-parse", "FETCH_HEAD") == corrupt
 
 
 def test_concurrent_bootstrap_has_one_winning_orphan_root(two_backends):
@@ -427,6 +987,7 @@ def test_snapshot_decode_rejects_ambiguous_claim_fences(two_backends, mutation):
     files = {
         "claims.json": (json.dumps(claims) + "\n").encode(),
         f"runs/{RUN_A}.json": git(repo, "show", f"{tip}:runs/{RUN_A}.json").encode(),
+        "vercel.json": git_bytes(repo, "show", f"{tip}:vercel.json"),
     }
     corrupt = left.io.commit_snapshot(files, parent=tip, message="corrupt peer")
     left.io.push_fast_forward("origin", corrupt, "nous-coordination")
@@ -458,6 +1019,21 @@ def test_remote_schema_rejects_unknown_fields_and_mode_mismatch():
         GitBackend.assert_snapshot_mode(snapshot, "remote-required")
 
 
+@pytest.mark.parametrize("schema", (True, 1.0, 2.0))
+def test_claims_document_rejects_non_integer_schema(schema):
+    raw = json.dumps(
+        {
+            "schema": schema,
+            "mode": "remote-required",
+            "updated_at": "2026-08-27T04:00:00+00:00",
+            "claims": [],
+        }
+    ).encode()
+
+    with pytest.raises(ValidationError):
+        decode_claims_document(raw)
+
+
 def test_public_backend_methods_translate_schema_errors(two_backends):
     _, (left, _) = two_backends
     left.bootstrap()
@@ -476,6 +1052,7 @@ def test_public_backend_methods_translate_schema_errors(two_backends):
         {
             "claims.json": git(repo, "show", f"{tip}:claims.json").encode(),
             "runs/not-a-run-id.json": b"{}\n",
+            "vercel.json": git_bytes(repo, "show", f"{tip}:vercel.json"),
         },
         parent=tip,
         message="invalid run filename",
