@@ -342,6 +342,67 @@ def test_migration_refetches_winning_schema1_child_after_nonfastforward(
     )
 
 
+def test_migration_reports_its_exact_commit_when_peer_writes_after_push(
+    two_backends,
+):
+    _, (left, right) = two_backends
+    left.bootstrap()
+    legacy = downgrade_tip_to_schema1(left)
+    original = left.io.push_fast_forward
+    migration_tip: str | None = None
+    later_tip: str | None = None
+
+    def push_migration_then_publish_peer_child(remote, commit, branch):
+        nonlocal migration_tip, later_tip
+        original(remote, commit, branch)
+        migration_tip = commit
+        right.claim(**claim_kwargs(RUN_B, "linux", "fix/b", "retrieval"))
+        git(right.io.repo_root, "fetch", "origin", "nous-coordination")
+        later_tip = git(right.io.repo_root, "rev-parse", "FETCH_HEAD")
+
+    left.io.push_fast_forward = push_migration_then_publish_peer_child
+
+    result = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+
+    assert migration_tip is not None
+    assert later_tip is not None
+    assert result.tip == migration_tip
+    assert later_tip != result.tip
+    assert git(left.io.repo_root, "rev-parse", f"{later_tip}^") == result.tip
+    assert git(left.io.repo_root, "rev-parse", f"{result.tip}^") == legacy
+    assert (
+        json.loads(git(left.io.repo_root, "show", f"{result.tip}:claims.json"))[
+            "claims"
+        ]
+        == []
+    )
+
+
+def test_migration_lists_winning_tree_once_for_all_preserved_runs(two_backends):
+    _, (left, _) = two_backends
+    left.bootstrap()
+    for run_id, branch, area in (
+        (RUN_A, "fix/a", "streaming"),
+        (RUN_B, "fix/b", "retrieval"),
+    ):
+        claim = left.claim(**claim_kwargs(run_id, "mac", branch, area))
+        left.release(run_id=run_id, claim_id=claim.claim_id, reason="fixture")
+    legacy = downgrade_tip_to_schema1(left)
+    listed_commits: list[str] = []
+    original = left.io.list_tree_entries
+
+    def record_tree_listing(commit):
+        listed_commits.append(commit)
+        return original(commit)
+
+    left.io.list_tree_entries = record_tree_listing
+
+    result = left.migrate_schema(target=CURRENT_COORDINATION_SCHEMA)
+
+    assert result.changed is True
+    assert listed_commits.count(legacy) == 2
+
+
 def test_migration_retry_refuses_claim_from_winning_peer_without_writing(
     two_backends,
 ):
@@ -377,6 +438,13 @@ def test_migration_retry_refuses_claim_from_winning_peer_without_writing(
 
 
 # Mutation-verification record (2026-08-30):
+# - Published-tip guard: scripts/nous/backend_git.py:716, `outcome.tip`.
+#   Command: PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. .venv/bin/python -m pytest
+#   tests/unit/scripts/test_nous_git_backend.py::test_migration_reports_its_exact_commit_when_peer_writes_after_push
+#   --confcutdir=tests/unit/scripts -q -p no:cacheprovider --no-cov. Temporarily
+#   returning the freshly fetched remote tip failed because a peer's child commit
+#   replaced the migration commit in `SchemaMigration.tip`; restoring the guard
+#   reproduced the source hash and the test passed.
 # - Retry guard: scripts/nous/backend_git.py:678, `except (NonFastForward, ...)`.
 #   Command: PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. .venv/bin/pytest
 #   tests/unit/scripts/test_nous_git_backend.py::test_migration_refetches_winning_schema1_child_after_nonfastforward

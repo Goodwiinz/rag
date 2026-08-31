@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from typing import TypeVar, cast
+from typing import Generic, TypeVar, cast
 
 from .coordination import (
     ACTIVE,
@@ -69,6 +69,7 @@ def _validation(message: str) -> ValidationError:
 
 
 _F = TypeVar("_F", bound=Callable[..., object])
+_R = TypeVar("_R")
 
 
 def _schema_boundary(method: _F) -> _F:
@@ -382,6 +383,12 @@ class SchemaMigration:
     changed: bool
 
 
+@dataclass(frozen=True)
+class _CasOutcome(Generic[_R]):
+    value: _R
+    tip: str
+
+
 def _assert_snapshot_invariants(snapshot: CoordinationSnapshot) -> None:
     try:
         validate_timestamp(snapshot.updated_at)
@@ -489,10 +496,8 @@ class GitBackend(CoordinationBackend):
             "claims.json": serialize_claims(snapshot),
             "vercel.json": VERCEL_DEPLOYMENT_GUARD,
         }
-        for run_id in sorted(snapshot.runs):
-            files[f"runs/{run_id}.json"] = self.io.blob_reference(
-                parent, f"runs/{run_id}.json"
-            )
+        run_paths = tuple(f"runs/{run_id}.json" for run_id in sorted(snapshot.runs))
+        files.update(self.io.blob_references(parent, run_paths))
         return files
 
     @staticmethod
@@ -642,15 +647,13 @@ class GitBackend(CoordinationBackend):
     def _cas(
         self,
         run_id: str,
-        operation: Callable[
-            [CoordinationSnapshot], tuple[CoordinationSnapshot, object]
-        ],
+        operation: Callable[[CoordinationSnapshot], tuple[CoordinationSnapshot, _R]],
         *,
         files: (
             Callable[[str, CoordinationSnapshot], dict[str, bytes | BlobReference]]
             | None
         ) = None,
-    ) -> object:
+    ) -> _CasOutcome[_R]:
         last_error: Exception | None = None
         for attempt in range(self.config.max_attempts):
             temp_ref = self._temp_ref(run_id)
@@ -665,7 +668,7 @@ class GitBackend(CoordinationBackend):
                 if after.schema != CURRENT_COORDINATION_SCHEMA:
                     after = replace(after, schema=CURRENT_COORDINATION_SCHEMA)
                 if after == before:
-                    return result
+                    return _CasOutcome(result, parent)
                 commit = self.io.commit_snapshot(
                     self._files(after) if files is None else files(parent, after),
                     parent=parent,
@@ -674,7 +677,7 @@ class GitBackend(CoordinationBackend):
                 self.io.push_fast_forward(
                     self.config.remote, commit, self.config.branch
                 )
-                return result
+                return _CasOutcome(result, commit)
             except (NonFastForward, TransportFailure, RemoteRefMissing) as exc:
                 last_error = exc
                 if attempt + 1 < self.config.max_attempts:
@@ -703,15 +706,14 @@ class GitBackend(CoordinationBackend):
                 True,
             )
 
-        previous_schema, changed = self._cas(
-            "bootstrap", apply, files=self._migration_files
-        )
+        outcome = self._cas("bootstrap", apply, files=self._migration_files)
+        previous_schema, changed = outcome.value
         current = self._read_with_tip()
         assert current is not None
-        tip, snapshot = current
+        _, snapshot = current
         if snapshot.schema != target:
             raise TransportFailure("coordination schema migration was not observable")
-        return SchemaMigration(previous_schema, snapshot.schema, tip, changed)
+        return SchemaMigration(previous_schema, snapshot.schema, outcome.tip, changed)
 
     def _live(self, snapshot: CoordinationSnapshot, now: datetime) -> tuple[Claim, ...]:
         return tuple(
@@ -860,7 +862,7 @@ class GitBackend(CoordinationBackend):
             )
 
         try:
-            return self._cas(run_id, apply)  # type: ignore[return-value]
+            return self._cas(run_id, apply).value
         except TransportFailure as exc:
             detail = (
                 f"claim outcome indeterminate for run_id={run_id}; "
@@ -915,7 +917,7 @@ class GitBackend(CoordinationBackend):
             )
             return CoordinationSnapshot(snapshot.mode, _iso(now), claims, runs), renewed
 
-        return self._cas(run_id, apply)  # type: ignore[return-value]
+        return self._cas(run_id, apply).value
 
     @_schema_boundary
     def release(
@@ -1108,7 +1110,7 @@ class GitBackend(CoordinationBackend):
                 return snapshot, removed
             return replace(snapshot, updated_at=_iso(instant), claims=kept), removed
 
-        return self._cas(run_hint, apply)  # type: ignore[return-value]
+        return self._cas(run_hint, apply).value
 
 
 __all__ = [

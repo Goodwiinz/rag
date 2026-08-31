@@ -16,6 +16,8 @@ from .schema import SchemaError, validate_branch, validate_files, validate_sha
 COORDINATION_NAME = "NOUS Coordination"
 COORDINATION_EMAIL = "nous-coordination@invalid"
 GIT_COMMAND_TIMEOUT_SECONDS = 60
+MAX_SNAPSHOT_FILES = 10_000
+MAX_SNAPSHOT_TREE_RECORDS = MAX_SNAPSHOT_FILES + 1
 
 
 def _validation(message: str) -> ValidationError:
@@ -44,8 +46,7 @@ class Runner(Protocol):
         cwd: Path,
         env: Mapping[str, str] | None = None,
         input_text: str | None = None,
-    ) -> CommandResult:
-        ...
+    ) -> CommandResult: ...
 
     def run_bytes(
         self,
@@ -54,8 +55,7 @@ class Runner(Protocol):
         cwd: Path,
         env: Mapping[str, str] | None = None,
         input_bytes: bytes | None = None,
-    ) -> BytesCommandResult:
-        ...
+    ) -> BytesCommandResult: ...
 
 
 class SubprocessRunner:
@@ -289,7 +289,7 @@ class GitIO:
         commit = validate_sha(commit)
         raw = self.run_git_bytes(("ls-tree", "-r", "-t", "-z", commit)).stdout
         records = tuple(item for item in raw.split(b"\x00") if item)
-        if len(records) > 10_000:
+        if len(records) > MAX_SNAPSHOT_TREE_RECORDS:
             raise _validation("coordination snapshot contains too many files")
         entries: list[TreeEntry] = []
         try:
@@ -312,6 +312,8 @@ class GitIO:
             raise _validation("coordination tree entry is invalid") from exc
         if len({entry.path for entry in entries}) != len(entries):
             raise _validation("coordination tree contains duplicate paths")
+        if sum(entry.object_type != "tree" for entry in entries) > MAX_SNAPSHOT_FILES:
+            raise _validation("coordination snapshot contains too many files")
         return tuple(entries)
 
     def cat_file(self, commit: str, path: str) -> bytes:
@@ -320,17 +322,30 @@ class GitIO:
         return self.run_git_bytes(("cat-file", "blob", f"{commit}:{path}")).stdout
 
     def blob_reference(self, commit: str, path: str) -> BlobReference:
+        return self.blob_references(commit, (path,))[path]
+
+    def blob_references(
+        self, commit: str, paths: Sequence[str]
+    ) -> dict[str, BlobReference]:
         commit = validate_sha(commit)
-        validate_files((path,))
-        entry = next(
-            (entry for entry in self.list_tree_entries(commit) if entry.path == path),
-            None,
-        )
-        if entry is None:
-            raise _validation("coordination blob reference is absent")
-        if entry.mode != "100644" or entry.object_type != "blob":
-            raise _validation("coordination blob reference is not a regular blob")
-        return BlobReference(entry.object_id)
+        if (
+            isinstance(paths, (str, bytes, bytearray))
+            or len(paths) > MAX_SNAPSHOT_FILES
+        ):
+            raise _validation("coordination blob reference paths are invalid")
+        requested = tuple(validate_files((path,))[0] for path in paths)
+        if len(set(requested)) != len(requested):
+            raise _validation("coordination blob reference paths are not unique")
+        entries = {entry.path: entry for entry in self.list_tree_entries(commit)}
+        references: dict[str, BlobReference] = {}
+        for path in requested:
+            entry = entries.get(path)
+            if entry is None:
+                raise _validation("coordination blob reference is absent")
+            if entry.mode != "100644" or entry.object_type != "blob":
+                raise _validation("coordination blob reference is not a regular blob")
+            references[path] = BlobReference(entry.object_id)
+        return references
 
     def commit_snapshot(
         self,
@@ -341,7 +356,7 @@ class GitIO:
     ) -> str:
         if not files:
             raise _validation("coordination snapshot must contain files")
-        if len(files) > 10_000:
+        if len(files) > MAX_SNAPSHOT_FILES:
             raise _validation("coordination snapshot contains too many files")
         try:
             for path in files:
