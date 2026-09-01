@@ -21,6 +21,7 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import Field
 from typing_extensions import Annotated
 
+from src.services.agent.tool_helpers import _reject_invalid_arxiv_ids
 from src.services.agent.tool_registry import (
     AgentIntent,
     AgentSubgraph,
@@ -89,14 +90,6 @@ _MAX_PROJECT_LIMIT = 100
 # inputs from bleeding into the dynamic dispatch in the implementation.
 _CONNECTOR_NAME_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
 
-# Audit R7-L11: paper ids are interpolated straight into
-# ``https://arxiv.org/pdf/{id}`` (redirects followed), so anything outside the
-# arXiv id grammar — new style ``2401.12345v2``, old style ``math.GT/0309136``
-# — is a fetch of somewhere else entirely. Validate before it gets there.
-_ARXIV_PAPER_ID_RE = re.compile(
-    r"^(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z\-]+(?:\.[A-Z]{2})?/\d{7}(?:v\d+)?)$"
-)
-
 
 def _clamp_int(value: int, *, lo: int, hi: int) -> int:
     """Clamp ``value`` into the inclusive range ``[lo, hi]``."""
@@ -121,26 +114,6 @@ def _reject_over_cap(
             "error": (
                 f"Maximum {cap} {noun} per request; {len(values)} were "
                 f"requested. Split them into batches of {cap} or fewer."
-            )
-        }
-    return None
-
-
-def _reject_invalid_arxiv_ids(
-    paper_ids: Optional[List[str]],
-) -> Optional[Dict[str, Any]]:
-    """Return an error payload when any id is not a valid arXiv id (R7-L11)."""
-    bad = [
-        str(pid)
-        for pid in (paper_ids or [])
-        if not _ARXIV_PAPER_ID_RE.match(str(pid).strip())
-    ]
-    if bad:
-        listed = ", ".join(repr(b[:64]) for b in bad[:5])
-        return {
-            "error": (
-                f"Invalid arXiv paper id(s): {listed}. Expected forms like "
-                "'2401.12345', '2401.12345v2' or 'math.GT/0309136'."
             )
         }
     return None

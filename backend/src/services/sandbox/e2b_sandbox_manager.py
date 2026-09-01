@@ -41,8 +41,16 @@ class ExecutionResult:
 MAX_LOG_CHARS = 16 * 1024
 
 
-def _cap_log(text: str) -> str:
-    if not isinstance(text, str) or len(text) <= MAX_LOG_CHARS:
+def _cap_log(text: Any) -> str:
+    # e2b-code-interpreter 2.7.0 hands back ``logs.stdout``/``stderr`` as
+    # ``List[str]`` (one entry per output event, newline included). Returning
+    # a non-str unchanged skipped the cap entirely *and* put a list into
+    # ExecutionResult's str fields, so flatten first.
+    if isinstance(text, (list, tuple)):
+        text = "".join(str(item) for item in text)
+    elif not isinstance(text, str):
+        text = "" if text is None else str(text)
+    if len(text) <= MAX_LOG_CHARS:
         return text
     return text[:MAX_LOG_CHARS] + f"…[truncated {len(text) - MAX_LOG_CHARS} chars]"
 

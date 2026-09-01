@@ -703,14 +703,21 @@ class ArXivIngestionService:
                 ):
                     response.raise_for_status()
 
-                    # Bounded read: one byte over the cap is enough to tell
-                    # "oversized" from "exactly at the limit".
-                    content = await response.content.read(_MAX_PDF_BYTES + 1)
-                    if len(content) > _MAX_PDF_BYTES:
-                        raise IngestionError(
-                            f"PDF for {paper_id} exceeds "
-                            f"{_MAX_PDF_BYTES} bytes; refusing to buffer it."
-                        )
+                    # Bounded streaming read. A single .read(n) on a streamed
+                    # response returns only what has arrived so far, so the
+                    # cache used to get a truncated PDF; drain the stream and
+                    # bail the moment the running total passes the cap.
+                    chunks: List[bytes] = []
+                    downloaded = 0
+                    async for chunk in response.content.iter_chunked(64 * 1024):
+                        downloaded += len(chunk)
+                        if downloaded > _MAX_PDF_BYTES:
+                            raise IngestionError(
+                                f"PDF for {paper_id} exceeds "
+                                f"{_MAX_PDF_BYTES} bytes; refusing to buffer it."
+                            )
+                        chunks.append(chunk)
+                    content = b"".join(chunks)
 
                     async with aiofiles.open(pdf_path, "wb") as f:
                         await f.write(content)
