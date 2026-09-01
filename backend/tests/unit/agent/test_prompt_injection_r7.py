@@ -11,11 +11,11 @@ Covers:
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from typing import Any
 
 # ---------------------------------------------------------------------------
 # R7-M1 — memory poisoning via insight extraction

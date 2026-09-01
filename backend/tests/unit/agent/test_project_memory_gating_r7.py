@@ -9,12 +9,12 @@ of ``page_context`` so nothing downstream can scope on it either.
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
 from src.services.agent.agent_execution_service import _resolve_and_bind_project
-from typing import Any
 
 _FOREIGN_PROJECT = "11111111-1111-1111-1111-111111111111"
 
