@@ -1,0 +1,31 @@
+{
+  "agent": "codex-mac",
+  "area": "rollout-smoke/shared",
+  "base_sha": "945fdbaf5cf98363a039285b843ee17766cca7f3",
+  "blocker": null,
+  "branch": "codex/nous-smoke-mac",
+  "candidate": null,
+  "claim_expires_at": "2026-09-01T22:45:48.231734+00:00",
+  "claim_id": "c-cae89e7fc823",
+  "evidence_head_sha": "945fdbaf5cf98363a039285b843ee17766cca7f3",
+  "files": [
+    "scripts/nous_run.py"
+  ],
+  "machine_id": "mac-goodwiinz",
+  "milestones": [
+    {
+      "at": "2026-09-01T19:45:48.231734+00:00",
+      "evidence_head_sha": "945fdbaf5cf98363a039285b843ee17766cca7f3",
+      "state": "claimed",
+      "tier": null
+    }
+  ],
+  "milestones_truncated": false,
+  "outcome": null,
+  "parent_run_id": null,
+  "pr": null,
+  "run_id": "20260901T194547Z-codex-mac-427716",
+  "schema": 1,
+  "state": "claimed",
+  "updated_at": "2026-09-01T19:45:48.231734+00:00"
+}
