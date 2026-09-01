@@ -50,7 +50,7 @@ async def _async_session_yielding(db):
 
 
 async def test_run_agent_graph_marks_job_cancelled_and_reraises():
-    from src.api.agent.execute import AgentExecuteRequest, _set_job, _get_job
+    from src.api.agent.execute import AgentExecuteRequest, _get_job, _set_job
     from src.services.agent.agent_execution_service import _run_agent_graph
 
     job_id = str(uuid4())
@@ -107,7 +107,7 @@ async def test_run_agent_graph_marks_job_cancelled_and_reraises():
 
 
 async def test_resume_agent_graph_marks_job_cancelled_and_reraises():
-    from src.api.agent.execute import _set_job, _get_job
+    from src.api.agent.execute import _get_job, _set_job
     from src.services.agent.agent_execution_service import _resume_agent_graph
 
     job_id = str(uuid4())
@@ -157,7 +157,7 @@ async def test_resume_agent_graph_marks_job_cancelled_and_reraises():
 async def test_run_agent_graph_still_marks_failed_for_regular_exceptions():
     """Regression check: the new CancelledError handler must not swallow
     plain Exception failures, which still need ``status="failed"``."""
-    from src.api.agent.execute import AgentExecuteRequest, _set_job, _get_job
+    from src.api.agent.execute import AgentExecuteRequest, _get_job, _set_job
     from src.services.agent.agent_execution_service import _run_agent_graph
 
     job_id = str(uuid4())
@@ -225,7 +225,7 @@ async def test_resume_agent_graph_reparks_on_chained_interrupt():
     from langgraph.errors import GraphInterrupt
     from langgraph.types import Interrupt
 
-    from src.api.agent.execute import _set_job, _get_job
+    from src.api.agent.execute import _get_job, _set_job
     from src.services.agent.agent_execution_service import _resume_agent_graph
 
     job_id = str(uuid4())
