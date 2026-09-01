@@ -57,7 +57,7 @@ async def test_insight_extraction_ignores_assistant_messages() -> None:
         await memory_save_node(state, config)
 
     insights_mock.assert_awaited_once()
-    serialised = insights_mock.await_args[0][0]
+    serialised = insights_mock.await_args_list[-1][0][0]
     assert serialised, "insight extraction got an empty transcript"
     assert all(m["role"] == "user" for m in serialised)
     assert not any(_INJECTED in m["content"] for m in serialised)
@@ -154,10 +154,10 @@ async def test_save_and_search_use_org_namespace() -> None:
     store.asearch = AsyncMock(return_value=[])
 
     await save_memory(store, "u1", "k", {"query": "x"}, organization_id="org-a")
-    assert store.aput.await_args[0][0] == ("org-a", "user", "u1")
+    assert store.aput.await_args_list[-1][0][0] == ("org-a", "user", "u1")
 
     await search_memories(store, "u1", "q", organization_id="org-a")
-    assert store.asearch.await_args[0][0] == ("org-a", "user", "u1")
+    assert store.asearch.await_args_list[-1][0][0] == ("org-a", "user", "u1")
 
 
 @pytest.mark.unit
@@ -178,7 +178,7 @@ async def test_memory_retrieval_node_passes_org_id() -> None:
             {"configurable": {"user_id": "u1", "organization_id": "org-a"}},
         )
 
-    assert search_mock.await_args[1]["organization_id"] == "org-a"
+    assert search_mock.await_args_list[-1][1]["organization_id"] == "org-a"
 
 
 # ---------------------------------------------------------------------------
