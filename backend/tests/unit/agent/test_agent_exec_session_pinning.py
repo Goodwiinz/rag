@@ -181,9 +181,9 @@ async def test_resume_agent_graph_commits_before_ainvoke() -> None:
         "get_run()'s bare SELECT pins a pooled connection for up to 360s on "
         "every HITL confirm (audit M9)"
     )
-    assert events.index("commit") < events.index("ainvoke"), (
-        "db.commit() must run BEFORE graph.ainvoke() on the resume path too"
-    )
+    assert events.index("commit") < events.index(
+        "ainvoke"
+    ), "db.commit() must run BEFORE graph.ainvoke() on the resume path too"
 
 
 # ---------------------------------------------------------------------------

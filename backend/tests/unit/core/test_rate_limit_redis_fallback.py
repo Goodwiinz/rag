@@ -65,3 +65,38 @@ async def test_degraded_warning_is_throttled(caplog: pytest.LogCaptureFixture) -
         r for r in caplog.records if "Redis rate limit unavailable" in r.message
     ]
     assert len(degraded) == 1, "an outage must not flood the log every request"
+
+
+async def test_outage_and_recovery_share_one_budget() -> None:
+    """Review follow-up: a mid-window Redis recovery must not reset the quota.
+
+    Attempts made during the outage live only in ``_fallback``; the Redis
+    counter knows nothing about them. Sticking to the in-memory limiter for
+    the rest of the window keeps the window's count whole.
+    """
+    limiter = _broken_limiter(max_attempts=2)
+
+    # Outage: one attempt lands in the fallback.
+    await limiter.record_attempt("user-5", prefix="agent_turn")
+
+    # Redis "recovers" with an empty counter — it must not be consulted while
+    # the window still holds fallback-only attempts, or the caller gets a
+    # second full quota.
+    class _EmptyRedis:
+        async def eval(self, *_args: object, **_kwargs: object) -> list[int]:
+            return [0, 0]
+
+        async def get(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+    async def _healthy() -> _EmptyRedis:
+        return _EmptyRedis()
+
+    limiter._get_redis = _healthy  # type: ignore[assignment]
+
+    await limiter.record_attempt("user-5", prefix="agent_turn")
+
+    allowed, retry_after = await limiter.check_rate_limit("user-5", prefix="agent_turn")
+    assert allowed is False, "the two attempts must count against one limit"
+    assert retry_after >= 1
+    assert await limiter.get_remaining_attempts("user-5", prefix="agent_turn") == 0

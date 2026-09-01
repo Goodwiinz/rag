@@ -283,9 +283,9 @@ class TestSubgraphErrorCountCheck:
                 "tool_loop_count": 1,
                 "error_count": 0,
             }
-            assert writing_should_continue(state) == "writing_interrupt_node", (
-                f"{tool_name} must be gated by writing_interrupt_node"
-            )
+            assert (
+                writing_should_continue(state) == "writing_interrupt_node"
+            ), f"{tool_name} must be gated by writing_interrupt_node"
 
     def test_writing_should_continue_skips_interrupt_for_read_tools(self):
         from langchain_core.messages import AIMessage

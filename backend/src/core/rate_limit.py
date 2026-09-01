@@ -145,6 +145,9 @@ class RedisRateLimiter(RateLimiterInterface):
         # counter across workers, but still a bound.
         self._fallback = InMemoryRateLimiter(max_attempts, window_minutes)
         self._last_fallback_log = 0.0
+        # Monotonic deadline until which every call skips Redis. See
+        # ``_in_fallback_window``.
+        self._fallback_until = 0.0
         # Lua script to atomically increment and set expire only on first use
         self._incr_expire_script = """
         local current = redis.call("INCR", KEYS[1])
@@ -177,9 +180,21 @@ class RedisRateLimiter(RateLimiterInterface):
             self._redis = redis.from_url(self.redis_url, decode_responses=True)
         return self._redis
 
+    def _in_fallback_window(self) -> bool:
+        """True while a recent Redis error pins this process to ``_fallback``.
+
+        Attempts made during an outage land only in the in-memory store. If
+        Redis comes back mid-window the Redis counter knows nothing about
+        them, so the caller gets a second full quota — and flapping splits a
+        single window across two stores. Sticking to one store for the rest of
+        the window keeps every window's count whole.
+        """
+        return time.monotonic() < self._fallback_until
+
     def _log_degraded(self, exc: Exception) -> None:
         """Warn at most once per minute — an outage must not flood the log."""
         now = time.monotonic()
+        self._fallback_until = now + self.window_minutes * 60
         if now - self._last_fallback_log >= _FALLBACK_LOG_INTERVAL_SECONDS:
             self._last_fallback_log = now
             logger.warning(
@@ -190,6 +205,8 @@ class RedisRateLimiter(RateLimiterInterface):
 
     async def is_allowed(self, identifier: str, prefix: str = "") -> bool:
         """Check if identifier is allowed to make an attempt"""
+        if self._in_fallback_window():
+            return await self._fallback.is_allowed(identifier, prefix)
         try:
             client = await self._get_redis()
             key = (
@@ -214,6 +231,8 @@ class RedisRateLimiter(RateLimiterInterface):
         self, identifier: str, prefix: str = ""
     ) -> Tuple[bool, int]:
         """Read-only check: returns (allowed, retry_after_seconds)"""
+        if self._in_fallback_window():
+            return await self._fallback.check_rate_limit(identifier, prefix)
         try:
             client = await self._get_redis()
             key = (
@@ -237,6 +256,9 @@ class RedisRateLimiter(RateLimiterInterface):
 
     async def record_attempt(self, identifier: str, prefix: str = "") -> None:
         """Write-only: record a failed attempt"""
+        if self._in_fallback_window():
+            await self._fallback.record_attempt(identifier, prefix)
+            return
         try:
             client = await self._get_redis()
             key = (
@@ -259,6 +281,8 @@ class RedisRateLimiter(RateLimiterInterface):
 
     async def get_remaining_attempts(self, identifier: str, prefix: str = "") -> int:
         """Get remaining attempts for identifier"""
+        if self._in_fallback_window():
+            return await self._fallback.get_remaining_attempts(identifier, prefix)
         try:
             client = await self._get_redis()
             key = (

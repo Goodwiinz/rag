@@ -10,6 +10,7 @@ interrupt-consumed guards, and failed the run. The turn was unrecoverable.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock
@@ -35,7 +36,7 @@ def user() -> Mock:
 
 
 @pytest.fixture
-def client(user: Mock):
+def client(user: Mock) -> Iterator[TestClient]:
     from src.core.database import get_db
     from src.core.dependencies import get_current_user
 
@@ -48,7 +49,7 @@ def client(user: Mock):
     app.dependency_overrides[get_db] = lambda: db
 
     @asynccontextmanager
-    async def _no_lifespan(_app):
+    async def _no_lifespan(_app: FastAPI) -> AsyncIterator[None]:
         yield
 
     app.router.lifespan_context = _no_lifespan
@@ -81,7 +82,8 @@ def test_expired_job_is_refused_without_claiming_the_run(
 
     assert response.status_code == 409
     assert "expired" in response.json()["detail"].lower()
-    claim.assert_not_awaited(), "the run must stay awaiting_confirmation"
+    # the run must stay awaiting_confirmation
+    claim.assert_not_awaited()
 
 
 def test_live_job_payload_still_confirms(

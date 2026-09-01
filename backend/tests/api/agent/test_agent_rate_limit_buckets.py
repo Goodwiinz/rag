@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, Mock
 from uuid import uuid4
@@ -27,7 +28,7 @@ _TURN_BODY = {
 
 
 @pytest.fixture
-def client(monkeypatch: pytest.MonkeyPatch):
+def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     from src.core.database import get_db
     from src.core.dependencies import get_current_user
 
@@ -48,7 +49,7 @@ def client(monkeypatch: pytest.MonkeyPatch):
     app.dependency_overrides[get_db] = lambda: db
 
     @asynccontextmanager
-    async def _no_lifespan(_app):
+    async def _no_lifespan(_app: FastAPI) -> AsyncIterator[None]:
         yield
 
     app.router.lifespan_context = _no_lifespan
@@ -84,9 +85,9 @@ async def test_execute_and_stream_share_one_turn_bucket(
 
     response = client.post(path, json=_TURN_BODY)
 
-    assert response.status_code == 429, (
-        f"{path} must draw on the shared turn budget, not a private bucket"
-    )
+    assert (
+        response.status_code == 429
+    ), f"{path} must draw on the shared turn budget, not a private bucket"
 
 
 async def test_confirm_shares_the_turn_bucket(
