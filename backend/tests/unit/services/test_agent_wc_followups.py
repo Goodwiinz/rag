@@ -154,6 +154,13 @@ async def test_resume_short_circuits_when_interrupt_already_consumed():
             "status": "running",
             "user_id": str(user.id),
             "tool_executions": [],
+            # The resume needs a thread_id: without one it refuses outright
+            # (R7-L13) instead of falling back to thread_id=job_id.
+            "request": {
+                "thread_id": str(uuid4()),
+                "messages": [{"role": "user", "content": "hi"}],
+                "page_context": {"type": "unknown"},
+            },
         },
     )
 
@@ -190,6 +197,13 @@ async def test_resume_proceeds_when_interrupt_present():
             "status": "running",
             "user_id": str(user.id),
             "tool_executions": [],
+            # The resume needs a thread_id: without one it refuses outright
+            # (R7-L13) instead of falling back to thread_id=job_id.
+            "request": {
+                "thread_id": str(uuid4()),
+                "messages": [{"role": "user", "content": "hi"}],
+                "page_context": {"type": "unknown"},
+            },
         },
     )
 
@@ -225,6 +239,13 @@ async def test_resume_rejects_ownerless_checkpoint():
             "status": "running",
             "user_id": str(user.id),
             "tool_executions": [],
+            # The resume needs a thread_id: without one it refuses outright
+            # (R7-L13) instead of falling back to thread_id=job_id.
+            "request": {
+                "thread_id": str(uuid4()),
+                "messages": [{"role": "user", "content": "hi"}],
+                "page_context": {"type": "unknown"},
+            },
         },
     )
 

@@ -1,4 +1,5 @@
 import logging
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
@@ -8,6 +9,9 @@ import redis.asyncio as redis
 from src.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# How often a degraded (Redis-down) rate limiter may warn.
+_FALLBACK_LOG_INTERVAL_SECONDS = 60.0
 
 
 class RateLimiterInterface(ABC):
@@ -136,6 +140,11 @@ class RedisRateLimiter(RateLimiterInterface):
         self.window_minutes = window_minutes
         self.redis_url = redis_url or settings.REDIS_URL
         self._redis: Optional[redis.Redis] = None
+        # R7-M7: a Redis outage used to fail OPEN (every request allowed).
+        # Degrade to the per-process limiter instead — weaker than the shared
+        # counter across workers, but still a bound.
+        self._fallback = InMemoryRateLimiter(max_attempts, window_minutes)
+        self._last_fallback_log = 0.0
         # Lua script to atomically increment and set expire only on first use
         self._incr_expire_script = """
         local current = redis.call("INCR", KEYS[1])
@@ -168,6 +177,17 @@ class RedisRateLimiter(RateLimiterInterface):
             self._redis = redis.from_url(self.redis_url, decode_responses=True)
         return self._redis
 
+    def _log_degraded(self, exc: Exception) -> None:
+        """Warn at most once per minute — an outage must not flood the log."""
+        now = time.monotonic()
+        if now - self._last_fallback_log >= _FALLBACK_LOG_INTERVAL_SECONDS:
+            self._last_fallback_log = now
+            logger.warning(
+                "Redis rate limit unavailable (%s); enforcing per-process "
+                "in-memory limits instead",
+                exc,
+            )
+
     async def is_allowed(self, identifier: str, prefix: str = "") -> bool:
         """Check if identifier is allowed to make an attempt"""
         try:
@@ -187,9 +207,8 @@ class RedisRateLimiter(RateLimiterInterface):
             return int(current) <= self.max_attempts
 
         except Exception as e:
-            logger.error(f"Redis rate limit error: {e}")
-            # Fail open - allow request if Redis is down
-            return True
+            self._log_degraded(e)
+            return await self._fallback.is_allowed(identifier, prefix)
 
     async def check_rate_limit(
         self, identifier: str, prefix: str = ""
@@ -213,8 +232,8 @@ class RedisRateLimiter(RateLimiterInterface):
             return True, 0
 
         except Exception as e:
-            logger.error(f"Redis rate limit check error: {e}")
-            return True, 0
+            self._log_degraded(e)
+            return await self._fallback.check_rate_limit(identifier, prefix)
 
     async def record_attempt(self, identifier: str, prefix: str = "") -> None:
         """Write-only: record a failed attempt"""
@@ -235,7 +254,8 @@ class RedisRateLimiter(RateLimiterInterface):
             )
 
         except Exception as e:
-            logger.error(f"Redis rate limit record error: {e}")
+            self._log_degraded(e)
+            await self._fallback.record_attempt(identifier, prefix)
 
     async def get_remaining_attempts(self, identifier: str, prefix: str = "") -> int:
         """Get remaining attempts for identifier"""
@@ -254,8 +274,8 @@ class RedisRateLimiter(RateLimiterInterface):
             return max(0, self.max_attempts - int(current))
 
         except Exception as e:
-            logger.error(f"Redis rate limit error: {e}")
-            return self.max_attempts
+            self._log_degraded(e)
+            return await self._fallback.get_remaining_attempts(identifier, prefix)
 
     async def close(self):
         """Close Redis connection"""
@@ -269,11 +289,13 @@ def create_rate_limiter(max_attempts: int, window_minutes: int) -> RateLimiterIn
     # If REDIS_URL is configured (and not explicitly disabled), use Redis
     if settings.REDIS_URL:
         # We assume Redis is available if URL is set.
-        # RedisRateLimiter handles connection failures gracefully (fails open).
+        # RedisRateLimiter degrades to a per-process in-memory limiter when
+        # Redis is unreachable (R7-M7) rather than allowing every request.
         logger.info(f"Initializing RedisRateLimiter with URL: {settings.REDIS_URL}")
         return RedisRateLimiter(max_attempts, window_minutes)
 
     logger.warning(
-        "REDIS_URL not set. Using InMemoryRateLimiter (not suitable for production multi-worker setups)."
+        "REDIS_URL not set. Using InMemoryRateLimiter — limits are PER PROCESS, "
+        "so a multi-worker deployment enforces N x the configured budget."
     )
     return InMemoryRateLimiter(max_attempts, window_minutes)

@@ -65,6 +65,7 @@ async def test_run_agent_graph_marks_job_cancelled_and_reraises():
             "tool_executions": [],
             "user_id": str(user.id),
             "request": {
+                "thread_id": str(uuid4()),
                 "messages": [{"role": "user", "content": "hi"}],
                 "page_context": {"type": "unknown"},
                 "model": "model-router",
@@ -120,6 +121,7 @@ async def test_resume_agent_graph_marks_job_cancelled_and_reraises():
             "tool_executions": [],
             "user_id": str(user.id),
             "request": {
+                "thread_id": str(uuid4()),
                 "messages": [{"role": "user", "content": "ingest paper"}],
                 "page_context": {"type": "unknown"},
                 "model": "model-router",
@@ -169,6 +171,7 @@ async def test_run_agent_graph_still_marks_failed_for_regular_exceptions():
             "tool_executions": [],
             "user_id": str(user.id),
             "request": {
+                "thread_id": str(uuid4()),
                 "messages": [{"role": "user", "content": "hi"}],
                 "page_context": {"type": "unknown"},
                 "model": "model-router",
@@ -236,6 +239,7 @@ async def test_resume_agent_graph_reparks_on_chained_interrupt():
             "tool_executions": [],
             "user_id": str(user.id),
             "request": {
+                "thread_id": str(uuid4()),
                 "messages": [{"role": "user", "content": "ingest then note"}],
                 "page_context": {"type": "unknown"},
                 "model": "model-router",

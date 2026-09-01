@@ -67,6 +67,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from collections.abc import Sequence
 from typing import Any, Optional, cast
 from uuid import UUID, uuid4
 
@@ -246,6 +247,7 @@ async def _insert_user_message(
     user_id: Any,
     content: str,
     client_message_id: Optional[UUID],
+    attachment_ids: Optional[Sequence[Any]] = None,
 ) -> tuple[Optional[str], bool]:
     """Insert the turn's user row idempotently. Does NOT commit.
 
@@ -264,6 +266,11 @@ async def _insert_user_message(
     on conflict, and ``agent_runs.user_message_id`` needs that id), and it is
     dialect-agnostic, so the fault-injection suite can exercise the real
     transaction on SQLite.
+
+    ``attachment_ids`` are linked exactly as ``/execute`` does (R7-M5): only
+    against a row THIS call inserted, and only after ownership filtering, so a
+    retried turn cannot double-attach and no caller can hang another tenant's
+    document off their message.
     """
     message = ChatMessage(
         thread_id=thread_id,
@@ -299,6 +306,18 @@ async def _insert_user_message(
         )
         .execution_options(synchronize_session=False)
     )
+
+    if attachment_ids:
+        from src.models.message_attachment import MessageAttachment
+        from src.services.threads import workspace_access
+
+        owned_ids = await workspace_access.filter_owned_document_ids(
+            db, list(attachment_ids), user_id
+        )
+        for doc_id in owned_ids:
+            db.add(MessageAttachment(message_id=message.id, document_id=doc_id))
+        await db.flush()
+
     return str(message.id), True
 
 
@@ -641,6 +660,7 @@ async def accept_submission(
             user_id=current_user.id,
             content=last_user.content,
             client_message_id=client_message_id,
+            attachment_ids=getattr(request, "attachment_ids", None),
         )
         tombstones = await _apply_tombstones(
             db,

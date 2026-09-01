@@ -47,7 +47,6 @@ from src.models.user import User
 from src.models.workspace import Workspace
 from src.services.agent import stream_buffer as _stream_buffer
 from src.services.agent._pii_redact import redact_tool_executions
-from src.services.agent._sanitize import _sanitize_prompt_field
 from src.services.agent.agent_execution_service import (  # noqa: F401
     MAX_JOBS,
     _actor_fields,
@@ -141,7 +140,32 @@ _agent_rate_limiter = create_rate_limiter(
     window_minutes=_AGENT_RATE_WINDOW_MINUTES,
 )
 
+# R7-M6: turn creation is ONE per-user budget. /execute, /stream and both
+# confirm/resume-a-turn endpoints previously had a bucket each, so a caller
+# could start 4x30 turns a minute by rotating endpoints. Reads (job polling,
+# SSE resume, cancel) are cheap and poll-heavy, so they get their own, larger
+# bucket rather than sharing the turn budget.
+_AGENT_TURN_PREFIX = "agent_turn"
+_AGENT_READ_PREFIX = "agent_read"
+_AGENT_READ_RPM = 120
+_agent_read_rate_limiter = create_rate_limiter(
+    max_attempts=_AGENT_READ_RPM,
+    window_minutes=_AGENT_RATE_WINDOW_MINUTES,
+)
+
 logger = logging.getLogger(__name__)
+
+
+async def _enforce_rate_limit(limiter: Any, user_id: str, prefix: str) -> None:
+    """429 when *user_id* is over *prefix*'s budget, else record the attempt."""
+    allowed, retry_after = await limiter.check_rate_limit(user_id, prefix=prefix)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Retry after {retry_after}s.",
+        )
+    await limiter.record_attempt(user_id, prefix=prefix)
+
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 
@@ -188,51 +212,6 @@ class HTTPErrorResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-VALID_PAGE_TYPES = {"project", "documents", "dashboard", "chat", "unknown"}
-
-
-def build_agent_system_prompt(page_context: PageContextRequest) -> str:
-    ctx_type = page_context.type if page_context.type in VALID_PAGE_TYPES else "unknown"
-    context_line = ""
-    if ctx_type == "project" and page_context.project_id:
-        safe_project_name = (
-            _sanitize_prompt_field(page_context.project_name)
-            if page_context.project_name
-            else ""
-        )
-        name_part = f' "{safe_project_name}"' if safe_project_name else ""
-        context_line = (
-            f"The user is viewing a project{name_part} (ID: {page_context.project_id})."
-        )
-    elif ctx_type != "unknown":
-        context_line = f"The user is on the {ctx_type} page."
-
-    return f"""You are an AI research agent for a RAG-powered academic research system.
-You help users search documents, manage research projects, find ArXiv papers, create notes, and analyze research.
-
-You have access to the following tools:
-- **search_arxiv**: Search arXiv for academic papers. Use when the user asks to find research papers or scientific articles.
-- **ingest_arxiv_papers**: Ingest arXiv papers into the RAG system. Use when the user wants to add/import specific arXiv papers by ID.
-- **search_documents**: Search the user's indexed documents by title or content. Use when the user wants to find documents they have already uploaded.
-- **create_project**: Create a new research project (folder). Use when the user asks to create, start, or set up a new project, folder, or research workspace.
-- **add_document_to_project**: Add an existing document to a research project. Use when the user wants to organize a document into a project.
-- **create_project_note**: Create a markdown note in a research project. Use when the user wants to write or save notes, observations, or summaries.
-- **list_project_documents**: List all documents in a research project. Use when the user wants to see what documents are in a project.
-- **summarize_document**: Summarize a document's content. Use for overviews or summaries of specific documents.
-- **compare_documents**: Compare 2-5 documents for similarities, differences, and themes.
-- **extract_entities**: Extract named entities (people, organizations, concepts) from a document.
-- **search_knowledge_graph**: Search the knowledge graph for entities and their relationships.
-- **create_draft**: Generate a literature review draft from project documents around specific themes.
-- **export_bibliography**: Export bibliography for documents in bibtex, apa, ieee, or mla format.
-
-{context_line}
-When the user is on a project page, the project_id is available from the page context and does not need to be asked for.
-
-When answering questions, use retrieved document context when available.
-Cite sources using [Doc N] format inline.
-Be concise and action-oriented."""
-
 
 # ---------------------------------------------------------------------------
 # Endpoints
@@ -438,16 +417,8 @@ async def execute_agent(
     ``background`` runs the graph on this pod via FastAPI BackgroundTasks;
     ``celery`` enqueues it to the dedicated agent_runs queue.
     """
-    _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
-        str(current_user.id), prefix="agent_execute"
-    )
-    if not _allowed:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Rate limit exceeded. Retry after {_retry_after}s.",
-        )
-    await _agent_rate_limiter.record_attempt(
-        str(current_user.id), prefix="agent_execute"
+    await _enforce_rate_limit(
+        _agent_rate_limiter, str(current_user.id), _AGENT_TURN_PREFIX
     )
     logger.info(
         "Agent execute request",
@@ -578,6 +549,9 @@ async def get_job_status(
     the run became untrackable (audit X1/D7). The projection carries only
     status + error — result payloads still require the Redis record.
     """
+    await _enforce_rate_limit(
+        _agent_read_rate_limiter, str(current_user.id), _AGENT_READ_PREFIX
+    )
     # L1 is only trustworthy for terminal records (immutable). A non-terminal
     # L1 entry may be a stale seed while another PROCESS owns the run's writes
     # (Celery dispatch mode, multi-replica API) — without the fresh read the
@@ -640,6 +614,9 @@ async def confirm_agent_action(
     so the resume itself runs here as a BackgroundTask BY DESIGN even when
     the original turn executed on a Celery worker (see agent_run_tasks).
     """
+    await _enforce_rate_limit(
+        _agent_rate_limiter, str(current_user.id), _AGENT_TURN_PREFIX
+    )
     from src.services.agent.job_store import (
         ConfirmationCoordinationUnavailable,
         compare_and_set_status,
@@ -662,6 +639,11 @@ async def confirm_agent_action(
     # dispatch record — trusting it would 409 every legitimate confirm.
     # (The authoritative claim is the guarded PostgreSQL transition below.)
     job = await _get_job_fresh(job_id)
+    # ``get_job_fresh`` returns None only when BOTH Redis and L1 have nothing —
+    # exactly the two stores ``_resume_agent_graph`` reads for the request
+    # payload. The projection fallback below can restore status and ownership,
+    # never the payload, so this is the fail-closed signal for the guard.
+    job_payload_missing = job is None
     job_from_projection = False
     if job is not None:
         # Fail closed before consulting another store: a live record owned by
@@ -696,6 +678,22 @@ async def confirm_agent_action(
         elif job is None:
             raise HTTPException(status_code=404, detail="Job not found")
     _validate_confirmable_job(job, current_user)
+
+    # R7-L13: fail closed when the Redis job payload is gone. The payload
+    # carries the original request — and with it the thread_id the resume
+    # needs. Without it ``_resume_agent_graph`` used to fall back to
+    # thread_id=job_id, read an empty snapshot, skip the ownership and
+    # interrupt-consumed guards, and fail the run — after this endpoint had
+    # already flipped it awaiting -> running. Refuse BEFORE the claim so the
+    # run stays parked and a client that still holds the turn can retry.
+    if job_payload_missing:
+        logger.warning(
+            "Confirm refused for %s: job payload expired (Redis miss)", job_id
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="This confirmation has expired. Please start the request again.",
+        )
 
     # PostgreSQL is the shared Stop/Confirm authority. Claim it before Redis so
     # cancellation and every resume path race on the same guarded transition.
@@ -811,16 +809,8 @@ async def stream_agent(
     # before the generator builds its emitter, so starting the clock there
     # reports a latency that excludes the overhead the SLI exists to surface.
     request_started_at = time.monotonic()
-    _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
-        str(current_user.id), prefix="agent_stream"
-    )
-    if not _allowed:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Rate limit exceeded. Retry after {_retry_after}s.",
-        )
-    await _agent_rate_limiter.record_attempt(
-        str(current_user.id), prefix="agent_stream"
+    await _enforce_rate_limit(
+        _agent_rate_limiter, str(current_user.id), _AGENT_TURN_PREFIX
     )
     return StreamingResponse(
         stream_event_generator(
@@ -851,16 +841,8 @@ async def stream_confirm_agent(
     current_user: User = Depends(get_current_user),
 ):
     """Resume a graph interrupted by HITL via SSE streaming."""
-    _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
-        str(current_user.id), prefix="agent_stream_confirm"
-    )
-    if not _allowed:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Rate limit exceeded. Retry after {_retry_after}s.",
-        )
-    await _agent_rate_limiter.record_attempt(
-        str(current_user.id), prefix="agent_stream_confirm"
+    await _enforce_rate_limit(
+        _agent_rate_limiter, str(current_user.id), _AGENT_TURN_PREFIX
     )
     return StreamingResponse(
         stream_confirm_event_generator(
@@ -895,6 +877,9 @@ async def cancel_stream_confirmation(
     db: AsyncSession = Depends(get_db),
 ):
     """Durably abandon a caller-owned graph parked on HITL confirmation."""
+    await _enforce_rate_limit(
+        _agent_read_rate_limiter, str(current_user.id), _AGENT_READ_PREFIX
+    )
     ownership_stmt = (
         select(Thread)
         .join(Conversation, Thread.conversation_id == Conversation.id)
@@ -1146,6 +1131,9 @@ async def resume_stream(
     db: AsyncSession = Depends(get_db),
 ):
     """Replay buffered SSE frames (seq > after) for the thread's active run."""
+    await _enforce_rate_limit(
+        _agent_read_rate_limiter, str(current_user.id), _AGENT_READ_PREFIX
+    )
     if last_event_id is not None:
         try:
             after = int(last_event_id)
