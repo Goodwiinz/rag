@@ -93,7 +93,8 @@ async def test_writing_node_injects_retrieved_context() -> None:
         if isinstance(message, SystemMessage)
     )
     assert "Retrieved context:" in system_text
-    assert "[Doc 1] Project paper:" in system_text
+    assert "[Doc 1]" in system_text
+    assert "title: Project paper" in system_text
     assert "The project studies grounded retrieval systems." in system_text
 
 

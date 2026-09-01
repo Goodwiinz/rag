@@ -840,6 +840,7 @@ async def execute_tool(
                 thread_id,
                 runtime_snapshot_id,
                 project_id,
+                organization_id=organization_id,
             )
         )
 
@@ -854,6 +855,7 @@ async def execute_tool(
                 thread_id,
                 runtime_snapshot_id,
                 project_id,
+                organization_id=organization_id,
             )
         )
 
@@ -876,6 +878,7 @@ async def execute_tool(
                 thread_id,
                 runtime_snapshot_id,
                 project_id,
+                organization_id=organization_id,
             )
         )
 
@@ -889,6 +892,7 @@ async def _dispatch_tool(
     thread_id: str = "",
     runtime_snapshot_id: str = "",
     project_id: str = "",
+    organization_id: str = "",
 ) -> Dict[str, Any]:
     """Route a tool call to its ``_tool_*`` implementation."""
     if tool_name == "search_arxiv":
@@ -946,6 +950,7 @@ async def _dispatch_tool(
         return await _tool_forget_memory(
             query=args.get("query", ""),
             user_id=str(current_user.id),
+            organization_id=organization_id or None,
             page_context=None,
         )
     if tool_name == "load_project_skill":
@@ -3406,6 +3411,7 @@ async def _tool_forget_memory(
     *,
     query: str,
     user_id: str,
+    organization_id: str | None = None,
     page_context: dict | None = None,
 ) -> dict:
     """Handler for the forget_memory agent tool."""
@@ -3420,7 +3426,13 @@ async def _tool_forget_memory(
     if store is None:
         return {"error": "forget_memory: memory store unavailable"}
 
-    result = await delete_memory_by_query(store, user_id=user_id, query=query, limit=5)
+    result = await delete_memory_by_query(
+        store,
+        user_id=user_id,
+        query=query,
+        limit=5,
+        organization_id=organization_id,
+    )
     return {
         "status": "completed",
         "deleted": result["deleted"],

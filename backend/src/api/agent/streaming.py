@@ -1875,11 +1875,15 @@ async def stream_event_generator(
                 request_body.messages, request_body.thread_id or ""
             )
 
-        await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
+        # Returns the ownership-verified project id (or None). R7-M2: gate
+        # memory recall on that, not on the raw page_context value the client
+        # supplied, so the check can never drift away from its consumer.
+        _pm_project_id = await _resolve_and_bind_project(
+            db, current_user, thread_obj, page_context
+        )
 
         # Project-scoped memory recall (best-effort; never blocks a turn).
         project_memories: list = []
-        _pm_project_id = page_context.get("project_id")
         if _pm_project_id:
             try:
                 from src.services.research.project_memory_service import (

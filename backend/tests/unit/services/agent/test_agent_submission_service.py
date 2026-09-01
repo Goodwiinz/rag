@@ -33,6 +33,7 @@ from src.models.agent_run import AgentRun
 from src.models.agent_run_event import AgentRunEvent
 from src.models.chat_message import ChatMessage, MessageRole
 from src.models.conversation import Conversation
+from src.models.message_attachment import MessageAttachment
 from src.models.thread import Thread
 from src.models.workspace import Workspace
 from src.services.agent import agent_submission_service as submission_mod
@@ -83,6 +84,7 @@ async def session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
         await conn.run_sync(AgentRun.__table__.create)
         await conn.run_sync(AgentRunEvent.__table__.create)
         await conn.run_sync(AgentOutbox.__table__.create)
+        await conn.run_sync(MessageAttachment.__table__.create)
     yield async_sessionmaker(engine, expire_on_commit=False)
     await engine.dispose()
 
@@ -130,6 +132,7 @@ def _request(
     content: str = "hello",
     *,
     supersedes: uuid.UUID | None = None,
+    attachment_ids: list[uuid.UUID] | None = None,
 ) -> Any:
     return SimpleNamespace(
         messages=[
@@ -139,6 +142,7 @@ def _request(
         use_rag=True,
         thread_id=str(THREAD_ID),
         supersedes_client_message_id=supersedes,
+        attachment_ids=attachment_ids,
     )
 
 
@@ -624,3 +628,73 @@ async def test_accept_refuses_a_recycled_replacement_cmid(db: AsyncSession) -> N
         )
     ).scalar_one()
     assert after is None
+
+
+# ---------------------------------------------------------------------------
+# Attachments (R7-M5)
+# ---------------------------------------------------------------------------
+
+
+async def test_accepted_stream_turn_persists_its_attachments(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """/stream dropped attachment_ids on the floor; /execute always wrote them."""
+    doc_a, doc_b = uuid.uuid4(), uuid.uuid4()
+    monkeypatch.setattr(
+        "src.services.threads.workspace_access.filter_owned_document_ids",
+        AsyncMock(return_value=[doc_a, doc_b]),
+    )
+
+    accepted = await accept_submission(
+        db,
+        current_user=_user(),
+        request=_request(uuid.uuid4(), attachment_ids=[doc_a, doc_b]),
+        thread=_thread(),
+    )
+
+    rows = (await db.execute(select(MessageAttachment.document_id))).scalars().all()
+    assert sorted(str(r) for r in rows) == sorted([str(doc_a), str(doc_b)])
+    assert accepted.user_message_id is not None
+
+
+async def test_attachments_are_ownership_filtered(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ids the caller does not own must not become rows (same rule as /execute)."""
+    mine, theirs = uuid.uuid4(), uuid.uuid4()
+    monkeypatch.setattr(
+        "src.services.threads.workspace_access.filter_owned_document_ids",
+        AsyncMock(return_value=[mine]),
+    )
+
+    await accept_submission(
+        db,
+        current_user=_user(),
+        request=_request(uuid.uuid4(), attachment_ids=[mine, theirs]),
+        thread=_thread(),
+    )
+
+    rows = (await db.execute(select(MessageAttachment.document_id))).scalars().all()
+    assert [str(r) for r in rows] == [str(mine)]
+
+
+async def test_replayed_submission_does_not_double_attach(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    doc = uuid.uuid4()
+    monkeypatch.setattr(
+        "src.services.threads.workspace_access.filter_owned_document_ids",
+        AsyncMock(return_value=[doc]),
+    )
+    cmid = uuid.uuid4()
+    user = _user()
+
+    for _ in range(2):
+        await accept_submission(
+            db,
+            current_user=user,
+            request=_request(cmid, attachment_ids=[doc]),
+            thread=_thread(),
+        )
+
+    assert await _count(db, MessageAttachment) == 1

@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 from src.services.agent import job_store as _job_store
 from src.services.agent._builders import RECURSION_LIMIT
+from src.services.agent._sanitize import sanitize_page_context
 from src.services.agent.agent_run_service import get_run
 from src.services.agent.job_store import _is_newer_or_equal
 from src.services.agent.job_store import _l1 as _jobs
@@ -272,19 +273,28 @@ def _get_schemas():
 def _page_context_to_dict(
     page_context: Any,
 ) -> Dict[str, Any]:
-    """Normalize page context so every execution path forwards the same shape."""
+    """Normalize page context so every execution path forwards the same shape.
+
+    This is also the single trust boundary for client-supplied page context
+    (R7-H1): every string leaf — including the unconstrained ``metadata``
+    dict — is sanitized here, once, so no downstream prompt renderer
+    (llm_node, planner, classifier) is ever handed raw newlines or forged
+    ``##`` headings.
+    """
     if hasattr(page_context, "model_dump"):
         raw = page_context.model_dump()
     else:
         raw = page_context or {}
 
-    return {
-        "type": raw.get("type", "unknown"),
-        "project_id": raw.get("project_id"),
-        "project_name": raw.get("project_name"),
-        "label": raw.get("label"),
-        "metadata": raw.get("metadata"),
-    }
+    return sanitize_page_context(
+        {
+            "type": raw.get("type", "unknown"),
+            "project_id": raw.get("project_id"),
+            "project_name": raw.get("project_name"),
+            "label": raw.get("label"),
+            "metadata": raw.get("metadata"),
+        }
+    )
 
 
 def _get_latest_user_content(messages: List[Any]) -> Optional[str]:
@@ -888,8 +898,14 @@ async def _resolve_and_bind_project(
     current_user: User,
     thread_obj: Any,
     page_context: Dict[str, Any],
-) -> None:
+) -> Optional[str]:
     """Fill ``page_context`` project fields and durably bind the agent thread.
+
+    Returns the *verified* project id (or ``None``). Callers that scope
+    anything to the project — project-memory recall in particular (R7-M2) —
+    must gate on this return value rather than re-reading
+    ``page_context["project_id"]``, so the ownership check can never be
+    silently decoupled from its consumers by a later refactor.
 
     The chat UI binds a project to its *workspace* thread, but agent runs
     execute on a separate auto-created agent thread, and the only other
@@ -910,7 +926,7 @@ async def _resolve_and_bind_project(
     best-effort: a failure there never blocks the turn.
     """
     if thread_obj is None and not page_context.get("project_id"):
-        return
+        return None
 
     from uuid import UUID as _UUID
 
@@ -983,7 +999,7 @@ async def _resolve_and_bind_project(
                     )
 
     if project_id is None:
-        return
+        return None
 
     page_context["project_id"] = project_id
     if project_name and not page_context.get("project_name"):
@@ -1020,6 +1036,8 @@ async def _resolve_and_bind_project(
                 await db.rollback()
             except Exception:  # noqa: BLE001
                 pass
+
+    return project_id
 
 
 async def _resolve_thread(
@@ -2244,13 +2262,16 @@ async def _run_agent_graph(
                 )
 
             page_context = _page_context_to_dict(request.page_context)
-            await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
+            _pm_project_id = await _resolve_and_bind_project(
+                db, current_user, thread_obj, page_context
+            )
 
             # Project-scoped memory: durable facts the user saved for this
             # project, recalled across every thread. Best-effort; never blocks
-            # a turn.
+            # a turn. Gated on the ownership-verified id returned above, and
+            # org-scoped (R7-M2) so a raw client-supplied project_id can never
+            # pull another tenant's memories into the prompt.
             project_memories: list = []
-            _pm_project_id = page_context.get("project_id")
             if _pm_project_id:
                 try:
                     from src.services.research.project_memory_service import (
@@ -2258,7 +2279,9 @@ async def _run_agent_graph(
                     )
 
                     project_memories = await load_project_memories(
-                        db, str(_pm_project_id)
+                        db,
+                        str(_pm_project_id),
+                        organization_id=getattr(current_user, "organization_id", None),
                     )
                 except Exception:
                     logger.warning("project memory load failed", exc_info=True)
@@ -2572,11 +2595,35 @@ async def _resume_agent_graph(
             if job and job.get("request"):
                 original_request = AgentExecuteRequest(**job["request"])
 
-            resume_thread_id = (
-                original_request.thread_id
-                if original_request and original_request.thread_id
-                else job_id
-            )
+            resume_thread_id = original_request.thread_id if original_request else None
+            if not resume_thread_id and original_request is not None:
+                # Legitimate no-thread run: a user with no workspace gets
+                # ``_resolve_thread -> None``, so ``_run_agent_graph``
+                # checkpointed under ``thread_id=job_id``. The payload is
+                # present and simply carries no thread_id — resume where the
+                # run actually wrote, or such users could never confirm.
+                resume_thread_id = job_id
+            if not resume_thread_id:
+                # R7-L13: the job payload is gone, so job_id is NOT a thread
+                # id here. Using it read an empty checkpoint, which skipped the
+                # ownership and interrupt-consumed guards below and failed the
+                # run anyway. Fail loudly instead; /confirm refuses this case
+                # up front.
+                logger.warning(
+                    "Resume aborted for %s: no job payload (expired)", job_id
+                )
+                await _set_job_async(
+                    job_id,
+                    {
+                        "status": JobStatus.FAILED,
+                        "error": (
+                            "This confirmation has expired. "
+                            "Please start the request again."
+                        ),
+                        **_actor_fields(current_user),
+                    },
+                )
+                return
 
             config = {
                 "recursion_limit": RECURSION_LIMIT,
