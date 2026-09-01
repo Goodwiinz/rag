@@ -16,7 +16,7 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
-from src.services.agent._sanitize import _sanitize_prompt_field
+from src.services.agent._sanitize import _sanitize_prompt_field, sanitize_page_context
 from src.services.agent.llm_factory import build_lightweight_llm
 from src.services.agent.trace_metadata import internal_llm_config
 
@@ -251,10 +251,9 @@ async def generate_plan(
     structured_llm = llm.with_structured_output(AgentPlan, method="function_calling")
 
     safe_query = _sanitize_prompt_field(query)
-    safe_page_context = {
-        k: _sanitize_prompt_field(str(v)) if isinstance(v, str) else v
-        for k, v in page_context.items()
-    }
+    # Recursive: the top-level-only comprehension this replaced embedded the
+    # free-form ``metadata`` dict raw (R7-H1).
+    safe_page_context = sanitize_page_context(page_context)
     prompt = (
         "Given the user query and available tools, generate a step-by-step "
         "execution plan.\n\n"

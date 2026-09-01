@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 from src.services.agent import job_store as _job_store
 from src.services.agent._builders import RECURSION_LIMIT
+from src.services.agent._sanitize import sanitize_page_context
 from src.services.agent.agent_run_service import get_run
 from src.services.agent.job_store import _is_newer_or_equal
 from src.services.agent.job_store import _l1 as _jobs
@@ -272,19 +273,28 @@ def _get_schemas():
 def _page_context_to_dict(
     page_context: Any,
 ) -> Dict[str, Any]:
-    """Normalize page context so every execution path forwards the same shape."""
+    """Normalize page context so every execution path forwards the same shape.
+
+    This is also the single trust boundary for client-supplied page context
+    (R7-H1): every string leaf — including the unconstrained ``metadata``
+    dict — is sanitized here, once, so no downstream prompt renderer
+    (llm_node, planner, classifier) is ever handed raw newlines or forged
+    ``##`` headings.
+    """
     if hasattr(page_context, "model_dump"):
         raw = page_context.model_dump()
     else:
         raw = page_context or {}
 
-    return {
-        "type": raw.get("type", "unknown"),
-        "project_id": raw.get("project_id"),
-        "project_name": raw.get("project_name"),
-        "label": raw.get("label"),
-        "metadata": raw.get("metadata"),
-    }
+    return sanitize_page_context(
+        {
+            "type": raw.get("type", "unknown"),
+            "project_id": raw.get("project_id"),
+            "project_name": raw.get("project_name"),
+            "label": raw.get("label"),
+            "metadata": raw.get("metadata"),
+        }
+    )
 
 
 def _get_latest_user_content(messages: List[Any]) -> Optional[str]:

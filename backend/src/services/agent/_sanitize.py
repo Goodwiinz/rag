@@ -9,7 +9,15 @@ _PROMPT_FIELD_MAX_CHARS : int
     Maximum character length for any sanitised field.
 _sanitize_prompt_field(value: str) -> str
     Truncate, escape braces, and collapse newlines in *value*.
+sanitize_page_context(ctx) -> dict
+    Recursively apply the above to every string leaf of a client-supplied
+    page context (keys included), depth- and width-limited.
+wrap_untrusted(text, source, max_chars) -> str
+    Fence third-party content (documents, memories) so the model can tell
+    data from instructions.
 """
+
+import re
 
 # Maximum length (chars) for any user-supplied string interpolated into a
 # classifier system prompt.  Truncating + neutralising braces/newlines is the
@@ -40,3 +48,73 @@ def _sanitize_prompt_field(value: str) -> str:
     # heading and visually impersonate prompt sections.
     text = text.replace("\r", " ").replace("\n", " ")
     return text
+
+
+# ---------------------------------------------------------------------------
+# Page context (R7-H1)
+# ---------------------------------------------------------------------------
+
+# ``PageContextRequest.metadata`` is an unconstrained ``Dict[str, Any]``, so
+# the client can nest arbitrary structures. Depth/width caps stop a nested
+# blob from flooding the prompt or blowing the recursion stack.
+_PAGE_CONTEXT_MAX_DEPTH = 4
+_PAGE_CONTEXT_MAX_KEYS = 20
+
+
+def _clean(value, depth: int):
+    if isinstance(value, str):
+        return _sanitize_prompt_field(value)
+    if isinstance(value, dict):
+        if depth >= _PAGE_CONTEXT_MAX_DEPTH:
+            return {}
+        return {
+            _clean(k, depth + 1) if isinstance(k, str) else k: _clean(v, depth + 1)
+            for k, v in list(value.items())[:_PAGE_CONTEXT_MAX_KEYS]
+        }
+    if isinstance(value, (list, tuple)):
+        if depth >= _PAGE_CONTEXT_MAX_DEPTH:
+            return []
+        return [_clean(v, depth + 1) for v in list(value)[:_PAGE_CONTEXT_MAX_KEYS]]
+    # int / float / bool / None pass through untouched.
+    return value
+
+
+def sanitize_page_context(ctx) -> dict:
+    """Sanitize every string leaf of a client-supplied page context.
+
+    Applied once at ingress (``_page_context_to_dict``) so every downstream
+    renderer — llm_node's page-context line, the planner, the classifier —
+    sees data that cannot forge a prompt section.
+    """
+    if not isinstance(ctx, dict):
+        return {}
+    return _clean(ctx, 0)
+
+
+# ---------------------------------------------------------------------------
+# Untrusted content fence (R7-H2)
+# ---------------------------------------------------------------------------
+
+_SOURCE_RE = re.compile(r"^[a-z_]+$")
+_UNTRUSTED_MAX_CHARS = 2000
+
+
+def wrap_untrusted(
+    text: str, source: str, max_chars: int = _UNTRUSTED_MAX_CHARS
+) -> str:
+    """Fence third-party content so the model can tell data from instructions.
+
+    ``source`` is a fixed label supplied by the caller (never user data) and
+    is validated to ``[a-z_]+`` so it cannot inject attributes. Any forged
+    ``<untrusted_content`` / ``</untrusted_content`` substring inside *text*
+    is entity-escaped so the content cannot close its own fence.
+    """
+    if not _SOURCE_RE.match(source or ""):
+        raise ValueError(f"invalid untrusted-content source: {source!r}")
+    body = str(text or "")
+    if len(body) > max_chars:
+        body = body[:max_chars] + "..."
+    body = body.replace("</untrusted_content", "&lt;/untrusted_content").replace(
+        "<untrusted_content", "&lt;untrusted_content"
+    )
+    return f'<untrusted_content source="{source}">\n{body}\n</untrusted_content>'
