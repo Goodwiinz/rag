@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.services.agent.agent_execution_service import _resolve_and_bind_project
+from typing import Any
 
 _FOREIGN_PROJECT = "11111111-1111-1111-1111-111111111111"
 
@@ -21,11 +22,11 @@ _FOREIGN_PROJECT = "11111111-1111-1111-1111-111111111111"
 class _DB:
     """AsyncSession stub whose SELECTs never match (unowned project)."""
 
-    def __init__(self, first=None, scalar=None):
+    def __init__(self, first: Any = None, scalar: Any = None) -> None:
         self._first = first
         self._scalar = scalar
 
-    async def execute(self, *_a, **_k):
+    async def execute(self, *_a: Any, **_k: Any) -> Any:
         result = MagicMock()
         result.first.return_value = self._first
         result.scalar_one_or_none.return_value = self._scalar
@@ -34,11 +35,11 @@ class _DB:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_foreign_project_id_is_rejected_and_not_returned():
+async def test_foreign_project_id_is_rejected_and_not_returned() -> None:
     page_context = {"project_id": _FOREIGN_PROJECT}
     user = MagicMock(id="user-a", organization_id="org-a")
 
-    verified = await _resolve_and_bind_project(_DB(), user, None, page_context)
+    verified = await _resolve_and_bind_project(_DB(), user, None, page_context)  # type: ignore[arg-type]
 
     assert verified is None
     assert page_context["project_id"] is None
@@ -46,12 +47,12 @@ async def test_foreign_project_id_is_rejected_and_not_returned():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_owned_project_id_is_returned():
+async def test_owned_project_id_is_returned() -> None:
     page_context = {"project_id": _FOREIGN_PROJECT}
     user = MagicMock(id="user-a", organization_id="org-a")
     db = _DB(first=(_FOREIGN_PROJECT, "My Project"))
 
-    verified = await _resolve_and_bind_project(db, user, None, page_context)
+    verified = await _resolve_and_bind_project(db, user, None, page_context)  # type: ignore[arg-type]
 
     assert verified == _FOREIGN_PROJECT
     assert page_context["project_id"] == _FOREIGN_PROJECT
@@ -62,7 +63,7 @@ async def test_owned_project_id_is_returned():
     "module",
     ["src.services.agent.agent_execution_service", "src.api.agent.streaming"],
 )
-def test_both_call_sites_scope_project_memories_by_org(module):
+def test_both_call_sites_scope_project_memories_by_org(module: Any) -> None:
     """Both recall sites must pass organization_id (R7-M2).
 
     A source assertion rather than a behavioural one: the surrounding code is
