@@ -21,6 +21,7 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import Field
 from typing_extensions import Annotated
 
+from src.services.agent.tool_helpers import _reject_invalid_arxiv_ids
 from src.services.agent.tool_registry import (
     AgentIntent,
     AgentSubgraph,
@@ -314,11 +315,18 @@ async def ingest_arxiv_papers(
     if over_cap:
         return over_cap
 
+    invalid = _reject_invalid_arxiv_ids(paper_ids)
+    if invalid:
+        return invalid
+
     async with _tool_context(config) as (db, current_user, page_ctx):
         user_id = str(current_user.id) if current_user else ""
         resolved_project_id = _resolve_project_id(project_id, page_ctx)
         return await _tool_ingest_arxiv(
-            {"paper_ids": list(paper_ids or []), "project_id": resolved_project_id},
+            {
+                "paper_ids": [str(p).strip() for p in (paper_ids or [])],
+                "project_id": resolved_project_id,
+            },
             user_id,
             db,
             current_user,
@@ -1309,10 +1317,13 @@ TOOL_REGISTRY = ToolRegistry(
             tool=forget_memory,
             intents=frozenset({AgentIntent.GENERAL}),
             subgraphs=frozenset(),
+            # Audit R7-L9: CONTEXT_FREE dropped — that fast path in
+            # execute_tool skips resolve_tool_user entirely, so a destructive
+            # delete ran for a user nobody had checked was active, undeleted
+            # and in the asserted org. No tool may be CONTEXT_FREE+DESTRUCTIVE.
             policy_tags=frozenset(
                 {
                     ToolPolicyTag.DESTRUCTIVE,
-                    ToolPolicyTag.CONTEXT_FREE,
                     ToolPolicyTag.NO_OUTER_RETRY,
                 }
             ),

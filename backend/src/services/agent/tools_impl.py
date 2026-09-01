@@ -6,6 +6,7 @@ and returns a dict result.
 """
 
 import asyncio
+import json
 import logging
 import re
 import threading
@@ -92,7 +93,12 @@ from src.models.user import User
 from src.services.agent.trace_metadata import internal_llm_config
 
 from .error_recovery import tool_error_payload
-from .tool_helpers import _escape_like, _resolve_document_id, _verify_project_ownership
+from .tool_helpers import (
+    _escape_like,
+    _reject_invalid_arxiv_ids,
+    _resolve_document_id,
+    _verify_project_ownership,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -666,6 +672,133 @@ def _registry_descriptor(tool_name: str):
     return TOOL_REGISTRY.descriptor(tool_name)
 
 
+# Audit R7-M4: no tool bounded its own output — a 50 MB sandbox stdout or a
+# verbose connector payload went straight into the message history (the
+# compactor never truncates). One cap at the dispatcher covers every tool.
+_MAX_TOOL_RESULT_BYTES = 32 * 1024
+_MIN_TRUNCATED_FIELD_CHARS = 200
+
+
+def _string_slots(node: Any, out: list) -> list:
+    """Collect ``(container, key, value)`` for every string leaf in *node*."""
+    items: Any
+    if isinstance(node, dict):
+        items = node.items()
+    elif isinstance(node, list):
+        items = enumerate(node)
+    else:
+        return out
+    for key, value in items:
+        if isinstance(value, str):
+            out.append((node, key, value))
+        else:
+            _string_slots(value, out)
+    return out
+
+
+def _leaf_slots(node: Any, out: list) -> list:
+    """Collect ``(container, key, value)`` for every non-container leaf."""
+    items: Any
+    if isinstance(node, dict):
+        items = node.items()
+    elif isinstance(node, list):
+        items = enumerate(node)
+    else:
+        return out
+    for key, value in items:
+        if isinstance(value, (dict, list)):
+            _leaf_slots(value, out)
+        else:
+            out.append((node, key, value))
+    return out
+
+
+def _redact_bytes(node: Any) -> None:
+    """Replace ``bytes``/``bytearray`` leaves with a size note, in place."""
+    items: Any
+    if isinstance(node, dict):
+        items = list(node.items())
+    elif isinstance(node, list):
+        items = list(enumerate(node))
+    else:
+        return
+    for key, value in items:
+        if isinstance(value, (bytes, bytearray)):
+            node[key] = f"<bytes: {len(value)}>"
+        else:
+            _redact_bytes(value)
+
+
+def _cap_tool_result(result: Any) -> Any:
+    """Bound the serialized size of a tool result (audit R7-M4)."""
+    if not isinstance(result, dict):
+        return result
+
+    def _size() -> Optional[int]:
+        try:
+            return len(json.dumps(result, default=str))
+        except (TypeError, ValueError):
+            return None
+
+    size = _size()
+    if size is None:
+        return result
+    if size <= _MAX_TOOL_RESULT_BYTES:
+        return result
+
+    # A binary leaf (execute_code's PNG) can blow the cap on its own, and no
+    # amount of *string* truncation reaches it — swap it for a size note
+    # before the string budget is computed.
+    _redact_bytes(result)
+    size = _size()
+    if size is None:
+        return result
+
+    slots = _string_slots(result, [])
+    total = sum(len(value) for _, _, value in slots)
+    # 10% headroom absorbs the "…[truncated N chars]" markers we append.
+    budget = int((_MAX_TOOL_RESULT_BYTES - (size - total)) * 0.9)
+    if budget > 0 and slots:
+        # Water-fill: the largest per-field length whose clamped total fits.
+        lengths = sorted(len(value) for _, _, value in slots)
+        remaining = budget
+        limit = lengths[-1]
+        for i, length in enumerate(lengths):
+            left = len(lengths) - i
+            if length * left <= remaining:
+                remaining -= length
+                continue
+            limit = max(_MIN_TRUNCATED_FIELD_CHARS, remaining // left)
+            break
+
+        for container, key, value in slots:
+            if len(value) > limit:
+                container[key] = (
+                    value[:limit] + f"…[truncated {len(value) - limit} chars]"
+                )
+    result["truncated"] = True
+
+    # String truncation alone can leave us over the cap (a long tail of
+    # already-short fields, or structural overhead). Drop the biggest
+    # remaining leaves until it fits — the dispatcher's cap must hold for
+    # every payload it returns, not just the string-dominated ones.
+    while True:
+        size = _size()
+        if size is None or size <= _MAX_TOOL_RESULT_BYTES:
+            return result
+        candidates = [
+            (len(json.dumps(value, default=str)), container, key)
+            for container, key, value in _leaf_slots(result, [])
+        ]
+        # A placeholder is ~30 chars; swapping anything smaller grows the
+        # payload instead of shrinking it.
+        biggest = max(candidates, key=lambda item: item[0], default=None)
+        if biggest is None or biggest[0] <= 48:
+            return {"error": "Tool result too large to return.", "truncated": True}
+        n, container, key = biggest
+        container[key] = f"<omitted: {type(container[key]).__name__}, {n} bytes>"
+
+
 async def execute_tool(
     tool_name: str,
     args: Dict[str, Any],
@@ -697,29 +830,33 @@ async def execute_tool(
     from src.services.agent.tool_registry import ToolPolicyTag
 
     if descriptor and ToolPolicyTag.CONTEXT_FREE in descriptor.policy_tags:
-        return await _dispatch_tool(
-            tool_name,
-            args,
-            user_id,
-            db,
-            current_user,
-            thread_id,
-            runtime_snapshot_id,
-            project_id,
-            organization_id=organization_id,
+        return _cap_tool_result(
+            await _dispatch_tool(
+                tool_name,
+                args,
+                user_id,
+                db,
+                current_user,
+                thread_id,
+                runtime_snapshot_id,
+                project_id,
+                organization_id=organization_id,
+            )
         )
 
     if db is not None or current_user is not None:
-        return await _dispatch_tool(
-            tool_name,
-            args,
-            user_id,
-            db,
-            current_user,
-            thread_id,
-            runtime_snapshot_id,
-            project_id,
-            organization_id=organization_id,
+        return _cap_tool_result(
+            await _dispatch_tool(
+                tool_name,
+                args,
+                user_id,
+                db,
+                current_user,
+                thread_id,
+                runtime_snapshot_id,
+                project_id,
+                organization_id=organization_id,
+            )
         )
 
     from src.services.agent.tool_session import resolve_tool_user, tool_session
@@ -731,16 +868,18 @@ async def execute_tool(
         # expire_on_commit=False keeps the loaded User usable and the tool's
         # own statements transparently begin a new transaction.
         await session.commit()
-        return await _dispatch_tool(
-            tool_name,
-            args,
-            user_id,
-            session,
-            resolved_user,
-            thread_id,
-            runtime_snapshot_id,
-            project_id,
-            organization_id=organization_id,
+        return _cap_tool_result(
+            await _dispatch_tool(
+                tool_name,
+                args,
+                user_id,
+                session,
+                resolved_user,
+                thread_id,
+                runtime_snapshot_id,
+                project_id,
+                organization_id=organization_id,
+            )
         )
 
 
@@ -803,12 +942,14 @@ async def _dispatch_tool(
     if tool_name == "list_external_databases":
         return await _tool_list_external_databases(args)
     if tool_name == "forget_memory":
-        # Tenant must reach the delete: memories are written under the
-        # org-scoped namespace, so an unscoped delete would search the legacy
-        # namespace and report deleted=0 (review on #1595).
+        # Audit R7-L9: a DESTRUCTIVE tool acts only for a user that
+        # resolve_tool_user actually verified (active, not deleted, in the
+        # asserted org) — never for a raw config-supplied user_id.
+        if current_user is None:
+            return {"error": "forget_memory: authentication required"}
         return await _tool_forget_memory(
             query=args.get("query", ""),
-            user_id=user_id,
+            user_id=str(current_user.id),
             organization_id=organization_id or None,
             page_context=None,
         )
@@ -1292,6 +1433,13 @@ async def _tool_ingest_arxiv(
         return {"error": "No paper IDs provided"}
     if len(paper_ids) > 10:
         return {"error": "Maximum 10 papers per ingest request"}
+
+    # R7-L11 lived only in the LangChain wrapper, which production dispatch
+    # (_nodes_tools -> execute_tool -> here) never runs, so an id like
+    # "../../robots.txt?x=" reached the arXiv fetch unvalidated.
+    invalid = _reject_invalid_arxiv_ids(paper_ids)
+    if invalid:
+        return invalid
 
     # Reject placeholder/hallucinated project_ids early so we don't ingest
     # papers we can't link. Trace 019e1a1c showed the planner passing
@@ -3064,6 +3212,12 @@ async def _tool_execute_code(
 
     if not code:
         return {"error": "No code provided"}
+
+    # Audit R7-L10: the sandbox is keyed by thread_id and is stateful, so an
+    # empty key would put every context-less call into one shared box. The
+    # wrapper's guard is unreachable — _nodes_tools calls execute_tool direct.
+    if not thread_id:
+        return {"error": "Code execution requires a conversation thread."}
 
     from src.services.sandbox.e2b_sandbox_manager import get_sandbox_manager
 
