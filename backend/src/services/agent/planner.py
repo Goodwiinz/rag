@@ -303,15 +303,19 @@ def render_plan_directive(plan: list[dict] | None) -> str | None:
     """
     if not plan:
         return None
+    # R7-L2: description / tool / args_hint are model-emitted and can echo
+    # injected document text. Sanitising each rendered string keeps them on a
+    # single line so nothing can impersonate a prompt section (execution is
+    # already tool-allowlisted, so this is the whole fix).
     lines: list[str] = []
     for step in plan:
-        tool = (step.get("tool") or "").strip()
-        desc = (step.get("description") or "").strip()
+        tool = _sanitize_prompt_field((step.get("tool") or "").strip())
+        desc = _sanitize_prompt_field((step.get("description") or "").strip())
         if not desc:
             continue
         if tool and tool.upper() != "N/A":
             args = step.get("args_hint")
-            arg_str = f"  args: {args}" if args else ""
+            arg_str = f"  args: {_sanitize_prompt_field(str(args))}" if args else ""
             lines.append(f"{step.get('step', '?')}. [{tool}] {desc}{arg_str}")
         else:
             lines.append(f"{step.get('step', '?')}. {desc}")

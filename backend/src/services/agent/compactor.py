@@ -47,6 +47,17 @@ _PLACEHOLDER_CONTENTS: frozenset[str] = frozenset({'{"status": "skipped"}'})
 # get cut mid-sentence, but small enough to deliver meaningful token savings.
 _COMPACT_MAX_TOKENS = 320
 
+# Cap what we hand the compactor LLM. Tool results are attacker-influenced
+# (document text, web pages); without a bound one oversized result can blow
+# the lightweight model's context and burn the budget. Well above any real
+# tool payload we want summarised faithfully.
+_COMPACT_INPUT_MAX_CHARS = 12_000
+
+# Marker for "this ToolMessage is already a compaction summary". Tracked in
+# additional_kwargs rather than by the display prefix, which any tool result
+# (hence any document the tool read) could spoof to exempt itself forever.
+_COMPACTED_FLAG = "compacted"
+
 # Maximum number of compaction rounds per conversation. Without a cap,
 # should_compact re-fires every turn once the token threshold is crossed,
 # burning LLM calls on already-compacted context.
@@ -162,7 +173,10 @@ def find_compaction_candidates(messages: list[BaseMessage]) -> list[ToolMessage]
 
     The most recent AIMessage with ``tool_calls`` and its corresponding
     ToolMessages are *protected* (never compacted).  All older ToolMessages
-    that are not already ``[Compacted]``-prefixed are returned as candidates.
+    that are not already flagged as compaction output are returned as
+    candidates. Candidacy is decided by ``additional_kwargs["compacted"]``,
+    never by the ``[Compacted]`` display prefix — that prefix is just text a
+    tool result could contain.
     """
     # Walk backward to find the most recent AIMessage with tool_calls.
     latest_ai_idx: int | None = None
@@ -184,7 +198,7 @@ def find_compaction_candidates(messages: list[BaseMessage]) -> list[ToolMessage]
         if not isinstance(msg, ToolMessage):
             continue
         content = msg.content if isinstance(msg.content, str) else ""
-        if content.startswith(_COMPACTED_PREFIX):
+        if (getattr(msg, "additional_kwargs", None) or {}).get(_COMPACTED_FLAG):
             continue
         if content.strip() in _PLACEHOLDER_CONTENTS:
             # Synthetic skipped-tool placeholder — nothing to summarise.
@@ -287,13 +301,14 @@ async def compact_messages(
     async def _compact_one(msg: ToolMessage) -> Optional[ToolMessage]:
         original_content = msg.content if isinstance(msg.content, str) else ""
         original_ids = extract_ids(original_content)
+        llm_input = original_content[:_COMPACT_INPUT_MAX_CHARS]
 
         try:
             async with semaphore:
                 response = await llm.ainvoke(
                     [
                         SystemMessage(content=_COMPACTION_SYSTEM_PROMPT),
-                        HumanMessage(content=original_content),
+                        HumanMessage(content=llm_input),
                     ],
                     config=internal_llm_config(config),
                 )
@@ -321,6 +336,10 @@ async def compact_messages(
             content=f"{_COMPACTED_PREFIX} {summary}",
             tool_call_id=msg.tool_call_id,
             id=msg.id,
+            additional_kwargs={
+                **(getattr(msg, "additional_kwargs", None) or {}),
+                _COMPACTED_FLAG: True,
+            },
             # Preserve the original status — compaction must not reset an
             # error message to LangChain's default status="success".
             status=getattr(msg, "status", "success") or "success",

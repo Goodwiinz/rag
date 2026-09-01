@@ -890,6 +890,38 @@ def _should_skip_reflection(state: dict) -> tuple[bool, str]:
     return (False, "")
 
 
+# R7-L3: the assistant response is embedded verbatim in the reflection user
+# prompt while the user request is capped at 400 chars, so a response echoing
+# injected document text could both drown the critique prompt and open its own
+# "## " section. Cap it and defang leading markdown headings — but keep the
+# newlines, because response formatting is part of what reflection critiques.
+_MAX_REFLECTION_RESPONSE_CHARS = 6000
+_LEADING_HEADING_RE = re.compile(r"(?m)^[ \t]*#+")
+
+
+def _render_response_for_reflection(raw_content: Any) -> str:
+    """Render an AIMessage content payload for the reflection prompt."""
+    if isinstance(raw_content, list):
+        # Multimodal content (list of content blocks). Render only the text
+        # parts so the reflection prompt stays human-readable.
+        text_parts: list[str] = []
+        for block in raw_content:
+            if isinstance(block, str):
+                text_parts.append(block)
+            elif isinstance(block, dict):
+                if block.get("type") == "text" and isinstance(block.get("text"), str):
+                    text_parts.append(block["text"])
+        rendered = "\n".join(text_parts) or "(no text content)"
+    elif isinstance(raw_content, str) and raw_content:
+        rendered = raw_content
+    else:
+        return "(no content)"
+
+    if len(rendered) > _MAX_REFLECTION_RESPONSE_CHARS:
+        rendered = rendered[:_MAX_REFLECTION_RESPONSE_CHARS] + "..."
+    return _LEADING_HEADING_RE.sub(lambda m: m.group(0).replace("#", r"\#"), rendered)
+
+
 async def reflect_on_response(
     last_ai_message: AIMessage,
     original_user_message: str,
@@ -929,22 +961,7 @@ async def reflect_on_response(
             plan_lines
         )
 
-    raw_content = last_ai_message.content
-    if isinstance(raw_content, list):
-        # Multimodal content (list of content blocks). Render only the text
-        # parts so the reflection prompt stays human-readable.
-        text_parts: list[str] = []
-        for block in raw_content:
-            if isinstance(block, str):
-                text_parts.append(block)
-            elif isinstance(block, dict):
-                if block.get("type") == "text" and isinstance(block.get("text"), str):
-                    text_parts.append(block["text"])
-        rendered_content = "\n".join(text_parts) or "(no text content)"
-    elif isinstance(raw_content, str) and raw_content:
-        rendered_content = raw_content
-    else:
-        rendered_content = "(no content)"
+    rendered_content = _render_response_for_reflection(last_ai_message.content)
 
     user_prompt = (
         f"## User's original request\n{_sanitize_prompt_field(original_user_message)}\n\n"

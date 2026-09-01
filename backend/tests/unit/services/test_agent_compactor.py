@@ -149,14 +149,23 @@ class TestFindCompactionCandidates:
         assert candidates[0].id == "m-old"
 
     def test_skips_already_compacted(self):
-        """Messages with [Compacted] prefix are not candidates."""
+        """Messages flagged as compaction output are not candidates.
+
+        Flagged via ``additional_kwargs`` — the ``[Compacted]`` prefix alone
+        is attacker-settable text (R7-L5) and no longer exempts anything.
+        """
         messages = [
             HumanMessage(content="hello"),
             AIMessage(
                 content="",
                 tool_calls=[{"id": "tc-1", "name": "search", "args": {}}],
             ),
-            _tool_msg("[Compacted] summary", tool_call_id="tc-1", msg_id="m-1"),
+            ToolMessage(
+                content="[Compacted] summary",
+                tool_call_id="tc-1",
+                id="m-1",
+                additional_kwargs={"compacted": True},
+            ),
             AIMessage(
                 content="",
                 tool_calls=[{"id": "tc-2", "name": "search", "args": {}}],

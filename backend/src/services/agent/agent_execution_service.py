@@ -888,8 +888,14 @@ async def _resolve_and_bind_project(
     current_user: User,
     thread_obj: Any,
     page_context: Dict[str, Any],
-) -> None:
+) -> Optional[str]:
     """Fill ``page_context`` project fields and durably bind the agent thread.
+
+    Returns the *verified* project id (or ``None``). Callers that scope
+    anything to the project — project-memory recall in particular (R7-M2) —
+    must gate on this return value rather than re-reading
+    ``page_context["project_id"]``, so the ownership check can never be
+    silently decoupled from its consumers by a later refactor.
 
     The chat UI binds a project to its *workspace* thread, but agent runs
     execute on a separate auto-created agent thread, and the only other
@@ -910,7 +916,7 @@ async def _resolve_and_bind_project(
     best-effort: a failure there never blocks the turn.
     """
     if thread_obj is None and not page_context.get("project_id"):
-        return
+        return None
 
     from uuid import UUID as _UUID
 
@@ -983,7 +989,7 @@ async def _resolve_and_bind_project(
                     )
 
     if project_id is None:
-        return
+        return None
 
     page_context["project_id"] = project_id
     if project_name and not page_context.get("project_name"):
@@ -1020,6 +1026,8 @@ async def _resolve_and_bind_project(
                 await db.rollback()
             except Exception:  # noqa: BLE001
                 pass
+
+    return project_id
 
 
 async def _resolve_thread(
@@ -2244,13 +2252,16 @@ async def _run_agent_graph(
                 )
 
             page_context = _page_context_to_dict(request.page_context)
-            await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
+            _pm_project_id = await _resolve_and_bind_project(
+                db, current_user, thread_obj, page_context
+            )
 
             # Project-scoped memory: durable facts the user saved for this
             # project, recalled across every thread. Best-effort; never blocks
-            # a turn.
+            # a turn. Gated on the ownership-verified id returned above, and
+            # org-scoped (R7-M2) so a raw client-supplied project_id can never
+            # pull another tenant's memories into the prompt.
             project_memories: list = []
-            _pm_project_id = page_context.get("project_id")
             if _pm_project_id:
                 try:
                     from src.services.research.project_memory_service import (
@@ -2258,7 +2269,9 @@ async def _run_agent_graph(
                     )
 
                     project_memories = await load_project_memories(
-                        db, str(_pm_project_id)
+                        db,
+                        str(_pm_project_id),
+                        organization_id=getattr(current_user, "organization_id", None),
                     )
                 except Exception:
                     logger.warning("project memory load failed", exc_info=True)

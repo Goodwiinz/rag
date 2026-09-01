@@ -3249,6 +3249,7 @@ async def _tool_forget_memory(
     *,
     query: str,
     user_id: str,
+    organization_id: str | None = None,
     page_context: dict | None = None,
 ) -> dict:
     """Handler for the forget_memory agent tool."""
@@ -3263,7 +3264,13 @@ async def _tool_forget_memory(
     if store is None:
         return {"error": "forget_memory: memory store unavailable"}
 
-    result = await delete_memory_by_query(store, user_id=user_id, query=query, limit=5)
+    result = await delete_memory_by_query(
+        store,
+        user_id=user_id,
+        query=query,
+        limit=5,
+        organization_id=organization_id,
+    )
     return {
         "status": "completed",
         "deleted": result["deleted"],

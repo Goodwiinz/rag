@@ -937,9 +937,9 @@ async def forget_memory(
     from src.services.agent.tools_impl import _tool_forget_memory
 
     # Memory is keyed by the scalar user_id — no session or ORM user needed.
-    user_id, _org_id, page_ctx = _get_ids(config)
+    user_id, org_id, page_ctx = _get_ids(config)
     return await _tool_forget_memory(
-        query=query, user_id=user_id, page_context=page_ctx
+        query=query, user_id=user_id, organization_id=org_id, page_context=page_ctx
     )
 
 
