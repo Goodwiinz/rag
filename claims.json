@@ -1,24 +1,6 @@
 {
-  "claims": [
-    {
-      "agent": "codex-mac",
-      "area": "rollout-smoke/shared",
-      "branch": "codex/nous-smoke-mac",
-      "candidate": null,
-      "claim_id": "c-cae89e7fc823",
-      "claimed_at": "2026-09-01T19:45:48.231734+00:00",
-      "expires_at": "2026-09-01T22:45:48.231734+00:00",
-      "files": [
-        "scripts/nous_run.py"
-      ],
-      "machine_id": "mac-goodwiinz",
-      "pr": null,
-      "renewed_at": null,
-      "run_id": "20260901T194547Z-codex-mac-427716",
-      "status": "active"
-    }
-  ],
+  "claims": [],
   "mode": "remote-required",
   "schema": 2,
-  "updated_at": "2026-09-01T19:49:01.074568+00:00"
+  "updated_at": "2026-09-01T19:49:34.744045+00:00"
 }
