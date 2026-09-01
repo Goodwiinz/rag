@@ -2572,11 +2572,35 @@ async def _resume_agent_graph(
             if job and job.get("request"):
                 original_request = AgentExecuteRequest(**job["request"])
 
-            resume_thread_id = (
-                original_request.thread_id
-                if original_request and original_request.thread_id
-                else job_id
-            )
+            resume_thread_id = original_request.thread_id if original_request else None
+            if not resume_thread_id and original_request is not None:
+                # Legitimate no-thread run: a user with no workspace gets
+                # ``_resolve_thread -> None``, so ``_run_agent_graph``
+                # checkpointed under ``thread_id=job_id``. The payload is
+                # present and simply carries no thread_id — resume where the
+                # run actually wrote, or such users could never confirm.
+                resume_thread_id = job_id
+            if not resume_thread_id:
+                # R7-L13: the job payload is gone, so job_id is NOT a thread
+                # id here. Using it read an empty checkpoint, which skipped the
+                # ownership and interrupt-consumed guards below and failed the
+                # run anyway. Fail loudly instead; /confirm refuses this case
+                # up front.
+                logger.warning(
+                    "Resume aborted for %s: no job payload (expired)", job_id
+                )
+                await _set_job_async(
+                    job_id,
+                    {
+                        "status": JobStatus.FAILED,
+                        "error": (
+                            "This confirmation has expired. "
+                            "Please start the request again."
+                        ),
+                        **_actor_fields(current_user),
+                    },
+                )
+                return
 
             config = {
                 "recursion_limit": RECURSION_LIMIT,

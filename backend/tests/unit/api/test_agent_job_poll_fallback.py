@@ -111,7 +111,11 @@ async def test_threadless_execute_survives_job_store_outage(
 
 
 @pytest.mark.asyncio
-async def test_confirm_store_outage_falls_back_to_agent_runs_projection() -> None:
+async def test_confirm_without_a_job_payload_fails_closed() -> None:
+    """R7-L13: the projection can restore status and ownership, never the
+    request payload the resume needs. Admitting the confirm used to claim the
+    run (awaiting -> running) and then fail it from the background task; the
+    endpoint now refuses before the claim so the run stays parked."""
     user = _user()
     job_id = str(uuid.uuid4())
     run = SimpleNamespace(
@@ -157,14 +161,16 @@ async def test_confirm_store_outage_falls_back_to_agent_runs_projection() -> Non
             db=db,
         )
 
-    assert exc.value.status_code == 503
+    assert exc.value.status_code == 409
+    assert "expired" in str(exc.value.detail).lower()
     projection_read.assert_awaited_once_with(
         db,
         job_id,
         organization_id=user.organization_id,
         user_id=user.id,
     )
-    release.assert_awaited_once()
+    # Nothing was claimed, so nothing needs releasing and the run is untouched.
+    release.assert_not_awaited()
 
 
 @pytest.mark.asyncio
