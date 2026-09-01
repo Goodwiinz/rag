@@ -124,6 +124,8 @@ def sanitize_page_context(ctx) -> dict:
 # ---------------------------------------------------------------------------
 
 _SOURCE_RE = re.compile(r"^[a-z_]+$")
+# Case-insensitive: a model reads `</UNTRUSTED_CONTENT>` as a closer too.
+_FENCE_TAG_RE = re.compile(r"</?untrusted_content", re.IGNORECASE)
 _UNTRUSTED_MAX_CHARS = 2000
 
 
@@ -142,7 +144,5 @@ def wrap_untrusted(
     body = str(text or "")
     if len(body) > max_chars:
         body = body[:max_chars] + "..."
-    body = body.replace("</untrusted_content", "&lt;/untrusted_content").replace(
-        "<untrusted_content", "&lt;untrusted_content"
-    )
+    body = _FENCE_TAG_RE.sub(lambda m: "&lt;" + m.group(0)[1:], body)
     return f'<untrusted_content source="{source}">\n{body}\n</untrusted_content>'

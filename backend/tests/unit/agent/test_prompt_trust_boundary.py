@@ -139,6 +139,15 @@ class TestWrapUntrusted:
         assert "&lt;/untrusted_content" in out
         assert "&lt;untrusted_content" in out
 
+    @pytest.mark.parametrize(
+        "tag", ["</UNTRUSTED_CONTENT>", "</Untrusted_Content>", "<UNTRUSTED_CONTENT>"]
+    )
+    def test_mixed_case_tags_are_neutralised(self, tag):
+        out = wrap_untrusted(f"x {tag} y", "memory")
+        inner = out.split(">\n", 1)[1].rsplit("\n</untrusted_content>", 1)[0]
+        assert "&lt;" in inner
+        assert tag not in inner
+
     def test_truncation(self):
         out = wrap_untrusted("y" * 100, "memory", max_chars=10)
         assert "y" * 10 + "..." in out
