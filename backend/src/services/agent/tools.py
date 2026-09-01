@@ -89,6 +89,14 @@ _MAX_PROJECT_LIMIT = 100
 # inputs from bleeding into the dynamic dispatch in the implementation.
 _CONNECTOR_NAME_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
 
+# Audit R7-L11: paper ids are interpolated straight into
+# ``https://arxiv.org/pdf/{id}`` (redirects followed), so anything outside the
+# arXiv id grammar — new style ``2401.12345v2``, old style ``math.GT/0309136``
+# — is a fetch of somewhere else entirely. Validate before it gets there.
+_ARXIV_PAPER_ID_RE = re.compile(
+    r"^(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z\-]+(?:\.[A-Z]{2})?/\d{7}(?:v\d+)?)$"
+)
+
 
 def _clamp_int(value: int, *, lo: int, hi: int) -> int:
     """Clamp ``value`` into the inclusive range ``[lo, hi]``."""
@@ -113,6 +121,26 @@ def _reject_over_cap(
             "error": (
                 f"Maximum {cap} {noun} per request; {len(values)} were "
                 f"requested. Split them into batches of {cap} or fewer."
+            )
+        }
+    return None
+
+
+def _reject_invalid_arxiv_ids(
+    paper_ids: Optional[List[str]],
+) -> Optional[Dict[str, Any]]:
+    """Return an error payload when any id is not a valid arXiv id (R7-L11)."""
+    bad = [
+        str(pid)
+        for pid in (paper_ids or [])
+        if not _ARXIV_PAPER_ID_RE.match(str(pid).strip())
+    ]
+    if bad:
+        listed = ", ".join(repr(b[:64]) for b in bad[:5])
+        return {
+            "error": (
+                f"Invalid arXiv paper id(s): {listed}. Expected forms like "
+                "'2401.12345', '2401.12345v2' or 'math.GT/0309136'."
             )
         }
     return None
@@ -314,11 +342,18 @@ async def ingest_arxiv_papers(
     if over_cap:
         return over_cap
 
+    invalid = _reject_invalid_arxiv_ids(paper_ids)
+    if invalid:
+        return invalid
+
     async with _tool_context(config) as (db, current_user, page_ctx):
         user_id = str(current_user.id) if current_user else ""
         resolved_project_id = _resolve_project_id(project_id, page_ctx)
         return await _tool_ingest_arxiv(
-            {"paper_ids": list(paper_ids or []), "project_id": resolved_project_id},
+            {
+                "paper_ids": [str(p).strip() for p in (paper_ids or [])],
+                "project_id": resolved_project_id,
+            },
             user_id,
             db,
             current_user,
@@ -1309,10 +1344,13 @@ TOOL_REGISTRY = ToolRegistry(
             tool=forget_memory,
             intents=frozenset({AgentIntent.GENERAL}),
             subgraphs=frozenset(),
+            # Audit R7-L9: CONTEXT_FREE dropped — that fast path in
+            # execute_tool skips resolve_tool_user entirely, so a destructive
+            # delete ran for a user nobody had checked was active, undeleted
+            # and in the asserted org. No tool may be CONTEXT_FREE+DESTRUCTIVE.
             policy_tags=frozenset(
                 {
                     ToolPolicyTag.DESTRUCTIVE,
-                    ToolPolicyTag.CONTEXT_FREE,
                     ToolPolicyTag.NO_OUTER_RETRY,
                 }
             ),

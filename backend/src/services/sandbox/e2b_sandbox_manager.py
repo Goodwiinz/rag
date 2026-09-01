@@ -36,6 +36,17 @@ class ExecutionResult:
     results: List[Dict[str, Any]] = field(default_factory=list)
 
 
+# Audit R7-M4: sandboxed code can print unbounded output; cap each stream at
+# the source so a runaway loop never reaches the message history.
+MAX_LOG_CHARS = 16 * 1024
+
+
+def _cap_log(text: str) -> str:
+    if not isinstance(text, str) or len(text) <= MAX_LOG_CHARS:
+        return text
+    return text[:MAX_LOG_CHARS] + f"…[truncated {len(text) - MAX_LOG_CHARS} chars]"
+
+
 # Default packages pre-installed in every sandbox
 DEFAULT_PACKAGES = [
     "numpy",
@@ -148,8 +159,8 @@ class SandboxManager:
             self._execution_counts[thread_id] = count + 1
             self._last_used[thread_id] = time.monotonic()
 
-            stdout = execution.logs.stdout if execution.logs else ""
-            stderr = execution.logs.stderr if execution.logs else ""
+            stdout = _cap_log(execution.logs.stdout if execution.logs else "")
+            stderr = _cap_log(execution.logs.stderr if execution.logs else "")
 
             return ExecutionResult(
                 stdout=stdout,

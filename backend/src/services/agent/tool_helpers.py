@@ -144,9 +144,17 @@ async def _resolve_document_id(
         except Exception:
             logger.debug("arxiv_id resolution failed for %r", bare_id, exc_info=True)
 
-    # Try by title (case-insensitive)
+    # Try by title (case-insensitive).
+    #
+    # Audit R7-L8: this took the newest of any substring match, so "report"
+    # silently resolved to whichever "Q3 Report (draft)" happened to be newest
+    # and add_document_to_project / summarize_document / extract_entities then
+    # acted on the wrong document. The substring query stays (audit B9), but
+    # the result must be unambiguous: exactly one row whose title is an exact
+    # case-insensitive match. Anything else is a miss — callers handle that.
     if document_id:
         try:
+            wanted = document_id.strip().lower()
             stmt = (
                 select(Document)
                 .where(
@@ -155,12 +163,12 @@ async def _resolve_document_id(
                     Document.is_deleted == False,
                 )
                 .order_by(desc(Document.created_at))
-                .limit(1)
+                .limit(2)
             )
             result = await db.execute(stmt)
-            doc = result.scalar_one_or_none()
-            if doc:
-                return doc
+            docs = list(result.scalars().all())
+            if len(docs) == 1 and (docs[0].title or "").strip().lower() == wanted:
+                return docs[0]
         except Exception:
             pass
 
