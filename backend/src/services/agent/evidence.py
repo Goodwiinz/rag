@@ -36,11 +36,13 @@ Return STRICT JSON and nothing else:
 If the excerpt is irrelevant: {{"relevance": 0, "summary": "", "quote": ""}}"""
 
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.S)
+# Case-insensitive: the model reads `</CHUNK>` as a closer just as readily.
+_CLOSER_RE = re.compile(r"</chunk", re.IGNORECASE)
 
 
 def _fence(text: str) -> str:
     """Entity-escape the closing tag so chunk text cannot end its own fence."""
-    return str(text or "").replace("</chunk", "&lt;/chunk")
+    return _CLOSER_RE.sub("&lt;/chunk", str(text or ""))
 
 
 def _build_rcs_prompt(query: str, title: str, text: str) -> str:

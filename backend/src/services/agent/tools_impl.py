@@ -706,6 +706,7 @@ async def execute_tool(
             thread_id,
             runtime_snapshot_id,
             project_id,
+            organization_id=organization_id,
         )
 
     if db is not None or current_user is not None:
@@ -718,6 +719,7 @@ async def execute_tool(
             thread_id,
             runtime_snapshot_id,
             project_id,
+            organization_id=organization_id,
         )
 
     from src.services.agent.tool_session import resolve_tool_user, tool_session
@@ -738,6 +740,7 @@ async def execute_tool(
             thread_id,
             runtime_snapshot_id,
             project_id,
+            organization_id=organization_id,
         )
 
 
@@ -750,6 +753,7 @@ async def _dispatch_tool(
     thread_id: str = "",
     runtime_snapshot_id: str = "",
     project_id: str = "",
+    organization_id: str = "",
 ) -> Dict[str, Any]:
     """Route a tool call to its ``_tool_*`` implementation."""
     if tool_name == "search_arxiv":
@@ -799,9 +803,13 @@ async def _dispatch_tool(
     if tool_name == "list_external_databases":
         return await _tool_list_external_databases(args)
     if tool_name == "forget_memory":
+        # Tenant must reach the delete: memories are written under the
+        # org-scoped namespace, so an unscoped delete would search the legacy
+        # namespace and report deleted=0 (review on #1595).
         return await _tool_forget_memory(
             query=args.get("query", ""),
             user_id=user_id,
+            organization_id=organization_id or None,
             page_context=None,
         )
     if tool_name == "load_project_skill":

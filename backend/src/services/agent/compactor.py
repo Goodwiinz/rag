@@ -298,10 +298,21 @@ async def compact_messages(
     llm = _build_compactor_llm()
     semaphore = asyncio.Semaphore(_COMPACTION_PARALLELISM)
 
+    def _bound_for_summary(text: str) -> str:
+        # Head + tail sample rather than a prefix: a do_kb_retrieve result
+        # lists chunks in order, so a pure prefix would drop the last chunks
+        # from the summary for good (review on #1595).
+        if len(text) <= _COMPACT_INPUT_MAX_CHARS:
+            return text
+        head = _COMPACT_INPUT_MAX_CHARS * 2 // 3
+        tail = _COMPACT_INPUT_MAX_CHARS - head
+        omitted = len(text) - head - tail
+        return f"{text[:head]}\n…[{omitted} chars omitted]…\n{text[-tail:]}"
+
     async def _compact_one(msg: ToolMessage) -> Optional[ToolMessage]:
         original_content = msg.content if isinstance(msg.content, str) else ""
         original_ids = extract_ids(original_content)
-        llm_input = original_content[:_COMPACT_INPUT_MAX_CHARS]
+        llm_input = _bound_for_summary(original_content)
 
         try:
             async with semaphore:
