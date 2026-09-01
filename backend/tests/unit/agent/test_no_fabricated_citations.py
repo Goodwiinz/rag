@@ -12,10 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.services.agent._nodes_llm import (
-    NO_RETRIEVAL_GUIDANCE,
-    _retrieval_context_part,
-)
+from src.services.agent._nodes_llm import NO_RETRIEVAL_GUIDANCE, _retrieval_context_part
 from src.services.agent._prompts import _LLM_NODE_STATIC_PROMPT
 
 

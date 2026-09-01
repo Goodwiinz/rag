@@ -30,7 +30,6 @@ from langchain_core.runnables import RunnableConfig
 from src.core.config import get_settings
 from src.services.agent._nodes_rag import _coerce_text
 from src.services.agent._nodes_tools import AGENT_LLM_TIMEOUT_SECONDS
-from src.services.agent._sanitize import _sanitize_prompt_field, wrap_untrusted
 from src.services.agent._prompts import (
     _LLM_NODE_STATIC_PROMPT,
     INTENT_PROMPTS,
@@ -38,6 +37,7 @@ from src.services.agent._prompts import (
     _merge_run_config,
     _runtime_model_line,
 )
+from src.services.agent._sanitize import _sanitize_prompt_field, wrap_untrusted
 from src.services.agent.observability import (
     record_loop_exhaustion,
     track_node_execution,
