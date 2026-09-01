@@ -19,6 +19,11 @@ wrap_untrusted(text, source, max_chars) -> str
 
 import re
 
+# Every code point that starts a new line for a model tokenizer or a
+# markdown renderer — not just CR/LF (Codex review on #1594): NEL, VT, FF,
+# LINE SEPARATOR, PARAGRAPH SEPARATOR.
+_LINE_BREAK_RE = re.compile(r"[\r\n\x0b\x0c\x85\u2028\u2029]")
+
 # Maximum length (chars) for any user-supplied string interpolated into a
 # classifier system prompt.  Truncating + neutralising braces/newlines is the
 # minimum defence against prompt-injection via previous_turn / prior_tool /
@@ -46,7 +51,7 @@ def _sanitize_prompt_field(value: str) -> str:
     text = text.replace("{", "{{").replace("}", "}}")
     # Collapse newlines so dynamic content cannot start a new markdown
     # heading and visually impersonate prompt sections.
-    text = text.replace("\r", " ").replace("\n", " ")
+    text = _LINE_BREAK_RE.sub(" ", text)
     return text
 
 
@@ -59,17 +64,40 @@ def _sanitize_prompt_field(value: str) -> str:
 # blob from flooding the prompt or blowing the recursion stack.
 _PAGE_CONTEXT_MAX_DEPTH = 4
 _PAGE_CONTEXT_MAX_KEYS = 20
+# Keys the execution service reads for control flow, not for prompt text.
+# They survive the width cap so a metadata flood cannot knock out project
+# binding (Codex review on #1594).
+_PAGE_CONTEXT_KEEP_KEYS = frozenset({"workspace_thread_id"})
+
+
+def _sanitize_page_value(text: str) -> str:
+    """Idempotent leaf sanitizer for page context: cap + line collapse only.
+
+    No brace doubling — page context is rendered through f-strings, never
+    ``str.format``, so escaping is unnecessary and would compound on every
+    re-entry (resume path, planner). Applying this twice yields the same
+    string, which is what makes a sanitize-at-ingress design safe.
+    """
+    if not text:
+        return ""
+    text = str(text)
+    if len(text) > _PROMPT_FIELD_MAX_CHARS:
+        text = text[:_PROMPT_FIELD_MAX_CHARS] + "..."
+    return _LINE_BREAK_RE.sub(" ", text)
 
 
 def _clean(value, depth: int):
     if isinstance(value, str):
-        return _sanitize_prompt_field(value)
+        return _sanitize_page_value(value)
     if isinstance(value, dict):
         if depth >= _PAGE_CONTEXT_MAX_DEPTH:
             return {}
+        items = list(value.items())
+        kept = [kv for kv in items if kv[0] in _PAGE_CONTEXT_KEEP_KEYS]
+        rest = [kv for kv in items if kv[0] not in _PAGE_CONTEXT_KEEP_KEYS]
         return {
             _clean(k, depth + 1) if isinstance(k, str) else k: _clean(v, depth + 1)
-            for k, v in list(value.items())[:_PAGE_CONTEXT_MAX_KEYS]
+            for k, v in kept + rest[:_PAGE_CONTEXT_MAX_KEYS]
         }
     if isinstance(value, (list, tuple)):
         if depth >= _PAGE_CONTEXT_MAX_DEPTH:

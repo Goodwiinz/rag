@@ -244,13 +244,18 @@ def _retrieval_context_part(retrieved: list) -> str:
     """
     if retrieved:
         # Document text is third-party data, not instructions (R7-H2): fence
-        # it so the model can tell the two apart, and neutralise the title so
-        # a crafted filename cannot forge a prompt section. Content is already
-        # capped at 3000 chars upstream (_nodes_rag); the cap here is a floor
-        # under any future caller.
+        # it so the model can tell the two apart. The title goes INSIDE the
+        # fence too — a crafted filename is as attacker-controlled as the body
+        # (Codex review on #1594). Content is already capped at 3000 chars
+        # upstream (_nodes_rag); the cap here is a floor under any future
+        # caller.
         context_text = "\n\n".join(
-            f"[Doc {i + 1}] {_sanitize_prompt_field(ctx['title'])}:\n"
-            + wrap_untrusted(ctx["content"], "retrieved_document", 3000)
+            f"[Doc {i + 1}]\n"
+            + wrap_untrusted(
+                f"title: {_sanitize_prompt_field(ctx['title'])}\n{ctx['content']}",
+                "retrieved_document",
+                3100,
+            )
             for i, ctx in enumerate(retrieved)
         )
         return f"Retrieved context:\n{context_text}"

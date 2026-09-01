@@ -348,7 +348,9 @@ def _resolve_tool_concurrency(default: int = 3) -> int:
 # worker uvicorn under spawn mode hits the same issue. Lazy-init per loop
 # via WeakKeyDictionary so the right semaphore is reused for the lifetime
 # of each loop without leaking references after the loop is closed.
-_TOOL_SEMAPHORES: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = weakref.WeakKeyDictionary()
+_TOOL_SEMAPHORES: (
+    "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]"
+) = weakref.WeakKeyDictionary()
 
 
 def _get_tool_semaphore() -> asyncio.Semaphore:

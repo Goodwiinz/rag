@@ -35,8 +35,10 @@ class TestRetrievalContextPart:
             ]
         )
         assert part.startswith("Retrieved context:")
-        assert "[Doc 1] Attention Is All You Need" in part
-        assert "[Doc 2] Transformer-XL" in part
+        assert "[Doc 1]" in part
+        assert "title: Attention Is All You Need" in part
+        assert "[Doc 2]" in part
+        assert "title: Transformer-XL" in part
         assert NO_RETRIEVAL_GUIDANCE not in part
 
 
