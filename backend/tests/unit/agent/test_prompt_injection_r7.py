@@ -371,7 +371,16 @@ async def test_forget_memory_dispatch_forwards_organization() -> None:
         return {"status": "completed", "deleted": 0, "matches": []}
 
     with patch.object(tools_impl, "_tool_forget_memory", _fake):
+        # R7-L9 (#1596): the destructive branch fails closed without a
+        # resolved user, so the tenant is forwarded only alongside one.
+        user = MagicMock()
+        user.id = "u1"
         await tools_impl._dispatch_tool(
-            "forget_memory", {"query": "q"}, "u1", organization_id="org-9"
+            "forget_memory",
+            {"query": "q"},
+            "u1",
+            current_user=user,
+            organization_id="org-9",
         )
     assert captured["organization_id"] == "org-9"
+    assert captured["user_id"] == "u1"
