@@ -29,8 +29,8 @@ APP_ID="${CLAUDE_APP_ID:-}"
 for arg in "$@"; do
   case "$arg" in
     --apply) APPLY=1 ;;
-    [0-9]*) APP_ID="$arg" ;;
-    *) echo "unknown argument: $arg" >&2; exit 2 ;;
+    ''|*[!0-9]*) echo "unknown argument: $arg" >&2; exit 2 ;;
+    *) APP_ID="$arg" ;;
   esac
 done
 
@@ -40,7 +40,9 @@ if [ -z "$APP_ID" ]; then
   exit 2
 fi
 
-CONTEXTS=(
+# Prefer the live classic-protection list so a check added in the UI after this
+# script was written is carried over; fall back to the known set otherwise.
+FALLBACK_CONTEXTS=(
   "Lint Backend"
   "Lint Frontend"
   "Unit Tests"
@@ -53,6 +55,15 @@ CONTEXTS=(
   "Integration Tests"
   "Resilience Tests"
 )
+classic_checks_json="$(gh api "repos/$REPO/branches/$BRANCH/protection/required_status_checks" 2>/dev/null || true)"
+if [ -n "$classic_checks_json" ]; then
+  CONTEXTS=()
+  while IFS= read -r ctx; do CONTEXTS+=("$ctx"); done < <(echo "$classic_checks_json" | jq -r '.contexts[]')
+  echo "contexts:        read ${#CONTEXTS[@]} from classic protection"
+else
+  CONTEXTS=("${FALLBACK_CONTEXTS[@]}")
+  echo "contexts:        classic list absent, using ${#CONTEXTS[@]} built-in"
+fi
 
 checks_json="$(printf '%s\n' "${CONTEXTS[@]}" |
   jq -R -s --argjson app "$ACTIONS_APP_ID" \
@@ -108,7 +119,11 @@ fi
 
 echo
 echo ">> writing ruleset"
-echo "$payload" | gh api --method "$method" "$endpoint" --input - >/dev/null
-echo ">> removing required_status_checks from classic protection"
-gh api --method DELETE "repos/$REPO/branches/$BRANCH/protection/required_status_checks"
+echo "$payload" | gh api --method "$method" "$endpoint" --input - | jq '{id, name, enforcement}'
+if [ -n "$classic_checks_json" ]; then
+  echo ">> removing required_status_checks from classic protection"
+  gh api --method DELETE "repos/$REPO/branches/$BRANCH/protection/required_status_checks"
+else
+  echo ">> classic required_status_checks already absent, nothing to remove"
+fi
 echo ">> done. Verify: gh api repos/$REPO/branches/$BRANCH/protection"
