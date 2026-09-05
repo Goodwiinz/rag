@@ -13,12 +13,17 @@ import {
 } from '@/store/chat-store';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/stores/authStore';
-import { AnimatePresence, motion } from 'framer-motion';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import {
+  Dialog,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Activity,
   BookOpen,
   FileText,
-  FolderOpen,
   Plus,
   Search,
   Settings,
@@ -79,13 +84,6 @@ function CommandPalette({
         label: 'Search Documents',
         icon: Search,
         shortcut: '⌘/',
-        category: 'actions',
-      },
-      {
-        id: 'collection',
-        label: 'Create Collection',
-        icon: FolderOpen,
-        shortcut: '⌘G',
         category: 'actions',
       },
       {
@@ -183,31 +181,25 @@ function CommandPalette({
 
   if (!isOpen) return null;
 
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        // Marks Escape as owned by this overlay — see ArtifactPanel, whose
-        // document-level Escape handler would otherwise close the panel
-        // behind the palette on the same key press.
-        data-dismissable-overlay
-        className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
-        onClick={onClose}
-      >
-        {/* Backdrop */}
-        <div className="absolute inset-0 bg-(--nous-erebus)/50" />
+  const activeCommandId = filteredCommands[selectedIndex]
+    ? `chat-command-${filteredCommands[selectedIndex].id}`
+    : undefined;
 
-        {/* Palette */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: -20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: -20 }}
-          transition={{ duration: 0.15, ease: 'easeOut' }}
-          onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-2xl overflow-hidden rounded-(--nous-radius-lg) border border-(--nous-border-1) bg-(--nous-bg-2) shadow-(--nous-shadow-lg)"
+  return (
+    // Radix owns the focus trap, Escape and focus restore. `data-dismissable-overlay`
+    // marks Escape as owned by this overlay — see ArtifactPanel, whose
+    // document-level Escape handler would otherwise close the panel behind the
+    // palette on the same key press.
+    <Dialog open onOpenChange={(next) => !next && onClose()}>
+      <DialogPortal>
+        <DialogOverlay className="bg-(--nous-erebus)/50" />
+        <DialogPrimitive.Content
+          data-dismissable-overlay
+          aria-label="Command palette"
+          aria-describedby={undefined}
+          className="fixed left-1/2 top-[15vh] z-50 w-full max-w-2xl -translate-x-1/2 overflow-hidden rounded-(--nous-radius-lg) border border-(--nous-border-1) bg-(--nous-bg-2) shadow-(--nous-shadow-lg)"
         >
+          <DialogTitle className="sr-only">Command palette</DialogTitle>
           {/* Search Input */}
           <div className="flex items-center gap-3 px-4 py-4 border-b border-(--nous-border-1)">
             <Search className="w-5 h-5 text-(--nous-sol)" />
@@ -215,6 +207,12 @@ function CommandPalette({
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              role="combobox"
+              aria-label="Search commands"
+              aria-expanded="true"
+              aria-controls="chat-command-list"
+              aria-activedescendant={activeCommandId}
+              placeholder="Type a command"
               className="flex-1 bg-transparent text-(--nous-fg-1) text-sm outline-hidden"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             />
@@ -227,20 +225,36 @@ function CommandPalette({
           </div>
 
           {/* Results */}
-          <div className="max-h-[60vh] overflow-y-auto nous-scrollbar p-2">
+          <div
+            id="chat-command-list"
+            role="listbox"
+            aria-label="Commands"
+            className="max-h-[60vh] overflow-y-auto nous-scrollbar p-2"
+          >
             {Object.entries(groupedCommands).map(([category, cmds]) => (
-              <div key={category} className="mb-4">
+              <div
+                key={category}
+                role="group"
+                aria-label={
+                  category === 'actions' ? 'Quick actions' : 'Navigate'
+                }
+                className="mb-4"
+              >
                 <div
+                  aria-hidden="true"
                   className="px-3 py-2 text-[10px] text-(--nous-fg-3) uppercase tracking-wider"
                   style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
-                  {category === 'actions' ? '⚡ Quick Actions' : '🔗 Navigate'}
+                  {category === 'actions' ? 'Quick actions' : 'Navigate'}
                 </div>
                 {cmds.map((cmd) => {
                   const globalIdx = commandIndexMap.get(cmd.id) ?? -1;
                   return (
                     <button
                       key={cmd.id}
+                      id={`chat-command-${cmd.id}`}
+                      role="option"
+                      aria-selected={globalIdx === selectedIndex}
                       className={cn(
                         'w-full flex items-center gap-3 px-3 py-3 rounded transition-all',
                         globalIdx === selectedIndex
@@ -320,9 +334,9 @@ function CommandPalette({
               {filteredCommands.length} results
             </span>
           </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    </Dialog>
   );
 }
 
@@ -529,8 +543,14 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
             case 'new-chat':
               router.push('/chat/new');
               break;
+            case 'upload':
+              router.push('/documents/upload');
+              break;
             case 'search':
               router.push('/search');
+              break;
+            case 'settings':
+              router.push('/settings');
               break;
             case 'arxiv':
               router.push('/arxiv');
