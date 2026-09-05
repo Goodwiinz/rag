@@ -402,6 +402,79 @@ def _with_injected_project_id(tc: dict, page_context: dict) -> dict:
     return {**tc, "args": tool_args}
 
 
+# Tools whose execution commits a side effect outside the graph state, so a
+# checkpoint replay of the same turn would duplicate it (audit B8-I1). Fixed
+# set on purpose: every other tool is a read, and a receipt for a read costs a
+# round trip and buys nothing.
+SIDE_EFFECT_TOOLS = frozenset(
+    {
+        "create_project",
+        "create_project_note",
+        "create_draft",
+        "ingest_arxiv_papers",
+        "execute_code",
+    }
+)
+
+
+async def _tool_receipt_exists(tool_call_id: str) -> bool:
+    """True when *tool_call_id* has already run to completion.
+
+    Best effort: a receipt-store outage must not block the tool. Failing open
+    restores the old (replay-prone) behaviour rather than breaking the turn.
+    """
+    from sqlalchemy import select
+
+    from src.models.agent_tool_receipt import AgentToolReceipt
+    from src.services.agent.tool_session import tool_session
+
+    try:
+        async with tool_session() as session:
+            found = await session.execute(
+                select(AgentToolReceipt.tool_call_id).where(
+                    AgentToolReceipt.tool_call_id == tool_call_id
+                )
+            )
+            return found.scalar_one_or_none() is not None
+    except Exception:  # noqa: BLE001 - never fail a tool over its receipt
+        logger.warning(
+            "tool receipt lookup failed for %s; executing anyway",
+            tool_call_id,
+            exc_info=True,
+        )
+        return False
+
+
+async def _record_tool_receipt(
+    tool_call_id: str, tool_name: str, thread_id: str
+) -> None:
+    """Write the receipt for a completed side-effecting call, best effort."""
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    from src.models.agent_tool_receipt import AgentToolReceipt
+    from src.services.agent.tool_session import tool_session
+
+    try:
+        async with tool_session() as session:
+            await session.execute(
+                pg_insert(AgentToolReceipt)
+                .values(
+                    tool_call_id=tool_call_id,
+                    tool_name=tool_name,
+                    thread_id=thread_id or None,
+                )
+                .on_conflict_do_nothing(index_elements=["tool_call_id"])
+            )
+            await session.commit()
+    except Exception:  # noqa: BLE001 - the side effect already happened
+        logger.warning(
+            "tool receipt write failed for %s (%s)",
+            tool_call_id,
+            tool_name,
+            exc_info=True,
+        )
+
+
 async def _execute_single_tool(
     tc: dict,
     config: RunnableConfig,
@@ -424,6 +497,39 @@ async def _execute_single_tool(
     error_increment = 0
     error_text = ""
     error_info: dict = {}
+    thread_id = str((config.get("configurable") or {}).get("thread_id", "") or "")
+
+    # B8-I1: a durable receipt is the only replay guard that survives the
+    # node. The per-turn state["tool_executions"] list dies with the
+    # checkpoint, so a turn resumed from the pre-tool_node checkpoint would
+    # re-commit the side effect.
+    if tool_name in SIDE_EFFECT_TOOLS and await _tool_receipt_exists(tool_call_id):
+        skipped = {
+            "status": "skipped",
+            "reason": "already_executed",
+            "tool_call_id": tool_call_id,
+        }
+        # No "error" key: the classifier keys on that, and a skipped replay is
+        # not a failure.
+        return {
+            "message": ToolMessage(
+                content=json.dumps(skipped),
+                tool_call_id=tool_call_id,
+                status="success",
+            ),
+            "execution": {
+                "id": tool_call_id,
+                "tool_name": tool_name,
+                "tool_display_name": tool_name.replace("_", " ").title(),
+                "args": tool_args,
+                "status": "skipped",
+                "result": skipped,
+                "duration_ms": 0,
+            },
+            "error_increment": 0,
+            "error_text": "",
+            "error_info": {},
+        }
 
     timeout = (
         _SLOW_TOOL_TIMEOUT_SECONDS
@@ -441,7 +547,6 @@ async def _execute_single_tool(
             # AsyncSession / ORM User out of the LangGraph config.
             user_id = str(configurable.get("user_id", "") or "")
             organization_id = str(configurable.get("organization_id", "") or "")
-            thread_id = str(configurable.get("thread_id", "") or "")
             runtime_snapshot_id = str(configurable.get("runtime_snapshot_id", "") or "")
             project_id = str(configurable.get("project_id", "") or "")
 
@@ -528,6 +633,9 @@ async def _execute_single_tool(
             error_info = tool_error.to_state_info()
             result_content = tool_error.to_tool_message_content()
             _record_tool_error_category(tool_name, tool_error.category)
+
+    if status == "completed" and tool_name in SIDE_EFFECT_TOOLS:
+        await _record_tool_receipt(tool_call_id, tool_name, thread_id)
 
     duration_ms = int((time.monotonic() - t0) * 1000)
     _record_tool_metrics(tool_name, status)
