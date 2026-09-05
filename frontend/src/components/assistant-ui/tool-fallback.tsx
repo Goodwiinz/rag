@@ -158,7 +158,7 @@ function ToolFallbackTrigger({
     <CollapsibleTrigger
       data-slot="tool-fallback-trigger"
       className={cn(
-        "aui-tool-fallback-trigger group/trigger text-foreground/55 hover:text-foreground/90 flex min-h-11 w-full origin-left items-center gap-2 py-1.5 text-[13.5px] transition-[color,scale] outline-none active:scale-[0.98]",
+        "aui-tool-fallback-trigger group/trigger text-foreground/55 hover:text-foreground/90 flex min-h-11 w-full origin-left items-center gap-2 py-1.5 text-[13.5px] transition-[color,scale] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 active:scale-[0.98]",
         className,
       )}
       {...props}

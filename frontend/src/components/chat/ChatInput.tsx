@@ -718,14 +718,14 @@ export function ChatInput({
                     e.currentTarget.style.background = 'transparent';
                     e.currentTarget.style.color = 'var(--nous-fg-3)';
                   }}
-                  aria-label="Attach file"
                   title="Attach file"
                 >
                   <Paperclip className="w-3.5 h-3.5" strokeWidth={1.7} />
                   <input
                     type="file"
                     multiple
-                    className="hidden"
+                    aria-label="Attach file"
+                    className="sr-only"
                     onChange={(e) => {
                       const files = e.target.files;
                       if (files && files.length > 0) {
@@ -746,7 +746,6 @@ export function ChatInput({
                     e.currentTarget.style.background = 'transparent';
                     e.currentTarget.style.color = 'var(--nous-fg-3)';
                   }}
-                  aria-label="Attach image"
                   title="Attach image"
                 >
                   <ImageIcon className="w-3.5 h-3.5" strokeWidth={1.7} />
@@ -754,7 +753,8 @@ export function ChatInput({
                     type="file"
                     accept="image/*"
                     multiple
-                    className="hidden"
+                    aria-label="Attach image"
+                    className="sr-only"
                     onChange={(e) => {
                       const files = e.target.files;
                       if (files && files.length > 0) {

@@ -128,7 +128,10 @@ export function ProjectPickerPopover({
         </div>
 
         {error && (
-          <div className="px-2.5 py-1.5 text-[11px] text-(--nous-mars) border-b border-(--nous-border-1) dark:border-(--nous-shade)">
+          <div
+            role="alert"
+            className="px-2.5 py-1.5 text-[11px] text-(--nous-mars) border-b border-(--nous-border-1) dark:border-(--nous-shade)"
+          >
             {error}
           </div>
         )}
