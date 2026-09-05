@@ -488,7 +488,7 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
                 projectName={resolvedProjectName}
                 onProjectBound={handleProjectBound}
                 onSelect={handleRailSelect}
-                className="hidden lg:flex shrink-0 w-[320px] border-l border-(--nous-border-1)"
+                className="hidden md:flex shrink-0 md:w-[280px] lg:w-[320px] border-l border-(--nous-border-1)"
               />
             )}
             {showArtifactPanel && (
