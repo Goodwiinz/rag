@@ -83,9 +83,7 @@ describe('ChatHeader', () => {
   });
 
   describe('export wiring', () => {
-    const messages = [
-      { role: 'user', content: 'hi', timestamp: 1 },
-    ];
+    const messages = [{ role: 'user', content: 'hi', timestamp: 1 }];
 
     beforeEach(() => {
       // userEvent awaits internal timers; the file-level fake timers hang it.
@@ -93,12 +91,27 @@ describe('ChatHeader', () => {
       exportThreadMock.mockResolvedValue(undefined);
       vi.useRealTimers();
       // downloadFile (the no-thread local fallback) touches URL.createObjectURL.
-      (
-        URL as unknown as { createObjectURL: () => string }
-      ).createObjectURL = () => 'blob:mock';
-      (
-        URL as unknown as { revokeObjectURL: () => void }
-      ).revokeObjectURL = () => {};
+      (URL as unknown as { createObjectURL: () => string }).createObjectURL =
+        () => 'blob:mock';
+      (URL as unknown as { revokeObjectURL: () => void }).revokeObjectURL =
+        () => {};
+    });
+
+    it('exposes menu semantics and restores focus on Escape', async () => {
+      const user = userEvent.setup();
+      render(<ChatHeader messages={messages} threadId="thread-123" />);
+
+      const trigger = screen.getByLabelText('Export chat');
+      expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+
+      await user.click(trigger);
+      expect(screen.getByRole('menu')).toBeInTheDocument();
+      expect(trigger).toHaveAttribute('aria-expanded', 'true');
+      expect(screen.getAllByRole('menuitem')).toHaveLength(3);
+
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(document.activeElement).toBe(trigger);
     });
 
     it('uses the backend export (with citations+metadata) when a thread is persisted', async () => {
@@ -109,11 +122,10 @@ describe('ChatHeader', () => {
       await user.click(screen.getByText('Export as Markdown'));
 
       expect(exportThreadMock).toHaveBeenCalledTimes(1);
-      expect(exportThreadMock).toHaveBeenCalledWith(
-        'thread-123',
-        'markdown',
-        { includeCitations: true, includeMetadata: true }
-      );
+      expect(exportThreadMock).toHaveBeenCalledWith('thread-123', 'markdown', {
+        includeCitations: true,
+        includeMetadata: true,
+      });
     });
 
     it('does not call the backend export for a brand-new chat (no thread)', async () => {
