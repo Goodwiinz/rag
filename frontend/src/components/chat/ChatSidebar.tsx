@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils';
 import { isToday, isYesterday, formatDistanceToNowStrict } from 'date-fns';
 import {
   CheckSquare,
-  ChevronDown,
   MessageSquare,
   Network,
   Pencil,
@@ -124,9 +123,7 @@ export const ChatSidebar = memo(function ChatSidebar({
   const handleLoadMore = useCallback(() => {
     if (!onLoadMoreThreads || isLoadingMore) return;
     setIsLoadingMore(true);
-    Promise.resolve(onLoadMoreThreads()).finally(() =>
-      setIsLoadingMore(false)
-    );
+    Promise.resolve(onLoadMoreThreads()).finally(() => setIsLoadingMore(false));
   }, [onLoadMoreThreads, isLoadingMore]);
 
   const filteredConversations = useMemo(() => {
@@ -190,11 +187,7 @@ export const ChatSidebar = memo(function ChatSidebar({
       {/* Top chrome — pinned, doesn't scroll */}
       <div className="shrink-0 p-3.5 pb-3 flex flex-col gap-2.5 border-b border-(--nous-border-1) dark:border-(--nous-shade)">
         {/* Workspace switcher */}
-        <button
-          type="button"
-          aria-label="Select workspace"
-          className="w-full flex items-center gap-[9px] px-2.5 py-2 rounded-lg border border-(--nous-border-1) dark:border-(--nous-shade) bg-transparent hover:border-(--nous-sol)/30 hover:bg-(--nous-bg-2) dark:hover:bg-(--nous-obsidian) transition-all min-w-0"
-        >
+        <div className="w-full flex items-center gap-[9px] px-2.5 py-2 rounded-lg border border-(--nous-border-1) dark:border-(--nous-shade) bg-transparent min-w-0">
           <div className="w-[22px] h-[22px] rounded-[5px] flex items-center justify-center bg-(--nous-aurum) dark:bg-(--nous-ember) shrink-0">
             <Network className="w-3 h-3 text-(--nous-sol-safe) dark:text-(--nous-helios)" />
           </div>
@@ -216,8 +209,7 @@ export const ChatSidebar = memo(function ChatSidebar({
               {conversations.length !== 1 ? 's' : ''}
             </span>
           </div>
-          <ChevronDown className="w-3 h-3 text-(--nous-fg-3) shrink-0" />
-        </button>
+        </div>
 
         {/* New chat */}
         <button
@@ -251,15 +243,9 @@ export const ChatSidebar = memo(function ChatSidebar({
             placeholder="Search threads..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-8 bg-(--nous-bg-2) dark:bg-(--nous-obsidian) border border-(--nous-border-1) dark:border-(--nous-shade) rounded-[7px] py-0 pl-[30px] pr-[38px] text-xs text-(--nous-fg-1) placeholder-(--nous-fg-3) focus:outline-hidden focus:border-(--nous-sol) dark:focus:border-(--nous-helios) focus:bg-(--nous-bg-1) transition-all"
+            className="w-full h-8 bg-(--nous-bg-2) dark:bg-(--nous-obsidian) border border-(--nous-border-1) dark:border-(--nous-shade) rounded-[7px] py-0 pl-[30px] pr-2.5 text-xs text-(--nous-fg-1) placeholder-(--nous-fg-3) focus:outline-hidden focus:border-(--nous-sol) dark:focus:border-(--nous-helios) focus:bg-(--nous-bg-1) transition-all"
             style={{ fontFamily: 'var(--nous-font-ui)' }}
           />
-          <kbd
-            className="absolute right-2 top-1/2 -translate-y-1/2 px-[5px] py-px bg-(--nous-bg-1) dark:bg-(--nous-nyx) border border-(--nous-border-1) dark:border-(--nous-shade) rounded-[3px] text-[9px] font-semibold text-(--nous-fg-3) pointer-events-none"
-            style={{ fontFamily: 'var(--nous-font-mono)' }}
-          >
-            ⌘K
-          </kbd>
         </div>
       </div>
 
@@ -364,12 +350,11 @@ export const ChatSidebar = memo(function ChatSidebar({
               const messageCount = conv.messageCount ?? conv.messages.length;
               const lastMessage = conv.messages[conv.messages.length - 1];
               const previewSource = conv.previewText || lastMessage?.content;
-              const snippet =
-                previewSource
-                  ? truncatePreview(previewSource)
-                  : messageCount > 0
-                    ? `${messageCount} message${messageCount === 1 ? '' : 's'}`
-                    : 'No messages yet';
+              const snippet = previewSource
+                ? truncatePreview(previewSource)
+                : messageCount > 0
+                  ? `${messageCount} message${messageCount === 1 ? '' : 's'}`
+                  : 'No messages yet';
 
               return (
                 <div key={conv.id} className="relative group/row">

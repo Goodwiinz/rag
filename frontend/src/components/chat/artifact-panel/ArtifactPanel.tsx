@@ -7,6 +7,7 @@ import {
   ExternalLink,
   ListTree,
   Pin,
+  RefreshCw,
   PinOff,
   X,
 } from 'lucide-react';
@@ -22,7 +23,10 @@ import {
 import { DocumentInlineViewer } from '@/components/documents/DocumentInlineViewer';
 import { cn } from '@/lib/utils';
 import { documentService } from '@/services/documentService';
-import { useArtifactPanelStore, type Artifact } from '@/store/artifactPanelStore';
+import {
+  useArtifactPanelStore,
+  type Artifact,
+} from '@/store/artifactPanelStore';
 import type { Citation } from '@/utils/citationParser';
 
 // Version suffix included: the backend stores versioned external references
@@ -57,7 +61,7 @@ function DocumentArtifactBody({
 }: {
   documentId: string;
 }): React.ReactElement {
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['document', documentId],
     queryFn: () => documentService.getDocument(documentId),
   });
@@ -74,7 +78,14 @@ function DocumentArtifactBody({
   }
 
   if (isError || !data) {
-    return <ArtifactContentError what="document" />;
+    return (
+      <ArtifactContentError
+        what="document"
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
   }
 
   return (
@@ -132,8 +143,10 @@ function ArtifactContentSkeleton(): React.ReactElement {
 
 function ArtifactContentError({
   what,
+  onRetry,
 }: {
   what: string;
+  onRetry?: () => void;
 }): React.ReactElement {
   return (
     <div
@@ -150,6 +163,16 @@ function ArtifactContentError({
       <p className="mt-1 max-w-sm text-xs text-(--nous-fg-3)">
         It may have been deleted, or you may not have access to it.
       </p>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-4 inline-flex items-center gap-2 rounded-lg border border-(--nous-border-1) bg-(--nous-bg-1) px-4 py-2 text-sm font-medium text-(--nous-fg-2) transition-colors hover:bg-(--nous-bg-2) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <RefreshCw aria-hidden="true" className="h-4 w-4" />
+          Retry
+        </button>
+      )}
     </div>
   );
 }
@@ -159,12 +182,20 @@ function NoteArtifactBody({
 }: {
   artifact: Extract<Artifact, { kind: 'note' }>;
 }): React.ReactElement {
-  const { data, isLoading, isError } = useNoteArtifact(
+  const { data, isLoading, isError, refetch } = useNoteArtifact(
     artifact.projectId,
     artifact.id
   );
   if (isLoading) return <ArtifactContentSkeleton />;
-  if (isError || !data) return <ArtifactContentError what="note" />;
+  if (isError || !data)
+    return (
+      <ArtifactContentError
+        what="note"
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
   return (
     <div className="nous-prose p-4 font-nous-body text-sm leading-relaxed text-(--nous-fg-1)">
       <ChatMarkdown content={data.content} />
@@ -177,12 +208,20 @@ function DraftArtifactBody({
 }: {
   artifact: Extract<Artifact, { kind: 'draft' }>;
 }): React.ReactElement {
-  const { data, isLoading, isError } = useDraftArtifact(
+  const { data, isLoading, isError, refetch } = useDraftArtifact(
     artifact.projectId,
     artifact.id
   );
   if (isLoading) return <ArtifactContentSkeleton />;
-  if (isError || !data) return <ArtifactContentError what="draft" />;
+  if (isError || !data)
+    return (
+      <ArtifactContentError
+        what="draft"
+        onRetry={() => {
+          void refetch();
+        }}
+      />
+    );
   return (
     <div className="p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2 font-nous-mono text-[10px] text-(--nous-fg-3)">
@@ -327,7 +366,11 @@ export function ArtifactPanel({
           )}
           <IconButton
             icon={
-              pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />
+              pinned ? (
+                <PinOff className="h-4 w-4" />
+              ) : (
+                <Pin className="h-4 w-4" />
+              )
             }
             label={
               pinned

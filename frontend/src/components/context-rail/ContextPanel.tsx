@@ -1,6 +1,6 @@
 'use client';
 
-import { Database, Globe, Activity } from 'lucide-react';
+import { Database, Activity } from 'lucide-react';
 import { CollapsibleCard } from './CollapsibleCard';
 
 interface ContextPanelProps {
@@ -91,14 +91,10 @@ export function ContextPanel({
   ragEnabled = false,
   workspaceName,
 }: ContextPanelProps) {
-  const activeCount = ragEnabled ? 1 : 0;
-  const totalCount = 3;
-
   return (
     <CollapsibleCard
       title="Context"
       icon={<Activity className="h-3 w-3" strokeWidth={1.7} />}
-      badge={`${activeCount}/${totalCount}`}
     >
       <div
         className="text-[9px] uppercase mb-2 mt-1 text-(--nous-fg-3)"
@@ -121,18 +117,6 @@ export function ContextPanel({
                 : 'Active'
               : 'Off'
           }
-        />
-        <ConnectorRow
-          icon={<Globe className="h-4 w-4" strokeWidth={1.7} />}
-          name="Web search"
-          status="offline"
-          detail="Not connected"
-        />
-        <ConnectorRow
-          icon={<Activity className="h-4 w-4" strokeWidth={1.7} />}
-          name="Agent tools"
-          status="idle"
-          detail="Ready"
         />
       </ul>
     </CollapsibleCard>
