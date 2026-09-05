@@ -3426,13 +3426,17 @@ async def _tool_forget_memory(
     if store is None:
         return {"error": "forget_memory: memory store unavailable"}
 
-    result = await delete_memory_by_query(
-        store,
-        user_id=user_id,
-        query=query,
-        limit=5,
-        organization_id=organization_id,
-    )
+    try:
+        result = await delete_memory_by_query(
+            store,
+            user_id=user_id,
+            query=query,
+            limit=5,
+            organization_id=organization_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("forget_memory tool failed", exc_info=exc)
+        return tool_error_payload("forget_memory", exc)
     return {
         "status": "completed",
         "deleted": result["deleted"],
