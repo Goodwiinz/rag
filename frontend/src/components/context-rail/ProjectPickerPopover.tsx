@@ -55,8 +55,12 @@ export function ProjectPickerPopover({
 
   useEffect(() => {
     if (open) {
+      // Reset transient search state each time the popover reopens; the trigger
+      // lives outside this component, so there is no open handler to do it in.
+      /* eslint-disable react-hooks/set-state-in-effect */
       setQuery('');
       setError(null);
+      /* eslint-enable react-hooks/set-state-in-effect */
       doFetch();
     }
     return () => {
@@ -124,7 +128,10 @@ export function ProjectPickerPopover({
         </div>
 
         {error && (
-          <div className="px-2.5 py-1.5 text-[11px] text-red-500 border-b border-(--nous-border-1) dark:border-(--nous-shade)">
+          <div
+            role="alert"
+            className="px-2.5 py-1.5 text-[11px] text-red-500 border-b border-(--nous-border-1) dark:border-(--nous-shade)"
+          >
             {error}
           </div>
         )}

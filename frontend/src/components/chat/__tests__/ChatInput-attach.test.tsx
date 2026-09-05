@@ -6,7 +6,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderWithChatRuntime } from './renderWithChatRuntime';
 
 // Mock framer-motion to avoid animation issues in tests
@@ -503,5 +503,23 @@ describe('ChatInput file attach', () => {
         container.querySelector('ul[aria-label="Attached files"]')
       ).not.toBeNull();
     });
+  });
+});
+
+describe('ChatInput attach controls are keyboard reachable', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each([
+    ['Attach file', /attach file/i],
+    ['Attach image', /attach image/i],
+  ])('%s input is focusable and named', (_label, matcher) => {
+    renderWithChatRuntime(<ChatInput {...baseProps} />);
+    const input = screen.getByLabelText(matcher) as HTMLInputElement;
+    expect(input.tagName).toBe('INPUT');
+    expect(input).not.toHaveClass('hidden');
+    input.focus();
+    expect(document.activeElement).toBe(input);
   });
 });

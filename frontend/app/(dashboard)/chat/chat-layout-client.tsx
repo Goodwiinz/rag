@@ -13,6 +13,7 @@ import {
 } from '@/store/chat-store';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/stores/authStore';
+import { MotionConfig } from 'framer-motion';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
   Dialog,
@@ -467,104 +468,108 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
   // showing, 100vh exceeds 100svh, so this column overflowed its scroll parent
   // and the composer's action row fell below the fold.
   return (
-    <div className="h-full flex flex-col bg-(--nous-bg-1) overflow-hidden">
-      {/* Main Layout */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Main Content */}
-        <main className="flex-1 flex flex-col overflow-hidden">{children}</main>
+    <MotionConfig reducedMotion="user">
+      <div className="h-full flex flex-col bg-(--nous-bg-1) overflow-hidden">
+        {/* Main Layout */}
+        <div className="flex-1 flex overflow-hidden relative">
+          {/* Main Content */}
+          <main className="flex-1 flex flex-col overflow-hidden">
+            {children}
+          </main>
 
-        {/* Right slot: the docked ContextRail, or — when an artifact is in
+          {/* Right slot: the docked ContextRail, or — when an artifact is in
             focus — the ArtifactPanel, with the rail demoted to a
             button-toggled overlay so its content stays reachable. */}
-        {isAuthenticated && (
-          <>
-            {!showArtifactPanel && (
-              <ContextRail
-                threadId={currentThreadId ?? null}
-                workspaceName={workspaceName}
-                workspaceId={currentWorkspaceId ?? undefined}
-                ragEnabled={true}
-                projectId={projectId}
-                projectName={resolvedProjectName}
-                onProjectBound={handleProjectBound}
-                onSelect={handleRailSelect}
-                className="hidden md:flex shrink-0 md:w-[280px] lg:w-[320px] border-l border-(--nous-border-1)"
-              />
-            )}
-            {showArtifactPanel && (
-              <>
-                <ArtifactPanel
-                  artifact={artifact}
-                  onToggleRail={() => setRailOverlayOpen((o) => !o)}
-                  railOpen={railOverlayOpen}
-                  // The click-away layer below is `absolute inset-0`, so it
-                  // covers this column too. The panel is a static flex item
-                  // (z-auto), which put it UNDER that layer: while the rail
-                  // overlay was open every click inside the panel — its close
-                  // button included — was swallowed and did nothing.
-                  className="lg:z-40"
+          {isAuthenticated && (
+            <>
+              {!showArtifactPanel && (
+                <ContextRail
+                  threadId={currentThreadId ?? null}
+                  workspaceName={workspaceName}
+                  workspaceId={currentWorkspaceId ?? undefined}
+                  ragEnabled={true}
+                  projectId={projectId}
+                  projectName={resolvedProjectName}
+                  onProjectBound={handleProjectBound}
+                  onSelect={handleRailSelect}
+                  className="hidden md:flex shrink-0 md:w-[280px] lg:w-[320px] border-l border-(--nous-border-1)"
                 />
-                {railOverlayOpen && (
-                  <>
-                    {/* Click-away layer for the rail overlay. */}
-                    <div
-                      className="absolute inset-0 z-30 hidden lg:block"
-                      aria-hidden="true"
-                      onClick={() => setRailOverlayOpen(false)}
-                    />
-                    <ContextRail
-                      threadId={currentThreadId ?? null}
-                      workspaceName={workspaceName}
-                      workspaceId={currentWorkspaceId ?? undefined}
-                      ragEnabled={true}
-                      projectId={projectId}
-                      projectName={resolvedProjectName}
-                      onProjectBound={handleProjectBound}
-                      onSelect={(node) => {
-                        setRailOverlayOpen(false);
-                        handleRailSelect(node);
-                      }}
-                      className="absolute right-2 top-2 bottom-2 z-40 hidden lg:flex w-[340px] rounded-(--nous-radius-lg) border border-(--nous-border-1) bg-(--nous-bg-1) shadow-(--nous-shadow-lg)"
-                    />
-                  </>
-                )}
-              </>
-            )}
-          </>
-        )}
-      </div>
+              )}
+              {showArtifactPanel && (
+                <>
+                  <ArtifactPanel
+                    artifact={artifact}
+                    onToggleRail={() => setRailOverlayOpen((o) => !o)}
+                    railOpen={railOverlayOpen}
+                    // The click-away layer below is `absolute inset-0`, so it
+                    // covers this column too. The panel is a static flex item
+                    // (z-auto), which put it UNDER that layer: while the rail
+                    // overlay was open every click inside the panel — its close
+                    // button included — was swallowed and did nothing.
+                    className="lg:z-40"
+                  />
+                  {railOverlayOpen && (
+                    <>
+                      {/* Click-away layer for the rail overlay. */}
+                      <div
+                        className="absolute inset-0 z-30 hidden lg:block"
+                        aria-hidden="true"
+                        onClick={() => setRailOverlayOpen(false)}
+                      />
+                      <ContextRail
+                        threadId={currentThreadId ?? null}
+                        workspaceName={workspaceName}
+                        workspaceId={currentWorkspaceId ?? undefined}
+                        ragEnabled={true}
+                        projectId={projectId}
+                        projectName={resolvedProjectName}
+                        onProjectBound={handleProjectBound}
+                        onSelect={(node) => {
+                          setRailOverlayOpen(false);
+                          handleRailSelect(node);
+                        }}
+                        className="absolute right-2 top-2 bottom-2 z-40 hidden lg:flex w-[340px] rounded-(--nous-radius-lg) border border-(--nous-border-1) bg-(--nous-bg-1) shadow-(--nous-shadow-lg)"
+                      />
+                    </>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
 
-      {/* Command Palette */}
-      <CommandPalette
-        isOpen={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-        onExecute={(id) => {
-          switch (id) {
-            case 'new-chat':
-              router.push('/chat/new');
-              break;
-            case 'upload':
-              router.push('/documents/upload');
-              break;
-            case 'search':
-              router.push('/search');
-              break;
-            case 'settings':
-              router.push('/settings');
-              break;
-            case 'arxiv':
-              router.push('/arxiv');
-              break;
-            case 'dashboard':
-              router.push('/dashboard');
-              break;
-            case 'entities':
-              router.push('/entities');
-              break;
-          }
-        }}
-      />
-    </div>
+        {/* Command Palette */}
+        <CommandPalette
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          onExecute={(id) => {
+            switch (id) {
+              case 'new-chat':
+                router.push('/chat/new');
+                break;
+              case 'upload':
+                router.push('/documents/upload');
+                break;
+              case 'search':
+                router.push('/search');
+                break;
+              case 'settings':
+                router.push('/settings');
+                break;
+              case 'arxiv':
+                router.push('/arxiv');
+                break;
+              case 'dashboard':
+                router.push('/dashboard');
+                break;
+              case 'entities':
+                router.push('/entities');
+                break;
+            }
+          }}
+        />
+      </div>
+    </MotionConfig>
   );
 }
 

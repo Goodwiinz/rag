@@ -385,7 +385,7 @@ export function AuiUserMessage({
               aria-label="Edit your message"
               rows={Math.min(8, Math.max(2, draft.split('\n').length))}
               autoFocus
-              className="w-full resize-none rounded-md border border-(--nous-border-1) bg-(--nous-bg-1) px-2 py-1 text-[14px] leading-relaxed text-(--nous-fg-1) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
+              className="w-full resize-none rounded-md border border-(--nous-border-1) bg-(--nous-bg-1) px-2 py-1 text-[14px] leading-relaxed text-(--nous-fg-1) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
             />
             {editDisabled ? (
               <p
