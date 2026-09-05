@@ -331,7 +331,7 @@ export function ArtifactPanel({
             }
             label={
               pinned
-                ? 'Unpin — allow the agent to change this view'
+                ? 'Unpin to let the agent change this view'
                 : 'Pin this artifact'
             }
             aria-pressed={pinned}

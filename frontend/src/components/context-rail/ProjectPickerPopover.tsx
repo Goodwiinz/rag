@@ -92,7 +92,7 @@ export function ProjectPickerPopover({
         );
       }
     } catch {
-      setError('Network error — please try again');
+      setError('Network error. Please try again.');
     } finally {
       setBinding(false);
     }
@@ -124,7 +124,7 @@ export function ProjectPickerPopover({
         </div>
 
         {error && (
-          <div className="px-2.5 py-1.5 text-[11px] text-red-500 border-b border-(--nous-border-1) dark:border-(--nous-shade)">
+          <div className="px-2.5 py-1.5 text-[11px] text-(--nous-mars) border-b border-(--nous-border-1) dark:border-(--nous-shade)">
             {error}
           </div>
         )}

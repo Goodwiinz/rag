@@ -580,7 +580,7 @@ export function ChatInput({
                       className="max-w-[140px] truncate"
                       title={
                         att.state === 'error'
-                          ? `${att.name} — upload failed`
+                          ? `${att.name}, upload failed`
                           : att.name
                       }
                     >
