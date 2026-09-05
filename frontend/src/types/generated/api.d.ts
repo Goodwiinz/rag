@@ -9304,6 +9304,8 @@ export interface components {
             attachment_ids?: string[] | null;
             /** Citations */
             citations?: components["schemas"]["src__schemas__chat__CitationCreate"][] | null;
+            /** Client Message Id */
+            client_message_id?: string | null;
             /** Content */
             content: string;
             /** Latency Ms */
