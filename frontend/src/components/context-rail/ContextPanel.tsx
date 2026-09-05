@@ -30,7 +30,7 @@ function ConnectorRow({ icon, name, status, detail }: ConnectorRowProps) {
         className={
           'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ' +
           (isActive
-            ? 'bg-(--nous-aurum) dark:bg-(--nous-ember) border border-[rgba(212,160,57,0.25)]'
+            ? 'bg-(--nous-aurum) dark:bg-(--nous-ember) border border-[rgba(var(--nous-sol-rgb),0.25)]'
             : 'bg-(--nous-bg-1) dark:bg-(--nous-nyx) border border-(--nous-border-1) dark:border-(--nous-shade)')
         }
       >
@@ -76,7 +76,7 @@ function ConnectorRow({ icon, name, status, detail }: ConnectorRowProps) {
         style={
           isActive
             ? {
-                boxShadow: '0 0 0 2px rgba(212,160,57,0.18)',
+                boxShadow: '0 0 0 2px rgba(var(--nous-sol-rgb), 0.18)',
                 animation: 'nous-pulse 2s ease-in-out infinite',
               }
             : undefined
@@ -96,15 +96,7 @@ export function ContextPanel({
       title="Context"
       icon={<Activity className="h-3 w-3" strokeWidth={1.7} />}
     >
-      <div
-        className="text-[9px] uppercase mb-2 mt-1 text-(--nous-fg-3)"
-        style={{
-          fontFamily: 'var(--nous-font-mono)',
-          letterSpacing: '0.18em',
-        }}
-      >
-        Connectors
-      </div>
+      <div className="mb-2 mt-1 text-xs text-(--nous-fg-3)">Connectors</div>
       <ul className="space-y-0.5">
         <ConnectorRow
           icon={<Database className="h-4 w-4" strokeWidth={1.7} />}

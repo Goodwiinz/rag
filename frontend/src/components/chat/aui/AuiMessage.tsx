@@ -639,7 +639,7 @@ function AuiStreamingBody(): ReactElement {
  * a newer backend degrades quietly instead of blanking the line.
  */
 const ERROR_CATEGORY_HELP: Readonly<Record<string, string>> = {
-  rate_limited: 'The service is busy — try again in a moment.',
+  rate_limited: 'The service is busy. Try again in a moment.',
   upstream_timeout: 'The model took too long. Retry usually works.',
   invalid_request: "This request can't be retried as-is.",
   conflict: 'A confirmation is already in progress.',

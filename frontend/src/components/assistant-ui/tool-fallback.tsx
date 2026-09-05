@@ -255,13 +255,13 @@ function ToolFallbackArgs({
       )}
       {...props}
     >
-      <p className={cn("aui-tool-fallback-args-header text-foreground/35 mb-1", mono)}>
+      <p className={"aui-tool-fallback-args-header mb-1 text-[11px] text-(--nous-fg-3)"}>
         Request
       </p>
       {/* `break-words` matters here: the panel clips its overflow, and
           whitespace-pre-wrap alone will not split an unbroken URL, hash or
           base64 blob, so the tail would silently disappear. */}
-      <pre className="aui-tool-fallback-args-value text-foreground/55 font-mono text-xs break-words whitespace-pre-wrap">
+      <pre className="aui-tool-fallback-args-value font-mono text-xs break-words whitespace-pre-wrap text-(--nous-fg-2)">
         {argsText}
       </pre>
     </div>
@@ -287,7 +287,7 @@ function ToolFallbackResult({
       )}
       {...props}
     >
-      <p className={cn("aui-tool-fallback-result-header text-foreground/35 mb-1", mono)}>
+      <p className={"aui-tool-fallback-result-header mb-1 text-[11px] text-(--nous-fg-3)"}>
         Result
       </p>
       <pre className="aui-tool-fallback-result-content text-foreground/90 text-xs break-words whitespace-pre-wrap">

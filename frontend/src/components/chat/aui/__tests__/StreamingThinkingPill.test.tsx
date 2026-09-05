@@ -161,7 +161,9 @@ describe('streaming reasoning panel and elapsed time', () => {
     expect(retrieval).toHaveTextContent('1 passage above threshold');
     expect(retrieval).toHaveTextContent('Attention Is All You Need');
     expect(retrieval).toHaveTextContent('0.91');
-    expect(retrieval?.querySelector('[style]')).toHaveStyle({ width: '91%' });
+    expect(retrieval?.querySelector('[style]')).toHaveStyle({
+      transform: 'scaleX(0.91)',
+    });
   });
 
   it('only displays retrieval scores that are finite numbers', () => {
