@@ -316,22 +316,6 @@ export function ArtifactPanel({
     artifact.kind === 'document' ? `/documents/${artifact.id}` : undefined;
 
   return (
-<<<<<<< HEAD
-    <aside
-      role="region"
-      aria-label="Artifact viewer"
-      className={cn(
-        'flex flex-col bg-(--nous-bg-1)',
-        // Desktop: docked column in the layout's right slot.
-        'lg:static lg:h-full lg:w-[min(45vw,640px)] lg:shrink-0',
-        'lg:border-l lg:border-(--nous-border-1)',
-        // Below lg: bottom sheet so the transcript stays reachable.
-        'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:h-[85dvh]',
-        'max-lg:pb-[env(safe-area-inset-bottom)]',
-        'max-lg:rounded-t-(--nous-radius-xl) max-lg:border-t max-lg:border-(--nous-border-1)',
-        'max-lg:shadow-(--nous-shadow-lg)',
-        className
-=======
     <>
       {/* Sheet backdrop: below md the panel is modal over the transcript. */}
       {isSheet && (
@@ -340,7 +324,6 @@ export function ArtifactPanel({
           onClick={closePanel}
           className="fixed inset-0 z-40 bg-(--nous-erebus)/40 md:hidden"
         />
->>>>>>> origin/develop
       )}
       <aside
         ref={sheetRef}
@@ -358,6 +341,7 @@ export function ArtifactPanel({
           'max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-50 max-md:h-[85dvh]',
           'max-md:rounded-t-(--nous-radius-xl) max-md:border-t max-md:border-(--nous-border-1)',
           'max-md:shadow-(--nous-shadow-lg)',
+          'max-md:pb-[env(safe-area-inset-bottom)]',
           className
         )}
       >
