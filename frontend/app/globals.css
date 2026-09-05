@@ -711,7 +711,7 @@
     --shadow-2xl: 0px 4px 8px -1px hsl(0 0% 0% / 0.25);
     --tracking-normal: 0em;
     --spacing: 0.25rem;
-    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-sans: var(--font-inter), 'Inter', system-ui, sans-serif;
 
     /* WebLLM (preserved) */
     --webllm-primary: oklch(0.7686 0.1647 70.0804);
