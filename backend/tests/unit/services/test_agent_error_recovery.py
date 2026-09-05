@@ -247,3 +247,11 @@ class TestRateLimitIsTransient:
             {"error": "ArXiv rate limited (HTTP 429)."},
         )
         assert err.category == "transient"
+
+    def test_none_error_value_does_not_crash_the_classifier(self):
+        """B8-S2: `payload.get("error", "")` returned None for `{"error": None}`
+        and `.lower()` raised AttributeError inside the classifier itself."""
+        from src.services.agent.error_recovery import classify_error_from_payload
+
+        err = classify_error_from_payload("extract_entities", {"error": None})
+        assert err.category

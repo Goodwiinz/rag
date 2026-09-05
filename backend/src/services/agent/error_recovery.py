@@ -182,7 +182,9 @@ def classify_error_from_payload(tool_name: str, payload: dict) -> ToolError:
     - "invalid api key" / "invalid credentials" get caught by
       ``invalid`` and misclassified as recoverable input errors.
     """
-    error_msg = payload.get("error", "")
+    # `or ""` (not a default): tools have returned an explicit `"error": None`
+    # (audit B8-S2), and `str()` covers a non-string error value.
+    error_msg = str(payload.get("error") or "")
     msg_lower = error_msg.lower()
 
     # 1. Per-tool hints (most specific).
