@@ -72,7 +72,10 @@
 
   /* Type */
   --nous-font-heading: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --nous-font-body: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  /* next/font hashes the family name, so the literal 'Source Serif 4' never
+     matched the face layout.tsx already loads — point at its variable. */
+  --nous-font-body:
+    var(--font-serif), 'Source Serif 4', Georgia, 'Times New Roman', serif;
   --nous-font-ui: 'Inter', -apple-system, sans-serif;
   --nous-font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
 
