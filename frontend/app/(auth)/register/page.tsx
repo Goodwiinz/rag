@@ -73,6 +73,8 @@ export default function RegisterPage() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // Hydration guard: flip once after mount so the SSR skeleton is replaced.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
