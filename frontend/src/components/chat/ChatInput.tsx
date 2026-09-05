@@ -455,7 +455,7 @@ export function ChatInput({
                     ? 'Ultra Thinking on. Grounds answers in your sources.'
                     : 'Ultra Thinking off. Answers without your sources.'
                 }
-                className="inline-flex items-center gap-[7px] rounded-md shrink-0 transition-all disabled:opacity-50"
+                className="inline-flex items-center gap-[7px] rounded-md shrink-0 transition-colors disabled:opacity-50"
                 style={{
                   padding: '4px 9px 4px 7px',
                   background: enableRAG ? 'var(--nous-aurum)' : 'transparent',
@@ -503,7 +503,7 @@ export function ChatInput({
               }}
             >
               <span
-                className="hidden sm:inline"
+                className={isNearLimit ? 'inline' : 'hidden sm:inline'}
                 aria-live="polite"
                 aria-atomic="true"
               >
@@ -637,7 +637,7 @@ export function ChatInput({
                   }}
                 >
                   <span
-                    className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.08em]"
+                    className="shrink-0 text-[10px] font-semibold"
                     style={{ color: 'var(--nous-fg-3)' }}
                   >
                     Queued
@@ -708,7 +708,7 @@ export function ChatInput({
             >
               <div className="flex items-center gap-0.5">
                 <label
-                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all"
+                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-colors"
                   style={{ color: 'var(--nous-fg-3)' }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'var(--nous-aurum)';
@@ -736,7 +736,7 @@ export function ChatInput({
                   />
                 </label>
                 <label
-                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all"
+                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-colors"
                   style={{ color: 'var(--nous-fg-3)' }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'var(--nous-aurum)';
@@ -784,7 +784,7 @@ export function ChatInput({
                         : 'Voice input'
                   }
                   className={cn(
-                    'grid place-items-center w-11 h-11 rounded-md transition-all',
+                    'grid place-items-center w-11 h-11 rounded-md transition-colors',
                     !voiceSupported && 'opacity-40 cursor-not-allowed'
                   )}
                   style={{
@@ -840,7 +840,7 @@ export function ChatInput({
               <div className="flex items-center gap-2">
                 {isLoading && (
                   <ComposerPrimitive.Cancel
-                    className="inline-flex min-h-11 items-center gap-2 font-medium rounded-lg transition-all active:scale-[0.97]"
+                    className="inline-flex min-h-11 items-center gap-2 font-medium rounded-lg transition-colors active:scale-[0.97]"
                     style={{
                       padding: '8px 16px',
                       fontSize: '12px',
@@ -865,7 +865,7 @@ export function ChatInput({
                         ? 'Queue follow-up (Enter)'
                         : 'Send (Enter)'
                   }
-                  className="group inline-flex min-h-11 items-center gap-2 font-semibold rounded-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+                  className="group inline-flex min-h-11 items-center gap-2 font-semibold rounded-lg transition-colors active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
                   style={{
                     padding: '8px 16px',
                     fontSize: '12px',
@@ -899,7 +899,7 @@ export function ChatInput({
         </ComposerPrimitive.Root>
 
         <div
-          className="font-nous-mono text-[10px] text-center mt-2 opacity-60 hidden sm:block"
+          className="text-[10px] text-center mt-2 opacity-60 hidden sm:block"
           style={{ color: 'var(--nous-fg-3)' }}
         >
           <kbd

@@ -381,6 +381,7 @@ export function ArtifactPanel({
           'max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-50 max-md:h-[85dvh]',
           'max-md:rounded-t-(--nous-radius-xl) max-md:border-t max-md:border-(--nous-border-1)',
           'max-md:shadow-(--nous-shadow-lg)',
+          'max-md:pb-[env(safe-area-inset-bottom)]',
           className
         )}
       >

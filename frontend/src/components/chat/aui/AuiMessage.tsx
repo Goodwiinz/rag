@@ -229,8 +229,8 @@ function MessageActions({
   return (
     <ActionBarPrimitive.Root
       data-slot="aui-message-actions"
-      data-aui-autohide="always"
-      autohide="always"
+      data-aui-autohide="not-last"
+      autohide="not-last"
       autohideFloat="single-branch"
       hideWhenRunning
       className={cn('nous-msg-actions', !assistant && 'justify-end')}
