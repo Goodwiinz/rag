@@ -55,8 +55,12 @@ export function ProjectPickerPopover({
 
   useEffect(() => {
     if (open) {
+      // Reset transient search state each time the popover reopens; the trigger
+      // lives outside this component, so there is no open handler to do it in.
+      /* eslint-disable react-hooks/set-state-in-effect */
       setQuery('');
       setError(null);
+      /* eslint-enable react-hooks/set-state-in-effect */
       doFetch();
     }
     return () => {
