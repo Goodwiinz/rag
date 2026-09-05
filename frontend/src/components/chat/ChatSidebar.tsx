@@ -124,9 +124,7 @@ export const ChatSidebar = memo(function ChatSidebar({
   const handleLoadMore = useCallback(() => {
     if (!onLoadMoreThreads || isLoadingMore) return;
     setIsLoadingMore(true);
-    Promise.resolve(onLoadMoreThreads()).finally(() =>
-      setIsLoadingMore(false)
-    );
+    Promise.resolve(onLoadMoreThreads()).finally(() => setIsLoadingMore(false));
   }, [onLoadMoreThreads, isLoadingMore]);
 
   const filteredConversations = useMemo(() => {
@@ -193,7 +191,7 @@ export const ChatSidebar = memo(function ChatSidebar({
         <button
           type="button"
           aria-label="Select workspace"
-          className="w-full flex items-center gap-[9px] px-2.5 py-2 rounded-lg border border-(--nous-border-1) dark:border-(--nous-shade) bg-transparent hover:border-(--nous-sol)/30 hover:bg-(--nous-bg-2) dark:hover:bg-(--nous-obsidian) transition-all min-w-0"
+          className="w-full flex items-center gap-[9px] px-2.5 py-2 rounded-lg border border-(--nous-border-1) dark:border-(--nous-shade) bg-transparent hover:border-(--nous-sol)/30 hover:bg-(--nous-bg-2) dark:hover:bg-(--nous-obsidian) transition-colors min-w-0"
         >
           <div className="w-[22px] h-[22px] rounded-[5px] flex items-center justify-center bg-(--nous-aurum) dark:bg-(--nous-ember) shrink-0">
             <Network className="w-3 h-3 text-(--nous-sol-safe) dark:text-(--nous-helios)" />
@@ -225,7 +223,7 @@ export const ChatSidebar = memo(function ChatSidebar({
             exitSelectMode();
             onNew();
           }}
-          className="w-full flex items-center justify-center gap-[7px] py-[9px] px-3 rounded-lg bg-(--nous-sol) text-(--nous-erebus) shadow-xs hover:shadow-md hover:brightness-105 transition-all"
+          className="w-full flex items-center justify-center gap-[7px] py-[9px] px-3 rounded-lg bg-(--nous-sol) text-(--nous-erebus) shadow-xs hover:shadow-md hover:brightness-105 transition-colors"
           style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
           <Plus className="w-[13px] h-[13px]" />
@@ -251,7 +249,7 @@ export const ChatSidebar = memo(function ChatSidebar({
             placeholder="Search threads..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-8 bg-(--nous-bg-2) dark:bg-(--nous-obsidian) border border-(--nous-border-1) dark:border-(--nous-shade) rounded-[7px] py-0 pl-[30px] pr-[38px] text-xs text-(--nous-fg-1) placeholder-(--nous-fg-3) focus:outline-hidden focus:border-(--nous-sol) dark:focus:border-(--nous-helios) focus:bg-(--nous-bg-1) transition-all"
+            className="w-full h-8 bg-(--nous-bg-2) dark:bg-(--nous-obsidian) border border-(--nous-border-1) dark:border-(--nous-shade) rounded-[7px] py-0 pl-[30px] pr-[38px] text-xs text-(--nous-fg-1) placeholder-(--nous-fg-3) focus:outline-hidden focus:border-(--nous-sol) dark:focus:border-(--nous-helios) focus:bg-(--nous-bg-1) transition-colors"
             style={{ fontFamily: 'var(--nous-font-ui)' }}
           />
           <kbd
@@ -279,7 +277,7 @@ export const ChatSidebar = memo(function ChatSidebar({
             key={f.key}
             onClick={() => setActiveFilter(f.key)}
             className={cn(
-              'inline-flex items-center px-[9px] py-[3px] rounded-full border text-[10px] whitespace-nowrap transition-all',
+              'inline-flex items-center px-[9px] py-2 md:py-[3px] rounded-full border text-[10px] whitespace-nowrap transition-colors',
               activeFilter === f.key
                 ? 'bg-(--nous-sol) text-(--nous-erebus) border-(--nous-sol) dark:bg-(--nous-helios) dark:text-(--nous-nyx) dark:border-(--nous-helios)'
                 : 'bg-transparent border-(--nous-border-1) dark:border-(--nous-shade) text-(--nous-fg-2) hover:border-(--nous-sol) hover:text-(--nous-sol-safe)'
@@ -304,7 +302,7 @@ export const ChatSidebar = memo(function ChatSidebar({
             <button
               onClick={handleBulkDelete}
               disabled={selectedIds.length === 0}
-              className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full border border-(--nous-mars)/40 text-(--nous-mars) text-[10px] hover:bg-(--nous-mars)/10 transition-all disabled:opacity-40"
+              className="inline-flex items-center gap-1 px-2 py-[3px] rounded-full border border-(--nous-mars)/40 text-(--nous-mars) text-[10px] hover:bg-(--nous-mars)/10 transition-colors disabled:opacity-40"
               style={{ fontFamily: 'var(--nous-font-mono)' }}
             >
               <Trash2 className="w-2.5 h-2.5" />
@@ -313,7 +311,7 @@ export const ChatSidebar = memo(function ChatSidebar({
             <button
               onClick={exitSelectMode}
               aria-label="Exit select mode"
-              className="w-5 h-5 flex items-center justify-center rounded-full border border-(--nous-border-1) hover:bg-(--nous-sol)/5 transition-all"
+              className="min-w-11 min-h-11 md:w-5 md:h-5 md:min-w-0 md:min-h-0 flex items-center justify-center rounded-full border border-(--nous-border-1) hover:bg-(--nous-sol)/5 transition-colors"
             >
               <X className="w-2.5 h-2.5 text-(--nous-fg-3)" />
             </button>
@@ -322,7 +320,7 @@ export const ChatSidebar = memo(function ChatSidebar({
           <button
             onClick={() => setSelectMode(true)}
             aria-label="Select conversations"
-            className="ml-auto inline-flex items-center gap-1 px-[9px] py-[3px] rounded-full border border-(--nous-border-1) dark:border-(--nous-shade) text-[10px] text-(--nous-fg-3) hover:border-(--nous-fg-3) transition-all shrink-0"
+            className="ml-auto inline-flex items-center gap-1 px-[9px] py-[3px] rounded-full border border-(--nous-border-1) dark:border-(--nous-shade) text-[10px] text-(--nous-fg-3) hover:border-(--nous-fg-3) transition-colors shrink-0"
             style={{ fontFamily: 'var(--nous-font-mono)' }}
           >
             <CheckSquare className="w-2.5 h-2.5" aria-hidden="true" />
@@ -345,13 +343,7 @@ export const ChatSidebar = memo(function ChatSidebar({
               >
                 {section.label}
               </span>
-              <span
-                className="ml-auto px-[5px] py-px bg-(--nous-bg-2) dark:bg-(--nous-obsidian) border border-(--nous-border-1) dark:border-(--nous-shade) rounded-[3px] text-[9px] text-(--nous-fg-2)"
-                style={{
-                  fontFamily: 'var(--nous-font-mono)',
-                  letterSpacing: '0.04em',
-                }}
-              >
+              <span className="ml-auto px-[5px] py-px bg-(--nous-bg-2) dark:bg-(--nous-obsidian) border border-(--nous-border-1) dark:border-(--nous-shade) rounded-[3px] text-[9px] text-(--nous-fg-2)">
                 {section.items.length}
               </span>
             </div>
@@ -364,15 +356,33 @@ export const ChatSidebar = memo(function ChatSidebar({
               const messageCount = conv.messageCount ?? conv.messages.length;
               const lastMessage = conv.messages[conv.messages.length - 1];
               const previewSource = conv.previewText || lastMessage?.content;
-              const snippet =
-                previewSource
-                  ? truncatePreview(previewSource)
-                  : messageCount > 0
-                    ? `${messageCount} message${messageCount === 1 ? '' : 's'}`
-                    : 'No messages yet';
+              const snippet = previewSource
+                ? truncatePreview(previewSource)
+                : messageCount > 0
+                  ? `${messageCount} message${messageCount === 1 ? '' : 's'}`
+                  : 'No messages yet';
 
               return (
-                <div key={conv.id} className="relative group/row">
+                <div
+                  key={conv.id}
+                  className={cn(
+                    'relative group/row',
+                    selectMode && 'flex items-center gap-1.5'
+                  )}
+                >
+                  {/* Outside the row <button>: interactive content nested in a
+                      button is invalid HTML and the checkbox was neither
+                      focusable nor operable on its own. */}
+                  {selectMode && (
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${conv.title}`}
+                      checked={isSelected}
+                      onChange={() => toggleSelected(conv.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-3 h-3 accent-(--nous-sol) shrink-0"
+                    />
+                  )}
                   <button
                     onClick={() =>
                       selectMode ? toggleSelected(conv.id) : onSelect(conv.id)
@@ -386,16 +396,6 @@ export const ChatSidebar = memo(function ChatSidebar({
                   >
                     {/* Row 1: pin + title + unread */}
                     <div className="flex items-center gap-1.5 mb-[3px]">
-                      {selectMode && (
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${conv.title}`}
-                          checked={isSelected}
-                          onChange={() => toggleSelected(conv.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-3 h-3 accent-(--nous-sol) shrink-0"
-                        />
-                      )}
                       {conv.pinned && !selectMode && (
                         <Pin className="w-[10px] h-[10px] text-(--nous-sol) dark:text-(--nous-helios) shrink-0" />
                       )}
@@ -406,7 +406,13 @@ export const ChatSidebar = memo(function ChatSidebar({
                         {conv.title}
                       </span>
                       {conv.unread && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-(--nous-sol) dark:bg-(--nous-helios) shadow-[0_0_0_2px_rgba(var(--nous-sol-rgb),0.15)] shrink-0" />
+                        <>
+                          <span className="sr-only">Unread</span>
+                          <span
+                            aria-hidden
+                            className="w-1.5 h-1.5 rounded-full bg-(--nous-sol) dark:bg-(--nous-helios) shadow-[0_0_0_2px_rgba(var(--nous-sol-rgb),0.15)] shrink-0"
+                          />
+                        </>
                       )}
                     </div>
 
@@ -425,33 +431,17 @@ export const ChatSidebar = memo(function ChatSidebar({
                           <span
                             key={tag}
                             className="inline-flex items-center px-1.5 py-px bg-(--nous-bg-2) dark:bg-(--nous-nyx) border border-(--nous-border-1) dark:border-(--nous-shade) rounded-[3px] text-[9px] text-(--nous-fg-2) dark:text-(--nous-parchment) whitespace-nowrap"
-                            style={{
-                              fontFamily: 'var(--nous-font-mono)',
-                              letterSpacing: '0.04em',
-                            }}
                           >
                             {tag}
                           </span>
                         ))}
                         {messageCount > 0 && (
-                          <span
-                            className="inline-flex items-center px-1.5 py-px bg-(--nous-bg-2) dark:bg-(--nous-nyx) border border-(--nous-border-1) dark:border-(--nous-shade) rounded-[3px] text-[9px] text-(--nous-fg-2) dark:text-(--nous-parchment) whitespace-nowrap"
-                            style={{
-                              fontFamily: 'var(--nous-font-mono)',
-                              letterSpacing: '0.04em',
-                            }}
-                          >
+                          <span className="inline-flex items-center px-1.5 py-px bg-(--nous-bg-2) dark:bg-(--nous-nyx) border border-(--nous-border-1) dark:border-(--nous-shade) rounded-[3px] text-[9px] text-(--nous-fg-2) dark:text-(--nous-parchment) whitespace-nowrap">
                             {messageCount}
                           </span>
                         )}
                       </div>
-                      <span
-                        className="text-[9px] text-(--nous-fg-3) shrink-0"
-                        style={{
-                          fontFamily: 'var(--nous-font-mono)',
-                          letterSpacing: '0.04em',
-                        }}
-                      >
+                      <span className="text-[9px] text-(--nous-fg-3) shrink-0">
                         {timeStr}
                       </span>
                     </div>
@@ -468,7 +458,7 @@ export const ChatSidebar = memo(function ChatSidebar({
                             e.stopPropagation();
                             onRename(conv.id);
                           }}
-                          className="p-1 rounded hover:bg-(--nous-sol)/8 text-(--nous-fg-3) hover:text-(--nous-fg-1) transition-colors"
+                          className="p-2.5 md:p-1 rounded hover:bg-(--nous-sol)/8 text-(--nous-fg-3) hover:text-(--nous-fg-1) transition-colors"
                         >
                           <Pencil className="w-2.5 h-2.5" />
                         </button>
@@ -481,7 +471,7 @@ export const ChatSidebar = memo(function ChatSidebar({
                             e.stopPropagation();
                             onDelete(conv.id);
                           }}
-                          className="p-1 rounded hover:bg-(--nous-mars)/10 text-(--nous-fg-3) hover:text-(--nous-mars) transition-colors"
+                          className="p-2.5 md:p-1 rounded hover:bg-(--nous-mars)/10 text-(--nous-fg-3) hover:text-(--nous-mars) transition-colors"
                         >
                           <Trash2 className="w-2.5 h-2.5" />
                         </button>
@@ -515,7 +505,7 @@ export const ChatSidebar = memo(function ChatSidebar({
               type="button"
               onClick={handleLoadMore}
               disabled={isLoadingMore}
-              className="w-full py-[7px] rounded-lg border border-(--nous-border-1) dark:border-(--nous-shade) text-[11px] text-(--nous-fg-3) hover:text-(--nous-fg-1) hover:border-(--nous-sol)/30 transition-all disabled:opacity-50"
+              className="w-full py-[7px] rounded-lg border border-(--nous-border-1) dark:border-(--nous-shade) text-[11px] text-(--nous-fg-3) hover:text-(--nous-fg-1) hover:border-(--nous-sol)/30 transition-colors disabled:opacity-50"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               {isLoadingMore ? 'Loading…' : 'Show older threads'}

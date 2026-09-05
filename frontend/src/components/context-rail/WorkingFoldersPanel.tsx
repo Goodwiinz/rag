@@ -108,7 +108,7 @@ export function WorkingFoldersPanel({
         id: `note-${n.id}`,
         label: n.title,
         icon: 'note',
-        meta: n.isPinned ? '📌' : undefined,
+        meta: n.isPinned ? 'Pinned' : undefined,
         onSelect: () => onSelect?.({ kind: 'note', id: n.id, title: n.title }),
       })),
     });

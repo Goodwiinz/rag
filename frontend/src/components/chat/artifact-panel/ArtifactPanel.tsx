@@ -295,6 +295,7 @@ export function ArtifactPanel({
         'lg:border-l lg:border-(--nous-border-1)',
         // Below lg: bottom sheet so the transcript stays reachable.
         'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:h-[85dvh]',
+        'max-lg:pb-[env(safe-area-inset-bottom)]',
         'max-lg:rounded-t-(--nous-radius-xl) max-lg:border-t max-lg:border-(--nous-border-1)',
         'max-lg:shadow-(--nous-shadow-lg)',
         className

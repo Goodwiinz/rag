@@ -145,7 +145,7 @@ describe('AuiMessage', () => {
       return node;
     });
     expect(actionBar).toBeTruthy();
-    expect(actionBar).toHaveAttribute('data-aui-autohide', 'always');
+    expect(actionBar).toHaveAttribute('data-aui-autohide', 'not-last');
     expect(
       screen.getByRole('button', { name: /copy assistant message/i })
     ).toBeInTheDocument();
@@ -183,9 +183,15 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
   }
 
   it('keeps the rating outside the autohiding bar but on the same row', () => {
-    renderByIndex([
-      { id: 'a1', role: 'assistant', content: 'A', timestamp: 2 },
-    ]);
+    // Index 0 of two: `autohide="not-last"` keeps the last message's bar
+    // mounted, so an older turn is the one that exercises autohiding.
+    renderByIndex(
+      [
+        { id: 'a1', role: 'assistant', content: 'A', timestamp: 2 },
+        { id: 'u1', role: 'user', content: 'B', timestamp: 3 },
+      ],
+      { index: 0 }
+    );
 
     // ActionBarPrimitive.Root unmounts when the message is not hovered, so a
     // rating rendered inside it would vanish — taking any half-typed feedback
