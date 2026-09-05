@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import {
   AlertTriangle,
   ExternalLink,
@@ -22,7 +22,10 @@ import {
 import { DocumentInlineViewer } from '@/components/documents/DocumentInlineViewer';
 import { cn } from '@/lib/utils';
 import { documentService } from '@/services/documentService';
-import { useArtifactPanelStore, type Artifact } from '@/store/artifactPanelStore';
+import {
+  useArtifactPanelStore,
+  type Artifact,
+} from '@/store/artifactPanelStore';
 import type { Citation } from '@/utils/citationParser';
 
 // Version suffix included: the backend stores versioned external references
@@ -130,11 +133,7 @@ function ArtifactContentSkeleton(): React.ReactElement {
   );
 }
 
-function ArtifactContentError({
-  what,
-}: {
-  what: string;
-}): React.ReactElement {
+function ArtifactContentError({ what }: { what: string }): React.ReactElement {
   return (
     <div
       role="alert"
@@ -224,6 +223,26 @@ interface ArtifactPanelProps {
  * external source — notes/drafts/citations arrive in follow-up PRs) while the
  * chat column stays mounted beside it. Docked at lg+; a bottom sheet below.
  */
+// Below `md` the panel is a bottom sheet over the transcript, not a docked
+// column, so it needs modal semantics, a backdrop and focus management. The
+// breakpoint has to be known in JS (not just CSS) to decide that, and
+// useSyncExternalStore keeps it out of an effect.
+const SHEET_MEDIA_QUERY = '(max-width: 767.98px)';
+
+function subscribeSheet(onChange: () => void): () => void {
+  const mq = window.matchMedia(SHEET_MEDIA_QUERY);
+  mq.addEventListener('change', onChange);
+  return () => mq.removeEventListener('change', onChange);
+}
+
+function useIsArtifactSheet(): boolean {
+  return useSyncExternalStore(
+    subscribeSheet,
+    () => window.matchMedia(SHEET_MEDIA_QUERY).matches,
+    () => false
+  );
+}
+
 export function ArtifactPanel({
   artifact,
   onToggleRail,
@@ -231,6 +250,8 @@ export function ArtifactPanel({
   className,
 }: ArtifactPanelProps): React.ReactElement {
   const closePanel = useArtifactPanelStore((s) => s.closePanel);
+  const isSheet = useIsArtifactSheet();
+  const sheetRef = useRef<HTMLElement>(null);
   const pinned = useArtifactPanelStore((s) => s.pinned);
   const togglePin = useArtifactPanelStore((s) => s.togglePin);
   const openArtifact = useArtifactPanelStore((s) => s.openArtifact);
@@ -257,6 +278,16 @@ export function ArtifactPanel({
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [closePanel]);
+
+  // In sheet mode the panel covers 85dvh but focus stayed in the composer
+  // behind it, so tabbing walked obscured controls. Move focus in on open and
+  // hand it back on close.
+  useEffect(() => {
+    if (!isSheet) return;
+    const previous = document.activeElement as HTMLElement | null;
+    sheetRef.current?.focus();
+    return () => previous?.focus?.();
+  }, [isSheet]);
 
   // "Open document" inside a sources view focuses that document here — the
   // split-view stays put, the panel just changes what it shows.
@@ -285,6 +316,7 @@ export function ArtifactPanel({
     artifact.kind === 'document' ? `/documents/${artifact.id}` : undefined;
 
   return (
+<<<<<<< HEAD
     <aside
       role="region"
       aria-label="Artifact viewer"
@@ -299,89 +331,124 @@ export function ArtifactPanel({
         'max-lg:rounded-t-(--nous-radius-xl) max-lg:border-t max-lg:border-(--nous-border-1)',
         'max-lg:shadow-(--nous-shadow-lg)',
         className
+=======
+    <>
+      {/* Sheet backdrop: below md the panel is modal over the transcript. */}
+      {isSheet && (
+        <div
+          aria-hidden="true"
+          onClick={closePanel}
+          className="fixed inset-0 z-40 bg-(--nous-erebus)/40 md:hidden"
+        />
+>>>>>>> origin/develop
       )}
-    >
-      {/* Header */}
-      <div className="flex items-center gap-2 border-b border-(--nous-border-1) bg-(--nous-bg-2) px-3 py-2.5">
-        <span
-          className="font-nous-mono shrink-0 rounded-sm border border-(--nous-border-1) bg-(--nous-bg-1) px-1.5 py-0.5 text-[9px] uppercase text-(--nous-fg-3)"
-          style={{ letterSpacing: '0.08em' }}
-        >
-          {KIND_LABEL[artifact.kind]}
-        </span>
-        <h2
-          className="font-nous-ui min-w-0 flex-1 truncate text-sm font-semibold text-(--nous-fg-1)"
-          title={artifactTitle(artifact)}
-        >
-          {artifactTitle(artifact)}
-        </h2>
-        <div className="flex shrink-0 items-center gap-0.5">
-          {fullPageHref && (
-            <Link
-              href={fullPageHref}
-              aria-label="Open full page"
-              title="Open full page"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-(--nous-fg-3) transition-colors hover:bg-(--nous-aurum) hover:text-(--nous-fg-1) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <ExternalLink aria-hidden="true" className="h-4 w-4" />
-            </Link>
-          )}
-          <IconButton
-            icon={
-              pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />
-            }
-            label={
-              pinned
-                ? 'Unpin — allow the agent to change this view'
-                : 'Pin this artifact'
-            }
-            aria-pressed={pinned}
-            onClick={togglePin}
-            className={cn(
-              'h-8 w-8 hover:bg-(--nous-aurum)',
-              pinned
-                ? 'text-(--nous-fg-accent-safe)'
-                : 'text-(--nous-fg-3) hover:text-(--nous-fg-1)'
+      <aside
+        ref={sheetRef}
+        tabIndex={isSheet ? -1 : undefined}
+        role={isSheet ? 'dialog' : 'region'}
+        aria-modal={isSheet ? true : undefined}
+        aria-label="Artifact viewer"
+        className={cn(
+          'flex flex-col bg-(--nous-bg-1)',
+          // Tablet and up: docked column in the layout's right slot.
+          'md:static md:h-full md:w-[min(40vw,560px)] md:shrink-0',
+          'md:border-l md:border-(--nous-border-1)',
+          'lg:w-[min(45vw,640px)]',
+          // Below md: bottom sheet so the transcript stays reachable.
+          'max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-50 max-md:h-[85dvh]',
+          'max-md:rounded-t-(--nous-radius-xl) max-md:border-t max-md:border-(--nous-border-1)',
+          'max-md:shadow-(--nous-shadow-lg)',
+          className
+        )}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-2 border-b border-(--nous-border-1) bg-(--nous-bg-2) px-3 py-2.5">
+          <span
+            className="font-nous-mono shrink-0 rounded-sm border border-(--nous-border-1) bg-(--nous-bg-1) px-1.5 py-0.5 text-[9px] uppercase text-(--nous-fg-3)"
+            style={{ letterSpacing: '0.08em' }}
+          >
+            {KIND_LABEL[artifact.kind]}
+          </span>
+          <h2
+            className="font-nous-ui min-w-0 flex-1 truncate text-sm font-semibold text-(--nous-fg-1)"
+            title={artifactTitle(artifact)}
+          >
+            {artifactTitle(artifact)}
+          </h2>
+          <div className="flex shrink-0 items-center gap-0.5">
+            {fullPageHref && (
+              <Link
+                href={fullPageHref}
+                aria-label="Open full page"
+                title="Open full page"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-(--nous-fg-3) transition-colors hover:bg-(--nous-aurum) hover:text-(--nous-fg-1) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ExternalLink aria-hidden="true" className="h-4 w-4" />
+              </Link>
             )}
-          />
-          {onToggleRail && (
             <IconButton
-              icon={<ListTree className="h-4 w-4" />}
-              label={railOpen ? 'Hide context rail' : 'Show context rail'}
-              aria-pressed={railOpen}
-              onClick={onToggleRail}
-              className="h-8 w-8 text-(--nous-fg-3) hover:bg-(--nous-aurum) hover:text-(--nous-fg-1) max-lg:hidden"
+              icon={
+                pinned ? (
+                  <PinOff className="h-4 w-4" />
+                ) : (
+                  <Pin className="h-4 w-4" />
+                )
+              }
+              label={
+                pinned
+                  ? 'Unpin — allow the agent to change this view'
+                  : 'Pin this artifact'
+              }
+              aria-pressed={pinned}
+              onClick={togglePin}
+              className={cn(
+                'h-8 w-8 hover:bg-(--nous-aurum)',
+                pinned
+                  ? 'text-(--nous-fg-accent-safe)'
+                  : 'text-(--nous-fg-3) hover:text-(--nous-fg-1)'
+              )}
+            />
+            {onToggleRail && (
+              <IconButton
+                icon={<ListTree className="h-4 w-4" />}
+                label={railOpen ? 'Hide context rail' : 'Show context rail'}
+                aria-pressed={railOpen}
+                onClick={onToggleRail}
+                className="h-8 w-8 text-(--nous-fg-3) hover:bg-(--nous-aurum) hover:text-(--nous-fg-1) max-lg:hidden"
+              />
+            )}
+            <IconButton
+              icon={<X className="h-4 w-4" />}
+              label="Close artifact panel"
+              onClick={closePanel}
+              className="h-11 w-11 text-(--nous-fg-3) hover:bg-(--nous-aurum) hover:text-(--nous-fg-1)"
+            />
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="nous-scrollbar flex-1 overflow-y-auto">
+          {artifact.kind === 'document' && (
+            <DocumentArtifactBody documentId={artifact.id} />
+          )}
+          {artifact.kind === 'external' && (
+            <ExternalArtifactBody artifact={artifact} />
+          )}
+          {artifact.kind === 'citations' && (
+            <CitationPanelBody
+              citations={artifact.citations}
+              activeCitationId={artifact.activeCitationId}
+              diagnosticsTraceId={artifact.traceId}
+              onCitationClick={handleOpenCitedDocument}
+              onCite={handleCite}
             />
           )}
-          <IconButton
-            icon={<X className="h-4 w-4" />}
-            label="Close artifact panel"
-            onClick={closePanel}
-            className="h-11 w-11 text-(--nous-fg-3) hover:bg-(--nous-aurum) hover:text-(--nous-fg-1)"
-          />
+          {artifact.kind === 'note' && <NoteArtifactBody artifact={artifact} />}
+          {artifact.kind === 'draft' && (
+            <DraftArtifactBody artifact={artifact} />
+          )}
         </div>
-      </div>
-
-      {/* Body */}
-      <div className="nous-scrollbar flex-1 overflow-y-auto">
-        {artifact.kind === 'document' && (
-          <DocumentArtifactBody documentId={artifact.id} />
-        )}
-        {artifact.kind === 'external' && (
-          <ExternalArtifactBody artifact={artifact} />
-        )}
-        {artifact.kind === 'citations' && (
-          <CitationPanelBody
-            citations={artifact.citations}
-            activeCitationId={artifact.activeCitationId}
-            diagnosticsTraceId={artifact.traceId}
-            onCitationClick={handleOpenCitedDocument}
-            onCite={handleCite}
-          />
-        )}
-        {artifact.kind === 'note' && <NoteArtifactBody artifact={artifact} />}
-        {artifact.kind === 'draft' && <DraftArtifactBody artifact={artifact} />}
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
