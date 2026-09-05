@@ -268,6 +268,8 @@ interface ArtifactPanelProps {
 // breakpoint has to be known in JS (not just CSS) to decide that, and
 // useSyncExternalStore keeps it out of an effect.
 const SHEET_MEDIA_QUERY = '(max-width: 767.98px)';
+const FOCUSABLE_SELECTOR =
+  'a[href],button:not([disabled]),input,textarea,select,[tabindex]:not([tabindex="-1"])';
 
 function subscribeSheet(onChange: () => void): () => void {
   const mq = window.matchMedia(SHEET_MEDIA_QUERY);
@@ -329,6 +331,25 @@ export function ArtifactPanel({
     return () => previous?.focus?.();
   }, [isSheet]);
 
+  // Focus moved in on open, but Tab still walked out of the sheet into the
+  // obscured composer. Wrap at both ends so the modal sheet keeps focus.
+  const handleSheetKeyDown = (
+    event: React.KeyboardEvent<HTMLElement>
+  ): void => {
+    if (!isSheet || event.key !== 'Tab' || !sheetRef.current) return;
+    const focusables = Array.from(
+      sheetRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+    );
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey ? active === first : active === last) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    }
+  };
+
   // "Open document" inside a sources view focuses that document here — the
   // split-view stays put, the panel just changes what it shows.
   const handleOpenCitedDocument = (citation: Citation): void => {
@@ -367,6 +388,7 @@ export function ArtifactPanel({
       )}
       <aside
         ref={sheetRef}
+        onKeyDown={handleSheetKeyDown}
         tabIndex={isSheet ? -1 : undefined}
         role={isSheet ? 'dialog' : 'region'}
         aria-modal={isSheet ? true : undefined}

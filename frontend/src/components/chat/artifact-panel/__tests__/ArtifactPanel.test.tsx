@@ -8,7 +8,10 @@ import { act } from '@testing-library/react';
 import { render, screen, waitFor } from '@/test/test-utils';
 
 import { ArtifactPanel } from '../ArtifactPanel';
-import { useArtifactPanelStore, type Artifact } from '@/store/artifactPanelStore';
+import {
+  useArtifactPanelStore,
+  type Artifact,
+} from '@/store/artifactPanelStore';
 import { documentService } from '@/services/documentService';
 import { projectService } from '@/services/projectService';
 
@@ -84,17 +87,14 @@ describe('ArtifactPanel', () => {
     render(<ArtifactPanel artifact={docArtifact} />);
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
-    expect(
-      screen.getByText("Couldn't load this document")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load this document")).toBeInTheDocument();
   });
 
   it('links to the full document page', () => {
     render(<ArtifactPanel artifact={docArtifact} />);
-    expect(screen.getByRole('link', { name: 'Open full page' })).toHaveAttribute(
-      'href',
-      '/documents/doc-1'
-    );
+    expect(
+      screen.getByRole('link', { name: 'Open full page' })
+    ).toHaveAttribute('href', '/documents/doc-1');
   });
 
   it('close button hides the panel but keeps the artifact', async () => {
@@ -143,9 +143,7 @@ describe('ArtifactPanel', () => {
     const { user, rerender } = render(
       <ArtifactPanel artifact={docArtifact} onToggleRail={onToggleRail} />
     );
-    await user.click(
-      screen.getByRole('button', { name: 'Show context rail' })
-    );
+    await user.click(screen.getByRole('button', { name: 'Show context rail' }));
     expect(onToggleRail).toHaveBeenCalledTimes(1);
 
     rerender(<ArtifactPanel artifact={docArtifact} />);
@@ -269,6 +267,52 @@ describe('ArtifactPanel', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
     expect(screen.getByText("Couldn't load this note")).toBeInTheDocument();
+  });
+
+  it('traps Tab inside the panel in sheet mode', async () => {
+    // Below md the panel is a modal bottom sheet, so Tab must not walk the
+    // obscured composer behind it.
+    const realMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query.includes('max-width'),
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+    try {
+      const { user } = render(<ArtifactPanel artifact={docArtifact} />);
+      const sheet = screen.getByRole('dialog', { name: 'Artifact viewer' });
+      const focusables = Array.from(
+        sheet.querySelectorAll<HTMLElement>(
+          'a[href],button:not([disabled]),input,textarea,select,[tabindex]:not([tabindex="-1"])'
+        )
+      );
+      expect(focusables.length).toBeGreaterThan(1);
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      last.focus();
+      await user.tab();
+      expect(document.activeElement).toBe(first);
+
+      first.focus();
+      await user.tab({ shift: true });
+      expect(document.activeElement).toBe(last);
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        configurable: true,
+        value: realMatchMedia,
+      });
+    }
   });
 
   it('renders an external artifact as an outbound link card', () => {
