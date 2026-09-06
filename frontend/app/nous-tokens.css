@@ -41,6 +41,7 @@
   --nous-helios-rgb: 232, 184, 74;
   --nous-erebus-rgb: 10, 10, 14;
   --nous-mars-rgb: 239, 68, 68;
+  --nous-nyx-rgb: 20, 18, 16;
 
   /* Semantic fg/bg */
   --nous-fg-1: var(--nous-erebus);

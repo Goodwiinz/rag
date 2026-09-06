@@ -76,7 +76,7 @@ describe('App login page', () => {
     render(<LoginPage />);
 
     const checkbox = await screen.findByLabelText(
-      /download nous cli credentials after signing in/i
+      /also download a nous cli credential/i
     );
     fireEvent.change(screen.getByTestId('email-input'), {
       target: { value: 'admin@multimodal-rag.com' },
