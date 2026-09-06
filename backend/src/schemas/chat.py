@@ -315,6 +315,10 @@ class ChatMessageCreate(ChatMessageBase):
     citations: Optional[List[CitationCreate]] = None  # Citations from RAG retrieval
     latency_ms: Optional[int] = None  # Client-measured response time (ms)
     stopped: Optional[bool] = None  # User stopped this response mid-stream
+    # Idempotency key for user turns (audit B8-I2). UUID, matching the
+    # chat_messages.client_message_id GUID column and the partial unique index
+    # (thread_id, client_message_id) the agent path already upserts against.
+    client_message_id: Optional[UUID] = None
 
 
 class ChatMessageUpdate(BaseModel):

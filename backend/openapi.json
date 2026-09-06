@@ -2142,6 +2142,18 @@
             ],
             "title": "Citations"
           },
+          "client_message_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Message Id"
+          },
           "content": {
             "minLength": 1,
             "title": "Content",
