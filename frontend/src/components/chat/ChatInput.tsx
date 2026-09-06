@@ -431,7 +431,7 @@ export function ChatInput({
               'border-color 260ms var(--nous-ease-out), box-shadow 260ms var(--nous-ease-out)',
           }}
         >
-          {/* Top strip — live status, Ultra Thinking, counter */}
+          {/* Top strip — live status, sources switch, counter */}
           <div
             className="flex items-center justify-between gap-2 px-3 py-2 border-b"
             style={{
@@ -442,51 +442,47 @@ export function ChatInput({
             <div className="flex items-center gap-2 min-w-0">
               <button
                 type="button"
+                role="switch"
                 onClick={() => onRAGToggle(!enableRAG)}
                 disabled={isLoading}
-                aria-pressed={enableRAG}
-                aria-label={
-                  enableRAG
-                    ? 'Ultra Thinking on. Grounds answers in your sources.'
-                    : 'Ultra Thinking off. Answers without your sources.'
-                }
+                aria-checked={enableRAG}
+                aria-label="Use my sources"
                 title={
                   enableRAG
-                    ? 'Ultra Thinking on. Grounds answers in your sources.'
-                    : 'Ultra Thinking off. Answers without your sources.'
+                    ? 'Grounds answers in your sources.'
+                    : 'Answers without your sources.'
                 }
-                className="inline-flex items-center gap-[7px] rounded-md shrink-0 transition-colors disabled:opacity-50"
-                style={{
-                  padding: '4px 9px 4px 7px',
-                  background: enableRAG ? 'var(--nous-aurum)' : 'transparent',
-                  border: `1px solid ${
-                    enableRAG
-                      ? 'rgba(var(--nous-sol-rgb), 0.25)'
-                      : 'var(--nous-border-1)'
-                  }`,
-                }}
+                className="inline-flex items-center gap-2 shrink-0 rounded-md px-1 py-0.5 transition-colors disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
               >
                 <span
-                  className="w-1.5 h-1.5 rounded-full"
+                  aria-hidden
+                  className="relative block w-7 h-4 rounded-full transition-colors"
                   style={{
                     background: enableRAG
                       ? 'var(--nous-sol)'
-                      : 'var(--nous-fg-3)',
-                    boxShadow: enableRAG
-                      ? '0 0 5px rgba(var(--nous-sol-rgb), 0.5)'
-                      : 'none',
-                  }}
-                />
-                <span
-                  className="font-nous-mono text-[10px] font-semibold whitespace-nowrap"
-                  style={{
-                    letterSpacing: '0.04em',
-                    color: enableRAG
-                      ? 'var(--nous-sol-safe)'
-                      : 'var(--nous-fg-3)',
+                      : 'var(--nous-border-2)',
                   }}
                 >
-                  Ultra Thinking
+                  <span
+                    className="absolute top-0.5 left-0.5 block w-3 h-3 rounded-full"
+                    style={{
+                      background: 'var(--nous-bg-1)',
+                      transform: enableRAG
+                        ? 'translateX(12px)'
+                        : 'translateX(0)',
+                      transition: 'transform 160ms var(--nous-ease-out)',
+                    }}
+                  />
+                </span>
+                <span
+                  aria-hidden
+                  className="text-[12px] whitespace-nowrap"
+                  style={{
+                    fontFamily: 'var(--nous-font-ui)',
+                    color: enableRAG ? 'var(--nous-fg-1)' : 'var(--nous-fg-3)',
+                  }}
+                >
+                  Use my sources
                 </span>
               </button>
             </div>
@@ -811,12 +807,13 @@ export function ChatInput({
                     onChange('/');
                     textareaRef.current?.focus();
                   }}
-                  className="hidden sm:inline-flex items-center gap-1.5 rounded-md ml-1.5 min-h-[44px] font-nous-mono text-[10px] cursor-pointer transition-colors hover:bg-(--nous-aurum)"
+                  className="hidden sm:inline-flex items-center gap-1.5 rounded-md ml-1.5 min-h-[44px] text-[12px] cursor-pointer transition-colors hover:bg-(--nous-aurum)"
                   style={{
                     padding: '4px 8px',
                     border: '1px solid var(--nous-border-1)',
                     background: 'var(--nous-bg-1)',
                     color: 'var(--nous-fg-2)',
+                    fontFamily: 'var(--nous-font-ui)',
                   }}
                   aria-label="Open commands"
                   title="Type / to open commands"
@@ -824,7 +821,7 @@ export function ChatInput({
                   <kbd
                     className="font-nous-mono font-bold rounded-sm"
                     style={{
-                      fontSize: '9px',
+                      fontSize: '10px',
                       padding: '1px 4px',
                       background: 'var(--nous-bg-1)',
                       border: '1px solid var(--nous-border-1)',
@@ -897,52 +894,6 @@ export function ChatInput({
             </div>
           </div>
         </ComposerPrimitive.Root>
-
-        <div
-          className="text-[10px] text-center mt-2 opacity-60 hidden sm:block"
-          style={{ color: 'var(--nous-fg-3)' }}
-        >
-          <kbd
-            className="px-1.5 py-0.5 rounded-sm font-nous-mono text-[9px]"
-            style={{
-              background: 'var(--nous-bg-2)',
-              border: '1px solid var(--nous-border-1)',
-            }}
-          >
-            ↵
-          </kbd>{' '}
-          {isLoading ? 'to queue' : 'to send'} ·{' '}
-          <kbd
-            className="px-1.5 py-0.5 rounded-sm font-nous-mono text-[9px]"
-            style={{
-              background: 'var(--nous-bg-2)',
-              border: '1px solid var(--nous-border-1)',
-            }}
-          >
-            shift
-          </kbd>
-          +
-          <kbd
-            className="px-1.5 py-0.5 rounded-sm font-nous-mono text-[9px]"
-            style={{
-              background: 'var(--nous-bg-2)',
-              border: '1px solid var(--nous-border-1)',
-            }}
-          >
-            ↵
-          </kbd>{' '}
-          for newline ·{' '}
-          <kbd
-            className="px-1.5 py-0.5 rounded-sm font-nous-mono text-[9px]"
-            style={{
-              background: 'var(--nous-bg-2)',
-              border: '1px solid var(--nous-border-1)',
-            }}
-          >
-            /
-          </kbd>{' '}
-          for commands
-        </div>
       </div>
     </div>
   );

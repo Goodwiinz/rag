@@ -50,6 +50,31 @@ describe('ChatSidebar', () => {
     expect(screen.getByText('Gamma Query')).toBeInTheDocument();
   });
 
+  it('shows source and turn counts when the thread carries a citation count', () => {
+    render(
+      <ChatSidebar
+        {...defaultProps}
+        conversations={[
+          {
+            id: 'conv-cited',
+            title: 'Cited Thread',
+            messages: [],
+            threadId: 'thread-cited',
+            updatedAt: Date.now(),
+            messageCount: 4,
+            citationCount: 3,
+          },
+        ]}
+      />
+    );
+    expect(screen.getByText('3 sources · 4 turns')).toBeInTheDocument();
+  });
+
+  it('keeps the preview snippet for threads without a citation count', () => {
+    render(<ChatSidebar {...defaultProps} />);
+    expect(screen.getByText('Hello world')).toBeInTheDocument();
+  });
+
   it('shows correct count badge', () => {
     render(<ChatSidebar {...defaultProps} />);
     expect(screen.getByText('3')).toBeInTheDocument();

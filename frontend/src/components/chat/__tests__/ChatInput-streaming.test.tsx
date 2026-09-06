@@ -177,20 +177,45 @@ describe('ChatInput streaming behavior', () => {
     });
   });
 
-  describe('Ultra Thinking toggle', () => {
-    it('renders the Ultra Thinking label and toggles RAG', () => {
+  describe('Use my sources switch', () => {
+    it('renders a switch reflecting the RAG state and toggles it', () => {
       const onRAGToggle = vi.fn();
-      renderWithChatRuntime(
+      const { rerender } = renderWithChatRuntime(
         <ChatInput
           {...defaultProps}
           enableRAG={false}
           onRAGToggle={onRAGToggle}
         />
       );
-      const toggle = screen.getByText('Ultra Thinking');
-      expect(toggle).toBeInTheDocument();
+      const toggle = screen.getByRole('switch', { name: 'Use my sources' });
+      expect(toggle).toHaveAttribute('aria-checked', 'false');
+      expect(toggle).toHaveAttribute('title', 'Answers without your sources.');
       fireEvent.click(toggle);
       expect(onRAGToggle).toHaveBeenCalledWith(true);
+
+      rerender(
+        <ChatInput {...defaultProps} enableRAG onRAGToggle={onRAGToggle} />
+      );
+      expect(
+        screen.getByRole('switch', { name: 'Use my sources' })
+      ).toHaveAttribute('title', 'Grounds answers in your sources.');
+    });
+
+    it('drops the Ultra Thinking wording', () => {
+      renderWithChatRuntime(<ChatInput {...defaultProps} />);
+      expect(screen.queryByText(/Ultra Thinking/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('keyboard hint row', () => {
+    it('is gone, the Send button carries the shortcut', () => {
+      renderWithChatRuntime(<ChatInput {...defaultProps} value="hi" />);
+      expect(screen.queryByText(/to send/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/for newline/)).not.toBeInTheDocument();
+      expect(screen.getByText('Send').closest('button')).toHaveAttribute(
+        'title',
+        'Send (Enter)'
+      );
     });
   });
 

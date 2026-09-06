@@ -27,6 +27,10 @@ interface SidebarConversation {
   pinned?: boolean;
   unread?: boolean;
   tags?: string[];
+  /** Distinct cited sources in the thread. The thread-list endpoint does not
+   *  return one today, so this is normally undefined and the row falls back to
+   *  the preview snippet. Nothing here fabricates a count. */
+  citationCount?: number;
 }
 
 type FilterKey = 'all' | 'pinned' | 'drafts' | 'shared';
@@ -344,11 +348,15 @@ export const ChatSidebar = memo(function ChatSidebar({
               const messageCount = conv.messageCount ?? conv.messages.length;
               const lastMessage = conv.messages[conv.messages.length - 1];
               const previewSource = conv.previewText || lastMessage?.content;
-              const snippet = previewSource
-                ? truncatePreview(previewSource)
-                : messageCount > 0
-                  ? `${messageCount} message${messageCount === 1 ? '' : 's'}`
-                  : 'No messages yet';
+              const citationCount = conv.citationCount ?? 0;
+              const snippet =
+                citationCount > 0
+                  ? `${citationCount} source${citationCount === 1 ? '' : 's'} · ${messageCount} turn${messageCount === 1 ? '' : 's'}`
+                  : previewSource
+                    ? truncatePreview(previewSource)
+                    : messageCount > 0
+                      ? `${messageCount} message${messageCount === 1 ? '' : 's'}`
+                      : 'No messages yet';
 
               return (
                 <div
