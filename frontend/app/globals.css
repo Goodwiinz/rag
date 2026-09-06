@@ -462,6 +462,14 @@
     opacity: 1;
     transform: translateY(0);
   }
+  /* No hover to reveal them on touch: the buttons were tappable but painted
+     at opacity 0, so copy/regenerate/edit/rate were invisible on phones. */
+  @media (hover: none) {
+    .nous-msg-actions {
+      opacity: 1;
+      transform: none;
+    }
+  }
   /* Ghost buttons: the row sits under every assistant turn, so an outlined
      box per action stacked up as chrome. Weight arrives on hover instead. */
   .nous-msg-action {
@@ -485,6 +493,13 @@
   }
   .nous-msg-action:active {
     scale: 0.96;
+  }
+  /* 44px minimum on touch, 28px kept on pointer devices. */
+  @media (pointer: coarse) {
+    .nous-msg-action {
+      min-width: 44px;
+      min-height: 44px;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .nous-msg-action {
@@ -696,7 +711,7 @@
     --shadow-2xl: 0px 4px 8px -1px hsl(0 0% 0% / 0.25);
     --tracking-normal: 0em;
     --spacing: 0.25rem;
-    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-sans: var(--font-inter), 'Inter', system-ui, sans-serif;
 
     /* WebLLM (preserved) */
     --webllm-primary: oklch(0.7686 0.1647 70.0804);

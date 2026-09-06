@@ -107,12 +107,12 @@ export function CitationLink({
 
   const getScoreBadgeClass = (score: number) => {
     if (score >= 0.8)
-      return 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';
+      return 'bg-(--nous-terra)/15 text-(--nous-terra) border-(--nous-terra)/30';
     if (score >= 0.6)
-      return 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30';
+      return 'bg-(--nous-corona)/15 text-(--nous-corona) border-(--nous-corona)/30';
     if (score >= 0.4)
-      return 'bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30';
-    return 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30';
+      return 'bg-(--nous-sol)/15 text-(--nous-fg-accent-safe) border-(--nous-sol)/30';
+    return 'bg-(--nous-mars)/15 text-(--nous-mars) border-(--nous-mars)/30';
   };
 
   const previewContent = citation.content

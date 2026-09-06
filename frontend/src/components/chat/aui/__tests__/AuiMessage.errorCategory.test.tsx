@@ -53,7 +53,7 @@ describe('AuiMessage error category', () => {
   it('renders the rate_limited helper line', () => {
     renderErrorMessage('rate_limited');
     expect(
-      screen.getByText('The service is busy — try again in a moment.')
+      screen.getByText('The service is busy. Try again in a moment.')
     ).toBeInTheDocument();
   });
 

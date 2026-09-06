@@ -144,10 +144,40 @@ def _resolve_active_project_id(
     return existing_project_id or extracted_pid or None
 
 
+def _workspace_accessible_by(user_uuid: UUID):
+    """Owner-or-member predicate on ``Workspace``, for ``user_uuid``.
+
+    Matches ``workspace_access.user_can_access_workspace`` semantics (owner or
+    a live ``WorkspaceMember`` row) minus its ``is_public`` arm: these two
+    callers gate a *retrieval scope*, so a public workspace the user never
+    joined stays out (audit B8-T1). Expressed as SQL so neither caller has to
+    load the workspace and its members.
+    """
+    from sqlalchemy import exists, or_, select
+
+    from src.models.workspace import Workspace, WorkspaceMember
+
+    return or_(
+        Workspace.owner_id == user_uuid,
+        exists(
+            select(WorkspaceMember.id).where(
+                WorkspaceMember.workspace_id == Workspace.id,
+                WorkspaceMember.user_id == user_uuid,
+                WorkspaceMember.is_deleted == False,  # noqa: E712
+            )
+        ),
+    )
+
+
 async def _user_owns_project(
     session, project_id: Optional[str], user_id: Optional[str]
 ) -> Optional[bool]:
-    """Ownership of project (collection) ``project_id`` by ``user_id``.
+    """Access to project (collection) ``project_id`` by ``user_id``.
+
+    Access is owner OR live workspace membership, matching
+    ``workspace_access.user_can_access_workspace`` (audit B8-T1) — an owner-only
+    predicate silently dropped the project scope for a non-owner member and
+    widened the DO KB read to the whole organization.
 
     The DO KB is org-scoped, and ``resolve_and_filter_chunks`` happily filters
     chunks by ANY project id it's handed. ``project_id`` here originates from
@@ -190,7 +220,7 @@ async def _user_owns_project(
             .where(
                 Collection.id == proj_uuid,
                 Collection.is_deleted == False,  # noqa: E712
-                Workspace.owner_id == user_uuid,
+                _workspace_accessible_by(user_uuid),
             )
         )
         result = await session.execute(stmt)
@@ -596,7 +626,7 @@ async def _legacy_hybrid_search_fallback(
                                 Collection.id == project_uuid,
                                 Collection.is_deleted == False,  # noqa: E712
                                 CollectionDocument.is_deleted == False,  # noqa: E712
-                                Workspace.owner_id == user_uuid,
+                                _workspace_accessible_by(user_uuid),
                             )
                         )
                     )

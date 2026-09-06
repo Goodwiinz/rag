@@ -229,8 +229,8 @@ function MessageActions({
   return (
     <ActionBarPrimitive.Root
       data-slot="aui-message-actions"
-      data-aui-autohide="always"
-      autohide="always"
+      data-aui-autohide="not-last"
+      autohide="not-last"
       autohideFloat="single-branch"
       hideWhenRunning
       className={cn('nous-msg-actions', !assistant && 'justify-end')}
@@ -385,7 +385,7 @@ export function AuiUserMessage({
               aria-label="Edit your message"
               rows={Math.min(8, Math.max(2, draft.split('\n').length))}
               autoFocus
-              className="w-full resize-none rounded-md border border-(--nous-border-1) bg-(--nous-bg-1) px-2 py-1 text-[14px] leading-relaxed text-(--nous-fg-1) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
+              className="w-full resize-none rounded-md border border-(--nous-border-1) bg-(--nous-bg-1) px-2 py-1 text-[14px] leading-relaxed text-(--nous-fg-1) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
             />
             {editDisabled ? (
               <p
@@ -639,7 +639,7 @@ function AuiStreamingBody(): ReactElement {
  * a newer backend degrades quietly instead of blanking the line.
  */
 const ERROR_CATEGORY_HELP: Readonly<Record<string, string>> = {
-  rate_limited: 'The service is busy — try again in a moment.',
+  rate_limited: 'The service is busy. Try again in a moment.',
   upstream_timeout: 'The model took too long. Retry usually works.',
   invalid_request: "This request can't be retried as-is.",
   conflict: 'A confirmation is already in progress.',

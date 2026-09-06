@@ -2722,7 +2722,7 @@ async def _tool_extract_entities(
         result = await service.extract_entities(text, entity_types=entity_types)
 
         if result.entities:
-            return {
+            payload: Dict[str, Any] = {
                 "entities": [
                     {
                         "name": e.name,
@@ -2738,13 +2738,24 @@ async def _tool_extract_entities(
                 "document_id": document_id,
                 "title": doc.title or "Untitled",
             }
+            if result.error:
+                # B8-S3: a partial extraction (skipped chunks) must reach the
+                # model, but NOT under "error" — `_execute_single_tool`
+                # classifies on that key's presence, so reporting a partial
+                # success there would count a usable result as a tool failure.
+                payload["partial_error"] = result.error
+            return payload
 
-        return {
+        # B8-S2: only claim a failure when there actually was one; an empty
+        # document legitimately yields zero entities with error=None.
+        empty: Dict[str, Any] = {
             "entities": [],
             "total": 0,
             "document_id": document_id,
-            "error": result.error,
         }
+        if result.error:
+            empty["error"] = result.error
+        return empty
     except Exception as e:
         logger.error("extract_entities tool failed", exc_info=e)
         return tool_error_payload("extract_entities", e)
@@ -3426,13 +3437,17 @@ async def _tool_forget_memory(
     if store is None:
         return {"error": "forget_memory: memory store unavailable"}
 
-    result = await delete_memory_by_query(
-        store,
-        user_id=user_id,
-        query=query,
-        limit=5,
-        organization_id=organization_id,
-    )
+    try:
+        result = await delete_memory_by_query(
+            store,
+            user_id=user_id,
+            query=query,
+            limit=5,
+            organization_id=organization_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("forget_memory tool failed", exc_info=exc)
+        return tool_error_payload("forget_memory", exc)
     return {
         "status": "completed",
         "deleted": result["deleted"],

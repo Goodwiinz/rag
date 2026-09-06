@@ -284,8 +284,11 @@ async def delete_memory_by_query(
     try:
         results = await store.asearch(namespace, query=query, limit=limit)
     except Exception as exc:  # noqa: BLE001
+        # B8-S1: never report a failed search as "nothing matched" — the
+        # caller turns that into {"status": "completed", "deleted": 0} for a
+        # HITL-approved destructive action that never ran.
         logger.warning("forget_memory: asearch failed: %s", exc)
-        return {"deleted": 0, "matches": []}
+        raise
 
     matches = [
         {

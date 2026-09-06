@@ -39,8 +39,7 @@ export function CitationChips({
               onCitationClick(citations, citation, diagnosticsTraceId);
             }
           }}
-          className="group/citation flex items-center gap-2 rounded-md border border-(--nous-border-1) bg-(--nous-bg-2) px-2.5 py-1.5 text-[10px] transition-all hover:border-(--nous-sol)/40 hover:bg-(--nous-aurum) dark:hover:bg-(--nous-ember)"
-          style={{ fontFamily: 'var(--nous-font-mono)' }}
+          className="group/citation flex items-center gap-2 rounded-md border border-(--nous-border-1) bg-(--nous-bg-2) px-2.5 py-1.5 text-[10px] transition-colors hover:border-(--nous-sol)/40 hover:bg-(--nous-aurum) dark:hover:bg-(--nous-ember)"
         >
           <div className="h-1.5 w-1.5 rounded-full bg-(--nous-sol)/40 transition-colors group-hover/citation:bg-(--nous-sol) dark:bg-(--nous-helios)/40 dark:group-hover/citation:bg-(--nous-helios)" />
           <span className="max-w-[180px] truncate text-(--nous-fg-1)">
@@ -54,8 +53,7 @@ export function CitationChips({
       {diagnosticsTraceId && (
         <a
           href={`/diagnostics?trace=${encodeURIComponent(diagnosticsTraceId)}`}
-          className="ml-auto flex items-center gap-1 rounded-md border border-(--nous-border-1) bg-(--nous-bg-2) px-2 py-1 text-[9px] text-(--nous-fg-3) transition-all hover:border-(--nous-sol)/40 hover:text-(--nous-sol-safe) dark:hover:text-(--nous-helios)"
-          style={{ fontFamily: 'var(--nous-font-mono)' }}
+          className="ml-auto flex items-center gap-1 rounded-md border border-(--nous-border-1) bg-(--nous-bg-2) px-2 py-1 text-[9px] text-(--nous-fg-3) transition-colors hover:border-(--nous-sol)/40 hover:text-(--nous-sol-safe) dark:hover:text-(--nous-helios)"
           title="View retrieval diagnostics"
         >
           <Activity className="h-3 w-3" />
