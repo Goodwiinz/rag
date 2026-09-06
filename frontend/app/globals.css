@@ -204,6 +204,14 @@
     }
   }
 
+  /* A reading size once the column has room for it. The measure is capped at
+     720px on the reply block, so this buys legibility, not line length. */
+  @media (min-width: 1024px) {
+    .nous-chat-body {
+      font-size: 17px;
+    }
+  }
+
   .nous-chat-body p + p {
     margin-top: 0.75em;
   }
@@ -449,38 +457,28 @@
   /* Message action row — hidden until hover, scholarly style */
   .nous-msg-actions {
     display: flex;
-    gap: 4px;
+    gap: 18px;
     margin-top: 10px;
-    opacity: 0;
-    transform: translateY(-2px);
-    transition:
-      opacity 200ms,
-      transform 200ms;
-  }
-  .group:hover .nous-msg-actions,
-  .nous-msg-actions:focus-within {
+    /* Always painted. The reveal-on-hover version hid copy and regenerate
+       behind a gesture that does not exist on touch, and the row is quiet
+       enough now to live there permanently. */
     opacity: 1;
-    transform: translateY(0);
   }
-  /* No hover to reveal them on touch: the buttons were tappable but painted
-     at opacity 0, so copy/regenerate/edit/rate were invisible on phones. */
-  @media (hover: none) {
-    .nous-msg-actions {
-      opacity: 1;
-      transform: none;
-    }
-  }
-  /* Ghost buttons: the row sits under every assistant turn, so an outlined
-     box per action stacked up as chrome. Weight arrives on hover instead. */
+  /* Quiet text-with-icon buttons: the row sits under every assistant turn, so
+     an outlined box per action stacked up as chrome. Weight arrives on hover. */
   .nous-msg-action {
-    width: 28px;
-    height: 28px;
-    display: grid;
-    place-items: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 0 8px;
     background: transparent;
     border: none;
     border-radius: 9999px;
     color: var(--nous-fg-3);
+    font-family: var(--nous-font-ui);
+    font-size: 12px;
     transition:
       background-color 150ms,
       color 150ms,
@@ -536,8 +534,8 @@
 
   /* User message — scholarly pill */
   .nous-bubble-user {
-    background: var(--nous-bg-2);
-    border: 1px solid var(--nous-border-1);
+    background: var(--nous-aurum);
+    border: 1px solid var(--nous-apollo);
     border-radius: 14px 14px 4px 14px;
     box-shadow: 0 1px 2px rgba(10, 10, 14, 0.03);
     font-family: var(--nous-font-ui);
@@ -551,7 +549,7 @@
     box-shadow: 0 2px 8px rgba(10, 10, 14, 0.06);
   }
   .dark .nous-bubble-user {
-    background: var(--nous-obsidian);
+    background: var(--nous-ember);
     border-color: var(--nous-shade);
   }
   .dark .nous-bubble-user:hover {
