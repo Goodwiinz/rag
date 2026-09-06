@@ -1,10 +1,7 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-
-const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
 const UI = { fontFamily: 'var(--nous-font-ui)' } as const;
 const SERIF = { fontFamily: 'var(--nous-font-body)' } as const;
@@ -85,12 +82,10 @@ export function HeroSection({ isAuthenticated }: HeroSectionProps) {
       </nav>
 
       <section className="px-6 py-16 lg:pt-32 lg:pb-28">
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: EASE_OUT }}
-          className="max-w-7xl mx-auto grid lg:grid-cols-[8fr_3fr] lg:gap-24"
-        >
+        {/* CSS entrance, not framer-motion: an `initial={{ opacity: 0 }}` on
+            the SSR markup leaves the hero invisible until hydration, which on
+            a slow load is seconds of blank page and a late LCP. */}
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-[8fr_3fr] lg:gap-24 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
           <div>
             <div
               aria-hidden="true"
@@ -165,7 +160,7 @@ export function HeroSection({ isAuthenticated }: HeroSectionProps) {
               </div>
             ))}
           </aside>
-        </motion.div>
+        </div>
       </section>
     </>
   );
