@@ -305,7 +305,7 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
     ).toBeNull();
   });
 
-  it('renders citation footer chips and forwards clicks', () => {
+  it('renders the numbered sources list and forwards clicks', () => {
     const onCitationClick = vi.fn();
     renderByIndex(
       [
@@ -326,10 +326,11 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
       { onCitationClick }
     );
 
-    const chip = screen.getByText('Attention Is All You Need');
-    expect(chip).toBeInTheDocument();
-    expect(screen.getByText('92%')).toBeInTheDocument();
-    fireEvent.click(chip.closest('button') as HTMLButtonElement);
+    const row = screen.getByText('Attention Is All You Need');
+    expect(row).toBeInTheDocument();
+    // Relevance percentages moved to the retrieval diagnostics view.
+    expect(screen.queryByText('92%')).toBeNull();
+    fireEvent.click(row.closest('button') as HTMLButtonElement);
     expect(onCitationClick).toHaveBeenCalledTimes(1);
   });
 

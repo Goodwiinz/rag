@@ -12,6 +12,10 @@ export interface Citation {
   score: number;
   content?: string;
   source?: string;
+  /** Page the cited passage sits on, when the backend knows it. Renders as the
+   * `p. N` locator in the sources list; absent means no locator, never a
+   * guessed one. */
+  pageNumber?: number;
 }
 
 /**

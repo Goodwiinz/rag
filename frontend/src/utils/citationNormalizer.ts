@@ -70,5 +70,6 @@ export function normalizeCitation(
     score: (c.score as number) ?? 0,
     content: snippet,
     source: (c.source as string) || (c.document_type as string),
+    pageNumber: (c.pageNumber as number) ?? (c.page_number as number),
   };
 }

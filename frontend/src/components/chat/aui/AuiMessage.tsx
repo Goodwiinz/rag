@@ -36,7 +36,10 @@ import { MessageTiming } from '@/components/elements/message-timing';
 import { ReasoningPanel } from '@/components/elements/reasoning-panel';
 import { RetrievalChunks } from '@/components/elements/retrieval-chunks';
 import { ChatInlinePlan } from '@/components/chat/shared/ChatInlinePlan';
-import { CitationChips } from '@/components/chat/shared/CitationChips';
+import {
+  CitationChips,
+  numberCitations,
+} from '@/components/chat/shared/CitationChips';
 import { formatStreamingElapsed } from '@/components/chat/shared/formatStreamingElapsed';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { MessageFeedback } from '@/components/chat/shared/MessageFeedback';
@@ -247,6 +250,7 @@ function MessageActions({
         <MessagePrimitive.If copied>
           <Check className="h-3.5 w-3.5 text-(--nous-terra)" />
         </MessagePrimitive.If>
+        <span>Copy</span>
       </ActionBarPrimitive.Copy>
       {!assistant && onEdit ? (
         <button
@@ -258,6 +262,7 @@ function MessageActions({
           title="Edit and resend"
         >
           <Pencil className="h-3.5 w-3.5" />
+          <span>Edit</span>
         </button>
       ) : null}
       {assistant && onRetry ? (
@@ -272,6 +277,7 @@ function MessageActions({
           }
         >
           <RotateCcw className="h-3.5 w-3.5" />
+          <span>Regenerate</span>
         </button>
       ) : assistant ? (
         <ActionBarPrimitive.Reload
@@ -280,6 +286,7 @@ function MessageActions({
           title="Regenerate response"
         >
           <RotateCcw className="h-3.5 w-3.5" />
+          <span>Regenerate</span>
         </ActionBarPrimitive.Reload>
       ) : null}
     </ActionBarPrimitive.Root>
@@ -687,6 +694,13 @@ export function AuiAssistantMessage({
   const visibleCitations =
     inlineCitations.length > 0 ? inlineCitations : allCitations;
 
+  // One numbering for the whole turn: the inline superscripts and the sources
+  // list below the reply must agree, so both read it off the same map.
+  const citationNumbers = useMemo(
+    () => numberCitations(visibleCitations).indexByKey,
+    [visibleCitations]
+  );
+
   const executionByToolCallId = message?.toolExecutions?.length
     ? new Map(
         toToolCallParts(message.runtimeId, message.toolExecutions).map(
@@ -702,6 +716,7 @@ export function AuiAssistantMessage({
       <CitationRenderer
         content={message.content}
         citations={allCitations}
+        citationNumbers={citationNumbers}
         onCitationClick={(citation) => {
           if (onCitationClick) {
             onCitationClick(
@@ -801,7 +816,7 @@ export function AuiAssistantMessage({
           <ToolStrip {...getToolStripProps(message, visibleCitations.length)} />
         )}
         <MessageAttachments />
-        <div className="nous-chat-body space-y-2">
+        <div className="nous-chat-body max-w-[720px] space-y-2">
           <MessageParts
             assistant
             assistantText={assistantText}
