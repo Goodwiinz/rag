@@ -9,7 +9,7 @@ faker==20.1.0
 
 # Code Quality
 black==26.5.1
-ruff==0.15.15
+ruff==0.16.6
 mypy==1.7.1
 pre-commit==3.6.0
 
