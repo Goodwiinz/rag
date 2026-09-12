@@ -49,6 +49,7 @@ from src.services.agent import stream_buffer as _stream_buffer
 from src.services.agent._pii_redact import redact_tool_executions
 from src.services.agent.agent_execution_service import (  # noqa: F401
     MAX_JOBS,
+    AgentThreadResolutionError,
     _actor_fields,
     _cleanup_jobs,
     _clear_stale_pending_confirmation,
@@ -431,11 +432,13 @@ async def execute_agent(
         },
     )
 
-    if request.thread_id:
-        try:
-            thread, _conversation_id = await _resolve_thread(db, current_user, request)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail="Invalid thread ID") from exc
+    try:
+        thread, _conversation_id = await _resolve_thread(db, current_user, request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid thread ID") from exc
+    except AgentThreadResolutionError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if thread is not None:
         request.thread_id = str(thread.id) if thread is not None else None
 
     job_id = str(_uuid.uuid4())
@@ -443,7 +446,7 @@ async def execute_agent(
         "status": JobStatus.RUNNING,
         "tool_executions": [],
         **_actor_fields(current_user),
-        "request": request.model_dump(),
+        "request": request.model_dump(mode="json"),
     }
 
     if _resolve_dispatch_backend() == "celery":
@@ -639,6 +642,7 @@ async def confirm_agent_action(
     # dispatch record — trusting it would 409 every legitimate confirm.
     # (The authoritative claim is the guarded PostgreSQL transition below.)
     job = await _get_job_fresh(job_id)
+    stored_request_payload = job.get("request") if isinstance(job, dict) else None
     # ``get_job_fresh`` returns None only when BOTH Redis and L1 have nothing —
     # exactly the two stores ``_resume_agent_graph`` reads for the request
     # payload. The projection fallback below can restore status and ownership,
@@ -674,6 +678,7 @@ async def confirm_agent_action(
             job = {
                 "status": _normalized_job_status(run.status),
                 "user_id": str(run.user_id),
+                "request": stored_request_payload,
             }
         elif job is None:
             raise HTTPException(status_code=404, detail="Job not found")
@@ -694,6 +699,19 @@ async def confirm_agent_action(
             status_code=409,
             detail="This confirmation has expired. Please start the request again.",
         )
+
+    if stored_request_payload:
+        try:
+            stored_request = AgentExecuteRequest(**stored_request_payload)
+            if stored_request.thread_id:
+                await _resolve_thread(
+                    db,
+                    current_user,
+                    stored_request,
+                    create_if_missing=False,
+                )
+        except (AgentThreadResolutionError, ValueError) as exc:
+            raise HTTPException(status_code=404, detail="Thread not found") from exc
 
     # PostgreSQL is the shared Stop/Confirm authority. Claim it before Redis so
     # cancellation and every resume path race on the same guarded transition.

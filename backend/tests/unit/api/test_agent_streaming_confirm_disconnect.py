@@ -11,6 +11,10 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from tests.utils.agent_thread_access import editable_thread_getter
+
+THREAD_ID = "11111111-1111-4111-8111-111111111626"
+
 
 @pytest.fixture(autouse=True)
 def _allow_durable_confirm():
@@ -30,6 +34,10 @@ def _allow_durable_confirm():
         patch(
             "src.api.agent.streaming._finalize_run_id",
             new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "src.services.threads.workspace_access.get_thread",
+            new=editable_thread_getter(),
         ),
     ):
         yield
@@ -84,7 +92,7 @@ async def test_confirm_stream_acloses_graph_on_disconnect():
 
     graph = _DisconnectGraph()
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
-    body = SimpleNamespace(thread_id="thread-789", confirmed=True, model="")
+    body = SimpleNamespace(thread_id=THREAD_ID, confirmed=True, model="")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
@@ -142,7 +150,7 @@ async def test_confirm_stream_persists_partial_on_disconnect():
     request = SimpleNamespace(
         is_disconnected=AsyncMock(side_effect=[False, True, True])
     )
-    body = SimpleNamespace(thread_id="thread-789", confirmed=True, model="")
+    body = SimpleNamespace(thread_id=THREAD_ID, confirmed=True, model="")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     persist = AsyncMock(return_value="assistant-row-1")
@@ -189,6 +197,6 @@ async def test_confirm_stream_persists_partial_on_disconnect():
     kwargs = persist.await_args.kwargs
     assert kwargs["content"] == "x"
     assert kwargs["stopped"] is True
-    assert kwargs["thread_id"] == "thread-789"
+    assert kwargs["thread_id"] == THREAD_ID
     # idempotency key derived from the original user turn's client_message_id
     assert kwargs["client_message_id"] is not None

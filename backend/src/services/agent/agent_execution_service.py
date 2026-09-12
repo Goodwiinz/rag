@@ -59,6 +59,10 @@ from src.services.agent.job_store import (
     schedule_run_projection as _schedule_run_projection,
 )
 from src.services.agent.job_store import set_job as _set_job_async
+from src.services.agent.state import (
+    THREAD_PERSISTENCE_DURABLE,
+    THREAD_PERSISTENCE_EPHEMERAL,
+)
 from src.services.agent.trace_metadata import TraceSource, build_trace_metadata
 from src.shared.enums import JobStatus
 
@@ -1040,26 +1044,17 @@ async def _resolve_and_bind_project(
     return project_id
 
 
+class AgentThreadResolutionError(LookupError):
+    """A requested durable thread or workspace cannot accept an agent write."""
+
+
 async def _resolve_thread(
     db: AsyncSession,
     current_user: User,
     request: Any,  # AgentExecuteRequest
     create_if_missing: bool = True,
 ) -> tuple[Optional[Any], str]:
-    """Resolve or create the Thread + Conversation for this request.
-
-    Returns ``(thread, conversation_id)``. ``thread`` is ``None`` when no
-    workspace exists for the user (caller should treat this as "skip
-    persistence"). When a fresh thread/conversation is created it is
-    committed so the row has an ``id`` callers can reference.
-
-    ``create_if_missing=False`` skips the create-on-miss branch and returns
-    ``(None, "")`` when the thread cannot be found. Confirm/resume paths
-    must use this: their thread already exists (ownership was verified
-    against the checkpoint snapshot), so a lookup miss there is a transient
-    failure and creating a fresh "Agent Chat" thread would silently split
-    the conversation in two.
-    """
+    """Resolve an authoritative thread or create one in a deterministic parent."""
     from uuid import UUID
 
     from sqlalchemy import select
@@ -1068,78 +1063,106 @@ async def _resolve_thread(
     from src.models.conversation import Conversation
     from src.models.thread import Thread, ThreadStatus
     from src.models.workspace import Workspace
+    from src.services.threads import workspace_access
 
     AGENT_THREAD_MARKER = {"source": "agent"}
 
-    thread: Optional[Thread] = None
     if request.thread_id:
-        stmt = (
-            select(Thread)
-            .join(Conversation, Thread.conversation_id == Conversation.id)
-            .join(Workspace, Conversation.workspace_id == Workspace.id)
-            .options(selectinload(Thread.source_project))
-            .where(Thread.id == UUID(request.thread_id))
-            .where(Workspace.owner_id == current_user.id)
-            # Never resolve a soft-deleted thread (or one under a soft-deleted
-            # conversation/workspace): a stale tab / SSE retry would otherwise
-            # persist a new turn into a deleted thread. On the create-if-missing
-            # path a miss falls through to a fresh thread; on confirm/resume
-            # (create_if_missing=False) it returns (None, "") — never recreated.
-            .where(Thread.is_deleted == False)  # noqa: E712
-            .where(Conversation.is_deleted == False)  # noqa: E712
-            .where(Workspace.is_deleted == False)  # noqa: E712
+        requested_thread_id = UUID(str(request.thread_id))
+        thread = await workspace_access.get_thread(
+            db,
+            requested_thread_id,
+            current_user.id,
+            include_messages=False,
         )
-        result = await db.execute(stmt)
-        thread = result.scalar_one_or_none()
+        if thread is None or not thread.conversation.workspace.can_user_edit(
+            str(current_user.id)
+        ):
+            raise AgentThreadResolutionError("Thread not found")
+        return thread, str(thread.conversation_id)
 
-    if thread is None and not create_if_missing:
+    if not create_if_missing:
         return None, ""
 
-    if thread is None:
-        # Never create a new Conversation+Thread under a soft-deleted
-        # workspace: delete_workspace flags only its own row, so a live-owner
-        # pick must exclude it.
+    requested_workspace_id = getattr(
+        getattr(request, "page_context", None), "workspace_id", None
+    )
+    if requested_workspace_id is not None:
+        workspace = await workspace_access.get_workspace(
+            db,
+            UUID(str(requested_workspace_id)),
+            current_user.id,
+            load_conversations=False,
+            load_collections=False,
+        )
+        if workspace is None or not workspace.can_user_edit(str(current_user.id)):
+            raise AgentThreadResolutionError("Workspace not found")
+        workspace_id = workspace.id
+        lock_stmt = (
+            select(Workspace)
+            .options(selectinload(Workspace.members))
+            .where(
+                Workspace.id == workspace_id,
+                Workspace.is_deleted == False,  # noqa: E712
+            )
+            .with_for_update()
+        )
+        workspace = (await db.execute(lock_stmt)).scalar_one_or_none()
+        if workspace is None or not workspace.can_user_edit(str(current_user.id)):
+            raise AgentThreadResolutionError("Workspace not found")
+    else:
         ws_stmt = (
             select(Workspace)
+            .options(selectinload(Workspace.members))
             .where(
                 Workspace.owner_id == current_user.id,
                 Workspace.is_deleted == False,  # noqa: E712
             )
+            .order_by(Workspace.created_at.asc(), Workspace.id.asc())
             .limit(1)
+            .with_for_update()
         )
-        ws_result = await db.execute(ws_stmt)
-        workspace = ws_result.scalar_one_or_none()
+        workspace = (await db.execute(ws_stmt)).scalar_one_or_none()
 
-        if workspace:
-            conv = Conversation(
-                workspace_id=workspace.id,
-                title="Agent Chat",
-                created_by_id=current_user.id,
-            )
-            db.add(conv)
-            await db.flush()
+    if workspace is None:
+        return None, ""
 
-            first_msg = next(
-                (m.content for m in request.messages if m.role == "user"), ""
-            )
-            title = first_msg[:80] if first_msg else "Agent Chat"
+    conversation_stmt = (
+        select(Conversation)
+        .where(
+            Conversation.workspace_id == workspace.id,
+            Conversation.is_deleted == False,  # noqa: E712
+        )
+        .order_by(Conversation.created_at.asc(), Conversation.id.asc())
+        .limit(1)
+    )
+    conv = (await db.execute(conversation_stmt)).scalar_one_or_none()
+    if conv is None:
+        conv = Conversation(
+            id=_uuid.uuid4(),
+            workspace_id=workspace.id,
+            title="Agent Chat",
+            created_by_id=current_user.id,
+        )
+        db.add(conv)
+        await db.flush()
 
-            thread = Thread(
-                conversation_id=conv.id,
-                title=title,
-                status=ThreadStatus.ACTIVE,
-                created_by_id=current_user.id,
-                rag_document_scope=AGENT_THREAD_MARKER,
-                message_count=0,
-            )
-            db.add(thread)
-            await db.commit()
-            # Refresh so caller sees a usable id / conversation_id without
-            # an additional roundtrip in the same transaction.
-            await db.refresh(thread)
+    first_msg = next((m.content for m in request.messages if m.role == "user"), "")
+    title = first_msg[:80] if first_msg else "Agent Chat"
+    thread = Thread(
+        id=_uuid.uuid4(),
+        conversation_id=conv.id,
+        title=title,
+        status=ThreadStatus.ACTIVE,
+        created_by_id=current_user.id,
+        rag_document_scope=AGENT_THREAD_MARKER,
+        message_count=0,
+    )
+    db.add(thread)
+    await db.commit()
+    await db.refresh(thread)
 
-    conversation_id = str(thread.conversation_id) if thread is not None else ""
-    return thread, conversation_id
+    return thread, str(thread.conversation_id)
 
 
 async def resync_thread_checkpoint(
@@ -1329,12 +1352,12 @@ async def _tombstone_superseded_turns(
     """
     from uuid import UUID
 
-    from sqlalchemy import and_, or_, select, update
+    from sqlalchemy import and_, exists, or_, select, update
 
     from src.models.chat_message import ChatMessage, MessageRole
     from src.models.conversation import Conversation
     from src.models.thread import Thread
-    from src.models.workspace import Workspace
+    from src.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
 
     try:
         tid = UUID(str(thread_id))
@@ -1346,22 +1369,37 @@ async def _tombstone_superseded_turns(
         )
         return 0
 
-    # Ownership: the thread must hang off a workspace this user owns. Callers
-    # resolve+verify the thread upstream (``_resolve_thread``); this is the
-    # same defense-in-depth join ``_chat_user_row_count`` uses, applied here
-    # because this statement WRITES.
-    owned_thread = (
+    # Defense in depth: mirror the actual write authorization accepted by
+    # ``_resolve_thread`` (owner or live owner/admin/editor membership), and
+    # re-check every soft-deletable ancestor. A public workspace grants read
+    # access, never edit access, and a stale upstream ORM object must not let a
+    # revoked member or deleted ancestor mutate message history.
+    editable_membership = exists().where(
+        WorkspaceMember.workspace_id == Workspace.id,
+        WorkspaceMember.user_id == current_user.id,
+        WorkspaceMember.is_deleted.is_(False),
+        WorkspaceMember.role.in_(
+            (WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.EDITOR)
+        ),
+    )
+    editable_thread = (
         select(Thread.id)
         .join(Conversation, Thread.conversation_id == Conversation.id)
         .join(Workspace, Conversation.workspace_id == Workspace.id)
-        .where(Thread.id == tid, Workspace.owner_id == current_user.id)
+        .where(
+            Thread.id == tid,
+            Thread.is_deleted.is_(False),
+            Conversation.is_deleted.is_(False),
+            Workspace.is_deleted.is_(False),
+            or_(Workspace.owner_id == current_user.id, editable_membership),
+        )
     ).scalar_subquery()
 
     target = (
         await db.execute(
             select(ChatMessage.id, ChatMessage.created_at).where(
                 ChatMessage.thread_id == tid,
-                ChatMessage.thread_id.in_(owned_thread),
+                ChatMessage.thread_id.in_(editable_thread),
                 ChatMessage.client_message_id == target_cmid,
                 ChatMessage.role == MessageRole.USER,
             )
@@ -1967,7 +2005,7 @@ async def _persist_assistant_message(
         msg_id = msg.id
 
     if retrieved_contexts:
-        for ctx in retrieved_contexts:
+        for source_position, ctx in enumerate(retrieved_contexts, 1):
             doc_id = ctx.get("document_id")
             db.add(
                 CitationModel(
@@ -1976,6 +2014,10 @@ async def _persist_assistant_message(
                     external_reference_id=ctx.get("external_reference_id"),
                     document_title=ctx.get("title"),
                     snippet=ctx.get("content", "")[:2000],
+                    source_position=source_position,
+                    chunk_id=ctx.get("chunk_id"),
+                    chunk_index=ctx.get("chunk_index"),
+                    page_number=ctx.get("page_number"),
                     score=ctx.get("score"),
                     rerank_score=ctx.get("rerank_score"),
                 )
@@ -2202,6 +2244,11 @@ async def _run_agent_graph(
                     await _persist_user_message_guarded(
                         db, current_user, request, tombstoned_out=tombstones
                     )
+            except AgentThreadResolutionError:
+                # An explicit thread/workspace is authoritative. Access loss
+                # between edge validation and worker dispatch must fail the
+                # run, never continue against an ephemeral checkpoint.
+                raise
             except Exception:
                 logger.warning(
                     "Failed to persist user turn before agent graph run",
@@ -2306,6 +2353,11 @@ async def _run_agent_graph(
                 "retrieved_contexts": [],
                 "tool_executions": [],
                 "thread_id": request.thread_id or "",
+                "thread_persistence": (
+                    THREAD_PERSISTENCE_DURABLE
+                    if resolved_thread_id is not None
+                    else THREAD_PERSISTENCE_EPHEMERAL
+                ),
                 "turn_index": 0,
                 "tool_loop_count": 0,
                 "error_count": 0,
@@ -2396,7 +2448,7 @@ async def _run_agent_graph(
                             "confirmation": confirmation_details,
                             "tool_executions": [],
                             **_actor_fields(current_user),
-                            "request": request.model_dump(),
+                            "request": request.model_dump(mode="json"),
                         },
                     )
                     return
@@ -2410,7 +2462,7 @@ async def _run_agent_graph(
                         "confirmation": confirmation_details,
                         "tool_executions": [],
                         **_actor_fields(current_user),
-                        "request": request.model_dump(),
+                        "request": request.model_dump(mode="json"),
                     },
                 )
                 return
@@ -2582,9 +2634,6 @@ async def _resume_agent_graph(
 
     async with AsyncSessionLocal() as db:
         try:
-            checkpointer = await get_checkpointer()
-            store = await get_memory_store()
-            graph = compile_agent_graph(checkpointer=checkpointer, store=store)
             # L1 first, then Redis: in Celery dispatch mode (or behind a
             # multi-replica API) the pod resuming the confirm may not be the
             # pod that dispatched, so the request payload only exists in
@@ -2624,6 +2673,29 @@ async def _resume_agent_graph(
                     },
                 )
                 return
+
+            if original_request is not None and original_request.thread_id:
+                try:
+                    await _resolve_thread(
+                        db,
+                        current_user,
+                        original_request,
+                        create_if_missing=False,
+                    )
+                except (AgentThreadResolutionError, ValueError):
+                    await _set_job_async(
+                        job_id,
+                        {
+                            "status": JobStatus.FAILED,
+                            "error": "Thread not found",
+                            **_actor_fields(current_user),
+                        },
+                    )
+                    return
+
+            checkpointer = await get_checkpointer()
+            store = await get_memory_store()
+            graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
             config = {
                 "recursion_limit": RECURSION_LIMIT,
@@ -2782,7 +2854,9 @@ async def _resume_agent_graph(
                         "tool_executions": list(final_state.get("tool_executions", [])),
                         **_actor_fields(current_user),
                         "request": (
-                            original_request.model_dump() if original_request else None
+                            original_request.model_dump(mode="json")
+                            if original_request
+                            else None
                         ),
                     },
                 )
@@ -2931,7 +3005,9 @@ async def _resume_agent_graph(
                     "tool_executions": [],
                     **_actor_fields(current_user),
                     "request": (
-                        original_request.model_dump() if original_request else None
+                        original_request.model_dump(mode="json")
+                        if original_request
+                        else None
                     ),
                 },
             )

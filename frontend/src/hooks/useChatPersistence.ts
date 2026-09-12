@@ -33,6 +33,10 @@ export interface UIMessage {
   citations?: Array<{
     documentId?: string; // Optional: may be undefined for external references
     externalReferenceId?: string; // For non-database references (e.g., arXiv IDs)
+    sourcePosition?: number;
+    chunkId?: string;
+    chunkIndex?: number;
+    pageNumber?: number;
     title: string;
     score: number;
     content?: string; // Snippet content for preview
@@ -192,7 +196,7 @@ function extractTitleFromSnippet(snippet?: string): string | null {
 /**
  * Map database message to UI message format
  */
-function mapDbMessageToUI(dbMsg: ChatMessage): UIMessage {
+export function mapDbMessageToUI(dbMsg: ChatMessage): UIMessage {
   return {
     id: dbMsg.id,
     role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
@@ -218,6 +222,10 @@ function mapDbMessageToUI(dbMsg: ChatMessage): UIMessage {
       return {
         documentId: c.document_id || undefined, // May be undefined for external refs
         externalReferenceId: c.external_reference_id || undefined, // For arXiv IDs, etc.
+        sourcePosition: c.source_position,
+        chunkId: c.chunk_id,
+        chunkIndex: c.chunk_index,
+        pageNumber: c.page_number,
         title,
         score: c.score || 0,
         content: c.snippet || c.snippet_preview,

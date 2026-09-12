@@ -271,9 +271,68 @@ describe('useChatStreaming HITL confirm tool steps', () => {
     });
   });
 
-  it('re-arms pendingConfirmation on a nested interrupt instead of dropping it', async () => {
+  it('replaces carried citations with each cumulative resume snapshot', async () => {
+    const doc1 = {
+      document_id: 'doc-1',
+      title: 'First source',
+      content: 'first chunk',
+      source_position: 1,
+    };
+    const doc2 = {
+      document_id: 'doc-2',
+      title: 'Second source',
+      content: 'second chunk',
+      source_position: 2,
+    };
     streamMessageMock.mockImplementation(
       (_req: unknown, cb: StreamCallbacks) => {
+        cb.onRagContext([doc1]);
+        cb.onConfirmation('agent-thread-1', { tool: 'ingest_arxiv_papers' });
+        return Promise.resolve();
+      }
+    );
+    streamConfirmMock.mockImplementation(
+      (_req: unknown, cb: StreamCallbacks) => {
+        // rag_context is a complete cumulative snapshot, not a delta.
+        cb.onRagContext([doc1, doc2]);
+        cb.onToken('grounded answer [Doc 1] [Doc 2]');
+        cb.onDone({});
+        return Promise.resolve();
+      }
+    );
+
+    const params = makeParams();
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    await act(async () => {
+      await result.current.handleSubmit('retrieve then ingest');
+    });
+    await act(async () => {
+      await result.current.handleConfirmation(true);
+    });
+
+    const committed = committedAssistantMessages(params.setMessages);
+    expect(committed[committed.length - 1].citations).toMatchObject([
+      { documentId: 'doc-1', sourcePosition: 1 },
+      { documentId: 'doc-2', sourcePosition: 2 },
+    ]);
+    expect(committed[committed.length - 1].citations).toHaveLength(2);
+  });
+
+  it('re-arms pendingConfirmation on a nested interrupt instead of dropping it', async () => {
+    const doc1 = {
+      document_id: 'doc-1',
+      content: 'first chunk',
+      source_position: 1,
+    };
+    const doc2 = {
+      document_id: 'doc-2',
+      content: 'second chunk',
+      source_position: 2,
+    };
+    streamMessageMock.mockImplementation(
+      (_req: unknown, cb: StreamCallbacks) => {
+        cb.onRagContext([doc1]);
         cb.onConfirmation('agent-thread-1', { tool: 'ingest_arxiv_papers' });
         cb.onDone({});
         return Promise.resolve();
@@ -283,6 +342,7 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       (_req: unknown, cb: StreamCallbacks) => {
         cb.onToolStart('ingest_arxiv_papers', {});
         cb.onToolEnd('ingest_arxiv_papers', 'ok', false);
+        cb.onRagContext([doc1, doc2]);
         // Backend hits a SECOND destructive tool and ends without done.
         cb.onConfirmation('agent-thread-1', { tool: 'create_note' });
         return Promise.resolve();
@@ -323,6 +383,7 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       threadId: 'agent-thread-1',
       confirmation: { tool: 'create_note' },
       steps: [{ tool: 'ingest_arxiv_papers', status: 'done' }],
+      citations: [doc1, doc2],
     });
     expect(result.current.pendingConfirmation?.approvalId).not.toBe(
       firstApprovalId
@@ -334,8 +395,19 @@ describe('useChatStreaming HITL confirm tool steps', () => {
   });
 
   it('keeps settled tools and provenance when a confirm stream fails', async () => {
+    const doc1 = {
+      document_id: 'doc-before-confirm',
+      content: 'first chunk',
+      source_position: 1,
+    };
+    const doc2 = {
+      document_id: 'doc-after-confirm',
+      content: 'second chunk',
+      source_position: 2,
+    };
     streamMessageMock.mockImplementation(
       (_req: unknown, cb: StreamCallbacks) => {
+        cb.onRagContext([doc1]);
         cb.onConfirmation('agent-thread-1', { tool: 'create_project_note' });
         cb.onDone({});
         return Promise.resolve();
@@ -355,7 +427,7 @@ describe('useChatStreaming HITL confirm tool steps', () => {
           ],
           'Save the verified findings.'
         );
-        cb.onRagContext([{ document_id: 'doc-after-confirm', content: 'ctx' }]);
+        cb.onRagContext([doc1, doc2]);
         cb.onError('upstream failed', 'upstream_timeout');
         return Promise.resolve();
       }
@@ -381,7 +453,7 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       ],
       plan: [{ description: 'Save the audit note' }],
       planReasoning: 'Save the verified findings.',
-      citations: [{ document_id: 'doc-after-confirm' }],
+      citations: [doc1, doc2],
     });
   });
 

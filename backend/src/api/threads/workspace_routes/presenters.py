@@ -244,6 +244,7 @@ def _citation_to_response(citation: Citation) -> CitationResponse:
         id=citation.id,
         document_id=citation.document_id,
         external_reference_id=citation.external_reference_id,  # For arXiv IDs, etc.
+        source_position=citation.source_position,
         chunk_index=citation.chunk_index,
         chunk_id=citation.chunk_id,
         snippet=citation.snippet,

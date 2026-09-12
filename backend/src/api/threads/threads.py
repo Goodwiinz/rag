@@ -1011,6 +1011,7 @@ def _format_message_response(message) -> ChatMessageResponse:
                 id=c.id,
                 document_id=c.document_id,
                 external_reference_id=c.external_reference_id,  # For arXiv IDs, etc.
+                source_position=c.source_position,
                 chunk_index=c.chunk_index,
                 chunk_id=c.chunk_id,
                 snippet=c.snippet,

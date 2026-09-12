@@ -11,6 +11,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from tests.utils.agent_thread_access import editable_thread_getter
+
 
 def _frame_event(frame: str) -> str:
     for line in frame.splitlines():
@@ -223,6 +225,10 @@ async def test_confirm_park_failure_after_nested_confirmation_stays_clean(
             new=AsyncMock(return_value=object()),
         ),
         patch("src.services.agent.graph.compile_agent_graph", return_value=graph),
+        patch(
+            "src.services.threads.workspace_access.get_thread",
+            new=editable_thread_getter(),
+        ),
     ):
         frames = [
             f

@@ -125,7 +125,9 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     if retrieved:
         from src.services.agent._nodes_llm import _retrieval_context_part
 
-        messages.append(SystemMessage(content=_retrieval_context_part(retrieved)))
+        messages.append(
+            SystemMessage(content=_retrieval_context_part(retrieved, sanitized))
+        )
     from src.services.agent.runtime_snapshot import render_project_skill_catalog
 
     skill_catalog_prompt = render_project_skill_catalog(

@@ -164,7 +164,13 @@ class ChatMessage(BaseModel):
     thread = relationship("Thread", back_populates="messages")
     user = relationship("User", foreign_keys=[user_id])
     citations = relationship(
-        "Citation", back_populates="message", cascade="all, delete-orphan"
+        "Citation",
+        back_populates="message",
+        cascade="all, delete-orphan",
+        order_by=(
+            "Citation.source_position.asc().nulls_last(), "
+            "Citation.created_at.asc(), Citation.id.asc()"
+        ),
     )
     attachments = relationship(
         "MessageAttachment", back_populates="message", cascade="all, delete-orphan"

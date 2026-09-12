@@ -336,6 +336,7 @@ class CitationResponse(BaseModel):
     external_reference_id: Optional[str] = (
         None  # For non-database references (e.g., arXiv IDs)
     )
+    source_position: Optional[int] = None
     chunk_index: Optional[int] = None
     chunk_id: Optional[str] = None
     snippet: Optional[str] = None

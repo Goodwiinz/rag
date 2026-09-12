@@ -36,6 +36,7 @@ from src.services.agent._errors import (
 )
 from src.services.agent._pii_redact import redact_pii, redact_tool_args
 from src.services.agent.agent_execution_service import (
+    AgentThreadResolutionError,
     TombstoneReport,
     _clear_stale_pending_confirmation,
     _latest_user_client_message_id,
@@ -63,6 +64,10 @@ from src.services.agent.agent_submission_service import (
 from src.services.agent.job_store import process_local_confirmation_coordination_allowed
 from src.services.agent.observability import AgentStreamSLOTracker, record_token_usage
 from src.services.agent.run_event_types import MAX_PAYLOAD_BYTES, RunEventType
+from src.services.agent.state import (
+    THREAD_PERSISTENCE_DURABLE,
+    THREAD_PERSISTENCE_EPHEMERAL,
+)
 from src.services.agent.trace_metadata import TraceSource, build_trace_metadata
 from src.shared.enums import (
     TERMINAL_STREAM_EVENTS,
@@ -204,6 +209,8 @@ def _stream_failure_category(exc: BaseException) -> AgentErrorCategory:
         return AgentErrorCategory.INVALID_REQUEST
     if isinstance(exc, ActiveRunConflict):
         return AgentErrorCategory.CONFLICT
+    if isinstance(exc, AgentThreadResolutionError):
+        return AgentErrorCategory.INVALID_REQUEST
     return classify_agent_error(exc)
 
 
@@ -965,6 +972,121 @@ _CLIP_LADDER: tuple[tuple[int, int], ...] = (
     (64, 1),
 )
 
+_PUBLIC_RAG_CONTEXT_KEYS = frozenset(
+    {
+        "document_id",
+        "external_reference_id",
+        "title",
+        "content",
+        "text",
+        "snippet",
+        "score",
+        "score_source",
+        "rerank_score",
+        "chunk_id",
+        "chunk_index",
+        "page_number",
+        "source_position",
+    }
+)
+_RAG_IDENTITY_KEYS = frozenset({"document_id", "external_reference_id", "chunk_id"})
+_RAG_DESCRIPTIVE_KEYS = frozenset(
+    {"title", "content", "text", "snippet", "score_source"}
+)
+_MAX_RAG_IDENTIFIER_JSON_BYTES = 192
+
+
+def _changed_retrieved_context_snapshot(
+    event: Mapping[str, Any], previous_fingerprint: Optional[str]
+) -> tuple[Optional[List[Dict[str, Any]]], Optional[str]]:
+    """Return a changed cumulative context snapshot from any chain node."""
+    if event.get("event") != "on_chain_end":
+        return None, previous_fingerprint
+    data = event.get("data")
+    output = data.get("output") if isinstance(data, Mapping) else None
+    contexts = output.get("retrieved_contexts") if isinstance(output, Mapping) else None
+    if not isinstance(contexts, list):
+        return None, previous_fingerprint
+    try:
+        fingerprint = _json.dumps(contexts, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        return None, previous_fingerprint
+    if fingerprint == previous_fingerprint:
+        return None, previous_fingerprint
+    return contexts, fingerprint
+
+
+def _json_size_bytes(value: Any) -> int:
+    return len(_json.dumps(value).encode("utf-8"))
+
+
+def _bound_rag_context_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Bound source fields while retaining every canonical source slot."""
+    raw_contexts = data.get("contexts")
+    if not isinstance(raw_contexts, list):
+        return data
+    projected: List[Dict[str, Any]] = []
+    for source_position, context in enumerate(raw_contexts, start=1):
+        if not isinstance(context, dict):
+            continue
+        public_context: Dict[str, Any] = {"source_position": source_position}
+        for key, value in context.items():
+            if key not in _PUBLIC_RAG_CONTEXT_KEYS or key == "source_position":
+                continue
+            if key in _RAG_IDENTITY_KEYS:
+                if (
+                    not isinstance(value, str)
+                    or not value.strip()
+                    or _json_size_bytes(value) > _MAX_RAG_IDENTIFIER_JSON_BYTES
+                ):
+                    continue
+            public_context[key] = value
+        projected.append(public_context)
+    candidate: Dict[str, Any] = {**data, "contexts": projected}
+    if _json_size_bytes(candidate) <= MAX_PAYLOAD_BYTES:
+        return candidate
+
+    for max_chars in (2000, 1024, 512, 256, 128, 64, 16, 0):
+        clipped_contexts = [
+            {
+                key: (
+                    (value[:max_chars] + _TRUNCATION_SUFFIX if max_chars else "")
+                    if key in _RAG_DESCRIPTIVE_KEYS
+                    and isinstance(value, str)
+                    and len(value) > max_chars
+                    else value
+                )
+                for key, value in context.items()
+            }
+            for context in projected
+        ]
+        candidate = {
+            **data,
+            "contexts": clipped_contexts,
+            _TRUNCATED_MARKER: True,
+        }
+        if _json_size_bytes(candidate) <= MAX_PAYLOAD_BYTES:
+            return candidate
+
+    # The projection admits only code-controlled scalar fields and identifiers
+    # whose serialized size is bounded above. Twenty minimal source records
+    # therefore fit. Keep the assertion fail-closed during development rather
+    # than handing this frame to the generic list-slicing ladder.
+    minimal = {
+        "contexts": [
+            {
+                key: value
+                for key, value in context.items()
+                if key not in _RAG_DESCRIPTIVE_KEYS
+            }
+            for context in projected
+        ],
+        _TRUNCATED_MARKER: True,
+    }
+    if _json_size_bytes(minimal) <= MAX_PAYLOAD_BYTES:
+        return minimal
+    raise ValueError("canonical rag_context identity payload exceeds byte budget")
+
 
 def _clip_payload_values(value: Any, *, max_chars: int, max_items: int) -> Any:
     """Depth-preserving clip: strings keep their prefix (+ marker), lists keep
@@ -1002,7 +1124,7 @@ def _stub_identity_payload(data: Dict[str, Any]) -> Dict[str, Any]:
     never at risk here.
     """
     stub: Dict[str, Any] = {_TRUNCATED_MARKER: True, _STUB_MARKER: True}
-    budget = MAX_PAYLOAD_BYTES - len(_json.dumps(stub))
+    budget = MAX_PAYLOAD_BYTES - _json_size_bytes(stub)
     for key, value in data.items():
         if key in stub:
             continue
@@ -1015,7 +1137,7 @@ def _stub_identity_payload(data: Dict[str, Any]) -> Dict[str, Any]:
             # Overstates the real cost by one byte (the added comma replaces
             # a brace) — deliberately conservative so the result cannot land
             # a byte over budget.
-            cost = len(_json.dumps({key: value}))
+            cost = _json_size_bytes({key: value})
         except (TypeError, ValueError):
             continue
         if cost > budget:
@@ -1030,6 +1152,11 @@ def _bound_frame_payload(event_type: str, data: Dict[str, Any]) -> Dict[str, Any
     clipped copy carrying ``payload_truncated: True``. Never raises and never
     mutates the input: an oversized producer degrades one frame instead of
     failing the stream."""
+    if event_type == str(AgentStreamEvent.RAG_CONTEXT) and isinstance(
+        data.get("contexts"), list
+    ):
+        return _bound_rag_context_payload(data)
+
     # Serialize once: the oversized path is exactly where the payload is
     # multi-megabyte, so re-encoding it for a log field is the one cost worth
     # avoiding here. Every length below reuses an encoding already computed.
@@ -1039,7 +1166,7 @@ def _bound_frame_payload(event_type: str, data: Dict[str, Any]) -> Dict[str, Any
         # Not JSON-serializable: the formatter downstream already surfaces
         # this exactly as it did before the byte budget existed.
         return data
-    original_bytes = len(encoded)
+    original_bytes = len(encoded.encode("utf-8"))
     if original_bytes <= MAX_PAYLOAD_BYTES:
         return data
     bounded = data
@@ -1051,14 +1178,14 @@ def _bound_frame_payload(event_type: str, data: Dict[str, Any]) -> Dict[str, Any
         )
         candidate[_TRUNCATED_MARKER] = True
         bounded = candidate
-        bounded_bytes = len(_json.dumps(candidate))
+        bounded_bytes = _json_size_bytes(candidate)
         if bounded_bytes <= MAX_PAYLOAD_BYTES:
             break
     if bounded_bytes > MAX_PAYLOAD_BYTES:
         # Ladder exhausted and still over: too many top-level keys for any
         # per-value clip to save. Degrade to identity only.
         bounded = _stub_identity_payload(data)
-        bounded_bytes = len(_json.dumps(bounded))
+        bounded_bytes = _json_size_bytes(bounded)
     logger.warning(
         "stream frame payload exceeded byte budget; clipped",
         extra={
@@ -1921,6 +2048,11 @@ async def stream_event_generator(
             "retrieved_contexts": [],
             "tool_executions": [],
             "thread_id": request_body.thread_id or "",
+            "thread_persistence": (
+                THREAD_PERSISTENCE_DURABLE
+                if resolved_thread_id is not None
+                else THREAD_PERSISTENCE_EPHEMERAL
+            ),
             "turn_index": 0,
             "tool_loop_count": 0,
             "error_count": 0,
@@ -2047,6 +2179,11 @@ async def stream_event_generator(
         event_stream_iter = await _open_event_stream()
         first_event_yielded = False
         streamed_token = False
+        context_fingerprint: Optional[str] = None
+        # Canonical cumulative source snapshot corresponding to the latest
+        # rag_context marker emitted on this stream. An explicit [] is state,
+        # not absence: it clears sources emitted earlier in the turn.
+        latest_retrieved_contexts: List[Dict[str, Any]] = []
         # persisted_assistant_id is hoisted to the function top (see there).
         completed_root_values: Optional[Dict[str, Any]] = None
         # Accumulated user-facing tokens, so a client abort can persist the
@@ -2081,7 +2218,7 @@ async def stream_event_generator(
                 content=partial,
                 model_name=request_body.model,
                 tool_executions_out=None,
-                retrieved_contexts=None,
+                retrieved_contexts=latest_retrieved_contexts,
                 latency_ms=int((time.monotonic() - stream_started_at) * 1000),
                 ttft_ms=_ttft_ms(emitter, stream_started_at),
                 stopped=True,
@@ -2170,6 +2307,20 @@ async def stream_event_generator(
                         if progress_status is not None:
                             frame = await emitter.emit(
                                 AgentStreamEvent.STATUS, progress_status
+                            )
+                            if not client_disconnected:
+                                yield frame
+
+                        context_snapshot, context_fingerprint = (
+                            _changed_retrieved_context_snapshot(
+                                event, context_fingerprint
+                            )
+                        )
+                        if context_snapshot is not None:
+                            latest_retrieved_contexts = context_snapshot
+                            frame = await emitter.emit(
+                                AgentStreamEvent.RAG_CONTEXT,
+                                {"contexts": context_snapshot},
                             )
                             if not client_disconnected:
                                 yield frame
@@ -2266,18 +2417,6 @@ async def stream_event_generator(
                             )
                             if not client_disconnected:
                                 yield frame
-
-                        elif kind == "on_chain_end" and name == "rag_node":
-                            output = event.get("data", {}).get("output", {})
-                            if isinstance(output, dict):
-                                contexts = output.get("retrieved_contexts", [])
-                                if contexts:
-                                    frame = await emitter.emit(
-                                        AgentStreamEvent.RAG_CONTEXT,
-                                        {"contexts": contexts[:3]},
-                                    )
-                                    if not client_disconnected:
-                                        yield frame
 
                         elif kind == "on_chain_end" and name in _PLANNER_CHAIN_NODES:
                             output = event.get("data", {}).get("output", {})
@@ -2726,7 +2865,11 @@ async def stream_event_generator(
         wire_error: BaseException | str = (
             "A response is already in progress for this thread."
             if isinstance(e, ActiveRunConflict)
-            else e
+            else (
+                _CONFIRM_NOT_FOUND_MESSAGE
+                if isinstance(e, AgentThreadResolutionError)
+                else e
+            )
         )
         if terminal_frame_sent:
             # Audit S2-M3: a terminal already went out — ERROR after it
@@ -2924,27 +3067,86 @@ async def stream_confirm_event_generator(
             )
             return
 
-        # The checkpoint proves thread ownership; the tenant-scoped durable
-        # run is also the shared Stop/Confirm authority. Legacy owner-only
-        # checkpoints fail closed because destructive resumes need that claim.
-        active_run = await get_active_run_for_thread(
-            db,
-            request_body.thread_id,
-            organization_id=getattr(current_user, "organization_id", None),
-            user_id=current_user.id,
+        # Only a checkpoint authored by the threadless initial-state path may
+        # continue without a durable Thread. Pair the explicit provenance value
+        # with that path's empty state thread id so a durable checkpoint with a
+        # missing/unknown/accidentally copied marker never bypasses current
+        # workspace access.
+        checkpoint_is_ephemeral = (
+            current_snapshot.values.get("thread_persistence")
+            == THREAD_PERSISTENCE_EPHEMERAL
+            and current_snapshot.values.get("thread_id") == ""
         )
-        if asyncio.iscoroutine(active_run):  # fail closed on a malformed DB adapter
-            active_run.close()
-            active_run = None
-        if active_run is None:
-            yield await emitter.emit(
-                AgentStreamEvent.ERROR,
-                error_frame_payload(
-                    "Run is not awaiting confirmation",
-                    AgentErrorCategory.CONFLICT,
-                ),
+
+        # Resume idempotency/claim anchor. Ephemeral runs have no durable
+        # AgentRun CAS, so both a live interrupt and a checkpoint-scoped claim
+        # are mandatory before issuing Command(resume=...).
+        try:
+            resume_ckpt_id = (current_snapshot.config or {})["configurable"][
+                "checkpoint_id"
+            ]
+        except Exception:
+            resume_ckpt_id = None
+        if checkpoint_is_ephemeral:
+            has_pending_interrupt = any(
+                getattr(task, "interrupts", None)
+                for task in getattr(current_snapshot, "tasks", ())
             )
-            return
+            if not has_pending_interrupt or not resume_ckpt_id:
+                yield await emitter.emit(
+                    AgentStreamEvent.ERROR,
+                    error_frame_payload(
+                        "Run is not awaiting confirmation",
+                        AgentErrorCategory.CONFLICT,
+                    ),
+                )
+                return
+        else:
+            # A checkpoint owner is historical provenance, not current durable
+            # authorization. Missing/unknown/durable markers must still resolve
+            # the live thread so deletion, ancestor deletion, membership
+            # removal, and viewer downgrade all revoke confirmation.
+            try:
+                await _resolve_thread(
+                    db,
+                    current_user,
+                    AgentExecuteRequest.model_construct(
+                        messages=[AgentMessage(role="user", content="confirmation")],
+                        thread_id=request_body.thread_id,
+                        page_context=PageContextRequest(),
+                    ),
+                    create_if_missing=False,
+                )
+            except (AgentThreadResolutionError, ValueError):
+                yield await emitter.emit(
+                    AgentStreamEvent.ERROR,
+                    error_frame_payload(
+                        _CONFIRM_NOT_FOUND_MESSAGE, _CONFIRM_NOT_FOUND_CATEGORY
+                    ),
+                )
+                await emitter.finish()
+                return
+
+            # The tenant-scoped durable run is the shared Stop/Confirm
+            # authority for persisted threads.
+            active_run = await get_active_run_for_thread(
+                db,
+                request_body.thread_id,
+                organization_id=getattr(current_user, "organization_id", None),
+                user_id=current_user.id,
+            )
+            if asyncio.iscoroutine(active_run):  # fail closed on a malformed DB adapter
+                active_run.close()
+                active_run = None
+            if active_run is None:
+                yield await emitter.emit(
+                    AgentStreamEvent.ERROR,
+                    error_frame_payload(
+                        "Run is not awaiting confirmation",
+                        AgentErrorCategory.CONFLICT,
+                    ),
+                )
+                return
 
         run_metadata = getattr(active_run, "run_metadata", None)
         emitter.seed_progress(
@@ -2960,19 +3162,13 @@ async def stream_confirm_event_generator(
 
         runtime_context = resume_runtime_config_fields(current_snapshot.values)
 
-        # Resume idempotency key anchored to the interrupt CHECKPOINT — not
+        # Resume idempotency key is anchored to the interrupt CHECKPOINT — not
         # the thread's latest user client_message_id. A user can send a new
         # turn in the same thread while the resume streams; the latest-cmid
         # derivation then re-pointed the key at the NEW turn and the dedup
         # index silently dropped that turn's real answer (round-3 M6).
         # Concurrent double-confirms read the same pre-resume snapshot →
         # same key → still dedupe.
-        try:
-            resume_ckpt_id = (current_snapshot.config or {})["configurable"][
-                "checkpoint_id"
-            ]
-        except Exception:
-            resume_ckpt_id = None
 
         # CX1: atomically claim this interrupt before resuming. The job
         # confirm endpoint has a CAS (execute.py compare_and_set_status);
@@ -3071,29 +3267,33 @@ async def stream_confirm_event_generator(
                 request_body.thread_id,
             )
 
-        durable_claimed = await claim_awaiting_run_for_confirmation(
-            db,
-            str(active_run.job_id),
-            organization_id=getattr(current_user, "organization_id", None),
-            user_id=current_user.id,
-        )
-        if not durable_claimed:
-            if claim_is_local and confirm_claim_key:
-                with contextlib.suppress(Exception):
-                    _release_local_confirm_claim(confirm_claim_key)
-            if claim_is_redis and confirm_claim_key:
-                from src.core.caching import _release_lock
-
-                with contextlib.suppress(Exception):
-                    await _release_lock(redis_client, confirm_claim_key)
-            yield await emitter.emit(
-                AgentStreamEvent.ERROR,
-                error_frame_payload(
-                    "Run is not awaiting confirmation",
-                    AgentErrorCategory.CONFLICT,
-                ),
+        if not checkpoint_is_ephemeral:
+            # The durable branch above returned on a missing run. Keep this
+            # invariant explicit for both runtime readers and static analysis.
+            assert active_run is not None
+            durable_claimed = await claim_awaiting_run_for_confirmation(
+                db,
+                str(active_run.job_id),
+                organization_id=getattr(current_user, "organization_id", None),
+                user_id=current_user.id,
             )
-            return
+            if not durable_claimed:
+                if claim_is_local and confirm_claim_key:
+                    with contextlib.suppress(Exception):
+                        _release_local_confirm_claim(confirm_claim_key)
+                if claim_is_redis and confirm_claim_key:
+                    from src.core.caching import _release_lock
+
+                    with contextlib.suppress(Exception):
+                        await _release_lock(redis_client, confirm_claim_key)
+                yield await emitter.emit(
+                    AgentStreamEvent.ERROR,
+                    error_frame_payload(
+                        "Run is not awaiting confirmation",
+                        AgentErrorCategory.CONFLICT,
+                    ),
+                )
+                return
 
         async def _resume_assistant_cmid() -> Optional[str]:
             if resume_ckpt_id:
@@ -3157,11 +3357,10 @@ async def stream_confirm_event_generator(
         emitter.set_context(route="graph")
         # Bind the resumed stream to the durable run (audit S2-H1) so a
         # reconnecting client can address this buffer via stream_id_for_run.
+        active_run_id = getattr(active_run, "job_id", None)
         await emitter.start(
             request_body.thread_id,
-            run_id=(
-                str(active_run.job_id) if getattr(active_run, "job_id", None) else None
-            ),
+            run_id=str(active_run_id) if active_run_id is not None else None,
             continue_sequence=True,
         )
 
@@ -3178,6 +3377,29 @@ async def stream_confirm_event_generator(
         turn_input_tokens = 0
         turn_output_tokens = 0
         tokens_emitted = False
+        context_fingerprint: Optional[str] = None
+
+        # A confirmation is the continuation of the interrupted turn. Publish
+        # its complete carried source snapshot before resumed work begins;
+        # later node snapshots replace it only when their cumulative content
+        # changes, avoiding the old carried-plus-resume concatenation bug.
+        carried_contexts = current_snapshot.values.get("retrieved_contexts")
+        latest_retrieved_contexts: List[Dict[str, Any]] = (
+            carried_contexts if isinstance(carried_contexts, list) else []
+        )
+        if isinstance(carried_contexts, list):
+            try:
+                context_fingerprint = _json.dumps(
+                    carried_contexts, sort_keys=True, default=str
+                )
+            except (TypeError, ValueError):
+                context_fingerprint = None
+            frame = await emitter.emit(
+                AgentStreamEvent.RAG_CONTEXT,
+                {"contexts": carried_contexts},
+            )
+            if not client_disconnected:
+                yield frame
 
         # Accumulate user-facing tokens so a mid-resume disconnect can persist
         # the partial answer server-side (a resumed turn may have already
@@ -3194,7 +3416,7 @@ async def stream_confirm_event_generator(
             """
             nonlocal assistant_persisted, persisted_assistant_id
             partial = "".join(streamed_parts)
-            if assistant_persisted or not partial:
+            if checkpoint_is_ephemeral or assistant_persisted or not partial:
                 return
             assistant_persisted = True
             # Checkpoint-anchored idempotency key (see _resume_assistant_cmid),
@@ -3211,7 +3433,7 @@ async def stream_confirm_event_generator(
                 # a checkpoint fetch on a path that must stay cheap (client
                 # already hung up), same tradeoff as the main stream.
                 tool_executions_out=None,
-                retrieved_contexts=None,
+                retrieved_contexts=latest_retrieved_contexts,
                 latency_ms=None,
                 stopped=True,
                 client_message_id=disconnect_cmid,
@@ -3303,6 +3525,18 @@ async def stream_confirm_event_generator(
                 progress_status = _progress_status_for_event(kind, name)
                 if progress_status is not None:
                     frame = await emitter.emit(AgentStreamEvent.STATUS, progress_status)
+                    if not client_disconnected:
+                        yield frame
+
+                context_snapshot, context_fingerprint = (
+                    _changed_retrieved_context_snapshot(event, context_fingerprint)
+                )
+                if context_snapshot is not None:
+                    latest_retrieved_contexts = context_snapshot
+                    frame = await emitter.emit(
+                        AgentStreamEvent.RAG_CONTEXT,
+                        {"contexts": context_snapshot},
+                    )
                     if not client_disconnected:
                         yield frame
 
@@ -3502,7 +3736,9 @@ async def stream_confirm_event_generator(
         # sends {thread_id, confirmed}) — use the checkpoint-anchored key so a
         # double-confirm dedupes without colliding with a concurrent new turn
         # (see _resume_assistant_cmid).
-        assistant_cmid = await _resume_assistant_cmid()
+        assistant_cmid = (
+            None if checkpoint_is_ephemeral else await _resume_assistant_cmid()
+        )
 
         token_usage_payload = (
             {
@@ -3526,35 +3762,41 @@ async def stream_confirm_event_generator(
         if not client_disconnected:
             yield frame
         # persisted_assistant_id is hoisted to the function top (see there).
-        try:
-            persist_kwargs = dict(
-                thread_id=request_body.thread_id,
-                content=assistant_content,
-                model_name=getattr(request_body, "model", "") or None,
-                tool_executions_out=tool_executions_out,
-                retrieved_contexts=final_values.get("retrieved_contexts"),
-                plan=final_values.get("plan") or None,
-                plan_reasoning=final_values.get("plan_reasoning") or None,
-                progress_steps=emitter.progress_steps or None,
-                token_usage=token_usage_payload,
-                client_message_id=assistant_cmid,
-                latency_ms=int((time.monotonic() - stream_started_at) * 1000),
-                ttft_ms=_ttft_ms(emitter, stream_started_at),
-            )
-            # ``done`` is emitted only after the server-canonical row exists;
-            # rollout mode controls reconciliation ids, not durability.
-            persisted_assistant_id = await _jobs_mod._persist_assistant_message_safe(
-                **persist_kwargs, required=True
-            )
-            if persisted_assistant_id is None:
-                raise RuntimeError("Assistant message persistence returned no id")
-            assistant_persisted = True
-        except Exception as e:
-            logger.warning(
-                "Failed to persist SSE confirmation thread messages",
-                exc_info=e,
-            )
-            raise
+        # A proven threadless checkpoint has nowhere durable to write; it keeps
+        # the same ephemeral contract as its initial stream. Every other path
+        # must commit before ``done``.
+        if not checkpoint_is_ephemeral:
+            try:
+                persist_kwargs = dict(
+                    thread_id=request_body.thread_id,
+                    content=assistant_content,
+                    model_name=getattr(request_body, "model", "") or None,
+                    tool_executions_out=tool_executions_out,
+                    retrieved_contexts=final_values.get("retrieved_contexts"),
+                    plan=final_values.get("plan") or None,
+                    plan_reasoning=final_values.get("plan_reasoning") or None,
+                    progress_steps=emitter.progress_steps or None,
+                    token_usage=token_usage_payload,
+                    client_message_id=assistant_cmid,
+                    latency_ms=int((time.monotonic() - stream_started_at) * 1000),
+                    ttft_ms=_ttft_ms(emitter, stream_started_at),
+                )
+                # ``done`` is emitted only after the server-canonical row exists;
+                # rollout mode controls reconciliation ids, not durability.
+                persisted_assistant_id = (
+                    await _jobs_mod._persist_assistant_message_safe(
+                        **persist_kwargs, required=True
+                    )
+                )
+                if persisted_assistant_id is None:
+                    raise RuntimeError("Assistant message persistence returned no id")
+                assistant_persisted = True
+            except Exception as e:
+                logger.warning(
+                    "Failed to persist SSE confirmation thread messages",
+                    exc_info=e,
+                )
+                raise
 
         if turn_input_tokens > 0 or turn_output_tokens > 0:
             # Server-side token cost metric (was previously SSE-only, so cost
