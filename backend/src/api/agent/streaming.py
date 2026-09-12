@@ -36,6 +36,7 @@ from src.services.agent._errors import (
 )
 from src.services.agent._pii_redact import redact_pii, redact_tool_args
 from src.services.agent.agent_execution_service import (
+    AgentThreadResolutionError,
     TombstoneReport,
     _clear_stale_pending_confirmation,
     _latest_user_client_message_id,
@@ -204,6 +205,8 @@ def _stream_failure_category(exc: BaseException) -> AgentErrorCategory:
         return AgentErrorCategory.INVALID_REQUEST
     if isinstance(exc, ActiveRunConflict):
         return AgentErrorCategory.CONFLICT
+    if isinstance(exc, AgentThreadResolutionError):
+        return AgentErrorCategory.INVALID_REQUEST
     return classify_agent_error(exc)
 
 
@@ -965,6 +968,121 @@ _CLIP_LADDER: tuple[tuple[int, int], ...] = (
     (64, 1),
 )
 
+_PUBLIC_RAG_CONTEXT_KEYS = frozenset(
+    {
+        "document_id",
+        "external_reference_id",
+        "title",
+        "content",
+        "text",
+        "snippet",
+        "score",
+        "score_source",
+        "rerank_score",
+        "chunk_id",
+        "chunk_index",
+        "page_number",
+        "source_position",
+    }
+)
+_RAG_IDENTITY_KEYS = frozenset({"document_id", "external_reference_id", "chunk_id"})
+_RAG_DESCRIPTIVE_KEYS = frozenset(
+    {"title", "content", "text", "snippet", "score_source"}
+)
+_MAX_RAG_IDENTIFIER_JSON_BYTES = 192
+
+
+def _changed_retrieved_context_snapshot(
+    event: Mapping[str, Any], previous_fingerprint: Optional[str]
+) -> tuple[Optional[List[Dict[str, Any]]], Optional[str]]:
+    """Return a changed cumulative context snapshot from any chain node."""
+    if event.get("event") != "on_chain_end":
+        return None, previous_fingerprint
+    data = event.get("data")
+    output = data.get("output") if isinstance(data, Mapping) else None
+    contexts = output.get("retrieved_contexts") if isinstance(output, Mapping) else None
+    if not isinstance(contexts, list) or not contexts:
+        return None, previous_fingerprint
+    try:
+        fingerprint = _json.dumps(contexts, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        return None, previous_fingerprint
+    if fingerprint == previous_fingerprint:
+        return None, previous_fingerprint
+    return contexts, fingerprint
+
+
+def _json_size_bytes(value: Any) -> int:
+    return len(_json.dumps(value).encode("utf-8"))
+
+
+def _bound_rag_context_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Bound source fields while retaining every canonical source slot."""
+    raw_contexts = data.get("contexts")
+    if not isinstance(raw_contexts, list):
+        return data
+    projected: List[Dict[str, Any]] = []
+    for source_position, context in enumerate(raw_contexts, start=1):
+        if not isinstance(context, dict):
+            continue
+        public_context: Dict[str, Any] = {"source_position": source_position}
+        for key, value in context.items():
+            if key not in _PUBLIC_RAG_CONTEXT_KEYS or key == "source_position":
+                continue
+            if key in _RAG_IDENTITY_KEYS:
+                if (
+                    not isinstance(value, str)
+                    or not value.strip()
+                    or _json_size_bytes(value) > _MAX_RAG_IDENTIFIER_JSON_BYTES
+                ):
+                    continue
+            public_context[key] = value
+        projected.append(public_context)
+    candidate: Dict[str, Any] = {**data, "contexts": projected}
+    if _json_size_bytes(candidate) <= MAX_PAYLOAD_BYTES:
+        return candidate
+
+    for max_chars in (2000, 1024, 512, 256, 128, 64, 16, 0):
+        clipped_contexts = [
+            {
+                key: (
+                    (value[:max_chars] + _TRUNCATION_SUFFIX if max_chars else "")
+                    if key in _RAG_DESCRIPTIVE_KEYS
+                    and isinstance(value, str)
+                    and len(value) > max_chars
+                    else value
+                )
+                for key, value in context.items()
+            }
+            for context in projected
+        ]
+        candidate = {
+            **data,
+            "contexts": clipped_contexts,
+            _TRUNCATED_MARKER: True,
+        }
+        if _json_size_bytes(candidate) <= MAX_PAYLOAD_BYTES:
+            return candidate
+
+    # The projection admits only code-controlled scalar fields and identifiers
+    # whose serialized size is bounded above. Twenty minimal source records
+    # therefore fit. Keep the assertion fail-closed during development rather
+    # than handing this frame to the generic list-slicing ladder.
+    minimal = {
+        "contexts": [
+            {
+                key: value
+                for key, value in context.items()
+                if key not in _RAG_DESCRIPTIVE_KEYS
+            }
+            for context in projected
+        ],
+        _TRUNCATED_MARKER: True,
+    }
+    if _json_size_bytes(minimal) <= MAX_PAYLOAD_BYTES:
+        return minimal
+    raise ValueError("canonical rag_context identity payload exceeds byte budget")
+
 
 def _clip_payload_values(value: Any, *, max_chars: int, max_items: int) -> Any:
     """Depth-preserving clip: strings keep their prefix (+ marker), lists keep
@@ -1002,7 +1120,7 @@ def _stub_identity_payload(data: Dict[str, Any]) -> Dict[str, Any]:
     never at risk here.
     """
     stub: Dict[str, Any] = {_TRUNCATED_MARKER: True, _STUB_MARKER: True}
-    budget = MAX_PAYLOAD_BYTES - len(_json.dumps(stub))
+    budget = MAX_PAYLOAD_BYTES - _json_size_bytes(stub)
     for key, value in data.items():
         if key in stub:
             continue
@@ -1015,7 +1133,7 @@ def _stub_identity_payload(data: Dict[str, Any]) -> Dict[str, Any]:
             # Overstates the real cost by one byte (the added comma replaces
             # a brace) — deliberately conservative so the result cannot land
             # a byte over budget.
-            cost = len(_json.dumps({key: value}))
+            cost = _json_size_bytes({key: value})
         except (TypeError, ValueError):
             continue
         if cost > budget:
@@ -1030,6 +1148,11 @@ def _bound_frame_payload(event_type: str, data: Dict[str, Any]) -> Dict[str, Any
     clipped copy carrying ``payload_truncated: True``. Never raises and never
     mutates the input: an oversized producer degrades one frame instead of
     failing the stream."""
+    if event_type == str(AgentStreamEvent.RAG_CONTEXT) and isinstance(
+        data.get("contexts"), list
+    ):
+        return _bound_rag_context_payload(data)
+
     # Serialize once: the oversized path is exactly where the payload is
     # multi-megabyte, so re-encoding it for a log field is the one cost worth
     # avoiding here. Every length below reuses an encoding already computed.
@@ -1039,7 +1162,7 @@ def _bound_frame_payload(event_type: str, data: Dict[str, Any]) -> Dict[str, Any
         # Not JSON-serializable: the formatter downstream already surfaces
         # this exactly as it did before the byte budget existed.
         return data
-    original_bytes = len(encoded)
+    original_bytes = len(encoded.encode("utf-8"))
     if original_bytes <= MAX_PAYLOAD_BYTES:
         return data
     bounded = data
@@ -1051,14 +1174,14 @@ def _bound_frame_payload(event_type: str, data: Dict[str, Any]) -> Dict[str, Any
         )
         candidate[_TRUNCATED_MARKER] = True
         bounded = candidate
-        bounded_bytes = len(_json.dumps(candidate))
+        bounded_bytes = _json_size_bytes(candidate)
         if bounded_bytes <= MAX_PAYLOAD_BYTES:
             break
     if bounded_bytes > MAX_PAYLOAD_BYTES:
         # Ladder exhausted and still over: too many top-level keys for any
         # per-value clip to save. Degrade to identity only.
         bounded = _stub_identity_payload(data)
-        bounded_bytes = len(_json.dumps(bounded))
+        bounded_bytes = _json_size_bytes(bounded)
     logger.warning(
         "stream frame payload exceeded byte budget; clipped",
         extra={
@@ -2047,6 +2170,7 @@ async def stream_event_generator(
         event_stream_iter = await _open_event_stream()
         first_event_yielded = False
         streamed_token = False
+        context_fingerprint: Optional[str] = None
         # persisted_assistant_id is hoisted to the function top (see there).
         completed_root_values: Optional[Dict[str, Any]] = None
         # Accumulated user-facing tokens, so a client abort can persist the
@@ -2174,6 +2298,19 @@ async def stream_event_generator(
                             if not client_disconnected:
                                 yield frame
 
+                        context_snapshot, context_fingerprint = (
+                            _changed_retrieved_context_snapshot(
+                                event, context_fingerprint
+                            )
+                        )
+                        if context_snapshot is not None:
+                            frame = await emitter.emit(
+                                AgentStreamEvent.RAG_CONTEXT,
+                                {"contexts": context_snapshot},
+                            )
+                            if not client_disconnected:
+                                yield frame
+
                         if kind == "on_chain_end" and not event.get("parent_ids"):
                             output = event.get("data", {}).get("output")
                             if isinstance(output, dict):
@@ -2266,18 +2403,6 @@ async def stream_event_generator(
                             )
                             if not client_disconnected:
                                 yield frame
-
-                        elif kind == "on_chain_end" and name == "rag_node":
-                            output = event.get("data", {}).get("output", {})
-                            if isinstance(output, dict):
-                                contexts = output.get("retrieved_contexts", [])
-                                if contexts:
-                                    frame = await emitter.emit(
-                                        AgentStreamEvent.RAG_CONTEXT,
-                                        {"contexts": contexts[:3]},
-                                    )
-                                    if not client_disconnected:
-                                        yield frame
 
                         elif kind == "on_chain_end" and name in _PLANNER_CHAIN_NODES:
                             output = event.get("data", {}).get("output", {})
@@ -2726,7 +2851,11 @@ async def stream_event_generator(
         wire_error: BaseException | str = (
             "A response is already in progress for this thread."
             if isinstance(e, ActiveRunConflict)
-            else e
+            else (
+                _CONFIRM_NOT_FOUND_MESSAGE
+                if isinstance(e, AgentThreadResolutionError)
+                else e
+            )
         )
         if terminal_frame_sent:
             # Audit S2-M3: a terminal already went out — ERROR after it
@@ -2856,6 +2985,31 @@ async def stream_confirm_event_generator(
     persisted_assistant_id: Optional[str] = None
     disconnect_canceller = _cancel_current_task_on_disconnect(request)
     try:
+        # The checkpoint's historical owner field is not a substitute for
+        # current durable edit access. Resolve the explicit thread before
+        # opening a checkpointer, taking a confirmation claim, or issuing the
+        # resume command so a removed/view-only caller cannot continue work.
+        try:
+            await _resolve_thread(
+                db,
+                current_user,
+                AgentExecuteRequest.model_construct(
+                    messages=[AgentMessage(role="user", content="confirmation")],
+                    thread_id=request_body.thread_id,
+                    page_context=PageContextRequest(),
+                ),
+                create_if_missing=False,
+            )
+        except (AgentThreadResolutionError, ValueError):
+            yield await emitter.emit(
+                AgentStreamEvent.ERROR,
+                error_frame_payload(
+                    _CONFIRM_NOT_FOUND_MESSAGE, _CONFIRM_NOT_FOUND_CATEGORY
+                ),
+            )
+            await emitter.finish()
+            return
+
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
         store = await get_memory_store()
@@ -3178,6 +3332,26 @@ async def stream_confirm_event_generator(
         turn_input_tokens = 0
         turn_output_tokens = 0
         tokens_emitted = False
+        context_fingerprint: Optional[str] = None
+
+        # A confirmation is the continuation of the interrupted turn. Publish
+        # its complete carried source snapshot before resumed work begins;
+        # later node snapshots replace it only when their cumulative content
+        # changes, avoiding the old carried-plus-resume concatenation bug.
+        carried_contexts = current_snapshot.values.get("retrieved_contexts")
+        if isinstance(carried_contexts, list) and carried_contexts:
+            try:
+                context_fingerprint = _json.dumps(
+                    carried_contexts, sort_keys=True, default=str
+                )
+            except (TypeError, ValueError):
+                context_fingerprint = None
+            frame = await emitter.emit(
+                AgentStreamEvent.RAG_CONTEXT,
+                {"contexts": carried_contexts},
+            )
+            if not client_disconnected:
+                yield frame
 
         # Accumulate user-facing tokens so a mid-resume disconnect can persist
         # the partial answer server-side (a resumed turn may have already
@@ -3303,6 +3477,17 @@ async def stream_confirm_event_generator(
                 progress_status = _progress_status_for_event(kind, name)
                 if progress_status is not None:
                     frame = await emitter.emit(AgentStreamEvent.STATUS, progress_status)
+                    if not client_disconnected:
+                        yield frame
+
+                context_snapshot, context_fingerprint = (
+                    _changed_retrieved_context_snapshot(event, context_fingerprint)
+                )
+                if context_snapshot is not None:
+                    frame = await emitter.emit(
+                        AgentStreamEvent.RAG_CONTEXT,
+                        {"contexts": context_snapshot},
+                    )
                     if not client_disconnected:
                         yield frame
 

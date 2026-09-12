@@ -5,6 +5,7 @@ import type { ChatMessage, Thread } from '@/types/workspace';
 
 const navigationMocks = vi.hoisted(() => ({
   push: vi.fn(),
+  replace: vi.fn(),
   threadId: null as string | null,
   isNew: false,
 }));
@@ -13,7 +14,7 @@ const workspaceMocks = vi.hoisted(() => ({
   getOrCreateDefaultWorkspace: vi.fn(),
   getOrCreateDefaultConversation: vi.fn(),
   createConversation: vi.fn(),
-  listThreads: vi.fn(),
+  listWorkspaceThreads: vi.fn(),
   listConversations: vi.fn(),
   getThread: vi.fn(),
 }));
@@ -51,7 +52,10 @@ const chatStoreMocks = vi.hoisted(() => {
 });
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: navigationMocks.push }),
+  useRouter: () => ({
+    push: navigationMocks.push,
+    replace: navigationMocks.replace,
+  }),
   useSearchParams: () => ({
     get: (key: string) => {
       if (key === 'thread') return navigationMocks.threadId;
@@ -115,6 +119,11 @@ describe('useChatSession bounded restoration', () => {
     navigationMocks.threadId = null;
     navigationMocks.isNew = false;
     chatStoreMocks.state.currentThreadId = null;
+    chatStoreMocks.state.setCurrentThread.mockImplementation(
+      (threadId: string | null) => {
+        chatStoreMocks.state.currentThreadId = threadId;
+      }
+    );
     chatStoreMocks.state.messages = {};
     chatStoreMocks.state.messagePagination = {};
     chatStoreMocks.state.loadingThreadId = null;
@@ -127,7 +136,7 @@ describe('useChatSession bounded restoration', () => {
       id: 'conv-1',
       title: 'New Chat',
     });
-    workspaceMocks.listThreads.mockResolvedValue({
+    workspaceMocks.listWorkspaceThreads.mockResolvedValue({
       threads: [],
       total: 0,
       page: 1,
@@ -140,7 +149,7 @@ describe('useChatSession bounded restoration', () => {
 
   it('does not select the newest sidebar thread before an uncached URL target', async () => {
     navigationMocks.threadId = 'thread-old';
-    workspaceMocks.listThreads.mockResolvedValue({
+    workspaceMocks.listWorkspaceThreads.mockResolvedValue({
       threads: [makeThread('thread-newest')],
       total: 1,
       page: 1,
@@ -184,7 +193,7 @@ describe('useChatSession bounded restoration', () => {
     localStorage.setItem('default-conversation-id', 'conv-1');
     navigationMocks.threadId = 'thread-deep-link';
     chatStoreMocks.state.currentThreadId = 'thread-persisted';
-    workspaceMocks.listThreads.mockResolvedValue({
+    workspaceMocks.listWorkspaceThreads.mockResolvedValue({
       threads: [makeThread('thread-persisted')],
       total: 1,
       page: 1,
@@ -218,7 +227,7 @@ describe('useChatSession bounded restoration', () => {
   it('restores only the bounded store page for a warm thread', async () => {
     localStorage.setItem('default-conversation-id', 'conv-1');
     chatStoreMocks.state.currentThreadId = 'thread-old';
-    workspaceMocks.listThreads.mockResolvedValue({
+    workspaceMocks.listWorkspaceThreads.mockResolvedValue({
       threads: [makeThread('thread-old', { message_count: 1000 })],
       total: 1,
       page: 1,
@@ -253,5 +262,9 @@ describe('useChatSession bounded restoration', () => {
       hasMore: true,
       loadedCount: 50,
     });
+    expect(navigationMocks.replace).toHaveBeenCalledWith(
+      '/chat?thread=thread-old'
+    );
+    expect(result.current.initError).toBeNull();
   });
 });

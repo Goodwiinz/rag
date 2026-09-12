@@ -7374,6 +7374,19 @@
             "description": "Page context type",
             "title": "Type",
             "type": "string"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Active chat workspace for durable thread creation",
+            "title": "Workspace Id"
           }
         },
         "title": "PageContextRequest",
@@ -14402,6 +14415,17 @@
               }
             ],
             "title": "Snippet Preview"
+          },
+          "source_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Position"
           }
         },
         "required": [
@@ -39494,6 +39518,96 @@
           }
         ],
         "summary": "Update Member Role",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v2/workspaces/{workspace_id}/threads": {
+      "get": {
+        "description": "List threads across every live conversation in a workspace.",
+        "operationId": "list_workspace_threads_api_v2_workspaces__workspace_id__threads_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status: active, resolved, archived",
+            "in": "query",
+            "name": "status_filter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status: active, resolved, archived",
+              "title": "Status Filter"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/src__schemas__chat__ThreadListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Workspace Threads",
         "tags": [
           "workspaces"
         ]

@@ -141,6 +141,8 @@ export interface Citation {
   id: string;
   document_id?: string; // Optional: may not have a database UUID
   external_reference_id?: string; // For non-database references (e.g., arXiv IDs)
+  /** Stable one-based index used by persisted `[Doc N]` markers. */
+  source_position?: number;
   chunk_index?: number;
   chunk_id?: string;
   snippet?: string;
@@ -166,6 +168,7 @@ export interface MessageAttachment {
 export interface CitationCreate {
   document_id?: string; // Optional: may not have a database UUID
   external_reference_id?: string; // For non-database references (e.g., arXiv IDs)
+  source_position?: number;
   chunk_index?: number;
   chunk_id?: string;
   snippet?: string;

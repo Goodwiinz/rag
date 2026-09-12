@@ -89,6 +89,10 @@ async def test_threadless_execute_survives_job_store_outage(
                 "src.api.agent.execute._agent_rate_limiter.record_attempt",
                 new=AsyncMock(),
             ),
+            patch(
+                "src.api.agent.execute._resolve_thread",
+                new=AsyncMock(return_value=(None, "")),
+            ),
         ):
             started = await execute_agent(
                 request,
@@ -249,6 +253,72 @@ async def test_confirm_stale_live_state_is_reconciled(stale_status: JobStatus) -
         call(job_id, stale_status, JobStatus.RUNNING, project=False),
     ]
     release.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirm_stale_projection_keeps_request_for_edit_access_gate() -> None:
+    """Projection status repair must not discard the thread authorization input."""
+    from src.services.agent.agent_execution_service import AgentThreadResolutionError
+
+    user = _user()
+    job_id = str(uuid.uuid4())
+    thread_id = str(uuid.uuid4())
+    db = AsyncMock()
+    claim = AsyncMock(return_value=True)
+    compare = AsyncMock(return_value="claimed")
+    background_tasks = MagicMock()
+    run = SimpleNamespace(
+        status=JobStatus.AWAITING_CONFIRMATION,
+        error=None,
+        user_id=user.id,
+    )
+
+    with (
+        patch(
+            "src.services.agent.job_store.get_job_fresh",
+            new=AsyncMock(
+                return_value={
+                    "status": JobStatus.RUNNING.value,
+                    "user_id": str(user.id),
+                    "request": {
+                        "messages": [{"role": "user", "content": "hello"}],
+                        "thread_id": thread_id,
+                    },
+                }
+            ),
+        ),
+        patch(
+            "src.services.agent.agent_run_service.get_run",
+            new=AsyncMock(return_value=run),
+        ),
+        patch(
+            "src.api.agent.execute._resolve_thread",
+            new=AsyncMock(side_effect=AgentThreadResolutionError("Thread not found")),
+        ) as resolve,
+        patch(
+            "src.api.agent.execute.claim_awaiting_run_for_confirmation",
+            new=claim,
+        ),
+        patch(
+            "src.services.agent.job_store.compare_and_set_status",
+            new=compare,
+        ),
+        pytest.raises(HTTPException) as exc,
+    ):
+        await confirm_agent_action(
+            job_id,
+            ConfirmationRequest(confirmed=True),
+            background_tasks,
+            current_user=user,
+            db=db,
+        )
+
+    assert exc.value.status_code == 404
+    assert exc.value.detail == "Thread not found"
+    resolve.assert_awaited_once()
+    claim.assert_not_awaited()
+    compare.assert_not_awaited()
+    background_tasks.add_task.assert_not_called()
 
 
 @pytest.mark.asyncio

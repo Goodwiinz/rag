@@ -8,6 +8,10 @@
 export interface Citation {
   documentId?: string; // Optional: may be undefined for external references
   externalReferenceId?: string; // For non-database references (e.g., arXiv IDs)
+  /** Canonical one-based `[Doc N]` position retained across persistence. */
+  sourcePosition?: number;
+  chunkId?: string;
+  chunkIndex?: number;
   title: string;
   score: number;
   content?: string;

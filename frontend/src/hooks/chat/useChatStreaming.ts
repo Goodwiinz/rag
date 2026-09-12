@@ -37,7 +37,11 @@ import {
 } from '@/components/context-rail/toolLabels';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation } from '@/types/workspace';
-import type { CitationCreate, DbToolExecution } from '@/types/workspace';
+import type {
+  CitationCreate,
+  DbToolExecution,
+  Workspace,
+} from '@/types/workspace';
 import type { PlanStep } from '@/types/agent-chat';
 import { normalizeCitation } from '@/utils/citationNormalizer';
 import { useQueryClient } from '@tanstack/react-query';
@@ -139,6 +143,21 @@ export function toCitationCreate(ctx: Record<string, unknown>): CitationCreate {
       (ctx.document_title as string | undefined),
     snippet: snippet.slice(0, 2000),
     ...(typeof ctx.score === 'number' ? { score: ctx.score } : {}),
+    ...(typeof (ctx.source_position ?? ctx.sourcePosition) === 'number'
+      ? {
+          source_position: (ctx.source_position ??
+            ctx.sourcePosition) as number,
+        }
+      : {}),
+    ...(typeof (ctx.chunk_id ?? ctx.chunkId) === 'string'
+      ? { chunk_id: (ctx.chunk_id ?? ctx.chunkId) as string }
+      : {}),
+    ...(typeof (ctx.chunk_index ?? ctx.chunkIndex) === 'number'
+      ? { chunk_index: (ctx.chunk_index ?? ctx.chunkIndex) as number }
+      : {}),
+    ...(typeof (ctx.page_number ?? ctx.pageNumber) === 'number'
+      ? { page_number: (ctx.page_number ?? ctx.pageNumber) as number }
+      : {}),
   };
 }
 
@@ -335,7 +354,12 @@ export interface UseChatStreamingParams {
   conversations: ChatConversation[];
   setConversations: React.Dispatch<React.SetStateAction<ChatConversation[]>>;
   dbConversation: DBConversation | null;
+  /** Active workspace scopes durable thread creation and agent authorization. */
+  workspace?: Workspace | null;
   enableRAG: boolean;
+  /** Embedded surfaces may own URL synchronization without navigating away.
+   * The production chat defaults to the canonical `/chat` route. */
+  navigateToThread?: (threadId: string) => void;
 }
 
 export interface UseChatStreamingReturn {
@@ -380,10 +404,11 @@ export function useChatStreaming(
     messages,
     displayedMessages,
     setMessages,
-    conversations,
     setConversations,
     dbConversation,
+    workspace,
     enableRAG,
+    navigateToThread,
   } = params;
 
   // ---- Project context (for agent page_context) ----
@@ -1442,6 +1467,7 @@ export function useChatStreaming(
         // state, then Zustand store as final fallback.
         let currentConversationId = useChatStore.getState().currentThreadId;
         let currentThreadId = currentConversationId;
+        let activeWorkspaceId = workspace?.id ?? dbConversation?.workspace_id;
 
         if (!currentConversationId) {
           try {
@@ -1450,12 +1476,15 @@ export function useChatStreaming(
             // before creating the thread instead of streaming with no thread ID.
             let threadConversation = dbConversation;
             if (!threadConversation) {
-              const defaultWorkspace =
-                await workspaceService.getOrCreateDefaultWorkspace();
-              if (preflightAbort.signal.aborted) return;
+              if (!activeWorkspaceId) {
+                const defaultWorkspace =
+                  await workspaceService.getOrCreateDefaultWorkspace();
+                if (preflightAbort.signal.aborted) return;
+                activeWorkspaceId = defaultWorkspace.id;
+              }
               threadConversation =
                 await workspaceService.getOrCreateDefaultConversation(
-                  defaultWorkspace.id
+                  activeWorkspaceId
                 );
               if (preflightAbort.signal.aborted) return;
             }
@@ -1491,16 +1520,20 @@ export function useChatStreaming(
               createdAt: Date.now(),
               updatedAt: Date.now(),
               threadId: newThread.id,
-              conversationId: threadConversation.id,
+              conversationId: newThread.conversation_id,
               previewText: content,
               messageCount: 1,
             };
 
             setConversations((prev) => [newConv, ...prev]);
             useChatStore.getState().setCurrentThread(newConv.id);
-            queueMicrotask(() =>
-              router.replace(getSelectedThreadUrl(newThread.id))
-            );
+            queueMicrotask(() => {
+              if (navigateToThread) {
+                navigateToThread(newThread.id);
+              } else {
+                router.replace(getSelectedThreadUrl(newThread.id));
+              }
+            });
             console.log('[Chat] Created new thread:', newThread.id);
           } catch (error) {
             if (preflightAbort.signal.aborted) return;
@@ -1560,6 +1593,9 @@ export function useChatStreaming(
                     })),
                   page_context: {
                     type: boundProjectId ? 'project' : 'chat',
+                    ...(activeWorkspaceId && {
+                      workspace_id: activeWorkspaceId,
+                    }),
                     ...(boundProjectId && {
                       project_id: boundProjectId,
                       project_name: resolvedProjectName || '',
@@ -1616,8 +1652,10 @@ export function useChatStreaming(
       displayedMessages,
       setMessages,
       dbConversation,
+      workspace,
       setConversations,
       router,
+      navigateToThread,
       enableRAG,
       boundProjectId,
       resolvedProjectName,
@@ -1963,7 +2001,7 @@ export function useChatStreaming(
         const confirmToolStartTimes = new Map<string, number[]>();
         // Pre-interrupt provenance carried on the confirmation — the interrupt
         // exit cleared the live streaming state, so restore it here.
-        const carriedCitations = pendingConfirmation.citations ?? [];
+        let confirmCitations = pendingConfirmation.citations ?? [];
         let confirmPlan: PlanStep[] = [...(pendingConfirmation.plan ?? [])];
         let confirmPlanReasoning = pendingConfirmation.planReasoning ?? '';
         let confirmProgress: AgentProgressStep[] = [
@@ -1986,7 +2024,7 @@ export function useChatStreaming(
           streamingPlan: [...confirmPlan],
           streamingProgress: [...confirmProgress],
           streamingReasoning: '',
-          streamingCitations: carriedCitations,
+          streamingCitations: confirmCitations,
           streamingElapsedMs: null,
           streamingPhase: 'accepted',
           streamingStatusDetail: null,
@@ -1995,11 +2033,9 @@ export function useChatStreaming(
         });
 
         let confirmContent = '';
-        // Post-confirm retrieval contexts (the resumed turn can run RAG); the
-        // confirm parser previously dropped rag_context entirely, so a
-        // confirmed action's sources never reached the UI (sync-audit gap 2).
-        // Committed alongside the carried pre-interrupt citations.
-        let resumeCitations: Array<Record<string, unknown>> = [];
+        // `rag_context` events are cumulative snapshots for the interrupted
+        // turn. `confirmCitations` starts with the carried pre-interrupt
+        // snapshot and is replaced whenever the resume emits a newer one.
         // Token usage emitted by the confirm path (backend fires event: usage
         // before done). Without capturing this, confirmed turns showed no token
         // cost — inconsistent with the main stream.
@@ -2028,15 +2064,14 @@ export function useChatStreaming(
           content: string,
           stopped: boolean
         ): ChatPageMessage => {
-          const allCitations = [...carriedCitations, ...resumeCitations];
           return {
             runtimeId: confirmRuntimeId,
             source: 'optimistic',
             role: 'assistant',
             content,
             timestamp: Date.now(),
-            ...(allCitations.length > 0
-              ? { citations: allCitations.map(normalizeCitation) }
+            ...(confirmCitations.length > 0
+              ? { citations: confirmCitations.map(normalizeCitation) }
               : {}),
             ...(confirmSteps.length > 0
               ? { toolExecutions: [...confirmSteps] }
@@ -2223,9 +2258,9 @@ export function useChatStreaming(
                 });
               },
               onRagContext: (contexts) => {
-                resumeCitations = contexts;
+                confirmCitations = contexts;
                 useChatStore.setState({
-                  streamingCitations: [...carriedCitations, ...contexts],
+                  streamingCitations: confirmCitations,
                   isRetrievingRag: false,
                   streamingStatusDetail: `Reading ${contexts.length} ${
                     contexts.length === 1 ? 'source' : 'sources'
@@ -2255,7 +2290,7 @@ export function useChatStreaming(
                   steps: confirmSteps.filter((s) => s.status !== 'running'),
                   plan: [...confirmPlan],
                   planReasoning: confirmPlanReasoning || undefined,
-                  citations: [...carriedCitations, ...resumeCitations],
+                  citations: [...confirmCitations],
                   progress: [...confirmProgress],
                   userRuntimeId: pendingConfirmation.userRuntimeId,
                   assistantRuntimeId: pendingConfirmation.assistantRuntimeId,
@@ -2428,7 +2463,7 @@ export function useChatStreaming(
                     ),
                     plan: [...confirmPlan],
                     planReasoning: confirmPlanReasoning || undefined,
-                    citations: [...carriedCitations, ...resumeCitations],
+                    citations: [...confirmCitations],
                     progress: [...confirmProgress],
                   }
                 : null),

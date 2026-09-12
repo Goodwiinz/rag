@@ -70,7 +70,16 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS
 
     sanitized = _sanitize_messages(state["messages"])
-    messages = [SystemMessage(content=_build_data_system_prompt())]
+    from src.services.agent.retrieval_provenance import render_retrieval_prompt
+
+    messages = [
+        SystemMessage(content=_build_data_system_prompt()),
+        SystemMessage(
+            content=render_retrieval_prompt(
+                state.get("retrieved_contexts", []), sanitized
+            )
+        ),
+    ]
     from src.services.agent.runtime_snapshot import render_project_skill_catalog
 
     skill_catalog_prompt = render_project_skill_catalog(

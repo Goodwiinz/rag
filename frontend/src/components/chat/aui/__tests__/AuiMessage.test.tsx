@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
   type RenderResult,
 } from '@testing-library/react';
 
@@ -332,6 +333,53 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
     expect(screen.queryByText('92%')).toBeNull();
     fireEvent.click(row.closest('button') as HTMLButtonElement);
     expect(onCitationClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves raw Doc positions before applying document-grouped display numbers', () => {
+    renderByIndex([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'First [Doc 1], second [Doc 2], same paper [Doc 3].',
+        timestamp: 2,
+        citations: [
+          {
+            documentId: 'doc-a',
+            title: 'Paper A',
+            score: 0.9,
+            chunkId: 'a-1',
+            chunkIndex: 1,
+            pageNumber: 4,
+          },
+          {
+            documentId: 'doc-b',
+            title: 'Paper B',
+            score: 0.8,
+            chunkId: 'b-1',
+            chunkIndex: 1,
+            pageNumber: 8,
+          },
+          {
+            documentId: 'doc-a',
+            title: 'Paper A',
+            score: 0.7,
+            chunkId: 'a-2',
+            chunkIndex: 2,
+            pageNumber: 5,
+          },
+        ],
+      },
+    ]);
+
+    // Raw Doc 1 and Doc 3 both resolve against the canonical three-item
+    // array, then share Paper A's reader-facing numeral.
+    expect(
+      screen.getAllByRole('button', { name: 'Source 1: Paper A' })
+    ).toHaveLength(2);
+    expect(
+      screen.getByRole('button', { name: 'Source 2: Paper B' })
+    ).toBeInTheDocument();
+    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(2);
   });
 
   it('renders the committed execution plan', () => {

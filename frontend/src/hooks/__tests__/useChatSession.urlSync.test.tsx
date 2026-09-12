@@ -11,7 +11,7 @@ const navigationMocks = vi.hoisted(() => ({
 const workspaceMocks = vi.hoisted(() => ({
   getOrCreateDefaultWorkspace: vi.fn(),
   getOrCreateDefaultConversation: vi.fn(),
-  listThreads: vi.fn(),
+  listWorkspaceThreads: vi.fn(),
   listConversations: vi.fn(),
   getThread: vi.fn(),
 }));
@@ -21,6 +21,7 @@ const chatStoreMocks = vi.hoisted(() => {
     currentThreadId: null as string | null,
     messages: {},
     addMessageToStore: vi.fn(),
+    loadMessages: vi.fn().mockResolvedValue(undefined),
     loadOlderMessages: vi.fn(),
     loadingThreadId: null as string | null,
     messagePagination: {},
@@ -84,7 +85,7 @@ describe('useChatSession URL synchronization', () => {
       id: 'conv-1',
       title: 'New Chat',
     });
-    workspaceMocks.listThreads.mockResolvedValue({
+    workspaceMocks.listWorkspaceThreads.mockResolvedValue({
       threads: [],
       total: 0,
       page: 1,
@@ -95,7 +96,17 @@ describe('useChatSession URL synchronization', () => {
   });
 
   it('does not replay the initial URL thread while a sidebar selection is navigating', async () => {
-    workspaceMocks.getThread.mockReturnValue(new Promise(() => undefined));
+    workspaceMocks.getThread.mockResolvedValue({
+      id: 'thread-A',
+      conversation_id: 'conv-1',
+      title: 'A',
+      status: 'active',
+      last_message_at: '2026-09-12T12:00:00Z',
+      message_count: 1,
+      token_count: 1,
+      created_at: '2026-09-12T11:00:00Z',
+      updated_at: '2026-09-12T12:00:00Z',
+    });
     const { result, rerender } = renderHook(() => useChatSession());
 
     await waitFor(() => expect(result.current.isInitializing).toBe(false));

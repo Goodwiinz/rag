@@ -255,6 +255,11 @@ async def test_confirm_stream_emits_heartbeat_from_keepalive():
 
     with (
         patch.object(st, "_graph_events_with_keepalive", fake_keepalive),
+        patch.object(
+            st,
+            "_resolve_thread",
+            new=AsyncMock(return_value=(SimpleNamespace(id="editable-thread"), None)),
+        ),
         patch(
             "src.services.agent.observability.configure_langsmith",
             return_value=None,

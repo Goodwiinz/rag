@@ -45,6 +45,7 @@ from src.services.agent.error_recovery import (
     retry_transient,
 )
 from src.services.agent.observability import track_node_execution
+from src.services.agent.retrieval_provenance import merge_retrieved_contexts
 from src.services.agent.state import AgentState
 from src.services.agent.tool_registry import ToolPolicyTag
 from src.services.agent.tools import TOOL_REGISTRY
@@ -720,6 +721,7 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     fresh_by_id = {tc["id"]: r for tc, r in zip(fresh_calls, fresh_results)}
 
     tool_messages: List[ToolMessage] = []
+    batch_executions: List[dict] = []
     any_failure = False
     all_success = True
     # Iterate in the original tool_calls order so ToolMessage ids line up
@@ -787,6 +789,7 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
             continue
         tool_messages.append(r["message"])
         tool_executions.append(r["execution"])
+        batch_executions.append(r["execution"])
         error_count += r["error_increment"]
         if r["error_text"]:
             last_error = r["error_text"]
@@ -804,6 +807,10 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     if all_success and not any_failure:
         error_count = 0
         last_error = ""
+
+    retrieved_contexts = merge_retrieved_contexts(
+        state.get("retrieved_contexts", []), batch_executions
+    )
 
     # Prune to last 20 entries to prevent unbounded growth
     tool_executions = tool_executions[-20:]
@@ -832,6 +839,7 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     return {
         "messages": tool_messages,
         "tool_executions": tool_executions,
+        "retrieved_contexts": retrieved_contexts,
         "error_count": error_count,
         "last_error": last_error,
         "last_error_info": last_error_info,
@@ -941,6 +949,7 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         fresh_by_id = {tc["id"]: r for tc, r in zip(fresh_calls, fresh_results)}
 
         tool_messages = list(skipped_messages)
+        batch_executions: List[dict] = []
         any_failure = False
         all_success = True
         for tc in allowed_calls:
@@ -1003,6 +1012,7 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
                 continue
             tool_messages.append(r["message"])
             tool_executions.append(r["execution"])
+            batch_executions.append(r["execution"])
             error_count += r["error_increment"]
             if r["error_text"]:
                 last_error = r["error_text"]
@@ -1019,6 +1029,10 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
             error_count = 0
             last_error = ""
 
+        retrieved_contexts = merge_retrieved_contexts(
+            state.get("retrieved_contexts", []), batch_executions
+        )
+
         # Prune to last 20 entries to prevent unbounded growth
         tool_executions = tool_executions[-20:]
 
@@ -1031,6 +1045,7 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         return {
             "messages": tool_messages,
             "tool_executions": tool_executions,
+            "retrieved_contexts": retrieved_contexts,
             "error_count": error_count,
             "last_error": last_error,
             "last_error_info": last_error_info,

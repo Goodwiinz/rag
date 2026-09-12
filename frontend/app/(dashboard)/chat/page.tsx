@@ -32,6 +32,7 @@ function ChatPageContent() {
     conversations: session.conversations,
     setConversations: session.setConversations,
     dbConversation: session.dbConversation,
+    workspace: session.workspace,
     enableRAG,
   });
 

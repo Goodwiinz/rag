@@ -8149,6 +8149,26 @@ export interface paths {
         patch: operations["update_member_role_api_v2_workspaces__workspace_id__members__user_id__patch"];
         trace?: never;
     };
+    "/api/v2/workspaces/{workspace_id}/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Workspace Threads
+         * @description List threads across every live conversation in a workspace.
+         */
+        get: operations["list_workspace_threads_api_v2_workspaces__workspace_id__threads_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ws/broadcast": {
         parameters: {
             query?: never;
@@ -11703,6 +11723,11 @@ export interface components {
              * @default unknown
              */
             type: string;
+            /**
+             * Workspace Id
+             * @description Active chat workspace for durable thread creation
+             */
+            workspace_id?: string | null;
         };
         /**
          * PaginatedEntitiesResponse
@@ -14781,6 +14806,8 @@ export interface components {
             snippet?: string | null;
             /** Snippet Preview */
             snippet_preview?: string | null;
+            /** Source Position */
+            source_position?: number | null;
         };
         /**
          * MessageRole
@@ -29031,6 +29058,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkspaceMemberResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_workspace_threads_api_v2_workspaces__workspace_id__threads_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by status: active, resolved, archived */
+                status_filter?: string | null;
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["src__schemas__chat__ThreadListResponse"];
                 };
             };
             /** @description Validation Error */
