@@ -28,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: develop
           fetch-depth: 2
       - name: Skip stale sources and deployment-only commits
         id: source
@@ -36,7 +36,7 @@ jobs:
           SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           git fetch origin develop
-          if [ "$(git rev-parse origin/develop)" != "$SOURCE_SHA" ]; then
+          if [ "$(git rev-parse HEAD)" != "$SOURCE_SHA" ] || [ "$(git rev-parse origin/develop)" != "$SOURCE_SHA" ]; then
             echo "develop moved; the newer source run owns release preparation"
             exit 0
           fi
