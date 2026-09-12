@@ -218,10 +218,10 @@ async def test_assistant_without_provenance_persists_null_columns(
     db_session.info["_created"]["chat_messages"].append(row.id)
 
 
-async def test_assistant_citations_round_trip_in_source_order_with_locators(
+async def test_stopped_assistant_citations_round_trip_in_source_order_with_locators(
     db_session, thread_factory, user_factory
 ):
-    """Canonical [Doc N] positions and optional locators survive a reload."""
+    """A partial-stop row reloads canonical [Doc N] order and contents."""
     from uuid import UUID
 
     thread = await thread_factory()
@@ -248,6 +248,7 @@ async def test_assistant_citations_round_trip_in_source_order_with_locators(
         content="Answer [Doc 1] and [Doc 2].",
         model_name="gpt-5-mini",
         tool_executions_out=None,
+        stopped=True,
         retrieved_contexts=[
             {
                 "document_id": str(first_document_id),
@@ -279,7 +280,16 @@ async def test_assistant_citations_round_trip_in_source_order_with_locators(
         )
     )
     assert row is not None
+    assert row.stopped is True
     assert [citation.source_position for citation in row.citations] == [1, 2]
+    assert [citation.document_title for citation in row.citations] == [
+        "First",
+        "Second",
+    ]
+    assert [citation.snippet for citation in row.citations] == [
+        "first evidence",
+        "second evidence",
+    ]
     assert [citation.chunk_id for citation in row.citations] == [
         "first-chunk",
         "second-chunk",

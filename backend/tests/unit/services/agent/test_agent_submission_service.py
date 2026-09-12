@@ -35,7 +35,7 @@ from src.models.chat_message import ChatMessage, MessageRole
 from src.models.conversation import Conversation
 from src.models.message_attachment import MessageAttachment
 from src.models.thread import Thread
-from src.models.workspace import Workspace
+from src.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
 from src.services.agent import agent_submission_service as submission_mod
 from src.services.agent.agent_run_service import ActiveRunConflict
 from src.services.agent.agent_submission_service import (
@@ -80,6 +80,7 @@ async def session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
         # Conversation -> Workspace.owner_id, so those tables have to exist for
         # it to supersede anything.
         await conn.run_sync(Workspace.__table__.create)
+        await conn.run_sync(WorkspaceMember.__table__.create)
         await conn.run_sync(Conversation.__table__.create)
         await conn.run_sync(AgentRun.__table__.create)
         await conn.run_sync(AgentRunEvent.__table__.create)
@@ -517,6 +518,179 @@ async def test_accept_tombstones_the_edited_turn_and_its_tail(db: AsyncSession) 
         await db.execute(select(Thread.message_count).where(Thread.id == THREAD_ID))
     ).scalar_one()
     assert count == 0
+
+
+async def test_editor_accept_tombstones_the_edited_turn_and_its_tail(
+    db: AsyncSession,
+) -> None:
+    """An editor admitted by ``_resolve_thread`` can complete the same edit.
+
+    Regresses the split authorization where resolution accepted workspace
+    editors but the defense-in-depth tombstone query still required ownership,
+    committing the replacement beside an untouched old answer.
+    """
+    editor_id = uuid.uuid4()
+    db.add(
+        WorkspaceMember(
+            workspace_id=WORKSPACE_ID,
+            user_id=editor_id,
+            role=WorkspaceRole.EDITOR,
+        )
+    )
+    edited_cmid = uuid.uuid4()
+    await _seed_turn(
+        db,
+        cmid=edited_cmid,
+        content="owner question",
+        role=MessageRole.USER,
+    )
+    await _seed_turn(
+        db,
+        cmid=uuid.uuid4(),
+        content="owner answer",
+        role=MessageRole.ASSISTANT,
+    )
+
+    replacement_cmid = uuid.uuid4()
+    accepted = await accept_submission(
+        db,
+        current_user=_user(editor_id),
+        request=_request(
+            replacement_cmid,
+            "editor replacement",
+            supersedes=edited_cmid,
+        ),
+        thread=_thread(),
+    )
+
+    assert accepted.tombstoned is True
+    assert accepted.tombstoned_count == 2
+    rows = (
+        await db.execute(
+            select(
+                ChatMessage.client_message_id,
+                ChatMessage.superseded_by_message_id,
+            ).where(ChatMessage.thread_id == THREAD_ID)
+        )
+    ).all()
+    replacement = next(row for row in rows if row.client_message_id == replacement_cmid)
+    assert replacement.superseded_by_message_id is None
+    assert {
+        row.superseded_by_message_id
+        for row in rows
+        if row.client_message_id != replacement_cmid
+    } == {uuid.UUID(str(accepted.user_message_id))}
+
+
+@pytest.mark.parametrize("deleted_ancestor", ["thread", "conversation", "workspace"])
+async def test_tombstone_write_denies_soft_deleted_ancestor(
+    db: AsyncSession,
+    deleted_ancestor: str,
+) -> None:
+    """The write-side authorization must independently enforce live ancestry."""
+    from src.services.agent.agent_execution_service import _tombstone_superseded_turns
+
+    edited_cmid = uuid.uuid4()
+    await _seed_turn(
+        db,
+        cmid=edited_cmid,
+        content="question",
+        role=MessageRole.USER,
+    )
+    target = (
+        await db.execute(
+            select(ChatMessage).where(ChatMessage.client_message_id == edited_cmid)
+        )
+    ).scalar_one()
+    replacement = ChatMessage(
+        thread_id=THREAD_ID,
+        user_id=USER_A,
+        role=MessageRole.USER,
+        content="replacement",
+        client_message_id=uuid.uuid4(),
+    )
+    db.add(replacement)
+    ancestor_model, ancestor_id = {
+        "thread": (Thread, THREAD_ID),
+        "conversation": (Conversation, CONVERSATION_ID),
+        "workspace": (Workspace, WORKSPACE_ID),
+    }[deleted_ancestor]
+    ancestor = await db.get(ancestor_model, ancestor_id)
+    assert ancestor is not None
+    ancestor.is_deleted = True
+    await db.commit()
+
+    count = await _tombstone_superseded_turns(
+        db,
+        _user(),
+        thread_id=str(THREAD_ID),
+        supersedes_cmid=edited_cmid,
+        replacement_row_id=replacement.id,
+    )
+
+    await db.refresh(target)
+    assert count == 0
+    assert target.superseded_by_message_id is None
+
+
+@pytest.mark.parametrize(
+    ("role", "membership_deleted"),
+    [
+        (WorkspaceRole.VIEWER, False),
+        (WorkspaceRole.EDITOR, True),
+    ],
+    ids=["viewer", "revoked-editor"],
+)
+async def test_tombstone_write_denies_non_editable_membership(
+    db: AsyncSession,
+    role: WorkspaceRole,
+    membership_deleted: bool,
+) -> None:
+    """Read-only and revoked members cannot mutate an old conversation turn."""
+    from src.services.agent.agent_execution_service import _tombstone_superseded_turns
+
+    member_id = uuid.uuid4()
+    db.add(
+        WorkspaceMember(
+            workspace_id=WORKSPACE_ID,
+            user_id=member_id,
+            role=role,
+            is_deleted=membership_deleted,
+        )
+    )
+    edited_cmid = uuid.uuid4()
+    await _seed_turn(
+        db,
+        cmid=edited_cmid,
+        content="question",
+        role=MessageRole.USER,
+    )
+    target = (
+        await db.execute(
+            select(ChatMessage).where(ChatMessage.client_message_id == edited_cmid)
+        )
+    ).scalar_one()
+    replacement = ChatMessage(
+        thread_id=THREAD_ID,
+        user_id=member_id,
+        role=MessageRole.USER,
+        content="unauthorized replacement",
+        client_message_id=uuid.uuid4(),
+    )
+    db.add(replacement)
+    await db.commit()
+
+    count = await _tombstone_superseded_turns(
+        db,
+        _user(member_id),
+        thread_id=str(THREAD_ID),
+        supersedes_cmid=edited_cmid,
+        replacement_row_id=replacement.id,
+    )
+
+    await db.refresh(target)
+    assert count == 0
+    assert target.superseded_by_message_id is None
 
 
 async def test_accept_leaves_a_plain_turn_untombstoned(db: AsyncSession) -> None:

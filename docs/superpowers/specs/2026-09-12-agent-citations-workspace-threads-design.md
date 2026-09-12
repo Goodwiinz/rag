@@ -375,3 +375,49 @@ passed. The 424 backend and 75 frontend tests were also rerun successfully.
 The temporary dev server was stopped and the scratch database removed; only
 generated verification data was discarded. Existing audit/notebook files and
 package/lock files were left unchanged.
+
+## PR #1624 review follow-up — 2026-09-12
+
+Sol (high reasoning) addressed all four verified review findings:
+
+- Recover unavailable persisted/deep-linked threads on 403/404 without hiding
+  transient failures or replacing newer selections, turns, or workspace state.
+- Stamp server-owned durable/ephemeral checkpoint provenance. Only an owned,
+  explicitly ephemeral checkpoint with a live interrupt and checkpoint claim can
+  resume without a database thread; durable and unmarked checkpoints still
+  require current edit access. Ephemeral completion never writes chat rows.
+- Apply the same owner/live editable-membership and ancestor-deletion checks to
+  edit-and-resend tombstones as thread resolution.
+- Retain the latest raw cumulative retrieved contexts when persisting stopped
+  initial and confirmation answers, including carried sources and empty resets.
+
+Legacy dispatch/confirmation fixtures now exercise the intended branches through
+the current access boundary. The anti-enumeration test compares actual error
+payloads instead of counting source-code references. Astra reviewed the final
+production and test changes and approved them with no remaining findings.
+
+Verification after the functional fixes:
+
+- A clean checkout ran the CI-selected backend suite on Python 3.12: **5,489
+  passed, 80 skipped, 3 xpassed**, with no failures or collection errors. The
+  skips include existing external-service/evaluation requirements. The clean
+  copy excludes unrelated nested worktrees and stale Python cache directories.
+- The two new confirmation/partial-persistence suites were independently rerun:
+  **15 passed**. All previously failing CI paths passed their focused rerun.
+- Full frontend suite: **1,941 passed** across **285 files**.
+- PostgreSQL persistence: **6 passed**, including stopped-answer citation order,
+  title, snippet, page, and chunk round trips on a task-owned scratch database.
+  The thread-service suite was separately rerun with PostgreSQL available:
+  **158 passed**, including workspace access and workspace-wide thread listing.
+- Chromium live citation/workspace-list regression plus actual reload: **1
+  passed**. API/auth/SSE remain intercepted; this is not a live external LLM test.
+- All **59 changed Python files** passed pinned Ruff/Black/isort; all **11 added
+  Python files** passed pinned mypy. Frontend type-check, lint-debt/exclusion
+  ratchets, OpenAPI/types generation, directory docs, Alembic graph checks,
+  targeted migration delta, and empty-database migration replay passed.
+- Mutation checks proved the stale-response/URL guards and ephemeral
+  confirmation-claim guard fail when disabled and pass after restoration; exact
+  commands are recorded beside the regression tests.
+
+Existing advisory full-tree frontend lint debt remains; no baselines were
+relaxed. GitHub CI must rerun on the follow-up commit before merge.

@@ -25,6 +25,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const THREADS_PAGE_SIZE = 50;
 
+function getErrorStatus(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+  const candidate = error as {
+    error?: { status_code?: unknown };
+    response?: { status?: unknown };
+    status_code?: unknown;
+  };
+  const status =
+    candidate.error?.status_code ??
+    candidate.response?.status ??
+    candidate.status_code;
+  return typeof status === 'number' ? status : undefined;
+}
+
+function isUnavailableThreadError(error: unknown): boolean {
+  const status = getErrorStatus(error);
+  return status === 403 || status === 404;
+}
+
 // Shared by every workspace-thread call site (cold load, warm start, "show older")
 // so the sidebar's ChatConversation shape can't drift between them.
 function threadToConversation(thread: Thread): ChatConversation {
@@ -138,6 +157,11 @@ export function useChatSession(): UseChatSessionReturn {
   // session, while a re-login can start immediately instead of waiting on the
   // old request. Workspace service itself deduplicates same-session creates.
   const initGenerationRef = useRef(0);
+  // When initialization replaces a stale initial ?thread= target, Next may
+  // commit the local state update before its router.replace updates search
+  // params. Suppress only that exact obsolete value so the URL effect cannot
+  // replay the failed lookup in between those commits.
+  const unavailableInitialUrlThreadRef = useRef<string | null>(null);
 
   // ---- Auth ----
   const { isAuthenticated } = useAuthStore();
@@ -310,6 +334,11 @@ export function useChatSession(): UseChatSessionReturn {
       return;
     }
 
+    if (unavailableInitialUrlThreadRef.current) {
+      if (unavailableInitialUrlThreadRef.current === threadFromUrl) return;
+      unavailableInitialUrlThreadRef.current = null;
+    }
+
     if (threadFromUrl) {
       console.log('[Chat] Thread switch requested:', threadFromUrl);
       const targetConv = conversationsRef.current.find(
@@ -355,15 +384,37 @@ export function useChatSession(): UseChatSessionReturn {
           );
           setCurrentThread(thread.id);
         } catch (error: unknown) {
-          if (!cancelled) {
-            console.error('[Chat] Failed to fetch requested thread:', error);
-            // Deleted thread, revoked access, or a transient failure: leaving
-            // ?thread=<dead-id> in the URL would re-trigger this effect on
-            // every render and show whatever thread was previously active
-            // with no explanation. Say what happened and drop the dead param.
-            toast.error('Could not open that conversation. Please try again.');
-            routerRef.current.replace('/chat');
+          // A sidebar selection may supersede this request before either its
+          // success or failure settles. Neither result owns navigation then.
+          if (
+            cancelled ||
+            useChatStore.getState().currentThreadId !==
+              activeThreadAtRequestStart
+          ) {
+            return;
           }
+
+          console.error('[Chat] Failed to fetch requested thread:', error);
+          if (isUnavailableThreadError(error)) {
+            const currentThreadId = useChatStore.getState().currentThreadId;
+            const fallbackConversation =
+              conversationsRef.current.find(
+                (conversation) => conversation.id === currentThreadId
+              ) ?? conversationsRef.current[0];
+            const fallbackThreadId = fallbackConversation?.id ?? null;
+            setCurrentThread(fallbackThreadId);
+            toast.error('That conversation is no longer available.');
+            routerRef.current.replace(
+              fallbackThreadId
+                ? getSelectedThreadUrl(fallbackThreadId)
+                : '/chat'
+            );
+            return;
+          }
+
+          // A transient/server failure is retryable. Keep the requested URL
+          // intact instead of silently turning it into a different session.
+          toast.error('Could not open that conversation. Please try again.');
         }
       })();
 
@@ -648,9 +699,45 @@ export function useChatSession(): UseChatSessionReturn {
             (thread) => thread.id === restoreThreadId
           );
           if (!restoreThread) {
-            restoreThread = await workspaceService.getThread(restoreThreadId, {
-              includeMessages: false,
-            });
+            try {
+              restoreThread = await workspaceService.getThread(
+                restoreThreadId,
+                { includeMessages: false }
+              );
+            } catch (error: unknown) {
+              if (!ownsInitialization()) return;
+
+              // A late failure from the old restore target cannot turn a
+              // newer first send/sidebar selection into a global init error.
+              if (
+                useChatStore.getState().currentThreadId !==
+                selectionAtInitializationStart
+              ) {
+                if (requestedThreadId && isUnavailableThreadError(error)) {
+                  unavailableInitialUrlThreadRef.current = requestedThreadId;
+                }
+                isHydratedRef.current = true;
+                setInitError(null);
+                return;
+              }
+              if (!isUnavailableThreadError(error)) throw error;
+
+              const fallbackThreadId =
+                firstPageThreadsRef.current[0]?.id ?? null;
+              setCurrentThread(fallbackThreadId);
+              if (requestedThreadId) {
+                unavailableInitialUrlThreadRef.current = requestedThreadId;
+                toast.error('That conversation is no longer available.');
+              }
+              routerRef.current.replace(
+                fallbackThreadId
+                  ? getSelectedThreadUrl(fallbackThreadId)
+                  : '/chat'
+              );
+              isHydratedRef.current = true;
+              setInitError(null);
+              return;
+            }
           }
 
           if (!ownsInitialization()) return;

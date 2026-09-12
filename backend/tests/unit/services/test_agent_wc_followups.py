@@ -32,6 +32,16 @@ from src.services.agent.agent_execution_service import (
     _resume_agent_graph,
     _set_job,
 )
+from tests.utils.agent_thread_access import editable_thread_getter
+
+
+@pytest.fixture(autouse=True)
+def _allow_durable_thread_access(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "src.services.threads.workspace_access.get_thread",
+        editable_thread_getter(),
+    )
+
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -25,6 +25,7 @@ from src.api.agent.execute import (
     _set_job,
     router,
 )
+from tests.utils.agent_thread_access import editable_thread_getter
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -316,6 +317,13 @@ class TestResumePersistence:
     ``db.get(Thread, ...)`` and returns that thread's ids in the response — it
     no longer round-trips through the removed ``_persist_thread_messages`` shim.
     """
+
+    @pytest.fixture(autouse=True)
+    def _allow_durable_thread_access(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "src.services.threads.workspace_access.get_thread",
+            editable_thread_getter(),
+        )
 
     async def test_resume_persists_assistant_only(self):
         """After graph.ainvoke, the assistant row is persisted and the user
@@ -737,6 +745,10 @@ class TestSSEStreamPersistence:
                 new_callable=AsyncMock,
                 return_value=True,
             ),
+            patch(
+                "src.services.threads.workspace_access.get_thread",
+                new=editable_thread_getter(),
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.astream_events = Mock(
@@ -797,6 +809,10 @@ class TestSSEStreamPersistence:
             patch(
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
+            patch(
+                "src.services.threads.workspace_access.get_thread",
+                new=editable_thread_getter(),
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.astream_events = Mock()

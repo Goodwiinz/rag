@@ -110,26 +110,33 @@ function page(
 function deferred<T>(): {
   promise: Promise<T>;
   resolve: (value: T) => void;
+  reject: (reason: unknown) => void;
 } {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((done, fail) => {
     resolve = done;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 describe('useChatSession workspace-wide thread pages', () => {
   // Mutation checks (2026-09-12):
-  // - Guard `src/hooks/chat/useChatSession.ts:402-405`. Neutralizing the
+  // - Guard `src/hooks/chat/useChatSession.ts:453-456`. Neutralizing the
   //   first-page workspace/generation condition fails with thread-old
   //   appended:
   //   pnpm --dir frontend exec vitest run src/hooks/chat/__tests__/useChatSession.workspaceThreads.test.tsx -t "rejects a late first page" --reporter=dot
-  // - Guard `src/hooks/chat/useChatSession.ts:531-547`. Replacing the
+  // - Guard `src/hooks/chat/useChatSession.ts:581-599`. Replacing the
   //   pagination ID upsert with a plain append fails with duplicate thread-b:
   //   pnpm --dir frontend exec vitest run src/hooks/chat/__tests__/useChatSession.workspaceThreads.test.tsx -t "upserts an overlapping" --reporter=dot
-  // - Guard `src/hooks/chat/useChatSession.ts:447-450`. Forcing selection
+  // - Guard `src/hooks/chat/useChatSession.ts:498-501`. Forcing selection
   //   ownership true fails because the late ?new=1 page clears thread-created:
   //   pnpm --dir frontend exec vitest run src/hooks/chat/__tests__/useChatSession.workspaceThreads.test.tsx -t "preserves a newly created active row" --reporter=dot
+  // - Guard `src/hooks/chat/useChatSession.ts:708`. Removing initialization
+  //   ownership lets an unavailable detail from the old workspace navigate
+  //   the freshly initialized workspace:
+  //   pnpm --dir frontend exec vitest run src/hooks/chat/__tests__/useChatSession.workspaceThreads.test.tsx -t "ignores unavailable detail" --reporter=dot
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -354,6 +361,43 @@ describe('useChatSession workspace-wide thread pages', () => {
     expect(result.current.conversations.map(({ id }) => id)).toEqual([
       'thread-new',
     ]);
+    expect(chatStoreMocks.state.registerThread).not.toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'thread-old' })
+    );
+  });
+
+  it('ignores unavailable detail from an old workspace generation', async () => {
+    navigationMocks.threadId = 'thread-old';
+    const oldDetail = deferred<Thread>();
+    workspaceMocks.getOrCreateDefaultWorkspace
+      .mockResolvedValueOnce({ id: 'ws-old', name: 'Old workspace' })
+      .mockResolvedValueOnce({ id: 'ws-new', name: 'New workspace' });
+    workspaceMocks.listWorkspaceThreads.mockResolvedValue(page([]));
+    workspaceMocks.getThread.mockReturnValue(oldDetail.promise);
+
+    const { result, rerender } = renderHook(() => useChatSession());
+    await waitFor(() =>
+      expect(workspaceMocks.getThread).toHaveBeenCalledWith('thread-old', {
+        includeMessages: false,
+      })
+    );
+
+    authMocks.isAuthenticated = false;
+    rerender();
+    navigationMocks.threadId = null;
+    authMocks.isAuthenticated = true;
+    rerender();
+
+    await waitFor(() => expect(result.current.workspace?.id).toBe('ws-new'));
+    await act(async () => {
+      oldDetail.reject({ error: { status_code: 404 } });
+      await Promise.resolve();
+    });
+
+    expect(result.current.initError).toBeNull();
+    expect(result.current.conversations).toEqual([]);
+    expect(chatStoreMocks.state.currentThreadId).toBeNull();
+    expect(navigationMocks.replace).not.toHaveBeenCalledWith('/chat');
     expect(chatStoreMocks.state.registerThread).not.toHaveBeenCalledWith(
       expect.objectContaining({ id: 'thread-old' })
     );

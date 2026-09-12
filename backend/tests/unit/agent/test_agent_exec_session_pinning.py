@@ -29,7 +29,17 @@ from uuid import uuid4
 
 import pytest
 
+from tests.utils.agent_thread_access import editable_thread_getter
+
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def _allow_durable_thread_access(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "src.services.threads.workspace_access.get_thread",
+        editable_thread_getter(),
+    )
 
 
 def _make_mock_user(user_id: str = "user-pinning-test") -> Mock:

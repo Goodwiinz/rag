@@ -98,21 +98,48 @@ async def test_stream_confirm_checks_current_edit_access_before_checkpoint_resum
     from src.api.agent import streaming
     from src.api.agent.execute import StreamConfirmRequest
     from src.services.agent import checkpointer
+    from src.services.agent import graph as graph_module
+    from src.services.agent import memory
     from src.services.agent.agent_execution_service import AgentThreadResolutionError
 
     db = AsyncMock()
+    user = cast(User, SimpleNamespace(id=uuid4(), organization_id=uuid4()))
+    graph = SimpleNamespace(
+        aget_state=AsyncMock(
+            return_value=SimpleNamespace(
+                values={
+                    "user_id": str(user.id),
+                    "thread_persistence": "durable",
+                },
+                tasks=(),
+                config={"configurable": {"checkpoint_id": "checkpoint-owned"}},
+            )
+        ),
+        astream_events=AsyncMock(),
+    )
     monkeypatch.setattr(streaming, "AsyncSessionLocal", lambda: db)
+    monkeypatch.setattr(streaming, "_bootstrap_langsmith", Mock())
     resolve = AsyncMock(side_effect=AgentThreadResolutionError("Thread not found"))
     monkeypatch.setattr(streaming, "_resolve_thread", resolve)
-    get_checkpointer = AsyncMock(side_effect=AssertionError("checkpoint opened"))
+    get_checkpointer = AsyncMock(return_value=object())
     monkeypatch.setattr(checkpointer, "get_checkpointer", get_checkpointer)
+    monkeypatch.setattr(memory, "get_memory_store", AsyncMock(return_value=object()))
+    monkeypatch.setattr(graph_module, "compile_agent_graph", Mock(return_value=graph))
+    get_active_run = AsyncMock()
+    claim_run = AsyncMock()
+    monkeypatch.setattr(streaming, "get_active_run_for_thread", get_active_run)
+    monkeypatch.setattr(
+        streaming,
+        "claim_awaiting_run_for_confirmation",
+        claim_run,
+    )
 
     frames = [
         frame
         async for frame in streaming.stream_confirm_event_generator(
             StreamConfirmRequest(thread_id=str(uuid4()), confirmed=True),
             _request(),
-            cast(User, SimpleNamespace(id=uuid4(), organization_id=uuid4())),
+            user,
         )
     ]
 
@@ -122,4 +149,7 @@ async def test_stream_confirm_checks_current_edit_access_before_checkpoint_resum
     assert payload["error"] == "Thread not found"
     assert payload["category"] == "invalid_request"
     resolve.assert_awaited_once()
-    get_checkpointer.assert_not_awaited()
+    get_checkpointer.assert_awaited_once()
+    graph.astream_events.assert_not_called()
+    get_active_run.assert_not_awaited()
+    claim_run.assert_not_awaited()

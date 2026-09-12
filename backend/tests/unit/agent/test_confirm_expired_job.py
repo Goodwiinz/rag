@@ -22,8 +22,17 @@ from fastapi.testclient import TestClient
 
 from src.api.agent import execute as execute_mod
 from src.shared.enums import JobStatus
+from tests.utils.agent_thread_access import editable_thread_getter
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def _allow_durable_thread_access(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "src.services.threads.workspace_access.get_thread",
+        editable_thread_getter(),
+    )
 
 
 @pytest.fixture
@@ -97,7 +106,10 @@ def test_live_job_payload_still_confirms(
             return_value={
                 "status": JobStatus.AWAITING_CONFIRMATION,
                 "user_id": str(user.id),
-                "request": {"thread_id": str(uuid4())},
+                "request": {
+                    "thread_id": str(uuid4()),
+                    "messages": [{"role": "user", "content": "confirm ingest"}],
+                },
             }
         ),
     )
@@ -114,5 +126,5 @@ def test_live_job_payload_still_confirms(
 
     response = client.post(f"/api/v1/agent/confirm/{job_id}", json={"confirmed": True})
 
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
     assert response.json()["status"] == JobStatus.RUNNING

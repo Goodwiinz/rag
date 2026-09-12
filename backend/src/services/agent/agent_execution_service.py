@@ -59,6 +59,10 @@ from src.services.agent.job_store import (
     schedule_run_projection as _schedule_run_projection,
 )
 from src.services.agent.job_store import set_job as _set_job_async
+from src.services.agent.state import (
+    THREAD_PERSISTENCE_DURABLE,
+    THREAD_PERSISTENCE_EPHEMERAL,
+)
 from src.services.agent.trace_metadata import TraceSource, build_trace_metadata
 from src.shared.enums import JobStatus
 
@@ -1348,12 +1352,12 @@ async def _tombstone_superseded_turns(
     """
     from uuid import UUID
 
-    from sqlalchemy import and_, or_, select, update
+    from sqlalchemy import and_, exists, or_, select, update
 
     from src.models.chat_message import ChatMessage, MessageRole
     from src.models.conversation import Conversation
     from src.models.thread import Thread
-    from src.models.workspace import Workspace
+    from src.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
 
     try:
         tid = UUID(str(thread_id))
@@ -1365,22 +1369,37 @@ async def _tombstone_superseded_turns(
         )
         return 0
 
-    # Ownership: the thread must hang off a workspace this user owns. Callers
-    # resolve+verify the thread upstream (``_resolve_thread``); this is the
-    # same defense-in-depth join ``_chat_user_row_count`` uses, applied here
-    # because this statement WRITES.
-    owned_thread = (
+    # Defense in depth: mirror the actual write authorization accepted by
+    # ``_resolve_thread`` (owner or live owner/admin/editor membership), and
+    # re-check every soft-deletable ancestor. A public workspace grants read
+    # access, never edit access, and a stale upstream ORM object must not let a
+    # revoked member or deleted ancestor mutate message history.
+    editable_membership = exists().where(
+        WorkspaceMember.workspace_id == Workspace.id,
+        WorkspaceMember.user_id == current_user.id,
+        WorkspaceMember.is_deleted.is_(False),
+        WorkspaceMember.role.in_(
+            (WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.EDITOR)
+        ),
+    )
+    editable_thread = (
         select(Thread.id)
         .join(Conversation, Thread.conversation_id == Conversation.id)
         .join(Workspace, Conversation.workspace_id == Workspace.id)
-        .where(Thread.id == tid, Workspace.owner_id == current_user.id)
+        .where(
+            Thread.id == tid,
+            Thread.is_deleted.is_(False),
+            Conversation.is_deleted.is_(False),
+            Workspace.is_deleted.is_(False),
+            or_(Workspace.owner_id == current_user.id, editable_membership),
+        )
     ).scalar_subquery()
 
     target = (
         await db.execute(
             select(ChatMessage.id, ChatMessage.created_at).where(
                 ChatMessage.thread_id == tid,
-                ChatMessage.thread_id.in_(owned_thread),
+                ChatMessage.thread_id.in_(editable_thread),
                 ChatMessage.client_message_id == target_cmid,
                 ChatMessage.role == MessageRole.USER,
             )
@@ -2334,6 +2353,11 @@ async def _run_agent_graph(
                 "retrieved_contexts": [],
                 "tool_executions": [],
                 "thread_id": request.thread_id or "",
+                "thread_persistence": (
+                    THREAD_PERSISTENCE_DURABLE
+                    if resolved_thread_id is not None
+                    else THREAD_PERSISTENCE_EPHEMERAL
+                ),
                 "turn_index": 0,
                 "tool_loop_count": 0,
                 "error_count": 0,
